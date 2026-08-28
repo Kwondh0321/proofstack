@@ -3,6 +3,10 @@ import {
   type PrincipalContext,
   PrincipalContextSchema,
 } from "@proofstack/contracts";
+import {
+  ApiKeyCredentialNotActiveError,
+  InvalidApiKeyLifecycleInputError,
+} from "@proofstack/identity";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { type Authenticator, AuthenticationRequiredError } from "./auth.js";
@@ -435,5 +439,57 @@ describe("evidence routes", () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({ code: "unauthenticated" });
+  });
+});
+
+describe("identity management routes", () => {
+  it("reports unavailable identity storage explicitly", async () => {
+    const app = await testApp();
+    const response = await app.inject({
+      body: {
+        capabilities: ["evidence:ingest"],
+        name: "unavailable-test",
+        resourceScope: { mode: "tenant" },
+      },
+      method: "POST",
+      url: "/v1/identity/api-keys",
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({ code: "identity_unavailable", status: 503 });
+  });
+
+  it("maps lifecycle validation and inactive credentials to stable problems", async () => {
+    const invalid = await createApp(config, {
+      apiKeyLifecycle: {
+        issue: async () => {
+          throw new InvalidApiKeyLifecycleInputError("expiration is outside the allowed window");
+        },
+        revoke: async () => false,
+        rotate: async () => {
+          throw new ApiKeyCredentialNotActiveError("key_inactive");
+        },
+      },
+    });
+    apps.push(invalid);
+
+    const invalidIssue = await invalid.inject({
+      body: {
+        capabilities: ["evidence:ingest"],
+        name: "invalid-test",
+        resourceScope: { mode: "tenant" },
+      },
+      method: "POST",
+      url: "/v1/identity/api-keys",
+    });
+    const inactiveRotation = await invalid.inject({
+      method: "POST",
+      url: "/v1/identity/api-keys/key_inactive/rotate",
+    });
+
+    expect(invalidIssue.statusCode).toBe(400);
+    expect(invalidIssue.json()).toMatchObject({ code: "invalid_api_key_request", status: 400 });
+    expect(inactiveRotation.statusCode).toBe(409);
+    expect(inactiveRotation.json()).toMatchObject({ code: "api_key_not_active", status: 409 });
   });
 });

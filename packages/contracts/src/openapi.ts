@@ -9,6 +9,14 @@ import {
   TracePageCursorSchema,
   TraceResponseSchema,
 } from "./api.js";
+import {
+  IssueApiKeyRequestSchema,
+  IssueApiKeyResponseSchema,
+  RevokeApiKeyRequestSchema,
+  RevokeApiKeyResponseSchema,
+  RotateApiKeyRequestSchema,
+  RotateApiKeyResponseSchema,
+} from "./api-key.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
@@ -88,10 +96,24 @@ const environmentParameter = {
   schema: schemaReference("OpaqueId"),
 } as const;
 
+const credentialParameter = {
+  description: "Opaque API key credential identifier within the authenticated tenant",
+  in: "path",
+  name: "credentialId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const bearerSecurity = [{ bearerAuth: [] }] as const;
+
 const problemResponses = {
   "400": {
     content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
     description: "The request does not match the required contract",
+  },
+  "401": {
+    content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+    description: "Authentication is missing or invalid",
   },
   "403": {
     content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
@@ -118,13 +140,29 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor("ProblemDocument", ProblemDocumentSchema, "output"),
     ...componentsFor("LivenessResponse", LivenessResponseSchema, "output"),
     ...componentsFor("ReadinessResponse", ReadinessResponseSchema, "output"),
+    ...componentsFor("IssueApiKeyRequest", IssueApiKeyRequestSchema, "input"),
+    ...componentsFor("IssueApiKeyResponse", IssueApiKeyResponseSchema, "output"),
+    ...componentsFor("RotateApiKeyRequest", RotateApiKeyRequestSchema, "input"),
+    ...componentsFor("RotateApiKeyResponse", RotateApiKeyResponseSchema, "output"),
+    ...componentsFor("RevokeApiKeyRequest", RevokeApiKeyRequestSchema, "input"),
+    ...componentsFor("RevokeApiKeyResponse", RevokeApiKeyResponseSchema, "output"),
   };
 
   return {
-    components: { schemas },
+    components: {
+      schemas,
+      securitySchemes: {
+        bearerAuth: {
+          bearerFormat: "ProofStack API key",
+          description: "A complete ProofStack API key presented only in the Authorization header",
+          scheme: "bearer",
+          type: "http",
+        },
+      },
+    },
     info: {
       description:
-        "Foundation API for ingesting tenant-scoped agent evidence and inspecting causal traces. Production authentication is intentionally not implemented yet.",
+        "Foundation API for authenticated tenant-scoped evidence, trace inspection, and workload credential lifecycle. Browser OIDC remains under development.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -209,6 +247,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               description: "The request body exceeds the configured limit",
             },
           },
+          security: bearerSecurity,
           summary: "Ingest a bounded evidence batch",
           tags: ["Evidence"],
         },
@@ -261,8 +300,120 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             },
             ...problemResponses,
           },
+          security: bearerSecurity,
           summary: "Read a causal trace",
           tags: ["Evidence"],
+        },
+      },
+      "/v1/identity/api-keys": {
+        post: {
+          description:
+            "Creates a capability- and resource-scoped workload credential. The complete key value is returned only in this response.",
+          operationId: "issueApiKey",
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("IssueApiKeyRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "201": {
+              content: {
+                "application/json": { schema: schemaReference("IssueApiKeyResponse") },
+              },
+              description: "A new workload credential and its one-time value",
+            },
+            ...problemResponses,
+            "503": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "Identity management storage is unavailable",
+            },
+          },
+          security: bearerSecurity,
+          summary: "Issue a workload API key",
+          tags: ["Identity"],
+        },
+      },
+      "/v1/identity/api-keys/{credentialId}/revoke": {
+        post: {
+          operationId: "revokeApiKey",
+          parameters: [credentialParameter],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("RevokeApiKeyRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("RevokeApiKeyResponse") },
+              },
+              description: "The credential is revoked or was already revoked",
+            },
+            ...problemResponses,
+            "404": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "The credential does not exist in the authenticated tenant",
+            },
+            "503": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "Identity management storage is unavailable",
+            },
+          },
+          security: bearerSecurity,
+          summary: "Revoke a workload API key",
+          tags: ["Identity"],
+        },
+      },
+      "/v1/identity/api-keys/{credentialId}/rotate": {
+        post: {
+          description:
+            "Atomically revokes the previous credential and returns an independently generated replacement value once.",
+          operationId: "rotateApiKey",
+          parameters: [credentialParameter],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("RotateApiKeyRequest") },
+            },
+            required: false,
+          },
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("RotateApiKeyResponse") },
+              },
+              description: "The independently generated replacement credential and one-time value",
+            },
+            ...problemResponses,
+            "404": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "The credential does not exist in the authenticated tenant",
+            },
+            "409": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "The credential is expired, revoked, or already rotated",
+            },
+            "503": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "Identity management storage is unavailable",
+            },
+          },
+          security: bearerSecurity,
+          summary: "Rotate a workload API key",
+          tags: ["Identity"],
         },
       },
     },
@@ -270,6 +421,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     tags: [
       { description: "Process and dependency status", name: "Health" },
       { description: "Agent execution evidence", name: "Evidence" },
+      { description: "Workload credential lifecycle", name: "Identity" },
       { description: "Machine-readable service metadata", name: "Metadata" },
     ],
     "x-proofstack-evidence-schema-version": EVIDENCE_SCHEMA_VERSION,

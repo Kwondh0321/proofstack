@@ -3,6 +3,13 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
+  ApiKeyCredentialNotActiveError,
+  ApiKeyCredentialNotFoundError,
+  ApiKeyGenerationError,
+  ApiKeyLifecycle,
+  InvalidApiKeyLifecycleInputError,
+} from "@proofstack/identity";
+import {
   type Clock,
   EvidenceConflictError,
   type EvidenceRepository,
@@ -18,11 +25,17 @@ import { ZodError } from "zod";
 import { type Authenticator, AuthenticationRequiredError, createAuthenticator } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import { createIdentityStorage, type IdentityStorage } from "./identity-storage.js";
+import {
+  type ApiKeyLifecycleService,
+  IdentityManagementUnavailableError,
+  registerIdentityRoutes,
+} from "./identity-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerRoutes } from "./routes.js";
 import { createEvidenceStorage } from "./storage.js";
 
 export interface AppDependencies {
+  readonly apiKeyLifecycle?: ApiKeyLifecycleService;
   readonly authenticator?: Authenticator;
   readonly checkReadiness?: () => Promise<void>;
   readonly clock?: Clock;
@@ -80,16 +93,18 @@ export async function createApp(
     app.addHook("onClose", storage.close);
 
     let identityStorage: IdentityStorage | undefined;
+    if (dependencies.identityStorage) {
+      identityStorage = dependencies.identityStorage;
+    } else if (config.identityDatabaseUrl) {
+      identityStorage = await createIdentityStorage(config.identityDatabaseUrl, (error) => {
+        app.log.error({ error }, "Idle identity PostgreSQL connection failed");
+      });
+      app.addHook("onClose", identityStorage.close);
+    }
     if (!authenticator && config.authMode === "api_key") {
-      if (!config.identityDatabaseUrl) {
+      if (!identityStorage) {
         throw new Error("API key identity storage is not configured; startup refused");
       }
-      identityStorage =
-        dependencies.identityStorage ??
-        (await createIdentityStorage(config.identityDatabaseUrl, (error) => {
-          app.log.error({ error }, "Idle identity PostgreSQL connection failed");
-        }));
-      if (!dependencies.identityStorage) app.addHook("onClose", identityStorage.close);
       authenticator = createAuthenticator(config, {
         apiKeyCredentials: identityStorage.repository,
       });
@@ -115,6 +130,13 @@ export async function createApp(
       },
       ingestEvidence: new IngestEvidence(storage.repository, clock),
       listTraceEvidence: new ListTraceEvidence(storage.repository),
+    });
+    const apiKeyLifecycle =
+      dependencies.apiKeyLifecycle ??
+      (identityStorage ? new ApiKeyLifecycle(identityStorage.repository) : undefined);
+    await registerIdentityRoutes(app, {
+      ...(apiKeyLifecycle ? { apiKeyLifecycle } : {}),
+      authenticator,
     });
 
     app.setNotFoundHandler((request, reply) =>
@@ -156,6 +178,17 @@ export async function createApp(
         });
       }
 
+      if (error instanceof InvalidApiKeyLifecycleInputError) {
+        return sendProblem(reply, {
+          code: "invalid_api_key_request",
+          detail: error.message,
+          requestId: request.id,
+          status: 400,
+          title: "Invalid API key request",
+          type: "https://proofstack.dev/problems/invalid-api-key-request",
+        });
+      }
+
       if (error instanceof ForbiddenError) {
         return sendProblem(reply, {
           code: error.code,
@@ -175,6 +208,42 @@ export async function createApp(
           status: 409,
           title: "Evidence conflict",
           type: "https://proofstack.dev/problems/evidence-conflict",
+        });
+      }
+
+      if (error instanceof ApiKeyCredentialNotFoundError) {
+        return sendProblem(reply, {
+          code: "api_key_not_found",
+          detail: "The API key credential was not found",
+          requestId: request.id,
+          status: 404,
+          title: "API key not found",
+          type: "https://proofstack.dev/problems/api-key-not-found",
+        });
+      }
+
+      if (error instanceof ApiKeyCredentialNotActiveError) {
+        return sendProblem(reply, {
+          code: "api_key_not_active",
+          detail: "The API key credential is not active",
+          requestId: request.id,
+          status: 409,
+          title: "API key not active",
+          type: "https://proofstack.dev/problems/api-key-not-active",
+        });
+      }
+
+      if (
+        error instanceof ApiKeyGenerationError ||
+        error instanceof IdentityManagementUnavailableError
+      ) {
+        return sendProblem(reply, {
+          code: "identity_unavailable",
+          detail: "Identity management is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Identity unavailable",
+          type: "https://proofstack.dev/problems/identity-unavailable",
         });
       }
 

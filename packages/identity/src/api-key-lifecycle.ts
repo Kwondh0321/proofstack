@@ -119,6 +119,13 @@ export class ApiKeyGenerationError extends Error {
   }
 }
 
+export class InvalidApiKeyLifecycleInputError extends TypeError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidApiKeyLifecycleInputError";
+  }
+}
+
 export interface ApiKeyLifecycleDependencies {
   readonly clock: Clock;
   readonly generateId: (kind: "credential" | "workload") => string;
@@ -136,13 +143,17 @@ const defaultDependencies: ApiKeyLifecycleDependencies = {
 
 function requireName(name: string): string {
   const parsed = ApiKeyNameSchema.safeParse(name);
-  if (!parsed.success) throw new TypeError("API key name is invalid", { cause: parsed.error });
+  if (!parsed.success) {
+    throw new InvalidApiKeyLifecycleInputError("API key name is invalid", {
+      cause: parsed.error,
+    });
+  }
   return parsed.data;
 }
 
 function requireCredentialId(value: string): string {
   if (!OpaqueIdSchema.safeParse(value).success) {
-    throw new TypeError("API key credential identifier is invalid");
+    throw new InvalidApiKeyLifecycleInputError("API key credential identifier is invalid");
   }
   return value;
 }
@@ -158,11 +169,13 @@ function expiration(clock: Clock, requested?: string): string {
   const now = clock.now().getTime();
   const expiresAt = requested ?? new Date(now + DEFAULT_EXPIRATION_MS).toISOString();
   if (!TimestampSchema.safeParse(expiresAt).success) {
-    throw new TypeError("API key expiration must be an ISO 8601 timestamp");
+    throw new InvalidApiKeyLifecycleInputError("API key expiration must be an ISO 8601 timestamp");
   }
   const duration = new Date(expiresAt).getTime() - now;
   if (duration < MIN_EXPIRATION_MS || duration > MAX_EXPIRATION_MS) {
-    throw new RangeError("API key expiration must be between 1 minute and 365 days from now");
+    throw new InvalidApiKeyLifecycleInputError(
+      "API key expiration must be between 1 minute and 365 days from now",
+    );
   }
   return new Date(expiresAt).toISOString();
 }
@@ -170,7 +183,9 @@ function expiration(clock: Clock, requested?: string): string {
 function requireReason(reason: string): string {
   const parsed = ApiKeyRevocationReasonSchema.safeParse(reason);
   if (!parsed.success) {
-    throw new TypeError("API key revocation reason is invalid", { cause: parsed.error });
+    throw new InvalidApiKeyLifecycleInputError("API key revocation reason is invalid", {
+      cause: parsed.error,
+    });
   }
   return parsed.data;
 }
