@@ -35,6 +35,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@proofstack/artifacts": "workspace:*",
     "@proofstack/contracts": "workspace:*",
     "@proofstack/core": "workspace:*",
     "@proofstack/identity": "workspace:*",
