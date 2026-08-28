@@ -1,8 +1,12 @@
 import {
   EVIDENCE_SCHEMA_VERSION,
+  IngestEvidenceResponseSchema,
   IngestEvidenceRequestSchema,
+  LivenessResponseSchema,
   OpaqueIdSchema,
+  ReadinessResponseSchema,
   TraceIdSchema,
+  TraceResponseSchema,
 } from "@proofstack/contracts";
 import type { IngestEvidence, ListTraceEvidence } from "@proofstack/core";
 import type { FastifyInstance } from "fastify";
@@ -28,8 +32,8 @@ export async function registerRoutes(
   app: FastifyInstance,
   dependencies: RouteDependencies,
 ): Promise<void> {
-  app.get("/health/live", async () => ({ status: "ok" }));
-  app.get("/health/ready", async () => ({ status: "ready" }));
+  app.get("/health/live", async () => LivenessResponseSchema.parse({ status: "ok" }));
+  app.get("/health/ready", async () => ReadinessResponseSchema.parse({ status: "ready" }));
 
   app.post(
     "/v1/projects/:projectId/environments/:environmentId/evidence",
@@ -53,12 +57,14 @@ export async function registerRoutes(
         request: body,
       });
 
-      return reply.status(202).send({
-        acceptedEventIds: result.acceptedEventIds,
-        duplicateEventIds: result.duplicateEventIds,
-        requestId: request.id,
-        schemaVersion: EVIDENCE_SCHEMA_VERSION,
-      });
+      return reply.status(202).send(
+        IngestEvidenceResponseSchema.parse({
+          acceptedEventIds: result.acceptedEventIds,
+          duplicateEventIds: result.duplicateEventIds,
+          requestId: request.id,
+          schemaVersion: EVIDENCE_SCHEMA_VERSION,
+        }),
+      );
     },
   );
 
@@ -74,12 +80,12 @@ export async function registerRoutes(
         traceId: path.traceId,
       });
 
-      return {
+      return TraceResponseSchema.parse({
         events,
         requestId: request.id,
         schemaVersion: EVIDENCE_SCHEMA_VERSION,
         traceId: path.traceId,
-      };
+      });
     },
   );
 }

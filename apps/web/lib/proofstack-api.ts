@@ -1,20 +1,9 @@
 import {
-  EVIDENCE_SCHEMA_VERSION,
-  EvidenceEnvelopeSchema,
+  ReadinessResponseSchema,
   TraceIdSchema,
+  TraceResponseSchema,
+  type TraceResponse,
 } from "@proofstack/contracts";
-import { z } from "zod";
-
-const TraceResponseSchema = z
-  .object({
-    events: z.array(EvidenceEnvelopeSchema),
-    requestId: z.string().min(1),
-    schemaVersion: z.literal(EVIDENCE_SCHEMA_VERSION),
-    traceId: TraceIdSchema,
-  })
-  .strict();
-
-export type TraceResponse = z.infer<typeof TraceResponseSchema>;
 
 export type ApiResult<T> =
   | { readonly data: T; readonly ok: true }
@@ -61,7 +50,7 @@ export async function apiHealth(
       return { kind: "unavailable", message: `API returned HTTP ${response.status}`, ok: false };
     }
     const body: unknown = await response.json();
-    if (!z.object({ status: z.literal("ready") }).safeParse(body).success) {
+    if (!ReadinessResponseSchema.safeParse(body).success) {
       return { kind: "invalid_response", message: "API readiness response is invalid", ok: false };
     }
     return { data: "ready", ok: true };
