@@ -21,6 +21,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
+    "db:identity:bootstrap": "pnpm build && node dist/cli.js identity-bootstrap",
+    "db:identity:status": "pnpm build && node dist/cli.js identity-status",
     "db:migrate": "pnpm build && node dist/cli.js migrate",
     "db:provision": "pnpm build && node dist/cli.js provision",
     "db:status": "pnpm build && node dist/cli.js status",

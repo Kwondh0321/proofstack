@@ -13,6 +13,22 @@ function io() {
 }
 
 function dependencies(options: {
+  readonly bootstrap?: () => Promise<{
+    readonly credential: {
+      readonly capabilities: readonly ["evidence:ingest"];
+      readonly createdAt: string;
+      readonly credentialId: string;
+      readonly expiresAt: string;
+      readonly name: string;
+      readonly prefix: string;
+      readonly principalId: string;
+      readonly resourceScope: { readonly mode: "tenant" };
+      readonly revokedAt: null;
+      readonly rotatedFromCredentialId: null;
+      readonly tenantId: string;
+    };
+    readonly value: string;
+  }>;
   readonly inspect?: () => Promise<{
     readonly appliedIds: readonly string[];
     readonly ledgerExists: boolean;
@@ -23,6 +39,13 @@ function dependencies(options: {
     readonly ledgerExists: boolean;
     readonly newlyAppliedIds: readonly string[];
     readonly pendingIds: readonly string[];
+  }>;
+  readonly inspectIdentity?: () => Promise<{
+    readonly active: number;
+    readonly expired: number;
+    readonly revoked: number;
+    readonly tenantId: string;
+    readonly total: number;
   }>;
   readonly provision?: () => Promise<{
     readonly createdRoles: readonly string[];
@@ -35,10 +58,33 @@ function dependencies(options: {
       ({ end }) as unknown as Pool,
   );
   return {
+    bootstrap: vi.fn(
+      options.bootstrap ??
+        (async () => ({
+          credential: {
+            capabilities: ["evidence:ingest"] as const,
+            createdAt: "2026-08-28T04:00:00.000Z",
+            credentialId: "key_bootstrap_cli",
+            expiresAt: "2026-11-26T04:00:00.000Z",
+            name: "agent-ingestion",
+            prefix: "abcdefghijkl",
+            principalId: "wrk_bootstrap_cli",
+            resourceScope: { mode: "tenant" as const },
+            revokedAt: null,
+            rotatedFromCredentialId: null,
+            tenantId: "ten_acme",
+          },
+          value: ["psk", "v1", "abcdefghijkl", "one-time-credential-value"].join("_"),
+        })),
+    ),
     createPool,
     end,
     inspect:
       options.inspect ?? (async () => ({ appliedIds: [], ledgerExists: true, pendingIds: [] })),
+    inspectIdentity: vi.fn(
+      options.inspectIdentity ??
+        (async () => ({ active: 1, expired: 0, revoked: 0, tenantId: "ten_acme", total: 1 })),
+    ),
     migrate:
       options.migrate ??
       (async () => ({
@@ -209,6 +255,92 @@ describe("runDatabaseCli", () => {
         adapters,
       ),
     ).rejects.toThrow("PROOFSTACK_CONSUMER_DATABASE_PASSWORD");
+    expect(adapters.createPool).not.toHaveBeenCalled();
+  });
+
+  it("creates one explicitly scoped bootstrap key and prints its value once", async () => {
+    const streams = io();
+    const adapters = dependencies({});
+    const exitCode = await runDatabaseCli(
+      ["identity-bootstrap"],
+      {
+        PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+        PROOFSTACK_BOOTSTRAP_KEY_CAPABILITIES: "evidence:ingest",
+        PROOFSTACK_BOOTSTRAP_KEY_EXPIRES_AT: "2026-11-26T04:00:00.000Z",
+        PROOFSTACK_BOOTSTRAP_KEY_NAME: "agent-ingestion",
+        PROOFSTACK_BOOTSTRAP_KEY_RESOURCE_SCOPE: '{"mode":"tenant"}',
+        PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+        PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+      },
+      streams.value,
+      adapters,
+    );
+
+    const output = streams.outputs[0] ?? "";
+    const result = JSON.parse(output);
+    expect(exitCode).toBe(0);
+    expect(result).toMatchObject({
+      credential: { credentialId: "key_bootstrap_cli", tenantId: "ten_acme" },
+      status: "created",
+    });
+    expect(output.split("one-time-credential-value")).toHaveLength(2);
+    expect(output).not.toContain("hash");
+    expect(output).not.toContain("salt");
+    expect(adapters.bootstrap).toHaveBeenCalledWith(expect.anything(), {
+      actorPrincipalId: "usr_platform_operator",
+      capabilities: ["evidence:ingest"],
+      expiresAt: "2026-11-26T04:00:00.000Z",
+      name: "agent-ingestion",
+      resourceScope: { mode: "tenant" },
+      tenantId: "ten_acme",
+    });
+    expect(adapters.end).toHaveBeenCalledOnce();
+  });
+
+  it("reports aggregate identity status without credential material", async () => {
+    const streams = io();
+    const adapters = dependencies({});
+    const exitCode = await runDatabaseCli(
+      ["identity-status"],
+      {
+        PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+        PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+      },
+      streams.value,
+      adapters,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(streams.outputs[0] ?? "{}")).toEqual({
+      active: 1,
+      expired: 0,
+      revoked: 0,
+      status: "current",
+      tenantId: "ten_acme",
+      total: 1,
+    });
+    expect(adapters.inspectIdentity).toHaveBeenCalledWith(expect.anything(), "ten_acme");
+    expect(streams.outputs.join(" ")).not.toMatch(/hash|salt|prefix/i);
+  });
+
+  it("rejects malformed bootstrap scope before opening a connection", async () => {
+    const adapters = dependencies({});
+
+    await expect(
+      runDatabaseCli(
+        ["identity-bootstrap"],
+        {
+          PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+          PROOFSTACK_BOOTSTRAP_KEY_CAPABILITIES: "evidence:ingest",
+          PROOFSTACK_BOOTSTRAP_KEY_NAME: "agent-ingestion",
+          PROOFSTACK_BOOTSTRAP_KEY_RESOURCE_SCOPE: "not-json",
+          PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+          PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+        },
+        io().value,
+        adapters,
+      ),
+    ).rejects.toThrow("must be valid JSON");
     expect(adapters.createPool).not.toHaveBeenCalled();
   });
 

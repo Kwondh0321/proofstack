@@ -19,6 +19,8 @@
     "dev:db:down": "docker compose down",
     "dev:db:up": "docker compose up --detach --wait postgres",
     "dev:web": "pnpm --filter @proofstack/web dev",
+    "db:identity:bootstrap": "pnpm --filter @proofstack/postgres db:identity:bootstrap",
+    "db:identity:status": "pnpm --filter @proofstack/postgres db:identity:status",
     "db:migrate": "pnpm --filter @proofstack/postgres db:migrate",
     "db:provision": "pnpm --filter @proofstack/postgres db:provision",
     "db:status": "pnpm --filter @proofstack/postgres db:status",
