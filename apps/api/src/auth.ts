@@ -1,4 +1,4 @@
-import { PrincipalContextSchema, type PrincipalContext } from "@proofstack/contracts";
+import { type PrincipalContext, PrincipalContextSchema } from "@proofstack/contracts";
 import type { FastifyRequest } from "fastify";
 import type { ApiConfig } from "./config.js";
 
@@ -19,6 +19,8 @@ const DEVELOPMENT_CAPABILITIES = [
   "policy:manage",
   "approval:decide",
   "audit:read",
+  "identity:read",
+  "identity:manage",
 ] as const;
 
 class DevelopmentAuthenticator implements Authenticator {

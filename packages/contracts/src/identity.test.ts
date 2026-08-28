@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PrincipalContextSchema } from "./identity.js";
+import {
+  PrincipalContextSchema,
+  WORKLOAD_DELEGABLE_CAPABILITIES,
+  WorkloadCapabilitySchema,
+} from "./identity.js";
 
 const developmentPrincipal = {
   authentication: {
@@ -94,4 +98,24 @@ describe("PrincipalContextSchema", () => {
 
     expect(result.success).toBe(false);
   });
+});
+
+describe("WorkloadCapabilitySchema", () => {
+  it("keeps the exported allowlist and runtime schema identical", () => {
+    expect(WorkloadCapabilitySchema.options).toEqual(WORKLOAD_DELEGABLE_CAPABILITIES);
+  });
+
+  it.each(["evidence:ingest", "evaluation:run", "policy:evaluate"])(
+    "accepts delegable capability %s",
+    (capability) => {
+      expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(true);
+    },
+  );
+
+  it.each(["identity:manage", "approval:decide", "project:manage", "policy:manage"])(
+    "rejects administrative capability %s",
+    (capability) => {
+      expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(false);
+    },
+  );
 });

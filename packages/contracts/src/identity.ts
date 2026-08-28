@@ -25,7 +25,21 @@ export const CapabilitySchema = z.enum([
   "policy:manage",
   "approval:decide",
   "audit:read",
+  "identity:read",
+  "identity:manage",
 ]);
+
+export const WORKLOAD_DELEGABLE_CAPABILITIES = [
+  "project:read",
+  "evidence:ingest",
+  "evidence:read",
+  "evaluation:read",
+  "evaluation:run",
+  "release:read",
+  "policy:evaluate",
+] as const satisfies readonly z.infer<typeof CapabilitySchema>[];
+
+export const WorkloadCapabilitySchema = z.enum(WORKLOAD_DELEGABLE_CAPABILITIES);
 
 const uniqueOpaqueIds = (values: readonly string[]): boolean =>
   new Set(values).size === values.length;
@@ -119,3 +133,4 @@ export type PrincipalType = z.infer<typeof PrincipalTypeSchema>;
 export type ProjectResourceScope = z.infer<typeof ProjectResourceScopeSchema>;
 export type ResourceScope = z.infer<typeof ResourceScopeSchema>;
 export type Role = z.infer<typeof RoleSchema>;
+export type WorkloadCapability = z.infer<typeof WorkloadCapabilitySchema>;
