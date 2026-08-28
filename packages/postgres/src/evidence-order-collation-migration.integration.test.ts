@@ -26,18 +26,18 @@ async function traceOrderIndexState(pool: Pool): Promise<{
     readonly valid: boolean;
   }>(`
     SELECT
-      collation.collname AS collation_name,
-      collation_namespace.nspname AS collation_schema,
+      selected_collation.collname AS collation_name,
+      selected_collation_namespace.nspname AS collation_schema,
       index_metadata.indisready AS ready,
       index_metadata.indisvalid AS valid
     FROM pg_index AS index_metadata
     CROSS JOIN LATERAL
       unnest(index_metadata.indcollation::oid[]) WITH ORDINALITY
         AS index_key(collation_oid, key_position)
-    JOIN pg_collation AS collation
-      ON collation.oid = index_key.collation_oid
-    JOIN pg_namespace AS collation_namespace
-      ON collation_namespace.oid = collation.collnamespace
+    JOIN pg_collation AS selected_collation
+      ON selected_collation.oid = index_key.collation_oid
+    JOIN pg_namespace AS selected_collation_namespace
+      ON selected_collation_namespace.oid = selected_collation.collnamespace
     WHERE index_metadata.indexrelid =
       'public.proofstack_evidence_trace_order_idx'::regclass
       AND index_key.key_position = 7
