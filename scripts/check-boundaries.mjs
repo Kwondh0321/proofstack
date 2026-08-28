@@ -15,6 +15,11 @@ const modules = [
     packageName: "@proofstack/core",
   },
   {
+    allowed: new Set(["@proofstack/contracts"]),
+    directory: "packages/otlp/src",
+    packageName: "@proofstack/otlp",
+  },
+  {
     allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
     directory: "packages/artifacts/src",
     packageName: "@proofstack/artifacts",
@@ -61,6 +66,7 @@ const modules = [
       "@proofstack/core",
       "@proofstack/artifacts",
       "@proofstack/identity",
+      "@proofstack/otlp",
       "@proofstack/postgres",
     ]),
     directory: "apps/api/src",
