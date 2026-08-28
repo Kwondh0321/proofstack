@@ -4,6 +4,7 @@ import {
   EvidenceEnvelopeSchema,
   MAX_EVIDENCE_BATCH_SIZE,
 } from "./evidence.js";
+import { PrincipalContextSchema } from "./identity.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const RequestIdSchema = z.string().min(1).max(128);
@@ -17,6 +18,29 @@ export const TracePageCursorSchema = z
 
 export const LivenessResponseSchema = z.object({ status: z.literal("ok") }).strict();
 export const ReadinessResponseSchema = z.object({ status: z.literal("ready") }).strict();
+
+export const BrowserSessionResponseSchema = z
+  .object({
+    principal: PrincipalContextSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.principal.requestId !== value.requestId) {
+      context.addIssue({
+        code: "custom",
+        message: "principal.requestId must match requestId",
+        path: ["principal", "requestId"],
+      });
+    }
+  });
+
+export const BrowserLogoutResponseSchema = z
+  .object({
+    requestId: RequestIdSchema,
+    revoked: z.boolean(),
+  })
+  .strict();
 
 export const IngestEvidenceResponseSchema = z
   .object({
@@ -74,6 +98,8 @@ export const ProblemDocumentSchema = z
   .strict();
 
 export type IngestEvidenceResponse = z.infer<typeof IngestEvidenceResponseSchema>;
+export type BrowserLogoutResponse = z.infer<typeof BrowserLogoutResponseSchema>;
+export type BrowserSessionResponse = z.infer<typeof BrowserSessionResponseSchema>;
 export type LivenessResponse = z.infer<typeof LivenessResponseSchema>;
 export type ProblemDocument = z.infer<typeof ProblemDocumentSchema>;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;

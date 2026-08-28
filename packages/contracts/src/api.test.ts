@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  BrowserLogoutResponseSchema,
+  BrowserSessionResponseSchema,
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
   MAX_TRACE_PAGE_SIZE,
@@ -9,6 +11,20 @@ import {
 } from "./api.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+const browserPrincipal = {
+  authentication: {
+    authenticatedAt: "2026-08-28T05:00:00.000Z",
+    credentialId: "ses_contract_test",
+    method: "oidc",
+  },
+  capabilities: ["evidence:read"],
+  principalId: "usr_contract_test",
+  principalType: "user",
+  requestId: "req_test_001",
+  resourceScope: { mode: "tenant" },
+  roles: ["viewer"],
+  tenantId: "ten_contract_test",
+} as const;
 const traceEnvelope = {
   evidence: {
     eventId: "evt_contract_test",
@@ -39,6 +55,24 @@ describe("HTTP response contracts", () => {
     expect(LivenessResponseSchema.safeParse({ status: "ok", version: "unknown" }).success).toBe(
       false,
     );
+  });
+
+  it("validates browser session and logout responses", () => {
+    expect(
+      BrowserSessionResponseSchema.safeParse({
+        principal: browserPrincipal,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      BrowserSessionResponseSchema.safeParse({
+        principal: browserPrincipal,
+        requestId: "req_different",
+      }).success,
+    ).toBe(false);
+    expect(
+      BrowserLogoutResponseSchema.safeParse({ requestId: "req_test_001", revoked: true }).success,
+    ).toBe(true);
   });
 
   it("validates evidence acknowledgements", () => {
