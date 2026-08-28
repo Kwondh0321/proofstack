@@ -30,3 +30,4 @@ invalidate an ADR present in this directory.
 - [ADR-0005: Enforce tenant-scoped PostgreSQL transactions](0005-postgresql-tenancy-and-migrations.md)
 - [ADR-0006: Publish durable mutations with leased outbox delivery](0006-transactional-outbox-delivery.md)
 - [ADR-0007: Reserve consumer work with leased receipts](0007-leased-consumer-receipts.md)
+- [ADR-0008: Authenticate browsers and workloads with revocable server-side identity](0008-production-identity-boundary.md)
