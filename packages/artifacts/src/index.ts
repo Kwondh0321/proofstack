@@ -2,6 +2,7 @@ export * from "./artifact-crypto.js";
 export * from "./artifact-identifiers.js";
 export * from "./artifact-ports.js";
 export * from "./errors.js";
+export * from "./purge-artifact.js";
 export * from "./read-artifact.js";
 export * from "./reserve-artifact.js";
 export * from "./tombstone-artifact.js";
