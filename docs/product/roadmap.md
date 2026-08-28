@@ -71,15 +71,31 @@ or provider-compatibility claim.
 
 Goal: turn a failed production trace into repeatable evidence.
 
-- Immutable dataset and fixture versions.
-- Tool and model interaction capture with classified artifact references.
-- Deterministic stubs plus declared live-provider replay modes.
-- Replay budgets, cancellation, retry, and provenance.
-- Evaluator SDK with deterministic, statistical, and model-assisted evaluators.
-- Score confidence, evaluator version, input lineage, and disagreement inspection.
-- Diff view for baseline versus candidate traces, costs, latency, policy events, and artifacts.
+- [ ] Immutable evidence-only trace snapshots and dataset versions through memory, PostgreSQL,
+  API, SDK, tenant-isolation, outbox, and coordinated-recovery boundaries.
+- [ ] Retention-safe classified model and tool interaction capture with exact prompt, provider,
+  tool-contract, request, response, and artifact lineage.
+- [ ] Exact recorded-boundary replay with request matching, network-denied fallback, controlled
+  runtime inputs, and honest reproducibility classification.
+- [ ] Durable replay jobs with multidimensional budgets, cancellation, fenced leases,
+  predeclared retries, side-effect controls, usage reconciliation, and declared simulation or
+  live-provider modes.
+- [ ] Versioned sources, criteria, deterministic oracles, statistical evaluators, raw
+  observations, qualification, intervals, abstention, errors, coverage, and assessments.
+- [ ] Qualified model-assisted evaluators with exact model and prompt lineage, calibration,
+  independence groups, blinded order swaps, injection tests, counterevidence, disagreement, and
+  human review.
+- [ ] Exact baseline and candidate diff API and operator view for traces, distributions, cost,
+  latency, policy-independent safety events, artifacts, uncertainty, and coverage.
+- [ ] Independent end-to-end Workflow 1 audit covering correctness, usability, open-source
+  contribution, security, isolation, retention, recovery, failure modes, and public claims.
 
 No single model-judge score is sufficient evidence for a high-impact decision.
+
+The dependency boundary, risks, and executable gates for these checkpoints are recorded in the
+[Workflow 1 entry audit](../development/workflow-1-entry-audit.md) and
+[ADRs 0012–0014](../architecture/README.md). Workflow 2 remains blocked until the final Workflow 1
+audit is accepted.
 
 ## Workflow 2: reliability release gate
 

@@ -39,7 +39,7 @@ System of record (trusted persistence boundary)
         +--> operator console (authorized read model)
         +--> encrypted object storage (untrusted for plaintext confidentiality)
         +--> scoped artifact maintenance (privileged lifecycle worker)
-        +--> evaluation/release workers (future privileged consumers)
+        +--> bounded replay/evaluation workers (future privileged consumers)
 ```
 
 The SDK runs inside an application that may be buggy or compromised. Event identifiers, tenant
@@ -65,6 +65,11 @@ tools, change policy, or approve a release.
 | Partial database/object-store commit | Explicit reserved, available, tombstoned, and purged states | Reconciliation, bounded retries, pending-state alerts, and recovery rehearsal |
 | Key loss or unsafe retirement | Versioned key references and active/configured key inspection | External key backup, rotation, rewrap, restore, and destruction procedures |
 | Prompt injection through telemetry | Evidence is treated as untrusted display data | Sandboxed analysis and explicit tool/policy authorization |
+| Incomplete trace presented as a replay | A fixture records exact observed event IDs and declares evidence-only snapshot semantics | Retention-safe interaction capture and executable replay acceptance |
+| Poisoned, inapplicable, or stale evaluation criteria | Sources, applicability, assumptions, counterevidence, approvals, and versions remain separate evidence | Qualification corpus, independent review, freshness checks, and Workflow 2 policy |
+| Search or generated summaries treated as authority | Search records discovery provenance only; the underlying primary source must be snapshotted and verified | Source licensing, conflict, supersession, and applicability operations |
+| Model-judge bias, correlation, or prompt injection | Evaluators are untrusted, versioned, qualified, calibrated, grouped by lineage, and allowed to abstain | Blinded order swaps, injection corpus, slice metrics, disagreement, and non-model evidence |
+| Replay retry amplification or real-world side effects | Modes, budgets, retries, cancellation, and effect classes are fixed before execution | Sandboxed workers, provider reconciliation, fencing, and destination idempotency tests |
 | SSRF through content references | Ingestion stores descriptors and does not fetch supplied URLs | Allowlisted object access broker with egress controls |
 | Resource exhaustion | Batch, field, body, and request-rate bounds | Tenant quotas, backpressure, load tests, and capacity alerts |
 | Missing telemetry affecting the workload | TypeScript SDK is fail-open by default with bounded buffering | Loss metrics, durable collectors, and selectable delivery guarantees |
@@ -91,6 +96,11 @@ tools, change policy, or approve a release.
 9. Development authentication cannot be enabled by a production configuration.
 10. Unexpected failures do not expose stack traces or stored evidence through the API.
 11. No automated evaluation or model output can approve its own production release.
+12. Telemetry and fixture content cannot expand replay tools, credentials, network access, budgets,
+    or retry policy.
+13. Search results and evaluator outputs cannot establish their own source authority,
+    qualification, calibration, or applicability.
+14. Assessment evidence and release decisions use separate versioned contracts and authorities.
 
 ## Current limitations
 
@@ -111,6 +121,8 @@ tools, change policy, or approve a release.
   include gRPC, other signals, generic secret detection, raw-input quarantine, distributed loss
   metrics, or a production collector compatibility matrix.
 - There is no tamper-evident audit ledger, signed evidence, or production release gate.
+- Workflow 1 architecture is accepted, but immutable dataset catalogs, interaction capture, replay
+  workers, evaluator assurance, assessments, and comparison surfaces are not yet implemented.
 
 These limitations are visible product state. They must not be hidden behind configuration defaults
 or marketing language.
