@@ -21,6 +21,11 @@ const modules = [
   },
   {
     allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
+    directory: "packages/postgres/src",
+    packageName: "@proofstack/postgres",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
     directory: "apps/api/src",
     packageName: "@proofstack/api",
   },

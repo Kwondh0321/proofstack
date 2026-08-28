@@ -11,7 +11,9 @@ allowBuilds:
 
 catalog:
   "@types/node": 24.13.3
+  "@types/pg": 8.23.1
   "@vitest/coverage-v8": 4.1.11
+  "pg": 8.23.0
   "typescript": 6.0.3
   "vitest": 4.1.11
   "zod": 4.4.3
