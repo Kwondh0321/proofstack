@@ -143,6 +143,9 @@ The [Foundation 2 durable core audit](docs/development/foundation-2-durable-core
 the accepted PostgreSQL and delivery-state checkpoint without claiming the remaining stage is done.
 The [Foundation 2 identity audit](docs/development/foundation-2-identity-audit.md) records the
 accepted workload and browser identity checkpoint and its remaining deployment limitations.
+The [Foundation 2 artifact audit](docs/development/foundation-2-artifact-audit.md) records the
+accepted encrypted lifecycle and operator checkpoint without claiming API or production-key
+composition.
 
 ## Current boundaries
 

@@ -143,6 +143,9 @@ scripts                  저장소 수준 아키텍처 경계 검사
 남은 단계를 완성했다고 주장하지 않으면서 PostgreSQL과 전달 상태의 승인 근거를 정리합니다.
 [Foundation 2 아이덴티티 감사 기록](docs/development/foundation-2-identity-audit.md)에는
 워크로드·브라우저 아이덴티티 체크포인트의 승인 근거와 남은 배포 제한사항을 정리합니다.
+[Foundation 2 아티팩트 감사 기록](docs/development/foundation-2-artifact-audit.md)에는 API 또는
+프로덕션 키 결합을 완성했다고 주장하지 않으면서 암호화 수명주기와 운영자 체크포인트의
+승인 근거를 정리합니다.
 
 ## 현재의 경계
 
