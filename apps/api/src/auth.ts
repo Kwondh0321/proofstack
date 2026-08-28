@@ -41,7 +41,7 @@ export class BrowserRequestRejectedError extends Error {
 export const BROWSER_SESSION_COOKIE = "__Host-proofstack_session";
 export const BROWSER_CSRF_COOKIE = "__Host-proofstack_csrf";
 
-function cookieValue(header: string | undefined, name: string): string | null {
+export function readSingleCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
   const values: string[] = [];
   for (const segment of header.split(";")) {
@@ -124,7 +124,7 @@ export class BrowserSessionRequestAuthenticator implements Authenticator {
   }
 
   async authenticateSession(request: FastifyRequest): Promise<AuthenticatedBrowserSession> {
-    const sessionToken = cookieValue(request.headers.cookie, BROWSER_SESSION_COOKIE);
+    const sessionToken = readSingleCookie(request.headers.cookie, BROWSER_SESSION_COOKIE);
     if (!sessionToken) throw new AuthenticationRequiredError();
 
     let authenticated: AuthenticatedBrowserSession;
@@ -138,7 +138,7 @@ export class BrowserSessionRequestAuthenticator implements Authenticator {
     }
 
     if (requiresCsrf(request.method)) {
-      const csrfCookie = cookieValue(request.headers.cookie, BROWSER_CSRF_COOKIE);
+      const csrfCookie = readSingleCookie(request.headers.cookie, BROWSER_CSRF_COOKIE);
       const csrfHeader = request.headers["x-proofstack-csrf"];
       const origin = request.headers.origin;
       if (
