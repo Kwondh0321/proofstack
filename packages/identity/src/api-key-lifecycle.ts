@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  ApiKeyNameSchema,
+  ApiKeyRevocationReasonSchema,
   OpaqueIdSchema,
   type PrincipalContext,
   type ResourceScope,
@@ -25,15 +27,6 @@ const DEFAULT_EXPIRATION_MS = 90 * 24 * 60 * 60 * 1_000;
 const MIN_EXPIRATION_MS = 60 * 1_000;
 const MAX_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1_000;
 const MAX_GENERATION_ATTEMPTS = 3;
-const MAX_NAME_LENGTH = 128;
-const MAX_REVOCATION_REASON_LENGTH = 512;
-
-function containsControlCharacter(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f);
-  });
-}
 
 export interface ManagedApiKeyCredential {
   readonly capabilities: readonly WorkloadCapability[];
@@ -142,15 +135,9 @@ const defaultDependencies: ApiKeyLifecycleDependencies = {
 };
 
 function requireName(name: string): string {
-  if (
-    name.length === 0 ||
-    Array.from(name).length > MAX_NAME_LENGTH ||
-    name.trim() !== name ||
-    containsControlCharacter(name)
-  ) {
-    throw new TypeError(`API key name must contain 1 to ${MAX_NAME_LENGTH} printable characters`);
-  }
-  return name;
+  const parsed = ApiKeyNameSchema.safeParse(name);
+  if (!parsed.success) throw new TypeError("API key name is invalid", { cause: parsed.error });
+  return parsed.data;
 }
 
 function requireCredentialId(value: string): string {
@@ -181,17 +168,11 @@ function expiration(clock: Clock, requested?: string): string {
 }
 
 function requireReason(reason: string): string {
-  if (
-    reason.length === 0 ||
-    reason.length > MAX_REVOCATION_REASON_LENGTH ||
-    reason.trim() !== reason ||
-    containsControlCharacter(reason)
-  ) {
-    throw new TypeError(
-      `API key revocation reason must contain 1 to ${MAX_REVOCATION_REASON_LENGTH} printable characters`,
-    );
+  const parsed = ApiKeyRevocationReasonSchema.safeParse(reason);
+  if (!parsed.success) {
+    throw new TypeError("API key revocation reason is invalid", { cause: parsed.error });
   }
-  return reason;
+  return parsed.data;
 }
 
 function requireIdentityManager(issuer: PrincipalContext, targetScope: ResourceScope): void {
