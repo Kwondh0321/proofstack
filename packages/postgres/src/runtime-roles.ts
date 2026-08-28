@@ -5,6 +5,7 @@ import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
 export const DEFAULT_RUNTIME_ROLE_NAMES = {
   api: "proofstack_api",
   consumer: "proofstack_consumer",
+  identity: "proofstack_identity",
   publisher: "proofstack_publisher",
 } as const;
 
@@ -24,6 +25,7 @@ export interface RuntimeRoleCredentials {
 export interface RuntimeRoleProvisioningOptions {
   readonly api: RuntimeRoleCredentials;
   readonly consumer: RuntimeRoleCredentials;
+  readonly identity: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
 }
 
@@ -47,11 +49,32 @@ interface StatementRow extends QueryResultRow {
 }
 
 const PLATFORM_TABLES = [
+  "proofstack_api_key_credentials",
   "proofstack_consumer_receipts",
   "proofstack_evidence_events",
+  "proofstack_identity_audit_events",
   "proofstack_outbox",
   "proofstack_projection_cursors",
   "proofstack_schema_migrations",
+] as const;
+
+const PLATFORM_FUNCTIONS = [
+  "public.proofstack_create_api_key(text, text, text, text, text, text[], jsonb, text, integer, integer, integer, integer, text, text, timestamptz, text)",
+  "public.proofstack_find_active_api_key(text)",
+  "public.proofstack_find_api_key(text, text)",
+  "public.proofstack_guard_api_key_mutation()",
+  "public.proofstack_guard_consumer_receipt_transition()",
+  "public.proofstack_guard_outbox_mutation()",
+  "public.proofstack_guard_projection_cursor()",
+  "public.proofstack_record_api_key_use(text, text, text)",
+  "public.proofstack_reject_evidence_mutation()",
+  "public.proofstack_reject_identity_audit_mutation()",
+  "public.proofstack_require_identity_tenant(text)",
+  "public.proofstack_revoke_api_key(text, text, text, text)",
+  "public.proofstack_rotate_api_key(text, text, text, text, text, integer, integer, integer, integer, text, text, timestamptz, text)",
+  "public.proofstack_valid_resource_scope(jsonb)",
+  "public.proofstack_valid_workload_capabilities(text[])",
+  "public.proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)",
 ] as const;
 
 const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
@@ -63,6 +86,15 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
   consumer: [
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_consumer_receipts TO %ROLE%",
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_projection_cursors TO %ROLE%",
+  ],
+  identity: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_find_active_api_key(text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_find_api_key(text, text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_create_api_key(text, text, text, text, text, text[], jsonb, text, integer, integer, integer, integer, text, text, timestamptz, text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_rotate_api_key(text, text, text, text, text, integer, integer, integer, integer, text, text, timestamptz, text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_revoke_api_key(text, text, text, text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_record_api_key_use(text, text, text) TO %ROLE%",
   ],
   publisher: ["GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO %ROLE%"],
 };
@@ -99,6 +131,7 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
   const validated = {
     api: validateCredentials("api", options.api),
     consumer: validateCredentials("consumer", options.consumer),
+    identity: validateCredentials("identity", options.identity),
     publisher: validateCredentials("publisher", options.publisher),
   };
   const names = Object.values(validated).map(({ name }) => name);
@@ -208,6 +241,9 @@ async function provisionRole(
     `REVOKE ALL PRIVILEGES ON TABLE ${PLATFORM_TABLES.map((table) => `public.${table}`).join(", ")} FROM ${role}`,
   );
   await client.query(`REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ${role}`);
+  await client.query(
+    `REVOKE ALL PRIVILEGES ON FUNCTION ${PLATFORM_FUNCTIONS.join(", ")} FROM ${role}`,
+  );
   for (const grant of GRANTS[kind]) {
     await client.query(grant.replace("%ROLE%", role));
   }
@@ -228,7 +264,9 @@ async function assertSchemaCurrent(client: PoolClient): Promise<void> {
     SELECT every(to_regclass(name) IS NOT NULL) AS present
     FROM unnest(ARRAY[
       'public.proofstack_schema_migrations',
+      'public.proofstack_api_key_credentials',
       'public.proofstack_evidence_events',
+      'public.proofstack_identity_audit_events',
       'public.proofstack_outbox',
       'public.proofstack_projection_cursors',
       'public.proofstack_consumer_receipts'
@@ -263,7 +301,7 @@ export async function provisionRuntimeRoles(
 
       const createdRoles: string[] = [];
       const updatedRoles: string[] = [];
-      for (const kind of ["api", "publisher", "consumer"] as const) {
+      for (const kind of ["api", "identity", "publisher", "consumer"] as const) {
         const outcome = await provisionRole(client, kind, validated[kind]);
         (outcome === "created" ? createdRoles : updatedRoles).push(validated[kind].name);
       }

@@ -71,9 +71,10 @@ pnpm db:status
 pnpm dev
 ```
 
-The API connects as `proofstack_api`, not as the database administrator. It verifies the complete
-migration ledger at startup and readiness checks. Stop the local database without deleting evidence
-with:
+The evidence API connects as `proofstack_api`, not as the database administrator. The separately
+provisioned `proofstack_identity` role can execute only the fixed credential lifecycle functions;
+it cannot read identity base tables or evidence. The API verifies the complete migration ledger at
+startup and readiness checks. Stop the local database without deleting evidence with:
 
 ```bash
 pnpm dev:db:down
@@ -114,9 +115,11 @@ cannot produce a false successful demonstration.
 | `PROOFSTACK_DATABASE_URL` | unset | API | Least-privilege runtime database URL in PostgreSQL mode |
 | `PROOFSTACK_MIGRATION_DATABASE_URL` | unset | database CLI | Administrative migration and provisioning URL |
 | `PROOFSTACK_API_DATABASE_ROLE` | `proofstack_api` | database CLI | Managed API role name |
+| `PROOFSTACK_IDENTITY_DATABASE_ROLE` | `proofstack_identity` | database CLI | Managed identity role name |
 | `PROOFSTACK_PUBLISHER_DATABASE_ROLE` | `proofstack_publisher` | database CLI | Managed outbox publisher role name |
 | `PROOFSTACK_CONSUMER_DATABASE_ROLE` | `proofstack_consumer` | database CLI | Managed consumer role name |
 | `PROOFSTACK_API_DATABASE_PASSWORD` | unset | database CLI | API role password used only during provisioning |
+| `PROOFSTACK_IDENTITY_DATABASE_PASSWORD` | unset | database CLI | Identity role password used only during provisioning |
 | `PROOFSTACK_PUBLISHER_DATABASE_PASSWORD` | unset | database CLI | Publisher role password used only during provisioning |
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
 | `PROOFSTACK_POSTGRES_PORT` | `5432` | Compose | Loopback host port for the local database |

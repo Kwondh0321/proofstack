@@ -19,6 +19,8 @@ interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_CONSUMER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_DATABASE_URL?: string;
   readonly PROOFSTACK_ENV?: string;
+  readonly PROOFSTACK_IDENTITY_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_IDENTITY_DATABASE_ROLE?: string;
   readonly PROOFSTACK_MIGRATION_DATABASE_URL?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_ROLE?: string;
@@ -80,9 +82,10 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
   const apiPassword = environment.PROOFSTACK_API_DATABASE_PASSWORD;
   const publisherPassword = environment.PROOFSTACK_PUBLISHER_DATABASE_PASSWORD;
   const consumerPassword = environment.PROOFSTACK_CONSUMER_DATABASE_PASSWORD;
-  if (!apiPassword || !publisherPassword || !consumerPassword) {
+  const identityPassword = environment.PROOFSTACK_IDENTITY_DATABASE_PASSWORD;
+  if (!apiPassword || !publisherPassword || !consumerPassword || !identityPassword) {
     throw new DatabaseCliUsageError(
-      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
+      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
     );
   }
   return {
@@ -93,6 +96,10 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
     consumer: {
       name: environment.PROOFSTACK_CONSUMER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.consumer,
       password: consumerPassword,
+    },
+    identity: {
+      name: environment.PROOFSTACK_IDENTITY_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.identity,
+      password: identityPassword,
     },
     publisher: {
       name: environment.PROOFSTACK_PUBLISHER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.publisher,

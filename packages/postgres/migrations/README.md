@@ -18,8 +18,8 @@ pnpm db:status
 `db:migrate` serializes runners with a PostgreSQL advisory lock and records each migration only
 after its transaction commits. `db:provision` refuses a missing, pending, unknown, or
 checksum-mismatched migration history before it changes runtime roles. It creates or rotates marked
-API, publisher, and consumer roles, removes stale ProofStack grants, and reapplies the audited
-least-privilege matrix.
+API, identity, publisher, and consumer roles, removes stale ProofStack table, sequence, and function
+grants, and reapplies the audited least-privilege matrix.
 
 After a migration is shared, never edit or reorder it. Add the next numbered file for every schema
 change. Destructive rollback is not automated; recovery must use a tested forward repair or a

@@ -17,6 +17,7 @@ const runKey = Date.now().toString();
 const roleNames = {
   api: `proofstack_it_api_${runKey}`,
   consumer: `proofstack_it_consumer_${runKey}`,
+  identity: `proofstack_it_identity_role_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
 };
 const sequenceName = `proofstack_it_sequence_${runKey}`;
@@ -27,6 +28,7 @@ function provisioningOptions(suffix: string): RuntimeRoleProvisioningOptions {
   return {
     api: { name: roleNames.api, password: `proofstack-api-${suffix}-password` },
     consumer: { name: roleNames.consumer, password: `proofstack-consumer-${suffix}-password` },
+    identity: { name: roleNames.identity, password: `proofstack-identity-${suffix}-password` },
     publisher: { name: roleNames.publisher, password: `proofstack-publisher-${suffix}-password` },
   };
 }
@@ -65,7 +67,7 @@ describe("runtime role provisioning", () => {
   it("creates isolated least-privilege roles and rotates their credentials", async () => {
     const initial = provisioningOptions("initial");
     await expect(provisionRuntimeRoles(adminPool, initial)).resolves.toEqual({
-      createdRoles: [roleNames.api, roleNames.publisher, roleNames.consumer],
+      createdRoles: [roleNames.api, roleNames.identity, roleNames.publisher, roleNames.consumer],
       updatedRoles: [],
     });
 
@@ -101,7 +103,7 @@ describe("runtime role provisioning", () => {
       `,
       [Object.values(roleNames)],
     );
-    expect(roleState.rows).toHaveLength(3);
+    expect(roleState.rows).toHaveLength(4);
     expect(
       roleState.rows.every(
         ({
@@ -125,6 +127,7 @@ describe("runtime role provisioning", () => {
     expect(roleState.rows.map(({ marker }) => marker).sort()).toEqual([
       "proofstack-managed-runtime-role:v1:api",
       "proofstack-managed-runtime-role:v1:consumer",
+      "proofstack-managed-runtime-role:v1:identity",
       "proofstack-managed-runtime-role:v1:publisher",
     ]);
 
@@ -134,6 +137,8 @@ describe("runtime role provisioning", () => {
       readonly evidence_insert: boolean;
       readonly evidence_select: boolean;
       readonly evidence_update: boolean;
+      readonly identity_lookup_execute: boolean;
+      readonly identity_select: boolean;
       readonly ledger_select: boolean;
       readonly outbox_insert: boolean;
       readonly outbox_select: boolean;
@@ -146,6 +151,16 @@ describe("runtime role provisioning", () => {
         has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT') AS evidence_select,
         has_table_privilege(current_user, 'proofstack_evidence_events', 'INSERT') AS evidence_insert,
         has_table_privilege(current_user, 'proofstack_evidence_events', 'UPDATE') AS evidence_update,
+        has_table_privilege(
+          current_user,
+          'proofstack_api_key_credentials',
+          'SELECT'
+        ) AS identity_select,
+        has_function_privilege(
+          current_user,
+          'proofstack_find_active_api_key(text)',
+          'EXECUTE'
+        ) AS identity_lookup_execute,
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
         has_sequence_privilege(
@@ -161,6 +176,8 @@ describe("runtime role provisioning", () => {
       evidence_insert: true,
       evidence_select: true,
       evidence_update: false,
+      identity_lookup_execute: false,
+      identity_select: false,
       ledger_select: true,
       outbox_insert: true,
       outbox_select: false,
@@ -170,21 +187,77 @@ describe("runtime role provisioning", () => {
     const publisherPool = poolFor(initial.publisher);
     const publisherPrivileges = await publisherPool.query<{
       readonly evidence_select: boolean;
+      readonly identity_lookup_execute: boolean;
+      readonly identity_select: boolean;
       readonly outbox_insert: boolean;
       readonly outbox_select: boolean;
       readonly outbox_update: boolean;
     }>(`
       SELECT
         has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT') AS evidence_select,
+        has_table_privilege(current_user, 'proofstack_api_key_credentials', 'SELECT')
+          AS identity_select,
+        has_function_privilege(
+          current_user,
+          'proofstack_find_active_api_key(text)',
+          'EXECUTE'
+        ) AS identity_lookup_execute,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
         has_table_privilege(current_user, 'proofstack_outbox', 'UPDATE') AS outbox_update,
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert
     `);
     expect(publisherPrivileges.rows[0]).toEqual({
       evidence_select: false,
+      identity_lookup_execute: false,
+      identity_select: false,
       outbox_insert: false,
       outbox_select: true,
       outbox_update: true,
+    });
+
+    const identityPool = poolFor(initial.identity);
+    const identityPrivileges = await identityPool.query<{
+      readonly audit_select: boolean;
+      readonly create_execute: boolean;
+      readonly evidence_select: boolean;
+      readonly helper_execute: boolean;
+      readonly identity_select: boolean;
+      readonly ledger_select: boolean;
+      readonly lookup_execute: boolean;
+    }>(`
+      SELECT
+        has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
+          AS ledger_select,
+        has_table_privilege(current_user, 'proofstack_api_key_credentials', 'SELECT')
+          AS identity_select,
+        has_table_privilege(current_user, 'proofstack_identity_audit_events', 'SELECT')
+          AS audit_select,
+        has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT')
+          AS evidence_select,
+        has_function_privilege(
+          current_user,
+          'proofstack_find_active_api_key(text)',
+          'EXECUTE'
+        ) AS lookup_execute,
+        has_function_privilege(
+          current_user,
+          'proofstack_create_api_key(text, text, text, text, text, text[], jsonb, text, integer, integer, integer, integer, text, text, timestamptz, text)',
+          'EXECUTE'
+        ) AS create_execute,
+        has_function_privilege(
+          current_user,
+          'proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)',
+          'EXECUTE'
+        ) AS helper_execute
+    `);
+    expect(identityPrivileges.rows[0]).toEqual({
+      audit_select: false,
+      create_execute: true,
+      evidence_select: false,
+      helper_execute: false,
+      identity_select: false,
+      ledger_select: true,
+      lookup_execute: true,
     });
 
     const consumerPool = poolFor(initial.consumer);
@@ -193,6 +266,8 @@ describe("runtime role provisioning", () => {
       readonly cursor_select: boolean;
       readonly cursor_update: boolean;
       readonly evidence_select: boolean;
+      readonly identity_lookup_execute: boolean;
+      readonly identity_select: boolean;
       readonly outbox_select: boolean;
       readonly receipt_insert: boolean;
       readonly receipt_select: boolean;
@@ -206,6 +281,13 @@ describe("runtime role provisioning", () => {
         has_table_privilege(current_user, 'proofstack_projection_cursors', 'INSERT') AS cursor_insert,
         has_table_privilege(current_user, 'proofstack_projection_cursors', 'UPDATE') AS cursor_update,
         has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT') AS evidence_select,
+        has_table_privilege(current_user, 'proofstack_api_key_credentials', 'SELECT')
+          AS identity_select,
+        has_function_privilege(
+          current_user,
+          'proofstack_find_active_api_key(text)',
+          'EXECUTE'
+        ) AS identity_lookup_execute,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select
     `);
     expect(consumerPrivileges.rows[0]).toEqual({
@@ -213,6 +295,8 @@ describe("runtime role provisioning", () => {
       cursor_select: true,
       cursor_update: true,
       evidence_select: false,
+      identity_lookup_execute: false,
+      identity_select: false,
       outbox_select: false,
       receipt_insert: true,
       receipt_select: true,
@@ -302,9 +386,14 @@ describe("runtime role provisioning", () => {
 
     const rotated = provisioningOptions("rotated");
     await adminPool.query(`GRANT USAGE ON SEQUENCE public."${sequenceName}" TO "${roleNames.api}"`);
+    await adminPool.query(`
+      GRANT EXECUTE ON FUNCTION public.proofstack_write_identity_audit(
+        text, text, text, text, text, text, text, timestamptz
+      ) TO "${roleNames.identity}"
+    `);
     await expect(provisionRuntimeRoles(adminPool, rotated)).resolves.toEqual({
       createdRoles: [],
-      updatedRoles: [roleNames.api, roleNames.publisher, roleNames.consumer],
+      updatedRoles: [roleNames.api, roleNames.identity, roleNames.publisher, roleNames.consumer],
     });
     const rotatedApiPool = poolFor(rotated.api);
     await expect(rotatedApiPool.query("SELECT current_user AS role")).resolves.toMatchObject({
@@ -316,5 +405,26 @@ describe("runtime role provisioning", () => {
         [`public.${sequenceName}`],
       ),
     ).resolves.toMatchObject({ rows: [{ sequence_usage: false }] });
+    const rotatedIdentityPool = poolFor(rotated.identity);
+    await expect(
+      rotatedIdentityPool.query<{
+        readonly helper_execute: boolean;
+        readonly lookup_execute: boolean;
+      }>(`
+        SELECT
+          has_function_privilege(
+            current_user,
+            'proofstack_find_active_api_key(text)',
+            'EXECUTE'
+          ) AS lookup_execute,
+          has_function_privilege(
+            current_user,
+            'proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)',
+            'EXECUTE'
+          ) AS helper_execute
+      `),
+    ).resolves.toMatchObject({
+      rows: [{ helper_execute: false, lookup_execute: true }],
+    });
   });
 });

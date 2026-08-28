@@ -149,7 +149,12 @@ describe("runDatabaseCli", () => {
     const streams = io();
     const adapters = dependencies({
       provision: async () => ({
-        createdRoles: ["proofstack_api", "proofstack_publisher", "proofstack_consumer"],
+        createdRoles: [
+          "proofstack_api",
+          "proofstack_identity",
+          "proofstack_publisher",
+          "proofstack_consumer",
+        ],
         updatedRoles: [],
       }),
     });
@@ -160,6 +165,7 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
         PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
       },
       streams.value,
@@ -168,7 +174,12 @@ describe("runDatabaseCli", () => {
 
     expect(exitCode).toBe(0);
     expect(JSON.parse(streams.outputs[0] ?? "{}")).toEqual({
-      createdRoles: ["proofstack_api", "proofstack_publisher", "proofstack_consumer"],
+      createdRoles: [
+        "proofstack_api",
+        "proofstack_identity",
+        "proofstack_publisher",
+        "proofstack_consumer",
+      ],
       status: "provisioned",
       updatedRoles: [],
     });
@@ -177,6 +188,7 @@ describe("runDatabaseCli", () => {
       expect.anything(),
       expect.objectContaining({
         api: { name: "proofstack_api", password: "local-api-password" },
+        identity: { name: "proofstack_identity", password: "local-identity-password" },
       }),
     );
     expect(adapters.end).toHaveBeenCalledOnce();
@@ -191,6 +203,7 @@ describe("runDatabaseCli", () => {
         {
           PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
           PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+          PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
         },
         io().value,
         adapters,
@@ -210,6 +223,8 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
         PROOFSTACK_CONSUMER_DATABASE_ROLE: "custom_consumer",
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
+        PROOFSTACK_IDENTITY_DATABASE_ROLE: "custom_identity",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
         PROOFSTACK_PUBLISHER_DATABASE_ROLE: "custom_publisher",
       },
@@ -220,6 +235,7 @@ describe("runDatabaseCli", () => {
     expect(adapters.provision).toHaveBeenCalledWith(expect.anything(), {
       api: { name: "custom_api", password: "local-api-password" },
       consumer: { name: "custom_consumer", password: "local-consumer-password" },
+      identity: { name: "custom_identity", password: "local-identity-password" },
       publisher: { name: "custom_publisher", password: "local-publisher-password" },
     });
   });

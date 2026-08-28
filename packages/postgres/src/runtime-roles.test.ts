@@ -76,6 +76,10 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
       name: DEFAULT_RUNTIME_ROLE_NAMES.consumer,
       password: "local-consumer-password",
     },
+    identity: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.identity,
+      password: "local-identity-password",
+    },
     publisher: {
       name: DEFAULT_RUNTIME_ROLE_NAMES.publisher,
       password: "local-publisher-password",
@@ -85,7 +89,7 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
 }
 
 function managedRole(
-  kind: "api" | "consumer" | "publisher",
+  kind: "api" | "consumer" | "identity" | "publisher",
   overrides: Partial<RoleRow> = {},
 ): RoleRow {
   return {
@@ -105,7 +109,12 @@ describe("provisionRuntimeRoles", () => {
     const client = new FakeClient();
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).resolves.toEqual({
-      createdRoles: ["proofstack_api", "proofstack_publisher", "proofstack_consumer"],
+      createdRoles: [
+        "proofstack_api",
+        "proofstack_identity",
+        "proofstack_publisher",
+        "proofstack_consumer",
+      ],
       updatedRoles: [],
     });
     const statements = client.queries.map(({ text }) => text.trim());
@@ -121,6 +130,19 @@ describe("provisionRuntimeRoles", () => {
       'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM "proofstack_api"',
     );
     expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_find_active_api_key(text) TO "proofstack_identity"',
+    );
+    expect(statements).toContain(
+      'REVOKE ALL PRIVILEGES ON TABLE public.proofstack_api_key_credentials, public.proofstack_consumer_receipts, public.proofstack_evidence_events, public.proofstack_identity_audit_events, public.proofstack_outbox, public.proofstack_projection_cursors, public.proofstack_schema_migrations FROM "proofstack_identity"',
+    );
+    expect(
+      statements.some(
+        (statement) =>
+          statement.startsWith("REVOKE ALL PRIVILEGES ON FUNCTION") &&
+          statement.endsWith('FROM "proofstack_identity"'),
+      ),
+    ).toBe(true);
+    expect(statements).toContain(
       'GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO "proofstack_publisher"',
     );
     expect(statements).toContain(
@@ -133,14 +155,20 @@ describe("provisionRuntimeRoles", () => {
   it("rotates existing marked role passwords without recreating roles", async () => {
     const client = new FakeClient();
     client.roles.set("proofstack_api", managedRole("api"));
+    client.roles.set("proofstack_identity", managedRole("identity"));
     client.roles.set("proofstack_publisher", managedRole("publisher"));
     client.roles.set("proofstack_consumer", managedRole("consumer"));
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).resolves.toEqual({
       createdRoles: [],
-      updatedRoles: ["proofstack_api", "proofstack_publisher", "proofstack_consumer"],
+      updatedRoles: [
+        "proofstack_api",
+        "proofstack_identity",
+        "proofstack_publisher",
+        "proofstack_consumer",
+      ],
     });
-    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(3);
+    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(4);
     expect(client.queries.some(({ text }) => text.startsWith("COMMENT ON ROLE"))).toBe(false);
   });
 

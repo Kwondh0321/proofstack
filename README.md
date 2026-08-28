@@ -40,6 +40,7 @@ release when a declared policy regresses.
 | API | Health, direct JSON ingestion, trace reads, stable problem documents, OpenAPI 3.2 |
 | Persistence | Checksum-verified PostgreSQL migrations, forced RLS, append-only evidence, atomic outbox |
 | Delivery state | Leased outbox retries, poison-message visibility, monotonic cursors, consumer receipts |
+| Identity groundwork | Scoped workload-key lifecycle, memory-hard hashes, isolated database functions and audit events |
 | TypeScript SDK | Generated IDs, bounded queue, batching, timeout handling, fail-open by default |
 | Console | API health and exact trace inspection without placeholder telemetry |
 | Example | Runnable parent/child agent and tool trace through the real SDK and API |
@@ -63,7 +64,9 @@ flowchart LR
 
 The memory adapter keeps the quickstart dependency-free. The PostgreSQL adapter is the durable
 option: migration integrity, database-enforced tenant isolation, immutable evidence, atomic
-evidence/outbox writes, and least-privilege runtime roles are covered by real PostgreSQL tests.
+evidence/outbox writes, and four isolated least-privilege runtime roles are covered by real
+PostgreSQL tests. Production authentication is still under development and is not enabled by these
+building blocks alone.
 
 ## Quickstart
 
