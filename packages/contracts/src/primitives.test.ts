@@ -16,7 +16,7 @@ describe("JsonValueSchema", () => {
   });
 
   it("rejects circular and excessively deep values without recursion overflow", () => {
-    const circular: Record<string, unknown> = {};
+    const circular: { self?: unknown } = {};
     circular.self = circular;
     let nested: unknown = "leaf";
     for (let depth = 0; depth <= MAX_JSON_DEPTH; depth += 1) nested = { child: nested };

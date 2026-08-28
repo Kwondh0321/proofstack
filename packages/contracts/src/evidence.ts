@@ -105,6 +105,9 @@ const EvidenceRecordObjectSchema = z
   })
   .strict();
 
+type EvidenceRecordObjectInput = z.input<typeof EvidenceRecordObjectSchema>;
+type EvidenceRecordObjectOutput = z.output<typeof EvidenceRecordObjectSchema>;
+
 export const EvidenceRecordSchema = z
   .preprocess((value, context) => {
     const violation = jsonComplexityViolation(value);
@@ -127,7 +130,7 @@ export const EvidenceRecordSchema = z
         path: ["endedAt"],
       });
     }
-  });
+  }) as z.ZodType<EvidenceRecordObjectOutput, EvidenceRecordObjectInput>;
 
 export const IngestEvidenceRequestSchema = z
   .object({

@@ -100,7 +100,7 @@ describe("EvidenceRecordSchema", () => {
   });
 
   it("rejects circular JavaScript values without overflowing", () => {
-    const circular: Record<string, unknown> = {};
+    const circular: { self?: unknown } = {};
     circular.self = circular;
 
     expect(
