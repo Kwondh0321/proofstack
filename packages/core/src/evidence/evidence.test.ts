@@ -161,6 +161,27 @@ describe("IngestEvidence", () => {
     expect(stored).toHaveLength(1);
   });
 
+  it("orders otherwise equal evidence deterministically by event identifier", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+    const laterIdentifier = { ...baseEvidence, eventId: "evt_z", spanId: "10f067aa0ba902b7" };
+    const earlierIdentifier = { ...baseEvidence, eventId: "evt_a", spanId: "20f067aa0ba902b7" };
+
+    await ingest.execute({
+      ...command(),
+      request: IngestEvidenceRequestSchema.parse({
+        events: [laterIdentifier, earlierIdentifier],
+        schemaVersion: EVIDENCE_SCHEMA_VERSION,
+      }),
+    });
+    const stored = await repository.listByTrace(
+      { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" },
+      baseEvidence.traceId,
+    );
+
+    expect(stored.map((event) => event.evidence.eventId)).toEqual(["evt_a", "evt_z"]);
+  });
+
   it("requires the ingestion capability", async () => {
     const ingest = new IngestEvidence(new MemoryEvidenceRepository(), clock);
 

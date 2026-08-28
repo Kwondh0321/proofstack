@@ -87,7 +87,10 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
         const timeDifference =
           Date.parse(left.evidence.startedAt) - Date.parse(right.evidence.startedAt);
         if (timeDifference !== 0) return timeDifference;
-        return (left.evidence.sequence ?? 0) - (right.evidence.sequence ?? 0);
+        const sequenceDifference = (left.evidence.sequence ?? 0) - (right.evidence.sequence ?? 0);
+        if (sequenceDifference !== 0) return sequenceDifference;
+        if (left.evidence.eventId === right.evidence.eventId) return 0;
+        return left.evidence.eventId < right.evidence.eventId ? -1 : 1;
       });
   }
 }
