@@ -6,8 +6,10 @@ import {
   ArtifactKeyringConfigurationError,
   ArtifactNotFoundError,
   ArtifactObjectConflictError,
+  ArtifactObjectMissingError,
   ArtifactProtectionError,
   ArtifactStateTransitionError,
+  ArtifactUnavailableError,
   InvalidArtifactLifecycleInputError,
 } from "./errors.js";
 
@@ -19,8 +21,10 @@ describe("artifact errors", () => {
     [new ArtifactKeyringConfigurationError(), "artifact_keyring_configuration_invalid"],
     [new ArtifactNotFoundError(), "artifact_not_found"],
     [new ArtifactObjectConflictError(), "artifact_object_conflict"],
+    [new ArtifactObjectMissingError(), "artifact_object_missing"],
     [new ArtifactProtectionError(), "artifact_protection_failed"],
     [new ArtifactStateTransitionError(), "artifact_state_transition_invalid"],
+    [new ArtifactUnavailableError(), "artifact_unavailable"],
     [new InvalidArtifactLifecycleInputError("Invalid input"), "artifact_lifecycle_input_invalid"],
   ])("exposes a stable public code for %s", (error, code) => {
     expect(error).toBeInstanceOf(Error);

@@ -78,3 +78,21 @@ export class ArtifactObjectConflictError extends Error {
     this.name = "ArtifactObjectConflictError";
   }
 }
+
+export class ArtifactUnavailableError extends Error {
+  readonly code = "artifact_unavailable";
+
+  constructor() {
+    super("Artifact content is not available");
+    this.name = "ArtifactUnavailableError";
+  }
+}
+
+export class ArtifactObjectMissingError extends Error {
+  readonly code = "artifact_object_missing";
+
+  constructor() {
+    super("Available artifact content is missing from object storage");
+    this.name = "ArtifactObjectMissingError";
+  }
+}

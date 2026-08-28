@@ -34,6 +34,14 @@ export interface ArtifactContentEncryptor {
   ): Promise<EncryptedArtifactObject>;
 }
 
+export interface ArtifactContentDecryptor {
+  decrypt(
+    metadata: ArtifactMetadata,
+    plan: ArtifactEncryptionPlan,
+    encryptedObject: Uint8Array,
+  ): Promise<Uint8Array>;
+}
+
 export interface ArtifactObjectReceipt {
   readonly sha256: string;
   readonly sizeBytes: number;
