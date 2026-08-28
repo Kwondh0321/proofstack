@@ -29,3 +29,4 @@ invalidate an ADR present in this directory.
 - [ADR-0004: Make identity, tenancy, and data classification explicit](0004-identity-tenancy-and-sensitive-data.md)
 - [ADR-0005: Enforce tenant-scoped PostgreSQL transactions](0005-postgresql-tenancy-and-migrations.md)
 - [ADR-0006: Publish durable mutations with leased outbox delivery](0006-transactional-outbox-delivery.md)
+- [ADR-0007: Reserve consumer work with leased receipts](0007-leased-consumer-receipts.md)
