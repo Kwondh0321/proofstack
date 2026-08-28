@@ -1,0 +1,30 @@
+{
+  "name": "@proofstack/recovery-operations",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fail-closed backup, restore, and recovery verification operations",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf coverage dist",
+    "lint": "biome lint src",
+    "test": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/postgres": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
