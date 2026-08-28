@@ -299,10 +299,10 @@ describe("PostgreSQL evidence schema", () => {
         'message-001',
         '${"a".repeat(64)}',
         'completed',
-        clock_timestamp(),
-        clock_timestamp(),
+        '2026-08-28T03:00:00.000Z',
+        '2026-08-28T03:00:00.000Z',
         1,
-        clock_timestamp()
+        '2026-08-28T03:00:00.000Z'
       )
     `);
     await expect(
