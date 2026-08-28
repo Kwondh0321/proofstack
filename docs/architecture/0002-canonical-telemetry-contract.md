@@ -61,6 +61,13 @@ Identifiers and timestamps are validated at ingestion. Server receipt time is
 always recorded separately from client event time. Event identity is globally
 unique within a tenant and forms the idempotency key.
 
+User-defined JSON is bounded before recursive schema parsing: a record may contain
+at most 10,000 traversed nodes and 20 levels, while individual arrays and objects
+may contain at most 256 entries. Normalized attributes allow 128 top-level keys;
+extensions allow 32 namespaces with 64 keys each. These limits are part of the
+ingestion contract and protect both SDKs and services from unbounded validation
+work and accidental high-cardinality payloads.
+
 Content capture is not required for a valid envelope. Large or sensitive content
 is stored as an encrypted artifact and referenced by content hash. Redaction
 metadata records whether content was removed at source, during ingestion, or by a

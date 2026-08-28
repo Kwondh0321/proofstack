@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   JsonValueSchema,
+  jsonComplexityViolation,
   NamespacedExtensionKeySchema,
   OpaqueIdSchema,
   Sha256Schema,
@@ -14,6 +15,8 @@ export type { JsonObject, JsonValue } from "./primitives.js";
 export const EVIDENCE_SCHEMA_VERSION = "0.1" as const;
 export const MAX_EVIDENCE_BATCH_SIZE = 100;
 export const MAX_ATTRIBUTE_KEYS = 128;
+export const MAX_EXTENSION_KEYS = 64;
+export const MAX_EXTENSION_NAMESPACES = 32;
 
 export const EvidenceKindSchema = z.enum([
   "agent.run",
@@ -69,12 +72,19 @@ const BoundedAttributesSchema = z
     message: `Attributes cannot contain more than ${MAX_ATTRIBUTE_KEYS} keys`,
   });
 
-const ExtensionsSchema = z.record(
-  NamespacedExtensionKeySchema,
-  z.record(z.string(), JsonValueSchema),
-);
+const ExtensionValuesSchema = z
+  .record(z.string().min(1).max(128), JsonValueSchema)
+  .refine((value) => Object.keys(value).length <= MAX_EXTENSION_KEYS, {
+    message: `Extension namespaces cannot contain more than ${MAX_EXTENSION_KEYS} keys`,
+  });
 
-export const EvidenceRecordSchema = z
+const ExtensionsSchema = z
+  .record(NamespacedExtensionKeySchema, ExtensionValuesSchema)
+  .refine((value) => Object.keys(value).length <= MAX_EXTENSION_NAMESPACES, {
+    message: `Extensions cannot contain more than ${MAX_EXTENSION_NAMESPACES} namespaces`,
+  });
+
+const EvidenceRecordObjectSchema = z
   .object({
     attributes: BoundedAttributesSchema.default({}),
     contentReferences: z.array(ContentReferenceSchema).max(32).default([]),
@@ -93,7 +103,14 @@ export const EvidenceRecordSchema = z
     status: EvidenceStatusSchema.default("unset"),
     traceId: TraceIdSchema,
   })
-  .strict()
+  .strict();
+
+export const EvidenceRecordSchema = z
+  .preprocess((value, context) => {
+    const violation = jsonComplexityViolation(value);
+    if (violation) context.addIssue({ code: "custom", message: violation });
+    return value;
+  }, EvidenceRecordObjectSchema)
   .superRefine((value, context) => {
     if (value.parentSpanId === value.spanId) {
       context.addIssue({
