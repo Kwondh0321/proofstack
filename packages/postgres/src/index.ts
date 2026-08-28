@@ -39,4 +39,11 @@ export {
   MAX_PROJECTION_CURSOR_GENERATION,
   PostgresProjectionCursorRepository,
 } from "./postgres-projection-cursor-repository.js";
+export {
+  DEFAULT_RUNTIME_ROLE_NAMES,
+  provisionRuntimeRoles,
+  RuntimeRoleProvisioningError,
+  type RuntimeRoleProvisioningOptions,
+  type RuntimeRoleProvisioningResult,
+} from "./runtime-roles.js";
 export { PostgresTransactionCleanupError } from "./tenant-transaction.js";
