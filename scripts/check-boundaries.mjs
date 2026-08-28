@@ -20,6 +20,11 @@ const modules = [
     packageName: "@proofstack/otlp",
   },
   {
+    allowed: new Set(["@proofstack/contracts"]),
+    directory: "packages/recovery/src",
+    packageName: "@proofstack/recovery",
+  },
+  {
     allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
     directory: "packages/artifacts/src",
     packageName: "@proofstack/artifacts",
