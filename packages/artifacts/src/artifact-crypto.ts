@@ -14,6 +14,7 @@ import {
   ARTIFACT_ENCRYPTION_VERSION,
   type ArtifactDataKeyContext,
   type ArtifactEncryptionPlan,
+  type ArtifactKeyInventory,
   type ArtifactKeyProvider,
   type EncryptedArtifactObject,
   type ArtifactObjectReceipt,
@@ -295,7 +296,7 @@ function keyWrapAuthenticatedData(context: ArtifactDataKeyContext): Buffer {
   ]);
 }
 
-export class LocalArtifactKeyring implements ArtifactKeyProvider {
+export class LocalArtifactKeyring implements ArtifactKeyInventory, ArtifactKeyProvider {
   private readonly active: string;
   private readonly keys = new Map<string, Buffer>();
   private readonly randomSource: ArtifactRandomSource;
@@ -333,6 +334,10 @@ export class LocalArtifactKeyring implements ArtifactKeyProvider {
 
   async activeKeyId(): Promise<string> {
     return this.active;
+  }
+
+  async configuredKeyIds(): Promise<readonly string[]> {
+    return [...this.keys.keys()].sort();
   }
 
   async wrapDataKey(

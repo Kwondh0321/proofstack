@@ -530,4 +530,70 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
         });
       },
     },
+    {
+      name: "summarizes encryption-key references by exact scope and lifecycle state",
+      async run(factory) {
+        await withRepository(factory, "catalog_keys", async (repository) => {
+          const entries = [
+            reserved("catalog_keys", { artifactId: "art_reserved", seed: 1 }),
+            reserved("catalog_keys", { artifactId: "art_available", seed: 1 }),
+            reserved("catalog_keys", { artifactId: "art_tombstoned", seed: 1 }),
+            reserved("catalog_keys", { artifactId: "art_purged", seed: 1 }),
+            reserved("catalog_keys", { artifactId: "art_second_key", seed: 2 }),
+            reserved("catalog_keys", {
+              artifactId: "art_other_environment",
+              scope: { environmentId: "env_other" },
+              seed: 3,
+            }),
+          ];
+          for (const entry of entries) await repository.reserve(entry);
+          for (const artifactId of [
+            "art_available",
+            "art_tombstoned",
+            "art_purged",
+            "art_second_key",
+          ]) {
+            await repository.activate(
+              scope("catalog_keys"),
+              artifactId,
+              objectReceipt(),
+              "2026-08-28T03:02:00.000Z",
+            );
+          }
+          await repository.tombstone(scope("catalog_keys"), tombstone("art_tombstoned", "manual"));
+          await repository.tombstone(scope("catalog_keys"), tombstone("art_purged", "manual"));
+          await repository.recordPurge(scope("catalog_keys"), purgeReceipt("art_purged"));
+
+          assert.deepEqual(await repository.listKeyReferences(scope("catalog_keys")), [
+            {
+              counts: { available: 1, purged: 1, reserved: 1, tombstoned: 1, total: 4 },
+              keyId: "key_1",
+            },
+            {
+              counts: { available: 1, purged: 0, reserved: 0, tombstoned: 0, total: 1 },
+              keyId: "key_2",
+            },
+          ]);
+          assert.deepEqual(
+            await repository.listKeyReferences({
+              ...scope("catalog_keys"),
+              environmentId: "env_other",
+            }),
+            [
+              {
+                counts: { available: 0, purged: 0, reserved: 1, tombstoned: 0, total: 1 },
+                keyId: "key_3",
+              },
+            ],
+          );
+          assert.deepEqual(
+            await repository.listKeyReferences({
+              ...scope("catalog_keys"),
+              projectId: "prj_empty",
+            }),
+            [],
+          );
+        });
+      },
+    },
   ];

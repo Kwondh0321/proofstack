@@ -97,6 +97,19 @@ export interface ArtifactPurgeReceipt {
   readonly purgeId: string;
 }
 
+export interface ArtifactKeyReferenceCounts {
+  readonly available: number;
+  readonly purged: number;
+  readonly reserved: number;
+  readonly tombstoned: number;
+  readonly total: number;
+}
+
+export interface ArtifactKeyReferenceSummary {
+  readonly counts: ArtifactKeyReferenceCounts;
+  readonly keyId: string;
+}
+
 export interface ArtifactCatalogRepository {
   activate(
     scope: EvidenceScope,
@@ -116,6 +129,7 @@ export interface ArtifactCatalogRepository {
     limit: number,
   ): Promise<readonly ArtifactCatalogEntry[]>;
   listPendingPurge(scope: EvidenceScope, limit: number): Promise<readonly ArtifactCatalogEntry[]>;
+  listKeyReferences(scope: EvidenceScope): Promise<readonly ArtifactKeyReferenceSummary[]>;
   recordPurge(scope: EvidenceScope, receipt: ArtifactPurgeReceipt): Promise<ArtifactCatalogEntry>;
   reserve(candidate: ArtifactCatalogEntry): Promise<ReserveArtifactCatalogResult>;
   tombstone(
@@ -151,4 +165,9 @@ export interface ArtifactKeyProvider {
     dataKey: Uint8Array,
     context: ArtifactDataKeyContext,
   ): Promise<WrappedArtifactDataKey>;
+}
+
+export interface ArtifactKeyInventory {
+  activeKeyId(): Promise<string>;
+  configuredKeyIds(): Promise<readonly string[]>;
 }

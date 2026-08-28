@@ -22,6 +22,7 @@ interface StoredRow extends Record<string, unknown> {
   state?: unknown;
   tenant_id?: unknown;
   tombstoned_at?: unknown;
+  wrapped_key_id?: unknown;
 }
 
 interface StoredArtifact {
@@ -144,6 +145,26 @@ class ArtifactCatalogFakeClient {
     }
 
     if (text.includes("FROM public.proofstack_artifact_catalog")) {
+      if (text.includes("GROUP BY wrapped_key_id, state")) {
+        const counts = new Map<string, number>();
+        for (const { row } of this.artifacts.values()) {
+          if (!scopeMatches(row, values)) continue;
+          const identity = `${String(row.wrapped_key_id)}\0${String(row.state)}`;
+          counts.set(identity, (counts.get(identity) ?? 0) + 1);
+        }
+        return {
+          rows: [...counts.entries()]
+            .map(([identity, count]) => {
+              const [keyId, state] = identity.split("\0");
+              return { key_id: keyId, reference_count: String(count), state };
+            })
+            .sort((left, right) =>
+              `${String(left.key_id)}\0${String(left.state)}`.localeCompare(
+                `${String(right.key_id)}\0${String(right.state)}`,
+              ),
+            ),
+        };
+      }
       if (text.includes("state = 'available'") && text.includes("expires_at <=")) {
         return {
           rows: this.list(

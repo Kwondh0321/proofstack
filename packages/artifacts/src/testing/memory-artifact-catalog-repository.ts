@@ -3,6 +3,7 @@ import type { ArtifactTombstone, EvidenceScope } from "@proofstack/contracts";
 import type {
   ArtifactCatalogEntry,
   ArtifactCatalogRepository,
+  ArtifactKeyReferenceSummary,
   ArtifactObjectReceipt,
   ArtifactPurgeReceipt,
   ReserveArtifactCatalogResult,
@@ -245,6 +246,29 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
       .sort(comparePendingPurge)
       .slice(0, limit)
       .map(clone);
+  }
+
+  async listKeyReferences(scope: EvidenceScope): Promise<readonly ArtifactKeyReferenceSummary[]> {
+    const references = new Map<string, ArtifactKeyReferenceSummary["counts"]>();
+    for (const { entry } of this.artifacts.values()) {
+      if (!matchesScope(entry, scope)) continue;
+      const keyId = entry.encryption.wrappedDataKey.keyId;
+      const current = references.get(keyId) ?? {
+        available: 0,
+        purged: 0,
+        reserved: 0,
+        tombstoned: 0,
+        total: 0,
+      };
+      references.set(keyId, {
+        ...current,
+        [entry.metadata.state]: current[entry.metadata.state] + 1,
+        total: current.total + 1,
+      });
+    }
+    return [...references.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([keyId, counts]) => ({ counts: { ...counts }, keyId }));
   }
 
   private required(scope: EvidenceScope, artifactId: string): StoredArtifact {

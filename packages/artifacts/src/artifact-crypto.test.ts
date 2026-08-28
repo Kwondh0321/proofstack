@@ -305,6 +305,10 @@ describe("LocalArtifactKeyring", () => {
       new ArtifactCipher(rotated).decrypt(metadata(), plan, encrypted.bytes),
     ).resolves.toEqual(Uint8Array.from(plaintext));
     await expect(rotated.activeKeyId()).resolves.toBe("key_new");
+    const configured = await rotated.configuredKeyIds();
+    expect(configured).toEqual(["key_new", "key_old"]);
+    (configured as string[])[0] = "key_changed";
+    await expect(rotated.configuredKeyIds()).resolves.toEqual(["key_new", "key_old"]);
   });
 
   it.each([

@@ -3,6 +3,8 @@ import {
   type ArtifactCatalogEntry,
   type ArtifactCatalogRepository,
   ArtifactConflictError,
+  type ArtifactKeyReferenceCounts,
+  type ArtifactKeyReferenceSummary,
   ArtifactNotFoundError,
   type ArtifactObjectReceipt,
   type ArtifactPurgeReceipt,
@@ -64,6 +66,12 @@ interface StoredTombstoneRow extends QueryResultRow {
 
 interface PresenceRow extends QueryResultRow {
   readonly present: boolean;
+}
+
+interface StoredKeyReferenceRow extends QueryResultRow {
+  readonly key_id: string;
+  readonly reference_count: string;
+  readonly state: string;
 }
 
 export class PostgresArtifactDataIntegrityError extends Error {
@@ -291,6 +299,54 @@ function storedTombstone(row: StoredTombstoneRow): ArtifactTombstone {
     );
   }
   return parsed.data;
+}
+
+const ARTIFACT_REFERENCE_STATES = new Set([
+  "available",
+  "purged",
+  "reserved",
+  "tombstoned",
+] as const);
+
+type ArtifactReferenceState = "available" | "purged" | "reserved" | "tombstoned";
+
+function storedKeyReferences(
+  rows: readonly StoredKeyReferenceRow[],
+): readonly ArtifactKeyReferenceSummary[] {
+  const references = new Map<
+    string,
+    { counts: ArtifactKeyReferenceCounts; states: Set<ArtifactReferenceState> }
+  >();
+  for (const row of rows) {
+    if (
+      !OpaqueIdSchema.safeParse(row.key_id).success ||
+      !ARTIFACT_REFERENCE_STATES.has(row.state as ArtifactReferenceState) ||
+      !/^[1-9][0-9]*$/.test(row.reference_count)
+    ) {
+      throw new PostgresArtifactDataIntegrityError("Stored artifact key references are invalid");
+    }
+    const state = row.state as ArtifactReferenceState;
+    const count = Number(row.reference_count);
+    const current = references.get(row.key_id) ?? {
+      counts: { available: 0, purged: 0, reserved: 0, tombstoned: 0, total: 0 },
+      states: new Set<ArtifactReferenceState>(),
+    };
+    if (!Number.isSafeInteger(count) || current.states.has(state)) {
+      throw new PostgresArtifactDataIntegrityError("Stored artifact key references are invalid");
+    }
+    current.states.add(state);
+    references.set(row.key_id, {
+      counts: {
+        ...current.counts,
+        [state]: count,
+        total: current.counts.total + count,
+      },
+      states: current.states,
+    });
+  }
+  return [...references.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([keyId, value]) => ({ counts: value.counts, keyId }));
 }
 
 function isSameReservation(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): boolean {
@@ -713,6 +769,27 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
         [scope.tenantId, scope.projectId, scope.environmentId, limit],
       );
       return result.rows.map(storedEntry);
+    });
+  }
+
+  async listKeyReferences(scope: EvidenceScope): Promise<readonly ArtifactKeyReferenceSummary[]> {
+    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
+      const result = await client.query<StoredKeyReferenceRow>(
+        `
+          SELECT
+            wrapped_key_id AS key_id,
+            state,
+            count(*)::text AS reference_count
+          FROM public.proofstack_artifact_catalog
+          WHERE tenant_id = $1
+            AND project_id = $2
+            AND environment_id = $3
+          GROUP BY wrapped_key_id, state
+          ORDER BY wrapped_key_id, state
+        `,
+        [scope.tenantId, scope.projectId, scope.environmentId],
+      );
+      return storedKeyReferences(result.rows);
     });
   }
 }
