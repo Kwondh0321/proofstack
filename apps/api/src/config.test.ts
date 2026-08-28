@@ -16,6 +16,10 @@ describe("loadConfig", () => {
       authMode: "development",
       environment: "development",
       host: "127.0.0.1",
+      otlp: {
+        compressedBodyLimitBytes: 1024 * 1024,
+        decompressedBodyLimitBytes: 1024 * 1024,
+      },
       port: 4318,
       storage: { mode: "memory" },
     });
@@ -52,6 +56,28 @@ describe("loadConfig", () => {
   it("rejects invalid ports", () => {
     expect(() => loadConfig({ PROOFSTACK_PORT: "70000" })).toThrow();
   });
+
+  it("loads bounded OTLP compressed and decompressed body limits", () => {
+    expect(
+      loadConfig({
+        PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES: "2097152",
+        PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES: "8388608",
+      }),
+    ).toMatchObject({
+      otlp: {
+        compressedBodyLimitBytes: 2 * 1024 * 1024,
+        decompressedBodyLimitBytes: 8 * 1024 * 1024,
+      },
+    });
+  });
+
+  it.each(["0", "1.5", `${64 * 1024 * 1024 + 1}`, "not-a-number"])(
+    "rejects invalid OTLP body limit %s",
+    (value) => {
+      expect(() => loadConfig({ PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES: value })).toThrow();
+      expect(() => loadConfig({ PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES: value })).toThrow();
+    },
+  );
 
   it("loads loopback PostgreSQL storage explicitly", () => {
     expect(

@@ -5,6 +5,8 @@ import {
 import { z } from "zod";
 
 const DEVELOPMENT_AUTH_LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+export const DEFAULT_OTLP_BODY_LIMIT_BYTES = 1024 * 1024;
+export const MAX_OTLP_BODY_LIMIT_BYTES = 64 * 1024 * 1024;
 
 const StorageConfigSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("memory") }).strict(),
@@ -42,6 +44,12 @@ const ApiConfigSchema = z
     identityDatabaseUrl: z.string().min(1).optional(),
     logLevel: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]),
     oidc: OidcConfigSchema.optional(),
+    otlp: z
+      .object({
+        compressedBodyLimitBytes: z.number().int().min(1).max(MAX_OTLP_BODY_LIMIT_BYTES),
+        decompressedBodyLimitBytes: z.number().int().min(1).max(MAX_OTLP_BODY_LIMIT_BYTES),
+      })
+      .strict(),
     port: z.number().int().min(1).max(65_535),
     storage: StorageConfigSchema,
   })
@@ -182,6 +190,8 @@ interface ProofStackEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_OIDC_REDIRECT_URI?: string;
   readonly PROOFSTACK_OIDC_SCOPES?: string;
   readonly PROOFSTACK_OIDC_TRANSACTION_SECRET?: string;
+  readonly PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES?: string;
+  readonly PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES?: string;
   readonly PROOFSTACK_PORT?: string;
   readonly PROOFSTACK_STORAGE_MODE?: string;
 }
@@ -214,6 +224,14 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
           transactionSecret: environment.PROOFSTACK_OIDC_TRANSACTION_SECRET,
         }
       : undefined,
+    otlp: {
+      compressedBodyLimitBytes: Number(
+        environment.PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES ?? DEFAULT_OTLP_BODY_LIMIT_BYTES,
+      ),
+      decompressedBodyLimitBytes: Number(
+        environment.PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES ?? DEFAULT_OTLP_BODY_LIMIT_BYTES,
+      ),
+    },
     port: Number(environment.PROOFSTACK_PORT ?? "4318"),
     storage:
       environment.PROOFSTACK_STORAGE_MODE === "postgres"
