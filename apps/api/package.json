@@ -12,6 +12,7 @@
     "lint": "biome lint src",
     "start": "node dist/server.js",
     "test": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
