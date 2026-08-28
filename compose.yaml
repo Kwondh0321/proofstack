@@ -24,5 +24,33 @@ services:
     volumes:
       - proofstack_postgres_data:/var/lib/postgresql/data
 
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.44@sha256:e67e8c385484120b78bff47ba5f4debbca47fbd27ed1a39f016f47e8baea615b
+    profiles: [object-storage]
+    command:
+      - mini
+      - -dir=/data
+      - -admin.ui=false
+      - -master.telemetry=false
+    environment:
+      AWS_ACCESS_KEY_ID: proofstack-local
+      AWS_SECRET_ACCESS_KEY: proofstack-local-secret
+      S3_BUCKET: proofstack-local-bootstrap
+      TZ: UTC
+    healthcheck:
+      test:
+        ["CMD", "curl", "--silent", "--show-error", "--output", "/dev/null", "http://127.0.0.1:8333/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    init: true
+    ports:
+      - "127.0.0.1:${PROOFSTACK_S3_PORT:-8333}:8333"
+    stop_grace_period: 30s
+    volumes:
+      - proofstack_seaweedfs_data:/data
+
 volumes:
   proofstack_postgres_data:
+  proofstack_seaweedfs_data:

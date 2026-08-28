@@ -18,6 +18,8 @@
     "dev:api": "pnpm --filter @proofstack/api dev",
     "dev:db:down": "docker compose down",
     "dev:db:up": "docker compose up --detach --wait postgres",
+    "dev:object-storage:stop": "docker compose --profile object-storage stop seaweedfs",
+    "dev:object-storage:up": "docker compose --profile object-storage up --detach --wait seaweedfs",
     "dev:web": "pnpm --filter @proofstack/web dev",
     "db:identity:bootstrap": "pnpm --filter @proofstack/postgres db:identity:bootstrap",
     "db:identity:status": "pnpm --filter @proofstack/postgres db:identity:status",
@@ -34,6 +36,7 @@
     "lint": "biome lint . && turbo run lint",
     "test": "turbo run test",
     "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api",
+    "test:integration:s3": "turbo run test:integration --concurrency=1 --filter=@proofstack/s3",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
