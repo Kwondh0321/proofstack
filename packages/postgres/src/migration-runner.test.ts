@@ -84,7 +84,12 @@ describe("migration inspection", () => {
     expect(status).toEqual({
       appliedIds: [],
       ledgerExists: true,
-      pendingIds: ["0001_evidence_store", "0002_outbox_delivery", "0003_leased_consumer_receipts"],
+      pendingIds: [
+        "0001_evidence_store",
+        "0002_outbox_delivery",
+        "0003_leased_consumer_receipts",
+        "0004_workload_identity",
+      ],
     });
   });
 

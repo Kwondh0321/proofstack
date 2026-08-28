@@ -113,16 +113,18 @@ afterAll(async () => {
 describe("PostgreSQL evidence schema", () => {
   it("migrates atomically and enforces append-only tenant isolation", async () => {
     const firstMigration = await migrateDatabase(pool);
-    expect(firstMigration.appliedIds).toEqual([
+    const expectedMigrations = [
       "0001_evidence_store",
       "0002_outbox_delivery",
       "0003_leased_consumer_receipts",
-    ]);
-    expect([
-      [],
-      ["0003_leased_consumer_receipts"],
-      ["0001_evidence_store", "0002_outbox_delivery", "0003_leased_consumer_receipts"],
-    ]).toContainEqual(firstMigration.newlyAppliedIds);
+      "0004_workload_identity",
+    ];
+    expect(firstMigration.appliedIds).toEqual(expectedMigrations);
+    expect(firstMigration.newlyAppliedIds).toEqual(
+      firstMigration.newlyAppliedIds.length === 0
+        ? []
+        : expectedMigrations.slice(-firstMigration.newlyAppliedIds.length),
+    );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);
