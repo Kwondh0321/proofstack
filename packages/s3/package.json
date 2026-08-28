@@ -18,14 +18,18 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
+    "test": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
-    "@proofstack/artifacts": "workspace:*"
+    "@proofstack/artifacts": "workspace:*",
+    "@smithy/node-http-handler": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
