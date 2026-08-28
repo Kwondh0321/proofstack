@@ -681,14 +681,14 @@ describe("coordinated recovery rehearsal", () => {
       ),
       objects: restoredObjects,
     });
-    await expect(
-      restoredArtifactReader.execute({
-        artifactId: availableArtifactId,
-        environmentId: scope.environmentId,
-        principal: artifactPrincipal(),
-        projectId: scope.projectId,
-      }),
-    ).resolves.toMatchObject({ content: availableArtifactContent });
+    const restoredArtifact = await restoredArtifactReader.execute({
+      artifactId: availableArtifactId,
+      environmentId: scope.environmentId,
+      principal: artifactPrincipal(),
+      projectId: scope.projectId,
+    });
+    expect(Buffer.from(restoredArtifact.content)).toEqual(availableArtifactContent);
+    expect(restoredArtifact.metadata.state).toBe("available");
     await expect(
       restoredArtifactReader.execute({
         artifactId: availableArtifactId,
