@@ -303,6 +303,45 @@ describe("readBoundedTraceSnapshot", () => {
     ).rejects.toMatchObject({ cause: failure });
   });
 
+  it("reads every declared event index without trusting an overridden iterator", async () => {
+    const events = [envelope("evt_snapshot_a"), envelope("evt_snapshot_b")];
+    Object.defineProperty(events, Symbol.iterator, {
+      value: function* truncatedIterator() {
+        yield events[0];
+      },
+    });
+    const harness = repositoryReturning({ cursorFound: true, events, hasMore: false });
+
+    await expect(
+      readBoundedTraceSnapshot(harness.repository, {
+        maximumEvents: 2,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).resolves.toEqual({
+      events: [envelope("evt_snapshot_a"), envelope("evt_snapshot_b")],
+      status: "found",
+    });
+  });
+
+  it("fails closed when an array proxy reports an invalid declared length", async () => {
+    const events = new Proxy([envelope("evt_snapshot_a")], {
+      get(target, property, receiver) {
+        if (property === "length") return "1";
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const harness = repositoryReturning({ cursorFound: true, events, hasMore: false });
+
+    await expect(
+      readBoundedTraceSnapshot(harness.repository, {
+        maximumEvents: 1,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).rejects.toBeInstanceOf(EvidenceRepositoryContractError);
+  });
+
   it("wraps a revoked fulfilled event array as a contract violation", async () => {
     const revocable = Proxy.revocable([envelope("evt_snapshot_revoked")], {});
     revocable.revoke();

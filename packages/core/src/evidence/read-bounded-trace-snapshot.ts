@@ -39,12 +39,27 @@ function invalidRepositoryPage(message: string, cause?: unknown): EvidenceReposi
   return new EvidenceRepositoryContractError(message, cause === undefined ? undefined : { cause });
 }
 
-function validateRepositoryEvents(input: unknown): readonly EvidenceEnvelope[] {
+function validateRepositoryEvents(
+  input: unknown,
+  maximumEvents: number,
+): readonly EvidenceEnvelope[] {
   try {
     if (!Array.isArray(input)) {
       throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
     }
-    return Array.from(input, (event) => {
+    const length = Reflect.get(input, "length");
+    if (!Number.isSafeInteger(length) || length < 0) {
+      throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
+    }
+    if (length > maximumEvents) {
+      throw invalidRepositoryPage(
+        "The evidence repository returned more trace events than requested",
+      );
+    }
+
+    const events: EvidenceEnvelope[] = [];
+    for (let index = 0; index < length; index += 1) {
+      const event = Reflect.get(input, index);
       const parsed = EvidenceEnvelopeSchema.safeParse(event);
       if (!parsed.success) {
         throw invalidRepositoryPage(
@@ -52,15 +67,16 @@ function validateRepositoryEvents(input: unknown): readonly EvidenceEnvelope[] {
           parsed.error,
         );
       }
-      return parsed.data;
-    });
+      events.push(parsed.data);
+    }
+    return events;
   } catch (cause) {
     if (cause instanceof EvidenceRepositoryContractError) throw cause;
     throw invalidRepositoryPage("The evidence repository returned an unreadable trace page", cause);
   }
 }
 
-function validateRepositoryPage(input: unknown): EvidencePage {
+function validateRepositoryPage(input: unknown, maximumEvents: number): EvidencePage {
   if (typeof input !== "object" || input === null) {
     throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
   }
@@ -78,7 +94,7 @@ function validateRepositoryPage(input: unknown): EvidencePage {
   if (typeof cursorFound !== "boolean" || typeof hasMore !== "boolean") {
     throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
   }
-  return { cursorFound, events: validateRepositoryEvents(events), hasMore };
+  return { cursorFound, events: validateRepositoryEvents(events, maximumEvents), hasMore };
 }
 
 interface CanonicalEvidenceKey {
@@ -157,15 +173,11 @@ export async function readBoundedTraceSnapshot(
   const traceId = query.traceId;
   const page = validateRepositoryPage(
     await repository.listByTrace({ ...expectedScope }, traceId, { limit: maximumEvents }),
+    maximumEvents,
   );
   if (!page.cursorFound) {
     throw new EvidenceRepositoryContractError(
       "The evidence repository rejected a cursorless trace read",
-    );
-  }
-  if (page.events.length > maximumEvents) {
-    throw new EvidenceRepositoryContractError(
-      "The evidence repository returned more trace events than requested",
     );
   }
   if (page.hasMore && page.events.length !== maximumEvents) {
