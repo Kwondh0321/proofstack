@@ -234,6 +234,7 @@ describe("runDatabaseCli", () => {
         createdRoles: [
           "proofstack_api",
           "proofstack_identity",
+          "proofstack_artifact_maintenance",
           "proofstack_publisher",
           "proofstack_consumer",
         ],
@@ -245,6 +246,7 @@ describe("runDatabaseCli", () => {
       ["provision"],
       {
         PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
+        PROOFSTACK_ARTIFACT_DATABASE_PASSWORD: "local-artifact-password",
         PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
         PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
@@ -259,6 +261,7 @@ describe("runDatabaseCli", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
       ],
@@ -270,6 +273,10 @@ describe("runDatabaseCli", () => {
       expect.anything(),
       expect.objectContaining({
         api: { name: "proofstack_api", password: "local-api-password" },
+        artifact: {
+          name: "proofstack_artifact_maintenance",
+          password: "local-artifact-password",
+        },
         identity: { name: "proofstack_identity", password: "local-identity-password" },
       }),
     );
@@ -546,7 +553,9 @@ describe("runDatabaseCli", () => {
       ["provision"],
       {
         PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
+        PROOFSTACK_ARTIFACT_DATABASE_PASSWORD: "local-artifact-password",
         PROOFSTACK_API_DATABASE_ROLE: "custom_api",
+        PROOFSTACK_ARTIFACT_DATABASE_ROLE: "custom_artifact",
         PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
         PROOFSTACK_CONSUMER_DATABASE_ROLE: "custom_consumer",
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
@@ -561,6 +570,7 @@ describe("runDatabaseCli", () => {
 
     expect(adapters.provision).toHaveBeenCalledWith(expect.anything(), {
       api: { name: "custom_api", password: "local-api-password" },
+      artifact: { name: "custom_artifact", password: "local-artifact-password" },
       consumer: { name: "custom_consumer", password: "local-consumer-password" },
       identity: { name: "custom_identity", password: "local-identity-password" },
       publisher: { name: "custom_publisher", password: "local-publisher-password" },

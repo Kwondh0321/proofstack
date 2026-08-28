@@ -16,6 +16,7 @@ if (!databaseUrl) {
 const runKey = Date.now().toString();
 const roleNames = {
   api: `proofstack_it_api_${runKey}`,
+  artifact: `proofstack_it_artifact_${runKey}`,
   consumer: `proofstack_it_consumer_${runKey}`,
   identity: `proofstack_it_identity_role_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
@@ -27,6 +28,7 @@ const runtimePools: Pool[] = [];
 function provisioningOptions(suffix: string): RuntimeRoleProvisioningOptions {
   return {
     api: { name: roleNames.api, password: `proofstack-api-${suffix}-password` },
+    artifact: { name: roleNames.artifact, password: `proofstack-artifact-${suffix}-password` },
     consumer: { name: roleNames.consumer, password: `proofstack-consumer-${suffix}-password` },
     identity: { name: roleNames.identity, password: `proofstack-identity-${suffix}-password` },
     publisher: { name: roleNames.publisher, password: `proofstack-publisher-${suffix}-password` },
@@ -67,7 +69,13 @@ describe("runtime role provisioning", () => {
   it("creates isolated least-privilege roles and rotates their credentials", async () => {
     const initial = provisioningOptions("initial");
     await expect(provisionRuntimeRoles(adminPool, initial)).resolves.toEqual({
-      createdRoles: [roleNames.api, roleNames.identity, roleNames.publisher, roleNames.consumer],
+      createdRoles: [
+        roleNames.api,
+        roleNames.identity,
+        roleNames.artifact,
+        roleNames.publisher,
+        roleNames.consumer,
+      ],
       updatedRoles: [],
     });
 
@@ -103,7 +111,7 @@ describe("runtime role provisioning", () => {
       `,
       [Object.values(roleNames)],
     );
-    expect(roleState.rows).toHaveLength(4);
+    expect(roleState.rows).toHaveLength(5);
     expect(
       roleState.rows.every(
         ({
@@ -126,6 +134,7 @@ describe("runtime role provisioning", () => {
     ).toBe(true);
     expect(roleState.rows.map(({ marker }) => marker).sort()).toEqual([
       "proofstack-managed-runtime-role:v1:api",
+      "proofstack-managed-runtime-role:v1:artifact",
       "proofstack-managed-runtime-role:v1:consumer",
       "proofstack-managed-runtime-role:v1:identity",
       "proofstack-managed-runtime-role:v1:publisher",
@@ -252,6 +261,79 @@ describe("runtime role provisioning", () => {
       outbox_insert: true,
       outbox_select: false,
       sequence_usage: false,
+    });
+
+    const artifactPool = poolFor(initial.artifact);
+    const artifactPrivileges = await artifactPool.query<{
+      readonly catalogDelete: boolean;
+      readonly catalogInsert: boolean;
+      readonly catalogSelect: boolean;
+      readonly catalogUpdate: boolean;
+      readonly evidenceSelect: boolean;
+      readonly ledgerSelect: boolean;
+      readonly outboxSelect: boolean;
+      readonly purgeDelete: boolean;
+      readonly purgeInsert: boolean;
+      readonly purgeSelect: boolean;
+      readonly purgeUpdate: boolean;
+      readonly sequenceUsage: boolean;
+      readonly tombstoneDelete: boolean;
+      readonly tombstoneInsert: boolean;
+      readonly tombstoneSelect: boolean;
+      readonly tombstoneUpdate: boolean;
+    }>(
+      `
+        SELECT
+          has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
+            AS "ledgerSelect",
+          has_table_privilege(current_user, 'proofstack_artifact_catalog', 'SELECT')
+            AS "catalogSelect",
+          has_table_privilege(current_user, 'proofstack_artifact_catalog', 'INSERT')
+            AS "catalogInsert",
+          has_table_privilege(current_user, 'proofstack_artifact_catalog', 'UPDATE')
+            AS "catalogUpdate",
+          has_table_privilege(current_user, 'proofstack_artifact_catalog', 'DELETE')
+            AS "catalogDelete",
+          has_table_privilege(current_user, 'proofstack_artifact_tombstones', 'SELECT')
+            AS "tombstoneSelect",
+          has_table_privilege(current_user, 'proofstack_artifact_tombstones', 'INSERT')
+            AS "tombstoneInsert",
+          has_table_privilege(current_user, 'proofstack_artifact_tombstones', 'UPDATE')
+            AS "tombstoneUpdate",
+          has_table_privilege(current_user, 'proofstack_artifact_tombstones', 'DELETE')
+            AS "tombstoneDelete",
+          has_table_privilege(current_user, 'proofstack_artifact_purge_receipts', 'SELECT')
+            AS "purgeSelect",
+          has_table_privilege(current_user, 'proofstack_artifact_purge_receipts', 'INSERT')
+            AS "purgeInsert",
+          has_table_privilege(current_user, 'proofstack_artifact_purge_receipts', 'UPDATE')
+            AS "purgeUpdate",
+          has_table_privilege(current_user, 'proofstack_artifact_purge_receipts', 'DELETE')
+            AS "purgeDelete",
+          has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT')
+            AS "evidenceSelect",
+          has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS "outboxSelect",
+          has_sequence_privilege(current_user, $1, 'USAGE') AS "sequenceUsage"
+      `,
+      [`public.${sequenceName}`],
+    );
+    expect(artifactPrivileges.rows[0]).toEqual({
+      catalogDelete: false,
+      catalogInsert: false,
+      catalogSelect: true,
+      catalogUpdate: true,
+      evidenceSelect: false,
+      ledgerSelect: true,
+      outboxSelect: false,
+      purgeDelete: false,
+      purgeInsert: true,
+      purgeSelect: true,
+      purgeUpdate: false,
+      sequenceUsage: false,
+      tombstoneDelete: false,
+      tombstoneInsert: true,
+      tombstoneSelect: true,
+      tombstoneUpdate: false,
     });
 
     const publisherPool = poolFor(initial.publisher);
@@ -485,7 +567,13 @@ describe("runtime role provisioning", () => {
     `);
     await expect(provisionRuntimeRoles(adminPool, rotated)).resolves.toEqual({
       createdRoles: [],
-      updatedRoles: [roleNames.api, roleNames.identity, roleNames.publisher, roleNames.consumer],
+      updatedRoles: [
+        roleNames.api,
+        roleNames.identity,
+        roleNames.artifact,
+        roleNames.publisher,
+        roleNames.consumer,
+      ],
     });
     const rotatedApiPool = poolFor(rotated.api);
     await expect(rotatedApiPool.query("SELECT current_user AS role")).resolves.toMatchObject({

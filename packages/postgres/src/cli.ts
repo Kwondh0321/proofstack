@@ -36,6 +36,8 @@ import {
 interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_API_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_API_DATABASE_ROLE?: string;
+  readonly PROOFSTACK_ARTIFACT_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_ARTIFACT_DATABASE_ROLE?: string;
   readonly PROOFSTACK_CONSUMER_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_CONSUMER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_DATABASE_URL?: string;
@@ -281,18 +283,29 @@ function migrationDatabaseUrl(environment: DatabaseCliEnvironment): string {
 
 function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRoleProvisioningOptions {
   const apiPassword = environment.PROOFSTACK_API_DATABASE_PASSWORD;
+  const artifactPassword = environment.PROOFSTACK_ARTIFACT_DATABASE_PASSWORD;
   const publisherPassword = environment.PROOFSTACK_PUBLISHER_DATABASE_PASSWORD;
   const consumerPassword = environment.PROOFSTACK_CONSUMER_DATABASE_PASSWORD;
   const identityPassword = environment.PROOFSTACK_IDENTITY_DATABASE_PASSWORD;
-  if (!apiPassword || !publisherPassword || !consumerPassword || !identityPassword) {
+  if (
+    !apiPassword ||
+    !artifactPassword ||
+    !publisherPassword ||
+    !consumerPassword ||
+    !identityPassword
+  ) {
     throw new DatabaseCliUsageError(
-      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
+      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
     );
   }
   return {
     api: {
       name: environment.PROOFSTACK_API_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.api,
       password: apiPassword,
+    },
+    artifact: {
+      name: environment.PROOFSTACK_ARTIFACT_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.artifact,
+      password: artifactPassword,
     },
     consumer: {
       name: environment.PROOFSTACK_CONSUMER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.consumer,

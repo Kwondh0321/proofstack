@@ -21,6 +21,7 @@ const runKey = Date.now().toString();
 const tenantId = `ten_identity_adapter_${runKey}`;
 const roleNames = {
   api: `proofstack_adapter_api_${runKey}`,
+  artifact: `proofstack_adapter_artifact_${runKey}`,
   consumer: `proofstack_adapter_consumer_${runKey}`,
   identity: `proofstack_adapter_identity_${runKey}`,
   publisher: `proofstack_adapter_publisher_${runKey}`,
@@ -31,6 +32,10 @@ let identityPool: Pool;
 function options(): RuntimeRoleProvisioningOptions {
   return {
     api: { name: roleNames.api, password: `proofstack-adapter-api-${runKey}` },
+    artifact: {
+      name: roleNames.artifact,
+      password: `proofstack-adapter-artifact-${runKey}`,
+    },
     consumer: {
       name: roleNames.consumer,
       password: `proofstack-adapter-consumer-${runKey}`,

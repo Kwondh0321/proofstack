@@ -4,6 +4,7 @@ import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
 
 export const DEFAULT_RUNTIME_ROLE_NAMES = {
   api: "proofstack_api",
+  artifact: "proofstack_artifact_maintenance",
   consumer: "proofstack_consumer",
   identity: "proofstack_identity",
   publisher: "proofstack_publisher",
@@ -24,6 +25,7 @@ export interface RuntimeRoleCredentials {
 
 export interface RuntimeRoleProvisioningOptions {
   readonly api: RuntimeRoleCredentials;
+  readonly artifact: RuntimeRoleCredentials;
   readonly consumer: RuntimeRoleCredentials;
   readonly identity: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
@@ -111,6 +113,12 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO %ROLE%",
   ],
+  artifact: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT SELECT, UPDATE ON TABLE public.proofstack_artifact_catalog TO %ROLE%",
+    "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO %ROLE%",
+    "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO %ROLE%",
+  ],
   consumer: [
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_consumer_receipts TO %ROLE%",
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_projection_cursors TO %ROLE%",
@@ -169,6 +177,7 @@ function validateCredentials(
 function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRoleProvisioningOptions {
   const validated = {
     api: validateCredentials("api", options.api),
+    artifact: validateCredentials("artifact", options.artifact),
     consumer: validateCredentials("consumer", options.consumer),
     identity: validateCredentials("identity", options.identity),
     publisher: validateCredentials("publisher", options.publisher),
@@ -346,7 +355,7 @@ export async function provisionRuntimeRoles(
 
       const createdRoles: string[] = [];
       const updatedRoles: string[] = [];
-      for (const kind of ["api", "identity", "publisher", "consumer"] as const) {
+      for (const kind of ["api", "identity", "artifact", "publisher", "consumer"] as const) {
         const outcome = await provisionRole(client, kind, validated[kind]);
         (outcome === "created" ? createdRoles : updatedRoles).push(validated[kind].name);
       }

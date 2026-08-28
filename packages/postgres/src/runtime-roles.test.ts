@@ -72,6 +72,10 @@ function poolWith(client: FakeClient, connections = { count: 0 }): Pick<Pool, "c
 function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
   return {
     api: { name: DEFAULT_RUNTIME_ROLE_NAMES.api, password: "local-api-password" },
+    artifact: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.artifact,
+      password: "local-artifact-password",
+    },
     consumer: {
       name: DEFAULT_RUNTIME_ROLE_NAMES.consumer,
       password: "local-consumer-password",
@@ -89,7 +93,7 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
 }
 
 function managedRole(
-  kind: "api" | "consumer" | "identity" | "publisher",
+  kind: "api" | "artifact" | "consumer" | "identity" | "publisher",
   overrides: Partial<RoleRow> = {},
 ): RoleRow {
   return {
@@ -112,6 +116,7 @@ describe("provisionRuntimeRoles", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
       ],
@@ -158,6 +163,18 @@ describe("provisionRuntimeRoles", () => {
       'GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO "proofstack_api"',
     );
     expect(statements).toContain(
+      'GRANT SELECT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_artifact_maintenance"',
+    );
+    expect(statements).toContain(
+      'GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO "proofstack_artifact_maintenance"',
+    );
+    expect(statements).toContain(
+      'GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO "proofstack_artifact_maintenance"',
+    );
+    expect(statements).not.toContain(
+      'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_artifact_maintenance"',
+    );
+    expect(statements).toContain(
       'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_consumer_receipts TO "proofstack_consumer"',
     );
     expect(statements.at(-1)).toBe("COMMIT");
@@ -167,6 +184,7 @@ describe("provisionRuntimeRoles", () => {
   it("rotates existing marked role passwords without recreating roles", async () => {
     const client = new FakeClient();
     client.roles.set("proofstack_api", managedRole("api"));
+    client.roles.set("proofstack_artifact_maintenance", managedRole("artifact"));
     client.roles.set("proofstack_identity", managedRole("identity"));
     client.roles.set("proofstack_publisher", managedRole("publisher"));
     client.roles.set("proofstack_consumer", managedRole("consumer"));
@@ -176,11 +194,12 @@ describe("provisionRuntimeRoles", () => {
       updatedRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
       ],
     });
-    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(4);
+    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(5);
     expect(client.queries.some(({ text }) => text.startsWith("COMMENT ON ROLE"))).toBe(false);
   });
 
