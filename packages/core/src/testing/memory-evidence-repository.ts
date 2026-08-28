@@ -6,8 +6,38 @@ function evidenceKey(envelope: EvidenceEnvelope): string {
   return `${envelope.scope.tenantId}:${envelope.evidence.eventId}`;
 }
 
-function isSameEvidence(left: EvidenceEnvelope, right: EvidenceEnvelope): boolean {
-  return JSON.stringify(left.evidence) === JSON.stringify(right.evidence);
+function isJsonEquivalent(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => isJsonEquivalent(value, right[index]));
+  }
+
+  if (typeof left !== "object" || left === null || typeof right !== "object" || right === null) {
+    return false;
+  }
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] && isJsonEquivalent(leftRecord[key], rightRecord[key]),
+    )
+  );
+}
+
+function isSameEnvelope(left: EvidenceEnvelope, right: EvidenceEnvelope): boolean {
+  return (
+    left.schemaVersion === right.schemaVersion &&
+    isJsonEquivalent(left.scope, right.scope) &&
+    isJsonEquivalent(left.evidence, right.evidence)
+  );
 }
 
 function matchesScope(envelope: EvidenceEnvelope, scope: EvidenceScope): boolean {
@@ -36,7 +66,7 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
         continue;
       }
 
-      if (!isSameEvidence(existing, envelope)) {
+      if (!isSameEnvelope(existing, envelope)) {
         throw new EvidenceConflictError(envelope.evidence.eventId);
       }
 

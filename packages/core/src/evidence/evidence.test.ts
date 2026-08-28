@@ -1,12 +1,12 @@
 import {
   EVIDENCE_SCHEMA_VERSION,
-  IngestEvidenceRequestSchema,
-  PrincipalContextSchema,
   type EvidenceRecord,
+  IngestEvidenceRequestSchema,
   type PrincipalContext,
+  PrincipalContextSchema,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import { ForbiddenError, EvidenceConflictError } from "../errors.js";
+import { EvidenceConflictError, ForbiddenError } from "../errors.js";
 import { FixedClock } from "../testing/fixed-clock.js";
 import { MemoryEvidenceRepository } from "../testing/memory-evidence-repository.js";
 import { IngestEvidence } from "./ingest-evidence.js";
@@ -93,6 +93,32 @@ describe("IngestEvidence", () => {
       acceptedEventIds: [],
       duplicateEventIds: [baseEvidence.eventId],
     });
+  });
+
+  it("treats reordered JSON object keys as the same evidence", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+    const first = { ...baseEvidence, attributes: { alpha: 1, beta: 2 } };
+    const retry = { ...baseEvidence, attributes: { beta: 2, alpha: 1 } };
+
+    await ingest.execute({ ...command(), request: request(first) });
+    const result = await ingest.execute({ ...command(), request: request(retry) });
+
+    expect(result).toEqual({
+      acceptedEventIds: [],
+      duplicateEventIds: [baseEvidence.eventId],
+    });
+  });
+
+  it("rejects reuse of an event identifier in a different resource scope", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+
+    await ingest.execute(command());
+
+    await expect(
+      ingest.execute({ ...command(), environmentId: "env_other" }),
+    ).rejects.toBeInstanceOf(EvidenceConflictError);
   });
 
   it("rejects reuse of an event identifier with different evidence", async () => {
