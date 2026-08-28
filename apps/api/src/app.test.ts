@@ -112,6 +112,8 @@ describe("health routes", () => {
       PROOFSTACK_AUTH_MODE: "api_key",
       PROOFSTACK_DATABASE_URL: "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
       PROOFSTACK_ENV: "production",
+      PROOFSTACK_IDENTITY_DATABASE_URL:
+        "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
       PROOFSTACK_LOG_LEVEL: "silent",
       PROOFSTACK_STORAGE_MODE: "postgres",
     });

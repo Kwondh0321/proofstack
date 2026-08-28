@@ -32,6 +32,8 @@ describe("loadConfig", () => {
           "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_ENV: "production",
         PROOFSTACK_HOST: "0.0.0.0",
+        PROOFSTACK_IDENTITY_DATABASE_URL:
+          "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toMatchObject({ authMode: "oidc", host: "0.0.0.0" });
@@ -73,6 +75,8 @@ describe("loadConfig", () => {
       loadConfig({
         PROOFSTACK_AUTH_MODE: "oidc",
         PROOFSTACK_ENV: "production",
+        PROOFSTACK_IDENTITY_DATABASE_URL:
+          "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
       }),
     ).toThrow("In-memory evidence storage is forbidden in production");
   });
@@ -84,8 +88,53 @@ describe("loadConfig", () => {
         PROOFSTACK_DATABASE_URL:
           "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_ENV: "production",
+        PROOFSTACK_IDENTITY_DATABASE_URL:
+          "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toMatchObject({ storage: { mode: "postgres" } });
+  });
+
+  it("requires durable identity storage for every production authentication mode", () => {
+    expect(() => loadConfig({ PROOFSTACK_AUTH_MODE: "api_key" })).toThrow(
+      "PROOFSTACK_IDENTITY_DATABASE_URL",
+    );
+    expect(() => loadConfig({ PROOFSTACK_AUTH_MODE: "oidc" })).toThrow(
+      "PROOFSTACK_IDENTITY_DATABASE_URL",
+    );
+  });
+
+  it("validates identity database transport independently", () => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_AUTH_MODE: "api_key",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@db.example.com/proofstack",
+      }),
+    ).toThrow("sslmode=verify-full");
+  });
+
+  it("requires separate evidence and identity database roles", () => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_AUTH_MODE: "api_key",
+        PROOFSTACK_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
+        PROOFSTACK_STORAGE_MODE: "postgres",
+      }),
+    ).toThrow("must use distinct roles");
+  });
+
+  it("loads combined mode only with an isolated durable identity connection", () => {
+    expect(
+      loadConfig({
+        PROOFSTACK_AUTH_MODE: "combined",
+        PROOFSTACK_DATABASE_URL: "postgresql://api@127.0.0.1:5432/proofstack",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
+        PROOFSTACK_STORAGE_MODE: "postgres",
+      }),
+    ).toMatchObject({
+      authMode: "combined",
+      identityDatabaseUrl: "postgresql://identity@127.0.0.1:5432/proofstack",
+    });
   });
 });

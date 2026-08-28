@@ -18,10 +18,11 @@ const StorageConfigSchema = z.discriminatedUnion("mode", [
 
 const ApiConfigSchema = z
   .object({
-    authMode: z.enum(["development", "api_key", "oidc"]),
+    authMode: z.enum(["development", "api_key", "oidc", "combined"]),
     corsOrigin: z.string().url().optional(),
     environment: z.enum(["development", "test", "production"]),
     host: z.string().min(1),
+    identityDatabaseUrl: z.string().min(1).optional(),
     logLevel: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]),
     port: z.number().int().min(1).max(65_535),
     storage: StorageConfigSchema,
@@ -55,6 +56,31 @@ const ApiConfigSchema = z
       });
     }
 
+    if (value.authMode !== "development" && !value.identityDatabaseUrl) {
+      context.addIssue({
+        code: "custom",
+        message: "Production authentication modes require PROOFSTACK_IDENTITY_DATABASE_URL",
+        path: ["identityDatabaseUrl"],
+      });
+    }
+
+    if (value.identityDatabaseUrl) {
+      try {
+        validatePostgresConnectionString(value.identityDatabaseUrl, {
+          allowPlaintextLoopback: value.environment !== "production",
+        });
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          message:
+            error instanceof PostgresConnectionStringError
+              ? error.message
+              : "Identity PostgreSQL connection settings are invalid",
+          path: ["identityDatabaseUrl"],
+        });
+      }
+    }
+
     if (value.storage.mode === "postgres") {
       try {
         validatePostgresConnectionString(value.storage.databaseUrl, {
@@ -70,6 +96,22 @@ const ApiConfigSchema = z
           path: ["storage", "databaseUrl"],
         });
       }
+
+      if (value.identityDatabaseUrl) {
+        try {
+          const evidenceRole = new URL(value.storage.databaseUrl).username;
+          const identityRole = new URL(value.identityDatabaseUrl).username;
+          if (evidenceRole === identityRole) {
+            context.addIssue({
+              code: "custom",
+              message: "Evidence and identity PostgreSQL connections must use distinct roles",
+              path: ["identityDatabaseUrl"],
+            });
+          }
+        } catch {
+          // The connection validators above report malformed URLs with their canonical messages.
+        }
+      }
     }
   });
 
@@ -81,6 +123,7 @@ interface ProofStackEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_DATABASE_URL?: string;
   readonly PROOFSTACK_ENV?: string;
   readonly PROOFSTACK_HOST?: string;
+  readonly PROOFSTACK_IDENTITY_DATABASE_URL?: string;
   readonly PROOFSTACK_LOG_LEVEL?: string;
   readonly PROOFSTACK_PORT?: string;
   readonly PROOFSTACK_STORAGE_MODE?: string;
@@ -92,6 +135,7 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
     corsOrigin: environment.PROOFSTACK_CORS_ORIGIN || undefined,
     environment: environment.PROOFSTACK_ENV ?? "development",
     host: environment.PROOFSTACK_HOST ?? "127.0.0.1",
+    identityDatabaseUrl: environment.PROOFSTACK_IDENTITY_DATABASE_URL || undefined,
     logLevel: environment.PROOFSTACK_LOG_LEVEL ?? "info",
     port: Number(environment.PROOFSTACK_PORT ?? "4318"),
     storage:
