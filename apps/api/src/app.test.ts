@@ -416,4 +416,24 @@ describe("evidence routes", () => {
       status: 401,
     });
   });
+
+  it("authenticates before disclosing protected request validation", async () => {
+    const app = await createApp(config, {
+      authenticator: {
+        authenticate: async () => {
+          throw new AuthenticationRequiredError();
+        },
+      },
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      body: { invalid: true },
+      method: "POST",
+      url: "/v1/projects/INVALID/environments/INVALID/evidence",
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "unauthenticated" });
+  });
 });

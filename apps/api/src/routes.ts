@@ -79,9 +79,9 @@ export async function registerRoutes(
       },
     },
     async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
       const path = EvidencePathSchema.parse(request.params);
       const body = IngestEvidenceRequestSchema.parse(request.body);
-      const principal = await dependencies.authenticator.authenticate(request);
 
       const result = await dependencies.ingestEvidence.execute({
         environmentId: path.environmentId,
@@ -112,9 +112,9 @@ export async function registerRoutes(
       },
     },
     async (request) => {
+      const principal = await dependencies.authenticator.authenticate(request);
       const path = TracePathSchema.parse(request.params);
       const query = TraceQuerySchema.parse(request.query);
-      const principal = await dependencies.authenticator.authenticate(request);
       const result = await dependencies.listTraceEvidence.execute({
         ...(query.cursor ? { after: decodeTraceCursor(query.cursor) } : {}),
         environmentId: path.environmentId,
