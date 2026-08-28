@@ -8,6 +8,20 @@ import { RecoveryOperationError } from "./errors.js";
 import { NativePostgresCommandRunner, type PostgresCommandRunner } from "./postgres-command.js";
 
 const POSTGRES_VERSION_PATTERN = /\b(\d+)(?:\.\d+)*\b/u;
+const LIBPQ_QUERY_ENVIRONMENT = new Map<string, string>([
+  ["channel_binding", "PGCHANNELBINDING"],
+  ["connect_timeout", "PGCONNECT_TIMEOUT"],
+  ["options", "PGOPTIONS"],
+  ["passfile", "PGPASSFILE"],
+  ["sslcert", "PGSSLCERT"],
+  ["sslcrl", "PGSSLCRL"],
+  ["sslcrldir", "PGSSLCRLDIR"],
+  ["sslkey", "PGSSLKEY"],
+  ["sslmode", "PGSSLMODE"],
+  ["sslpassword", "PGSSLPASSWORD"],
+  ["sslrootcert", "PGSSLROOTCERT"],
+  ["target_session_attrs", "PGTARGETSESSIONATTRS"],
+]);
 
 interface ServerVersionRow {
   readonly server_version: string;
@@ -49,7 +63,7 @@ function operationError(
   return new RecoveryOperationError(operation, reason, cause === undefined ? undefined : { cause });
 }
 
-function safeChildEnvironment(connectionString?: string): Readonly<Record<string, string>> {
+function safeChildEnvironment(): Readonly<Record<string, string>> {
   const inheritedNames = [
     "DYLD_LIBRARY_PATH",
     "HOME",
@@ -69,8 +83,51 @@ function safeChildEnvironment(connectionString?: string): Readonly<Record<string
   return {
     ...environment,
     PGAPPNAME: "proofstack-recovery",
-    ...(connectionString === undefined ? {} : { PGDATABASE: connectionString }),
   };
+}
+
+interface PostgresConnectionSettings {
+  readonly databaseName: string;
+  readonly environment: Readonly<Record<string, string>>;
+}
+
+function postgresConnectionSettings(
+  connectionString: string,
+  operation: "database-backup" | "database-restore",
+): PostgresConnectionSettings {
+  try {
+    const connection = new URL(connectionString);
+    const databaseName = decodeURIComponent(connection.pathname.slice(1));
+    const hostname = connection.hostname.replace(/^\[|\]$/gu, "");
+    const environment: Record<string, string> = {
+      ...safeChildEnvironment(),
+      PGDATABASE: databaseName,
+      PGHOST: hostname,
+      PGPASSWORD: decodeURIComponent(connection.password),
+      PGPORT: connection.port || "5432",
+      PGUSER: decodeURIComponent(connection.username),
+    };
+    const seenParameters = new Set<string>();
+    for (const [name, value] of connection.searchParams) {
+      const environmentName = LIBPQ_QUERY_ENVIRONMENT.get(name);
+      if (environmentName === undefined) {
+        throw operationError(operation, `unsupported PostgreSQL connection parameter: ${name}`);
+      }
+      if (seenParameters.has(name)) {
+        throw operationError(operation, `duplicate PostgreSQL connection parameter: ${name}`);
+      }
+      seenParameters.add(name);
+      environment[environmentName] = value;
+    }
+    return { databaseName, environment };
+  } catch (error) {
+    if (error instanceof RecoveryOperationError) throw error;
+    throw operationError(
+      operation,
+      "database connection configuration could not be normalized",
+      error,
+    );
+  }
 }
 
 function versionMajor(version: string, operation: "database-backup" | "database-restore"): number {
@@ -182,6 +239,7 @@ export async function createPostgresLogicalBackup(
     options.allowPlaintextLoopback,
     "database-backup",
   );
+  const connection = postgresConnectionSettings(connectionString, "database-backup");
   const directory = dirname(options.outputPath);
   let directoryStatus: Stats;
   try {
@@ -214,7 +272,7 @@ export async function createPostgresLogicalBackup(
   try {
     await runner.run({
       arguments: ["--format=custom", "--no-owner", "--no-privileges", `--file=${temporaryPath}`],
-      environment: safeChildEnvironment(connectionString),
+      environment: connection.environment,
       executable,
     });
     const receipt = await digestFile(temporaryPath, "database-backup");
@@ -293,6 +351,7 @@ export async function restorePostgresLogicalBackup(
     options.allowPlaintextLoopback,
     "database-restore",
   );
+  const connection = postgresConnectionSettings(connectionString, "database-restore");
   await assertEmptyTarget(options.database);
 
   const runner = options.runner ?? new NativePostgresCommandRunner();
@@ -310,9 +369,10 @@ export async function restorePostgresLogicalBackup(
         "--single-transaction",
         "--no-owner",
         "--no-privileges",
+        `--dbname=${connection.databaseName}`,
         options.dumpPath,
       ],
-      environment: safeChildEnvironment(connectionString),
+      environment: connection.environment,
       executable,
     });
   } catch (error) {

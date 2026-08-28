@@ -15,7 +15,9 @@ import {
   restorePostgresLogicalBackup,
 } from "./postgres-logical-backup.js";
 
-const CONNECTION_STRING = "postgresql://recovery:private-password@127.0.0.1:5432/proofstack_test";
+const CONNECTION_STRING = "postgresql://recovery:private-password@127.0.0.1/proofstack_test";
+const TLS_CONNECTION_STRING =
+  "postgresql://recovery:private-password@db.example.test:5433/proofstack_tls?sslmode=verify-full&sslrootcert=%2Fetc%2Fssl%2Froot.pem";
 const DUMP_BYTES = Buffer.from("test PostgreSQL custom dump", "utf8");
 
 class FakeRunner implements PostgresCommandRunner {
@@ -79,13 +81,6 @@ function fakeDatabase(options: FakeDatabaseOptions = {}): {
 let temporaryDirectories: string[] = [];
 const secretEnvironmentName: string = "PROOFSTACK_RECOVERY_TEST_SECRET";
 
-function commandEnvironmentValue(
-  environment: Readonly<Record<string, string>> | undefined,
-  name: string,
-): string | undefined {
-  return environment?.[name];
-}
-
 beforeEach(() => {
   temporaryDirectories = [];
 });
@@ -139,8 +134,55 @@ describe("PostgreSQL logical backup", () => {
       expect.stringMatching(/^--file=.*\.partial$/u),
     ]);
     expect(dumpCall.arguments.join(" ")).not.toContain("private-password");
-    expect(commandEnvironmentValue(dumpCall.environment, "PGDATABASE")).toBe(CONNECTION_STRING);
+    expect(dumpCall.environment).toMatchObject({
+      PGAPPNAME: "proofstack-recovery",
+      PGDATABASE: "proofstack_test",
+      PGHOST: "127.0.0.1",
+      PGPASSWORD: "private-password",
+      PGPORT: "5432",
+      PGUSER: "recovery",
+    });
     expect(dumpCall.environment).not.toHaveProperty("PROOFSTACK_RECOVERY_TEST_SECRET");
+  });
+
+  it("normalizes supported verified-TLS connection parameters for libpq", async () => {
+    const directory = await temporaryDirectory();
+    const runner = new FakeRunner();
+    const { database } = fakeDatabase();
+    await createPostgresLogicalBackup({
+      allowPlaintextLoopback: false,
+      connectionString: TLS_CONNECTION_STRING,
+      database,
+      outputPath: join(directory, "database.dump"),
+      runner,
+    });
+    expect(runner.calls.at(-1)?.environment).toMatchObject({
+      PGDATABASE: "proofstack_tls",
+      PGHOST: "db.example.test",
+      PGPORT: "5433",
+      PGSSLMODE: "verify-full",
+      PGSSLROOTCERT: "/etc/ssl/root.pem",
+    });
+  });
+
+  it.each([
+    ["unsupported", `${CONNECTION_STRING}?application_name=unsafe`],
+    ["duplicate", `${CONNECTION_STRING}?sslrootcert=first&sslrootcert=second`],
+    ["malformed", "postgresql://recovery:%@127.0.0.1:5432/proofstack_test"],
+  ])("rejects a %s connection parameter before invoking a data command", async (_name, value) => {
+    const directory = await temporaryDirectory();
+    const runner = new FakeRunner();
+    const { database } = fakeDatabase();
+    await expect(
+      createPostgresLogicalBackup({
+        allowPlaintextLoopback: true,
+        connectionString: value,
+        database,
+        outputPath: join(directory, "database.dump"),
+        runner,
+      }),
+    ).rejects.toBeInstanceOf(RecoveryOperationError);
+    expect(runner.calls).toEqual([]);
   });
 
   it.each([
@@ -348,11 +390,17 @@ describe("PostgreSQL logical restore", () => {
       "--single-transaction",
       "--no-owner",
       "--no-privileges",
+      "--dbname=proofstack_test",
       dumpPath,
     ]);
-    expect(commandEnvironmentValue(runner.calls.at(-1)?.environment, "PGDATABASE")).toBe(
-      CONNECTION_STRING,
-    );
+    expect(runner.calls.at(-1)?.arguments.join(" ")).not.toContain("private-password");
+    expect(runner.calls.at(-1)?.environment).toMatchObject({
+      PGDATABASE: "proofstack_test",
+      PGHOST: "127.0.0.1",
+      PGPASSWORD: "private-password",
+      PGPORT: "5432",
+      PGUSER: "recovery",
+    });
     expect(queries.some((query) => query.includes("pg_extension"))).toBe(true);
     expect(queries.some((query) => query.includes("pg_type"))).toBe(true);
   });
