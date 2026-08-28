@@ -30,10 +30,11 @@ and commits or rolls back before releasing it. The third argument to `set_config
 so pooled connections cannot retain tenant state. There is no unscoped runtime query interface.
 
 The evidence table has tenant, project, environment, trace, ordering, and event identifiers as
-explicit columns alongside the canonical JSONB envelope. Its primary key is `(tenant_id,
-event_id)`, making event identity tenant-wide while allowing independent tenants to use the same
-identifier. Database constraints require the indexed columns to match the canonical envelope.
-Trace reads use the complete `(started_at, sequence, event_id)` keyset ordering.
+explicit columns alongside the canonical JSONB evidence payload and server-owned receipt time. Its
+primary key is `(tenant_id, event_id)`, making event identity tenant-wide while allowing independent
+tenants to use the same identifier. Database constraints require evidence-derived indexed columns
+to match the canonical payload. Trace reads use the complete `(started_at, sequence, event_id)`
+keyset ordering.
 
 Row-level security is enabled and forced on every tenant-bearing table. Policies fail closed when
 `proofstack.tenant_id` is absent and permit only rows whose `tenant_id` exactly matches the local
@@ -48,9 +49,10 @@ ordinary repository code cannot weaken append-only history.
 
 Batch ingestion runs in one transaction. Each envelope is inserted with `ON CONFLICT DO NOTHING`.
 When a key already exists, the adapter reads the row within the same tenant transaction and compares
-the complete stored envelope using JSONB equality. An identical envelope is a duplicate; any
-different schema, scope, receipt time, or evidence payload is a conflict and rolls back the whole
-batch.
+the schema version, complete scope, and evidence payload using JSONB equality. The server-owned
+receipt time is intentionally excluded: an identical client event retried later remains a duplicate
+and retains its first receipt time. Any different schema, scope, or evidence payload is a conflict
+and rolls back the whole batch.
 
 Migrations are immutable, ordered SQL files embedded in the package. The migrator:
 
