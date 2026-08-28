@@ -29,4 +29,8 @@ export {
   MAX_OUTBOX_RETRY_DELAY_MS,
   PostgresOutboxRepository,
 } from "./postgres-outbox-repository.js";
+export {
+  MAX_PROJECTION_CURSOR_GENERATION,
+  PostgresProjectionCursorRepository,
+} from "./postgres-projection-cursor-repository.js";
 export { PostgresTransactionCleanupError } from "./tenant-transaction.js";
