@@ -94,6 +94,10 @@ const problemResponses = {
     content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
     description: "The authenticated principal is not authorized",
   },
+  "429": {
+    content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+    description: "The request rate limit was exceeded",
+  },
   "500": {
     content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
     description: "An unexpected error occurred",

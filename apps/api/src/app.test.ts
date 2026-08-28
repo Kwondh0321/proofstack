@@ -168,6 +168,23 @@ describe("evidence routes", () => {
     expect(response.json()).toMatchObject({ code: "trace_not_found", status: 404 });
   });
 
+  it("rate limits repeated trace reads", async () => {
+    const app = await testApp();
+    const request = {
+      method: "GET" as const,
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}`,
+    };
+
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      const response = await app.inject(request);
+      expect(response.statusCode).toBe(404);
+    }
+    const limited = await app.inject(request);
+
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ code: "http_429", status: 429 });
+  });
+
   it("returns a conflict for reused identifiers with changed evidence", async () => {
     const app = await testApp();
     const url = "/v1/projects/prj_local/environments/env_local/evidence";

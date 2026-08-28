@@ -1,10 +1,10 @@
 import {
+  createProofStackOpenApiDocument,
   EVIDENCE_SCHEMA_VERSION,
-  IngestEvidenceResponseSchema,
   IngestEvidenceRequestSchema,
+  IngestEvidenceResponseSchema,
   LivenessResponseSchema,
   OpaqueIdSchema,
-  createProofStackOpenApiDocument,
   ReadinessResponseSchema,
   TraceIdSchema,
   TraceResponseSchema,
@@ -76,6 +76,14 @@ export async function registerRoutes(
 
   app.get(
     "/v1/projects/:projectId/environments/:environmentId/traces/:traceId",
+    {
+      config: {
+        rateLimit: {
+          max: 600,
+          timeWindow: "1 minute",
+        },
+      },
+    },
     async (request) => {
       const path = TracePathSchema.parse(request.params);
       const principal = await dependencies.authenticator.authenticate(request);
