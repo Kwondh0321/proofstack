@@ -40,6 +40,21 @@ function dependencies(options: {
     readonly newlyAppliedIds: readonly string[];
     readonly pendingIds: readonly string[];
   }>;
+  readonly oidcCreate?: () => Promise<{
+    readonly bindingId: string;
+    readonly createdAt: string;
+    readonly identityDigest: string;
+    readonly issuer: string;
+    readonly principalId: string;
+    readonly subject: string;
+    readonly tenantId: string;
+  }>;
+  readonly oidcDisable?: () => Promise<boolean>;
+  readonly oidcUpdate?: () => Promise<{
+    readonly bindingId: string;
+    readonly tenantId: string;
+    readonly updatedAt: string;
+  }>;
   readonly inspectIdentity?: () => Promise<{
     readonly active: number;
     readonly expired: number;
@@ -93,6 +108,27 @@ function dependencies(options: {
         newlyAppliedIds: [],
         pendingIds: [],
       })),
+    oidcCreate: vi.fn(
+      options.oidcCreate ??
+        (async () => ({
+          bindingId: "oidc_operator",
+          createdAt: "2026-08-28T05:00:00.000Z",
+          identityDigest: "a".repeat(64),
+          issuer: "https://identity.example.test/tenant",
+          principalId: "usr_oidc_operator",
+          subject: "provider-subject-001",
+          tenantId: "ten_acme",
+        })),
+    ),
+    oidcDisable: vi.fn(options.oidcDisable ?? (async () => true)),
+    oidcUpdate: vi.fn(
+      options.oidcUpdate ??
+        (async () => ({
+          bindingId: "oidc_operator",
+          tenantId: "ten_acme",
+          updatedAt: "2026-08-28T05:30:00.000Z",
+        })),
+    ),
     provision: vi.fn(
       options.provision ??
         (async () => ({
@@ -321,6 +357,165 @@ describe("runDatabaseCli", () => {
     });
     expect(adapters.inspectIdentity).toHaveBeenCalledWith(expect.anything(), "ten_acme");
     expect(streams.outputs.join(" ")).not.toMatch(/hash|salt|prefix/i);
+  });
+
+  it("creates an explicitly authorized OIDC binding without emitting credentials", async () => {
+    const streams = io();
+    const adapters = dependencies({});
+    const exitCode = await runDatabaseCli(
+      ["oidc-binding-create"],
+      {
+        PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+        PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+        PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+        PROOFSTACK_OIDC_BINDING_ID: "oidc_operator",
+        PROOFSTACK_OIDC_CAPABILITIES: "project:read,evidence:read,identity:manage",
+        PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
+        PROOFSTACK_OIDC_PRINCIPAL_ID: "usr_oidc_operator",
+        PROOFSTACK_OIDC_RESOURCE_SCOPE: '{"mode":"tenant"}',
+        PROOFSTACK_OIDC_ROLES: "admin",
+        PROOFSTACK_OIDC_SUBJECT: "provider-subject-001",
+      },
+      streams.value,
+      adapters,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(streams.outputs[0] ?? "{}")).toMatchObject({
+      bindingId: "oidc_operator",
+      status: "created",
+      tenantId: "ten_acme",
+    });
+    expect(streams.outputs.join(" ")).not.toMatch(/token|password|session/i);
+    expect(adapters.oidcCreate).toHaveBeenCalledWith(expect.anything(), {
+      actorPrincipalId: "usr_platform_operator",
+      bindingId: "oidc_operator",
+      capabilities: ["project:read", "evidence:read", "identity:manage"],
+      issuer: "https://identity.example.test/tenant",
+      principalId: "usr_oidc_operator",
+      resourceScope: { mode: "tenant" },
+      roles: ["admin"],
+      subject: "provider-subject-001",
+      tenantId: "ten_acme",
+    });
+  });
+
+  it("updates OIDC authorization without accepting identity replacement fields", async () => {
+    const streams = io();
+    const adapters = dependencies({});
+    await runDatabaseCli(
+      ["oidc-binding-update"],
+      {
+        PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+        PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+        PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+        PROOFSTACK_OIDC_BINDING_ID: "oidc_operator",
+        PROOFSTACK_OIDC_CAPABILITIES: "project:read",
+        PROOFSTACK_OIDC_RESOURCE_SCOPE:
+          '{"mode":"restricted","projects":[{"projectId":"prj_agents"}]}',
+        PROOFSTACK_OIDC_ROLES: "viewer",
+      },
+      streams.value,
+      adapters,
+    );
+
+    expect(JSON.parse(streams.outputs[0] ?? "{}")).toEqual({
+      bindingId: "oidc_operator",
+      status: "updated",
+      tenantId: "ten_acme",
+      updatedAt: "2026-08-28T05:30:00.000Z",
+    });
+    expect(adapters.oidcUpdate).toHaveBeenCalledWith(expect.anything(), {
+      actorPrincipalId: "usr_platform_operator",
+      bindingId: "oidc_operator",
+      capabilities: ["project:read"],
+      resourceScope: { mode: "restricted", projects: [{ projectId: "prj_agents" }] },
+      roles: ["viewer"],
+      tenantId: "ten_acme",
+    });
+  });
+
+  it("supports an explicitly empty OIDC capability set", async () => {
+    const adapters = dependencies({});
+    await runDatabaseCli(
+      ["oidc-binding-update"],
+      {
+        PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+        PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+        PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+        PROOFSTACK_OIDC_BINDING_ID: "oidc_operator",
+        PROOFSTACK_OIDC_CAPABILITIES: "",
+        PROOFSTACK_OIDC_RESOURCE_SCOPE: '{"mode":"tenant"}',
+        PROOFSTACK_OIDC_ROLES: "viewer",
+      },
+      io().value,
+      adapters,
+    );
+
+    expect(adapters.oidcUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ capabilities: [] }),
+    );
+  });
+
+  it("disables an OIDC binding idempotently", async () => {
+    const streams = io();
+    const adapters = dependencies({ oidcDisable: async () => false });
+    await runDatabaseCli(
+      ["oidc-binding-disable"],
+      {
+        PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+        PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+        PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+        PROOFSTACK_OIDC_BINDING_ID: "oidc_operator",
+        PROOFSTACK_OIDC_DISABLE_REASON: "access removed",
+      },
+      streams.value,
+      adapters,
+    );
+
+    expect(JSON.parse(streams.outputs[0] ?? "{}")).toEqual({
+      bindingId: "oidc_operator",
+      status: "unchanged",
+      tenantId: "ten_acme",
+    });
+    expect(adapters.oidcDisable).toHaveBeenCalledWith(expect.anything(), {
+      actorPrincipalId: "usr_platform_operator",
+      bindingId: "oidc_operator",
+      reason: "access removed",
+      tenantId: "ten_acme",
+    });
+  });
+
+  it.each([
+    [{ PROOFSTACK_OIDC_CAPABILITIES: "project:read,project:read" }, "unique"],
+    [{ PROOFSTACK_OIDC_CAPABILITIES: "unknown" }, "unique"],
+    [{ PROOFSTACK_OIDC_ROLES: "admin,admin" }, "unique"],
+    [{ PROOFSTACK_OIDC_RESOURCE_SCOPE: "not-json" }, "valid JSON"],
+    [{ PROOFSTACK_OIDC_RESOURCE_SCOPE: "{}" }, "valid resource scope"],
+  ])("rejects malformed OIDC CLI input before opening a pool", async (override, message) => {
+    const adapters = dependencies({});
+    await expect(
+      runDatabaseCli(
+        ["oidc-binding-create"],
+        {
+          PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID: "usr_platform_operator",
+          PROOFSTACK_IDENTITY_TENANT_ID: "ten_acme",
+          PROOFSTACK_MIGRATION_DATABASE_URL: "postgresql://migration@localhost/proofstack",
+          PROOFSTACK_OIDC_BINDING_ID: "oidc_operator",
+          PROOFSTACK_OIDC_CAPABILITIES: "project:read",
+          PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
+          PROOFSTACK_OIDC_PRINCIPAL_ID: "usr_oidc_operator",
+          PROOFSTACK_OIDC_RESOURCE_SCOPE: '{"mode":"tenant"}',
+          PROOFSTACK_OIDC_ROLES: "admin",
+          PROOFSTACK_OIDC_SUBJECT: "provider-subject-001",
+          ...override,
+        },
+        io().value,
+        adapters,
+      ),
+    ).rejects.toThrow(message);
+    expect(adapters.createPool).not.toHaveBeenCalled();
   });
 
   it("rejects malformed bootstrap scope before opening a connection", async () => {

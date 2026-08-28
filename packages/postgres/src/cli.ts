@@ -3,8 +3,12 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  type Capability,
+  CapabilitySchema,
   type ResourceScope,
   ResourceScopeSchema,
+  type Role,
+  RoleSchema,
   type WorkloadCapability,
   WorkloadCapabilitySchema,
 } from "@proofstack/contracts";
@@ -13,8 +17,14 @@ import { validatePostgresConnectionString } from "./connection-string.js";
 import { createPostgresPool } from "./database.js";
 import {
   bootstrapApiKey,
+  createOidcBinding,
+  type CreateOidcBindingOptions,
+  disableOidcBinding,
+  type DisableOidcBindingOptions,
   inspectIdentityCredentials,
   type BootstrapApiKeyOptions,
+  updateOidcBinding,
+  type UpdateOidcBindingOptions,
 } from "./identity-administration.js";
 import { inspectMigrations, migrateDatabase } from "./migration-runner.js";
 import {
@@ -41,6 +51,14 @@ interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_BOOTSTRAP_KEY_EXPIRES_AT?: string;
   readonly PROOFSTACK_BOOTSTRAP_KEY_NAME?: string;
   readonly PROOFSTACK_BOOTSTRAP_KEY_RESOURCE_SCOPE?: string;
+  readonly PROOFSTACK_OIDC_BINDING_ID?: string;
+  readonly PROOFSTACK_OIDC_CAPABILITIES?: string;
+  readonly PROOFSTACK_OIDC_DISABLE_REASON?: string;
+  readonly PROOFSTACK_OIDC_ISSUER?: string;
+  readonly PROOFSTACK_OIDC_PRINCIPAL_ID?: string;
+  readonly PROOFSTACK_OIDC_RESOURCE_SCOPE?: string;
+  readonly PROOFSTACK_OIDC_ROLES?: string;
+  readonly PROOFSTACK_OIDC_SUBJECT?: string;
 }
 
 export interface DatabaseCliIo {
@@ -54,6 +72,9 @@ interface DatabaseCliDependencies {
   readonly inspect: typeof inspectMigrations;
   readonly inspectIdentity: typeof inspectIdentityCredentials;
   readonly migrate: typeof migrateDatabase;
+  readonly oidcCreate: typeof createOidcBinding;
+  readonly oidcDisable: typeof disableOidcBinding;
+  readonly oidcUpdate: typeof updateOidcBinding;
   readonly provision: typeof provisionRuntimeRoles;
 }
 
@@ -69,6 +90,9 @@ const defaultDependencies: DatabaseCliDependencies = {
   inspect: inspectMigrations,
   inspectIdentity: inspectIdentityCredentials,
   migrate: migrateDatabase,
+  oidcCreate: createOidcBinding,
+  oidcDisable: disableOidcBinding,
+  oidcUpdate: updateOidcBinding,
   provision: provisionRuntimeRoles,
 };
 
@@ -119,6 +143,59 @@ function bootstrapResourceScope(environment: DatabaseCliEnvironment): ResourceSc
   return parsed.data;
 }
 
+function uniqueList<Value extends string>(
+  environment: DatabaseCliEnvironment,
+  name: keyof DatabaseCliEnvironment,
+  parse: (values: readonly string[]) => readonly Value[] | null,
+): readonly Value[] {
+  const raw = requiredEnvironmentValue(environment, name);
+  const values = raw.split(",").map((value) => value.trim());
+  const parsed = parse(values);
+  if (!parsed || new Set(parsed).size !== parsed.length) {
+    throw new DatabaseCliUsageError(`${name} must be a unique comma-separated value list`);
+  }
+  return parsed;
+}
+
+function oidcCapabilities(environment: DatabaseCliEnvironment): readonly Capability[] {
+  const raw = environment.PROOFSTACK_OIDC_CAPABILITIES;
+  if (typeof raw !== "string") {
+    throw new DatabaseCliUsageError("Set PROOFSTACK_OIDC_CAPABILITIES before running this command");
+  }
+  const values = raw.length === 0 ? [] : raw.split(",").map((value) => value.trim());
+  const parsed = CapabilitySchema.array().max(CapabilitySchema.options.length).safeParse(values);
+  if (!parsed.success || new Set(parsed.data).size !== parsed.data.length) {
+    throw new DatabaseCliUsageError(
+      "PROOFSTACK_OIDC_CAPABILITIES must be a unique comma-separated capability list",
+    );
+  }
+  return parsed.data;
+}
+
+function oidcRoles(environment: DatabaseCliEnvironment): readonly Role[] {
+  return uniqueList(environment, "PROOFSTACK_OIDC_ROLES", (values) => {
+    const parsed = RoleSchema.array().min(1).max(RoleSchema.options.length).safeParse(values);
+    return parsed.success ? parsed.data : null;
+  });
+}
+
+function oidcResourceScope(environment: DatabaseCliEnvironment): ResourceScope {
+  const raw = requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_RESOURCE_SCOPE");
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new DatabaseCliUsageError("PROOFSTACK_OIDC_RESOURCE_SCOPE must be valid JSON");
+  }
+  const parsed = ResourceScopeSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new DatabaseCliUsageError(
+      "PROOFSTACK_OIDC_RESOURCE_SCOPE must be a valid resource scope",
+    );
+  }
+  return parsed.data;
+}
+
 function identityTenantId(environment: DatabaseCliEnvironment): string {
   return requiredEnvironmentValue(environment, "PROOFSTACK_IDENTITY_TENANT_ID");
 }
@@ -135,6 +212,49 @@ function bootstrapOptions(environment: DatabaseCliEnvironment): BootstrapApiKeyO
       : {}),
     name: requiredEnvironmentValue(environment, "PROOFSTACK_BOOTSTRAP_KEY_NAME"),
     resourceScope: bootstrapResourceScope(environment),
+    tenantId: identityTenantId(environment),
+  };
+}
+
+function oidcCreateOptions(environment: DatabaseCliEnvironment): CreateOidcBindingOptions {
+  return {
+    actorPrincipalId: requiredEnvironmentValue(
+      environment,
+      "PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID",
+    ),
+    bindingId: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_BINDING_ID"),
+    capabilities: oidcCapabilities(environment),
+    issuer: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_ISSUER"),
+    principalId: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_PRINCIPAL_ID"),
+    resourceScope: oidcResourceScope(environment),
+    roles: oidcRoles(environment),
+    subject: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_SUBJECT"),
+    tenantId: identityTenantId(environment),
+  };
+}
+
+function oidcUpdateOptions(environment: DatabaseCliEnvironment): UpdateOidcBindingOptions {
+  return {
+    actorPrincipalId: requiredEnvironmentValue(
+      environment,
+      "PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID",
+    ),
+    bindingId: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_BINDING_ID"),
+    capabilities: oidcCapabilities(environment),
+    resourceScope: oidcResourceScope(environment),
+    roles: oidcRoles(environment),
+    tenantId: identityTenantId(environment),
+  };
+}
+
+function oidcDisableOptions(environment: DatabaseCliEnvironment): DisableOidcBindingOptions {
+  return {
+    actorPrincipalId: requiredEnvironmentValue(
+      environment,
+      "PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID",
+    ),
+    bindingId: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_BINDING_ID"),
+    reason: requiredEnvironmentValue(environment, "PROOFSTACK_OIDC_DISABLE_REASON"),
     tenantId: identityTenantId(environment),
   };
 }
@@ -200,11 +320,14 @@ export async function runDatabaseCli(
     command !== "identity-bootstrap" &&
     command !== "identity-status" &&
     command !== "migrate" &&
+    command !== "oidc-binding-create" &&
+    command !== "oidc-binding-disable" &&
+    command !== "oidc-binding-update" &&
     command !== "provision" &&
     command !== "status"
   ) {
     throw new DatabaseCliUsageError(
-      "Usage: proofstack-db <migrate|provision|status|identity-bootstrap|identity-status>",
+      "Usage: proofstack-db <migrate|provision|status|identity-bootstrap|identity-status|oidc-binding-create|oidc-binding-update|oidc-binding-disable>",
     );
   }
 
@@ -213,6 +336,12 @@ export async function runDatabaseCli(
     command === "identity-bootstrap" ? bootstrapOptions(environment) : undefined;
   const identityStatusTenantId =
     command === "identity-status" ? identityTenantId(environment) : undefined;
+  const createBindingOptions =
+    command === "oidc-binding-create" ? oidcCreateOptions(environment) : undefined;
+  const updateBindingOptions =
+    command === "oidc-binding-update" ? oidcUpdateOptions(environment) : undefined;
+  const disableBindingOptions =
+    command === "oidc-binding-disable" ? oidcDisableOptions(environment) : undefined;
   const connectionString = migrationDatabaseUrl(environment);
   let idleError: Error | undefined;
   const pool = dependencies.createPool(connectionString, (error) => {
@@ -260,6 +389,30 @@ export async function runDatabaseCli(
     if (command === "identity-status" && identityStatusTenantId) {
       const result = await dependencies.inspectIdentity(pool, identityStatusTenantId);
       io.output(JSON.stringify({ ...result, status: "current" }));
+      return idleError ? 1 : 0;
+    }
+
+    if (command === "oidc-binding-create" && createBindingOptions) {
+      const result = await dependencies.oidcCreate(pool, createBindingOptions);
+      io.output(JSON.stringify({ ...result, status: "created" }));
+      return idleError ? 1 : 0;
+    }
+
+    if (command === "oidc-binding-update" && updateBindingOptions) {
+      const result = await dependencies.oidcUpdate(pool, updateBindingOptions);
+      io.output(JSON.stringify({ ...result, status: "updated" }));
+      return idleError ? 1 : 0;
+    }
+
+    if (command === "oidc-binding-disable" && disableBindingOptions) {
+      const disabled = await dependencies.oidcDisable(pool, disableBindingOptions);
+      io.output(
+        JSON.stringify({
+          bindingId: disableBindingOptions.bindingId,
+          status: disabled ? "disabled" : "unchanged",
+          tenantId: disableBindingOptions.tenantId,
+        }),
+      );
       return idleError ? 1 : 0;
     }
 
