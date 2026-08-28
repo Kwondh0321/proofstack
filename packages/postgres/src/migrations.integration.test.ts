@@ -113,8 +113,10 @@ afterAll(async () => {
 describe("PostgreSQL evidence schema", () => {
   it("migrates atomically and enforces append-only tenant isolation", async () => {
     const firstMigration = await migrateDatabase(pool);
-    expect(firstMigration.appliedIds).toEqual(["0001_evidence_store"]);
-    expect([[], ["0001_evidence_store"]]).toContainEqual(firstMigration.newlyAppliedIds);
+    expect(firstMigration.appliedIds).toEqual(["0001_evidence_store", "0002_outbox_delivery"]);
+    expect([[], ["0001_evidence_store", "0002_outbox_delivery"]]).toContainEqual(
+      firstMigration.newlyAppliedIds,
+    );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);
@@ -194,6 +196,104 @@ describe("PostgreSQL evidence schema", () => {
       pool.query(
         "UPDATE proofstack_evidence_events SET received_at = clock_timestamp() WHERE tenant_id = 'ten_alpha'",
       ),
+    ).rejects.toMatchObject({ code: "55000" });
+
+    const tenantTables = await pool.query<{
+      readonly relforcerowsecurity: boolean;
+      readonly relname: string;
+      readonly relrowsecurity: boolean;
+    }>(`
+      SELECT relname, relrowsecurity, relforcerowsecurity
+      FROM pg_class
+      WHERE relname IN (
+        'proofstack_outbox',
+        'proofstack_projection_cursors',
+        'proofstack_consumer_receipts'
+      )
+      ORDER BY relname
+    `);
+    expect(tenantTables.rows).toEqual([
+      {
+        relforcerowsecurity: true,
+        relname: "proofstack_consumer_receipts",
+        relrowsecurity: true,
+      },
+      {
+        relforcerowsecurity: true,
+        relname: "proofstack_outbox",
+        relrowsecurity: true,
+      },
+      {
+        relforcerowsecurity: true,
+        relname: "proofstack_projection_cursors",
+        relrowsecurity: true,
+      },
+    ]);
+
+    const outbox = await pool.query<{ readonly outbox_id: string }>(`
+      INSERT INTO proofstack_outbox (
+        tenant_id,
+        event_type,
+        aggregate_type,
+        aggregate_id,
+        schema_version,
+        payload,
+        created_at
+      ) VALUES (
+        'ten_migration',
+        'evidence.appended',
+        'evidence',
+        'evt_migration_outbox',
+        '0.1',
+        '{"eventId":"evt_migration_outbox"}'::jsonb,
+        clock_timestamp()
+      )
+      RETURNING outbox_id::text
+    `);
+    await expect(
+      pool.query("UPDATE proofstack_outbox SET payload = '{}' WHERE outbox_id = $1", [
+        outbox.rows[0]?.outbox_id,
+      ]),
+    ).rejects.toMatchObject({ code: "55000" });
+
+    await pool.query(`
+      INSERT INTO proofstack_projection_cursors (
+        tenant_id,
+        consumer_name,
+        last_outbox_id
+      ) VALUES ('ten_migration', 'trace.projector', 10)
+    `);
+    await pool.query(`
+      UPDATE proofstack_projection_cursors
+      SET last_outbox_id = 11
+      WHERE tenant_id = 'ten_migration' AND consumer_name = 'trace.projector'
+    `);
+    await expect(
+      pool.query(`
+        UPDATE proofstack_projection_cursors
+        SET last_outbox_id = 9
+        WHERE tenant_id = 'ten_migration' AND consumer_name = 'trace.projector'
+      `),
+    ).rejects.toMatchObject({ code: "55000" });
+
+    await pool.query(`
+      INSERT INTO proofstack_consumer_receipts (
+        tenant_id,
+        consumer_name,
+        message_id,
+        payload_sha256
+      ) VALUES (
+        'ten_migration',
+        'trace.projector',
+        'message-001',
+        '${"a".repeat(64)}'
+      )
+    `);
+    await expect(
+      pool.query(`
+        DELETE FROM proofstack_consumer_receipts
+        WHERE tenant_id = 'ten_migration' AND consumer_name = 'trace.projector'
+      `),
     ).rejects.toMatchObject({ code: "55000" });
 
     const secondMigration = await migrateDatabase(pool);
