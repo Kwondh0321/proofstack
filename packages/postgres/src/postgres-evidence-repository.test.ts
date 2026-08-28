@@ -216,6 +216,7 @@ describe("PostgresEvidenceRepository.listByTrace", () => {
       text.includes("ORDER BY started_at"),
     );
     expect(listQuery?.values?.at(-1)).toBe(2);
+    expect(listQuery?.text).toContain('ORDER BY started_at, sequence, event_id COLLATE "C"');
   });
 
   it("rejects an unknown complete cursor without running the page query", async () => {
@@ -235,6 +236,8 @@ describe("PostgresEvidenceRepository.listByTrace", () => {
         limit: 10,
       }),
     ).resolves.toEqual({ cursorFound: false, events: [], hasMore: false });
+    const cursorQuery = harness.client.queries.find(({ text }) => text.includes("SELECT EXISTS"));
+    expect(cursorQuery?.text).toContain('event_id COLLATE "C" = $7::varchar COLLATE "C"');
   });
 
   it("reads the page after an existing complete cursor", async () => {
@@ -271,6 +274,9 @@ describe("PostgresEvidenceRepository.listByTrace", () => {
       "evt_repository_previous",
       11,
     ]);
+    expect(listQuery?.text).toContain('(started_at, sequence, event_id COLLATE "C")');
+    expect(listQuery?.text).toContain('$7::varchar COLLATE "C"');
+    expect(listQuery?.text).toContain('ORDER BY started_at, sequence, event_id COLLATE "C"');
   });
 
   it("fails closed when stored JSON violates the canonical contract", async () => {

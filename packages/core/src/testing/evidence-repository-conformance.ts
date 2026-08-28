@@ -162,6 +162,52 @@ export const evidenceRepositoryConformanceCases: readonly EvidenceRepositoryConf
     },
   },
   {
+    name: "orders and paginates event identifiers bytewise",
+    async run(factory) {
+      await withRepository(factory, "contract_bytewise_order", async (repository) => {
+        const values = [
+          envelope("contract_bytewise_order", "evt_a", {
+            evidence: { spanId: "30f067aa0ba902b7" },
+          }),
+          envelope("contract_bytewise_order", "evt__", {
+            evidence: { spanId: "20f067aa0ba902b7" },
+          }),
+          envelope("contract_bytewise_order", "evt_0", {
+            evidence: { spanId: "10f067aa0ba902b7" },
+          }),
+        ];
+        await repository.append(values);
+
+        const firstPage = await repository.listByTrace(scope("contract_bytewise_order"), traceId, {
+          limit: 1,
+        });
+        assert.equal(firstPage.cursorFound, true);
+        assert.equal(firstPage.hasMore, true);
+        assert.deepEqual(
+          firstPage.events.map(({ evidence }) => evidence.eventId),
+          ["evt_0"],
+        );
+
+        const cursorEvent = firstPage.events[0];
+        assert.ok(cursorEvent);
+        const secondPage = await repository.listByTrace(scope("contract_bytewise_order"), traceId, {
+          after: {
+            eventId: cursorEvent.evidence.eventId,
+            sequence: cursorEvent.evidence.sequence ?? 0,
+            startedAt: cursorEvent.evidence.startedAt,
+          },
+          limit: 3,
+        });
+        assert.equal(secondPage.cursorFound, true);
+        assert.equal(secondPage.hasMore, false);
+        assert.deepEqual(
+          secondPage.events.map(({ evidence }) => evidence.eventId),
+          ["evt__", "evt_a"],
+        );
+      });
+    },
+  },
+  {
     name: "owns immutable evidence values across writes and reads",
     async run(factory) {
       await withRepository(factory, "contract_ownership", async (repository) => {

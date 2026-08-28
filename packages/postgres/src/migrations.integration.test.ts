@@ -125,6 +125,7 @@ describe("PostgreSQL evidence schema", () => {
       "0009_artifact_catalog",
       "0010_force_identity_tenant_rls",
       "0011_dataset_capabilities",
+      "0012_pin_evidence_event_collation",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -133,6 +134,38 @@ describe("PostgreSQL evidence schema", () => {
         : expectedMigrations.slice(-firstMigration.newlyAppliedIds.length),
     );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
+
+    const traceOrderIndex = await pool.query<{
+      readonly collation_name: string;
+      readonly collation_schema: string;
+      readonly ready: boolean;
+      readonly valid: boolean;
+    }>(`
+      SELECT
+        collation.collname AS collation_name,
+        collation_namespace.nspname AS collation_schema,
+        index_metadata.indisready AS ready,
+        index_metadata.indisvalid AS valid
+      FROM pg_index AS index_metadata
+      CROSS JOIN LATERAL
+        unnest(index_metadata.indcollation::oid[]) WITH ORDINALITY
+          AS index_key(collation_oid, key_position)
+      JOIN pg_collation AS collation
+        ON collation.oid = index_key.collation_oid
+      JOIN pg_namespace AS collation_namespace
+        ON collation_namespace.oid = collation.collnamespace
+      WHERE index_metadata.indexrelid =
+        'public.proofstack_evidence_trace_order_idx'::regclass
+        AND index_key.key_position = 7
+    `);
+    expect(traceOrderIndex.rows).toEqual([
+      {
+        collation_name: "C",
+        collation_schema: "pg_catalog",
+        ready: true,
+        valid: true,
+      },
+    ]);
 
     const platformCapabilities = await pool.query<{
       readonly datasetManagementWorkload: boolean;

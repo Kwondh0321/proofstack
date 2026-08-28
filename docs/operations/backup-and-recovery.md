@@ -195,6 +195,19 @@ a release that does not know migration 0010 must refuse the post-migration ledge
 fails after application rollout, retain a binary that recognizes 0010 and repair forward; use the
 last coordinated pre-0010 recovery set only when whole-installation rollback is required.
 
+Migration `0012_pin_evidence_event_collation` transactionally rebuilds the evidence trace-order
+index so its final event-ID key uses the bytewise PostgreSQL `C` collation. The regular index build
+scans the evidence table, consumes temporary disk and WAL capacity, and blocks writers, so apply it
+under the mutation fence while monitoring lock wait, storage, and replication lag. Deploy the new
+query code first and fully drain older processes: the new code is correct before and after 0012,
+while an already-running old process can still issue locale-sensitive reads. Apply 0012 only after
+that drain, verify the checksum ledger and valid/ready index collation, and then release the fence.
+Any defect is repaired by a new 0013-or-later forward migration; never edit 0012 or synthesize a
+down migration. Capture a coordinated pre-0012 recovery set when whole-installation binary rollback
+must remain possible, because a binary that does not recognize 0012 must reject its ledger. CI
+proves clean installation, an isolated 0011-to-0012 upgrade with preserved evidence, index
+integrity and idempotence, the old-binary barrier, and restoration of the collated index.
+
 ## What the repository proves
 
 The dedicated recovery CI job:

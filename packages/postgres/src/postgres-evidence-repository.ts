@@ -93,7 +93,7 @@ const CURSOR_EXISTS_SQL = `
       AND trace_id = $4
       AND started_at = $5::timestamptz
       AND sequence = $6::bigint
-      AND event_id = $7
+      AND event_id COLLATE "C" = $7::varchar COLLATE "C"
   ) AS cursor_found
 `;
 
@@ -116,7 +116,7 @@ const LIST_TRACE_FIRST_PAGE_SQL = `
     AND project_id = $2
     AND environment_id = $3
     AND trace_id = $4
-  ORDER BY started_at, sequence, event_id
+  ORDER BY started_at, sequence, event_id COLLATE "C"
   LIMIT $5
 `;
 
@@ -127,12 +127,12 @@ const LIST_TRACE_AFTER_SQL = `
     AND project_id = $2
     AND environment_id = $3
     AND trace_id = $4
-    AND (started_at, sequence, event_id) > (
+    AND (started_at, sequence, event_id COLLATE "C") > (
       $5::timestamptz,
       $6::bigint,
-      $7::varchar
+      $7::varchar COLLATE "C"
     )
-  ORDER BY started_at, sequence, event_id
+  ORDER BY started_at, sequence, event_id COLLATE "C"
   LIMIT $8
 `;
 

@@ -70,6 +70,11 @@ validate canonical trace order from opaque event identifiers alone. Missing, cro
 cross-project, and cross-environment evidence fails without leaking identifier existence.
 Authorization is evaluated before repository access.
 
+The final `eventId` comparison is bytewise. PostgreSQL queries and their trace-order index use the
+`C` collation explicitly; the in-memory adapter uses JavaScript code-unit order. Because evidence
+identifiers are restricted to lowercase ASCII letters, digits, and underscore, those orders are
+identical and do not depend on the database or host locale.
+
 Callers provide the intended version identifier so a timed-out publish can be retried. The use
 case first looks up that identifier in the authenticated scope. Reuse with the same immutable
 definition returns the originally stored version, including its original creator and timestamp.

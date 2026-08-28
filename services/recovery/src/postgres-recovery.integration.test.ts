@@ -629,6 +629,37 @@ describe("coordinated recovery rehearsal", () => {
     await expect(assertMigrationsCurrent(restoredPool)).resolves.toBeUndefined();
     const restoredLedger = await inspectVerifiedMigrationLedger(restoredPool);
     expect(restoredLedger).toEqual(sourceLedger);
+    const restoredTraceOrderIndex = await restoredPool.query<{
+      readonly collation_name: string;
+      readonly collation_schema: string;
+      readonly ready: boolean;
+      readonly valid: boolean;
+    }>(`
+      SELECT
+        collation.collname AS collation_name,
+        collation_namespace.nspname AS collation_schema,
+        index_metadata.indisready AS ready,
+        index_metadata.indisvalid AS valid
+      FROM pg_index AS index_metadata
+      CROSS JOIN LATERAL
+        unnest(index_metadata.indcollation::oid[]) WITH ORDINALITY
+          AS index_key(collation_oid, key_position)
+      JOIN pg_collation AS collation
+        ON collation.oid = index_key.collation_oid
+      JOIN pg_namespace AS collation_namespace
+        ON collation_namespace.oid = collation.collnamespace
+      WHERE index_metadata.indexrelid =
+        'public.proofstack_evidence_trace_order_idx'::regclass
+        AND index_key.key_position = 7
+    `);
+    expect(restoredTraceOrderIndex.rows).toEqual([
+      {
+        collation_name: "C",
+        collation_schema: "pg_catalog",
+        ready: true,
+        valid: true,
+      },
+    ]);
     await expect(authoritativeSnapshot(restoredPool)).resolves.toEqual(sourceSnapshot);
     const restoredCatalog = new PostgresArtifactCatalogRepository(restoredPool);
     const restoredKeyIds = (await restoredCatalog.listKeyReferences(scope)).map(
