@@ -38,7 +38,6 @@ function requiredTestEnvironment(name: string): string {
 
 const databaseUrl = requiredTestEnvironment("PROOFSTACK_TEST_DATABASE_URL");
 const postgresToolImage = requiredTestEnvironment("PROOFSTACK_TEST_POSTGRES_TOOL_IMAGE");
-const postgresDatabaseEnvironmentName = "PGDATABASE";
 
 const EXPECTED_TABLES = [
   "proofstack_api_key_credentials",
@@ -87,24 +86,9 @@ class DockerPostgresCommandRunner extends NativePostgresCommandRunner {
     if (directories.some((directory) => directory.includes(","))) {
       throw new Error("Docker recovery test path cannot contain a comma");
     }
-    const postgresEnvironment = Object.entries(command.environment).filter(
-      ([name]) => name.startsWith("PG") && name !== "PGDATABASE",
+    const postgresEnvironment = Object.entries(command.environment).filter(([name]) =>
+      name.startsWith("PG"),
     );
-    const connectionString = command.environment[postgresDatabaseEnvironmentName];
-    if (connectionString !== undefined) {
-      const connection = new URL(connectionString);
-      postgresEnvironment.push(
-        ["PGDATABASE", decodeURIComponent(connection.pathname.slice(1))],
-        ["PGHOST", connection.hostname],
-        ["PGPORT", connection.port || "5432"],
-        ["PGUSER", decodeURIComponent(connection.username)],
-      );
-      if (connection.password.length > 0) {
-        postgresEnvironment.push(["PGPASSWORD", decodeURIComponent(connection.password)]);
-      }
-      const sslMode = connection.searchParams.get("sslmode");
-      if (sslMode !== null) postgresEnvironment.push(["PGSSLMODE", sslMode]);
-    }
     postgresEnvironment.sort(([left], [right]) => left.localeCompare(right));
     if (postgresEnvironment.some(([, value]) => /[\r\n]/u.test(value))) {
       throw new Error("Docker recovery test environment cannot contain newlines");
