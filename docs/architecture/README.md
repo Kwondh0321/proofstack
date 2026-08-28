@@ -33,3 +33,4 @@ invalidate an ADR present in this directory.
 - [ADR-0008: Authenticate browsers and workloads with revocable server-side identity](0008-production-identity-boundary.md)
 - [ADR-0009: Encrypt artifact content before object storage and preserve lifecycle evidence](0009-encrypted-artifact-lifecycle.md)
 - [ADR-0010: Normalize a bounded OTLP/HTTP trace profile at an authenticated ingress](0010-otlp-http-trace-ingestion.md)
+- [ADR-0011: Recover authoritative state as a coordinated immutable set](0011-coordinated-recovery-and-schema-rollback.md)

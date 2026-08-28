@@ -23,7 +23,9 @@ grants, and reapplies the audited least-privilege matrix.
 
 After a migration is shared, never edit or reorder it. Add the next numbered file for every schema
 change. Destructive rollback is not automated; recovery must use a tested forward repair or a
-documented backup restore.
+documented backup restore. The coordinated recovery set, empty-target restore rule, compatibility
+window, and old-binary rollback barrier are defined in
+[ADR-0011](../../../docs/architecture/0011-coordinated-recovery-and-schema-rollback.md).
 
 The complete local sequence, environment variables, persistence behavior, and reset procedure are
 documented in the [local development guide](../../../docs/development/local-development.md).
