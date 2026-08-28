@@ -1,0 +1,28 @@
+{
+  "name": "proofstack",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-source Agent Reliability Engineering platform",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "clean": "turbo run clean && rm -rf .turbo coverage",
+    "dev": "turbo run dev",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint . && turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "turbo": "2.10.12",
+    "typescript": "7.0.2"
+  }
+}
