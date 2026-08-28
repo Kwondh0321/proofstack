@@ -1,13 +1,13 @@
 # Foundation threat model
 
 Status: active foundation baseline  
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-29
 
 ## Purpose
 
-This document records the security assumptions that shape ProofStack before production storage,
-authentication, evaluation workers, and release controls are added. It is a living design input,
-not a certification or production-readiness claim.
+This document records the security assumptions that shape ProofStack before production deployment,
+evaluation workers, and release controls are added. It is a living design input, not a
+certification or production-readiness claim.
 
 ## Protected assets
 
@@ -94,8 +94,9 @@ tools, change policy, or approve a release.
 
 ## Current limitations
 
-- PostgreSQL persistence is implemented for evidence and delivery state, but backup and disaster
-  recovery are not yet proven.
+- The coordinated reference backup and isolated restore are implemented and rehearsed against
+  pinned CI services. Production provider immutability, external-key recovery, off-site retention,
+  measured RPO/RTO, and repeated deployment rehearsals are not proven by repository CI.
 - Capability-scoped workload API keys and OIDC browser identity are implemented with bootstrap,
   explicit bindings, authoritative verification, rotation or revocation, and sanitized lifecycle
   audit. A real-provider deployment matrix, console sign-in integration, and production TLS proxy
@@ -103,8 +104,8 @@ tools, change policy, or approve a release.
 - The artifact domain, PostgreSQL catalog, S3-compatible adapter, tombstones, purge receipts, and
   scoped maintenance commands are implemented. API routes, continuously scheduled workers, a
   production external key provider, and provider deployment topology are not.
-- Coordinated database/object/key backup and restore, production key rotation or rewrap, and
-  disaster-recovery deletion guarantees are not yet proven.
+- Production key rotation or rewrap and disaster-recovery deletion guarantees remain
+  provider-specific and unproven.
 - Rate limiting is local to one API process and is not a distributed quota.
 - The implemented OTLP profile is trace-only HTTP JSON/Protobuf at version 1.11. It does not yet
   include gRPC, other signals, generic secret detection, raw-input quarantine, distributed loss

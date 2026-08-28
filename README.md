@@ -12,8 +12,9 @@ evaluating, governing, and safely releasing AI agents.
 > and tested, including optional PostgreSQL persistence, scoped workload API keys, the OIDC
 > browser-session backend, and bounded OTLP/HTTP trace ingestion. The encrypted artifact domain and
 > maintenance path are also tested, but are not yet exposed through the API or composed with a
-> production key provider. Console sign-in integration, replay, evaluation, backups, and release
-> gates are intentionally not represented as complete.
+> production key provider. Coordinated reference backup and isolated restore are rehearsed, but do
+> not constitute provider-specific production disaster recovery. Console sign-in integration,
+> replay, evaluation, and release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -47,6 +48,7 @@ release when a declared policy regresses.
 | Human identity | OIDC Authorization Code + PKCE, explicit issuer/subject bindings, encrypted one-time transactions, authoritative revocable sessions, and CSRF defense |
 | Artifact lifecycle | Opt-in classified metadata, envelope encryption, immutable S3-compatible objects, PostgreSQL tombstones and purge receipts |
 | Artifact operations | Scoped reconciliation, retention, abandoned-upload cleanup, purge retry, and referenced-key inspection |
+| Recovery | Fail-closed PostgreSQL dumps, canonical recovery manifests and inventories, empty-target coordinated restore, fresh roles, and tenant-adversarial verification |
 | TypeScript SDK | Generated IDs, bounded queue, batching, timeout handling, fail-open by default |
 | Console | API health and exact trace inspection without placeholder telemetry |
 | Example | Runnable parent/child agent and tool trace through the real SDK and API |
@@ -115,8 +117,10 @@ packages/contracts       Runtime schemas, public types, identity, and OpenAPI ge
 packages/core            Framework-independent authorization and evidence use cases
 packages/artifacts       Encrypted content lifecycle, authorization, and storage ports
 packages/postgres        Durable repositories, migrations, delivery state, and runtime roles
+packages/recovery        Coordinated recovery manifests, object inventories, and verification
 packages/s3              Immutable S3-compatible artifact object adapter
 services/artifact-maintenance  Scoped one-shot lifecycle and key-safety commands
+services/recovery        Safe logical database operations and isolated recovery rehearsal
 sdks/typescript          Provider-neutral telemetry client
 examples/basic-agent     Verified SDK-to-API trace example
 docs/architecture        Numbered architecture decision records
@@ -153,19 +157,24 @@ accepted encrypted lifecycle and operator checkpoint without claiming API or pro
 composition.
 The [Foundation 2 OTLP/HTTP audit](docs/development/foundation-2-otlp-audit.md) records the accepted
 trace interoperability checkpoint, independent exporter evidence, and remaining production gaps.
+The [Foundation 2 recovery and isolation audit](docs/development/foundation-2-recovery-audit.md)
+records coordinated empty-target restoration, migration and tenant barriers, the stage exit, and
+the limits that still block a production-readiness claim.
 
 ## Current boundaries
 
 The current build does not provide console-integrated OIDC sign-in, API-integrated artifact
 capture/read routes, a production external artifact key provider, continuously scheduled artifact
 workers, OTLP/gRPC or non-trace signal ingestion, a deployed outbox publisher, replay, evaluators,
-policy enforcement, backups, or production deployment artifacts. Workload API-key and OIDC browser
+policy enforcement, continuous provider-specific disaster recovery, or production deployment
+artifacts. Workload API-key and OIDC browser
 authentication and the artifact lifecycle are implemented and tested. The OTLP/HTTP trace profile
 is also implemented, but generic secret detection, distributed quotas, and a production
-exporter/collector matrix are not. All remain part of an unfinished foundation rather than a
-production-readiness claim. PostgreSQL and S3-compatible storage are durable development
-infrastructure, not yet a production data-recovery claim. Remaining capabilities have an explicit
-dependency order and may not bypass the security and compatibility gates described in the roadmap.
+exporter/collector matrix are not. Foundation 2's coordinated recovery reference is implemented
+and tested against pinned CI services, but external key recovery, immutable provider backups,
+measured RPO/RTO, off-site retention, and repeated deployment rehearsals remain operator-owned.
+Remaining capabilities have an explicit dependency order and may not bypass the security and
+compatibility gates described in the roadmap.
 
 ## Contributing and security
 

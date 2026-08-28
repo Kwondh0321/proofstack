@@ -15,7 +15,9 @@ This decision closes the identity implementation item. It does not declare Found
 or ProofStack production-ready. At this checkpoint, artifact retention, OTLP compatibility, backup
 and restore, production TLS packaging, and console sign-in integration remained separate work.
 Artifact and OTLP/HTTP were subsequently accepted in their dedicated audits; recovery, deployment,
-and console limits remain.
+and console limits remained. Reference recovery was later accepted in the
+[recovery and isolation audit](foundation-2-recovery-audit.md). Deployment and console limits
+remain.
 
 ## Evidence reviewed
 
@@ -104,8 +106,8 @@ have complete statement and line coverage at this checkpoint.
   work.
 - Identity audit events are immutable database records but are not yet a signed or tamper-evident
   external ledger.
-- Backup, restore, key rotation procedures, and disaster recovery are not proven; these remain a
-  Foundation 2 exit blocker.
+- Coordinated reference backup and restore were subsequently accepted. Production key rotation,
+  rewrap, provider recovery, and disaster recovery remain deployment limitations.
 
 The next dependency-ordered capability is the encrypted artifact interface. Identity should be
 reopened only if that work introduces new credential material, content-access authorization, or a

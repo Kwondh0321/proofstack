@@ -99,9 +99,11 @@ the HTTP transport and route modules also retain complete coverage.
 - Compatibility is proven against the pinned upstream fixture and official JavaScript exporters at
   the locked versions. A multi-language, collector, proxy, and future-version matrix is not yet a
   production gate.
-- Backup, restore, rollback/forward-repair analysis, PostgreSQL upgrade rehearsal, and the complete
-  cross-tenant adversarial suite remain Foundation 2 item 7.
+- Backup, restore, rollback/forward-repair analysis, and the cross-tenant adversarial suite were
+  subsequently accepted in the [recovery and isolation audit](foundation-2-recovery-audit.md).
+  Only PostgreSQL 16 is supported; no major-version database upgrade procedure is claimed.
 
-The next dependency-ordered capability is Foundation 2 item 7. The OTLP checkpoint must be reopened
-if that work changes tenant restoration, evidence identity, migration compatibility, credential
-scope, or retained content meaning.
+The next dependency-ordered capability at this checkpoint was Foundation 2 item 7. It was accepted
+without changing OTLP evidence meaning. The OTLP checkpoint must be reopened if later work changes
+tenant restoration, evidence identity, migration compatibility, credential scope, or retained
+content meaning.

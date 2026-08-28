@@ -170,5 +170,6 @@ returns a whole-request failure and never reports spans as accepted.
 
 This experimental profile does not yet provide distributed quotas, load-derived capacity targets,
 collector deployment templates, generic secret detection, raw-input quarantine, signal-level loss
-metrics, multi-version compatibility, or a production exporter matrix. Backup and restore of the
-authoritative PostgreSQL state remains a separate Foundation 2 gate.
+metrics, multi-version compatibility, or a production exporter matrix. Coordinated reference
+recovery is documented separately in the [backup and recovery runbook](backup-and-recovery.md);
+production provider recovery remains outside this profile.

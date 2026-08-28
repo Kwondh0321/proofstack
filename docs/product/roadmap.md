@@ -1,7 +1,7 @@
 # Capability roadmap
 
 Status: working sequence  
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-29
 
 This roadmap is ordered by dependency and risk, not calendar promises. A later capability must not
 pull an earlier one into production before its acceptance gates pass.
@@ -26,8 +26,9 @@ Exit criteria:
 - [x] Final clean-checkout rehearsal on the CI baseline runtime.
 - [x] Independent cross-layer audit with closed findings and explicit next-stage entry rules.
 
-The foundation is not a production release. Production identity, artifact retention, backup, and
-release enforcement remain explicitly unsupported.
+At this checkpoint the foundation was not a production release. The later Foundation 2 work adds
+bounded identity, artifact, and reference recovery behavior without changing that production
+readiness boundary.
 
 The completed review and accepted limitations are recorded in the
 [Foundation 1 audit](../development/foundation-1-audit.md).
@@ -45,21 +46,26 @@ Ordered work:
 4. [x] OIDC browser identity and capability-scoped workload API keys with rotation and revocation.
 5. [x] Encrypted artifact interface for opt-in content, redaction metadata, and retention tombstones.
 6. [x] OTLP/HTTP adapter and compatibility fixtures mapped into `EvidenceEnvelope`.
-7. [ ] Backup, restore, migration rollback, and cross-tenant adversarial test suites.
+7. [x] Backup, restore, migration rollback, and cross-tenant adversarial test suites.
 
-The evidence for items 1–3 and the limitations that keep this foundation active are recorded in the
+The evidence for items 1–3 and their checkpoint limitations are recorded in the
 [durable core audit](../development/foundation-2-durable-core-audit.md).
 The identity checkpoint and limitations that prevent a production-readiness claim are recorded in
 the [identity audit](../development/foundation-2-identity-audit.md).
-The encrypted artifact lifecycle, real-adapter acceptance, and remaining API, key-provider,
-scheduling, and recovery limits are recorded in the
+The encrypted artifact lifecycle, real-adapter acceptance, and remaining API, key-provider, and
+scheduling limits are recorded in the
 [artifact audit](../development/foundation-2-artifact-audit.md).
 The bounded OTLP/HTTP profile, independent exporter compatibility, durable authenticated path, and
 remaining production limits are recorded in the
 [OTLP/HTTP audit](../development/foundation-2-otlp-audit.md).
+The coordinated authority set, empty-target restore, migration barrier, tenant adversarial matrix,
+and stage exit review are recorded in the
+[recovery and isolation audit](../development/foundation-2-recovery-audit.md).
 
-Exit requires an installation that survives restart, proves tenant isolation at the database
-boundary, and can restore its authoritative state from documented backups.
+Foundation 2 exit is accepted: the reference installation survives restart, proves tenant
+isolation at the database boundary, and restores its authoritative state through the documented
+coordinated procedure. This is a stage acceptance, not a production disaster-recovery, RPO, RTO,
+or provider-compatibility claim.
 
 ## Workflow 1: incident-to-regression loop
 

@@ -16,8 +16,8 @@ object-store port.
 This checkpoint accepts the domain interface, memory and PostgreSQL catalog adapters, the pinned
 S3-compatible adapter, and scoped one-shot maintenance operations. It does not declare Foundation 2
 complete or ProofStack production-ready. API composition, a production external key provider,
-continuous scheduling, coordinated backup and restore, and OTLP compatibility remain separate
-gates.
+continuous scheduling, coordinated backup and restore, and OTLP compatibility remained separate
+gates at this checkpoint.
 
 ## Audit method
 
@@ -98,7 +98,8 @@ job.
 - The pinned service proves one compatibility target, not arbitrary S3 providers, proxies, bucket
   policies, or later versions. Production deployment requires staging rehearsal and policy review.
 - PostgreSQL, encrypted objects, every referenced key version, and lifecycle policy must be backed
-  up and restored coherently. That proof remains Foundation 2 item 7.
+  up and restored coherently. The pinned reference proof was subsequently accepted in the
+  [recovery and isolation audit](foundation-2-recovery-audit.md).
 
 The next dependency-ordered capability at this checkpoint was the OTLP/HTTP adapter and
 compatibility fixtures. It was subsequently accepted in the

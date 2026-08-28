@@ -2,11 +2,12 @@
 
 Status: pre-production reference
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-29
 
 This document defines the deployment contract for encrypted artifact objects. It does not make
-ProofStack production-ready: coordinated backup and restore, an external key provider, deployed
-maintenance scheduling, and production topology remain open Foundation 2 gates.
+ProofStack production-ready: the coordinated reference recovery is accepted, while an external key
+provider, provider-specific immutable backup, deployed maintenance scheduling, and production
+topology remain deployment gates.
 
 ## Ownership boundary
 
@@ -288,6 +289,7 @@ tenant deletion behavior, and eventual destruction must be explicit. Restoring a
 without the matching catalog state and keys is forbidden, as is restoring purged content into the
 live prefix without an audited lifecycle decision.
 
-ProofStack has not yet accepted a coordinated backup-and-restore procedure. Until roadmap item 7
-passes, this document is a deployment contract and review checklist rather than a production
-recovery claim.
+ProofStack accepts the fenced, coordinated, empty-target reference procedure in the
+[recovery runbook](backup-and-recovery.md). That acceptance covers the pinned repository profile;
+it is not a production recovery claim for an untested object or key provider. Deployments must
+rehearse the complete procedure and declare recovery-copy deletion behavior, RPO, and RTO.

@@ -147,8 +147,9 @@ activation, purge recovery, key-reference inspection, and the complete real-adap
 lifecycle.
 
 The direct artifact operations are domain and operator interfaces, not API routes. A continuously
-scheduled worker, production external key provider, coordinated backup and restore, and API
-composition remain explicit later gates. Backup and restore remains roadmap item 7.
+scheduled worker, production external key provider, and API composition remain explicit later
+gates. Coordinated reference backup and isolated restore were subsequently accepted in the
+[Foundation 2 recovery audit](../development/foundation-2-recovery-audit.md).
 
 ## Alternatives considered
 
