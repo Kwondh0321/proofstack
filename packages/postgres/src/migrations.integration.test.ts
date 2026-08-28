@@ -120,6 +120,7 @@ describe("PostgreSQL evidence schema", () => {
       "0004_workload_identity",
       "0005_oidc_browser_identity",
       "0006_repair_oidc_transaction_format",
+      "0007_saturate_api_key_use_count",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

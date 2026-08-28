@@ -306,6 +306,56 @@ describe("workload identity migration", () => {
     expect(metadata.rows[0]).toEqual({ audit_count: "2", last_used: true, use_count: 1 });
   });
 
+  it("saturates API key use metadata without overflowing", async () => {
+    const prefix = testPrefix("s");
+    await asIdentity("ten_identity_alpha", (client) =>
+      client.query<CreatedRow>(CREATE_API_KEY_SQL, [
+        ...createValues("key_identity_saturated", prefix),
+      ]),
+    );
+
+    const adminClient = await adminPool.connect();
+    try {
+      await adminClient.query("BEGIN");
+      await adminClient.query("SET LOCAL session_replication_role = replica");
+      await adminClient.query(
+        `
+          UPDATE proofstack_api_key_credentials
+          SET use_count = 2147483647,
+              last_used_at = clock_timestamp()
+          WHERE tenant_id = $1
+            AND credential_id = $2
+        `,
+        ["ten_identity_alpha", "key_identity_saturated"],
+      );
+      await adminClient.query("COMMIT");
+    } catch (error) {
+      await adminClient.query("ROLLBACK");
+      throw error;
+    } finally {
+      adminClient.release();
+    }
+
+    await expect(
+      identityPool.query("SELECT proofstack_record_api_key_use($1, $2, $3) AS recorded", [
+        "ten_identity_alpha",
+        "key_identity_saturated",
+        prefix,
+      ]),
+    ).resolves.toMatchObject({ rows: [{ recorded: true }] });
+
+    const stored = await adminPool.query<{ readonly use_count: number }>(
+      `
+        SELECT use_count
+        FROM proofstack_api_key_credentials
+        WHERE tenant_id = $1
+          AND credential_id = $2
+      `,
+      ["ten_identity_alpha", "key_identity_saturated"],
+    );
+    expect(stored.rows).toEqual([{ use_count: 2147483647 }]);
+  });
+
   it("copies authorization during atomic rotation and rolls back collisions", async () => {
     await asIdentity("ten_identity_alpha", (client) =>
       client.query<CreatedRow>(CREATE_API_KEY_SQL, [
