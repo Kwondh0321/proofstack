@@ -18,6 +18,10 @@
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"
     },
+    "./dataset": {
+      "types": "./dist/dataset.d.ts",
+      "import": "./dist/dataset.js"
+    },
     "./openapi": {
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js"
