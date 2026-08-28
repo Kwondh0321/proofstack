@@ -18,6 +18,7 @@
     "lint": "biome lint src",
     "start": "node dist/cli.js",
     "test": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@proofstack/s3": "workspace:*"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",

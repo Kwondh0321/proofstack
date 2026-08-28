@@ -322,6 +322,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/s3
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1119.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
