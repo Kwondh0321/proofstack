@@ -1,7 +1,7 @@
 import {
   EVIDENCE_SCHEMA_VERSION,
-  PrincipalContextSchema,
   type PrincipalContext,
+  PrincipalContextSchema,
 } from "@proofstack/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
@@ -155,6 +155,17 @@ describe("evidence routes", () => {
       acceptedEventIds: [],
       duplicateEventIds: [evidence.eventId],
     });
+  });
+
+  it("returns not found for an unknown trace", async () => {
+    const app = await testApp();
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: "trace_not_found", status: 404 });
   });
 
   it("returns a conflict for reused identifiers with changed evidence", async () => {

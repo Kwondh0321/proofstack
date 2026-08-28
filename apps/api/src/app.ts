@@ -1,20 +1,21 @@
+import { randomUUID } from "node:crypto";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
+  type Clock,
   EvidenceConflictError,
+  type EvidenceRepository,
   ForbiddenError,
   IngestEvidence,
   ListTraceEvidence,
   MemoryEvidenceRepository,
   SystemClock,
-  type Clock,
-  type EvidenceRepository,
+  TraceNotFoundError,
 } from "@proofstack/core";
-import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
-import { createAuthenticator, type Authenticator } from "./auth.js";
+import { type Authenticator, createAuthenticator } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import { sendProblem } from "./problem.js";
 import { registerRoutes } from "./routes.js";
@@ -113,6 +114,17 @@ export async function createApp(
         status: 409,
         title: "Evidence conflict",
         type: "https://proofstack.dev/problems/evidence-conflict",
+      });
+    }
+
+    if (error instanceof TraceNotFoundError) {
+      return sendProblem(reply, {
+        code: error.code,
+        detail: error.message,
+        requestId: request.id,
+        status: 404,
+        title: "Trace not found",
+        type: "https://proofstack.dev/problems/trace-not-found",
       });
     }
 

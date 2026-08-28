@@ -39,7 +39,7 @@ export const IngestEvidenceResponseSchema = z
 
 export const TraceResponseSchema = z
   .object({
-    events: z.array(EvidenceEnvelopeSchema),
+    events: z.array(EvidenceEnvelopeSchema).min(1),
     requestId: RequestIdSchema,
     schemaVersion: z.literal(EVIDENCE_SCHEMA_VERSION),
     traceId: TraceIdSchema,

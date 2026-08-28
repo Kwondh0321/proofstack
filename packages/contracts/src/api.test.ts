@@ -45,7 +45,7 @@ describe("HTTP response contracts", () => {
     ).toBe(false);
   });
 
-  it("validates empty trace responses", () => {
+  it("rejects empty trace responses", () => {
     expect(
       TraceResponseSchema.safeParse({
         events: [],
@@ -53,7 +53,7 @@ describe("HTTP response contracts", () => {
         schemaVersion: "0.1",
         traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
       }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("validates problem documents without arbitrary fields", () => {

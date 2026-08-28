@@ -1,4 +1,4 @@
-import { z, type ZodType } from "zod";
+import { type ZodType, z } from "zod";
 import {
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
@@ -202,7 +202,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {
         get: {
           description:
-            "Returns an ordered evidence array. An unknown but valid trace identifier currently returns an empty array.",
+            "Returns an ordered, non-empty evidence array. An unknown trace identifier returns a problem document.",
           operationId: "getTraceEvidence",
           parameters: [
             projectParameter,
@@ -219,6 +219,12 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             "200": {
               content: { "application/json": { schema: schemaReference("TraceResponse") } },
               description: "Tenant-scoped evidence for the trace",
+            },
+            "404": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "No evidence exists for the trace in the authorized scope",
             },
             ...problemResponses,
           },

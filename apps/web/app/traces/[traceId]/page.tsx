@@ -48,46 +48,42 @@ export default async function TraceDetailPage({
       </header>
 
       <section aria-label="Trace events" className="timeline">
-        {result.data.events.length === 0 ? (
-          <div className="panel empty-state">The trace exists but contains no visible events.</div>
-        ) : (
-          result.data.events.map((event) => (
-            <article className="timeline-event" key={event.evidence.eventId}>
-              <div className="timeline-rail">
-                <span />
-              </div>
-              <div className="event-card">
-                <header>
-                  <div>
-                    <p>{event.evidence.kind}</p>
-                    <h2>{event.evidence.name}</h2>
-                  </div>
-                  <span className={`event-status ${event.evidence.status}`}>
-                    {event.evidence.status}
-                  </span>
-                </header>
-                <dl>
-                  <div>
-                    <dt>Span</dt>
-                    <dd>{event.evidence.spanId}</dd>
-                  </div>
-                  <div>
-                    <dt>Started</dt>
-                    <dd>{event.evidence.startedAt}</dd>
-                  </div>
-                  <div>
-                    <dt>Service</dt>
-                    <dd>{event.evidence.source.serviceName}</dd>
-                  </div>
-                  <div>
-                    <dt>Received</dt>
-                    <dd>{event.receivedAt}</dd>
-                  </div>
-                </dl>
-              </div>
-            </article>
-          ))
-        )}
+        {result.data.events.map((event) => (
+          <article className="timeline-event" key={event.evidence.eventId}>
+            <div className="timeline-rail">
+              <span />
+            </div>
+            <div className="event-card">
+              <header>
+                <div>
+                  <p>{event.evidence.kind}</p>
+                  <h2>{event.evidence.name}</h2>
+                </div>
+                <span className={`event-status ${event.evidence.status}`}>
+                  {event.evidence.status}
+                </span>
+              </header>
+              <dl>
+                <div>
+                  <dt>Span</dt>
+                  <dd>{event.evidence.spanId}</dd>
+                </div>
+                <div>
+                  <dt>Started</dt>
+                  <dd>{event.evidence.startedAt}</dd>
+                </div>
+                <div>
+                  <dt>Service</dt>
+                  <dd>{event.evidence.source.serviceName}</dd>
+                </div>
+                <div>
+                  <dt>Received</dt>
+                  <dd>{event.receivedAt}</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+        ))}
       </section>
     </div>
   );

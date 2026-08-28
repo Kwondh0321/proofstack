@@ -2,6 +2,32 @@ import { describe, expect, it, vi } from "vitest";
 import { apiHealth, getTrace } from "./proofstack-api.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+const traceEvent = {
+  evidence: {
+    attributes: {},
+    contentReferences: [],
+    eventId: "evt_web_test",
+    extensions: {},
+    kind: "agent.run",
+    name: "web-test",
+    source: {
+      sdkName: "@proofstack/sdk",
+      sdkVersion: "0.0.0",
+      serviceName: "test-agent",
+    },
+    spanId: "00f067aa0ba902b7",
+    startedAt: "2026-08-28T05:00:00.000Z",
+    status: "ok",
+    traceId,
+  },
+  receivedAt: "2026-08-28T05:00:00.100Z",
+  schemaVersion: "0.1",
+  scope: {
+    environmentId: "env_local",
+    projectId: "prj_local",
+    tenantId: "ten_local",
+  },
+};
 
 describe("apiHealth", () => {
   it("accepts a valid readiness response", async () => {
@@ -56,7 +82,7 @@ describe("getTrace", () => {
   it("validates a trace response", async () => {
     const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       Response.json({
-        events: [],
+        events: [traceEvent],
         requestId: "req_test_001",
         schemaVersion: "0.1",
         traceId,
@@ -64,7 +90,7 @@ describe("getTrace", () => {
     );
 
     await expect(getTrace(traceId, fetcher)).resolves.toMatchObject({
-      data: { events: [], traceId },
+      data: { events: [traceEvent], traceId },
       ok: true,
     });
   });

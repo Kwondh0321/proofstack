@@ -6,7 +6,7 @@ import {
   PrincipalContextSchema,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import { EvidenceConflictError, ForbiddenError } from "../errors.js";
+import { EvidenceConflictError, ForbiddenError, TraceNotFoundError } from "../errors.js";
 import { FixedClock } from "../testing/fixed-clock.js";
 import { MemoryEvidenceRepository } from "../testing/memory-evidence-repository.js";
 import { IngestEvidence } from "./ingest-evidence.js";
@@ -243,13 +243,16 @@ describe("ListTraceEvidence", () => {
   });
 
   it("allows reads inside an explicit environment scope", async () => {
-    const list = new ListTraceEvidence(new MemoryEvidenceRepository());
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+    const list = new ListTraceEvidence(repository);
     const actor = principal({
       resourceScope: {
         mode: "restricted",
         projects: [{ environmentIds: ["env_local"], projectId: "prj_local" }],
       },
     });
+    await ingest.execute(command(actor));
 
     await expect(
       list.execute({
@@ -258,6 +261,19 @@ describe("ListTraceEvidence", () => {
         projectId: "prj_local",
         traceId: baseEvidence.traceId,
       }),
-    ).resolves.toEqual([]);
+    ).resolves.toHaveLength(1);
+  });
+
+  it("reports an unknown trace after authorization succeeds", async () => {
+    const list = new ListTraceEvidence(new MemoryEvidenceRepository());
+
+    await expect(
+      list.execute({
+        environmentId: "env_local",
+        principal: principal(),
+        projectId: "prj_local",
+        traceId: baseEvidence.traceId,
+      }),
+    ).rejects.toBeInstanceOf(TraceNotFoundError);
   });
 });

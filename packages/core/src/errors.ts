@@ -15,3 +15,12 @@ export class EvidenceConflictError extends Error {
     this.name = "EvidenceConflictError";
   }
 }
+
+export class TraceNotFoundError extends Error {
+  readonly code = "trace_not_found";
+
+  constructor(readonly traceId: string) {
+    super(`Trace ${traceId} was not found`);
+    this.name = "TraceNotFoundError";
+  }
+}

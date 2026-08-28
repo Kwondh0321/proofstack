@@ -1,5 +1,6 @@
 import type { EvidenceEnvelope, PrincipalContext } from "@proofstack/contracts";
 import { requireCapability, requireEnvironmentAccess } from "../auth/authorization.js";
+import { TraceNotFoundError } from "../errors.js";
 import type { EvidenceRepository } from "./evidence-repository.js";
 
 export interface ListTraceEvidenceQuery {
@@ -16,7 +17,7 @@ export class ListTraceEvidence {
     requireCapability(query.principal, "evidence:read");
     requireEnvironmentAccess(query.principal, query.projectId, query.environmentId);
 
-    return this.repository.listByTrace(
+    const events = await this.repository.listByTrace(
       {
         environmentId: query.environmentId,
         projectId: query.projectId,
@@ -24,5 +25,7 @@ export class ListTraceEvidence {
       },
       query.traceId,
     );
+    if (events.length === 0) throw new TraceNotFoundError(query.traceId);
+    return events;
   }
 }
