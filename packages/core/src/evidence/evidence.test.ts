@@ -174,7 +174,28 @@ describe("IngestEvidence", () => {
 
     await expect(
       ingest.execute(
-        command(principal({ resourceScope: { mode: "restricted", projectIds: ["prj_other"] } })),
+        command(
+          principal({
+            resourceScope: { mode: "restricted", projects: [{ projectId: "prj_other" }] },
+          }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("enforces a restricted environment scope", async () => {
+    const ingest = new IngestEvidence(new MemoryEvidenceRepository(), clock);
+
+    await expect(
+      ingest.execute(
+        command(
+          principal({
+            resourceScope: {
+              mode: "restricted",
+              projects: [{ environmentIds: ["env_other"], projectId: "prj_local" }],
+            },
+          }),
+        ),
       ),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -219,5 +240,24 @@ describe("ListTraceEvidence", () => {
         traceId: baseEvidence.traceId,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("allows reads inside an explicit environment scope", async () => {
+    const list = new ListTraceEvidence(new MemoryEvidenceRepository());
+    const actor = principal({
+      resourceScope: {
+        mode: "restricted",
+        projects: [{ environmentIds: ["env_local"], projectId: "prj_local" }],
+      },
+    });
+
+    await expect(
+      list.execute({
+        environmentId: "env_local",
+        principal: actor,
+        projectId: "prj_local",
+        traceId: baseEvidence.traceId,
+      }),
+    ).resolves.toEqual([]);
   });
 });

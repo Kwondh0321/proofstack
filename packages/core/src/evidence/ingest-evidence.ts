@@ -4,7 +4,7 @@ import {
   type IngestEvidenceRequest,
   type PrincipalContext,
 } from "@proofstack/contracts";
-import { requireCapability, requireProjectAccess } from "../auth/authorization.js";
+import { requireCapability, requireEnvironmentAccess } from "../auth/authorization.js";
 import type { Clock } from "../clock.js";
 import type { AppendEvidenceResult, EvidenceRepository } from "./evidence-repository.js";
 
@@ -23,7 +23,7 @@ export class IngestEvidence {
 
   async execute(command: IngestEvidenceCommand): Promise<AppendEvidenceResult> {
     requireCapability(command.principal, "evidence:ingest");
-    requireProjectAccess(command.principal, command.projectId);
+    requireEnvironmentAccess(command.principal, command.projectId, command.environmentId);
 
     const receivedAt = this.clock.now().toISOString();
     const envelopes: EvidenceEnvelope[] = command.request.events.map((evidence) => ({

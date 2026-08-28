@@ -53,7 +53,7 @@ describe("PrincipalContextSchema", () => {
   it("rejects an empty restricted project scope", () => {
     const result = PrincipalContextSchema.safeParse({
       ...developmentPrincipal,
-      resourceScope: { mode: "restricted", projectIds: [] },
+      resourceScope: { mode: "restricted", projects: [] },
     });
 
     expect(result.success).toBe(false);
@@ -64,7 +64,31 @@ describe("PrincipalContextSchema", () => {
       ...developmentPrincipal,
       resourceScope: {
         mode: "restricted",
-        projectIds: ["prj_local", "prj_local"],
+        projects: [{ projectId: "prj_local" }, { projectId: "prj_local" }],
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a unique environment restriction for a project", () => {
+    const result = PrincipalContextSchema.safeParse({
+      ...developmentPrincipal,
+      resourceScope: {
+        mode: "restricted",
+        projects: [{ environmentIds: ["env_staging", "env_production"], projectId: "prj_local" }],
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects duplicate environments in a project scope", () => {
+    const result = PrincipalContextSchema.safeParse({
+      ...developmentPrincipal,
+      resourceScope: {
+        mode: "restricted",
+        projects: [{ environmentIds: ["env_local", "env_local"], projectId: "prj_local" }],
       },
     });
 

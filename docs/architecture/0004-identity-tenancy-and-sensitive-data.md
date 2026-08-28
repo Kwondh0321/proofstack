@@ -40,8 +40,13 @@ list or lookup is not part of their public interface.
 
 The development server may use an explicit `development` identity adapter with a
 visible warning and fixed local tenant. This adapter is disabled when
-`PROOFSTACK_ENV=production`, and production startup fails if no supported
-authentication adapter is configured.
+`PROOFSTACK_ENV=production` or the listener is not an explicit loopback host, and
+production startup fails if no supported authentication adapter is configured.
+
+A restricted resource scope is a list of projects, each with an optional list of
+environment identifiers. Omitting the environment list grants all environments in
+that project; providing it grants only the listed environments. Evidence use cases
+enforce both levels before calling a repository.
 
 API keys are shown once, stored only as a slow password hash plus an indexed key
 prefix, individually revocable, capability-scoped, and time-bounded where

@@ -30,16 +30,38 @@ export const CapabilitySchema = z.enum([
 const uniqueOpaqueIds = (values: readonly string[]): boolean =>
   new Set(values).size === values.length;
 
+export const ProjectResourceScopeSchema = z
+  .object({
+    environmentIds: z
+      .array(OpaqueIdSchema)
+      .min(1)
+      .max(100)
+      .refine(uniqueOpaqueIds, {
+        message: "environmentIds must not contain duplicates",
+      })
+      .optional(),
+    projectId: OpaqueIdSchema,
+  })
+  .strict();
+
 export const ResourceScopeSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("tenant") }).strict(),
   z
     .object({
       mode: z.literal("restricted"),
-      projectIds: z.array(OpaqueIdSchema).min(1).max(100).refine(uniqueOpaqueIds, {
-        message: "projectIds must not contain duplicates",
-      }),
+      projects: z.array(ProjectResourceScopeSchema).min(1).max(100),
     })
-    .strict(),
+    .strict()
+    .superRefine((value, context) => {
+      const projectIds = value.projects.map((project) => project.projectId);
+      if (!uniqueOpaqueIds(projectIds)) {
+        context.addIssue({
+          code: "custom",
+          message: "projects must not contain duplicate projectIds",
+          path: ["projects"],
+        });
+      }
+    }),
 ]);
 
 export const AuthenticationContextSchema = z
@@ -94,5 +116,6 @@ export type AuthenticationMethod = z.infer<typeof AuthenticationMethodSchema>;
 export type Capability = z.infer<typeof CapabilitySchema>;
 export type PrincipalContext = z.infer<typeof PrincipalContextSchema>;
 export type PrincipalType = z.infer<typeof PrincipalTypeSchema>;
+export type ProjectResourceScope = z.infer<typeof ProjectResourceScopeSchema>;
 export type ResourceScope = z.infer<typeof ResourceScopeSchema>;
 export type Role = z.infer<typeof RoleSchema>;

@@ -1,5 +1,5 @@
 import type { EvidenceEnvelope, PrincipalContext } from "@proofstack/contracts";
-import { requireCapability, requireProjectAccess } from "../auth/authorization.js";
+import { requireCapability, requireEnvironmentAccess } from "../auth/authorization.js";
 import type { EvidenceRepository } from "./evidence-repository.js";
 
 export interface ListTraceEvidenceQuery {
@@ -14,7 +14,7 @@ export class ListTraceEvidence {
 
   async execute(query: ListTraceEvidenceQuery): Promise<readonly EvidenceEnvelope[]> {
     requireCapability(query.principal, "evidence:read");
-    requireProjectAccess(query.principal, query.projectId);
+    requireEnvironmentAccess(query.principal, query.projectId, query.environmentId);
 
     return this.repository.listByTrace(
       {
