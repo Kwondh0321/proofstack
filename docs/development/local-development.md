@@ -75,8 +75,10 @@ pnpm dev
 
 The evidence API connects as `proofstack_api`, not as the database administrator. The separately
 provisioned `proofstack_identity` role can execute only the fixed credential lifecycle functions;
-it cannot read identity base tables or evidence. The API verifies the complete migration ledger at
-startup and readiness checks. Stop the local database without deleting evidence with:
+it cannot read identity base tables or evidence. The `proofstack_artifact_maintenance` role can
+inspect and advance artifact lifecycle rows but cannot create reservations or access evidence,
+identity, outbox, sequences, or schema administration. The API verifies the complete migration
+ledger at startup and readiness checks. Stop the local database without deleting evidence with:
 
 ```bash
 pnpm dev:db:down
@@ -243,6 +245,7 @@ cannot produce a false successful demonstration.
 | `PROOFSTACK_STORAGE_MODE` | `memory` | API | `memory` or `postgres` evidence adapter |
 | `PROOFSTACK_DATABASE_URL` | unset | API | Least-privilege runtime database URL in PostgreSQL mode |
 | `PROOFSTACK_IDENTITY_DATABASE_URL` | unset | API | Distinct least-privilege identity URL required outside development auth |
+| `PROOFSTACK_ARTIFACT_DATABASE_URL` | unset | artifact maintenance | Dedicated lifecycle-worker database URL |
 | `PROOFSTACK_OIDC_CLIENT_ID` | unset | API | Provider client identifier required by OIDC modes |
 | `PROOFSTACK_OIDC_CLIENT_SECRET` | unset | API | Provider client secret required by OIDC modes |
 | `PROOFSTACK_OIDC_ISSUER` | unset | API/identity CLI | Exact HTTPS issuer; also selects the binding during create |
@@ -258,10 +261,12 @@ cannot produce a false successful demonstration.
 | `PROOFSTACK_OIDC_DISABLE_REASON` | unset | identity CLI | Bounded audited reason required to disable a binding |
 | `PROOFSTACK_MIGRATION_DATABASE_URL` | unset | database CLI | Administrative migration and provisioning URL |
 | `PROOFSTACK_API_DATABASE_ROLE` | `proofstack_api` | database CLI | Managed API role name |
+| `PROOFSTACK_ARTIFACT_DATABASE_ROLE` | `proofstack_artifact_maintenance` | database CLI | Managed artifact lifecycle role name |
 | `PROOFSTACK_IDENTITY_DATABASE_ROLE` | `proofstack_identity` | database CLI | Managed identity role name |
 | `PROOFSTACK_PUBLISHER_DATABASE_ROLE` | `proofstack_publisher` | database CLI | Managed outbox publisher role name |
 | `PROOFSTACK_CONSUMER_DATABASE_ROLE` | `proofstack_consumer` | database CLI | Managed consumer role name |
 | `PROOFSTACK_API_DATABASE_PASSWORD` | unset | database CLI | API role password used only during provisioning |
+| `PROOFSTACK_ARTIFACT_DATABASE_PASSWORD` | unset | database CLI | Artifact lifecycle role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_DATABASE_PASSWORD` | unset | database CLI | Identity role password used only during provisioning |
 | `PROOFSTACK_PUBLISHER_DATABASE_PASSWORD` | unset | database CLI | Publisher role password used only during provisioning |
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
