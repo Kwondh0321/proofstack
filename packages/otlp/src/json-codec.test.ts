@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { OtlpDecodeError } from "./errors.js";
-import { decodeOtlpJson } from "./json-codec.js";
+import { decodeOtlpJson, encodeOtlpJsonStatus, encodeOtlpJsonTraceResponse } from "./json-codec.js";
 
 const upstreamTrace = readFileSync(
   new URL("../testdata/trace-v1.11.json", import.meta.url),
@@ -343,5 +343,42 @@ describe("OTLP/JSON decoder", () => {
     );
 
     expect(decoded).toEqual({ resourceSpans: [] });
+  });
+});
+
+describe("OTLP/JSON response encoder", () => {
+  const text = (value: Uint8Array): string => new TextDecoder().decode(value);
+
+  it("encodes empty and partial trace responses with Protobuf JSON int64 spelling", () => {
+    expect(text(encodeOtlpJsonTraceResponse({}))).toBe("{}");
+    expect(
+      JSON.parse(
+        text(
+          encodeOtlpJsonTraceResponse({
+            partialSuccess: {
+              errorMessage: "Rejected spans: invalid timestamp (2)",
+              rejectedSpans: 2,
+            },
+          }),
+        ),
+      ),
+    ).toEqual({
+      partialSuccess: {
+        errorMessage: "Rejected spans: invalid timestamp (2)",
+        rejectedSpans: "2",
+      },
+    });
+  });
+
+  it("encodes google.rpc.Status with an optional numeric code", () => {
+    expect(JSON.parse(text(encodeOtlpJsonStatus({ code: 3, message: "invalid request" })))).toEqual(
+      {
+        code: 3,
+        message: "invalid request",
+      },
+    );
+    expect(JSON.parse(text(encodeOtlpJsonStatus({ message: "unknown" })))).toEqual({
+      message: "unknown",
+    });
   });
 });

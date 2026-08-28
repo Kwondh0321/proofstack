@@ -3,10 +3,12 @@ import { MAX_OTLP_ANY_VALUE_DEPTH, MAX_OTLP_ANY_VALUE_ITEMS } from "./limits.js"
 import type {
   OtlpAnyValue,
   OtlpExportTraceServiceRequest,
+  OtlpExportTraceServiceResponse,
   OtlpInstrumentationScope,
   OtlpKeyValue,
   OtlpResource,
   OtlpResourceSpans,
+  OtlpRpcStatus,
   OtlpScopeSpans,
   OtlpSpan,
   OtlpSpanEvent,
@@ -415,4 +417,29 @@ export function decodeOtlpJson(payload: string | Uint8Array): OtlpExportTraceSer
       resourceSpans(item, `request.resourceSpans.${index}`),
     ),
   };
+}
+
+function encodeJson(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+export function encodeOtlpJsonTraceResponse(response: OtlpExportTraceServiceResponse): Uint8Array {
+  const partialSuccess = response.partialSuccess;
+  return encodeJson(
+    partialSuccess
+      ? {
+          partialSuccess: {
+            errorMessage: partialSuccess.errorMessage,
+            rejectedSpans: `${partialSuccess.rejectedSpans}`,
+          },
+        }
+      : {},
+  );
+}
+
+export function encodeOtlpJsonStatus(status: OtlpRpcStatus): Uint8Array {
+  return encodeJson({
+    ...(status.code !== undefined ? { code: status.code } : {}),
+    message: status.message,
+  });
 }
