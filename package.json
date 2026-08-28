@@ -16,6 +16,8 @@
     "clean": "turbo run clean && rm -rf .turbo coverage",
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @proofstack/api dev",
+    "dev:db:down": "docker compose down",
+    "dev:db:up": "docker compose up --detach --wait postgres",
     "dev:web": "pnpm --filter @proofstack/web dev",
     "db:migrate": "pnpm --filter @proofstack/postgres db:migrate",
     "db:provision": "pnpm --filter @proofstack/postgres db:provision",

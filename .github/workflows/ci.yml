@@ -24,6 +24,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+      - name: Validate local PostgreSQL definition
+        run: docker compose config --quiet
+
       - name: Install pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
@@ -48,7 +51,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:16.15-alpine3.24
+        image: postgres:16.15-alpine3.24@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
         env:
           POSTGRES_DB: proofstack_test
           POSTGRES_PASSWORD: proofstack_test
