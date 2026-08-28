@@ -74,6 +74,27 @@ describe("health routes", () => {
     expect(response.json()).toEqual({ status: "ready" });
   });
 
+  it("reports dependency readiness failures without affecting liveness", async () => {
+    const app = await createApp(config, {
+      checkReadiness: async () => {
+        throw new Error("database unavailable");
+      },
+      repository: {
+        append: async () => ({ acceptedEventIds: [], duplicateEventIds: [] }),
+        listByTrace: async () => ({ cursorFound: true, events: [], hasMore: false }),
+      },
+    });
+    apps.push(app);
+
+    const readiness = await app.inject({ method: "GET", url: "/health/ready" });
+    const liveness = await app.inject({ method: "GET", url: "/health/live" });
+
+    expect(readiness.statusCode).toBe(503);
+    expect(readiness.headers["content-type"]).toContain("application/problem+json");
+    expect(readiness.json()).toMatchObject({ code: "not_ready", status: 503 });
+    expect(liveness.statusCode).toBe(200);
+  });
+
   it("serves the canonical OpenAPI description", async () => {
     const app = await testApp();
     const response = await app.inject({ method: "GET", url: "/openapi.json" });

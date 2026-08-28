@@ -16,6 +16,7 @@ import type { IngestEvidence, ListTraceEvidence } from "@proofstack/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Authenticator } from "./auth.js";
+import { sendProblem } from "./problem.js";
 import { decodeTraceCursor, encodeTraceCursor } from "./trace-cursor.js";
 
 const EvidencePathSchema = z
@@ -35,6 +36,7 @@ const TraceQuerySchema = z
 
 export interface RouteDependencies {
   readonly authenticator: Authenticator;
+  readonly checkReadiness: () => Promise<void>;
   readonly ingestEvidence: IngestEvidence;
   readonly listTraceEvidence: ListTraceEvidence;
 }
@@ -46,7 +48,22 @@ export async function registerRoutes(
   const openApiDocument = createProofStackOpenApiDocument();
 
   app.get("/health/live", async () => LivenessResponseSchema.parse({ status: "ok" }));
-  app.get("/health/ready", async () => ReadinessResponseSchema.parse({ status: "ready" }));
+  app.get("/health/ready", async (request, reply) => {
+    try {
+      await dependencies.checkReadiness();
+      return ReadinessResponseSchema.parse({ status: "ready" });
+    } catch (error) {
+      request.log.error({ error }, "Readiness check failed");
+      return sendProblem(reply, {
+        code: "not_ready",
+        detail: "A required dependency is unavailable or not initialized",
+        requestId: request.id,
+        status: 503,
+        title: "Service not ready",
+        type: "https://proofstack.dev/problems/not-ready",
+      });
+    }
+  });
   app.get("/openapi.json", async (_request, reply) =>
     reply.header("cache-control", "no-store").send(openApiDocument),
   );

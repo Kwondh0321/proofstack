@@ -157,6 +157,12 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               },
               description: "The API is ready to accept requests",
             },
+            "503": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "A required dependency is unavailable or not initialized",
+            },
           },
           summary: "Check API readiness",
           tags: ["Health"],

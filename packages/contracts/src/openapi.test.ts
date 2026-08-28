@@ -57,4 +57,11 @@ describe("ProofStack OpenAPI document", () => {
     expect(request.properties.events.items.required).not.toContain("attributes");
     expect(request.properties.events.items.required).toContain("eventId");
   });
+
+  it("documents dependency readiness failures", () => {
+    const document = createProofStackOpenApiDocument();
+    const paths = document.paths as Record<string, { get: { responses: Record<string, unknown> } }>;
+
+    expect(paths["/health/ready"]?.get.responses).toHaveProperty("503");
+  });
 });
