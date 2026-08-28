@@ -215,6 +215,7 @@ describe("OidcLoginService.begin", () => {
       nonce: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       state: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
     });
+    expect(result.interactionToken).toBe(input?.state);
     expect(new URL(result.authorizationUrl).searchParams.get("code_challenge_method")).toBe("S256");
     expect(stored).toMatchObject({
       lifetimeSeconds: 15 * 60,

@@ -127,6 +127,7 @@ export interface OidcLoginServiceDependencies {
 export interface BegunOidcLogin {
   readonly authorizationUrl: string;
   readonly expiresAt: string;
+  readonly interactionToken: string;
 }
 
 export interface CompletedOidcLogin {
@@ -399,7 +400,11 @@ export class OidcLoginService {
           }),
           this.transactionLifetimeSeconds,
         );
-        return { authorizationUrl, expiresAt: created.expiresAt };
+        return {
+          authorizationUrl,
+          expiresAt: created.expiresAt,
+          interactionToken: secrets.state,
+        };
       } catch (error) {
         if (!(error instanceof OidcLoginTransactionConflictError)) throw error;
         lastConflict = error;
