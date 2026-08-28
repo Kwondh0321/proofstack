@@ -18,6 +18,12 @@ export {
   MigrationFileError,
 } from "./migrations.js";
 export {
+  MAX_CONSUMER_RECEIPT_ERROR_LENGTH,
+  MAX_CONSUMER_RECEIPT_LEASE_DURATION_MS,
+  MAX_CONSUMER_RECEIPT_RETRY_DELAY_MS,
+  PostgresConsumerReceiptRepository,
+} from "./postgres-consumer-receipt-repository.js";
+export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
 } from "./postgres-evidence-repository.js";
