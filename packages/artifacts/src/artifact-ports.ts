@@ -1,6 +1,7 @@
 import type { ArtifactMetadata, ArtifactTombstone, EvidenceScope } from "@proofstack/contracts";
 
 export const ARTIFACT_ENCRYPTION_VERSION = "a256gcm-v1" as const;
+export const MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE = 100;
 
 export interface WrappedArtifactDataKey {
   readonly algorithm: "A256GCM";
