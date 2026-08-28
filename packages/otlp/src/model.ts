@@ -1,10 +1,11 @@
 export type OtlpInteger = number | string;
+export type OtlpDouble = number | "Infinity" | "-Infinity" | "NaN";
 
 export interface OtlpAnyValue {
   readonly arrayValue?: { readonly values: readonly OtlpAnyValue[] };
   readonly boolValue?: boolean;
   readonly bytesValue?: Uint8Array;
-  readonly doubleValue?: number;
+  readonly doubleValue?: OtlpDouble;
   readonly intValue?: OtlpInteger;
   readonly kvlistValue?: { readonly values: readonly OtlpKeyValue[] };
   readonly stringValue?: string;
