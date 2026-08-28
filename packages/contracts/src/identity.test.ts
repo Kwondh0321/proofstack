@@ -105,17 +105,24 @@ describe("WorkloadCapabilitySchema", () => {
     expect(WorkloadCapabilitySchema.options).toEqual(WORKLOAD_DELEGABLE_CAPABILITIES);
   });
 
-  it.each(["evidence:ingest", "evaluation:run", "policy:evaluate"])(
-    "accepts delegable capability %s",
-    (capability) => {
-      expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(true);
-    },
-  );
+  it.each([
+    "evidence:ingest",
+    "artifact:write",
+    "artifact:read",
+    "evaluation:run",
+    "policy:evaluate",
+  ])("accepts delegable capability %s", (capability) => {
+    expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(true);
+  });
 
-  it.each(["identity:manage", "approval:decide", "project:manage", "policy:manage"])(
-    "rejects administrative capability %s",
-    (capability) => {
-      expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(false);
-    },
-  );
+  it.each([
+    "artifact:read:restricted",
+    "artifact:delete",
+    "identity:manage",
+    "approval:decide",
+    "project:manage",
+    "policy:manage",
+  ])("rejects administrative capability %s", (capability) => {
+    expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(false);
+  });
 });

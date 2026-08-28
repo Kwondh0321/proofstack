@@ -121,6 +121,7 @@ describe("PostgreSQL evidence schema", () => {
       "0005_oidc_browser_identity",
       "0006_repair_oidc_transaction_format",
       "0007_saturate_api_key_use_count",
+      "0008_artifact_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -129,6 +130,33 @@ describe("PostgreSQL evidence schema", () => {
         : expectedMigrations.slice(-firstMigration.newlyAppliedIds.length),
     );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
+
+    const artifactCapabilities = await pool.query<{
+      readonly restrictedWorkload: boolean;
+      readonly userLifecycle: boolean;
+      readonly workloadTransfer: boolean;
+    }>(`
+      SELECT
+        public.proofstack_valid_workload_capabilities(
+          ARRAY['artifact:write', 'artifact:read']::text[]
+        ) AS "workloadTransfer",
+        public.proofstack_valid_workload_capabilities(
+          ARRAY['artifact:read:restricted']::text[]
+        ) AS "restrictedWorkload",
+        public.proofstack_valid_user_capabilities(
+          ARRAY[
+            'artifact:write',
+            'artifact:read',
+            'artifact:read:restricted',
+            'artifact:delete'
+          ]::text[]
+        ) AS "userLifecycle"
+    `);
+    expect(artifactCapabilities.rows[0]).toEqual({
+      restrictedWorkload: false,
+      userLifecycle: true,
+      workloadTransfer: true,
+    });
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);
     await pool.query(`GRANT SELECT, INSERT ON public.proofstack_evidence_events TO ${runtimeRole}`);
