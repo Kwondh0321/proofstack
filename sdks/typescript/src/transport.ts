@@ -1,8 +1,11 @@
 import {
   EVIDENCE_SCHEMA_VERSION,
   type EvidenceRecord,
-  type IngestEvidenceRequest,
+  IngestEvidenceRequestSchema,
+  IngestEvidenceResponseSchema,
 } from "@proofstack/contracts";
+
+const MAX_RESPONSE_BODY_BYTES = 64 * 1024;
 
 export interface EvidenceTransport {
   send(events: readonly EvidenceRecord[]): Promise<void>;
@@ -50,16 +53,20 @@ export class HttpEvidenceTransport implements EvidenceTransport {
   }
 
   async send(events: readonly EvidenceRecord[]): Promise<void> {
-    const request: IngestEvidenceRequest = {
+    const request = IngestEvidenceRequestSchema.safeParse({
       events: [...events],
       schemaVersion: EVIDENCE_SCHEMA_VERSION,
-    };
+    });
+    if (!request.success) {
+      throw new TransportError("ProofStack evidence batch failed local validation");
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
       const response = await this.fetchImplementation(this.url, {
-        body: JSON.stringify(request),
+        body: JSON.stringify(request.data),
         headers: {
           ...(this.options.apiKey ? { authorization: `Bearer ${this.options.apiKey}` } : {}),
           "content-type": "application/json",
@@ -69,9 +76,40 @@ export class HttpEvidenceTransport implements EvidenceTransport {
       });
 
       if (!response.ok) {
-        const detail = (await response.text()).slice(0, 512);
+        const detail = (await readBoundedResponseBody(response)).slice(0, 512);
         throw new TransportError(
           `ProofStack ingestion failed with HTTP ${response.status}${detail ? `: ${detail}` : ""}`,
+          response.status,
+        );
+      }
+
+      const responseText = await readBoundedResponseBody(response);
+      let responseBody: unknown;
+      try {
+        responseBody = JSON.parse(responseText);
+      } catch {
+        throw new TransportError("ProofStack ingestion returned invalid JSON", response.status);
+      }
+
+      const acknowledgement = IngestEvidenceResponseSchema.safeParse(responseBody);
+      if (!acknowledgement.success) {
+        throw new TransportError(
+          "ProofStack ingestion returned an invalid acknowledgement",
+          response.status,
+        );
+      }
+
+      const expectedEventIds = new Set(events.map((event) => event.eventId));
+      const acknowledgedEventIds = new Set([
+        ...acknowledgement.data.acceptedEventIds,
+        ...acknowledgement.data.duplicateEventIds,
+      ]);
+      if (
+        expectedEventIds.size !== acknowledgedEventIds.size ||
+        [...expectedEventIds].some((eventId) => !acknowledgedEventIds.has(eventId))
+      ) {
+        throw new TransportError(
+          "ProofStack ingestion acknowledgement does not match the sent batch",
           response.status,
         );
       }
@@ -86,5 +124,34 @@ export class HttpEvidenceTransport implements EvidenceTransport {
     } finally {
       clearTimeout(timeout);
     }
+  }
+}
+
+async function readBoundedResponseBody(response: Response): Promise<string> {
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let receivedBytes = 0;
+
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      receivedBytes += chunk.value.byteLength;
+      if (receivedBytes > MAX_RESPONSE_BODY_BYTES) {
+        await reader.cancel();
+        throw new TransportError(
+          `ProofStack ingestion response exceeded ${MAX_RESPONSE_BODY_BYTES} bytes`,
+          response.status,
+        );
+      }
+      chunks.push(decoder.decode(chunk.value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+    return chunks.join("");
+  } finally {
+    reader.releaseLock();
   }
 }

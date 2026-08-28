@@ -19,6 +19,21 @@ const event = {
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
 };
 
+function acknowledgement(
+  acceptedEventIds: string[] = [event.eventId],
+  duplicateEventIds: string[] = [],
+): Response {
+  return Response.json(
+    {
+      acceptedEventIds,
+      duplicateEventIds,
+      requestId: "req_transport_001",
+      schemaVersion: "0.1",
+    },
+    { status: 202 },
+  );
+}
+
 describe("HttpEvidenceTransport", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -26,9 +41,7 @@ describe("HttpEvidenceTransport", () => {
   });
 
   it("sends the canonical request to the scoped endpoint", async () => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockResolvedValue(new Response(null, { status: 202 }));
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(acknowledgement());
     const transport = new HttpEvidenceTransport({
       apiKey: "secret-test-key",
       endpoint: "https://proofstack.example/base/",
@@ -67,6 +80,77 @@ describe("HttpEvidenceTransport", () => {
     await expect(promise).rejects.toBeInstanceOf(TransportError);
     await expect(promise).rejects.toMatchObject({ status: 503 });
     await expect(promise).rejects.toSatisfy((error: Error) => error.message.length < 600);
+  });
+
+  it("rejects a malformed successful acknowledgement", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(Response.json({ acceptedEventIds: [] }, { status: 202 }));
+    const transport = new HttpEvidenceTransport({
+      endpoint: "https://proofstack.example",
+      environmentId: "env_local",
+      fetch,
+      projectId: "prj_local",
+    });
+
+    await expect(transport.send([event])).rejects.toThrow("invalid acknowledgement");
+  });
+
+  it("rejects an acknowledgement for a different event batch", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(acknowledgement(["evt_other"]));
+    const transport = new HttpEvidenceTransport({
+      endpoint: "https://proofstack.example",
+      environmentId: "env_local",
+      fetch,
+      projectId: "prj_local",
+    });
+
+    await expect(transport.send([event])).rejects.toThrow("does not match the sent batch");
+  });
+
+  it("rejects invalid JSON in a successful response", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response("not-json", { status: 202 }));
+    const transport = new HttpEvidenceTransport({
+      endpoint: "https://proofstack.example",
+      environmentId: "env_local",
+      fetch,
+      projectId: "prj_local",
+    });
+
+    await expect(transport.send([event])).rejects.toThrow("returned invalid JSON");
+  });
+
+  it("bounds successful response bodies before parsing", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response("x".repeat(64 * 1024 + 1), { status: 202 }));
+    const transport = new HttpEvidenceTransport({
+      endpoint: "https://proofstack.example",
+      environmentId: "env_local",
+      fetch,
+      projectId: "prj_local",
+    });
+
+    await expect(transport.send([event])).rejects.toThrow("response exceeded 65536 bytes");
+  });
+
+  it("rejects invalid evidence before making a network request", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(acknowledgement());
+    const transport = new HttpEvidenceTransport({
+      endpoint: "https://proofstack.example",
+      environmentId: "env_local",
+      fetch,
+      projectId: "prj_local",
+    });
+
+    await expect(transport.send([{ ...event, traceId: "invalid" }])).rejects.toThrow(
+      "failed local validation",
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("validates transport timeouts", () => {
