@@ -1,4 +1,6 @@
+import { gzipSync } from "node:zlib";
 import { EVIDENCE_SCHEMA_VERSION } from "@proofstack/contracts";
+import { decodeOtlpJson, encodeOtlpProtobufRequest } from "@proofstack/otlp";
 import {
   bootstrapApiKey,
   createPostgresPool,
@@ -50,6 +52,7 @@ const identityDatabaseUrl = new URL(databaseUrl);
 identityDatabaseUrl.username = runtimeRoles.identity.name;
 identityDatabaseUrl.password = runtimeRoles.identity.password;
 let issuedApiKey: Awaited<ReturnType<typeof bootstrapApiKey>>;
+let otlpApiKey: Awaited<ReturnType<typeof bootstrapApiKey>>;
 
 beforeAll(async () => {
   await migrateDatabase(adminPool);
@@ -58,6 +61,13 @@ beforeAll(async () => {
     actorPrincipalId: "usr_integration_operator",
     capabilities: ["evidence:ingest", "evidence:read"],
     name: "api-integration",
+    resourceScope: { mode: "tenant" },
+    tenantId: "ten_local",
+  });
+  otlpApiKey = await bootstrapApiKey(adminPool, {
+    actorPrincipalId: "usr_integration_operator",
+    capabilities: ["evidence:ingest", "evidence:read"],
+    name: "otlp-api-integration",
     resourceScope: { mode: "tenant" },
     tenantId: "ten_local",
   });
@@ -129,6 +139,100 @@ describe("PostgreSQL-backed API", () => {
       expect(trace.statusCode).toBe(200);
       expect(trace.json()).toMatchObject({
         events: [{ evidence: { eventId: evidence.eventId }, scope: { tenantId: "ten_local" } }],
+        traceId,
+      });
+    } finally {
+      await restartedApp.close();
+    }
+  });
+
+  it("persists authenticated gzip Protobuf OTLP traces across an API restart", async () => {
+    const traceId = "8bf92f3577b34da6a3ce929d0e0e4736";
+    const spanId = "70f067aa0ba902b7";
+    const authorization = `Bearer ${otlpApiKey.value}`;
+    const protobuf = encodeOtlpProtobufRequest(
+      decodeOtlpJson(
+        JSON.stringify({
+          resourceSpans: [
+            {
+              resource: {
+                attributes: [
+                  {
+                    key: "service.name",
+                    value: { stringValue: "otlp-postgres-integration" },
+                  },
+                ],
+              },
+              scopeSpans: [
+                {
+                  scope: { name: "integration-otel", version: "1.0" },
+                  spans: [
+                    {
+                      endTimeUnixNano: "1787930001000000000",
+                      name: "persist OTLP trace",
+                      spanId,
+                      startTimeUnixNano: "1787930000000000000",
+                      status: { code: 1 },
+                      traceId,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const firstApp = await createApp(apiKeyConfig());
+    try {
+      const ingest = await firstApp.inject({
+        body: gzipSync(protobuf),
+        headers: {
+          authorization,
+          "content-encoding": "gzip",
+          "content-type": "application/x-protobuf",
+          "x-proofstack-environment-id": "env_local",
+          "x-proofstack-project-id": "prj_local",
+        },
+        method: "POST",
+        url: "/v1/traces",
+      });
+
+      expect(ingest.statusCode).toBe(200);
+      expect(ingest.headers["content-type"]).toContain("application/x-protobuf");
+      expect(ingest.rawPayload.byteLength).toBe(0);
+    } finally {
+      await firstApp.close();
+    }
+
+    const restartedApp = await createApp(apiKeyConfig());
+    try {
+      const trace = await restartedApp.inject({
+        headers: { authorization },
+        method: "GET",
+        url: `/v1/projects/prj_local/environments/env_local/traces/${traceId}`,
+      });
+
+      expect(trace.statusCode).toBe(200);
+      expect(trace.json()).toMatchObject({
+        events: [
+          {
+            evidence: {
+              kind: "custom",
+              source: {
+                sdkName: "integration-otel",
+                serviceName: "otlp-postgres-integration",
+              },
+              spanId,
+            },
+            scope: {
+              environmentId: "env_local",
+              projectId: "prj_local",
+              tenantId: "ten_local",
+            },
+          },
+        ],
         traceId,
       });
     } finally {
