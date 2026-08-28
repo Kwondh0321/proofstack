@@ -4,6 +4,7 @@ import { PostgresDataIntegrityError } from "./postgres-evidence-repository.js";
 import {
   MAX_OUTBOX_CLAIM_SIZE,
   MAX_OUTBOX_ERROR_LENGTH,
+  MAX_OUTBOX_FAILURE_LIST_SIZE,
   MAX_OUTBOX_LEASE_DURATION_MS,
   MAX_OUTBOX_RETRY_DELAY_MS,
   PostgresOutboxRepository,
@@ -57,6 +58,17 @@ function storedRow(overrides: Record<string, unknown> = {}): Record<string, unkn
     tenant_id: "ten_local",
     ...overrides,
   };
+}
+
+function failedRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return storedRow({
+    available_at: "2026-08-28T03:02:00.000Z",
+    last_error: "publisher unavailable",
+    lease_expires_at: null,
+    lease_owner: null,
+    lease_token: null,
+    ...overrides,
+  });
 }
 
 function harness(
@@ -260,6 +272,115 @@ describe("PostgresOutboxRepository.acknowledge", () => {
     await expect(
       testHarness.repository.acknowledge(tenantId, { leaseToken: token, outboxId }),
     ).rejects.toThrow();
+    expect(testHarness.connections.count).toBe(0);
+  });
+});
+
+describe("PostgresOutboxRepository.listFailures", () => {
+  it("returns bounded unleased and actively leased failures", async () => {
+    const testHarness = harness((text) => ({
+      rows: text.includes("last_error IS NOT NULL")
+        ? [
+            failedRow({
+              attempt_count: 3,
+              lease_expires_at: "2026-08-28T03:03:00.000Z",
+              lease_owner: "wrk_recovery",
+              lease_token: leaseToken,
+              outbox_id: "2",
+            }),
+            failedRow({ attempt_count: 2 }),
+          ]
+        : [],
+    }));
+
+    await expect(
+      testHarness.repository.listFailures("ten_local", { limit: 20, minimumAttempts: 2 }),
+    ).resolves.toEqual([
+      {
+        aggregateId: "evt_outbox_001",
+        aggregateType: "evidence",
+        attemptCount: 3,
+        availableAt: "2026-08-28T03:02:00.000Z",
+        createdAt: "2026-08-28T03:00:00.000Z",
+        eventType: "evidence.appended",
+        lastError: "publisher unavailable",
+        lease: {
+          expiresAt: "2026-08-28T03:03:00.000Z",
+          owner: "wrk_recovery",
+          token: leaseToken,
+        },
+        outboxId: "2",
+        schemaVersion: "0.1",
+        tenantId: "ten_local",
+      },
+      {
+        aggregateId: "evt_outbox_001",
+        aggregateType: "evidence",
+        attemptCount: 2,
+        availableAt: "2026-08-28T03:02:00.000Z",
+        createdAt: "2026-08-28T03:00:00.000Z",
+        eventType: "evidence.appended",
+        lastError: "publisher unavailable",
+        lease: null,
+        outboxId: "1",
+        schemaVersion: "0.1",
+        tenantId: "ten_local",
+      },
+    ]);
+    const query = testHarness.client.queries.find(({ text }) =>
+      text.includes("last_error IS NOT NULL"),
+    );
+    expect(query?.values).toEqual(["ten_local", 2, 20]);
+  });
+
+  it.each([
+    ["availability", { available_at: "later" }],
+    ["error summary", { last_error: "" }],
+    ["partial lease", { lease_token: leaseToken }],
+    [
+      "lease token",
+      {
+        lease_expires_at: "2026-08-28T03:03:00.000Z",
+        lease_owner: "wrk_recovery",
+        lease_token: "invalid",
+      },
+    ],
+    [
+      "lease owner",
+      {
+        lease_expires_at: "2026-08-28T03:03:00.000Z",
+        lease_owner: "INVALID",
+        lease_token: leaseToken,
+      },
+    ],
+    [
+      "lease expiry",
+      {
+        lease_expires_at: "later",
+        lease_owner: "wrk_recovery",
+        lease_token: leaseToken,
+      },
+    ],
+  ])("fails closed for an invalid stored failure %s", async (_label, overrides) => {
+    const testHarness = harness((text) => ({
+      rows: text.includes("last_error IS NOT NULL") ? [failedRow(overrides)] : [],
+    }));
+
+    await expect(
+      testHarness.repository.listFailures("ten_local", { limit: 1, minimumAttempts: 1 }),
+    ).rejects.toBeInstanceOf(PostgresDataIntegrityError);
+  });
+
+  it.each([
+    ["tenant", "INVALID", { limit: 1, minimumAttempts: 1 }],
+    ["minimum attempts", "ten_local", { limit: 1, minimumAttempts: 0 }],
+    ["minimum attempts integer", "ten_local", { limit: 1, minimumAttempts: 1.5 }],
+    ["limit minimum", "ten_local", { limit: 0, minimumAttempts: 1 }],
+    ["limit maximum", "ten_local", { limit: MAX_OUTBOX_FAILURE_LIST_SIZE + 1, minimumAttempts: 1 }],
+  ])("rejects an invalid %s before connecting", async (_label, tenantId, options) => {
+    const testHarness = harness(() => ({ rows: [] }));
+
+    await expect(testHarness.repository.listFailures(tenantId, options)).rejects.toThrow();
     expect(testHarness.connections.count).toBe(0);
   });
 });

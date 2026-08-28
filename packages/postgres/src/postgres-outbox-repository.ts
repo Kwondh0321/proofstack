@@ -9,6 +9,8 @@ import {
 import type {
   AcknowledgeOutboxOptions,
   ClaimOutboxOptions,
+  ListOutboxFailuresOptions,
+  OutboxFailure,
   OutboxMessage,
   OutboxRepository,
   RetryOutboxOptions,
@@ -18,6 +20,7 @@ import { PostgresDataIntegrityError } from "./postgres-evidence-repository.js";
 import { withTenantTransaction } from "./tenant-transaction.js";
 
 export const MAX_OUTBOX_CLAIM_SIZE = 100;
+export const MAX_OUTBOX_FAILURE_LIST_SIZE = 100;
 export const MAX_OUTBOX_LEASE_DURATION_MS = 5 * 60 * 1_000;
 export const MAX_OUTBOX_RETRY_DELAY_MS = 24 * 60 * 60 * 1_000;
 export const MAX_OUTBOX_ERROR_LENGTH = 2_048;
@@ -27,19 +30,30 @@ const AGGREGATE_TYPE_PATTERN = /^[a-z][a-z0-9_.-]{2,63}$/;
 const SCHEMA_VERSION_PATTERN = /^[0-9]+\.[0-9]+$/;
 const MAX_BIGINT = 9_223_372_036_854_775_807n;
 
-interface OutboxRow extends QueryResultRow {
+interface BaseOutboxRow extends QueryResultRow {
   readonly aggregate_id: string;
   readonly aggregate_type: string;
   readonly attempt_count: number;
   readonly created_at: string;
   readonly event_type: string;
+  readonly outbox_id: string;
+  readonly schema_version: string;
+  readonly tenant_id: string;
+}
+
+interface OutboxRow extends BaseOutboxRow {
   readonly lease_expires_at: string;
   readonly lease_owner: string;
   readonly lease_token: string;
-  readonly outbox_id: string;
   readonly payload: unknown;
-  readonly schema_version: string;
-  readonly tenant_id: string;
+}
+
+interface OutboxFailureRow extends BaseOutboxRow {
+  readonly available_at: string;
+  readonly last_error: string;
+  readonly lease_expires_at: string | null;
+  readonly lease_owner: string | null;
+  readonly lease_token: string | null;
 }
 
 interface MutationRow extends QueryResultRow {
@@ -116,6 +130,39 @@ const RETRY_OUTBOX_SQL = `
   RETURNING true AS changed
 `;
 
+const LIST_OUTBOX_FAILURES_SQL = `
+  SELECT
+    tenant_id,
+    outbox_id::text,
+    event_type,
+    aggregate_type,
+    aggregate_id,
+    schema_version,
+    to_char(
+      created_at AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+    ) AS created_at,
+    attempt_count,
+    to_char(
+      available_at AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+    ) AS available_at,
+    last_error,
+    lease_token::text,
+    lease_owner,
+    to_char(
+      lease_expires_at AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+    ) AS lease_expires_at
+  FROM public.proofstack_outbox
+  WHERE tenant_id = $1
+    AND published_at IS NULL
+    AND last_error IS NOT NULL
+    AND attempt_count >= $2
+  ORDER BY attempt_count DESC, available_at, outbox_id
+  LIMIT $3
+`;
+
 function requireOpaqueId(value: string, label: string): string {
   const parsed = OpaqueIdSchema.safeParse(value);
   if (!parsed.success) throw new TypeError(`${label} must be a valid opaque identifier`);
@@ -150,20 +197,7 @@ function integrityViolation(message: string, cause?: unknown): never {
   throw new PostgresDataIntegrityError(message, cause === undefined ? undefined : { cause });
 }
 
-function messageFromRow(row: OutboxRow, expectedTenantId: string): OutboxMessage {
-  const payload = JsonValueSchema.safeParse(row.payload);
-  if (
-    !payload.success ||
-    typeof payload.data !== "object" ||
-    payload.data === null ||
-    Array.isArray(payload.data)
-  ) {
-    integrityViolation(
-      "Stored outbox payload is not a canonical JSON object",
-      payload.success ? undefined : payload.error,
-    );
-  }
-
+function validateBaseRow(row: BaseOutboxRow, expectedTenantId: string): void {
   if (row.tenant_id !== expectedTenantId || !OpaqueIdSchema.safeParse(row.tenant_id).success) {
     integrityViolation("Stored outbox tenant does not match its transaction scope");
   }
@@ -182,15 +216,6 @@ function messageFromRow(row: OutboxRow, expectedTenantId: string): OutboxMessage
   if (!TimestampSchema.safeParse(row.created_at).success) {
     integrityViolation("Stored outbox creation time is invalid");
   }
-  if (!TimestampSchema.safeParse(row.lease_expires_at).success) {
-    integrityViolation("Stored outbox lease expiry is invalid");
-  }
-  if (!OpaqueIdSchema.safeParse(row.lease_owner).success) {
-    integrityViolation("Stored outbox lease owner is invalid");
-  }
-  if (!UUID_PATTERN.test(row.lease_token)) {
-    integrityViolation("Stored outbox lease token is invalid");
-  }
   if (!/^[1-9][0-9]*$/.test(row.outbox_id) || BigInt(row.outbox_id) > MAX_BIGINT) {
     integrityViolation("Stored outbox identifier is invalid");
   }
@@ -200,6 +225,31 @@ function messageFromRow(row: OutboxRow, expectedTenantId: string): OutboxMessage
     row.attempt_count > 1_000_000
   ) {
     integrityViolation("Stored outbox attempt count is invalid");
+  }
+}
+
+function messageFromRow(row: OutboxRow, expectedTenantId: string): OutboxMessage {
+  validateBaseRow(row, expectedTenantId);
+  const payload = JsonValueSchema.safeParse(row.payload);
+  if (
+    !payload.success ||
+    typeof payload.data !== "object" ||
+    payload.data === null ||
+    Array.isArray(payload.data)
+  ) {
+    integrityViolation(
+      "Stored outbox payload is not a canonical JSON object",
+      payload.success ? undefined : payload.error,
+    );
+  }
+  if (!TimestampSchema.safeParse(row.lease_expires_at).success) {
+    integrityViolation("Stored outbox lease expiry is invalid");
+  }
+  if (!OpaqueIdSchema.safeParse(row.lease_owner).success) {
+    integrityViolation("Stored outbox lease owner is invalid");
+  }
+  if (!UUID_PATTERN.test(row.lease_token)) {
+    integrityViolation("Stored outbox lease token is invalid");
   }
 
   return {
@@ -215,6 +265,54 @@ function messageFromRow(row: OutboxRow, expectedTenantId: string): OutboxMessage
     },
     outboxId: row.outbox_id,
     payload: payload.data as JsonObject,
+    schemaVersion: row.schema_version,
+    tenantId: row.tenant_id,
+  };
+}
+
+function failureFromRow(row: OutboxFailureRow, expectedTenantId: string): OutboxFailure {
+  validateBaseRow(row, expectedTenantId);
+  if (!TimestampSchema.safeParse(row.available_at).success) {
+    integrityViolation("Stored outbox availability time is invalid");
+  }
+  if (row.last_error.length < 1 || row.last_error.length > MAX_OUTBOX_ERROR_LENGTH) {
+    integrityViolation("Stored outbox error summary is invalid");
+  }
+
+  const leaseValues = [row.lease_token, row.lease_owner, row.lease_expires_at];
+  const hasNoLease = leaseValues.every((value) => value === null);
+  const hasCompleteLease = leaseValues.every((value) => typeof value === "string");
+  if (!hasNoLease && !hasCompleteLease) {
+    integrityViolation("Stored outbox failure has an incomplete lease");
+  }
+  if (hasCompleteLease) {
+    if (!UUID_PATTERN.test(row.lease_token as string)) {
+      integrityViolation("Stored outbox failure lease token is invalid");
+    }
+    if (!OpaqueIdSchema.safeParse(row.lease_owner).success) {
+      integrityViolation("Stored outbox failure lease owner is invalid");
+    }
+    if (!TimestampSchema.safeParse(row.lease_expires_at).success) {
+      integrityViolation("Stored outbox failure lease expiry is invalid");
+    }
+  }
+
+  return {
+    aggregateId: row.aggregate_id,
+    aggregateType: row.aggregate_type,
+    attemptCount: row.attempt_count,
+    availableAt: row.available_at,
+    createdAt: row.created_at,
+    eventType: row.event_type,
+    lastError: row.last_error,
+    lease: hasNoLease
+      ? null
+      : {
+          expiresAt: row.lease_expires_at as string,
+          owner: row.lease_owner as string,
+          token: row.lease_token as string,
+        },
+    outboxId: row.outbox_id,
     schemaVersion: row.schema_version,
     tenantId: row.tenant_id,
   };
@@ -262,6 +360,29 @@ export class PostgresOutboxRepository implements OutboxRepository {
         leaseToken,
       ]);
       return result.rows[0]?.changed === true;
+    });
+  }
+
+  async listFailures(
+    tenantId: string,
+    options: ListOutboxFailuresOptions,
+  ): Promise<readonly OutboxFailure[]> {
+    const tenant = requireOpaqueId(tenantId, "tenantId");
+    const minimumAttempts = requireBoundedInteger(
+      options.minimumAttempts,
+      1,
+      1_000_000,
+      "minimumAttempts",
+    );
+    const limit = requireBoundedInteger(options.limit, 1, MAX_OUTBOX_FAILURE_LIST_SIZE, "limit");
+
+    return withTenantTransaction(this.pool, tenant, async (client) => {
+      const result = await client.query<OutboxFailureRow>(LIST_OUTBOX_FAILURES_SQL, [
+        tenant,
+        minimumAttempts,
+        limit,
+      ]);
+      return result.rows.map((row) => failureFromRow(row, tenant));
     });
   }
 

@@ -19,10 +19,29 @@ export interface OutboxMessage {
   readonly tenantId: string;
 }
 
+export interface OutboxFailure {
+  readonly aggregateId: string;
+  readonly aggregateType: string;
+  readonly attemptCount: number;
+  readonly availableAt: string;
+  readonly createdAt: string;
+  readonly eventType: string;
+  readonly lastError: string;
+  readonly lease: OutboxLease | null;
+  readonly outboxId: string;
+  readonly schemaVersion: string;
+  readonly tenantId: string;
+}
+
 export interface ClaimOutboxOptions {
   readonly leaseDurationMs: number;
   readonly limit: number;
   readonly workerId: string;
+}
+
+export interface ListOutboxFailuresOptions {
+  readonly limit: number;
+  readonly minimumAttempts: number;
 }
 
 export interface RetryOutboxOptions {
@@ -40,5 +59,9 @@ export interface AcknowledgeOutboxOptions {
 export interface OutboxRepository {
   acknowledge(tenantId: string, options: AcknowledgeOutboxOptions): Promise<boolean>;
   claim(tenantId: string, options: ClaimOutboxOptions): Promise<readonly OutboxMessage[]>;
+  listFailures(
+    tenantId: string,
+    options: ListOutboxFailuresOptions,
+  ): Promise<readonly OutboxFailure[]>;
   retry(tenantId: string, options: RetryOutboxOptions): Promise<boolean>;
 }

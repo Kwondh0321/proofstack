@@ -233,6 +233,21 @@ describe("PostgresOutboxRepository delivery contract", () => {
       }),
     ).resolves.toBe(false);
 
+    await expect(
+      secondWorker.listFailures(alphaTenant, { limit: 10, minimumAttempts: 1 }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        aggregateId: second.aggregateId,
+        attemptCount: 1,
+        lastError: "simulated publisher failure",
+        lease: null,
+        outboxId: second.outboxId,
+      }),
+    ]);
+    await expect(
+      secondWorker.listFailures(alphaTenant, { limit: 10, minimumAttempts: 2 }),
+    ).resolves.toEqual([]);
+
     const retryToken = "10000000-0000-4000-8000-000000000004";
     const retryWorker = new PostgresOutboxRepository(workerPool, tokens(retryToken));
     const retried = await retryWorker.claim(alphaTenant, {
@@ -248,11 +263,27 @@ describe("PostgresOutboxRepository delivery contract", () => {
       outboxId: second.outboxId,
     });
     await expect(
+      retryWorker.listFailures(alphaTenant, { limit: 10, minimumAttempts: 2 }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        aggregateId: second.aggregateId,
+        attemptCount: 2,
+        lastError: "simulated publisher failure",
+        lease: {
+          owner: "wrk_alpha_retry",
+          token: retryToken,
+        },
+      }),
+    ]);
+    await expect(
       retryWorker.acknowledge(alphaTenant, {
         leaseToken: retryToken,
         outboxId: second.outboxId,
       }),
     ).resolves.toBe(true);
+    await expect(
+      retryWorker.listFailures(alphaTenant, { limit: 10, minimumAttempts: 1 }),
+    ).resolves.toEqual([]);
 
     const betaToken = "10000000-0000-4000-8000-000000000005";
     const betaWorker = new PostgresOutboxRepository(workerPool, tokens(betaToken));
