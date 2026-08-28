@@ -60,7 +60,8 @@ describe("ProofStack OpenAPI document", () => {
 
   it("documents dependency readiness failures", () => {
     const document = createProofStackOpenApiDocument();
-    const paths = document.paths as Record<string, { get: { responses: Record<string, unknown> } }>;
+    const { paths: rawPaths } = document;
+    const paths = rawPaths as Record<string, { get: { responses: Record<string, unknown> } }>;
 
     expect(paths["/health/ready"]?.get.responses).toHaveProperty("503");
   });
