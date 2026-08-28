@@ -24,3 +24,30 @@ export class ArtifactKeyringConfigurationError extends Error {
     this.name = "ArtifactKeyringConfigurationError";
   }
 }
+
+export class ArtifactConflictError extends Error {
+  readonly code = "artifact_conflict";
+
+  constructor() {
+    super("Artifact identifier is already bound to different immutable metadata");
+    this.name = "ArtifactConflictError";
+  }
+}
+
+export class ArtifactNotFoundError extends Error {
+  readonly code = "artifact_not_found";
+
+  constructor() {
+    super("Artifact was not found in the authorized scope");
+    this.name = "ArtifactNotFoundError";
+  }
+}
+
+export class ArtifactStateTransitionError extends Error {
+  readonly code = "artifact_state_transition_invalid";
+
+  constructor() {
+    super("Artifact lifecycle transition is not allowed from its current state");
+    this.name = "ArtifactStateTransitionError";
+  }
+}
