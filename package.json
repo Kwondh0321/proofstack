@@ -28,7 +28,7 @@
     "format:check": "biome format .",
     "lint": "biome lint . && turbo run lint",
     "test": "turbo run test",
-    "test:integration:postgres": "turbo run test:integration --filter=@proofstack/postgres --filter=@proofstack/api",
+    "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
