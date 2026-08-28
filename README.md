@@ -151,6 +151,8 @@ accepted workload and browser identity checkpoint and its remaining deployment l
 The [Foundation 2 artifact audit](docs/development/foundation-2-artifact-audit.md) records the
 accepted encrypted lifecycle and operator checkpoint without claiming API or production-key
 composition.
+The [Foundation 2 OTLP/HTTP audit](docs/development/foundation-2-otlp-audit.md) records the accepted
+trace interoperability checkpoint, independent exporter evidence, and remaining production gaps.
 
 ## Current boundaries
 

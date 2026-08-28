@@ -44,7 +44,7 @@ Ordered work:
 3. [x] Transactional outbox, projection cursor, retry state, and idempotent consumer harness.
 4. [x] OIDC browser identity and capability-scoped workload API keys with rotation and revocation.
 5. [x] Encrypted artifact interface for opt-in content, redaction metadata, and retention tombstones.
-6. [ ] OTLP/HTTP adapter and compatibility fixtures mapped into `EvidenceEnvelope`.
+6. [x] OTLP/HTTP adapter and compatibility fixtures mapped into `EvidenceEnvelope`.
 7. [ ] Backup, restore, migration rollback, and cross-tenant adversarial test suites.
 
 The evidence for items 1–3 and the limitations that keep this foundation active are recorded in the
@@ -54,6 +54,9 @@ the [identity audit](../development/foundation-2-identity-audit.md).
 The encrypted artifact lifecycle, real-adapter acceptance, and remaining API, key-provider,
 scheduling, and recovery limits are recorded in the
 [artifact audit](../development/foundation-2-artifact-audit.md).
+The bounded OTLP/HTTP profile, independent exporter compatibility, durable authenticated path, and
+remaining production limits are recorded in the
+[OTLP/HTTP audit](../development/foundation-2-otlp-audit.md).
 
 Exit requires an installation that survives restart, proves tenant isolation at the database
 boundary, and can restore its authoritative state from documented backups.

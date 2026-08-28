@@ -13,9 +13,10 @@ restarts, remain isolated by forced row-level security, and create exactly one d
 intent for every newly accepted event. Delivery and consumer state have bounded, recoverable lease
 protocols rather than placeholder tables.
 
-This checkpoint accepts only roadmap items 1–3. Production identity, encrypted artifact retention,
-OTLP compatibility, backup and restore, migration rollback analysis, and a broader adversarial suite
-remain required before Foundation 2 can exit.
+This checkpoint accepts only roadmap items 1–3. At the time of this review, production identity,
+encrypted artifact retention, OTLP compatibility, backup and restore, migration rollback analysis,
+and a broader adversarial suite remained required before Foundation 2 could exit. Items 4–6 were
+subsequently accepted in their dedicated identity, artifact, and OTLP/HTTP audits; item 7 remains.
 
 ## Audit method
 
@@ -79,12 +80,13 @@ production builds.
   idempotency because the protocol does not claim exactly-once effects.
 - Content references have no encrypted artifact store, redaction executor, tombstone, or retention
   worker.
-- OTLP/HTTP ingestion and compatibility fixtures do not exist.
+- OTLP/HTTP ingestion and compatibility fixtures did not exist at this checkpoint and were
+  subsequently accepted in the [OTLP/HTTP audit](foundation-2-otlp-audit.md).
 - The local named volume demonstrates restart persistence, not backup or disaster recovery.
 - Restore verification, forward-repair and rollback analysis, PostgreSQL upgrade rehearsal, and the
   complete cross-tenant adversarial suite remain roadmap item 7.
 - Runtime roles assume a dedicated ProofStack database whose administrator is allowed to create
   roles and revoke `CREATE` on the public schema.
 
-These limitations are gates, not optional polish. Foundation 2 remains active until ordered work
-4–7 and its backup-based exit criterion pass.
+These limitations are gates, not optional polish. Foundation 2 remains active until item 7 and its
+backup-based exit criterion pass.

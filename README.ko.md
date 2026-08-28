@@ -152,6 +152,9 @@ scripts                  저장소 수준 아키텍처 경계 검사
 [Foundation 2 아티팩트 감사 기록](docs/development/foundation-2-artifact-audit.md)에는 API 또는
 프로덕션 키 결합을 완성했다고 주장하지 않으면서 암호화 수명주기와 운영자 체크포인트의
 승인 근거를 정리합니다.
+[Foundation 2 OTLP/HTTP 감사 기록](docs/development/foundation-2-otlp-audit.md)에는 승인된
+트레이스 상호운용성 체크포인트, 독립 익스포터 검증 근거와 남은 프로덕션 제한사항을
+정리합니다.
 
 ## 현재의 경계
 

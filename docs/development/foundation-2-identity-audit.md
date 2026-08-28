@@ -12,8 +12,10 @@ converge on the same validated `PrincipalContext`: capability-scoped workload AP
 explicitly bound OIDC browser sessions.
 
 This decision closes the identity implementation item. It does not declare Foundation 2 complete
-or ProofStack production-ready. Artifact retention, OTLP compatibility, backup and restore,
-production TLS packaging, and console sign-in integration remain separate work.
+or ProofStack production-ready. At this checkpoint, artifact retention, OTLP compatibility, backup
+and restore, production TLS packaging, and console sign-in integration remained separate work.
+Artifact and OTLP/HTTP were subsequently accepted in their dedicated audits; recovery, deployment,
+and console limits remain.
 
 ## Evidence reviewed
 

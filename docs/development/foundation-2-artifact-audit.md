@@ -100,6 +100,8 @@ job.
 - PostgreSQL, encrypted objects, every referenced key version, and lifecycle policy must be backed
   up and restored coherently. That proof remains Foundation 2 item 7.
 
-The next dependency-ordered capability is the OTLP/HTTP adapter and compatibility fixtures. The
-artifact checkpoint must be reopened if that adapter captures content, changes evidence-reference
-meaning, or adds a new network upload path.
+The next dependency-ordered capability at this checkpoint was the OTLP/HTTP adapter and
+compatibility fixtures. It was subsequently accepted in the
+[OTLP/HTTP audit](foundation-2-otlp-audit.md) without adding an artifact upload path. The artifact
+checkpoint must be reopened if later ingestion captures content or changes evidence-reference
+meaning.
