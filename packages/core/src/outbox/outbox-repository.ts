@@ -26,10 +26,10 @@ export interface ClaimOutboxOptions {
 }
 
 export interface RetryOutboxOptions {
-  readonly availableAt: string;
   readonly error: string;
   readonly leaseToken: string;
   readonly outboxId: string;
+  readonly retryDelayMs: number;
 }
 
 export interface AcknowledgeOutboxOptions {

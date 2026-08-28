@@ -1,9 +1,15 @@
 export {
+  type PostgresConnectionRequirements,
+  PostgresConnectionStringError,
+  validatePostgresConnectionString,
+} from "./connection-string.js";
+export { createPostgresPool, type PostgresPoolOptions } from "./database.js";
+export {
   assertMigrationsCurrent,
   inspectMigrations,
-  migrateDatabase,
   MigrationIntegrityError,
   MigrationRequiredError,
+  migrateDatabase,
 } from "./migration-runner.js";
 export {
   loadBundledMigrations,
@@ -15,10 +21,11 @@ export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
 } from "./postgres-evidence-repository.js";
-export { PostgresTransactionCleanupError } from "./tenant-transaction.js";
 export {
-  type PostgresConnectionRequirements,
-  PostgresConnectionStringError,
-  validatePostgresConnectionString,
-} from "./connection-string.js";
-export { createPostgresPool, type PostgresPoolOptions } from "./database.js";
+  MAX_OUTBOX_CLAIM_SIZE,
+  MAX_OUTBOX_ERROR_LENGTH,
+  MAX_OUTBOX_LEASE_DURATION_MS,
+  MAX_OUTBOX_RETRY_DELAY_MS,
+  PostgresOutboxRepository,
+} from "./postgres-outbox-repository.js";
+export { PostgresTransactionCleanupError } from "./tenant-transaction.js";
