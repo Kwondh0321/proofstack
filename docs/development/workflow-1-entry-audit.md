@@ -125,10 +125,10 @@ The first roadmap checkbox stays open until all of these gates are executable:
 
 | Boundary | Required evidence |
 | --- | --- |
-| Contract | Strict schemas reject unknown fields, invalid text, duplicate or unordered members, over-limit snapshots, and caller-owned server fields |
-| Integrity | Published fixed vectors prove domain separation, exact field coverage, Unicode rules, optional markers, membership ordering, and digest sensitivity |
+| Contract | Strict schemas reject unknown fields, unsafe text, duplicate members, over-limit snapshots, and caller-owned server fields; publish bodies cannot supply route-owned logical identifiers |
+| Integrity | Published fixed vectors prove domain separation, exact field and predecessor coverage, Unicode rules, optional markers, event and membership ordering, and digest sensitivity |
 | Authorization | Management and read capabilities are distinct; checks occur before storage access; cross-tenant, project, and environment identifiers do not leak |
-| Snapshot | One bounded canonical trace read freezes exact observed event IDs; later events do not change the version; a new version captures the advanced view |
+| Snapshot | One bounded trace read resolves and verifies canonical evidence order before freezing exact observed event IDs; the contract preserves that order; later events do not change the version; a new version captures the advanced view |
 | Idempotency | Identical version retry returns original provenance; different semantics under the same version identifier conflict |
 | Dataset | Every exact fixture version is resolved in scope and its authoritative digest is stored; duplicate logical fixtures and missing lineage fail |
 | Domain | One repository conformance suite runs unchanged against memory and PostgreSQL adapters |

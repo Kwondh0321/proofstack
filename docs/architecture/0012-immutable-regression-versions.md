@@ -30,6 +30,11 @@ ProofStack will model a regression fixture and a regression dataset as logical r
 published versions are append-only. Every version belongs to exactly one tenant, project, and
 environment and has both a logical identifier and an exact version identifier.
 
+The logical identifier is supplied by the exact-version API route, not by the publish request
+body. The first published version establishes that logical resource in the authenticated scope;
+later versions inherit the same logical identifier and scope through their exact predecessor.
+Predecessor resolution must not cross a logical resource, tenant, project, or environment.
+
 A published fixture version records:
 
 - its server-owned scope, creator, and capture time;
@@ -57,8 +62,11 @@ require their own contracts and acceptance gates.
 
 ### Make capture bounded, authorized, and idempotent
 
-The fixture publisher takes one bounded snapshot in the evidence repository's canonical trace
-order and stores exactly the event identifiers returned by that read. Missing, cross-tenant,
+The fixture publisher takes one bounded snapshot and resolves the complete selected evidence in
+the evidence repository's canonical trace order: `startedAt`, normalized `sequence` (defaulting to
+zero), then `eventId`. It verifies that ordering before storing exactly the event identifiers
+returned by that read. The public contract preserves caller-visible order but cannot derive or
+validate canonical trace order from opaque event identifiers alone. Missing, cross-tenant,
 cross-project, and cross-environment evidence fails without leaking identifier existence.
 Authorization is evaluated before repository access.
 
@@ -70,26 +78,37 @@ identifier.
 
 Dataset publication resolves every exact fixture version in the same scope before writing. The
 stored reference uses the authoritative fixture digest rather than a caller assertion. Duplicate
-fixture logical identifiers within one dataset version are rejected.
+fixture logical identifiers or duplicate fixture version identifiers within one dataset version
+are rejected.
 
 ### Use a versioned fixed-shape integrity encoding
 
 Definition digests use a schema-specific, domain-separated, length-prefixed binary encoding. Every
 UTF-8 string is prefixed with its unsigned byte length, optional values have explicit presence
 markers, counts precede sequences, and fields are encoded in a fixed documented order. Text is NFC
-normalized and cannot contain ASCII control characters or unpaired Unicode surrogates.
+normalized and cannot contain unpaired Unicode surrogates, C0 or C1 control characters, line or
+paragraph separators, or bidirectional formatting controls that can spoof reviews, logs, or user
+interfaces.
 
 The fixture digest covers its schema version, complete scope, logical and version identifiers,
-name, optional description, trace identifier, ordered event identifiers, completeness, and
-replayability. The dataset digest covers the corresponding dataset fields and every ordered,
-resolved fixture reference including its digest. Server capture time and creator identity are
-immutable provenance but are excluded from the semantic definition digest so equivalent creation
-requests can be recognized after a lost response.
+name, optional description, an explicit predecessor-presence marker and—when present—the
+predecessor version identifier and predecessor definition digest, trace identifier, ordered event
+identifiers, completeness, and replayability. The dataset digest covers the corresponding dataset
+fields, the same explicit predecessor lineage, and every ordered, resolved fixture reference
+including its digest. Server capture time and creator identity are immutable provenance but are
+excluded from the semantic definition digest so equivalent creation requests can be recognized
+after a lost response.
 
 The encoding domains are `proofstack.fixture-version.v1` and
 `proofstack.dataset-version.v1`. Implementations must publish fixed test vectors. ProofStack will
 not use `JSON.stringify`, database JSON rendering, locale-sensitive comparison, or an unreviewed
 generic JSON canonicalizer for these digests.
+
+Published `0.1` parsers remain available for historical data. A shared primitive or limit change
+must not narrow an already-published schema version; any breaking validation or semantic change
+requires a new schema version and an explicit version-dispatching union. Encoder vectors must prove
+that predecessor presence, predecessor identity, predecessor digest, event order, and dataset
+membership order each affect the definition digest.
 
 The definition digest binds the selected immutable event identities, not an external signature of
 their payloads. The append-only evidence repository and conflicting-identifier protection remain
