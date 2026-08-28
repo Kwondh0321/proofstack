@@ -15,9 +15,9 @@ export const TracePageCursorSchema = z
   .min(1)
   .max(512)
   .regex(/^[A-Za-z0-9_-]+$/);
-// biome-ignore lint/suspicious/noControlCharactersInRegex: Local redirects must reject every ASCII control character.
 export const BrowserReturnPathSchema = z
   .string()
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: Local redirects must reject every ASCII control character.
   .regex(/^\/(?!\/)[^\\\u0000-\u001f\u007f]{0,1023}$/);
 export const OidcStateSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/);
 export const BrowserLoginQuerySchema = z
