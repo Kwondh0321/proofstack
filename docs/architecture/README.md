@@ -38,3 +38,4 @@ invalidate an ADR present in this directory.
 - [ADR-0013: Execute replay as bounded jobs with explicit boundary modes](0013-bounded-replay-execution.md)
 - [ADR-0014: Treat criteria and evaluator outputs as contestable claims](0014-contestable-evaluation-assurance.md)
 - [ADR-0015: Encode regression definitions with a fixed binary format](0015-regression-definition-digest-encoding.md)
+- [ADR-0016: Linearize regression version publication at one repository boundary](0016-linearize-regression-version-publication.md)
