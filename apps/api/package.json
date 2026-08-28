@@ -1,0 +1,33 @@
+{
+  "name": "@proofstack/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ProofStack control-plane and development ingestion API",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf coverage dist",
+    "dev": "tsx watch src/server.ts",
+    "lint": "biome lint src",
+    "start": "node dist/server.js",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@fastify/helmet": "13.1.1",
+    "@fastify/rate-limit": "11.2.0",
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/core": "workspace:*",
+    "fastify": "5.12.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "tsx": "4.23.12",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
