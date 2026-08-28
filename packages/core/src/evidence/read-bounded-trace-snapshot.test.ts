@@ -89,6 +89,32 @@ describe("readBoundedTraceSnapshot", () => {
     expect(result).toEqual({ events, status: "found" });
   });
 
+  it("isolates the authenticated query boundary and returns detached validated events", async () => {
+    const stored = envelope("evt_snapshot_isolated");
+    let receivedScope: EvidenceScope | undefined;
+    const listByTrace = vi.fn<EvidenceRepository["listByTrace"]>(async (repositoryScope) => {
+      receivedScope = repositoryScope;
+      (repositoryScope as { tenantId: string }).tenantId = "ten_mutated";
+      return { cursorFound: true, events: [stored], hasMore: false };
+    });
+    const repository: EvidenceRepository = {
+      append: vi.fn<EvidenceRepository["append"]>(),
+      listByTrace,
+    };
+
+    const result = await readBoundedTraceSnapshot(repository, {
+      maximumEvents: 1,
+      scope,
+      traceId: TRACE_ID,
+    });
+
+    expect(receivedScope).not.toBe(scope);
+    expect(scope.tenantId).toBe("ten_snapshot");
+    expect(result).toEqual({ events: [stored], status: "found" });
+    if (result.status !== "found") throw new Error("Expected a found trace snapshot");
+    expect(result.events[0]).not.toBe(stored);
+  });
+
   it("accepts canonical keys using normalized instants, default sequence, and bytewise ids", async () => {
     const events = [
       envelope("evt_0", { startedAt: "2026-08-28T02:59:59.000000Z" }),
@@ -196,6 +222,106 @@ describe("readBoundedTraceSnapshot", () => {
   });
 
   it.each([
+    null,
+    { cursorFound: "yes", events: [], hasMore: false },
+    { cursorFound: true, events: [], hasMore: "no" },
+    { cursorFound: true, events: {}, hasMore: false },
+  ])("fails closed for a malformed fulfilled trace page %#", async (page) => {
+    const listByTrace = vi.fn<EvidenceRepository["listByTrace"]>().mockResolvedValue(page as never);
+    const repository: EvidenceRepository = {
+      append: vi.fn<EvidenceRepository["append"]>(),
+      listByTrace,
+    };
+
+    await expect(
+      readBoundedTraceSnapshot(repository, {
+        maximumEvents: 1,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).rejects.toBeInstanceOf(EvidenceRepositoryContractError);
+  });
+
+  it("wraps unreadable page fields as a contract violation", async () => {
+    const failure = new Error("page getter failed");
+    const page = new Proxy(
+      { cursorFound: true, events: [], hasMore: false },
+      {
+        get(target, property, receiver) {
+          if (property === "then") return Reflect.get(target, property, receiver);
+          throw failure;
+        },
+      },
+    );
+    const listByTrace = vi.fn<EvidenceRepository["listByTrace"]>().mockResolvedValue(page);
+    const repository: EvidenceRepository = {
+      append: vi.fn<EvidenceRepository["append"]>(),
+      listByTrace,
+    };
+
+    await expect(
+      readBoundedTraceSnapshot(repository, {
+        maximumEvents: 1,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).rejects.toMatchObject({ cause: failure });
+  });
+
+  it("fails closed for an invalid fulfilled evidence envelope", async () => {
+    const harness = repositoryReturning({
+      cursorFound: true,
+      events: [{ ...envelope("evt_snapshot_valid"), receivedAt: "invalid" }],
+      hasMore: false,
+    });
+
+    await expect(
+      readBoundedTraceSnapshot(harness.repository, {
+        maximumEvents: 1,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).rejects.toBeInstanceOf(EvidenceRepositoryContractError);
+  });
+
+  it("wraps an unreadable fulfilled event array as a contract violation", async () => {
+    const failure = new Error("event getter failed");
+    const events = new Proxy([envelope("evt_snapshot_unreadable")], {
+      get(target, property, receiver) {
+        if (property === "0") throw failure;
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const harness = repositoryReturning({ cursorFound: true, events, hasMore: false });
+
+    await expect(
+      readBoundedTraceSnapshot(harness.repository, {
+        maximumEvents: 1,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).rejects.toMatchObject({ cause: failure });
+  });
+
+  it("wraps a revoked fulfilled event array as a contract violation", async () => {
+    const revocable = Proxy.revocable([envelope("evt_snapshot_revoked")], {});
+    revocable.revoke();
+    const harness = repositoryReturning({
+      cursorFound: true,
+      events: revocable.proxy,
+      hasMore: false,
+    });
+
+    await expect(
+      readBoundedTraceSnapshot(harness.repository, {
+        maximumEvents: 1,
+        scope,
+        traceId: TRACE_ID,
+      }),
+    ).rejects.toMatchObject({ cause: expect.any(TypeError) });
+  });
+
+  it.each([
     { scope: { ...scope, tenantId: "ten_other" } },
     { scope: { ...scope, projectId: "prj_other" } },
     { scope: { ...scope, environmentId: "env_other" } },
@@ -289,7 +415,7 @@ describe("readBoundedTraceSnapshot", () => {
         traceId: TRACE_ID,
       }),
     ).rejects.toMatchObject({
-      cause: expect.any(TypeError),
+      cause: expect.any(Error),
       code: "evidence_repository_contract_violation",
     });
   });

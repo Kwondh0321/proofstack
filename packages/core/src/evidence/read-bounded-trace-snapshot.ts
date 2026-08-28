@@ -1,10 +1,11 @@
 import {
   type EvidenceEnvelope,
+  EvidenceEnvelopeSchema,
   type EvidenceScope,
   evidenceTimestampOrderKey,
 } from "@proofstack/contracts";
 import { EvidenceRepositoryContractError } from "../errors.js";
-import type { EvidenceRepository } from "./evidence-repository.js";
+import type { EvidencePage, EvidenceRepository } from "./evidence-repository.js";
 
 export interface ReadBoundedTraceSnapshotQuery {
   readonly maximumEvents: number;
@@ -32,6 +33,52 @@ function matchesQuery(envelope: EvidenceEnvelope, scope: EvidenceScope, traceId:
     envelope.scope.environmentId === scope.environmentId &&
     envelope.evidence.traceId === traceId
   );
+}
+
+function invalidRepositoryPage(message: string, cause?: unknown): EvidenceRepositoryContractError {
+  return new EvidenceRepositoryContractError(message, cause === undefined ? undefined : { cause });
+}
+
+function validateRepositoryEvents(input: unknown): readonly EvidenceEnvelope[] {
+  try {
+    if (!Array.isArray(input)) {
+      throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
+    }
+    return Array.from(input, (event) => {
+      const parsed = EvidenceEnvelopeSchema.safeParse(event);
+      if (!parsed.success) {
+        throw invalidRepositoryPage(
+          "The evidence repository returned an invalid trace event",
+          parsed.error,
+        );
+      }
+      return parsed.data;
+    });
+  } catch (cause) {
+    if (cause instanceof EvidenceRepositoryContractError) throw cause;
+    throw invalidRepositoryPage("The evidence repository returned an unreadable trace page", cause);
+  }
+}
+
+function validateRepositoryPage(input: unknown): EvidencePage {
+  if (typeof input !== "object" || input === null) {
+    throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
+  }
+
+  let cursorFound: unknown;
+  let events: unknown;
+  let hasMore: unknown;
+  try {
+    cursorFound = Reflect.get(input, "cursorFound");
+    events = Reflect.get(input, "events");
+    hasMore = Reflect.get(input, "hasMore");
+  } catch (cause) {
+    throw invalidRepositoryPage("The evidence repository returned an unreadable trace page", cause);
+  }
+  if (typeof cursorFound !== "boolean" || typeof hasMore !== "boolean") {
+    throw invalidRepositoryPage("The evidence repository returned an invalid trace page");
+  }
+  return { cursorFound, events: validateRepositoryEvents(events), hasMore };
 }
 
 interface CanonicalEvidenceKey {
@@ -102,9 +149,15 @@ export async function readBoundedTraceSnapshot(
     throw new RangeError("Trace snapshot limit must be a positive safe integer");
   }
 
-  const page = await repository.listByTrace(query.scope, query.traceId, {
-    limit: maximumEvents,
-  });
+  const expectedScope: EvidenceScope = {
+    environmentId: query.scope.environmentId,
+    projectId: query.scope.projectId,
+    tenantId: query.scope.tenantId,
+  };
+  const traceId = query.traceId;
+  const page = validateRepositoryPage(
+    await repository.listByTrace({ ...expectedScope }, traceId, { limit: maximumEvents }),
+  );
   if (!page.cursorFound) {
     throw new EvidenceRepositoryContractError(
       "The evidence repository rejected a cursorless trace read",
@@ -120,7 +173,7 @@ export async function readBoundedTraceSnapshot(
       "The evidence repository reported more trace events after a short page",
     );
   }
-  if (page.events.some((envelope) => !matchesQuery(envelope, query.scope, query.traceId))) {
+  if (page.events.some((envelope) => !matchesQuery(envelope, expectedScope, traceId))) {
     throw new EvidenceRepositoryContractError(
       "The evidence repository returned an event outside the requested trace scope",
     );
