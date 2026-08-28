@@ -28,3 +28,4 @@ invalidate an ADR present in this directory.
 - [ADR-0003: Separate system-of-record data from analytical projections](0003-persistence-and-projections.md)
 - [ADR-0004: Make identity, tenancy, and data classification explicit](0004-identity-tenancy-and-sensitive-data.md)
 - [ADR-0005: Enforce tenant-scoped PostgreSQL transactions](0005-postgresql-tenancy-and-migrations.md)
+- [ADR-0006: Publish durable mutations with leased outbox delivery](0006-transactional-outbox-delivery.md)
