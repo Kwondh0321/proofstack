@@ -38,14 +38,17 @@ Goal: replace process-local assumptions without changing the public evidence mea
 
 Ordered work:
 
-1. PostgreSQL migrations, tenant-bearing keys, append-only evidence table, and transactional
+1. [x] PostgreSQL migrations, tenant-bearing keys, append-only evidence table, and transactional
    idempotency constraints.
-2. Repository contract tests that run unchanged against memory and PostgreSQL adapters.
-3. Transactional outbox, projection cursor, retry state, and idempotent consumer harness.
-4. OIDC browser identity and capability-scoped workload API keys with rotation and revocation.
-5. Encrypted artifact interface for opt-in content, redaction metadata, and retention tombstones.
-6. OTLP/HTTP adapter and compatibility fixtures mapped into `EvidenceEnvelope`.
-7. Backup, restore, migration rollback, and cross-tenant adversarial test suites.
+2. [x] Repository contract tests that run unchanged against memory and PostgreSQL adapters.
+3. [x] Transactional outbox, projection cursor, retry state, and idempotent consumer harness.
+4. [ ] OIDC browser identity and capability-scoped workload API keys with rotation and revocation.
+5. [ ] Encrypted artifact interface for opt-in content, redaction metadata, and retention tombstones.
+6. [ ] OTLP/HTTP adapter and compatibility fixtures mapped into `EvidenceEnvelope`.
+7. [ ] Backup, restore, migration rollback, and cross-tenant adversarial test suites.
+
+The evidence for items 1–3 and the limitations that keep this foundation active are recorded in the
+[durable core audit](../development/foundation-2-durable-core-audit.md).
 
 Exit requires an installation that survives restart, proves tenant isolation at the database
 boundary, and can restore its authoritative state from documented backups.

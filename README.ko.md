@@ -126,6 +126,8 @@ scripts                  저장소 수준 아키텍처 경계 검사
 
 [Foundation 1 감사 기록](docs/development/foundation-1-audit.md)에는 영구 저장소 개발 전에
 해결한 교차 계층 문제와 여전히 프로덕션 사용을 막고 있는 제한사항이 정리되어 있습니다.
+[Foundation 2 영속 코어 감사 기록](docs/development/foundation-2-durable-core-audit.md)에는
+남은 단계를 완성했다고 주장하지 않으면서 PostgreSQL과 전달 상태의 승인 근거를 정리합니다.
 
 ## 현재의 경계
 

@@ -124,6 +124,8 @@ acceptance gates live in the [roadmap](docs/product/roadmap.md).
 
 The cross-layer [Foundation 1 audit](docs/development/foundation-1-audit.md) records the findings
 closed before durable storage work and the limitations that still block production use.
+The [Foundation 2 durable core audit](docs/development/foundation-2-durable-core-audit.md) records
+the accepted PostgreSQL and delivery-state checkpoint without claiming the remaining stage is done.
 
 ## Current boundaries
 

@@ -4,6 +4,9 @@ Status: Passed for experimental foundation use
 Reviewed: 2026-08-28  
 Production readiness: Not approved
 
+> This is a historical checkpoint. Durable-core progress after this review is recorded in the
+> [Foundation 2 audit](foundation-2-durable-core-audit.md).
+
 ## Verdict
 
 Foundation 1 is coherent enough to serve as the dependency boundary for the next stage. The
