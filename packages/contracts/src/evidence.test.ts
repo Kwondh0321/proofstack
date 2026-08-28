@@ -3,6 +3,8 @@ import {
   EVIDENCE_SCHEMA_VERSION,
   EvidenceEnvelopeSchema,
   EvidenceRecordSchema,
+  EvidenceTimestampSchema,
+  evidenceTimestampOrderKey,
   IngestEvidenceRequestSchema,
   MAX_ATTRIBUTE_KEYS,
   MAX_EVIDENCE_BATCH_SIZE,
@@ -62,6 +64,16 @@ describe("EvidenceRecordSchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("compares start and end timestamps at PostgreSQL microsecond precision", () => {
+    expect(
+      EvidenceRecordSchema.safeParse({
+        ...validRecord,
+        endedAt: "2026-08-28T01:30:00.000001Z",
+        startedAt: "2026-08-28T01:30:00.000002Z",
+      }).success,
+    ).toBe(false);
   });
 
   it("bounds high-cardinality attribute maps", () => {
@@ -128,6 +140,42 @@ describe("EvidenceRecordSchema", () => {
         extensions: { "vendor.extension": values },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("EvidenceTimestampSchema", () => {
+  it.each(["2026-08-28T01:30:00Z", "2026-08-28T01:30:00+15:59", "2026-08-28T01:30:00-15:59"])(
+    "accepts PostgreSQL-compatible instant %s",
+    (value) => {
+      expect(EvidenceTimestampSchema.safeParse(value).success).toBe(true);
+    },
+  );
+
+  it.each(["0000-08-28T01:30:00Z", "2026-08-28T01:30:00+16:00", "2026-08-28T01:30:00-16:00"])(
+    "rejects an instant PostgreSQL cannot persist %s",
+    (value) => {
+      expect(EvidenceTimestampSchema.safeParse(value).success).toBe(false);
+    },
+  );
+
+  it.each([
+    ["2026-08-28T01:30:00.0000015Z", "2026-08-28T01:30:00.000002Z"],
+    ["2026-08-28T01:30:00.0000025Z", "2026-08-28T01:30:00.000002Z"],
+    ["2026-08-28T01:30:00.000002500001Z", "2026-08-28T01:30:00.000003Z"],
+    ["2026-08-28T01:30:00.0000014999999999999999999Z", "2026-08-28T01:30:00.000002Z"],
+    ["2026-08-28T01:30:00.000125500Z", "2026-08-28T01:30:00.000125Z"],
+    ["2026-08-28T01:30:59.9999995Z", "2026-08-28T01:31:00Z"],
+    ["2026-08-28T10:30:00.000002+09:00", "2026-08-28T01:30:00.000002Z"],
+  ])("matches PostgreSQL microsecond identity for %s and %s", (left, right) => {
+    expect(evidenceTimestampOrderKey(left)).toBe(evidenceTimestampOrderKey(right));
+  });
+
+  it("orders distinct microseconds and rejects unsupported instants", () => {
+    expect(evidenceTimestampOrderKey("2026-08-28T01:30:00.000001Z")).toBeLessThan(
+      evidenceTimestampOrderKey("2026-08-28T01:30:00.000002Z"),
+    );
+    expect(() => evidenceTimestampOrderKey("0000-08-28T01:30:00Z")).toThrow(TypeError);
+    expect(() => evidenceTimestampOrderKey("2026-08-28T01:30:00+16:00")).toThrow(TypeError);
   });
 });
 

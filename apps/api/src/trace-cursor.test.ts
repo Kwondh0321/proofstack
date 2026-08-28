@@ -46,4 +46,19 @@ describe("trace cursor", () => {
       decodeTraceCursor(Buffer.from(JSON.stringify({ eventId: "evt_only" })).toString("base64url")),
     ).toThrow(InvalidTraceCursorError);
   });
+
+  it.each(["0000-08-28T05:00:00Z", "2026-08-28T05:00:00+16:00"])(
+    "rejects a cursor timestamp PostgreSQL cannot represent: %s",
+    (startedAt) => {
+      const cursor = Buffer.from(
+        JSON.stringify({
+          eventId: envelope.evidence.eventId,
+          sequence: envelope.evidence.sequence,
+          startedAt,
+        }),
+      ).toString("base64url");
+
+      expect(() => decodeTraceCursor(cursor)).toThrow(InvalidTraceCursorError);
+    },
+  );
 });

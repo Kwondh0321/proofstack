@@ -1,7 +1,7 @@
 import {
   type EvidenceEnvelope,
+  EvidenceTimestampSchema,
   OpaqueIdSchema,
-  TimestampSchema,
   type TracePageCursor,
 } from "@proofstack/contracts";
 import { type EvidencePageCursor, InvalidTraceCursorError } from "@proofstack/core";
@@ -11,7 +11,7 @@ const TraceCursorPayloadSchema = z
   .object({
     eventId: OpaqueIdSchema,
     sequence: z.number().int().nonnegative(),
-    startedAt: TimestampSchema,
+    startedAt: EvidenceTimestampSchema,
   })
   .strict();
 

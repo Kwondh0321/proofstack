@@ -111,14 +111,108 @@ export const evidenceRepositoryConformanceCases: readonly EvidenceRepositoryConf
     },
   },
   {
+    name: "orders evidence with PostgreSQL microsecond rounding",
+    async run(factory) {
+      await withRepository(factory, "contract_precision", async (repository) => {
+        const values = [
+          envelope("contract_precision", "evt_precision_a", {
+            evidence: { spanId: "10f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.0000025Z" },
+          }),
+          envelope("contract_precision", "evt_precision_m", {
+            evidence: { spanId: "20f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.000002Z" },
+          }),
+          envelope("contract_precision", "evt_precision_z", {
+            evidence: { spanId: "30f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.0000015Z" },
+          }),
+          envelope("contract_precision", "evt_greater_a", {
+            evidence: { spanId: "40f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.000003Z" },
+          }),
+          envelope("contract_precision", "evt_greater_z", {
+            evidence: {
+              spanId: "50f067aa0ba902b7",
+              startedAt: "2026-08-28T02:59:59.000002500001Z",
+            },
+          }),
+          envelope("contract_precision", "evt_carry_a", {
+            evidence: { spanId: "60f067aa0ba902b7", startedAt: "2026-08-28T03:00:00Z" },
+          }),
+          envelope("contract_precision", "evt_carry_z", {
+            evidence: { spanId: "70f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.9999995Z" },
+          }),
+        ];
+
+        await repository.append([...values].reverse());
+        const page = await repository.listByTrace(scope("contract_precision"), traceId, {
+          limit: 10,
+        });
+
+        assert.deepEqual(
+          page.events.map(({ evidence }) => evidence.eventId),
+          [
+            "evt_precision_a",
+            "evt_precision_m",
+            "evt_precision_z",
+            "evt_greater_a",
+            "evt_greater_z",
+            "evt_carry_a",
+            "evt_carry_z",
+          ],
+        );
+      });
+    },
+  },
+  {
+    name: "owns immutable evidence values across writes and reads",
+    async run(factory) {
+      await withRepository(factory, "contract_ownership", async (repository) => {
+        const expectedScope = scope("contract_ownership");
+        const original = envelope("contract_ownership", "evt_contract_ownership", {
+          evidence: { attributes: { nested: { value: "original" } } },
+        });
+        await repository.append([original]);
+        original.evidence.name = "mutated-after-append";
+        original.scope.projectId = "prj_mutated_after_append";
+        const originalNested = (original.evidence.attributes as Readonly<Record<"nested", unknown>>)
+          .nested;
+        assert.ok(typeof originalNested === "object" && originalNested !== null);
+        (originalNested as { value: string }).value = "mutated-after-append";
+
+        const firstRead = await repository.listByTrace(expectedScope, traceId, {
+          limit: 10,
+        });
+        const firstEvent = firstRead.events[0];
+        assert.ok(firstEvent);
+        assert.equal(firstEvent.evidence.name, "repository-contract");
+        assert.equal(firstEvent.scope.projectId, expectedScope.projectId);
+        assert.deepEqual(firstEvent.evidence.attributes, { nested: { value: "original" } });
+        firstEvent.evidence.name = "mutated-after-read";
+        firstEvent.scope.projectId = "prj_mutated_after_read";
+        const firstReadNested = (
+          firstEvent.evidence.attributes as Readonly<Record<"nested", unknown>>
+        ).nested;
+        assert.ok(typeof firstReadNested === "object" && firstReadNested !== null);
+        (firstReadNested as { value: string }).value = "mutated-after-read";
+
+        const secondRead = await repository.listByTrace(expectedScope, traceId, {
+          limit: 10,
+        });
+        assert.equal(secondRead.events[0]?.evidence.name, "repository-contract");
+        assert.equal(secondRead.events[0]?.scope.projectId, expectedScope.projectId);
+        assert.deepEqual(secondRead.events[0]?.evidence.attributes, {
+          nested: { value: "original" },
+        });
+      });
+    },
+  },
+  {
     name: "treats a later receipt time and reordered object keys as an identical retry",
     async run(factory) {
       await withRepository(factory, "contract_retry", async (repository) => {
         const first = envelope("contract_retry", "evt_contract_retry", {
-          evidence: { attributes: { alpha: 1, beta: 2 } },
+          evidence: { attributes: { alpha: 1, beta: 2, zero: -0 } },
         });
         const retry = envelope("contract_retry", "evt_contract_retry", {
-          evidence: { attributes: { beta: 2, alpha: 1 } },
+          evidence: { attributes: { zero: 0, beta: 2, alpha: 1 } },
           receivedAt: "2026-08-28T03:01:00.000Z",
         });
 
@@ -132,7 +226,42 @@ export const evidenceRepositoryConformanceCases: readonly EvidenceRepositoryConf
           acceptedEventIds: [],
           duplicateEventIds: ["evt_contract_retry"],
         });
-        assert.equal(stored.events[0]?.receivedAt, first.receivedAt);
+        const storedEvent = stored.events[0];
+        assert.ok(storedEvent);
+        assert.equal(storedEvent.receivedAt, first.receivedAt);
+        const storedZero = (storedEvent.evidence.attributes as Readonly<Record<"zero", unknown>>)
+          .zero;
+        assert.equal(storedZero, 0);
+        assert.equal(Object.is(storedZero, -0), false);
+      });
+    },
+  },
+  {
+    name: "accepts equivalent cursor timestamp spellings",
+    async run(factory) {
+      await withRepository(factory, "contract_cursor_equivalence", async (repository) => {
+        const first = envelope("contract_cursor_equivalence", "evt_cursor_equivalent", {
+          evidence: { spanId: "10f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.000125500Z" },
+        });
+        const second = envelope("contract_cursor_equivalence", "evt_cursor_later", {
+          evidence: { spanId: "20f067aa0ba902b7", startedAt: "2026-08-28T02:59:59.000126Z" },
+        });
+        await repository.append([first, second]);
+
+        const page = await repository.listByTrace(scope("contract_cursor_equivalence"), traceId, {
+          after: {
+            eventId: first.evidence.eventId,
+            sequence: first.evidence.sequence ?? 0,
+            startedAt: "2026-08-28T11:59:59.000125+09:00",
+          },
+          limit: 10,
+        });
+
+        assert.equal(page.cursorFound, true);
+        assert.deepEqual(
+          page.events.map(({ evidence }) => evidence.eventId),
+          [second.evidence.eventId],
+        );
       });
     },
   },

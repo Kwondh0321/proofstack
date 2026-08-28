@@ -18,6 +18,50 @@ export const MAX_ATTRIBUTE_KEYS = 128;
 export const MAX_EXTENSION_KEYS = 64;
 export const MAX_EXTENSION_NAMESPACES = 32;
 
+const ISO_INSTANT_PARTS = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/u;
+
+function hasSupportedEvidenceTimestampForm(value: string): boolean {
+  const match = ISO_INSTANT_PARTS.exec(value);
+  const whole = match?.[1];
+  const offset = match?.[3];
+  if (!whole || !offset || whole.startsWith("0000-")) return false;
+  if (offset === "Z") return true;
+  return Number(offset.slice(1, 3)) <= 15;
+}
+
+export const EvidenceTimestampSchema = TimestampSchema.refine(hasSupportedEvidenceTimestampForm, {
+  message:
+    "Evidence timestamps require a positive ISO year and Z or a PostgreSQL-compatible offset through +/-15:59",
+});
+
+export function evidenceTimestampOrderKey(value: string): bigint {
+  const parsed = EvidenceTimestampSchema.safeParse(value);
+  if (!parsed.success)
+    throw new TypeError("Evidence timestamp must be a supported ISO 8601 instant");
+
+  const match = ISO_INSTANT_PARTS.exec(parsed.data);
+  const whole = match?.[1];
+  const offset = match?.[3];
+  if (!whole || !offset) throw new TypeError("Evidence timestamp must be an ISO 8601 instant");
+
+  const wholeMilliseconds = Date.parse(`${whole}${offset}`);
+  if (!Number.isSafeInteger(wholeMilliseconds)) {
+    throw new TypeError("Evidence timestamp is outside the supported instant range");
+  }
+
+  const fraction = match[2] ?? "";
+  // PostgreSQL parses the fraction as binary floating point before applying
+  // ties-to-even microsecond rounding. Preserve that step so cursors agree.
+  const parsedFraction = fraction.length === 0 ? 0 : Number(`0.${fraction}`);
+  const scaledMicroseconds = parsedFraction * 1_000_000;
+  const lowerMicroseconds = Math.floor(scaledMicroseconds);
+  const remainder = scaledMicroseconds - lowerMicroseconds;
+  const shouldRoundUp = remainder > 0.5 || (remainder === 0.5 && lowerMicroseconds % 2 === 1);
+  const fractionalMicroseconds = BigInt(lowerMicroseconds + (shouldRoundUp ? 1 : 0));
+
+  return BigInt(wholeMilliseconds) * 1_000n + fractionalMicroseconds;
+}
+
 export const EvidenceKindSchema = z.enum([
   "agent.run",
   "agent.handoff",
@@ -88,7 +132,7 @@ const EvidenceRecordObjectSchema = z
   .object({
     attributes: BoundedAttributesSchema.default({}),
     contentReferences: z.array(ContentReferenceSchema).max(32).default([]),
-    endedAt: TimestampSchema.optional(),
+    endedAt: EvidenceTimestampSchema.optional(),
     eventId: OpaqueIdSchema,
     extensions: ExtensionsSchema.default({}),
     kind: EvidenceKindSchema,
@@ -99,7 +143,7 @@ const EvidenceRecordObjectSchema = z
     sessionId: OpaqueIdSchema.optional(),
     source: EvidenceSourceSchema,
     spanId: SpanIdSchema,
-    startedAt: TimestampSchema,
+    startedAt: EvidenceTimestampSchema,
     status: EvidenceStatusSchema.default("unset"),
     traceId: TraceIdSchema,
   })
@@ -123,7 +167,10 @@ export const EvidenceRecordSchema = z
       });
     }
 
-    if (value.endedAt && Date.parse(value.endedAt) < Date.parse(value.startedAt)) {
+    if (
+      value.endedAt &&
+      evidenceTimestampOrderKey(value.endedAt) < evidenceTimestampOrderKey(value.startedAt)
+    ) {
       context.addIssue({
         code: "custom",
         message: "endedAt cannot be earlier than startedAt",
@@ -160,7 +207,7 @@ export const EvidenceScopeSchema = z
 export const EvidenceEnvelopeSchema = z
   .object({
     evidence: EvidenceRecordSchema,
-    receivedAt: TimestampSchema,
+    receivedAt: EvidenceTimestampSchema,
     schemaVersion: z.literal(EVIDENCE_SCHEMA_VERSION),
     scope: EvidenceScopeSchema,
   })

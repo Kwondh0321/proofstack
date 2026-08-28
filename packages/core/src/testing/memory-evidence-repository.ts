@@ -1,4 +1,8 @@
-import type { EvidenceEnvelope, EvidenceScope } from "@proofstack/contracts";
+import {
+  type EvidenceEnvelope,
+  type EvidenceScope,
+  evidenceTimestampOrderKey,
+} from "@proofstack/contracts";
 import { EvidenceConflictError } from "../errors.js";
 import type {
   AppendEvidenceResult,
@@ -12,8 +16,14 @@ function evidenceKey(envelope: EvidenceEnvelope): string {
   return `${envelope.scope.tenantId}:${envelope.evidence.eventId}`;
 }
 
+function cloneForJsonStorage<T>(value: T): T {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new TypeError("Evidence must be JSON serializable");
+  return JSON.parse(serialized) as T;
+}
+
 function isJsonEquivalent(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
+  if (left === right) return true;
 
   if (Array.isArray(left) || Array.isArray(right)) {
     if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
@@ -67,7 +77,7 @@ function matchesCursor(envelope: EvidenceEnvelope, cursor: EvidencePageCursor): 
   return (
     candidate.eventId === cursor.eventId &&
     candidate.sequence === cursor.sequence &&
-    candidate.startedAt === cursor.startedAt
+    evidenceTimestampOrderKey(candidate.startedAt) === evidenceTimestampOrderKey(cursor.startedAt)
   );
 }
 
@@ -80,20 +90,21 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
     const pending = new Map<string, EvidenceEnvelope>();
 
     for (const envelope of envelopes) {
-      const key = evidenceKey(envelope);
+      const ownedEnvelope = cloneForJsonStorage(envelope);
+      const key = evidenceKey(ownedEnvelope);
       const existing = pending.get(key) ?? this.events.get(key);
 
       if (!existing) {
-        pending.set(key, envelope);
-        acceptedEventIds.push(envelope.evidence.eventId);
+        pending.set(key, ownedEnvelope);
+        acceptedEventIds.push(ownedEnvelope.evidence.eventId);
         continue;
       }
 
-      if (!isSameEnvelope(existing, envelope)) {
-        throw new EvidenceConflictError(envelope.evidence.eventId);
+      if (!isSameEnvelope(existing, ownedEnvelope)) {
+        throw new EvidenceConflictError(ownedEnvelope.evidence.eventId);
       }
 
-      duplicateEventIds.push(envelope.evidence.eventId);
+      duplicateEventIds.push(ownedEnvelope.evidence.eventId);
     }
 
     for (const [key, envelope] of pending) {
@@ -110,15 +121,20 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
   ): Promise<EvidencePage> {
     const ordered = [...this.events.values()]
       .filter((envelope) => matchesScope(envelope, scope) && envelope.evidence.traceId === traceId)
+      .map((envelope) => ({
+        envelope,
+        startedAtOrderKey: evidenceTimestampOrderKey(envelope.evidence.startedAt),
+      }))
       .sort((left, right) => {
-        const timeDifference =
-          Date.parse(left.evidence.startedAt) - Date.parse(right.evidence.startedAt);
-        if (timeDifference !== 0) return timeDifference;
-        const sequenceDifference = (left.evidence.sequence ?? 0) - (right.evidence.sequence ?? 0);
+        if (left.startedAtOrderKey < right.startedAtOrderKey) return -1;
+        if (left.startedAtOrderKey > right.startedAtOrderKey) return 1;
+        const sequenceDifference =
+          (left.envelope.evidence.sequence ?? 0) - (right.envelope.evidence.sequence ?? 0);
         if (sequenceDifference !== 0) return sequenceDifference;
-        if (left.evidence.eventId === right.evidence.eventId) return 0;
-        return left.evidence.eventId < right.evidence.eventId ? -1 : 1;
-      });
+        if (left.envelope.evidence.eventId === right.envelope.evidence.eventId) return 0;
+        return left.envelope.evidence.eventId < right.envelope.evidence.eventId ? -1 : 1;
+      })
+      .map(({ envelope }) => envelope);
 
     const after = options.after;
     const cursorIndex = after
@@ -131,7 +147,7 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
     const window = ordered.slice(cursorIndex + 1, cursorIndex + 1 + options.limit + 1);
     return {
       cursorFound: true,
-      events: window.slice(0, options.limit),
+      events: window.slice(0, options.limit).map((envelope) => cloneForJsonStorage(envelope)),
       hasMore: window.length > options.limit,
     };
   }
