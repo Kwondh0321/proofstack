@@ -283,6 +283,70 @@ describe("RegressionFixtureVersionSchema", () => {
   });
 
   it.each([
+    "2026-08-29T00:00:00.123456789012345678901234567890Z",
+    "2026-08-29T00:00:00+15:59",
+    "2026-08-29T00:00:00-15:59",
+  ])("accepts the PostgreSQL-compatible source capture timestamp %s", (timestamp) => {
+    const value = fixtureVersion();
+    expect(
+      RegressionFixtureVersionSchema.safeParse({
+        ...value,
+        createdAt: "2026-08-30T16:00:00.000Z",
+        source: { ...value.source, capturedAt: timestamp },
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each([
+    "2026-08-29T00:00:00.123456789012345678901234567890Z",
+    "2026-08-29T00:00:00+15:59",
+    "2026-08-29T00:00:00-15:59",
+  ])("rejects a noncanonical publication timestamp %s", (timestamp) => {
+    expect(
+      RegressionFixtureVersionSchema.safeParse({ ...fixtureVersion(), createdAt: timestamp })
+        .success,
+    ).toBe(false);
+  });
+
+  it.each([
+    "0000-08-29T00:00:00Z",
+    "2026-08-29T00:00:00",
+    "2026-08-29T00:00:00+16:00",
+    "2026-08-29T00:00:00-16:00",
+    "2026-08-29T00:00:00+23:59",
+    `2026-08-29T00:00:00.${"1".repeat(31)}Z`,
+  ])("rejects a non-persistable fixture timestamp %s", (timestamp) => {
+    const value = fixtureVersion();
+    expect(
+      RegressionFixtureVersionSchema.safeParse({ ...value, createdAt: timestamp }).success,
+    ).toBe(false);
+    expect(
+      RegressionFixtureVersionSchema.safeParse({
+        ...value,
+        source: { ...value.source, capturedAt: timestamp },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("orders capture provenance at PostgreSQL microsecond precision", () => {
+    const value = fixtureVersion();
+    expect(
+      RegressionFixtureVersionSchema.safeParse({
+        ...value,
+        createdAt: "2026-08-29T00:00:00.000Z",
+        source: { ...value.source, capturedAt: "2026-08-29T00:00:00.0009Z" },
+      }).success,
+    ).toBe(false);
+    expect(
+      RegressionFixtureVersionSchema.safeParse({
+        ...value,
+        createdAt: "2026-08-29T00:00:00.000Z",
+        source: { ...value.source, capturedAt: "2026-08-29T00:00:00.0000004Z" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each([
     { replayability: "deterministic" },
     { schemaVersion: "1.0" },
     { definitionSha256: "A".repeat(64) },
@@ -515,6 +579,31 @@ describe("RegressionDatasetVersionSchema", () => {
     expect(
       RegressionDatasetVersionSchema.parse(value).fixtureVersions.map(({ fixtureId }) => fixtureId),
     ).toEqual(["fix_checkout_timeout", "fix_checkout_decline"]);
+  });
+
+  it.each([
+    "2026-08-29T00:00:00.123456789012345678901234567890Z",
+    "2026-08-29T00:00:00+15:59",
+    "2026-08-29T00:00:00-15:59",
+  ])("rejects the noncanonical dataset publication timestamp %s", (timestamp) => {
+    expect(
+      RegressionDatasetVersionSchema.safeParse({ ...datasetVersion(), createdAt: timestamp })
+        .success,
+    ).toBe(false);
+  });
+
+  it.each([
+    "0000-08-29T00:00:00Z",
+    "2026-08-29T00:00:00",
+    "2026-08-29T00:00:00+16:00",
+    "2026-08-29T00:00:00-16:00",
+    "2026-08-29T00:00:00+23:59",
+    `2026-08-29T00:00:00.${"1".repeat(31)}Z`,
+  ])("rejects the non-persistable dataset timestamp %s", (timestamp) => {
+    expect(
+      RegressionDatasetVersionSchema.safeParse({ ...datasetVersion(), createdAt: timestamp })
+        .success,
+    ).toBe(false);
   });
 
   it.each([

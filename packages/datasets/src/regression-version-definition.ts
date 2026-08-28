@@ -68,7 +68,7 @@ export interface ValidatedRegressionDatasetVersionDefinition {
   readonly version: RegressionDatasetVersion;
 }
 
-/** @internal Owns one validated fixture parse for projections and canonical side effects. */
+/** Validates a fixture version once and returns its authoritative semantic projection. */
 export function validateAndProjectRegressionFixtureVersion(
   input: unknown,
 ): ValidatedRegressionFixtureVersionDefinition {
@@ -99,7 +99,7 @@ export function validateAndProjectRegressionFixtureVersion(
   return { definition, version };
 }
 
-/** @internal Owns one validated dataset parse for projections and canonical side effects. */
+/** Validates a dataset version once and returns its authoritative semantic projection. */
 export function validateAndProjectRegressionDatasetVersion(
   input: unknown,
 ): ValidatedRegressionDatasetVersionDefinition {

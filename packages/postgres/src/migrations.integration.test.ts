@@ -126,6 +126,7 @@ describe("PostgreSQL evidence schema", () => {
       "0010_force_identity_tenant_rls",
       "0011_dataset_capabilities",
       "0012_pin_evidence_event_collation",
+      "0013_regression_catalog",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

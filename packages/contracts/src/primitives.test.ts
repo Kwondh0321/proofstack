@@ -6,6 +6,9 @@ import {
   MAX_JSON_NODES,
   MAX_JSON_OBJECT_KEY_LENGTH,
   MAX_JSON_OBJECT_KEYS,
+  MAX_POSTGRES_TIMESTAMP_FRACTION_DIGITS,
+  PostgresTimestampSchema,
+  UtcMillisecondTimestampSchema,
 } from "./primitives.js";
 
 describe("JsonValueSchema", () => {
@@ -43,5 +46,40 @@ describe("JsonValueSchema", () => {
     );
 
     expect(JsonValueSchema.safeParse(values).success).toBe(false);
+  });
+});
+
+describe("PostgresTimestampSchema", () => {
+  it.each([
+    "2026-08-29T00:00:00Z",
+    "2026-08-29T00:00:00+15:59",
+    "2026-08-29T00:00:00-15:59",
+    `2026-08-29T00:00:00.${"1".repeat(MAX_POSTGRES_TIMESTAMP_FRACTION_DIGITS)}Z`,
+  ])("accepts the PostgreSQL-compatible ISO instant %s", (value) => {
+    expect(PostgresTimestampSchema.safeParse(value).success).toBe(true);
+  });
+
+  it.each([
+    "0000-08-29T00:00:00Z",
+    "2026-08-29T00:00:00",
+    "2026-08-29T00:00:00+16:00",
+    "2026-08-29T00:00:00-16:00",
+    "2026-08-29T00:00:00+23:59",
+    `2026-08-29T00:00:00.${"1".repeat(MAX_POSTGRES_TIMESTAMP_FRACTION_DIGITS + 1)}Z`,
+  ])("rejects the non-persistable ISO instant %s", (value) => {
+    expect(PostgresTimestampSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("UtcMillisecondTimestampSchema", () => {
+  it("accepts only the canonical server and outbox representation", () => {
+    expect(UtcMillisecondTimestampSchema.safeParse("2026-08-29T00:00:00.123Z").success).toBe(true);
+    for (const value of [
+      "2026-08-29T00:00:00Z",
+      "2026-08-29T00:00:00.1234Z",
+      "2026-08-29T09:00:00.123+09:00",
+    ]) {
+      expect(UtcMillisecondTimestampSchema.safeParse(value).success).toBe(false);
+    }
   });
 });

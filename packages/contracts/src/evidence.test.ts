@@ -144,19 +144,24 @@ describe("EvidenceRecordSchema", () => {
 });
 
 describe("EvidenceTimestampSchema", () => {
-  it.each(["2026-08-28T01:30:00Z", "2026-08-28T01:30:00+15:59", "2026-08-28T01:30:00-15:59"])(
-    "accepts PostgreSQL-compatible instant %s",
-    (value) => {
-      expect(EvidenceTimestampSchema.safeParse(value).success).toBe(true);
-    },
-  );
+  it.each([
+    "2026-08-28T01:30:00Z",
+    "2026-08-28T01:30:00+15:59",
+    "2026-08-28T01:30:00-15:59",
+    "2026-08-28T01:30:00.123456789012345678901234567890Z",
+  ])("accepts PostgreSQL-compatible instant %s", (value) => {
+    expect(EvidenceTimestampSchema.safeParse(value).success).toBe(true);
+  });
 
-  it.each(["0000-08-28T01:30:00Z", "2026-08-28T01:30:00+16:00", "2026-08-28T01:30:00-16:00"])(
-    "rejects an instant PostgreSQL cannot persist %s",
-    (value) => {
-      expect(EvidenceTimestampSchema.safeParse(value).success).toBe(false);
-    },
-  );
+  it.each([
+    "0000-08-28T01:30:00Z",
+    "2026-08-28T01:30:00",
+    "2026-08-28T01:30:00+16:00",
+    "2026-08-28T01:30:00-16:00",
+    `2026-08-28T01:30:00.${"1".repeat(31)}Z`,
+  ])("rejects an instant PostgreSQL cannot persist %s", (value) => {
+    expect(EvidenceTimestampSchema.safeParse(value).success).toBe(false);
+  });
 
   it.each([
     ["2026-08-28T01:30:00.0000015Z", "2026-08-28T01:30:00.000002Z"],

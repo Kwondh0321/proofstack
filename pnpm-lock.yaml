@@ -299,6 +299,9 @@ importers:
       '@proofstack/core':
         specifier: workspace:*
         version: link:../core
+      '@proofstack/datasets':
+        specifier: workspace:*
+        version: link:../datasets
       '@proofstack/identity':
         specifier: workspace:*
         version: link:../identity
@@ -434,6 +437,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/datasets':
+        specifier: workspace:*
+        version: link:../../packages/datasets
       '@proofstack/recovery':
         specifier: workspace:*
         version: link:../../packages/recovery

@@ -85,6 +85,9 @@ event or membership sequence. Fixture publication uses:
 Dataset publication uses the corresponding `regression.dataset-version` identifiers and dataset
 fields. Both use outbox schema version `0.1`, keep `tenantId` at the intent envelope, use the
 version's original `createdAt`, and require consumers to perform an authorized exact-version read.
+Regression publication time is the server-owned canonical UTC millisecond representation
+`YYYY-MM-DDTHH:mm:ss.sssZ`, so PostgreSQL storage and outbox delivery preserve that original string
+exactly. Source evidence capture time remains a separately preserved PostgreSQL-compatible instant.
 An equivalent retry writes no additional intent.
 
 ## Consequences

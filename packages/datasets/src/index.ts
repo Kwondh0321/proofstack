@@ -8,5 +8,11 @@ export {
   areRegressionFixtureVersionDefinitionsEqual,
   projectRegressionDatasetVersionDefinition,
   projectRegressionFixtureVersionDefinition,
+  validateAndProjectRegressionDatasetVersion,
+  validateAndProjectRegressionFixtureVersion,
+} from "./regression-version-definition.js";
+export type {
+  ValidatedRegressionDatasetVersionDefinition,
+  ValidatedRegressionFixtureVersionDefinition,
 } from "./regression-version-definition.js";
 export * from "./regression-version-repository.js";

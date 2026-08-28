@@ -4,9 +4,9 @@ import {
   jsonComplexityViolation,
   NamespacedExtensionKeySchema,
   OpaqueIdSchema,
+  PostgresTimestampSchema,
   Sha256Schema,
   SpanIdSchema,
-  TimestampSchema,
   TraceIdSchema,
 } from "./primitives.js";
 
@@ -20,19 +20,7 @@ export const MAX_EXTENSION_NAMESPACES = 32;
 
 const ISO_INSTANT_PARTS = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/u;
 
-function hasSupportedEvidenceTimestampForm(value: string): boolean {
-  const match = ISO_INSTANT_PARTS.exec(value);
-  const whole = match?.[1];
-  const offset = match?.[3];
-  if (!whole || !offset || whole.startsWith("0000-")) return false;
-  if (offset === "Z") return true;
-  return Number(offset.slice(1, 3)) <= 15;
-}
-
-export const EvidenceTimestampSchema = TimestampSchema.refine(hasSupportedEvidenceTimestampForm, {
-  message:
-    "Evidence timestamps require a positive ISO year and Z or a PostgreSQL-compatible offset through +/-15:59",
-});
+export const EvidenceTimestampSchema = PostgresTimestampSchema;
 
 export function evidenceTimestampOrderKey(value: string): bigint {
   const parsed = EvidenceTimestampSchema.safeParse(value);

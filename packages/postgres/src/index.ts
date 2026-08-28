@@ -51,6 +51,7 @@ export {
   PostgresEvidenceRepository,
 } from "./postgres-evidence-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
+export { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
 export {
   MAX_OUTBOX_CLAIM_SIZE,
   MAX_OUTBOX_ERROR_LENGTH,

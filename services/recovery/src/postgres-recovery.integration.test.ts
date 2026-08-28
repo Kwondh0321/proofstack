@@ -15,7 +15,20 @@ import {
   TombstoneArtifact,
   UploadArtifact,
 } from "@proofstack/artifacts";
-import type { EvidenceEnvelope, EvidenceScope, PrincipalContext } from "@proofstack/contracts";
+import type {
+  EvidenceEnvelope,
+  EvidenceScope,
+  PrincipalContext,
+  RegressionDatasetVersion,
+  RegressionFixtureVersion,
+} from "@proofstack/contracts";
+import {
+  buildRegressionDatasetVersionPublishedOutboxIntent,
+  buildRegressionFixtureVersionPublishedOutboxIntent,
+  PublishRegressionDatasetVersion,
+  PublishRegressionFixtureVersion,
+  type RegressionVersionPublishedOutboxIntent,
+} from "@proofstack/datasets";
 import {
   assertMigrationsCurrent,
   bootstrapApiKey,
@@ -29,6 +42,7 @@ import {
   PostgresEvidenceRepository,
   PostgresOidcIdentityRepository,
   PostgresProjectionCursorRepository,
+  PostgresRegressionVersionRepository,
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
@@ -70,6 +84,12 @@ const EXPECTED_TABLES = [
   "proofstack_oidc_login_transactions",
   "proofstack_outbox",
   "proofstack_projection_cursors",
+  "proofstack_regression_dataset_members",
+  "proofstack_regression_dataset_versions",
+  "proofstack_regression_datasets",
+  "proofstack_regression_fixture_events",
+  "proofstack_regression_fixture_versions",
+  "proofstack_regression_fixtures",
   "proofstack_schema_migrations",
 ] as const;
 
@@ -123,6 +143,15 @@ const createdBuckets = new Set<string>();
 const trackedObjectKeys = new Set<string>();
 let restoredPool: Pool;
 let restoredDatabaseUrl: string;
+let regressionCatalogState:
+  | {
+      readonly datasetChild: RegressionDatasetVersion;
+      readonly datasetRoot: RegressionDatasetVersion;
+      readonly fixtureChild: RegressionFixtureVersion;
+      readonly fixtureRoot: RegressionFixtureVersion;
+      readonly secondFixtureRoot: RegressionFixtureVersion;
+    }
+  | undefined;
 
 function quotedIdentifier(value: string): string {
   if (!/^[a-z][a-z0-9_]{2,62}$/u.test(value)) throw new Error("Unsafe PostgreSQL identifier");
@@ -209,6 +238,22 @@ function artifactPrincipal(tenantId = scope.tenantId): PrincipalContext {
   };
 }
 
+function regressionPrincipal(tenantId = scope.tenantId): PrincipalContext {
+  return {
+    authentication: {
+      authenticatedAt: "2026-08-28T03:00:00.000Z",
+      method: "development",
+    },
+    capabilities: ["dataset:manage", "evidence:read"],
+    principalId: "usr_recovery_regression",
+    principalType: "user",
+    requestId: "req_recovery_regression",
+    resourceScope: { mode: "tenant" },
+    roles: ["owner"],
+    tenantId,
+  };
+}
+
 async function seedRecoverableArtifacts(
   artifactRepository: PostgresArtifactCatalogRepository,
 ): Promise<void> {
@@ -289,7 +334,11 @@ async function seedRecoverableArtifacts(
   });
 }
 
-function evidence(eventId: string, spanId: string): EvidenceEnvelope {
+function evidence(
+  eventId: string,
+  spanId: string,
+  options: { readonly sequence?: number; readonly startedAt?: string } = {},
+): EvidenceEnvelope {
   return {
     evidence: {
       attributes: { recovery: true },
@@ -303,8 +352,9 @@ function evidence(eventId: string, spanId: string): EvidenceEnvelope {
         sdkVersion: "0.0.0",
         serviceName: "recovery-rehearsal",
       },
+      ...(options.sequence === undefined ? {} : { sequence: options.sequence }),
       spanId,
-      startedAt: "2026-08-28T03:00:00.000Z",
+      startedAt: options.startedAt ?? "2026-08-28T03:00:00.000Z",
       status: "ok",
       traceId,
     },
@@ -314,15 +364,139 @@ function evidence(eventId: string, spanId: string): EvidenceEnvelope {
   };
 }
 
+function regressionClock(instant: string): { readonly now: () => Date } {
+  return { now: () => new Date(instant) };
+}
+
+async function seedRecoverableRegressionCatalog(): Promise<void> {
+  const evidenceRepository = new PostgresEvidenceRepository(sourcePool);
+  await evidenceRepository.append([
+    evidence("evt_recovery_snapshot_middle", "80f067aa0ba902b7", {
+      sequence: 1,
+      startedAt: "2026-08-28T02:59:59.000Z",
+    }),
+    evidence("evt_recovery_snapshot_started", "81f067aa0ba902b7", {
+      startedAt: "2026-08-28T02:59:58.000Z",
+    }),
+    evidence("evt_recovery_snapshot_first", "82f067aa0ba902b7", {
+      sequence: 0,
+      startedAt: "2026-08-28T02:59:59.000Z",
+    }),
+  ]);
+
+  const versionRepository = new PostgresRegressionVersionRepository(sourcePool);
+  const principal = regressionPrincipal();
+  const publishFixture = (instant: string) =>
+    new PublishRegressionFixtureVersion({
+      clock: regressionClock(instant),
+      evidenceRepository,
+      versionRepository,
+    });
+  const fixtureRoot = await publishFixture("2026-08-28T03:04:00.000Z").execute({
+    environmentId: scope.environmentId,
+    fixtureId: "fix_recovery_primary",
+    principal,
+    projectId: scope.projectId,
+    request: {
+      fixtureVersionId: "fixv_recovery_primary_001",
+      name: "Recovery primary fixture",
+      source: { kind: "trace_snapshot", traceId },
+    },
+  });
+  const secondFixtureRoot = await publishFixture("2026-08-28T03:05:00.000Z").execute({
+    environmentId: scope.environmentId,
+    fixtureId: "fix_recovery_secondary",
+    principal,
+    projectId: scope.projectId,
+    request: {
+      fixtureVersionId: "fixv_recovery_secondary_001",
+      name: "Recovery secondary fixture",
+      source: { kind: "trace_snapshot", traceId },
+    },
+  });
+
+  await evidenceRepository.append([
+    evidence("evt_recovery_snapshot_late", "83f067aa0ba902b7", {
+      startedAt: "2026-08-28T03:00:00.000Z",
+    }),
+  ]);
+  const fixtureChild = await publishFixture("2026-08-28T03:06:00.000Z").execute({
+    environmentId: scope.environmentId,
+    fixtureId: fixtureRoot.version.fixtureId,
+    principal,
+    projectId: scope.projectId,
+    request: {
+      fixtureVersionId: "fixv_recovery_primary_002",
+      name: "Recovery primary fixture after late evidence",
+      predecessorVersionId: fixtureRoot.version.fixtureVersionId,
+      source: { kind: "trace_snapshot", traceId },
+    },
+  });
+
+  const datasetRoot = await new PublishRegressionDatasetVersion({
+    clock: regressionClock("2026-08-28T03:07:00.000Z"),
+    versionRepository,
+  }).execute({
+    datasetId: "dat_recovery_catalog",
+    environmentId: scope.environmentId,
+    principal,
+    projectId: scope.projectId,
+    request: {
+      datasetVersionId: "datv_recovery_catalog_001",
+      fixtureVersions: [
+        {
+          fixtureId: secondFixtureRoot.version.fixtureId,
+          fixtureVersionId: secondFixtureRoot.version.fixtureVersionId,
+        },
+        {
+          fixtureId: fixtureChild.version.fixtureId,
+          fixtureVersionId: fixtureChild.version.fixtureVersionId,
+        },
+      ],
+      name: "Recovery regression catalog",
+    },
+  });
+  const datasetChild = await new PublishRegressionDatasetVersion({
+    clock: regressionClock("2026-08-28T03:08:00.000Z"),
+    versionRepository,
+  }).execute({
+    datasetId: datasetRoot.version.datasetId,
+    environmentId: scope.environmentId,
+    principal,
+    projectId: scope.projectId,
+    request: {
+      datasetVersionId: "datv_recovery_catalog_002",
+      fixtureVersions: [
+        {
+          fixtureId: fixtureChild.version.fixtureId,
+          fixtureVersionId: fixtureChild.version.fixtureVersionId,
+        },
+        {
+          fixtureId: secondFixtureRoot.version.fixtureId,
+          fixtureVersionId: secondFixtureRoot.version.fixtureVersionId,
+        },
+      ],
+      name: "Recovery regression catalog reordered",
+      predecessorVersionId: datasetRoot.version.datasetVersionId,
+    },
+  });
+
+  regressionCatalogState = {
+    datasetChild: datasetChild.version,
+    datasetRoot: datasetRoot.version,
+    fixtureChild: fixtureChild.version,
+    fixtureRoot: fixtureRoot.version,
+    secondFixtureRoot: secondFixtureRoot.version,
+  };
+}
+
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
   const artifactRepository = new PostgresArtifactCatalogRepository(sourcePool);
   await seedRecoverableArtifacts(artifactRepository);
 
-  await new PostgresEvidenceRepository(sourcePool).append([
-    evidence("evt_recovery_original", "80f067aa0ba902b7"),
-  ]);
+  await seedRecoverableRegressionCatalog();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,
@@ -388,6 +562,72 @@ interface JsonRowsRow {
 interface SequenceSnapshotRow {
   readonly last_value: string | null;
   readonly sequencename: string;
+}
+
+interface StoredRegressionIntentRow {
+  readonly aggregate_id: string;
+  readonly aggregate_type: string;
+  readonly created_at: string;
+  readonly event_type: string;
+  readonly payload: unknown;
+  readonly schema_version: string;
+  readonly tenant_id: string;
+}
+
+function requiredRegressionCatalogState(): NonNullable<typeof regressionCatalogState> {
+  if (!regressionCatalogState) throw new Error("Recovery regression catalog was not seeded");
+  return regressionCatalogState;
+}
+
+function intentOrderKey(intent: RegressionVersionPublishedOutboxIntent): Buffer {
+  return Buffer.from(`${intent.eventType}\0${intent.aggregateType}\0${intent.aggregateId}`, "utf8");
+}
+
+function expectedRegressionPublicationIntents(): readonly RegressionVersionPublishedOutboxIntent[] {
+  const state = requiredRegressionCatalogState();
+  return [
+    buildRegressionFixtureVersionPublishedOutboxIntent(state.fixtureRoot),
+    buildRegressionFixtureVersionPublishedOutboxIntent(state.secondFixtureRoot),
+    buildRegressionFixtureVersionPublishedOutboxIntent(state.fixtureChild),
+    buildRegressionDatasetVersionPublishedOutboxIntent(state.datasetRoot),
+    buildRegressionDatasetVersionPublishedOutboxIntent(state.datasetChild),
+  ].sort((left, right) => Buffer.compare(intentOrderKey(left), intentOrderKey(right)));
+}
+
+async function regressionPublicationIntents(
+  database: Pool,
+): Promise<readonly RegressionVersionPublishedOutboxIntent[]> {
+  const result = await database.query<StoredRegressionIntentRow>(`
+    SELECT
+      tenant_id,
+      event_type,
+      aggregate_type,
+      aggregate_id,
+      schema_version,
+      payload,
+      to_char(
+        created_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+      ) AS created_at
+    FROM public.proofstack_outbox
+    WHERE tenant_id = 'ten_recovery'
+      AND event_type IN (
+        'regression.fixture-version.published',
+        'regression.dataset-version.published'
+      )
+  `);
+  return result.rows
+    .map((row) => ({
+      aggregateId: row.aggregate_id,
+      aggregateType: row.aggregate_type,
+      createdAt: row.created_at,
+      eventType: row.event_type,
+      payload: row.payload,
+      schemaVersion: row.schema_version,
+      tenantId: row.tenant_id,
+    }))
+    .map((intent) => intent as RegressionVersionPublishedOutboxIntent)
+    .sort((left, right) => Buffer.compare(intentOrderKey(left), intentOrderKey(right)));
 }
 
 async function authoritativeSnapshot(pool: Pool): Promise<{
@@ -504,6 +744,9 @@ describe("coordinated recovery rehearsal", () => {
       },
     });
     const sourceSnapshot = await authoritativeSnapshot(sourcePool);
+    expect(await regressionPublicationIntents(sourcePool)).toEqual(
+      expectedRegressionPublicationIntents(),
+    );
     const sourceLedger = await inspectVerifiedMigrationLedger(sourcePool);
     const sourceCatalog = new PostgresArtifactCatalogRepository(sourcePool);
     const sourceAvailable = await sourceCatalog.find(scope, availableArtifactId);
@@ -661,6 +904,9 @@ describe("coordinated recovery rehearsal", () => {
       },
     ]);
     await expect(authoritativeSnapshot(restoredPool)).resolves.toEqual(sourceSnapshot);
+    await expect(regressionPublicationIntents(restoredPool)).resolves.toEqual(
+      expectedRegressionPublicationIntents(),
+    );
     const restoredCatalog = new PostgresArtifactCatalogRepository(restoredPool);
     const restoredKeyIds = (await restoredCatalog.listKeyReferences(scope)).map(
       ({ keyId }) => keyId,
@@ -691,6 +937,52 @@ describe("coordinated recovery rehearsal", () => {
 
     const roles = runtimeRoleOptions();
     await provisionRuntimeRoles(restoredPool, roles);
+    const restoredPublicFunctionPrivileges = await restoredPool.query<{ readonly count: number }>(`
+      SELECT count(*)::integer AS count
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND procedure.proname LIKE 'proofstack_%'
+        AND EXISTS (
+          SELECT 1
+          FROM aclexplode(
+            COALESCE(
+              procedure.proacl,
+              acldefault('f', procedure.proowner)
+            )
+          ) AS privilege
+          WHERE privilege.grantee = 0
+            AND privilege.privilege_type = 'EXECUTE'
+        )
+    `);
+    expect(restoredPublicFunctionPrivileges.rows).toEqual([{ count: 0 }]);
+    const restoredRegressionHelperPrivileges = await restoredPool.query<{
+      readonly regression_execute: boolean;
+      readonly role_name: string;
+    }>(
+      `
+        SELECT
+          role_name,
+          has_function_privilege(
+            role_name,
+            'public.proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamptz)',
+            'EXECUTE'
+          ) AS regression_execute
+        FROM unnest($1::text[]) AS runtime_role(role_name)
+        ORDER BY role_name COLLATE "C"
+      `,
+      [Object.values(roles).map(({ name }) => name)],
+    );
+    expect(restoredRegressionHelperPrivileges.rows).toEqual(
+      Object.entries(roles)
+        .map(([kind, { name }]) => ({
+          regression_execute: kind === "api",
+          role_name: name,
+        }))
+        .sort((left, right) =>
+          Buffer.compare(Buffer.from(left.role_name, "utf8"), Buffer.from(right.role_name, "utf8")),
+        ),
+    );
     const runtimeUrl = new URL(restoredDatabaseUrl);
     runtimeUrl.username = roles.api.name;
     runtimeUrl.password = roles.api.password;
@@ -740,10 +1032,79 @@ describe("coordinated recovery rehearsal", () => {
       artifactPool.query("SELECT count(*)::integer AS count FROM proofstack_artifact_catalog"),
     ).resolves.toMatchObject({ rows: [{ count: 0 }] });
 
+    const expectedRegression = requiredRegressionCatalogState();
+    const restoredRegression = new PostgresRegressionVersionRepository(runtimePool);
+    await expect(
+      restoredRegression.findFixtureVersion(
+        scope,
+        expectedRegression.fixtureChild.fixtureVersionId,
+      ),
+    ).resolves.toEqual(expectedRegression.fixtureChild);
+    await expect(
+      restoredRegression.findDatasetVersion(
+        scope,
+        expectedRegression.datasetChild.datasetVersionId,
+      ),
+    ).resolves.toEqual(expectedRegression.datasetChild);
+    expect(expectedRegression.fixtureChild.source.eventIds).toEqual([
+      "evt_recovery_snapshot_started",
+      "evt_recovery_snapshot_first",
+      "evt_recovery_snapshot_middle",
+      "evt_recovery_snapshot_late",
+    ]);
+    expect(expectedRegression.datasetChild.fixtureVersions).toEqual([
+      {
+        definitionSha256: expectedRegression.fixtureChild.definitionSha256,
+        fixtureId: expectedRegression.fixtureChild.fixtureId,
+        fixtureVersionId: expectedRegression.fixtureChild.fixtureVersionId,
+      },
+      {
+        definitionSha256: expectedRegression.secondFixtureRoot.definitionSha256,
+        fixtureId: expectedRegression.secondFixtureRoot.fixtureId,
+        fixtureVersionId: expectedRegression.secondFixtureRoot.fixtureVersionId,
+      },
+    ]);
+
+    for (const hiddenScope of [
+      { ...scope, projectId: "prj_recovery_other" },
+      { ...scope, environmentId: "env_recovery_other" },
+      { ...scope, tenantId: "ten_recovery_other" },
+    ]) {
+      await expect(
+        restoredRegression.findFixtureVersion(
+          hiddenScope,
+          expectedRegression.fixtureChild.fixtureVersionId,
+        ),
+      ).resolves.toBeNull();
+      await expect(
+        restoredRegression.findDatasetVersion(
+          hiddenScope,
+          expectedRegression.datasetChild.datasetVersionId,
+        ),
+      ).resolves.toBeNull();
+    }
+    await expect(
+      runtimePool.query(
+        "SELECT count(*)::integer AS count FROM proofstack_regression_fixture_versions",
+      ),
+    ).resolves.toMatchObject({ rows: [{ count: 0 }] });
+    await expect(
+      runtimePool.query(
+        "SELECT count(*)::integer AS count FROM proofstack_regression_dataset_versions",
+      ),
+    ).resolves.toMatchObject({ rows: [{ count: 0 }] });
+
     const evidenceRepository = new PostgresEvidenceRepository(runtimePool);
     await expect(
       evidenceRepository.listByTrace(scope, traceId, { limit: 10 }),
-    ).resolves.toMatchObject({ events: [{ evidence: { eventId: "evt_recovery_original" } }] });
+    ).resolves.toMatchObject({
+      events: [
+        { evidence: { eventId: "evt_recovery_snapshot_started" } },
+        { evidence: { eventId: "evt_recovery_snapshot_first" } },
+        { evidence: { eventId: "evt_recovery_snapshot_middle" } },
+        { evidence: { eventId: "evt_recovery_snapshot_late" } },
+      ],
+    });
     await expect(
       evidenceRepository.listByTrace({ ...scope, tenantId: "ten_recovery_other" }, traceId, {
         limit: 10,
@@ -757,10 +1118,100 @@ describe("coordinated recovery rehearsal", () => {
       evidenceRepository.listByTrace(scope, traceId, { limit: 10 }),
     ).resolves.toMatchObject({
       events: [
+        { evidence: { eventId: "evt_recovery_snapshot_started" } },
+        { evidence: { eventId: "evt_recovery_snapshot_first" } },
+        { evidence: { eventId: "evt_recovery_snapshot_middle" } },
         { evidence: { eventId: "evt_recovery_after_restore" } },
-        { evidence: { eventId: "evt_recovery_original" } },
+        { evidence: { eventId: "evt_recovery_snapshot_late" } },
       ],
     });
+
+    const restoredFixtureAfterWrite = await new PublishRegressionFixtureVersion({
+      clock: regressionClock("2026-08-28T03:09:00.000Z"),
+      evidenceRepository,
+      versionRepository: restoredRegression,
+    }).execute({
+      environmentId: scope.environmentId,
+      fixtureId: expectedRegression.fixtureChild.fixtureId,
+      principal: regressionPrincipal(),
+      projectId: scope.projectId,
+      request: {
+        fixtureVersionId: "fixv_recovery_primary_003",
+        name: "Recovery primary fixture after restore",
+        predecessorVersionId: expectedRegression.fixtureChild.fixtureVersionId,
+        source: { kind: "trace_snapshot", traceId },
+      },
+    });
+    expect(restoredFixtureAfterWrite.version.source.eventIds).toEqual([
+      "evt_recovery_snapshot_started",
+      "evt_recovery_snapshot_first",
+      "evt_recovery_snapshot_middle",
+      "evt_recovery_after_restore",
+      "evt_recovery_snapshot_late",
+    ]);
+    await expect(
+      restoredRegression.findFixtureVersion(
+        scope,
+        restoredFixtureAfterWrite.version.fixtureVersionId,
+      ),
+    ).resolves.toEqual(restoredFixtureAfterWrite.version);
+
+    const restoredDatasetAfterWrite = await new PublishRegressionDatasetVersion({
+      clock: regressionClock("2026-08-28T03:10:00.000Z"),
+      versionRepository: restoredRegression,
+    }).execute({
+      datasetId: expectedRegression.datasetChild.datasetId,
+      environmentId: scope.environmentId,
+      principal: regressionPrincipal(),
+      projectId: scope.projectId,
+      request: {
+        datasetVersionId: "datv_recovery_catalog_003",
+        fixtureVersions: [
+          {
+            fixtureId: restoredFixtureAfterWrite.version.fixtureId,
+            fixtureVersionId: restoredFixtureAfterWrite.version.fixtureVersionId,
+          },
+          {
+            fixtureId: expectedRegression.secondFixtureRoot.fixtureId,
+            fixtureVersionId: expectedRegression.secondFixtureRoot.fixtureVersionId,
+          },
+        ],
+        name: "Recovery regression catalog after restore",
+        predecessorVersionId: expectedRegression.datasetChild.datasetVersionId,
+      },
+    });
+    await expect(
+      restoredRegression.findDatasetVersion(
+        scope,
+        restoredDatasetAfterWrite.version.datasetVersionId,
+      ),
+    ).resolves.toEqual(restoredDatasetAfterWrite.version);
+
+    const restoredRegressionIntents = [
+      ...expectedRegressionPublicationIntents(),
+      buildRegressionFixtureVersionPublishedOutboxIntent(restoredFixtureAfterWrite.version),
+      buildRegressionDatasetVersionPublishedOutboxIntent(restoredDatasetAfterWrite.version),
+    ].sort((left, right) => Buffer.compare(intentOrderKey(left), intentOrderKey(right)));
+    await expect(regressionPublicationIntents(restoredPool)).resolves.toEqual(
+      restoredRegressionIntents,
+    );
+
+    const sourceRegression = new PostgresRegressionVersionRepository(sourcePool);
+    await expect(
+      sourceRegression.findFixtureVersion(
+        scope,
+        restoredFixtureAfterWrite.version.fixtureVersionId,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      sourceRegression.findDatasetVersion(
+        scope,
+        restoredDatasetAfterWrite.version.datasetVersionId,
+      ),
+    ).resolves.toBeNull();
+    await expect(regressionPublicationIntents(sourcePool)).resolves.toEqual(
+      expectedRegressionPublicationIntents(),
+    );
     await expect(
       sourcePool.query<{ count: number }>(
         "SELECT count(*)::integer AS count FROM proofstack_evidence_events WHERE event_id = 'evt_recovery_after_restore'",

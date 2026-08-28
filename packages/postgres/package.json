@@ -38,6 +38,7 @@
     "@proofstack/artifacts": "workspace:*",
     "@proofstack/contracts": "workspace:*",
     "@proofstack/core": "workspace:*",
+    "@proofstack/datasets": "workspace:*",
     "@proofstack/identity": "workspace:*",
     "pg": "catalog:"
   },

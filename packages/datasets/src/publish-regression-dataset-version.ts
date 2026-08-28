@@ -14,6 +14,7 @@ import {
   type RegressionFixtureVersionReference,
   RegressionFixtureVersionReferenceSchema,
   type RequestedRegressionFixtureVersionReference,
+  UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import { type Clock, requireCapability, requireEnvironmentAccess } from "@proofstack/core";
 import {
@@ -212,14 +213,23 @@ function validateResolvedReferences(
 }
 
 function publicationTimestamp(clock: Clock): string {
+  let timestamp: string;
   try {
-    return clock.now().toISOString();
+    timestamp = clock.now().toISOString();
   } catch (cause) {
     throw new InvalidRegressionVersionInputError(
       "Regression dataset publication clock is invalid",
       { cause },
     );
   }
+  const result = UtcMillisecondTimestampSchema.safeParse(timestamp);
+  if (!result.success) {
+    throw new InvalidRegressionVersionInputError(
+      "Regression dataset publication clock is invalid",
+      { cause: result.error },
+    );
+  }
+  return result.data;
 }
 
 function buildCandidate(
@@ -249,6 +259,7 @@ function buildCandidate(
       ...definition,
     });
   } catch (cause) {
+    /* v8 ignore next -- Every candidate field is validated above; this guards future contract drift. */
     throw new InvalidRegressionVersionInputError("Regression dataset version is invalid", {
       cause,
     });

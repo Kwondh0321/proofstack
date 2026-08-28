@@ -61,6 +61,12 @@ const TENANT_TABLES = [
   "proofstack_oidc_bindings",
   "proofstack_outbox",
   "proofstack_projection_cursors",
+  "proofstack_regression_dataset_members",
+  "proofstack_regression_dataset_versions",
+  "proofstack_regression_datasets",
+  "proofstack_regression_fixture_events",
+  "proofstack_regression_fixture_versions",
+  "proofstack_regression_fixtures",
 ] as const;
 
 function runtimePool(credentials: { readonly name: string; readonly password: string }): Pool {

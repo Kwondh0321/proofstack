@@ -49,6 +49,7 @@ const modules = [
       "@proofstack/artifacts",
       "@proofstack/contracts",
       "@proofstack/core",
+      "@proofstack/datasets",
       "@proofstack/identity",
     ]),
     directory: "packages/postgres/src",
@@ -74,6 +75,7 @@ const modules = [
     allowed: new Set([
       "@proofstack/artifacts",
       "@proofstack/contracts",
+      "@proofstack/datasets",
       "@proofstack/postgres",
       "@proofstack/recovery",
       "@proofstack/s3",

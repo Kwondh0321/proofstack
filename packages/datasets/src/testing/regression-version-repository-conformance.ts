@@ -112,7 +112,7 @@ function fixture(namespace: string, options: FixtureOptions = {}): RegressionFix
   } satisfies RegressionFixtureVersionDefinition);
 
   return RegressionFixtureVersionSchema.parse({
-    createdAt: options.createdAt ?? "2026-08-29T01:01:00.000Z",
+    createdAt: options.createdAt ?? "2026-08-29T01:01:00.123Z",
     createdByPrincipalId: options.createdByPrincipalId ?? `usr_${namespace}`,
     definitionSha256: digestRegressionFixtureVersionDefinition(definition),
     ...definition,
@@ -144,7 +144,7 @@ function dataset(namespace: string, options: DatasetOptions): RegressionDatasetV
   } satisfies RegressionDatasetVersionDefinition);
 
   return RegressionDatasetVersionSchema.parse({
-    createdAt: options.createdAt ?? "2026-08-29T01:02:00.000Z",
+    createdAt: options.createdAt ?? "2026-08-29T01:02:00.987Z",
     createdByPrincipalId: options.createdByPrincipalId ?? `usr_${namespace}`,
     definitionSha256: digestRegressionDatasetVersionDefinition(definition),
     ...definition,

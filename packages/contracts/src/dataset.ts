@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { EvidenceScopeSchema } from "./evidence.js";
-import { OpaqueIdSchema, Sha256Schema, TimestampSchema, TraceIdSchema } from "./primitives.js";
+import { evidenceTimestampOrderKey, EvidenceScopeSchema } from "./evidence.js";
+import {
+  OpaqueIdSchema,
+  PostgresTimestampSchema,
+  Sha256Schema,
+  TraceIdSchema,
+  UtcMillisecondTimestampSchema,
+} from "./primitives.js";
 
 export const REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION = "0.1" as const;
 export const REGRESSION_DATASET_VERSION_SCHEMA_VERSION = "0.1" as const;
@@ -126,7 +132,7 @@ export const RegressionTraceSnapshotDefinitionSchema = z
 
 export const RegressionTraceSnapshotSchema = z
   .object({
-    capturedAt: TimestampSchema,
+    capturedAt: PostgresTimestampSchema,
     ...regressionTraceSnapshotDefinitionShape,
   })
   .strict()
@@ -167,7 +173,7 @@ export const RegressionFixtureVersionDefinitionSchema = z
 
 export const RegressionFixtureVersionSchema = z
   .object({
-    createdAt: TimestampSchema,
+    createdAt: UtcMillisecondTimestampSchema,
     createdByPrincipalId: OpaqueIdSchema,
     definitionSha256: Sha256Schema,
     ...regressionFixtureVersionDefinitionShape,
@@ -176,7 +182,10 @@ export const RegressionFixtureVersionSchema = z
   .strict()
   .superRefine((value, context) => {
     refineFixturePredecessor(value, context);
-    if (Date.parse(value.source.capturedAt) > Date.parse(value.createdAt)) {
+    const capturedAt = PostgresTimestampSchema.safeParse(value.source.capturedAt);
+    const createdAt = UtcMillisecondTimestampSchema.safeParse(value.createdAt);
+    if (!capturedAt.success || !createdAt.success) return;
+    if (evidenceTimestampOrderKey(capturedAt.data) > evidenceTimestampOrderKey(createdAt.data)) {
       context.addIssue({
         code: "custom",
         message: "createdAt cannot be earlier than the trace capture time",
@@ -287,7 +296,7 @@ export const RegressionDatasetVersionDefinitionSchema = z
 
 export const RegressionDatasetVersionSchema = z
   .object({
-    createdAt: TimestampSchema,
+    createdAt: UtcMillisecondTimestampSchema,
     createdByPrincipalId: OpaqueIdSchema,
     ...regressionDatasetVersionIdentityShape,
     definitionSha256: Sha256Schema,

@@ -68,6 +68,14 @@ afterAll(async () => {
 describe("runtime role provisioning", () => {
   it("creates isolated least-privilege roles and rotates their credentials", async () => {
     const initial = provisioningOptions("initial");
+    await adminPool.query(`
+      GRANT EXECUTE ON FUNCTION public.proofstack_regression_publication_intent_status(
+        text, text, text, text, text, jsonb, timestamptz
+      ) TO PUBLIC
+    `);
+    await adminPool.query(
+      "GRANT EXECUTE ON FUNCTION public.proofstack_find_active_api_key(text) TO PUBLIC",
+    );
     await expect(provisionRuntimeRoles(adminPool, initial)).resolves.toEqual({
       createdRoles: [
         roleNames.api,
@@ -78,6 +86,26 @@ describe("runtime role provisioning", () => {
       ],
       updatedRoles: [],
     });
+
+    const publicFunctionPrivileges = await adminPool.query<{ readonly count: number }>(`
+      SELECT count(*)::integer AS count
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND procedure.proname LIKE 'proofstack_%'
+        AND EXISTS (
+          SELECT 1
+          FROM aclexplode(
+            COALESCE(
+              procedure.proacl,
+              acldefault('f', procedure.proowner)
+            )
+          ) AS privilege
+          WHERE privilege.grantee = 0
+            AND privilege.privilege_type = 'EXECUTE'
+        )
+    `);
+    expect(publicFunctionPrivileges.rows).toEqual([{ count: 0 }]);
 
     const roleState = await adminPool.query<{
       readonly has_memberships: boolean;
@@ -161,6 +189,12 @@ describe("runtime role provisioning", () => {
       readonly oidc_lookup_execute: boolean;
       readonly outbox_insert: boolean;
       readonly outbox_select: boolean;
+      readonly regressionDelete: boolean;
+      readonly regressionHelperExecute: boolean;
+      readonly regressionIntentStatusExecute: boolean;
+      readonly regressionInsert: boolean;
+      readonly regressionSelect: boolean;
+      readonly regressionUpdate: boolean;
       readonly sequence_usage: boolean;
     }>(
       `
@@ -232,6 +266,60 @@ describe("runtime role provisioning", () => {
           'proofstack_artifact_purge_receipts',
           'DELETE'
         ) AS "artifactPurgeDelete",
+        (
+          SELECT bool_and(has_table_privilege(current_user, relation_name, 'SELECT'))
+          FROM unnest(ARRAY[
+            'proofstack_regression_fixtures',
+            'proofstack_regression_fixture_versions',
+            'proofstack_regression_fixture_events',
+            'proofstack_regression_datasets',
+            'proofstack_regression_dataset_versions',
+            'proofstack_regression_dataset_members'
+          ]) AS regression_relation(relation_name)
+        ) AS "regressionSelect",
+        (
+          SELECT bool_and(has_table_privilege(current_user, relation_name, 'INSERT'))
+          FROM unnest(ARRAY[
+            'proofstack_regression_fixtures',
+            'proofstack_regression_fixture_versions',
+            'proofstack_regression_fixture_events',
+            'proofstack_regression_datasets',
+            'proofstack_regression_dataset_versions',
+            'proofstack_regression_dataset_members'
+          ]) AS regression_relation(relation_name)
+        ) AS "regressionInsert",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'UPDATE'))
+          FROM unnest(ARRAY[
+            'proofstack_regression_fixtures',
+            'proofstack_regression_fixture_versions',
+            'proofstack_regression_fixture_events',
+            'proofstack_regression_datasets',
+            'proofstack_regression_dataset_versions',
+            'proofstack_regression_dataset_members'
+          ]) AS regression_relation(relation_name)
+        ) AS "regressionUpdate",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'DELETE'))
+          FROM unnest(ARRAY[
+            'proofstack_regression_fixtures',
+            'proofstack_regression_fixture_versions',
+            'proofstack_regression_fixture_events',
+            'proofstack_regression_datasets',
+            'proofstack_regression_dataset_versions',
+            'proofstack_regression_dataset_members'
+          ]) AS regression_relation(relation_name)
+        ) AS "regressionDelete",
+        has_function_privilege(
+          current_user,
+          'proofstack_valid_regression_text(text, integer)',
+          'EXECUTE'
+        ) AS "regressionHelperExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS "regressionIntentStatusExecute",
         has_sequence_privilege(
           current_user,
           $1,
@@ -260,6 +348,12 @@ describe("runtime role provisioning", () => {
       oidc_lookup_execute: false,
       outbox_insert: true,
       outbox_select: false,
+      regressionDelete: false,
+      regressionHelperExecute: true,
+      regressionIntentStatusExecute: true,
+      regressionInsert: true,
+      regressionSelect: true,
+      regressionUpdate: false,
       sequence_usage: false,
     });
 
@@ -276,6 +370,9 @@ describe("runtime role provisioning", () => {
       readonly purgeInsert: boolean;
       readonly purgeSelect: boolean;
       readonly purgeUpdate: boolean;
+      readonly regressionHelperExecute: boolean;
+      readonly regressionIntentStatusExecute: boolean;
+      readonly regressionSelect: boolean;
       readonly sequenceUsage: boolean;
       readonly tombstoneDelete: boolean;
       readonly tombstoneInsert: boolean;
@@ -313,6 +410,21 @@ describe("runtime role provisioning", () => {
           has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT')
             AS "evidenceSelect",
           has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS "outboxSelect",
+          has_table_privilege(
+            current_user,
+            'proofstack_regression_fixture_versions',
+            'SELECT'
+          ) AS "regressionSelect",
+          has_function_privilege(
+            current_user,
+            'proofstack_valid_regression_text(text, integer)',
+            'EXECUTE'
+          ) AS "regressionHelperExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
+            'EXECUTE'
+          ) AS "regressionIntentStatusExecute",
           has_sequence_privilege(current_user, $1, 'USAGE') AS "sequenceUsage"
       `,
       [`public.${sequenceName}`],
@@ -329,6 +441,9 @@ describe("runtime role provisioning", () => {
       purgeInsert: true,
       purgeSelect: true,
       purgeUpdate: false,
+      regressionHelperExecute: false,
+      regressionIntentStatusExecute: false,
+      regressionSelect: false,
       sequenceUsage: false,
       tombstoneDelete: false,
       tombstoneInsert: true,
@@ -344,6 +459,7 @@ describe("runtime role provisioning", () => {
       readonly outbox_insert: boolean;
       readonly outbox_select: boolean;
       readonly outbox_update: boolean;
+      readonly regression_intent_status_execute: boolean;
     }>(`
       SELECT
         has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT') AS evidence_select,
@@ -356,7 +472,12 @@ describe("runtime role provisioning", () => {
         ) AS identity_lookup_execute,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
         has_table_privilege(current_user, 'proofstack_outbox', 'UPDATE') AS outbox_update,
-        has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert
+        has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
+        has_function_privilege(
+          current_user,
+          'proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS regression_intent_status_execute
     `);
     expect(publisherPrivileges.rows[0]).toEqual({
       evidence_select: false,
@@ -365,6 +486,7 @@ describe("runtime role provisioning", () => {
       outbox_insert: false,
       outbox_select: true,
       outbox_update: true,
+      regression_intent_status_execute: false,
     });
 
     const identityPool = poolFor(initial.identity);
@@ -378,6 +500,7 @@ describe("runtime role provisioning", () => {
       readonly lookup_execute: boolean;
       readonly oidc_binding_select: boolean;
       readonly oidc_lookup_execute: boolean;
+      readonly regression_intent_status_execute: boolean;
       readonly session_lookup_execute: boolean;
       readonly session_select: boolean;
     }>(`
@@ -418,7 +541,12 @@ describe("runtime role provisioning", () => {
           current_user,
           'proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)',
           'EXECUTE'
-        ) AS helper_execute
+        ) AS helper_execute,
+        has_function_privilege(
+          current_user,
+          'proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS regression_intent_status_execute
     `);
     expect(identityPrivileges.rows[0]).toEqual({
       audit_select: false,
@@ -430,6 +558,7 @@ describe("runtime role provisioning", () => {
       lookup_execute: true,
       oidc_binding_select: false,
       oidc_lookup_execute: true,
+      regression_intent_status_execute: false,
       session_lookup_execute: true,
       session_select: false,
     });
@@ -443,6 +572,7 @@ describe("runtime role provisioning", () => {
       readonly identity_lookup_execute: boolean;
       readonly identity_select: boolean;
       readonly outbox_select: boolean;
+      readonly regression_intent_status_execute: boolean;
       readonly receipt_insert: boolean;
       readonly receipt_select: boolean;
       readonly receipt_update: boolean;
@@ -462,7 +592,12 @@ describe("runtime role provisioning", () => {
           'proofstack_find_active_api_key(text)',
           'EXECUTE'
         ) AS identity_lookup_execute,
-        has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select
+        has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
+        has_function_privilege(
+          current_user,
+          'proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS regression_intent_status_execute
     `);
     expect(consumerPrivileges.rows[0]).toEqual({
       cursor_insert: true,
@@ -472,6 +607,7 @@ describe("runtime role provisioning", () => {
       identity_lookup_execute: false,
       identity_select: false,
       outbox_select: false,
+      regression_intent_status_execute: false,
       receipt_insert: true,
       receipt_select: true,
       receipt_update: true,

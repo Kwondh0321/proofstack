@@ -85,4 +85,18 @@ export const TraceIdSchema = z.string().regex(/^(?!0{32}$)[0-9a-f]{32}$/);
 export const SpanIdSchema = z.string().regex(/^(?!0{16}$)[0-9a-f]{16}$/);
 export const Sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 export const TimestampSchema = z.iso.datetime({ offset: true });
+export const MAX_POSTGRES_TIMESTAMP_FRACTION_DIGITS = 30;
+export const PostgresTimestampSchema = TimestampSchema.regex(
+  /^(?!0000-)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,30})?(?:Z|[+-](?:0\d|1[0-5]):[0-5]\d)$/u,
+  {
+    message:
+      "Timestamps require a positive ISO year, at most 30 fractional digits, and Z or a PostgreSQL-compatible offset through +/-15:59",
+  },
+);
+export const UtcMillisecondTimestampSchema = PostgresTimestampSchema.regex(
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u,
+  {
+    message: "Server timestamps require the canonical UTC millisecond form",
+  },
+);
 export const NamespacedExtensionKeySchema = z.string().regex(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/);

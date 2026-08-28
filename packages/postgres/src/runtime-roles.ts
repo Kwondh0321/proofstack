@@ -63,6 +63,12 @@ const PLATFORM_TABLES = [
   "proofstack_oidc_login_transactions",
   "proofstack_outbox",
   "proofstack_projection_cursors",
+  "proofstack_regression_dataset_members",
+  "proofstack_regression_dataset_versions",
+  "proofstack_regression_datasets",
+  "proofstack_regression_fixture_events",
+  "proofstack_regression_fixture_versions",
+  "proofstack_regression_fixtures",
   "proofstack_schema_migrations",
 ] as const;
 
@@ -88,6 +94,8 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_purge_browser_sessions()",
   "public.proofstack_purge_oidc_login_transactions()",
   "public.proofstack_record_api_key_use(text, text, text)",
+  "public.proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamptz)",
+  "public.proofstack_reject_append_only_mutation()",
   "public.proofstack_reject_artifact_receipt_mutation()",
   "public.proofstack_reject_evidence_mutation()",
   "public.proofstack_reject_identity_audit_mutation()",
@@ -97,10 +105,13 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_revoke_browser_session(text)",
   "public.proofstack_rotate_api_key(text, text, text, text, text, integer, integer, integer, integer, text, text, timestamptz, text)",
   "public.proofstack_update_oidc_binding(text, text, text[], text[], jsonb, text)",
+  "public.proofstack_valid_regression_text(text, integer)",
   "public.proofstack_valid_resource_scope(jsonb)",
   "public.proofstack_valid_user_capabilities(text[])",
   "public.proofstack_valid_user_roles(text[])",
   "public.proofstack_valid_workload_capabilities(text[])",
+  "public.proofstack_verify_regression_dataset_member_count()",
+  "public.proofstack_verify_regression_fixture_event_count()",
   "public.proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)",
 ] as const;
 
@@ -112,6 +123,9 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO %ROLE%",
+    "GRANT SELECT, INSERT ON TABLE public.proofstack_regression_fixtures, public.proofstack_regression_fixture_versions, public.proofstack_regression_fixture_events, public.proofstack_regression_datasets, public.proofstack_regression_dataset_versions, public.proofstack_regression_dataset_members TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamptz) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_valid_regression_text(text, integer) TO %ROLE%",
   ],
   artifact: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
@@ -323,7 +337,13 @@ async function assertSchemaCurrent(client: PoolClient): Promise<void> {
       'public.proofstack_oidc_login_transactions',
       'public.proofstack_outbox',
       'public.proofstack_projection_cursors',
-      'public.proofstack_consumer_receipts'
+      'public.proofstack_consumer_receipts',
+      'public.proofstack_regression_fixtures',
+      'public.proofstack_regression_fixture_versions',
+      'public.proofstack_regression_fixture_events',
+      'public.proofstack_regression_datasets',
+      'public.proofstack_regression_dataset_versions',
+      'public.proofstack_regression_dataset_members'
     ]) AS required(name)
   `);
   if (result.rows[0]?.present !== true) {
@@ -352,6 +372,9 @@ export async function provisionRuntimeRoles(
       ]);
       await assertSchemaCurrent(client);
       await client.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+      await client.query(
+        `REVOKE ALL PRIVILEGES ON FUNCTION ${PLATFORM_FUNCTIONS.join(", ")} FROM PUBLIC`,
+      );
 
       const createdRoles: string[] = [];
       const updatedRoles: string[] = [];

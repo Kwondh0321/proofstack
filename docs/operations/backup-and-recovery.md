@@ -160,11 +160,15 @@ repair the target silently.
 6. Copy each inventoried ciphertext object under the exact same key into the empty restore
    namespace. Recompute every size and SHA-256. Refuse an overwrite, missing object, or extra object.
 7. Re-run `verifyRecoverySet` using the restored migration ledger and restored catalog key-ID set.
-8. Provision new least-privilege runtime roles and fresh passwords with `pnpm db:provision`. Never
-   reuse roles or credentials captured from the source installation.
+8. Provision new least-privilege runtime roles and fresh passwords with `pnpm db:provision`. This
+   also re-revokes public execution of every platform function because the owner- and
+   privilege-independent dump intentionally carries no ACLs. Never reuse roles or credentials
+   captured from the source installation.
 9. Through the normal repositories and cryptographic read path, verify all authoritative tables
    and sequences, decrypt representative available artifacts, prove purged artifacts remain absent
-   and unreadable, and compare exact content—not only counts.
+   and unreadable, and compare exact content—not only counts. Regression fixtures and datasets must
+   retain their exact logical and version identifiers, predecessor digests, canonically ordered
+   event and fixture memberships, original provenance, and one canonical publication outbox intent.
 10. Run the cross-tenant matrix with the fresh runtime roles: absent context, forged tenant values,
     guessed identifiers, cross-tenant reads, and pooled-connection reuse must all fail.
 11. Start an isolated API, ingest and read new evidence, and prove this changes only the restored
@@ -202,11 +206,23 @@ under the mutation fence while monitoring lock wait, storage, and replication la
 query code first and fully drain older processes: the new code is correct before and after 0012,
 while an already-running old process can still issue locale-sensitive reads. Apply 0012 only after
 that drain, verify the checksum ledger and valid/ready index collation, and then release the fence.
-Any defect is repaired by a new 0013-or-later forward migration; never edit 0012 or synthesize a
+Any defect is repaired by a new 0014-or-later forward migration; never edit 0012 or synthesize a
 down migration. Capture a coordinated pre-0012 recovery set when whole-installation binary rollback
 must remain possible, because a binary that does not recognize 0012 must reject its ledger. CI
 proves clean installation, an isolated 0011-to-0012 upgrade with preserved evidence, index
 integrity and idempotence, the old-binary barrier, and restoration of the collated index.
+
+Migration `0013_regression_catalog` adds the six tenant-scoped, append-only regression resource,
+version, and ordered-membership tables. Fixture event membership carries the complete fixture
+scope and source trace, while the authorized publication use case owns the bounded canonical
+evidence capture and the repository revalidates the complete immutable candidate at its transaction
+boundary. Creating the tables, indexes, foreign keys, and deferred completeness triggers still
+takes heavyweight catalog locks and consumes WAL. Apply 0013 only under the mutation fence after
+draining old processes, with a coordinated pre-0013 recovery set available. Verify scope-bound
+membership, deferred membership completeness, forced RLS, exact runtime grants, migration ledger,
+and valid indexes before releasing the fence. A binary that knows only 0012 must reject the newer
+ledger; remediation is a 0014-or-later forward repair or restoration of the complete pre-0013
+recovery set, never a partial catalog rollback.
 
 ## What the repository proves
 
@@ -214,10 +230,14 @@ The dedicated recovery CI job:
 
 - creates a real PostgreSQL 16.15 custom dump and restores it into a separately named empty DB;
 - fills and compares every authoritative `proofstack_*` table and sequence;
+- publishes representative fixture and dataset roots and descendants through the normal use cases,
+  then verifies exact event order, dataset membership order, definition digests, provenance,
+  canonical outbox locators, and cross-scope hiding after restore;
 - copies real encrypted S3-compatible bytes through isolated source, backup, and restore buckets;
 - restores the matching test key version and decrypts content through the normal artifact read;
-- reprovisions fresh runtime roles and proves evidence/artifact tenant isolation;
-- proves purged content remains absent and new restored writes do not affect the source; and
+- reprovisions fresh runtime roles and proves evidence, artifact, and regression tenant isolation;
+- proves purged content remains absent and new restored evidence and regression publications do not
+  affect the source; and
 - proves an older migration set rejects the newer ledger.
 
 The separate PostgreSQL adversarial matrix discovers every public table with a `tenant_id` column,

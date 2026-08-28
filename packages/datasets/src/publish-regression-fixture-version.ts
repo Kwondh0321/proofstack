@@ -11,7 +11,7 @@ import {
   type RegressionFixtureVersion,
   RegressionFixtureVersionDefinitionSchema,
   RegressionFixtureVersionSchema,
-  TimestampSchema,
+  UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import {
   type Clock,
@@ -252,7 +252,7 @@ function publicationTimestamp(clock: Clock): string {
   } catch (cause) {
     throw invalidInput("Regression fixture publication clock is invalid", cause);
   }
-  const result = TimestampSchema.safeParse(timestamp);
+  const result = UtcMillisecondTimestampSchema.safeParse(timestamp);
   if (!result.success) {
     throw invalidInput("Regression fixture publication clock is invalid", result.error);
   }
