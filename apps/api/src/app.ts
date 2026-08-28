@@ -39,6 +39,7 @@ import {
 } from "./identity-routes.js";
 import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOidcRoutes } from "./oidc-routes.js";
+import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerRoutes } from "./routes.js";
 import { createEvidenceStorage } from "./storage.js";
@@ -146,13 +147,14 @@ export async function createApp(
       });
     }
 
+    const ingestEvidence = new IngestEvidence(storage.repository, clock);
     await registerRoutes(app, {
       authenticator,
       checkReadiness: async () => {
         await storage.checkReadiness();
         await identityStorage?.checkReadiness();
       },
-      ingestEvidence: new IngestEvidence(storage.repository, clock),
+      ingestEvidence,
       listTraceEvidence: new ListTraceEvidence(storage.repository),
     });
     const apiKeyLifecycle =
@@ -342,6 +344,13 @@ export async function createApp(
         title: "Internal server error",
         type: "https://proofstack.dev/problems/internal-error",
       });
+    });
+
+    await registerOtlpRoutes(app, {
+      authenticator,
+      compressedBodyLimitBytes: config.otlp.compressedBodyLimitBytes,
+      decompressedBodyLimitBytes: config.otlp.decompressedBodyLimitBytes,
+      ingestEvidence,
     });
 
     return app;
