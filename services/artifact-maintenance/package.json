@@ -1,0 +1,35 @@
+{
+  "name": "@proofstack/artifact-maintenance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "One-shot artifact reconciliation, retention, purge, and key-safety operations",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "proofstack-artifacts": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf coverage dist",
+    "lint": "biome lint src",
+    "start": "node dist/cli.js",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/artifacts": "workspace:*",
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/core": "workspace:*",
+    "@proofstack/postgres": "workspace:*",
+    "@proofstack/s3": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
