@@ -20,12 +20,16 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.1.0-foundation" },
+      info: { version: "0.2.0-foundation" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
         "/health/ready": {},
         "/openapi.json": {},
+        "/v1/auth/oidc/callback": {},
+        "/v1/auth/oidc/login": {},
+        "/v1/auth/oidc/logout": {},
+        "/v1/auth/session": {},
         "/v1/identity/api-keys": {},
         "/v1/identity/api-keys/{credentialId}/revoke": {},
         "/v1/identity/api-keys/{credentialId}/rotate": {},
@@ -69,7 +73,7 @@ describe("ProofStack OpenAPI document", () => {
     expect(paths["/health/ready"]?.get.responses).toHaveProperty("503");
   });
 
-  it("documents Bearer authentication and bounded credential lifecycle failures", () => {
+  it("documents workload and browser authentication with bounded identity failures", () => {
     const document = createProofStackOpenApiDocument();
     const { components: rawComponents, paths: rawPaths } = document;
     const components = rawComponents as {
@@ -81,10 +85,35 @@ describe("ProofStack OpenAPI document", () => {
     >;
 
     expect(components.securitySchemes).toHaveProperty("bearerAuth");
-    expect(paths["/v1/identity/api-keys"]?.post.security).toEqual([{ bearerAuth: [] }]);
+    expect(components.securitySchemes).toHaveProperty("browserSession");
+    expect(paths["/v1/identity/api-keys"]?.post.security).toEqual([
+      { bearerAuth: [] },
+      { browserSession: [] },
+    ]);
     expect(paths["/v1/identity/api-keys"]?.post.responses).toHaveProperty("401");
     expect(paths["/v1/identity/api-keys/{credentialId}/rotate"]?.post.responses).toHaveProperty(
       "409",
     );
+  });
+
+  it("documents the complete OIDC browser lifecycle and CSRF boundary", () => {
+    const document = createProofStackOpenApiDocument();
+    const { paths: rawPaths } = document;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: { responses: Record<string, unknown>; security?: unknown };
+        post?: { parameters?: Array<{ name: string }>; security?: unknown };
+      }
+    >;
+
+    expect(paths["/v1/auth/oidc/login"]?.get?.responses).toHaveProperty("302");
+    expect(paths["/v1/auth/oidc/callback"]?.get?.responses).toHaveProperty("303");
+    expect(paths["/v1/auth/session"]?.get?.security).toEqual([{ browserSession: [] }]);
+    expect(paths["/v1/auth/oidc/logout"]?.post?.security).toEqual([{ browserSession: [] }]);
+    expect(paths["/v1/auth/oidc/logout"]?.post?.parameters?.map(({ name }) => name)).toEqual([
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
   });
 });
