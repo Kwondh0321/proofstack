@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createPostgresPool } from "@proofstack/postgres";
+import { createPostgresPool, inspectVerifiedMigrationLedger } from "@proofstack/postgres";
 import { runRecoveryCli } from "./cli.js";
 import {
   createPostgresLogicalBackup,
@@ -24,6 +24,7 @@ try {
           maxConnections: 1,
           onIdleError,
         }),
+      inspectLedger: inspectVerifiedMigrationLedger,
       restore: restorePostgresLogicalBackup,
     },
   );

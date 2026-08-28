@@ -12,6 +12,12 @@ const receipt = {
   sha256: "a".repeat(64),
   sizeBytes: 4_096,
 };
+const migrationLedger = [
+  {
+    checksum: "b".repeat(64),
+    id: "0010_force_identity_tenant_rls",
+  },
+] as const;
 
 function io(): {
   readonly errors: string[];
@@ -34,6 +40,7 @@ function dependencies(): RecoveryCliDependencies & {
   readonly backup: ReturnType<typeof vi.fn>;
   readonly createPool: ReturnType<typeof vi.fn>;
   readonly end: ReturnType<typeof vi.fn>;
+  readonly inspectLedger: ReturnType<typeof vi.fn>;
   readonly restore: ReturnType<typeof vi.fn>;
 } {
   const end = vi.fn(async () => undefined);
@@ -46,6 +53,7 @@ function dependencies(): RecoveryCliDependencies & {
         }) as unknown as Pool,
     ),
     end,
+    inspectLedger: vi.fn(async () => migrationLedger),
     restore: vi.fn(async () => receipt),
   };
 }
@@ -117,6 +125,7 @@ describe("runRecoveryCli", () => {
       engineVersion: "16.15",
       operation: "database-backup",
       path: "/backup/proofstack.dump",
+      migrationLedger,
       sha256: "a".repeat(64),
       sizeBytes: 4_096,
       status: "verified",
@@ -151,9 +160,11 @@ describe("runRecoveryCli", () => {
     });
     expect(JSON.parse(streams.outputs[0] ?? "{}")).toMatchObject({
       component: "postgresql-logical-dump",
+      migrationLedger,
       operation: "database-restore",
       status: "verified",
     });
+    expect(adapters.inspectLedger).toHaveBeenCalledAfter(adapters.restore);
     expect(adapters.end).toHaveBeenCalledOnce();
   });
 
@@ -169,6 +180,22 @@ describe("runRecoveryCli", () => {
         adapters,
       ),
     ).rejects.toThrow("backup failed");
+    expect(adapters.end).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a backup before dumping when the migration ledger is not current", async () => {
+    const adapters = dependencies();
+    adapters.inspectLedger.mockRejectedValueOnce(new Error("migration ledger is not current"));
+
+    await expect(
+      runRecoveryCli(
+        ["database-backup", "/backup/proofstack.dump"],
+        { PROOFSTACK_RECOVERY_DATABASE_URL: "postgresql://recovery@localhost/proofstack" },
+        io().value,
+        adapters,
+      ),
+    ).rejects.toThrow("migration ledger is not current");
+    expect(adapters.backup).not.toHaveBeenCalled();
     expect(adapters.end).toHaveBeenCalledOnce();
   });
 

@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import type { inspectVerifiedMigrationLedger, MigrationLedgerEntry } from "@proofstack/postgres";
 import type {
   createPostgresLogicalBackup,
   PostgresLogicalBackupReceipt,
@@ -18,6 +19,7 @@ export interface RecoveryCliIo {
 export interface RecoveryCliDependencies {
   readonly backup: typeof createPostgresLogicalBackup;
   readonly createPool: (connectionString: string, onIdleError: (error: Error) => void) => Pool;
+  readonly inspectLedger: typeof inspectVerifiedMigrationLedger;
   readonly restore: typeof restorePostgresLogicalBackup;
 }
 
@@ -60,12 +62,14 @@ function receiptOutput(
   operation: "database-backup" | "database-restore",
   path: string,
   receipt: PostgresLogicalBackupReceipt,
+  migrationLedger: readonly MigrationLedgerEntry[],
 ): string {
   return JSON.stringify({
     component: "postgresql-logical-dump",
     engineVersion: receipt.engineVersion,
     operation,
     path,
+    migrationLedger,
     sha256: receipt.sha256,
     sizeBytes: receipt.sizeBytes,
     status: "verified",
@@ -88,6 +92,8 @@ export async function runRecoveryCli(
   });
 
   try {
+    const sourceLedger =
+      command === "database-backup" ? await dependencies.inspectLedger(pool) : undefined;
     const receipt =
       command === "database-backup"
         ? await dependencies.backup({
@@ -102,7 +108,8 @@ export async function runRecoveryCli(
             database: pool,
             dumpPath: path,
           });
-    io.output(receiptOutput(command, path, receipt));
+    const migrationLedger = sourceLedger ?? (await dependencies.inspectLedger(pool));
+    io.output(receiptOutput(command, path, receipt, migrationLedger));
     return idleError === undefined ? 0 : 1;
   } finally {
     await pool.end();
