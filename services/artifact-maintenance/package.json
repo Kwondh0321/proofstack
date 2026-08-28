@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "cli": "pnpm build && node dist/cli.js",
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
     "start": "node dist/cli.js",

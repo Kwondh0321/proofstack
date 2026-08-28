@@ -12,6 +12,7 @@
   "scripts": {
     "build": "turbo run build",
     "boundaries": "node scripts/check-boundaries.mjs",
+    "artifacts:maintenance": "pnpm --filter @proofstack/artifact-maintenance cli",
     "check": "pnpm format:check && pnpm boundaries && pnpm docs:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "clean": "turbo run clean && rm -rf .turbo coverage",
     "dev": "turbo run dev",
