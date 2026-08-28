@@ -6,10 +6,11 @@ changes and explicit boundaries matter more than feature count.
 ## Before changing code
 
 1. Read the [product constitution](docs/product/constitution.md).
-2. Review the [architecture decisions](docs/architecture/README.md) that affect your change.
-3. Read the [threat model](docs/security/threat-model.md) for any identity, telemetry, storage,
+2. Read and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+3. Review the [architecture decisions](docs/architecture/README.md) that affect your change.
+4. Read the [threat model](docs/security/threat-model.md) for any identity, telemetry, storage,
    integration, evaluation, or release-control work.
-4. Open an issue before a broad change when the desired behavior or ownership boundary is unclear.
+5. Open an issue before a broad change when the desired behavior or ownership boundary is unclear.
 
 Security vulnerabilities must follow [SECURITY.md](SECURITY.md), not the public issue tracker.
 
