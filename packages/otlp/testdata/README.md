@@ -7,3 +7,6 @@ must document its generator and purpose beside the file.
 
 `trace-v1.11.json` is the upstream trace example with formatting normalized only. It is a wire
 compatibility input, not a ProofStack-owned semantic example.
+
+Exact source hashes, descriptor scope, and the mandatory future-version review process are recorded
+in the [schema provenance document](../SCHEMA.md).

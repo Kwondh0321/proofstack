@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { OtlpDecodeError } from "./errors.js";
@@ -32,6 +33,9 @@ const validSpan = {
 
 describe("OTLP/JSON decoder", () => {
   it("decodes the pinned upstream trace fixture and applies Protobuf defaults", () => {
+    expect(createHash("sha256").update(upstreamTrace).digest("hex")).toBe(
+      "85c18cb46f97e8abcc5e378d062efaaf22c0e5a1583903fecf21ebd290453d4a",
+    );
     const decoded = decodeOtlpJson(upstreamTrace);
     const resource = decoded.resourceSpans[0];
     const scope = resource?.scopeSpans[0];
