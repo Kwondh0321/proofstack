@@ -27,3 +27,4 @@ invalidate an ADR present in this directory.
 - [ADR-0002: Use an OTLP-compatible canonical telemetry contract](0002-canonical-telemetry-contract.md)
 - [ADR-0003: Separate system-of-record data from analytical projections](0003-persistence-and-projections.md)
 - [ADR-0004: Make identity, tenancy, and data classification explicit](0004-identity-tenancy-and-sensitive-data.md)
+- [ADR-0005: Enforce tenant-scoped PostgreSQL transactions](0005-postgresql-tenancy-and-migrations.md)
