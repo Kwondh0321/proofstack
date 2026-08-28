@@ -24,3 +24,4 @@ The index is maintained in numeric order. Its absence from this list does not
 invalidate an ADR present in this directory.
 
 - [ADR-0001: Begin as a modular monorepo with logical planes](0001-modular-monorepo.md)
+- [ADR-0002: Use an OTLP-compatible canonical telemetry contract](0002-canonical-telemetry-contract.md)
