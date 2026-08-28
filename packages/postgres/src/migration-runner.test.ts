@@ -89,6 +89,7 @@ describe("migration inspection", () => {
         "0002_outbox_delivery",
         "0003_leased_consumer_receipts",
         "0004_workload_identity",
+        "0005_oidc_browser_identity",
       ],
     });
   });

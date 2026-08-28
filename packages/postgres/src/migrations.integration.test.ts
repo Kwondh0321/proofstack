@@ -118,6 +118,7 @@ describe("PostgreSQL evidence schema", () => {
       "0002_outbox_delivery",
       "0003_leased_consumer_receipts",
       "0004_workload_identity",
+      "0005_oidc_browser_identity",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
