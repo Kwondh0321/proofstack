@@ -27,7 +27,7 @@ evidence only by a classified, hash-addressed descriptor.
 ```text
 Agent process (untrusted workload)
         |
-        | versioned, bounded evidence over authenticated transport
+        | versioned, bounded evidence or OTLP traces over authenticated transport
         v
 Ingress API (validation + server-owned principal context)
         |
@@ -43,7 +43,8 @@ System of record (trusted persistence boundary)
 ```
 
 The SDK runs inside an application that may be buggy or compromised. Event identifiers, tenant
-claims, attributes, timestamps, and content references supplied by an SDK are therefore untrusted.
+claims, OTLP resources, attributes, timestamps, and content references supplied by an SDK or
+collector are therefore untrusted.
 Only authenticated server context may establish tenant ownership.
 
 Evidence displayed in the console is data, never executable instructions. Future agent-assisted
@@ -56,6 +57,8 @@ tools, change policy, or approve a release.
 | --- | --- | --- |
 | Cross-tenant reads or writes | Tenant comes from `PrincipalContext`; core use cases authorize scope | Database row-level tests and adversarial integration suite |
 | Forged or malformed evidence | Strict, bounded schemas at ingress | Signed ingestion option and schema compatibility policy |
+| OTLP tenant or scope spoofing | Tenant comes only from the authenticated principal; required project/environment headers are authorized by the core | Collector credential isolation and cross-tenant adversarial deployment tests |
+| Compressed or structural telemetry bomb | Independent compressed/decompressed body stops plus group, span, attribute, event, link, value, and rate limits | Fuzzing, distributed quotas, backpressure, and measured capacity alerts |
 | Replay and duplicate delivery | Event-level idempotency with conflict detection | Durable unique constraints and transactional batch semantics |
 | Credential or sensitive-content capture | Metadata-first contract and classified content references | Configurable redaction, encryption, retention, and deletion workflows |
 | Artifact substitution or ciphertext tampering | Tenant-aware authenticated metadata and independent ciphertext/plaintext verification | External key provider and provider-specific compatibility rehearsal |
@@ -77,16 +80,17 @@ tools, change policy, or approve a release.
 
 1. Client payloads never select their own tenant.
 2. Authentication is completed before protected use cases execute.
-3. Authorization is enforced in the framework-independent core, not only in HTTP handlers.
-4. Unknown fields are rejected at contract boundaries unless a namespaced extension explicitly
-   permits them.
-5. Reusing an event identifier with different content is a conflict, not a successful duplicate.
-6. Content references do not authorize content retrieval.
-7. Derived projections can be discarded and rebuilt; they cannot silently replace the system of
+3. OTLP resource attributes and routing headers cannot establish tenant ownership.
+4. Authorization is enforced in the framework-independent core, not only in HTTP handlers.
+5. Unknown fields are rejected at domain contract boundaries unless a namespaced extension
+   explicitly permits them.
+6. Reusing an event identifier with different content is a conflict, not a successful duplicate.
+7. Content references do not authorize content retrieval.
+8. Derived projections can be discarded and rebuilt; they cannot silently replace the system of
    record.
-8. Development authentication cannot be enabled by a production configuration.
-9. Unexpected failures do not expose stack traces or stored evidence through the API.
-10. No automated evaluation or model output can approve its own production release.
+9. Development authentication cannot be enabled by a production configuration.
+10. Unexpected failures do not expose stack traces or stored evidence through the API.
+11. No automated evaluation or model output can approve its own production release.
 
 ## Current limitations
 
@@ -102,6 +106,9 @@ tools, change policy, or approve a release.
 - Coordinated database/object/key backup and restore, production key rotation or rewrap, and
   disaster-recovery deletion guarantees are not yet proven.
 - Rate limiting is local to one API process and is not a distributed quota.
+- The implemented OTLP profile is trace-only HTTP JSON/Protobuf at version 1.11. It does not yet
+  include gRPC, other signals, generic secret detection, raw-input quarantine, distributed loss
+  metrics, or a production collector compatibility matrix.
 - There is no tamper-evident audit ledger, signed evidence, or production release gate.
 
 These limitations are visible product state. They must not be hidden behind configuration defaults

@@ -238,6 +238,15 @@ The example sends an `agent.run` event and its child `tool.execute` event, waits
 prints the generated trace ID and console URL. It uses fail-closed delivery so an unavailable API
 cannot produce a false successful demonstration.
 
+### Verify OTLP/HTTP ingestion
+
+The API also accepts OTLP 1.11 trace requests at `POST /v1/traces`. The default loopback
+development profile needs the project and environment headers but no credential. A production
+authentication mode additionally requires a workload API key with `evidence:ingest` and access to
+the requested scope. Follow the exact curl request, exporter variables, mapping, partial-success,
+redaction, and retry guidance in the
+[OTLP/HTTP ingestion operations guide](../operations/otlp-http-ingestion.md).
+
 ## Configuration reference
 
 | Variable | Default | Owner | Purpose |
@@ -258,6 +267,8 @@ cannot produce a false successful demonstration.
 | `PROOFSTACK_OIDC_REDIRECT_URI` | unset | API | Exact registered HTTPS callback without query or fragment |
 | `PROOFSTACK_OIDC_SCOPES` | `openid profile email` | API | Unique printable scopes including `openid` |
 | `PROOFSTACK_OIDC_TRANSACTION_SECRET` | unset | API | Canonical base64url encoding of a dedicated random 32-byte key |
+| `PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES` | `1048576` | API | Maximum OTLP HTTP body bytes before decompression; hard maximum 64 MiB |
+| `PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES` | `1048576` | API | Maximum OTLP body bytes after gzip expansion; hard maximum 64 MiB |
 | `PROOFSTACK_OIDC_BINDING_ID` | unset | identity CLI | Opaque binding identifier for create, update, or disable |
 | `PROOFSTACK_OIDC_SUBJECT` | unset | identity CLI | Exact provider subject used only during binding create |
 | `PROOFSTACK_OIDC_PRINCIPAL_ID` | unset | identity CLI | Stable ProofStack user principal used during binding create |
