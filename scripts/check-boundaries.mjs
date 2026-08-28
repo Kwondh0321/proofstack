@@ -66,7 +66,13 @@ const modules = [
     packageName: "@proofstack/artifact-maintenance",
   },
   {
-    allowed: new Set(["@proofstack/artifacts", "@proofstack/contracts", "@proofstack/postgres"]),
+    allowed: new Set([
+      "@proofstack/artifacts",
+      "@proofstack/contracts",
+      "@proofstack/postgres",
+      "@proofstack/recovery",
+      "@proofstack/s3",
+    ]),
     directory: "services/recovery/src",
     packageName: "@proofstack/recovery-operations",
   },

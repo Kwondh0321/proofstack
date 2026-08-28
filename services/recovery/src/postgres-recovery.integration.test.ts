@@ -1,9 +1,21 @@
-import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
-import type { ArtifactCatalogEntry } from "@proofstack/artifacts";
-import type { EvidenceEnvelope, EvidenceScope } from "@proofstack/contracts";
+import { CreateBucketCommand, DeleteBucketCommand } from "@aws-sdk/client-s3";
+import {
+  ArtifactCipher,
+  ArtifactNotFoundError,
+  ArtifactUnavailableError,
+  LocalArtifactKeyring,
+  PurgeArtifact,
+  ReadArtifact,
+  ReserveArtifact,
+  SecureArtifactIdentityGenerator,
+  TombstoneArtifact,
+  UploadArtifact,
+} from "@proofstack/artifacts";
+import type { EvidenceEnvelope, EvidenceScope, PrincipalContext } from "@proofstack/contracts";
 import {
   assertMigrationsCurrent,
   bootstrapApiKey,
@@ -20,6 +32,8 @@ import {
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
+import { encodeRecoveryObjectInventory, verifyRecoverySet } from "@proofstack/recovery";
+import { createS3ArtifactObjectStore, createS3Client } from "@proofstack/s3";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NativePostgresCommandRunner, type PostgresCommand } from "./postgres-command.js";
@@ -38,6 +52,10 @@ function requiredTestEnvironment(name: string): string {
 
 const databaseUrl = requiredTestEnvironment("PROOFSTACK_TEST_DATABASE_URL");
 const postgresToolImage = requiredTestEnvironment("PROOFSTACK_TEST_POSTGRES_TOOL_IMAGE");
+const s3AccessKeyId = requiredTestEnvironment("PROOFSTACK_TEST_S3_ACCESS_KEY_ID");
+const s3Endpoint = requiredTestEnvironment("PROOFSTACK_TEST_S3_ENDPOINT");
+const s3Region = requiredTestEnvironment("PROOFSTACK_TEST_S3_REGION");
+const s3SecretAccessKey = requiredTestEnvironment("PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY");
 
 const EXPECTED_TABLES = [
   "proofstack_api_key_credentials",
@@ -57,16 +75,52 @@ const EXPECTED_TABLES = [
 
 const runKey = `${Date.now().toString(36)}_${process.pid}`;
 const restoredDatabaseName = `proofstack_restore_${runKey}`;
+const bucketSuffix = randomUUID();
+const recoveryBuckets = {
+  backup: `ps-recovery-backup-${bucketSuffix}`,
+  restored: `ps-recovery-restored-${bucketSuffix}`,
+  source: `ps-recovery-source-${bucketSuffix}`,
+} as const;
 const scope: EvidenceScope = {
   environmentId: "env_recovery",
   projectId: "prj_recovery",
   tenantId: "ten_recovery",
 };
 const traceId = "9bf92f3577b34da6a3ce929d0e0e4736";
+const availableArtifactId = "art_recovery_available";
+const purgedArtifactId = "art_recovery_purged";
+const artifactKeyId = "key_recovery_integration";
+const artifactKeyMaterial = Buffer.alloc(32, 29);
+const availableArtifactContent = Buffer.from(
+  JSON.stringify({ evidence: "coordinated recovery", status: "available" }),
+  "utf8",
+);
+const s3Connection = {
+  allowInsecureLoopback: true,
+  credentials: { accessKeyId: s3AccessKeyId, secretAccessKey: s3SecretAccessKey },
+  endpoint: s3Endpoint,
+  forcePathStyle: true,
+  region: s3Region,
+};
 const sourcePool = new Pool({ connectionString: databaseUrl, max: 4 });
+const bucketClient = createS3Client(s3Connection);
+const sourceObjects = createS3ArtifactObjectStore({
+  ...s3Connection,
+  bucket: recoveryBuckets.source,
+});
+const backupObjects = createS3ArtifactObjectStore({
+  ...s3Connection,
+  bucket: recoveryBuckets.backup,
+});
+const restoredObjects = createS3ArtifactObjectStore({
+  ...s3Connection,
+  bucket: recoveryBuckets.restored,
+});
 const runtimePools: Pool[] = [];
 const temporaryDirectories: string[] = [];
 const managedRoles: string[] = [];
+const createdBuckets = new Set<string>();
+const trackedObjectKeys = new Set<string>();
 let restoredPool: Pool;
 let restoredDatabaseUrl: string;
 
@@ -124,37 +178,115 @@ class DockerPostgresCommandRunner extends NativePostgresCommandRunner {
   }
 }
 
-function artifactEntry(artifactId: string, seed: number): ArtifactCatalogEntry {
+function sha256(value: Uint8Array): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function proofstackRevision(): string {
+  const revision = Reflect.get(process.env, "GITHUB_SHA");
+  return typeof revision === "string" && /^[0-9a-f]{40}$/u.test(revision)
+    ? revision
+    : "0".repeat(40);
+}
+
+function artifactPrincipal(tenantId = scope.tenantId): PrincipalContext {
   return {
-    createdByPrincipalId: "usr_recovery",
-    encryption: {
-      contentNonce: Buffer.alloc(12, seed).toString("base64url"),
-      version: "a256gcm-v1",
-      wrappedDataKey: {
-        algorithm: "A256GCM",
-        ciphertext: Buffer.alloc(32, seed).toString("base64url"),
-        keyId: `key_recovery_${seed}`,
-        nonce: Buffer.alloc(12, seed + 1).toString("base64url"),
-        tag: Buffer.alloc(16, seed + 2).toString("base64url"),
-      },
+    authentication: {
+      authenticatedAt: "2026-08-28T03:00:00.000Z",
+      credentialId: "key_recovery_rehearsal",
+      method: "api_key",
     },
-    metadata: {
-      contentReference: {
+    capabilities: ["artifact:delete", "artifact:read", "artifact:write"],
+    principalId: "wrk_recovery_rehearsal",
+    principalType: "workload",
+    requestId: "req_recovery_rehearsal",
+    resourceScope: {
+      mode: "restricted",
+      projects: [{ environmentIds: [scope.environmentId], projectId: scope.projectId }],
+    },
+    roles: ["admin"],
+    tenantId,
+  };
+}
+
+async function seedRecoverableArtifacts(
+  artifactRepository: PostgresArtifactCatalogRepository,
+): Promise<void> {
+  const cipher = new ArtifactCipher(
+    new LocalArtifactKeyring({
+      activeKeyId: artifactKeyId,
+      keys: { [artifactKeyId]: artifactKeyMaterial },
+    }),
+  );
+  const identities = new SecureArtifactIdentityGenerator();
+  const principal = artifactPrincipal();
+  const reserve = new ReserveArtifact({
+    catalog: artifactRepository,
+    clock: { now: () => new Date("2026-08-28T03:00:00.000Z") },
+    encryption: cipher,
+    identities,
+  });
+  const upload = new UploadArtifact({
+    catalog: artifactRepository,
+    clock: { now: () => new Date("2026-08-28T03:01:00.000Z") },
+    encryption: cipher,
+    objects: sourceObjects,
+  });
+
+  const store = async (artifactId: string, content: Uint8Array): Promise<void> => {
+    await reserve.execute({
+      environmentId: scope.environmentId,
+      principal,
+      projectId: scope.projectId,
+      request: {
         artifactId,
         classification: "confidential",
         mediaType: "application/json",
-        sha256: seed.toString(16).repeat(64),
-        sizeBytes: 18,
+        redaction: { status: "not_required" },
+        retention: { mode: "retain" },
+        sha256: sha256(content),
+        sizeBytes: content.byteLength,
       },
-      createdAt: "2026-08-28T03:00:00.000Z",
-      redaction: { status: "not_required" },
-      retention: { mode: "retain" },
-      schemaVersion: "0.1",
-      scope,
-      state: "reserved",
-    },
-    objectKey: `objects/v1/recovery/${artifactId}`,
+    });
+    await upload.execute({
+      artifactId,
+      content,
+      environmentId: scope.environmentId,
+      principal,
+      projectId: scope.projectId,
+    });
+    const entry = await artifactRepository.find(scope, artifactId);
+    if (!entry) throw new Error(`Recovery artifact ${artifactId} is missing after upload`);
+    trackedObjectKeys.add(entry.objectKey);
   };
+
+  await store(availableArtifactId, availableArtifactContent);
+  await store(
+    purgedArtifactId,
+    Buffer.from(JSON.stringify({ evidence: "must remain deleted", status: "purged" }), "utf8"),
+  );
+  await new TombstoneArtifact({
+    catalog: artifactRepository,
+    clock: { now: () => new Date("2026-08-28T03:02:00.000Z") },
+    identities,
+  }).execute({
+    artifactId: purgedArtifactId,
+    environmentId: scope.environmentId,
+    principal,
+    projectId: scope.projectId,
+    request: { reason: "Recovery rehearsal deletion evidence" },
+  });
+  await new PurgeArtifact({
+    catalog: artifactRepository,
+    clock: { now: () => new Date("2026-08-28T03:03:00.000Z") },
+    identities,
+    objects: sourceObjects,
+  }).execute({
+    artifactId: purgedArtifactId,
+    environmentId: scope.environmentId,
+    principal,
+    projectId: scope.projectId,
+  });
 }
 
 function evidence(eventId: string, spanId: string): EvidenceEnvelope {
@@ -186,30 +318,7 @@ async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
   const artifactRepository = new PostgresArtifactCatalogRepository(sourcePool);
-  const available = artifactEntry("art_recovery_available", 1);
-  await artifactRepository.reserve(available);
-  await artifactRepository.activate(
-    scope,
-    available.metadata.contentReference.artifactId,
-    { sha256: "a".repeat(64), sizeBytes: 38 },
-    "2026-08-28T03:01:00.000Z",
-  );
-  const purged = artifactEntry("art_recovery_purged", 2);
-  await artifactRepository.reserve(purged);
-  await artifactRepository.tombstone(scope, {
-    actorPrincipalId: "usr_recovery",
-    artifactId: purged.metadata.contentReference.artifactId,
-    occurredAt: "2026-08-28T03:02:00.000Z",
-    reason: "Recovery rehearsal lifecycle evidence",
-    tombstoneId: "del_recovery_purged",
-    trigger: "abandoned",
-  });
-  await artifactRepository.recordPurge(scope, {
-    artifactId: purged.metadata.contentReference.artifactId,
-    objectWasPresent: false,
-    occurredAt: "2026-08-28T03:03:00.000Z",
-    purgeId: "purge_recovery_purged",
-  });
+  await seedRecoverableArtifacts(artifactRepository);
 
   await new PostgresEvidenceRepository(sourcePool).append([
     evidence("evt_recovery_original", "80f067aa0ba902b7"),
@@ -330,6 +439,10 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
 }
 
 beforeAll(async () => {
+  for (const bucket of Object.values(recoveryBuckets)) {
+    await bucketClient.send(new CreateBucketCommand({ Bucket: bucket }));
+    createdBuckets.add(bucket);
+  }
   const sourceDatabase = await sourcePool.query<{ current_database: string }>(
     "SELECT current_database()",
   );
@@ -361,13 +474,27 @@ afterAll(async () => {
   );
   await sourcePool.query(`DROP DATABASE IF EXISTS ${quotedIdentifier(restoredDatabaseName)}`);
   await sourcePool.end();
+  for (const objectKey of trackedObjectKeys) {
+    await Promise.all([
+      sourceObjects.delete(objectKey),
+      backupObjects.delete(objectKey),
+      restoredObjects.delete(objectKey),
+    ]);
+  }
+  sourceObjects.destroy();
+  backupObjects.destroy();
+  restoredObjects.destroy();
+  for (const bucket of createdBuckets) {
+    await bucketClient.send(new DeleteBucketCommand({ Bucket: bucket }));
+  }
+  bucketClient.destroy();
   await Promise.all(
     temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })),
   );
 });
 
-describe("PostgreSQL coordinated recovery rehearsal", () => {
-  it("restores every authoritative table into an isolated database and resumes safely", async () => {
+describe("coordinated recovery rehearsal", () => {
+  it("restores database, ciphertext, and key versions into isolated targets", async () => {
     const directory = await mkdtemp(join(tmpdir(), "proofstack-pg-recovery-"));
     temporaryDirectories.push(directory);
     const dumpPath = join(directory, "database.dump");
@@ -378,6 +505,14 @@ describe("PostgreSQL coordinated recovery rehearsal", () => {
     });
     const sourceSnapshot = await authoritativeSnapshot(sourcePool);
     const sourceLedger = await inspectVerifiedMigrationLedger(sourcePool);
+    const sourceCatalog = new PostgresArtifactCatalogRepository(sourcePool);
+    const sourceAvailable = await sourceCatalog.find(scope, availableArtifactId);
+    const sourcePurged = await sourceCatalog.find(scope, purgedArtifactId);
+    expect(sourceAvailable?.metadata.state).toBe("available");
+    expect(sourcePurged?.metadata.state).toBe("purged");
+    if (!sourceAvailable || !sourcePurged) {
+      throw new Error("Recovery artifact catalog fixtures are incomplete");
+    }
 
     const backup = await createPostgresLogicalBackup({
       allowPlaintextLoopback: true,
@@ -388,6 +523,81 @@ describe("PostgreSQL coordinated recovery rehearsal", () => {
       runner,
     });
     expect(backup.sizeBytes).toBe((await stat(dumpPath)).size);
+    const databaseDump = await readFile(dumpPath);
+    const sourceCiphertext = await sourceObjects.get(sourceAvailable.objectKey);
+    if (!sourceCiphertext) throw new Error("Available recovery ciphertext is missing");
+    const inventory = [
+      {
+        ciphertextSha256: sha256(sourceCiphertext),
+        objectKey: sourceAvailable.objectKey,
+        sizeBytes: sourceCiphertext.byteLength,
+      },
+    ];
+    const encodedInventory = encodeRecoveryObjectInventory(inventory);
+    await expect(
+      backupObjects.putIfAbsent(sourceAvailable.objectKey, sourceCiphertext),
+    ).resolves.toMatchObject({
+      created: true,
+      receipt: {
+        sha256: inventory[0]?.ciphertextSha256,
+        sizeBytes: inventory[0]?.sizeBytes,
+      },
+    });
+    await expect(sourceObjects.get(sourcePurged.objectKey)).resolves.toBeNull();
+    await expect(backupObjects.get(sourcePurged.objectKey)).resolves.toBeNull();
+
+    const keySnapshot = {
+      [artifactKeyId]: Uint8Array.from(artifactKeyMaterial),
+    };
+    const configuration = Buffer.from(
+      `${JSON.stringify({
+        artifactEncryption: "a256gcm-v1",
+        databaseEngine: backup.engineVersion,
+        objectProvider: "s3-compatible",
+        revision: proofstackRevision(),
+      })}\n`,
+      "utf8",
+    );
+    const bucketPolicy = Buffer.from(
+      '{"restoreTarget":"empty","serverSidePlaintext":"forbidden"}\n',
+      "utf8",
+    );
+    const manifest = {
+      capture: {
+        completedAt: "2026-08-28T03:14:00.000Z",
+        databaseCapturedAt: "2026-08-28T03:11:00.000Z",
+        fencedAt: "2026-08-28T03:10:00.000Z",
+        keySnapshotCapturedAt: "2026-08-28T03:13:00.000Z",
+        objectSnapshotCapturedAt: "2026-08-28T03:12:00.000Z",
+      },
+      configurationSha256: sha256(configuration),
+      database: {
+        dumpFormat: "postgresql-custom",
+        engineVersion: backup.engineVersion,
+        migrationLedger: sourceLedger,
+        reference: "file:database.dump",
+        sha256: backup.sha256,
+        sizeBytes: backup.sizeBytes,
+      },
+      deploymentId: "dep_recovery_rehearsal",
+      keyProvider: {
+        provider: "test-keyring",
+        reference: "provider:test-key-snapshot",
+        referencedKeyIds: [artifactKeyId],
+      },
+      objectSnapshot: {
+        bucketPolicySha256: sha256(bucketPolicy),
+        inventoryReference: "file:objects.ndjson",
+        inventorySha256: encodedInventory.summary.inventorySha256,
+        objectCount: encodedInventory.summary.objectCount,
+        provider: "s3-compatible",
+        reference: `s3:${recoveryBuckets.backup}`,
+        totalCiphertextBytes: encodedInventory.summary.totalCiphertextBytes,
+      },
+      proofstackRevision: proofstackRevision(),
+      recoverySetId: "rec_foundation_two_rehearsal",
+      schemaVersion: "0.1",
+    };
     await expect(
       restorePostgresLogicalBackup({
         allowPlaintextLoopback: true,
@@ -399,9 +609,49 @@ describe("PostgreSQL coordinated recovery rehearsal", () => {
       }),
     ).resolves.toEqual(backup);
 
+    await expect(restoredObjects.get(sourceAvailable.objectKey)).resolves.toBeNull();
+    for (const entry of inventory) {
+      const ciphertext = await backupObjects.get(entry.objectKey);
+      if (!ciphertext) throw new Error(`Backup object ${entry.objectKey} is missing`);
+      expect({ sha256: sha256(ciphertext), sizeBytes: ciphertext.byteLength }).toEqual({
+        sha256: entry.ciphertextSha256,
+        sizeBytes: entry.sizeBytes,
+      });
+      await expect(restoredObjects.putIfAbsent(entry.objectKey, ciphertext)).resolves.toMatchObject(
+        {
+          created: true,
+          receipt: { sha256: entry.ciphertextSha256, sizeBytes: entry.sizeBytes },
+        },
+      );
+    }
+    await expect(restoredObjects.get(sourcePurged.objectKey)).resolves.toBeNull();
+
     await expect(assertMigrationsCurrent(restoredPool)).resolves.toBeUndefined();
-    await expect(inspectVerifiedMigrationLedger(restoredPool)).resolves.toEqual(sourceLedger);
+    const restoredLedger = await inspectVerifiedMigrationLedger(restoredPool);
+    expect(restoredLedger).toEqual(sourceLedger);
     await expect(authoritativeSnapshot(restoredPool)).resolves.toEqual(sourceSnapshot);
+    const restoredCatalog = new PostgresArtifactCatalogRepository(restoredPool);
+    const restoredKeyIds = (await restoredCatalog.listKeyReferences(scope)).map(
+      ({ keyId }) => keyId,
+    );
+    expect(
+      verifyRecoverySet({
+        configuration,
+        databaseDump,
+        databaseEngineVersion: backup.engineVersion,
+        inventory,
+        manifest,
+        migrationLedger: restoredLedger,
+        referencedKeyIds: restoredKeyIds,
+      }),
+    ).toEqual({
+      databaseBytes: databaseDump.byteLength,
+      keyCount: 1,
+      migrationCount: sourceLedger.length,
+      objectCount: 1,
+      recoverySetId: "rec_foundation_two_rehearsal",
+      totalCiphertextBytes: sourceCiphertext.byteLength,
+    });
 
     const migrations = await loadBundledMigrations();
     await expect(
@@ -415,6 +665,50 @@ describe("PostgreSQL coordinated recovery rehearsal", () => {
     runtimeUrl.password = roles.api.password;
     const runtimePool = new Pool({ connectionString: runtimeUrl.toString(), max: 2 });
     runtimePools.push(runtimePool);
+    const artifactUrl = new URL(restoredDatabaseUrl);
+    artifactUrl.username = roles.artifact.name;
+    artifactUrl.password = roles.artifact.password;
+    const artifactPool = new Pool({ connectionString: artifactUrl.toString(), max: 2 });
+    runtimePools.push(artifactPool);
+    const restoredArtifactCatalog = new PostgresArtifactCatalogRepository(artifactPool);
+    const restoredArtifactReader = new ReadArtifact({
+      catalog: restoredArtifactCatalog,
+      encryption: new ArtifactCipher(
+        new LocalArtifactKeyring({
+          activeKeyId: artifactKeyId,
+          keys: keySnapshot,
+        }),
+      ),
+      objects: restoredObjects,
+    });
+    await expect(
+      restoredArtifactReader.execute({
+        artifactId: availableArtifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      }),
+    ).resolves.toMatchObject({ content: availableArtifactContent });
+    await expect(
+      restoredArtifactReader.execute({
+        artifactId: availableArtifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal("ten_recovery_other"),
+        projectId: scope.projectId,
+      }),
+    ).rejects.toBeInstanceOf(ArtifactNotFoundError);
+    await expect(
+      restoredArtifactReader.execute({
+        artifactId: purgedArtifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      }),
+    ).rejects.toBeInstanceOf(ArtifactUnavailableError);
+    await expect(
+      artifactPool.query("SELECT count(*)::integer AS count FROM proofstack_artifact_catalog"),
+    ).resolves.toMatchObject({ rows: [{ count: 0 }] });
+
     const evidenceRepository = new PostgresEvidenceRepository(runtimePool);
     await expect(
       evidenceRepository.listByTrace(scope, traceId, { limit: 10 }),
