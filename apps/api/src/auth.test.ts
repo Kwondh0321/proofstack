@@ -10,6 +10,14 @@ import {
 } from "./auth.js";
 import { loadConfig } from "./config.js";
 
+const OIDC_ENV = {
+  PROOFSTACK_OIDC_CLIENT_ID: "proofstack-console",
+  PROOFSTACK_OIDC_CLIENT_SECRET: "provider-client-secret",
+  PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
+  PROOFSTACK_OIDC_REDIRECT_URI: "https://proofstack.example.test/v1/auth/oidc/callback",
+  PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
+} as const;
+
 const principal = PrincipalContextSchema.parse({
   authentication: {
     authenticatedAt: "2026-08-28T08:00:00.000Z",
@@ -109,6 +117,7 @@ describe("createAuthenticator", () => {
     expect(() => createAuthenticator(apiKeyConfig)).toThrow("storage is unavailable");
 
     const oidcConfig = loadConfig({
+      ...OIDC_ENV,
       PROOFSTACK_AUTH_MODE: "oidc",
       PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
     });
@@ -130,6 +139,7 @@ describe("createAuthenticator", () => {
     expect(authenticator).toBeInstanceOf(ApiKeyRequestAuthenticator);
 
     const combinedConfig = loadConfig({
+      ...OIDC_ENV,
       PROOFSTACK_AUTH_MODE: "combined",
       PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
     });

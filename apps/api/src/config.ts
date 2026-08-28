@@ -16,6 +16,23 @@ const StorageConfigSchema = z.discriminatedUnion("mode", [
     .strict(),
 ]);
 
+const OidcConfigSchema = z
+  .object({
+    clientId: z.string().min(1).max(512),
+    clientSecret: z.string().min(1).max(4_096),
+    issuer: z.string().url().startsWith("https://").max(2_048),
+    redirectUri: z.string().url().startsWith("https://").max(2_048),
+    scopes: z.array(z.string().min(1).max(128)).min(1).max(20),
+    transactionSecret: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{43}$/)
+      .refine((value) => {
+        const decoded = Buffer.from(value, "base64url");
+        return decoded.length === 32 && decoded.toString("base64url") === value;
+      }, "OIDC transaction secret must be canonical base64url for exactly 32 bytes"),
+  })
+  .strict();
+
 const ApiConfigSchema = z
   .object({
     authMode: z.enum(["development", "api_key", "oidc", "combined"]),
@@ -24,6 +41,7 @@ const ApiConfigSchema = z
     host: z.string().min(1),
     identityDatabaseUrl: z.string().min(1).optional(),
     logLevel: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]),
+    oidc: OidcConfigSchema.optional(),
     port: z.number().int().min(1).max(65_535),
     storage: StorageConfigSchema,
   })
@@ -61,6 +79,22 @@ const ApiConfigSchema = z
         code: "custom",
         message: "Production authentication modes require PROOFSTACK_IDENTITY_DATABASE_URL",
         path: ["identityDatabaseUrl"],
+      });
+    }
+
+    const usesOidc = value.authMode === "oidc" || value.authMode === "combined";
+    if (usesOidc && !value.oidc) {
+      context.addIssue({
+        code: "custom",
+        message: "OIDC authentication requires complete PROOFSTACK_OIDC_* configuration",
+        path: ["oidc"],
+      });
+    }
+    if (!usesOidc && value.oidc) {
+      context.addIssue({
+        code: "custom",
+        message: "OIDC configuration is only valid for oidc or combined authentication modes",
+        path: ["oidc"],
       });
     }
 
@@ -125,11 +159,25 @@ interface ProofStackEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_HOST?: string;
   readonly PROOFSTACK_IDENTITY_DATABASE_URL?: string;
   readonly PROOFSTACK_LOG_LEVEL?: string;
+  readonly PROOFSTACK_OIDC_CLIENT_ID?: string;
+  readonly PROOFSTACK_OIDC_CLIENT_SECRET?: string;
+  readonly PROOFSTACK_OIDC_ISSUER?: string;
+  readonly PROOFSTACK_OIDC_REDIRECT_URI?: string;
+  readonly PROOFSTACK_OIDC_SCOPES?: string;
+  readonly PROOFSTACK_OIDC_TRANSACTION_SECRET?: string;
   readonly PROOFSTACK_PORT?: string;
   readonly PROOFSTACK_STORAGE_MODE?: string;
 }
 
 export function loadConfig(environment: ProofStackEnvironment = process.env): ApiConfig {
+  const oidcConfigured = [
+    environment.PROOFSTACK_OIDC_CLIENT_ID,
+    environment.PROOFSTACK_OIDC_CLIENT_SECRET,
+    environment.PROOFSTACK_OIDC_ISSUER,
+    environment.PROOFSTACK_OIDC_REDIRECT_URI,
+    environment.PROOFSTACK_OIDC_SCOPES,
+    environment.PROOFSTACK_OIDC_TRANSACTION_SECRET,
+  ].some((value) => value !== undefined);
   return ApiConfigSchema.parse({
     authMode: environment.PROOFSTACK_AUTH_MODE ?? "development",
     corsOrigin: environment.PROOFSTACK_CORS_ORIGIN || undefined,
@@ -137,6 +185,18 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
     host: environment.PROOFSTACK_HOST ?? "127.0.0.1",
     identityDatabaseUrl: environment.PROOFSTACK_IDENTITY_DATABASE_URL || undefined,
     logLevel: environment.PROOFSTACK_LOG_LEVEL ?? "info",
+    oidc: oidcConfigured
+      ? {
+          clientId: environment.PROOFSTACK_OIDC_CLIENT_ID,
+          clientSecret: environment.PROOFSTACK_OIDC_CLIENT_SECRET,
+          issuer: environment.PROOFSTACK_OIDC_ISSUER,
+          redirectUri: environment.PROOFSTACK_OIDC_REDIRECT_URI,
+          scopes: (environment.PROOFSTACK_OIDC_SCOPES ?? "openid profile email")
+            .trim()
+            .split(/\s+/),
+          transactionSecret: environment.PROOFSTACK_OIDC_TRANSACTION_SECRET,
+        }
+      : undefined,
     port: Number(environment.PROOFSTACK_PORT ?? "4318"),
     storage:
       environment.PROOFSTACK_STORAGE_MODE === "postgres"

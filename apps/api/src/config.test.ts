@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "./config.js";
 
+const OIDC_ENV = {
+  PROOFSTACK_OIDC_CLIENT_ID: "proofstack-console",
+  PROOFSTACK_OIDC_CLIENT_SECRET: "provider-client-secret",
+  PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
+  PROOFSTACK_OIDC_REDIRECT_URI: "https://proofstack.example.test/v1/auth/oidc/callback",
+  PROOFSTACK_OIDC_SCOPES: "openid profile email",
+  PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
+} as const;
+
 describe("loadConfig", () => {
   it("loads safe development defaults", () => {
     expect(loadConfig({})).toMatchObject({
@@ -27,6 +36,7 @@ describe("loadConfig", () => {
   it("allows a non-loopback listener only with a production authenticator", () => {
     expect(
       loadConfig({
+        ...OIDC_ENV,
         PROOFSTACK_AUTH_MODE: "oidc",
         PROOFSTACK_DATABASE_URL:
           "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
@@ -73,6 +83,7 @@ describe("loadConfig", () => {
   it("forbids process-local storage in production", () => {
     expect(() =>
       loadConfig({
+        ...OIDC_ENV,
         PROOFSTACK_AUTH_MODE: "oidc",
         PROOFSTACK_ENV: "production",
         PROOFSTACK_IDENTITY_DATABASE_URL:
@@ -84,6 +95,7 @@ describe("loadConfig", () => {
   it("accepts verified PostgreSQL storage in production", () => {
     expect(
       loadConfig({
+        ...OIDC_ENV,
         PROOFSTACK_AUTH_MODE: "oidc",
         PROOFSTACK_DATABASE_URL:
           "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
@@ -127,6 +139,7 @@ describe("loadConfig", () => {
   it("loads combined mode only with an isolated durable identity connection", () => {
     expect(
       loadConfig({
+        ...OIDC_ENV,
         PROOFSTACK_AUTH_MODE: "combined",
         PROOFSTACK_DATABASE_URL: "postgresql://api@127.0.0.1:5432/proofstack",
         PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
@@ -135,6 +148,39 @@ describe("loadConfig", () => {
     ).toMatchObject({
       authMode: "combined",
       identityDatabaseUrl: "postgresql://identity@127.0.0.1:5432/proofstack",
+      oidc: {
+        clientId: "proofstack-console",
+        scopes: ["openid", "profile", "email"],
+      },
     });
+  });
+
+  it("requires complete OIDC settings and a canonical 32-byte transaction secret", () => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_AUTH_MODE: "oidc",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
+      }),
+    ).toThrow("complete PROOFSTACK_OIDC_*");
+
+    expect(() =>
+      loadConfig({
+        ...OIDC_ENV,
+        PROOFSTACK_AUTH_MODE: "oidc",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
+        PROOFSTACK_OIDC_TRANSACTION_SECRET: "not-a-secret",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unused or partial OIDC configuration", () => {
+    expect(() => loadConfig({ ...OIDC_ENV })).toThrow("only valid for oidc or combined");
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_AUTH_MODE: "oidc",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
+        PROOFSTACK_OIDC_CLIENT_ID: "proofstack-console",
+      }),
+    ).toThrow();
   });
 });

@@ -134,6 +134,11 @@ describe("health routes", () => {
       PROOFSTACK_IDENTITY_DATABASE_URL:
         "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
       PROOFSTACK_LOG_LEVEL: "silent",
+      PROOFSTACK_OIDC_CLIENT_ID: "proofstack-console",
+      PROOFSTACK_OIDC_CLIENT_SECRET: "provider-client-secret",
+      PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
+      PROOFSTACK_OIDC_REDIRECT_URI: "https://proofstack.example.test/v1/auth/oidc/callback",
+      PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
       PROOFSTACK_STORAGE_MODE: "postgres",
     });
 
