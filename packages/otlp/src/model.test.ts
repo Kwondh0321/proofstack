@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_ACCEPTED_OTLP_SPANS,
   MAX_OTLP_ANY_VALUE_DEPTH,
+  MAX_OTLP_NORMALIZED_VALUE_NODES,
   MAX_OTLP_RESOURCE_SPANS,
   MAX_OTLP_SPANS_PER_REQUEST,
   OTLP_PROTO_VERSION,
@@ -18,6 +19,7 @@ describe("OTLP compatibility model", () => {
   it("keeps structural limits finite and wider than one valid request", () => {
     expect(MAX_OTLP_RESOURCE_SPANS).toBeGreaterThan(0);
     expect(MAX_OTLP_ANY_VALUE_DEPTH).toBeGreaterThan(0);
+    expect(MAX_OTLP_NORMALIZED_VALUE_NODES).toBeGreaterThan(MAX_ACCEPTED_OTLP_SPANS);
     expect(MAX_OTLP_SPANS_PER_REQUEST).toBeGreaterThan(MAX_ACCEPTED_OTLP_SPANS);
   });
 

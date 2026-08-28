@@ -12,6 +12,7 @@ export const MAX_OTLP_LINK_ATTRIBUTES = 64;
 export const MAX_OTLP_LINKS = 128;
 export const MAX_OTLP_ANY_VALUE_DEPTH = 10;
 export const MAX_OTLP_ANY_VALUE_ITEMS = 128;
+export const MAX_OTLP_NORMALIZED_VALUE_NODES = 16_384;
 export const MAX_OTLP_STRING_BYTES = 64 * 1_024;
 export const MAX_OTLP_BYTES_VALUE_BYTES = 64 * 1_024;
 export const MAX_OTLP_REDACTED_FIELDS = 128;

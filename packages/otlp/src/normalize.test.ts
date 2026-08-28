@@ -12,6 +12,7 @@ import {
   MAX_OTLP_EVENTS,
   MAX_OTLP_LINK_ATTRIBUTES,
   MAX_OTLP_LINKS,
+  MAX_OTLP_NORMALIZED_VALUE_NODES,
   MAX_OTLP_REDACTED_FIELDS,
   MAX_OTLP_RESOURCE_SPANS,
   MAX_OTLP_SCOPE_SPANS,
@@ -450,6 +451,27 @@ describe("OTLP trace normalization", () => {
       );
       expect(result.errorMessage).toContain("Rejected spans:");
     }
+  });
+
+  it("enforces one accumulated normalized value-node budget per request", () => {
+    const values = Array.from({ length: MAX_OTLP_ANY_VALUE_ITEMS }, () => ({ boolValue: true }));
+    const attributesPerSpan = Math.ceil(
+      MAX_OTLP_NORMALIZED_VALUE_NODES / (MAX_OTLP_ANY_VALUE_ITEMS + 1) / 2,
+    );
+    const attributes = Array.from({ length: attributesPerSpan }, (_, index) => ({
+      key: `nested-${index}`,
+      value: { arrayValue: { values } },
+    }));
+    const result = normalizeOtlpTraceRequest(
+      request([span(1, { attributes }), span(2, { attributes })]),
+    );
+
+    expect(result).toMatchObject({
+      acceptedSpans: 1,
+      rejectedSpans: 1,
+      rejectionCounts: [{ count: 1, reason: "value_limit" }],
+      totalSpans: 2,
+    });
   });
 
   it("uses bounded source defaults when resource and scope metadata are absent or empty", () => {

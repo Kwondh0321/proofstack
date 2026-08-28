@@ -140,7 +140,8 @@ Transport limits are configured in bytes:
 The gzip decoder stops when the decompressed limit is crossed; it does not inflate the complete
 body first. Additional fixed limits bound resource and scope groups, total wire spans, accepted
 canonical spans, attributes, events, links, arbitrary-value depth and width, strings, bytes, and
-redaction provenance. At most 100 valid spans are atomically persisted from one request.
+redaction provenance. One request may normalize at most 16,384 OTLP `AnyValue` nodes across all
+accepted candidates. At most 100 valid spans are atomically persisted from one request.
 
 The current workload rate limit is 120 requests per minute per authenticated tenant/principal in
 one API process. It is a local safety bound, not a distributed tenant quota or a production

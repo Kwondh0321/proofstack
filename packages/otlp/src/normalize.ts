@@ -20,6 +20,7 @@ import {
   MAX_OTLP_EVENTS,
   MAX_OTLP_LINK_ATTRIBUTES,
   MAX_OTLP_LINKS,
+  MAX_OTLP_NORMALIZED_VALUE_NODES,
   MAX_OTLP_REDACTED_FIELDS,
   MAX_OTLP_RESOURCE_SPANS,
   MAX_OTLP_SCOPE_SPANS,
@@ -126,6 +127,10 @@ interface AttributeContext {
   readonly redactedFields: readonly string[];
 }
 
+interface ValueNodeBudget {
+  remaining: number;
+}
+
 function reject(reason: OtlpSpanRejectionReason): never {
   throw new SpanNormalizationError(reason);
 }
@@ -163,7 +168,13 @@ function normalizedInteger(value: number | string): number | string {
     : parsed.toString();
 }
 
-function normalizeAnyValue(value: OtlpAnyValue | undefined, depth = 0): JsonValue {
+function normalizeAnyValue(
+  value: OtlpAnyValue | undefined,
+  budget: ValueNodeBudget,
+  depth = 0,
+): JsonValue {
+  budget.remaining -= 1;
+  if (budget.remaining < 0) reject("value_limit");
   if (!value) return null;
   if (depth > MAX_OTLP_ANY_VALUE_DEPTH) reject("value_limit");
   const members = [
@@ -196,7 +207,7 @@ function normalizeAnyValue(value: OtlpAnyValue | undefined, depth = 0): JsonValu
   }
   if (value.arrayValue) {
     if (value.arrayValue.values.length > MAX_OTLP_ANY_VALUE_ITEMS) reject("value_limit");
-    return value.arrayValue.values.map((item) => normalizeAnyValue(item, depth + 1));
+    return value.arrayValue.values.map((item) => normalizeAnyValue(item, budget, depth + 1));
   }
   const kvlistValue = value.kvlistValue as NonNullable<OtlpAnyValue["kvlistValue"]>;
   if (kvlistValue.values.length > MAX_OTLP_ANY_VALUE_ITEMS) reject("value_limit");
@@ -204,7 +215,7 @@ function normalizeAnyValue(value: OtlpAnyValue | undefined, depth = 0): JsonValu
   for (const entry of kvlistValue.values) {
     const key = boundedString(entry.key, 128, "value_limit", false);
     if (Object.hasOwn(normalized, key)) reject("value_limit");
-    normalized[key] = normalizeAnyValue(entry.value, depth + 1);
+    normalized[key] = normalizeAnyValue(entry.value, budget, depth + 1);
   }
   return normalized;
 }
@@ -214,6 +225,7 @@ function normalizeKeyValues(
   path: string,
   maximum: number,
   inheritedRedactions: readonly string[],
+  budget: ValueNodeBudget,
 ): AttributeContext {
   if (values.length > maximum)
     reject(maximum === MAX_OTLP_ATTRIBUTES ? "attribute_limit" : "value_limit");
@@ -228,7 +240,7 @@ function normalizeKeyValues(
       if (redactedFields.length > MAX_OTLP_REDACTED_FIELDS) reject("redaction_limit");
       continue;
     }
-    attributes[key] = normalizeAnyValue(entry.value);
+    attributes[key] = normalizeAnyValue(entry.value, budget);
   }
 
   return { attributes, redactedFields };
@@ -355,6 +367,7 @@ function evidenceStatus(span: OtlpSpan): EvidenceStatus {
 function normalizeEvents(
   span: OtlpSpan,
   inheritedRedactions: readonly string[],
+  budget: ValueNodeBudget,
 ): { readonly items: readonly JsonObject[]; readonly redactedFields: readonly string[] } {
   if (span.events.length > MAX_OTLP_EVENTS) reject("event_limit");
   let redactedFields = [...inheritedRedactions];
@@ -364,6 +377,7 @@ function normalizeEvents(
       `events.${index}.attributes`,
       MAX_OTLP_EVENT_ATTRIBUTES,
       redactedFields,
+      budget,
     );
     redactedFields = [...normalized.redactedFields];
     return {
@@ -380,6 +394,7 @@ function normalizeEvents(
 function normalizeLinks(
   span: OtlpSpan,
   inheritedRedactions: readonly string[],
+  budget: ValueNodeBudget,
 ): { readonly items: readonly JsonObject[]; readonly redactedFields: readonly string[] } {
   if (span.links.length > MAX_OTLP_LINKS) reject("link_limit");
   let redactedFields = [...inheritedRedactions];
@@ -389,6 +404,7 @@ function normalizeLinks(
       `links.${index}.attributes`,
       MAX_OTLP_LINK_ATTRIBUTES,
       redactedFields,
+      budget,
     );
     redactedFields = [...normalized.redactedFields];
     return {
@@ -413,6 +429,7 @@ function normalizeSpan(
   scopeSpans: OtlpScopeSpans,
   resourceContext: AttributeContext,
   scopeContext: AttributeContext,
+  budget: ValueNodeBudget,
 ): EvidenceRecord {
   const traceId = hexIdentifier(span.traceId, 16) as string;
   const spanId = hexIdentifier(span.spanId, 8) as string;
@@ -423,12 +440,15 @@ function normalizeSpan(
   const endedAt = timestamp(span.endTimeUnixNano);
   if (BigInt(span.endTimeUnixNano) < BigInt(span.startTimeUnixNano)) reject("timestamp");
 
-  const spanContext = normalizeKeyValues(span.attributes, "span.attributes", MAX_OTLP_ATTRIBUTES, [
-    ...resourceContext.redactedFields,
-    ...scopeContext.redactedFields,
-  ]);
-  const events = normalizeEvents(span, spanContext.redactedFields);
-  const links = normalizeLinks(span, events.redactedFields);
+  const spanContext = normalizeKeyValues(
+    span.attributes,
+    "span.attributes",
+    MAX_OTLP_ATTRIBUTES,
+    [...resourceContext.redactedFields, ...scopeContext.redactedFields],
+    budget,
+  );
+  const events = normalizeEvents(span, spanContext.redactedFields, budget);
+  const links = normalizeLinks(span, events.redactedFields, budget);
   const redactedFields = links.redactedFields;
   const extensions: Record<string, JsonObject> = {
     "opentelemetry.resource": {
@@ -493,17 +513,30 @@ function normalizeSpan(
   return candidate.data;
 }
 
-function contextForResource(resource: OtlpResource | undefined): AttributeContext {
+function contextForResource(
+  resource: OtlpResource | undefined,
+  budget: ValueNodeBudget,
+): AttributeContext {
   return normalizeKeyValues(
     resource?.attributes ?? [],
     "resource.attributes",
     MAX_OTLP_ATTRIBUTES,
     [],
+    budget,
   );
 }
 
-function contextForScope(scope: OtlpInstrumentationScope | undefined): AttributeContext {
-  return normalizeKeyValues(scope?.attributes ?? [], "scope.attributes", MAX_OTLP_ATTRIBUTES, []);
+function contextForScope(
+  scope: OtlpInstrumentationScope | undefined,
+  budget: ValueNodeBudget,
+): AttributeContext {
+  return normalizeKeyValues(
+    scope?.attributes ?? [],
+    "scope.attributes",
+    MAX_OTLP_ATTRIBUTES,
+    [],
+    budget,
+  );
 }
 
 function errorMessage(rejections: readonly OtlpRejectionCount[]): string | undefined {
@@ -517,6 +550,7 @@ export function normalizeOtlpTraceRequest(
   const records: EvidenceRecord[] = [];
   const rejected = new Map<OtlpSpanRejectionReason, number>();
   const eventIds = new Set<string>();
+  const valueNodeBudget: ValueNodeBudget = { remaining: MAX_OTLP_NORMALIZED_VALUE_NODES };
   let scopeGroupCount = 0;
   let totalSpans = 0;
 
@@ -527,7 +561,7 @@ export function normalizeOtlpTraceRequest(
   for (const [resourceIndex, resourceSpans] of request.resourceSpans.entries()) {
     let resourceContext: AttributeContext | SpanNormalizationError;
     try {
-      resourceContext = contextForResource(resourceSpans.resource);
+      resourceContext = contextForResource(resourceSpans.resource, valueNodeBudget);
     } catch (error) {
       /* v8 ignore next -- Resource normalization only raises the typed rejection above. */
       if (!(error instanceof SpanNormalizationError)) throw error;
@@ -542,7 +576,7 @@ export function normalizeOtlpTraceRequest(
         scopeContext =
           resourceContext instanceof SpanNormalizationError
             ? resourceContext
-            : contextForScope(scopeSpans.scope);
+            : contextForScope(scopeSpans.scope, valueNodeBudget);
       } catch (error) {
         /* v8 ignore next -- Scope normalization only raises the typed rejection above. */
         if (!(error instanceof SpanNormalizationError)) throw error;
@@ -583,6 +617,7 @@ export function normalizeOtlpTraceRequest(
             scopeSpans,
             resourceContext,
             scopeContext,
+            valueNodeBudget,
           );
           if (eventIds.has(normalized.eventId)) {
             recordRejection("duplicate_span");
