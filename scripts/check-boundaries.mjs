@@ -15,6 +15,11 @@ const modules = [
     packageName: "@proofstack/core",
   },
   {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
+    directory: "packages/artifacts/src",
+    packageName: "@proofstack/artifacts",
+  },
+  {
     allowed: new Set(["@proofstack/contracts"]),
     directory: "sdks/typescript/src",
     packageName: "@proofstack/sdk",
@@ -25,7 +30,12 @@ const modules = [
     packageName: "@proofstack/identity",
   },
   {
-    allowed: new Set(["@proofstack/contracts", "@proofstack/core", "@proofstack/identity"]),
+    allowed: new Set([
+      "@proofstack/artifacts",
+      "@proofstack/contracts",
+      "@proofstack/core",
+      "@proofstack/identity",
+    ]),
     directory: "packages/postgres/src",
     packageName: "@proofstack/postgres",
   },
@@ -33,6 +43,7 @@ const modules = [
     allowed: new Set([
       "@proofstack/contracts",
       "@proofstack/core",
+      "@proofstack/artifacts",
       "@proofstack/identity",
       "@proofstack/postgres",
     ]),
