@@ -25,16 +25,34 @@ const RecoveryMigrationLedgerSchema = z
   .min(1)
   .max(1_024)
   .refine(
-    (entries) => entries.every((entry, index) => index === 0 || entries[index - 1]!.id < entry.id),
+    (entries) =>
+      entries.every((entry, index) => {
+        const previous = entries[index - 1];
+        return previous === undefined || previous.id < entry.id;
+      }),
     { message: "Migration ledger entries must be unique and ordered by id" },
   );
 
 const ReferencedKeyIdsSchema = z
   .array(OpaqueIdSchema)
   .max(1_024)
-  .refine((keyIds) => keyIds.every((keyId, index) => index === 0 || keyIds[index - 1]! < keyId), {
-    message: "Referenced key identifiers must be unique and ordered",
+  .refine(
+    (keyIds) =>
+      keyIds.every((keyId, index) => {
+        const previous = keyIds[index - 1];
+        return previous === undefined || previous < keyId;
+      }),
+    {
+      message: "Referenced key identifiers must be unique and ordered",
+    },
+  );
+
+function containsControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (codePoint <= 31 || codePoint === 127);
   });
+}
 
 export const RecoveryObjectInventoryEntrySchema = z
   .object({
@@ -46,7 +64,7 @@ export const RecoveryObjectInventoryEntrySchema = z
       .refine(
         (value) =>
           value.trim() === value &&
-          !/[\u0000-\u001f\u007f]/u.test(value) &&
+          !containsControlCharacter(value) &&
           value.startsWith("objects/v1/"),
         { message: "Object key must be a canonical ProofStack object locator" },
       ),
@@ -73,10 +91,10 @@ const RecoveryCaptureSchema = z
         capture.keySnapshotCapturedAt,
         capture.completedAt,
       ];
-      return timestamps.every(
-        (timestamp, index) =>
-          index === 0 || Date.parse(timestamps[index - 1]!) <= Date.parse(timestamp),
-      );
+      return timestamps.every((timestamp, index) => {
+        const previous = timestamps[index - 1];
+        return previous === undefined || Date.parse(previous) <= Date.parse(timestamp);
+      });
     },
     { message: "Recovery capture timestamps must follow the fenced capture order" },
   );

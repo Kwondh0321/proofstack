@@ -58,7 +58,9 @@ function objectRecord(value: unknown): value is Record<string, unknown> {
 
 function mergeManifestOverride(override: Record<string, unknown>): unknown {
   const value: Record<string, unknown> = manifest();
-  const [section, replacement] = Object.entries(override)[0]!;
+  const firstOverride = Object.entries(override)[0];
+  if (firstOverride === undefined) return value;
+  const [section, replacement] = firstOverride;
   const current = value[section];
   return {
     ...value,

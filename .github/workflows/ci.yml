@@ -112,12 +112,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pnpm
-        uses: pnpm/action-setup@b7a17adbe92613944255991203bfc76f923d4dd9 # v4.0.0
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.24.0
 
       - name: Install Node.js
-        uses: actions/setup-node@d293f469998bd6c731e4d846d744081044953bc1 # v6.3.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24.13.1
           cache: pnpm

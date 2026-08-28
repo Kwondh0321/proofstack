@@ -50,9 +50,22 @@ const roleOptions: RuntimeRoleProvisioningOptions = {
   identity: { name: `ps_it_identity_${runKey}`, password: `proofstack-identity-${runKey}` },
   publisher: { name: `ps_it_publisher_${runKey}`, password: `proofstack-publisher-${runKey}` },
 };
+
+function readEnvironmentVariable(name: string): string | undefined {
+  return process.env[name];
+}
+
+function restoreEnvironmentVariable(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
+
 const previousAwsCredentials = {
-  accessKeyId: process.env["AWS_ACCESS_KEY_ID"],
-  secretAccessKey: process.env["AWS_SECRET_ACCESS_KEY"],
+  accessKeyId: readEnvironmentVariable("AWS_ACCESS_KEY_ID"),
+  secretAccessKey: readEnvironmentVariable("AWS_SECRET_ACCESS_KEY"),
 };
 const adminErrors: Error[] = [];
 const adminPool = createPostgresPool({
@@ -181,8 +194,8 @@ async function seedArtifact(
 }
 
 beforeAll(async () => {
-  process.env["AWS_ACCESS_KEY_ID"] = s3AccessKeyId;
-  process.env["AWS_SECRET_ACCESS_KEY"] = s3SecretAccessKey;
+  restoreEnvironmentVariable("AWS_ACCESS_KEY_ID", s3AccessKeyId);
+  restoreEnvironmentVariable("AWS_SECRET_ACCESS_KEY", s3SecretAccessKey);
   await migrateDatabase(adminPool);
   await provisionRuntimeRoles(adminPool, roleOptions);
   await bucketClient.send(new CreateBucketCommand({ Bucket: bucket }));
@@ -216,16 +229,8 @@ afterAll(async () => {
     }
   }
   await adminPool.end();
-  if (previousAwsCredentials.accessKeyId === undefined) {
-    delete process.env["AWS_ACCESS_KEY_ID"];
-  } else {
-    process.env["AWS_ACCESS_KEY_ID"] = previousAwsCredentials.accessKeyId;
-  }
-  if (previousAwsCredentials.secretAccessKey === undefined) {
-    delete process.env["AWS_SECRET_ACCESS_KEY"];
-  } else {
-    process.env["AWS_SECRET_ACCESS_KEY"] = previousAwsCredentials.secretAccessKey;
-  }
+  restoreEnvironmentVariable("AWS_ACCESS_KEY_ID", previousAwsCredentials.accessKeyId);
+  restoreEnvironmentVariable("AWS_SECRET_ACCESS_KEY", previousAwsCredentials.secretAccessKey);
 });
 
 describe("artifact maintenance real adapters", () => {

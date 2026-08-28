@@ -68,7 +68,12 @@ function parseLedger(
   const parsed = RecoveryMigrationLedgerEntrySchema.array().min(1).max(1_024).safeParse(entries);
   if (!parsed.success)
     fail("migration-ledger", "restored migration ledger is invalid", parsed.error);
-  if (!parsed.data.every((entry, index) => index === 0 || parsed.data[index - 1]!.id < entry.id)) {
+  if (
+    !parsed.data.every((entry, index) => {
+      const previous = parsed.data[index - 1];
+      return previous === undefined || previous.id < entry.id;
+    })
+  ) {
     fail("migration-ledger", "restored migration ledger is not strictly ordered");
   }
   return parsed.data;
@@ -77,7 +82,12 @@ function parseLedger(
 function parseKeyIds(keyIds: readonly string[]): readonly string[] {
   const parsed = OpaqueIdSchema.array().max(1_024).safeParse(keyIds);
   if (!parsed.success) fail("key-provider", "restored key references are invalid", parsed.error);
-  if (!parsed.data.every((keyId, index) => index === 0 || parsed.data[index - 1]! < keyId)) {
+  if (
+    !parsed.data.every((keyId, index) => {
+      const previous = parsed.data[index - 1];
+      return previous === undefined || previous < keyId;
+    })
+  ) {
     fail("key-provider", "restored key references are not strictly ordered");
   }
   return parsed.data;

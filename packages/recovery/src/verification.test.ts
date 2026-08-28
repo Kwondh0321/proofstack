@@ -22,6 +22,13 @@ const INVENTORY: readonly RecoveryObjectInventoryEntry[] = [
     sizeBytes: 512,
   },
 ];
+const INVENTORY_ENTRY = INVENTORY[0];
+if (INVENTORY_ENTRY === undefined) throw new Error("recovery fixture inventory must not be empty");
+const FIRST_MIGRATION = LEDGER[0];
+const SECOND_MIGRATION = LEDGER[1];
+if (FIRST_MIGRATION === undefined || SECOND_MIGRATION === undefined) {
+  throw new Error("recovery fixture ledger must contain two migrations");
+}
 const KEYS = ["key_archived", "key_primary"] as const;
 
 function digest(value: Uint8Array): string {
@@ -106,13 +113,15 @@ describe("coordinated recovery verification", () => {
     ["database", { databaseEngineVersion: "17.0" }],
     ["configuration", { configuration: new Uint8Array() }],
     ["configuration", { configuration: Buffer.from("tampered") }],
-    ["inventory", { inventory: [{ ...INVENTORY[0]!, sizeBytes: 513 }] }],
-    ["inventory", { inventory: [{ ...INVENTORY[0]!, objectKey: "invalid" }] }],
+    ["inventory", { inventory: [{ ...INVENTORY_ENTRY, sizeBytes: 513 }] }],
+    ["inventory", { inventory: [{ ...INVENTORY_ENTRY, objectKey: "invalid" }] }],
     ["migration-ledger", { migrationLedger: [] }],
     ["migration-ledger", { migrationLedger: [...LEDGER].reverse() }],
     [
       "migration-ledger",
-      { migrationLedger: [{ ...LEDGER[0]!, checksum: "f".repeat(64) }, LEDGER[1]!] },
+      {
+        migrationLedger: [{ ...FIRST_MIGRATION, checksum: "f".repeat(64) }, SECOND_MIGRATION],
+      },
     ],
     ["key-provider", { referencedKeyIds: ["INVALID"] }],
     ["key-provider", { referencedKeyIds: [...KEYS].reverse() }],
