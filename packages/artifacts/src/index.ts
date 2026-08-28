@@ -6,6 +6,7 @@ export * from "./artifact-ports.js";
 export * from "./errors.js";
 export * from "./purge-artifact.js";
 export * from "./read-artifact.js";
+export * from "./reconcile-artifact-reservations.js";
 export * from "./reserve-artifact.js";
 export * from "./tombstone-artifact.js";
 export * from "./upload-artifact.js";
