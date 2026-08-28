@@ -12,7 +12,7 @@
     "lint": "biome lint app components lib",
     "start": "next start --port 3000",
     "test": "vitest run --coverage",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "next typegen && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@proofstack/contracts": "workspace:*",
