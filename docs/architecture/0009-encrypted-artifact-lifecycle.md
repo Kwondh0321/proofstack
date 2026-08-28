@@ -140,12 +140,15 @@ key provider with explicit tenant context.
 ### Implementation status
 
 The public contracts, encryption and lifecycle domain, PostgreSQL catalog, shared adapter
-conformance suites, and digest-pinned S3-compatible integration gate are implemented. Tests cover
-ciphertext tampering, protected-metadata swapping, active-key rotation, cross-tenant access,
-retention expiry, abandoned reservations, and interrupted activation and purge recovery.
+conformance suites, digest-pinned S3-compatible integration gate, and scoped one-shot maintenance
+commands are implemented. Tests cover ciphertext tampering, protected-metadata swapping,
+active-key rotation, cross-tenant access, retention expiry, abandoned reservations, interrupted
+activation, purge recovery, key-reference inspection, and the complete real-adapter maintenance
+lifecycle.
 
-Operator reconciliation, retention, purge-retry, and key-reference status commands remain required
-before accepting the roadmap checkpoint. Coordinated backup and restore remains roadmap item 7.
+The direct artifact operations are domain and operator interfaces, not API routes. A continuously
+scheduled worker, production external key provider, coordinated backup and restore, and API
+composition remain explicit later gates. Backup and restore remains roadmap item 7.
 
 ## Alternatives considered
 

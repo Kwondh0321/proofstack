@@ -185,7 +185,8 @@ pnpm db:oidc:disable
 The optional object-storage profile runs the digest-pinned SeaweedFS version used by CI. It exposes
 only the S3 port on loopback, disables upstream telemetry and the administrative UI, uses a named
 volume, and has fixed credentials that are safe only for local testing. This harness verifies the
-adapter; it does not wire artifact routes or maintenance workers into the API.
+adapter; it does not wire artifact routes or continuously scheduled maintenance workers into the
+API. Scoped one-shot maintenance commands are documented in the operations guide.
 
 Start the service:
 
@@ -209,6 +210,11 @@ and deletes that bucket. Stop the service without deleting its named volume with
 ```bash
 pnpm dev:object-storage:stop
 ```
+
+The combined `pnpm test:integration:artifacts` acceptance requires both PostgreSQL and the S3
+service. It provisions isolated runtime roles, creates a random bucket, and proves interrupted
+activation, expiration, abandoned cleanup, purge retry, and key-reference status through the real
+adapters. It is destructive to its random test scope and must never target production services.
 
 Production bucket, policy, versioning, TLS, credential, compatibility, monitoring, and recovery
 requirements are defined in the

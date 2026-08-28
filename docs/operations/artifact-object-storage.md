@@ -6,7 +6,7 @@ Last reviewed: 2026-08-28
 
 This document defines the deployment contract for encrypted artifact objects. It does not make
 ProofStack production-ready: coordinated backup and restore, an external key provider, deployed
-maintenance workers, and production topology remain open Foundation 2 gates.
+maintenance scheduling, and production topology remain open Foundation 2 gates.
 
 ## Ownership boundary
 

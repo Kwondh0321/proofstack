@@ -10,8 +10,10 @@ evaluating, governing, and safely releasing AI agents.
 > [!IMPORTANT]
 > ProofStack is an experimental foundation, not a production release. The implemented path is real
 > and tested, including optional PostgreSQL persistence, scoped workload API keys, and the OIDC
-> browser-session backend. Console sign-in integration, artifact storage, replay, evaluation,
-> backups, and release gates are intentionally not represented as complete.
+> browser-session backend. The encrypted artifact domain and maintenance path are also tested, but
+> are not yet exposed through the API or composed with a production key provider. Console sign-in
+> integration, replay, evaluation, backups, and release gates are intentionally not represented as
+> complete.
 
 ## Why ProofStack
 
@@ -42,6 +44,8 @@ release when a declared policy regresses.
 | Delivery state | Leased outbox retries, poison-message visibility, monotonic cursors, consumer receipts |
 | Workload identity | One-time API keys, bounded delegation, memory-hard hashes, rotation, revocation, audit, and isolated DB access |
 | Human identity | OIDC Authorization Code + PKCE, explicit issuer/subject bindings, encrypted one-time transactions, authoritative revocable sessions, and CSRF defense |
+| Artifact lifecycle | Opt-in classified metadata, envelope encryption, immutable S3-compatible objects, PostgreSQL tombstones and purge receipts |
+| Artifact operations | Scoped reconciliation, retention, abandoned-upload cleanup, purge retry, and referenced-key inspection |
 | TypeScript SDK | Generated IDs, bounded queue, batching, timeout handling, fail-open by default |
 | Console | API health and exact trace inspection without placeholder telemetry |
 | Example | Runnable parent/child agent and tool trace through the real SDK and API |
@@ -65,10 +69,12 @@ flowchart LR
 
 The memory adapter keeps the quickstart dependency-free. The PostgreSQL adapter is the durable
 option: migration integrity, database-enforced tenant isolation, immutable evidence, atomic
-evidence/outbox writes, and four isolated least-privilege runtime roles are covered by real
+evidence/outbox writes, and five isolated least-privilege runtime roles are covered by real
 PostgreSQL tests. The experimental API-key mode is end-to-end functional for workloads. The OIDC
 browser API is functional with server-side bindings and sessions; provider deployment validation
-and operator console sign-in integration remain unfinished.
+and operator console sign-in integration remain unfinished. Artifact lifecycle operations are
+available as domain libraries and one-shot operator commands; API capture/read routes, continuous
+scheduling, and a production external key provider remain unfinished.
 
 ## Quickstart
 
@@ -102,7 +108,10 @@ apps/api                 HTTP composition root and development ingestion API
 apps/web                 Server-rendered operator console
 packages/contracts       Runtime schemas, public types, identity, and OpenAPI generation
 packages/core            Framework-independent authorization and evidence use cases
+packages/artifacts       Encrypted content lifecycle, authorization, and storage ports
 packages/postgres        Durable repositories, migrations, delivery state, and runtime roles
+packages/s3              Immutable S3-compatible artifact object adapter
+services/artifact-maintenance  Scoped one-shot lifecycle and key-safety commands
 sdks/typescript          Provider-neutral telemetry client
 examples/basic-agent     Verified SDK-to-API trace example
 docs/architecture        Numbered architecture decision records
@@ -137,13 +146,15 @@ accepted workload and browser identity checkpoint and its remaining deployment l
 
 ## Current boundaries
 
-The current build does not provide console-integrated OIDC sign-in, artifact content storage, OTLP
-ingestion, a deployed outbox publisher, replay, evaluators, policy enforcement, backups, or
-production deployment artifacts. Workload API-key and OIDC browser authentication are implemented
-and tested but remain part of an unfinished foundation rather than a production-readiness claim.
-PostgreSQL is durable development infrastructure, not yet a production data-recovery claim.
-Remaining capabilities have an explicit dependency order and may not bypass the security and
-compatibility gates described in the roadmap.
+The current build does not provide console-integrated OIDC sign-in, API-integrated artifact
+capture/read routes, a production external artifact key provider, continuously scheduled artifact
+workers, OTLP ingestion, a deployed outbox publisher, replay, evaluators, policy enforcement,
+backups, or production deployment artifacts. Workload API-key and OIDC browser authentication and
+the artifact lifecycle are implemented and tested but remain part of an unfinished foundation
+rather than a production-readiness claim. PostgreSQL and S3-compatible storage are durable
+development infrastructure, not yet a production data-recovery claim. Remaining capabilities have
+an explicit dependency order and may not bypass the security and compatibility gates described in
+the roadmap.
 
 ## Contributing and security
 

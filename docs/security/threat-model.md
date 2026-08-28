@@ -12,14 +12,15 @@ not a certification or production-readiness claim.
 ## Protected assets
 
 - Evidence metadata, content references, trace relationships, and timestamps.
+- Opt-in artifact plaintext, encrypted objects, protected lifecycle metadata, and key references.
 - Tenant, project, environment, principal, role, and capability assignments.
 - Evaluation definitions, policy decisions, approvals, audit records, and release state.
 - Encryption, signing, API, model-provider, and integration credentials.
 - Availability and integrity of ingestion, replay, evaluation, and release decisions.
 
-Raw prompt or tool content is not a routine ingestion field. When content storage is introduced,
-the content itself will be separated from the evidence envelope and referenced by a classified,
-hash-addressed object descriptor.
+Raw prompt or tool content is not a routine evidence-ingestion field. Opt-in content crosses a
+separate artifact lifecycle, is envelope-encrypted before object storage, and is referenced from
+evidence only by a classified, hash-addressed descriptor.
 
 ## Trust boundaries
 
@@ -36,6 +37,8 @@ System of record (trusted persistence boundary)
         |
         +--> projections/search (derived and rebuildable)
         +--> operator console (authorized read model)
+        +--> encrypted object storage (untrusted for plaintext confidentiality)
+        +--> scoped artifact maintenance (privileged lifecycle worker)
         +--> evaluation/release workers (future privileged consumers)
 ```
 
@@ -55,6 +58,9 @@ tools, change policy, or approve a release.
 | Forged or malformed evidence | Strict, bounded schemas at ingress | Signed ingestion option and schema compatibility policy |
 | Replay and duplicate delivery | Event-level idempotency with conflict detection | Durable unique constraints and transactional batch semantics |
 | Credential or sensitive-content capture | Metadata-first contract and classified content references | Configurable redaction, encryption, retention, and deletion workflows |
+| Artifact substitution or ciphertext tampering | Tenant-aware authenticated metadata and independent ciphertext/plaintext verification | External key provider and provider-specific compatibility rehearsal |
+| Partial database/object-store commit | Explicit reserved, available, tombstoned, and purged states | Reconciliation, bounded retries, pending-state alerts, and recovery rehearsal |
+| Key loss or unsafe retirement | Versioned key references and active/configured key inspection | External key backup, rotation, rewrap, restore, and destruction procedures |
 | Prompt injection through telemetry | Evidence is treated as untrusted display data | Sandboxed analysis and explicit tool/policy authorization |
 | SSRF through content references | Ingestion stores descriptors and does not fetch supplied URLs | Allowlisted object access broker with egress controls |
 | Resource exhaustion | Batch, field, body, and request-rate bounds | Tenant quotas, backpressure, load tests, and capacity alerts |
@@ -90,9 +96,11 @@ tools, change policy, or approve a release.
   explicit bindings, authoritative verification, rotation or revocation, and sanitized lifecycle
   audit. A real-provider deployment matrix, console sign-in integration, and production TLS proxy
   artifact are not yet complete.
-- TLS termination, encryption at rest, key rotation, backup, deletion, and retention are deployment
-  responsibilities not yet implemented by the project.
-- Artifact content storage and retrieval do not exist.
+- The artifact domain, PostgreSQL catalog, S3-compatible adapter, tombstones, purge receipts, and
+  scoped maintenance commands are implemented. API routes, continuously scheduled workers, a
+  production external key provider, and provider deployment topology are not.
+- Coordinated database/object/key backup and restore, production key rotation or rewrap, and
+  disaster-recovery deletion guarantees are not yet proven.
 - Rate limiting is local to one API process and is not a distributed quota.
 - There is no tamper-evident audit ledger, signed evidence, or production release gate.
 
