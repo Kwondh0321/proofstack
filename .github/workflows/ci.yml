@@ -80,7 +80,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run PostgreSQL integration tests
-        run: pnpm --filter @proofstack/postgres test:integration
+        run: pnpm test:integration:postgres
 
   secrets:
     name: Secret scanning
