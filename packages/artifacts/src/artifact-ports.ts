@@ -1,6 +1,14 @@
-import type { ArtifactMetadata, ArtifactTombstone, EvidenceScope } from "@proofstack/contracts";
+import {
+  type ArtifactMetadata,
+  type ArtifactTombstone,
+  type EvidenceScope,
+  MAX_ARTIFACT_CONTENT_BYTES,
+} from "@proofstack/contracts";
 
 export const ARTIFACT_ENCRYPTION_VERSION = "a256gcm-v1" as const;
+export const ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES = 20;
+export const MAX_ENCRYPTED_ARTIFACT_OBJECT_BYTES =
+  MAX_ARTIFACT_CONTENT_BYTES + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES;
 export const MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE = 100;
 
 export function artifactReservationIdentity(metadata: ArtifactMetadata): unknown {

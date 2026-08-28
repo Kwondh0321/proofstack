@@ -1,13 +1,17 @@
 import { createCipheriv, createHash } from "node:crypto";
 import type { ArtifactMetadata } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import type { ArtifactKeyProvider, WrappedArtifactDataKey } from "./artifact-ports.js";
 import {
   ArtifactCipher,
-  artifactAuthenticatedData,
   type ArtifactRandomSource,
+  artifactAuthenticatedData,
   LocalArtifactKeyring,
 } from "./artifact-crypto.js";
+import {
+  ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
+  type ArtifactKeyProvider,
+  type WrappedArtifactDataKey,
+} from "./artifact-ports.js";
 import {
   ArtifactContentMismatchError,
   ArtifactKeyringConfigurationError,
@@ -102,7 +106,7 @@ describe("ArtifactCipher", () => {
     expect(Buffer.from(encrypted.bytes).includes(plaintext)).toBe(false);
     expect(encrypted.receipt).toEqual({
       sha256: sha256(encrypted.bytes),
-      sizeBytes: plaintext.byteLength + 20,
+      sizeBytes: plaintext.byteLength + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
     });
     await expect(cipher.decrypt(value, plan, encrypted.bytes)).resolves.toEqual(
       Uint8Array.from(plaintext),
