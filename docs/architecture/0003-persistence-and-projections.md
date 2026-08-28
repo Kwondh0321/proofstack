@@ -50,6 +50,13 @@ Evidence is append-only. Retention removes encrypted content or entire records
 according to policy and writes a tombstone audit event; it never silently mutates
 an existing evidence payload.
 
+Trace reads use bounded keyset pages ordered by start time, sequence, and event
+identifier. A cursor is accepted only when its complete ordering key still exists
+inside the authenticated tenant, project, environment, and trace. Offset pagination
+is not part of the repository port. The foundation endpoint is a live view rather
+than a snapshot, so evidence appended during traversal can appear on a later page
+only when it sorts after the current cursor.
+
 Database rows include tenant identity even when it can be inferred by joins.
 PostgreSQL row-level security will provide defense in depth, but application-level
 authorization remains mandatory.

@@ -7,6 +7,13 @@ import {
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const RequestIdSchema = z.string().min(1).max(128);
+export const DEFAULT_TRACE_PAGE_SIZE = 100;
+export const MAX_TRACE_PAGE_SIZE = 200;
+export const TracePageCursorSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .regex(/^[A-Za-z0-9_-]+$/);
 
 export const LivenessResponseSchema = z.object({ status: z.literal("ok") }).strict();
 export const ReadinessResponseSchema = z.object({ status: z.literal("ready") }).strict();
@@ -39,7 +46,8 @@ export const IngestEvidenceResponseSchema = z
 
 export const TraceResponseSchema = z
   .object({
-    events: z.array(EvidenceEnvelopeSchema).min(1),
+    events: z.array(EvidenceEnvelopeSchema).min(1).max(MAX_TRACE_PAGE_SIZE),
+    nextCursor: TracePageCursorSchema.optional(),
     requestId: RequestIdSchema,
     schemaVersion: z.literal(EVIDENCE_SCHEMA_VERSION),
     traceId: TraceIdSchema,
@@ -69,4 +77,5 @@ export type IngestEvidenceResponse = z.infer<typeof IngestEvidenceResponseSchema
 export type LivenessResponse = z.infer<typeof LivenessResponseSchema>;
 export type ProblemDocument = z.infer<typeof ProblemDocumentSchema>;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;
+export type TracePageCursor = z.infer<typeof TracePageCursorSchema>;
 export type TraceResponse = z.infer<typeof TraceResponseSchema>;

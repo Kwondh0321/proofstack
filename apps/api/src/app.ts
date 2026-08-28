@@ -8,6 +8,7 @@ import {
   type EvidenceRepository,
   ForbiddenError,
   IngestEvidence,
+  InvalidTraceCursorError,
   ListTraceEvidence,
   MemoryEvidenceRepository,
   SystemClock,
@@ -125,6 +126,17 @@ export async function createApp(
         status: 404,
         title: "Trace not found",
         type: "https://proofstack.dev/problems/trace-not-found",
+      });
+    }
+
+    if (error instanceof InvalidTraceCursorError) {
+      return sendProblem(reply, {
+        code: error.code,
+        detail: error.message,
+        requestId: request.id,
+        status: 400,
+        title: "Invalid trace cursor",
+        type: "https://proofstack.dev/problems/invalid-trace-cursor",
       });
     }
 

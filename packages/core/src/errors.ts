@@ -24,3 +24,12 @@ export class TraceNotFoundError extends Error {
     this.name = "TraceNotFoundError";
   }
 }
+
+export class InvalidTraceCursorError extends Error {
+  readonly code = "invalid_trace_cursor";
+
+  constructor() {
+    super("The trace page cursor is invalid or no longer available");
+    this.name = "InvalidTraceCursorError";
+  }
+}

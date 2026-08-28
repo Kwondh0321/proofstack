@@ -1,9 +1,12 @@
 import { type ZodType, z } from "zod";
 import {
+  DEFAULT_TRACE_PAGE_SIZE,
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
+  MAX_TRACE_PAGE_SIZE,
   ProblemDocumentSchema,
   ReadinessResponseSchema,
+  TracePageCursorSchema,
   TraceResponseSchema,
 } from "./api.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
@@ -111,6 +114,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor("IngestEvidenceRequest", IngestEvidenceRequestSchema, "input"),
     ...componentsFor("IngestEvidenceResponse", IngestEvidenceResponseSchema, "output"),
     ...componentsFor("TraceResponse", TraceResponseSchema, "output"),
+    ...componentsFor("TracePageCursor", TracePageCursorSchema, "input"),
     ...componentsFor("ProblemDocument", ProblemDocumentSchema, "output"),
     ...componentsFor("LivenessResponse", LivenessResponseSchema, "output"),
     ...componentsFor("ReadinessResponse", ReadinessResponseSchema, "output"),
@@ -206,7 +210,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {
         get: {
           description:
-            "Returns an ordered, non-empty evidence array. An unknown trace identifier returns a problem document.",
+            "Returns an ordered, bounded evidence page. Follow nextCursor to read additional events. An unknown trace identifier returns a problem document.",
           operationId: "getTraceEvidence",
           parameters: [
             projectParameter,
@@ -217,6 +221,25 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               name: "traceId",
               required: true,
               schema: schemaReference("TraceId"),
+            },
+            {
+              description: "Opaque cursor returned by the preceding trace page",
+              in: "query",
+              name: "cursor",
+              required: false,
+              schema: schemaReference("TracePageCursor"),
+            },
+            {
+              description: "Maximum evidence events to return",
+              in: "query",
+              name: "limit",
+              required: false,
+              schema: {
+                default: DEFAULT_TRACE_PAGE_SIZE,
+                maximum: MAX_TRACE_PAGE_SIZE,
+                minimum: 1,
+                type: "integer",
+              },
             },
           ],
           responses: {

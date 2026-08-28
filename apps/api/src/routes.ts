@@ -1,18 +1,22 @@
 import {
   createProofStackOpenApiDocument,
+  DEFAULT_TRACE_PAGE_SIZE,
   EVIDENCE_SCHEMA_VERSION,
   IngestEvidenceRequestSchema,
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
+  MAX_TRACE_PAGE_SIZE,
   OpaqueIdSchema,
   ReadinessResponseSchema,
   TraceIdSchema,
+  TracePageCursorSchema,
   TraceResponseSchema,
 } from "@proofstack/contracts";
 import type { IngestEvidence, ListTraceEvidence } from "@proofstack/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Authenticator } from "./auth.js";
+import { decodeTraceCursor, encodeTraceCursor } from "./trace-cursor.js";
 
 const EvidencePathSchema = z
   .object({
@@ -22,6 +26,12 @@ const EvidencePathSchema = z
   .strict();
 
 const TracePathSchema = EvidencePathSchema.extend({ traceId: TraceIdSchema }).strict();
+const TraceQuerySchema = z
+  .object({
+    cursor: TracePageCursorSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(MAX_TRACE_PAGE_SIZE).default(DEFAULT_TRACE_PAGE_SIZE),
+  })
+  .strict();
 
 export interface RouteDependencies {
   readonly authenticator: Authenticator;
@@ -86,16 +96,22 @@ export async function registerRoutes(
     },
     async (request) => {
       const path = TracePathSchema.parse(request.params);
+      const query = TraceQuerySchema.parse(request.query);
       const principal = await dependencies.authenticator.authenticate(request);
-      const events = await dependencies.listTraceEvidence.execute({
+      const result = await dependencies.listTraceEvidence.execute({
+        ...(query.cursor ? { after: decodeTraceCursor(query.cursor) } : {}),
         environmentId: path.environmentId,
+        limit: query.limit,
         principal,
         projectId: path.projectId,
         traceId: path.traceId,
       });
+      const lastEvent = result.events.at(-1);
+      const nextCursor = result.hasMore && lastEvent ? encodeTraceCursor(lastEvent) : undefined;
 
       return TraceResponseSchema.parse({
-        events,
+        events: result.events,
+        ...(nextCursor ? { nextCursor } : {}),
         requestId: request.id,
         schemaVersion: EVIDENCE_SCHEMA_VERSION,
         traceId: path.traceId,

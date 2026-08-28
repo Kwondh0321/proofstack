@@ -139,6 +139,51 @@ describe("evidence routes", () => {
     });
   });
 
+  it("paginates trace evidence with opaque cursors", async () => {
+    const app = await testApp();
+    const events = [
+      { ...evidence, eventId: "evt_page_a", spanId: "10f067aa0ba902b7" },
+      { ...evidence, eventId: "evt_page_b", spanId: "20f067aa0ba902b7" },
+      { ...evidence, eventId: "evt_page_c", spanId: "30f067aa0ba902b7" },
+    ];
+    await app.inject({
+      body: { events, schemaVersion: EVIDENCE_SCHEMA_VERSION },
+      method: "POST",
+      url: "/v1/projects/prj_local/environments/env_local/evidence",
+    });
+
+    const first = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}?limit=2`,
+    });
+    const firstBody = first.json();
+    const second = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}?limit=2&cursor=${encodeURIComponent(firstBody.nextCursor)}`,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(firstBody.events).toHaveLength(2);
+    expect(firstBody.nextCursor).toEqual(expect.any(String));
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({
+      events: [{ evidence: { eventId: "evt_page_c" } }],
+    });
+    expect(second.json()).not.toHaveProperty("nextCursor");
+  });
+
+  it("rejects a forged trace cursor", async () => {
+    const app = await testApp();
+    const cursor = Buffer.from("not-json").toString("base64url");
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}?cursor=${cursor}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: "invalid_trace_cursor", status: 400 });
+  });
+
   it("reports identical retries as duplicates", async () => {
     const app = await testApp();
     const request = {

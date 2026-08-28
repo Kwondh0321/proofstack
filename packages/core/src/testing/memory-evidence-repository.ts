@@ -1,6 +1,12 @@
 import type { EvidenceEnvelope, EvidenceScope } from "@proofstack/contracts";
 import { EvidenceConflictError } from "../errors.js";
-import type { AppendEvidenceResult, EvidenceRepository } from "../evidence/evidence-repository.js";
+import type {
+  AppendEvidenceResult,
+  EvidencePage,
+  EvidencePageCursor,
+  EvidencePageOptions,
+  EvidenceRepository,
+} from "../evidence/evidence-repository.js";
 
 function evidenceKey(envelope: EvidenceEnvelope): string {
   return `${envelope.scope.tenantId}:${envelope.evidence.eventId}`;
@@ -48,6 +54,23 @@ function matchesScope(envelope: EvidenceEnvelope, scope: EvidenceScope): boolean
   );
 }
 
+function evidenceCursor(envelope: EvidenceEnvelope): EvidencePageCursor {
+  return {
+    eventId: envelope.evidence.eventId,
+    sequence: envelope.evidence.sequence ?? 0,
+    startedAt: envelope.evidence.startedAt,
+  };
+}
+
+function matchesCursor(envelope: EvidenceEnvelope, cursor: EvidencePageCursor): boolean {
+  const candidate = evidenceCursor(envelope);
+  return (
+    candidate.eventId === cursor.eventId &&
+    candidate.sequence === cursor.sequence &&
+    candidate.startedAt === cursor.startedAt
+  );
+}
+
 export class MemoryEvidenceRepository implements EvidenceRepository {
   private readonly events = new Map<string, EvidenceEnvelope>();
 
@@ -80,8 +103,12 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
     return { acceptedEventIds, duplicateEventIds };
   }
 
-  async listByTrace(scope: EvidenceScope, traceId: string): Promise<readonly EvidenceEnvelope[]> {
-    return [...this.events.values()]
+  async listByTrace(
+    scope: EvidenceScope,
+    traceId: string,
+    options: EvidencePageOptions,
+  ): Promise<EvidencePage> {
+    const ordered = [...this.events.values()]
       .filter((envelope) => matchesScope(envelope, scope) && envelope.evidence.traceId === traceId)
       .sort((left, right) => {
         const timeDifference =
@@ -92,5 +119,20 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
         if (left.evidence.eventId === right.evidence.eventId) return 0;
         return left.evidence.eventId < right.evidence.eventId ? -1 : 1;
       });
+
+    const after = options.after;
+    const cursorIndex = after
+      ? ordered.findIndex((envelope) => matchesCursor(envelope, after))
+      : -1;
+    if (after && cursorIndex === -1) {
+      return { cursorFound: false, events: [], hasMore: false };
+    }
+
+    const window = ordered.slice(cursorIndex + 1, cursorIndex + 1 + options.limit + 1);
+    return {
+      cursorFound: true,
+      events: window.slice(0, options.limit),
+      hasMore: window.length > options.limit,
+    };
   }
 }

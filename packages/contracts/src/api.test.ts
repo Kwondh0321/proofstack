@@ -2,10 +2,35 @@ import { describe, expect, it } from "vitest";
 import {
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
+  MAX_TRACE_PAGE_SIZE,
   ProblemDocumentSchema,
   ReadinessResponseSchema,
   TraceResponseSchema,
 } from "./api.js";
+
+const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+const traceEnvelope = {
+  evidence: {
+    eventId: "evt_contract_test",
+    kind: "custom",
+    name: "contract-test",
+    source: {
+      sdkName: "@proofstack/sdk",
+      sdkVersion: "0.0.0",
+      serviceName: "test-agent",
+    },
+    spanId: "00f067aa0ba902b7",
+    startedAt: "2026-08-28T05:00:00.000Z",
+    traceId,
+  },
+  receivedAt: "2026-08-28T05:00:00.100Z",
+  schemaVersion: "0.1",
+  scope: {
+    environmentId: "env_local",
+    projectId: "prj_local",
+    tenantId: "ten_local",
+  },
+};
 
 describe("HTTP response contracts", () => {
   it("validates health responses exactly", () => {
@@ -51,9 +76,28 @@ describe("HTTP response contracts", () => {
         events: [],
         requestId: "req_test_001",
         schemaVersion: "0.1",
-        traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+        traceId,
       }).success,
     ).toBe(false);
+  });
+
+  it("bounds trace response pages and cursors", () => {
+    const oversized = TraceResponseSchema.safeParse({
+      events: Array.from({ length: MAX_TRACE_PAGE_SIZE + 1 }, () => traceEnvelope),
+      requestId: "req_test_001",
+      schemaVersion: "0.1",
+      traceId,
+    });
+    const malformedCursor = TraceResponseSchema.safeParse({
+      events: [traceEnvelope],
+      nextCursor: "not a cursor",
+      requestId: "req_test_001",
+      schemaVersion: "0.1",
+      traceId,
+    });
+
+    expect(oversized.success).toBe(false);
+    expect(malformedCursor.success).toBe(false);
   });
 
   it("validates problem documents without arbitrary fields", () => {

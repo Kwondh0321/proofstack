@@ -1,6 +1,8 @@
 import {
   ReadinessResponseSchema,
   TraceIdSchema,
+  type TracePageCursor,
+  TracePageCursorSchema,
   type TraceResponse,
   TraceResponseSchema,
 } from "@proofstack/contracts";
@@ -28,6 +30,11 @@ export type ApiResult<T> =
       readonly message: string;
       readonly ok: false;
     };
+
+export interface TraceRequestOptions {
+  readonly cursor?: TracePageCursor;
+  readonly timeoutMs?: number;
+}
 
 interface ApiConnection {
   readonly baseUrl: URL;
@@ -131,15 +138,20 @@ export async function apiHealth(
 export async function getTrace(
   traceId: string,
   fetcher: typeof globalThis.fetch = globalThis.fetch,
-  timeoutMs = DEFAULT_API_TIMEOUT_MS,
+  options: TraceRequestOptions = {},
 ): Promise<ApiResult<TraceResponse>> {
   if (!TraceIdSchema.safeParse(traceId).success) {
     return { kind: "invalid_response", message: "Trace ID is not valid", ok: false };
   }
+  if (options.cursor && !TracePageCursorSchema.safeParse(options.cursor).success) {
+    return { kind: "invalid_response", message: "Trace cursor is not valid", ok: false };
+  }
 
   try {
     const settings = connection();
-    const response = await fetchApi(fetcher, scopedUrl(`/traces/${traceId}`, settings), timeoutMs);
+    const url = scopedUrl(`/traces/${traceId}`, settings);
+    if (options.cursor) url.searchParams.set("cursor", options.cursor);
+    const response = await fetchApi(fetcher, url, options.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
     if (response.status === 404) {
       return { kind: "not_found", message: "Trace was not found", ok: false };
     }

@@ -6,11 +6,14 @@ export const metadata: Metadata = { title: "Trace detail" };
 
 export default async function TraceDetailPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ traceId: string }>;
+  readonly searchParams: Promise<{ cursor?: string }>;
 }) {
   const { traceId } = await params;
-  const result = await getTrace(traceId);
+  const { cursor } = await searchParams;
+  const result = await getTrace(traceId, globalThis.fetch, cursor ? { cursor } : {});
 
   if (!result.ok) {
     return (
@@ -39,7 +42,8 @@ export default async function TraceDetailPage({
           <p className="eyebrow">Trace detail</p>
           <h1 className="mono-title">{result.data.traceId}</h1>
           <p className="lede">
-            {result.data.events.length} evidence event{result.data.events.length === 1 ? "" : "s"}
+            {result.data.events.length} evidence event{result.data.events.length === 1 ? "" : "s"}{" "}
+            on this page
           </p>
         </div>
         <Link className="secondary-action" href="/traces">
@@ -85,6 +89,19 @@ export default async function TraceDetailPage({
           </article>
         ))}
       </section>
+
+      {result.data.nextCursor ? (
+        <Link
+          className="secondary-action"
+          href={`/traces/${encodeURIComponent(traceId)}?cursor=${encodeURIComponent(result.data.nextCursor)}`}
+        >
+          Next page
+        </Link>
+      ) : cursor ? (
+        <Link className="secondary-action" href={`/traces/${encodeURIComponent(traceId)}`}>
+          Back to first page
+        </Link>
+      ) : null}
     </div>
   );
 }

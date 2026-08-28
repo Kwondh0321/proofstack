@@ -157,6 +157,22 @@ describe("getTrace", () => {
     });
   });
 
+  it("requests the next trace page with an opaque cursor", async () => {
+    const cursor = "cursor_page_2";
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      Response.json({
+        events: [traceEvent],
+        requestId: "req_test_001",
+        schemaVersion: "0.1",
+        traceId,
+      }),
+    );
+
+    await getTrace(traceId, fetcher, { cursor });
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toContain(`?cursor=${cursor}`);
+  });
+
   it("distinguishes missing, invalid, and unavailable traces", async () => {
     const missing = vi
       .fn<typeof globalThis.fetch>()
@@ -185,7 +201,7 @@ describe("getTrace", () => {
 
   it("bounds trace requests with a timeout", async () => {
     vi.useFakeTimers();
-    const result = getTrace(traceId, hangingFetch(), 10);
+    const result = getTrace(traceId, hangingFetch(), { timeoutMs: 10 });
 
     await vi.advanceTimersByTimeAsync(10);
 

@@ -6,7 +6,12 @@ import {
   PrincipalContextSchema,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import { EvidenceConflictError, ForbiddenError, TraceNotFoundError } from "../errors.js";
+import {
+  EvidenceConflictError,
+  ForbiddenError,
+  InvalidTraceCursorError,
+  TraceNotFoundError,
+} from "../errors.js";
 import { FixedClock } from "../testing/fixed-clock.js";
 import { MemoryEvidenceRepository } from "../testing/memory-evidence-repository.js";
 import { IngestEvidence } from "./ingest-evidence.js";
@@ -74,12 +79,13 @@ describe("IngestEvidence", () => {
     const stored = await repository.listByTrace(
       { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" },
       baseEvidence.traceId,
+      { limit: 200 },
     );
 
     expect(result.acceptedEventIds).toEqual([baseEvidence.eventId]);
-    expect(stored).toHaveLength(1);
-    expect(stored[0]?.receivedAt).toBe("2026-08-28T03:00:00.000Z");
-    expect(stored[0]?.scope.tenantId).toBe("ten_local");
+    expect(stored.events).toHaveLength(1);
+    expect(stored.events[0]?.receivedAt).toBe("2026-08-28T03:00:00.000Z");
+    expect(stored.events[0]?.scope.tenantId).toBe("ten_local");
   });
 
   it("is idempotent for identical evidence", async () => {
@@ -157,8 +163,9 @@ describe("IngestEvidence", () => {
     const stored = await repository.listByTrace(
       { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" },
       baseEvidence.traceId,
+      { limit: 200 },
     );
-    expect(stored).toHaveLength(1);
+    expect(stored.events).toHaveLength(1);
   });
 
   it("orders otherwise equal evidence deterministically by event identifier", async () => {
@@ -177,9 +184,10 @@ describe("IngestEvidence", () => {
     const stored = await repository.listByTrace(
       { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" },
       baseEvidence.traceId,
+      { limit: 200 },
     );
 
-    expect(stored.map((event) => event.evidence.eventId)).toEqual(["evt_a", "evt_z"]);
+    expect(stored.events.map((event) => event.evidence.eventId)).toEqual(["evt_a", "evt_z"]);
   });
 
   it("requires the ingestion capability", async () => {
@@ -246,8 +254,8 @@ describe("ListTraceEvidence", () => {
       traceId: baseEvidence.traceId,
     });
 
-    expect(result).toHaveLength(1);
-    expect(result[0]?.scope.tenantId).toBe("ten_local");
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]?.scope.tenantId).toBe("ten_local");
   });
 
   it("requires read capability", async () => {
@@ -282,7 +290,7 @@ describe("ListTraceEvidence", () => {
         projectId: "prj_local",
         traceId: baseEvidence.traceId,
       }),
-    ).resolves.toHaveLength(1);
+    ).resolves.toMatchObject({ events: [expect.any(Object)] });
   });
 
   it("reports an unknown trace after authorization succeeds", async () => {
@@ -296,5 +304,57 @@ describe("ListTraceEvidence", () => {
         traceId: baseEvidence.traceId,
       }),
     ).rejects.toBeInstanceOf(TraceNotFoundError);
+  });
+
+  it("returns bounded pages and rejects cursors outside the scoped trace", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+    const list = new ListTraceEvidence(repository);
+    const events = [
+      { ...baseEvidence, eventId: "evt_a", spanId: "10f067aa0ba902b7" },
+      { ...baseEvidence, eventId: "evt_b", spanId: "20f067aa0ba902b7" },
+      { ...baseEvidence, eventId: "evt_c", spanId: "30f067aa0ba902b7" },
+    ];
+    await ingest.execute({
+      ...command(),
+      request: IngestEvidenceRequestSchema.parse({
+        events,
+        schemaVersion: EVIDENCE_SCHEMA_VERSION,
+      }),
+    });
+
+    const first = await list.execute({
+      environmentId: "env_local",
+      limit: 2,
+      principal: principal(),
+      projectId: "prj_local",
+      traceId: baseEvidence.traceId,
+    });
+    const second = await list.execute({
+      after: {
+        eventId: first.events[1]?.evidence.eventId ?? "missing",
+        sequence: first.events[1]?.evidence.sequence ?? 0,
+        startedAt: first.events[1]?.evidence.startedAt ?? "missing",
+      },
+      environmentId: "env_local",
+      limit: 2,
+      principal: principal(),
+      projectId: "prj_local",
+      traceId: baseEvidence.traceId,
+    });
+
+    expect(first).toMatchObject({ hasMore: true });
+    expect(first.events.map((event) => event.evidence.eventId)).toEqual(["evt_a", "evt_b"]);
+    expect(second).toMatchObject({ hasMore: false });
+    expect(second.events.map((event) => event.evidence.eventId)).toEqual(["evt_c"]);
+    await expect(
+      list.execute({
+        after: { eventId: "evt_missing", sequence: 0, startedAt: baseEvidence.startedAt },
+        environmentId: "env_local",
+        principal: principal(),
+        projectId: "prj_local",
+        traceId: baseEvidence.traceId,
+      }),
+    ).rejects.toBeInstanceOf(InvalidTraceCursorError);
   });
 });
