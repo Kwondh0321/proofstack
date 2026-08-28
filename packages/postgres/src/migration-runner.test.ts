@@ -4,6 +4,7 @@ import {
   assertMigrationsCurrent,
   assertMigrationsCurrentOnClient,
   inspectMigrations,
+  inspectVerifiedMigrationLedger,
   MigrationIntegrityError,
   MigrationRequiredError,
   migrateDatabase,
@@ -150,6 +151,34 @@ describe("migration inspection", () => {
       assertMigrationsCurrentOnClient(client as unknown as PoolClient, [first]),
     ).resolves.toBeUndefined();
     expect(client.releaseArguments).toEqual([]);
+  });
+
+  it("returns a checksum-verified current ledger for recovery manifests", async () => {
+    const first = migration(1, "first");
+    const second = migration(2, "second");
+    const client = new FakeClient({ applied: [first, second] });
+
+    await expect(
+      inspectVerifiedMigrationLedger(poolWith(client), [first, second]),
+    ).resolves.toEqual([
+      { checksum: first.checksum, id: first.id },
+      { checksum: second.checksum, id: second.id },
+    ]);
+    expect(client.releaseArguments).toEqual([undefined]);
+  });
+
+  it("refuses to export an incomplete migration ledger", async () => {
+    const first = migration(1, "first");
+    const second = migration(2, "second");
+
+    await expect(
+      inspectVerifiedMigrationLedger(poolWith(new FakeClient({ applied: [first] })), [
+        first,
+        second,
+      ]),
+    ).rejects.toEqual(
+      expect.objectContaining({ pendingIds: [second.id], name: "MigrationRequiredError" }),
+    );
   });
 
   it("distinguishes a missing empty ledger from pending migrations", async () => {

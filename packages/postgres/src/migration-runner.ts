@@ -23,6 +23,11 @@ export interface MigrationResult extends MigrationStatus {
   readonly newlyAppliedIds: readonly string[];
 }
 
+export interface MigrationLedgerEntry {
+  readonly checksum: string;
+  readonly id: string;
+}
+
 export class MigrationIntegrityError extends Error {
   constructor(message: string) {
     super(message);
@@ -141,14 +146,35 @@ export async function assertMigrationsCurrentOnClient(
   client: PoolClient,
   migrations?: readonly Migration[],
 ): Promise<void> {
+  await verifiedCurrentMigrationLedgerOnClient(client, migrations);
+}
+
+async function verifiedCurrentMigrationLedgerOnClient(
+  client: PoolClient,
+  migrations?: readonly Migration[],
+): Promise<readonly MigrationLedgerEntry[]> {
   const availableMigrations = migrations ?? (await loadBundledMigrations());
   if (!(await ledgerExists(client))) {
     throw new MigrationRequiredError(availableMigrations.map((migration) => migration.id));
   }
 
-  const pending = pendingMigrations(availableMigrations, await appliedMigrations(client));
+  const applied = await appliedMigrations(client);
+  const pending = pendingMigrations(availableMigrations, applied);
   if (pending.length > 0) {
     throw new MigrationRequiredError(pending.map((migration) => migration.id));
+  }
+  return applied.map(({ checksum, id }) => ({ checksum, id }));
+}
+
+export async function inspectVerifiedMigrationLedger(
+  pool: Pick<Pool, "connect">,
+  migrations?: readonly Migration[],
+): Promise<readonly MigrationLedgerEntry[]> {
+  const client = await pool.connect();
+  try {
+    return await verifiedCurrentMigrationLedgerOnClient(client, migrations);
+  } finally {
+    client.release();
   }
 }
 

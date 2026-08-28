@@ -20,6 +20,8 @@ export {
 export {
   assertMigrationsCurrent,
   inspectMigrations,
+  inspectVerifiedMigrationLedger,
+  type MigrationLedgerEntry,
   MigrationIntegrityError,
   MigrationRequiredError,
   migrateDatabase,
