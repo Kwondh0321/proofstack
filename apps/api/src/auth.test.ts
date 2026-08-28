@@ -320,6 +320,7 @@ describe("createAuthenticator", () => {
   it("creates the development adapter only for development mode", async () => {
     const authenticator = createAuthenticator(loadConfig({ PROOFSTACK_ENV: "test" }));
     await expect(authenticator.authenticate(request())).resolves.toMatchObject({
+      capabilities: expect.arrayContaining(["dataset:read", "dataset:manage"]),
       principalId: "usr_local",
       tenantId: "ten_local",
     });

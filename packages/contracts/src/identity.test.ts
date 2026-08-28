@@ -24,6 +24,15 @@ describe("PrincipalContextSchema", () => {
     expect(PrincipalContextSchema.safeParse(developmentPrincipal).success).toBe(true);
   });
 
+  it("keeps dataset reading and management as distinct user capabilities", () => {
+    expect(
+      PrincipalContextSchema.safeParse({
+        ...developmentPrincipal,
+        capabilities: ["dataset:read", "dataset:manage"],
+      }).success,
+    ).toBe(true);
+  });
+
   it("requires a credential identifier for non-development authentication", () => {
     const result = PrincipalContextSchema.safeParse({
       ...developmentPrincipal,
@@ -109,6 +118,7 @@ describe("WorkloadCapabilitySchema", () => {
     "evidence:ingest",
     "artifact:write",
     "artifact:read",
+    "dataset:read",
     "evaluation:run",
     "policy:evaluate",
   ])("accepts delegable capability %s", (capability) => {
@@ -118,6 +128,7 @@ describe("WorkloadCapabilitySchema", () => {
   it.each([
     "artifact:read:restricted",
     "artifact:delete",
+    "dataset:manage",
     "identity:manage",
     "approval:decide",
     "project:manage",

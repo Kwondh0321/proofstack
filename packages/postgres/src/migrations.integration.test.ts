@@ -124,6 +124,7 @@ describe("PostgreSQL evidence schema", () => {
       "0008_artifact_capabilities",
       "0009_artifact_catalog",
       "0010_force_identity_tenant_rls",
+      "0011_dataset_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -133,7 +134,10 @@ describe("PostgreSQL evidence schema", () => {
     );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
 
-    const artifactCapabilities = await pool.query<{
+    const platformCapabilities = await pool.query<{
+      readonly datasetManagementWorkload: boolean;
+      readonly datasetReadWorkload: boolean;
+      readonly datasetUser: boolean;
       readonly restrictedWorkload: boolean;
       readonly userLifecycle: boolean;
       readonly workloadTransfer: boolean;
@@ -145,6 +149,12 @@ describe("PostgreSQL evidence schema", () => {
         public.proofstack_valid_workload_capabilities(
           ARRAY['artifact:read:restricted']::text[]
         ) AS "restrictedWorkload",
+        public.proofstack_valid_workload_capabilities(
+          ARRAY['dataset:read']::text[]
+        ) AS "datasetReadWorkload",
+        public.proofstack_valid_workload_capabilities(
+          ARRAY['dataset:manage']::text[]
+        ) AS "datasetManagementWorkload",
         public.proofstack_valid_user_capabilities(
           ARRAY[
             'artifact:write',
@@ -152,9 +162,15 @@ describe("PostgreSQL evidence schema", () => {
             'artifact:read:restricted',
             'artifact:delete'
           ]::text[]
-        ) AS "userLifecycle"
+        ) AS "userLifecycle",
+        public.proofstack_valid_user_capabilities(
+          ARRAY['dataset:read', 'dataset:manage']::text[]
+        ) AS "datasetUser"
     `);
-    expect(artifactCapabilities.rows[0]).toEqual({
+    expect(platformCapabilities.rows[0]).toEqual({
+      datasetManagementWorkload: false,
+      datasetReadWorkload: true,
+      datasetUser: true,
       restrictedWorkload: false,
       userLifecycle: true,
       workloadTransfer: true,

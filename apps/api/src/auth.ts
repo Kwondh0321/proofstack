@@ -66,6 +66,8 @@ const DEVELOPMENT_CAPABILITIES = [
   "artifact:read",
   "artifact:read:restricted",
   "artifact:delete",
+  "dataset:read",
+  "dataset:manage",
   "evaluation:read",
   "evaluation:run",
   "release:read",

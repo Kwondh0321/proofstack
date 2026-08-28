@@ -96,6 +96,7 @@ describe("migration inspection", () => {
         "0008_artifact_capabilities",
         "0009_artifact_catalog",
         "0010_force_identity_tenant_rls",
+        "0011_dataset_capabilities",
       ],
     });
   });
