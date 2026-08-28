@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   BrowserLogoutResponseSchema,
+  BrowserLoginQuerySchema,
+  BrowserReturnPathSchema,
   BrowserSessionResponseSchema,
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
   MAX_TRACE_PAGE_SIZE,
+  OidcCallbackQuerySchema,
   ProblemDocumentSchema,
   ReadinessResponseSchema,
   TraceResponseSchema,
@@ -73,6 +76,28 @@ describe("HTTP response contracts", () => {
     expect(
       BrowserLogoutResponseSchema.safeParse({ requestId: "req_test_001", revoked: true }).success,
     ).toBe(true);
+  });
+
+  it("accepts only local browser redirects and canonical OIDC state", () => {
+    expect(BrowserLoginQuerySchema.parse({})).toEqual({ returnTo: "/" });
+    expect(BrowserReturnPathSchema.safeParse("/traces?filter=failed#latest").success).toBe(true);
+    expect(
+      OidcCallbackQuerySchema.safeParse({
+        code: "provider-code",
+        state: "A".repeat(43),
+      }).success,
+    ).toBe(true);
+
+    for (const value of [
+      "https://attacker.example",
+      "//attacker.example",
+      "/\\attacker",
+      "/\nnext",
+    ]) {
+      expect(BrowserReturnPathSchema.safeParse(value).success).toBe(false);
+    }
+    expect(OidcCallbackQuerySchema.safeParse({ state: "A".repeat(42) }).success).toBe(false);
+    expect(OidcCallbackQuerySchema.safeParse({ state: ["A".repeat(43)] }).success).toBe(false);
   });
 
   it("validates evidence acknowledgements", () => {

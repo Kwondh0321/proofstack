@@ -15,6 +15,15 @@ export const TracePageCursorSchema = z
   .min(1)
   .max(512)
   .regex(/^[A-Za-z0-9_-]+$/);
+// biome-ignore lint/suspicious/noControlCharactersInRegex: Local redirects must reject every ASCII control character.
+export const BrowserReturnPathSchema = z
+  .string()
+  .regex(/^\/(?!\/)[^\\\u0000-\u001f\u007f]{0,1023}$/);
+export const OidcStateSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/);
+export const BrowserLoginQuerySchema = z
+  .object({ returnTo: BrowserReturnPathSchema.default("/") })
+  .strict();
+export const OidcCallbackQuerySchema = z.object({ state: OidcStateSchema }).passthrough();
 
 export const LivenessResponseSchema = z.object({ status: z.literal("ok") }).strict();
 export const ReadinessResponseSchema = z.object({ status: z.literal("ready") }).strict();
@@ -99,8 +108,11 @@ export const ProblemDocumentSchema = z
 
 export type IngestEvidenceResponse = z.infer<typeof IngestEvidenceResponseSchema>;
 export type BrowserLogoutResponse = z.infer<typeof BrowserLogoutResponseSchema>;
+export type BrowserLoginQuery = z.infer<typeof BrowserLoginQuerySchema>;
+export type BrowserReturnPath = z.infer<typeof BrowserReturnPathSchema>;
 export type BrowserSessionResponse = z.infer<typeof BrowserSessionResponseSchema>;
 export type LivenessResponse = z.infer<typeof LivenessResponseSchema>;
+export type OidcCallbackQuery = z.infer<typeof OidcCallbackQuerySchema>;
 export type ProblemDocument = z.infer<typeof ProblemDocumentSchema>;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;
 export type TracePageCursor = z.infer<typeof TracePageCursorSchema>;
