@@ -107,6 +107,7 @@ sdks/typescript          Provider-neutral telemetry client
 examples/basic-agent     Verified SDK-to-API trace example
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
+docs/operations          Deployment contracts and operator procedures
 docs/security            Trust boundaries, threats, controls, and production gates
 scripts                  Repository-level architecture enforcement
 ```

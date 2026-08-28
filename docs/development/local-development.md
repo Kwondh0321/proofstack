@@ -14,7 +14,7 @@ API; the repository does not yet ship that TLS proxy as a production deployment 
 
 - Node.js 24 or newer. `.nvmrc` records the CI baseline.
 - pnpm 11.24.0, matching the root `package.json`.
-- Docker with Compose v2 only when using the PostgreSQL profile.
+- Docker with Compose v2 only when using the PostgreSQL profile or S3 compatibility harness.
 - macOS or Linux for the optional POSIX shell-loading examples. Application commands are otherwise
   platform-independent.
 
@@ -178,6 +178,40 @@ export PROOFSTACK_OIDC_DISABLE_REASON='access removed'
 pnpm db:oidc:disable
 ```
 
+## S3-compatible adapter harness
+
+The optional object-storage profile runs the digest-pinned SeaweedFS version used by CI. It exposes
+only the S3 port on loopback, disables upstream telemetry and the administrative UI, uses a named
+volume, and has fixed credentials that are safe only for local testing. This harness verifies the
+adapter; it does not wire artifact routes or maintenance workers into the API.
+
+Start the service:
+
+```bash
+pnpm dev:object-storage:up
+```
+
+Run the real-service object-store contract from another terminal:
+
+```bash
+export PROOFSTACK_TEST_S3_ACCESS_KEY_ID=proofstack-local
+export PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY=proofstack-local-secret
+export PROOFSTACK_TEST_S3_ENDPOINT=http://127.0.0.1:8333
+export PROOFSTACK_TEST_S3_REGION=us-east-1
+pnpm test:integration:s3
+```
+
+The test creates one random `proofstack-test-*` bucket, runs the immutable object-store contract,
+and deletes that bucket. Stop the service without deleting its named volume with:
+
+```bash
+pnpm dev:object-storage:stop
+```
+
+Production bucket, policy, versioning, TLS, credential, compatibility, monitoring, and recovery
+requirements are defined in the
+[artifact object-storage operations guide](../operations/artifact-object-storage.md).
+
 ## Verify the running system
 
 From another terminal, load the same profile if you created one, then check liveness, readiness, and
@@ -238,6 +272,7 @@ cannot produce a false successful demonstration.
 | `PROOFSTACK_BOOTSTRAP_KEY_RESOURCE_SCOPE` | unset | identity CLI | Strict JSON tenant or restricted project/environment scope |
 | `PROOFSTACK_BOOTSTRAP_KEY_EXPIRES_AT` | 90 days | identity CLI | Optional ISO 8601 expiry, bounded to 1 minute–365 days |
 | `PROOFSTACK_POSTGRES_PORT` | `5432` | Compose | Loopback host port for the local database |
+| `PROOFSTACK_S3_PORT` | `8333` | Compose | Loopback host port for the local S3-compatible harness |
 | `PROOFSTACK_API_URL` | `http://127.0.0.1:4318` | Web/example | API base URL |
 | `PROOFSTACK_API_KEY` | unset | SDK example | Complete one-time-issued key; never used by the API server or browser console |
 | `PROOFSTACK_PROJECT_ID` | `prj_local` | Web/example | Local project scope |
@@ -254,16 +289,21 @@ Use `pnpm db:status` to distinguish missing or pending migrations from an API pr
 returns nonzero until the bundled migration ledger is current. A PostgreSQL readiness failure is
 intentional when the database is unavailable or its migration history is incomplete or corrupted.
 
-If port 5432 is occupied, change `PROOFSTACK_POSTGRES_PORT` and both database URLs in `.env`, then
-start Compose again. If development authentication starts in production or on a non-loopback
-listener, report it as a security issue; both configurations must cause immediate startup refusal.
+If port 5432 is occupied, change `PROOFSTACK_POSTGRES_PORT` and both database URLs in `.env`. If port
+8333 is occupied, set `PROOFSTACK_S3_PORT` and use the same port in
+`PROOFSTACK_TEST_S3_ENDPOINT`. Then start the relevant Compose profile again. If development
+authentication starts in production or on a non-loopback listener, report it as a security issue;
+both configurations must cause immediate startup refusal.
 
-For a routine stop, use `pnpm dev:db:down`; it preserves the named volume. The following command is
-destructive and permanently deletes all local ProofStack PostgreSQL evidence:
+For a routine stop, use `pnpm dev:db:down` for PostgreSQL or `pnpm dev:object-storage:stop` for the
+S3-compatible harness; both named volumes are retained. The following command is destructive and
+permanently deletes all local ProofStack PostgreSQL evidence and object-store data in this Compose
+project:
 
 ```bash
 docker compose down --volumes
 ```
 
 After destructive reset, repeat `pnpm dev:db:up`, `pnpm db:migrate`, and `pnpm db:provision` before
-starting the API.
+starting the durable API, and restart the object-storage harness before running its integration
+test.
