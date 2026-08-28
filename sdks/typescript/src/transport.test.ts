@@ -165,6 +165,60 @@ describe("HttpEvidenceTransport", () => {
     ).toThrow("positive integer");
   });
 
+  it("rejects unsafe endpoint schemes and embedded credentials", () => {
+    expect(
+      () =>
+        new HttpEvidenceTransport({
+          endpoint: "file:///tmp/proofstack",
+          environmentId: "env_local",
+          projectId: "prj_local",
+        }),
+    ).toThrow("must use HTTP or HTTPS");
+    expect(
+      () =>
+        new HttpEvidenceTransport({
+          endpoint: "https://user:secret@proofstack.example",
+          environmentId: "env_local",
+          projectId: "prj_local",
+        }),
+    ).toThrow("must not contain embedded credentials");
+  });
+
+  it("allows unencrypted endpoints only on explicit loopback hosts", () => {
+    expect(
+      () =>
+        new HttpEvidenceTransport({
+          endpoint: "http://proofstack.internal:4318",
+          environmentId: "env_local",
+          projectId: "prj_local",
+        }),
+    ).toThrow("must use an explicit loopback host");
+    expect(
+      () =>
+        new HttpEvidenceTransport({
+          endpoint: "http://127.0.0.1:4318",
+          environmentId: "env_local",
+          projectId: "prj_local",
+        }),
+    ).not.toThrow();
+  });
+
+  it("does not propagate endpoint queries or fragments to ingestion", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(acknowledgement());
+    const transport = new HttpEvidenceTransport({
+      endpoint: "https://proofstack.example/base?debug=true#local",
+      environmentId: "env_local",
+      fetch,
+      projectId: "prj_local",
+    });
+
+    await transport.send([event]);
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(
+      "https://proofstack.example/base/v1/projects/prj_local/environments/env_local/evidence",
+    );
+  });
+
   it("maps network failures without leaking non-error values", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockRejectedValue("offline");
     const transport = new HttpEvidenceTransport({

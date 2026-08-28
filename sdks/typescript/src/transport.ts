@@ -45,10 +45,24 @@ export class HttpEvidenceTransport implements EvidenceTransport {
     }
 
     const baseUrl = new URL(options.endpoint);
+    if (baseUrl.protocol !== "https:" && baseUrl.protocol !== "http:") {
+      throw new TransportError("ProofStack endpoint must use HTTP or HTTPS");
+    }
+    if (baseUrl.username || baseUrl.password) {
+      throw new TransportError("ProofStack endpoint must not contain embedded credentials");
+    }
+    if (baseUrl.protocol === "http:" && !isLoopbackHostname(baseUrl.hostname)) {
+      throw new TransportError(
+        "Unencrypted ProofStack endpoints must use an explicit loopback host",
+      );
+    }
+
     const basePath = baseUrl.pathname.replace(/\/$/, "");
     baseUrl.pathname = `${basePath}/v1/projects/${encodeURIComponent(
       options.projectId,
     )}/environments/${encodeURIComponent(options.environmentId)}/evidence`;
+    baseUrl.search = "";
+    baseUrl.hash = "";
     this.url = baseUrl;
   }
 
@@ -125,6 +139,10 @@ export class HttpEvidenceTransport implements EvidenceTransport {
       clearTimeout(timeout);
     }
   }
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "localhost";
 }
 
 async function readBoundedResponseBody(response: Response): Promise<string> {
