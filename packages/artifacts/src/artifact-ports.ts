@@ -3,6 +3,22 @@ import type { ArtifactMetadata, ArtifactTombstone, EvidenceScope } from "@proofs
 export const ARTIFACT_ENCRYPTION_VERSION = "a256gcm-v1" as const;
 export const MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE = 100;
 
+export function artifactReservationIdentity(metadata: ArtifactMetadata): unknown {
+  return {
+    contentReference: metadata.contentReference,
+    redaction: metadata.redaction,
+    retention:
+      metadata.retention.mode === "expire"
+        ? {
+            expiresAt: new Date(metadata.retention.expiresAt).toISOString(),
+            mode: metadata.retention.mode,
+          }
+        : metadata.retention,
+    schemaVersion: metadata.schemaVersion,
+    scope: metadata.scope,
+  };
+}
+
 export interface WrappedArtifactDataKey {
   readonly algorithm: "A256GCM";
   readonly ciphertext: string;

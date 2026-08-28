@@ -1,20 +1,18 @@
 import { isDeepStrictEqual } from "node:util";
-import type {
-  ArtifactCatalogEntry,
-  ArtifactCatalogRepository,
-  ArtifactObjectReceipt,
-  ArtifactPurgeReceipt,
-  ReserveArtifactCatalogResult,
-  TombstoneArtifactCatalogResult,
-} from "@proofstack/artifacts";
 import {
+  type ArtifactCatalogEntry,
+  type ArtifactCatalogRepository,
   ArtifactConflictError,
   ArtifactNotFoundError,
+  type ArtifactObjectReceipt,
+  type ArtifactPurgeReceipt,
   ArtifactStateTransitionError,
+  artifactReservationIdentity,
   MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE,
+  type ReserveArtifactCatalogResult,
+  type TombstoneArtifactCatalogResult,
 } from "@proofstack/artifacts";
 import {
-  type ArtifactMetadata,
   ArtifactMetadataSchema,
   type ArtifactTombstone,
   ArtifactTombstoneSchema,
@@ -295,18 +293,11 @@ function storedTombstone(row: StoredTombstoneRow): ArtifactTombstone {
   return parsed.data;
 }
 
-function reservationIdentity(metadata: ArtifactMetadata): unknown {
-  return {
-    contentReference: metadata.contentReference,
-    redaction: metadata.redaction,
-    retention: metadata.retention,
-    schemaVersion: metadata.schemaVersion,
-    scope: metadata.scope,
-  };
-}
-
 function isSameReservation(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): boolean {
-  return isDeepStrictEqual(reservationIdentity(left.metadata), reservationIdentity(right.metadata));
+  return isDeepStrictEqual(
+    artifactReservationIdentity(left.metadata),
+    artifactReservationIdentity(right.metadata),
+  );
 }
 
 function isSameTombstone(left: ArtifactTombstone, right: ArtifactTombstone): boolean {

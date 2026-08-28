@@ -144,6 +144,7 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
           const retry = {
             ...reserved("catalog_reserve", {
               createdAt: "2026-08-28T03:01:00.000Z",
+              expiresAt: "2026-09-27T23:00:00.000-04:00",
               seed: 8,
             }),
             createdByPrincipalId: "usr_retry",
@@ -188,6 +189,24 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
             scope: { tenantId: "ten_other" },
           });
           assert.equal((await repository.reserve(otherTenant)).created, true);
+
+          const retained = reserved("catalog_reserve", {
+            artifactId: "art_retained_retry",
+            retention: "retain",
+          });
+          const retainedFirst = await repository.reserve(retained);
+          const retainedRetry = await repository.reserve({
+            ...reserved("catalog_reserve", {
+              artifactId: "art_retained_retry",
+              createdAt: "2026-08-28T03:02:00.000Z",
+              retention: "retain",
+              seed: 9,
+            }),
+            createdByPrincipalId: "usr_retry",
+            objectKey: "artifacts/retry/retained-object",
+          });
+          assert.equal(retainedRetry.created, false);
+          assert.deepEqual(retainedRetry.entry, retainedFirst.entry);
         });
       },
     },

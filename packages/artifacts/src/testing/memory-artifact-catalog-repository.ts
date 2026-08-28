@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import type { ArtifactMetadata, ArtifactTombstone, EvidenceScope } from "@proofstack/contracts";
+import type { ArtifactTombstone, EvidenceScope } from "@proofstack/contracts";
 import type {
   ArtifactCatalogEntry,
   ArtifactCatalogRepository,
@@ -8,7 +8,10 @@ import type {
   ReserveArtifactCatalogResult,
   TombstoneArtifactCatalogResult,
 } from "../artifact-ports.js";
-import { MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE } from "../artifact-ports.js";
+import {
+  artifactReservationIdentity,
+  MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE,
+} from "../artifact-ports.js";
 import {
   ArtifactConflictError,
   ArtifactNotFoundError,
@@ -37,18 +40,11 @@ function matchesScope(entry: ArtifactCatalogEntry, scope: EvidenceScope): boolea
   );
 }
 
-function reservationIdentity(metadata: ArtifactMetadata): unknown {
-  return {
-    contentReference: metadata.contentReference,
-    redaction: metadata.redaction,
-    retention: metadata.retention,
-    schemaVersion: metadata.schemaVersion,
-    scope: metadata.scope,
-  };
-}
-
 function isSameReservation(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): boolean {
-  return isDeepStrictEqual(reservationIdentity(left.metadata), reservationIdentity(right.metadata));
+  return isDeepStrictEqual(
+    artifactReservationIdentity(left.metadata),
+    artifactReservationIdentity(right.metadata),
+  );
 }
 
 function isSameTombstone(left: ArtifactTombstone, right: ArtifactTombstone): boolean {
