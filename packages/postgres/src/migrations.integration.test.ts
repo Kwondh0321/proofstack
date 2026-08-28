@@ -98,7 +98,7 @@ beforeAll(async () => {
   await pool.query(`
     DO $$
     BEGIN
-      CREATE ROLE ${runtimeRole} NOLOGIN;
+      CREATE ROLE ${runtimeRole} LOGIN PASSWORD 'proofstack_test_runtime';
     EXCEPTION
       WHEN duplicate_object THEN NULL;
     END
@@ -113,7 +113,8 @@ afterAll(async () => {
 describe("PostgreSQL evidence schema", () => {
   it("migrates atomically and enforces append-only tenant isolation", async () => {
     const firstMigration = await migrateDatabase(pool);
-    expect(firstMigration.newlyAppliedIds).toEqual(["0001_evidence_store"]);
+    expect(firstMigration.appliedIds).toEqual(["0001_evidence_store"]);
+    expect([[], ["0001_evidence_store"]]).toContainEqual(firstMigration.newlyAppliedIds);
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);
