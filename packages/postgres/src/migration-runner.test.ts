@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertMigrationsCurrent,
   inspectMigrations,
-  migrateDatabase,
   MigrationIntegrityError,
   MigrationRequiredError,
+  migrateDatabase,
 } from "./migration-runner.js";
 import type { Migration } from "./migrations.js";
 
@@ -83,7 +83,7 @@ describe("migration inspection", () => {
     expect(status).toEqual({
       appliedIds: [],
       ledgerExists: true,
-      pendingIds: ["0001_evidence_store", "0002_outbox_delivery"],
+      pendingIds: ["0001_evidence_store", "0002_outbox_delivery", "0003_leased_consumer_receipts"],
     });
   });
 

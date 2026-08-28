@@ -113,10 +113,16 @@ afterAll(async () => {
 describe("PostgreSQL evidence schema", () => {
   it("migrates atomically and enforces append-only tenant isolation", async () => {
     const firstMigration = await migrateDatabase(pool);
-    expect(firstMigration.appliedIds).toEqual(["0001_evidence_store", "0002_outbox_delivery"]);
-    expect([[], ["0001_evidence_store", "0002_outbox_delivery"]]).toContainEqual(
-      firstMigration.newlyAppliedIds,
-    );
+    expect(firstMigration.appliedIds).toEqual([
+      "0001_evidence_store",
+      "0002_outbox_delivery",
+      "0003_leased_consumer_receipts",
+    ]);
+    expect([
+      [],
+      ["0003_leased_consumer_receipts"],
+      ["0001_evidence_store", "0002_outbox_delivery", "0003_leased_consumer_receipts"],
+    ]).toContainEqual(firstMigration.newlyAppliedIds);
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);
@@ -281,14 +287,36 @@ describe("PostgreSQL evidence schema", () => {
         tenant_id,
         consumer_name,
         message_id,
-        payload_sha256
+        payload_sha256,
+        state,
+        created_at,
+        available_at,
+        attempt_count,
+        completed_at
       ) VALUES (
         'ten_migration',
         'trace.projector',
         'message-001',
-        '${"a".repeat(64)}'
+        '${"a".repeat(64)}',
+        'completed',
+        clock_timestamp(),
+        clock_timestamp(),
+        1,
+        clock_timestamp()
       )
     `);
+    await expect(
+      pool.query(`
+        UPDATE proofstack_consumer_receipts
+        SET state = 'processing',
+            completed_at = NULL,
+            lease_token = '10000000-0000-4000-8000-000000000001',
+            lease_owner = 'wrk_illegal',
+            lease_expires_at = clock_timestamp() + interval '1 minute',
+            attempt_count = 2
+        WHERE tenant_id = 'ten_migration' AND consumer_name = 'trace.projector'
+      `),
+    ).rejects.toMatchObject({ code: "55000" });
     await expect(
       pool.query(`
         DELETE FROM proofstack_consumer_receipts
