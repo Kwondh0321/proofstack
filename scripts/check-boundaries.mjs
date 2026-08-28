@@ -40,6 +40,11 @@ const modules = [
     packageName: "@proofstack/postgres",
   },
   {
+    allowed: new Set(["@proofstack/artifacts"]),
+    directory: "packages/s3/src",
+    packageName: "@proofstack/s3",
+  },
+  {
     allowed: new Set([
       "@proofstack/contracts",
       "@proofstack/core",
