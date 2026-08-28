@@ -4,6 +4,7 @@ export * from "./errors.js";
 export * from "./evidence/evidence-repository.js";
 export * from "./evidence/ingest-evidence.js";
 export * from "./evidence/list-trace-evidence.js";
+export * from "./outbox/consumer-receipt-repository.js";
 export * from "./outbox/outbox-repository.js";
 export * from "./outbox/projection-cursor-repository.js";
 export * from "./testing/memory-evidence-repository.js";
