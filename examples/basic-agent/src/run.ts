@@ -1,8 +1,10 @@
 import { ProofStackClient, createTraceId } from "@proofstack/sdk";
 
-const { PROOFSTACK_API_URL, PROOFSTACK_ENVIRONMENT_ID, PROOFSTACK_PROJECT_ID } = process.env;
+const { PROOFSTACK_API_KEY, PROOFSTACK_API_URL, PROOFSTACK_ENVIRONMENT_ID, PROOFSTACK_PROJECT_ID } =
+  process.env;
 
 const client = new ProofStackClient({
+  ...(PROOFSTACK_API_KEY ? { apiKey: PROOFSTACK_API_KEY } : {}),
   endpoint: PROOFSTACK_API_URL ?? "http://127.0.0.1:4318",
   environmentId: PROOFSTACK_ENVIRONMENT_ID ?? "env_local",
   failOpen: false,
