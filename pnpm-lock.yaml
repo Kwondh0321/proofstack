@@ -59,6 +59,9 @@ importers:
       '@proofstack/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@proofstack/postgres':
+        specifier: workspace:*
+        version: link:../../packages/postgres
       fastify:
         specifier: 5.12.1
         version: 5.12.1

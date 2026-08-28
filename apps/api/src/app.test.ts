@@ -89,8 +89,10 @@ describe("health routes", () => {
   it("refuses to start with an unavailable production authenticator", async () => {
     const production = loadConfig({
       PROOFSTACK_AUTH_MODE: "api_key",
+      PROOFSTACK_DATABASE_URL: "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
       PROOFSTACK_ENV: "production",
       PROOFSTACK_LOG_LEVEL: "silent",
+      PROOFSTACK_STORAGE_MODE: "postgres",
     });
 
     await expect(createApp(production)).rejects.toThrow("startup refused");
