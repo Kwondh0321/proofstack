@@ -21,11 +21,21 @@ const modules = [
   },
   {
     allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
+    directory: "packages/identity/src",
+    packageName: "@proofstack/identity",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/core", "@proofstack/identity"]),
     directory: "packages/postgres/src",
     packageName: "@proofstack/postgres",
   },
   {
-    allowed: new Set(["@proofstack/contracts", "@proofstack/core", "@proofstack/postgres"]),
+    allowed: new Set([
+      "@proofstack/contracts",
+      "@proofstack/core",
+      "@proofstack/identity",
+      "@proofstack/postgres",
+    ]),
     directory: "apps/api/src",
     packageName: "@proofstack/api",
   },
