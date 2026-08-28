@@ -3,6 +3,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
+import { validatePostgresConnectionString } from "./connection-string.js";
 import { createPostgresPool } from "./database.js";
 import { inspectMigrations, migrateDatabase } from "./migration-runner.js";
 
@@ -44,11 +45,19 @@ export class DatabaseCliUsageError extends Error {
 
 function migrationDatabaseUrl(environment: DatabaseCliEnvironment): string {
   const dedicatedUrl = environment.PROOFSTACK_MIGRATION_DATABASE_URL;
-  if (dedicatedUrl) return dedicatedUrl;
+  if (dedicatedUrl) {
+    return validatePostgresConnectionString(dedicatedUrl, {
+      allowPlaintextLoopback: environment.PROOFSTACK_ENV !== "production",
+    });
+  }
   if (environment.PROOFSTACK_ENV === "production") {
     throw new DatabaseCliUsageError("PROOFSTACK_MIGRATION_DATABASE_URL is required in production");
   }
-  if (environment.PROOFSTACK_DATABASE_URL) return environment.PROOFSTACK_DATABASE_URL;
+  if (environment.PROOFSTACK_DATABASE_URL) {
+    return validatePostgresConnectionString(environment.PROOFSTACK_DATABASE_URL, {
+      allowPlaintextLoopback: true,
+    });
+  }
   throw new DatabaseCliUsageError(
     "Set PROOFSTACK_MIGRATION_DATABASE_URL before running database commands",
   );
