@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
-import { DatabaseCliUsageError, runDatabaseCli, type DatabaseCliIo } from "./cli.js";
+import { type DatabaseCliIo, DatabaseCliUsageError, runDatabaseCli } from "./cli.js";
 
 function io() {
   const errors: string[] = [];
@@ -24,6 +24,10 @@ function dependencies(options: {
     readonly newlyAppliedIds: readonly string[];
     readonly pendingIds: readonly string[];
   }>;
+  readonly provision?: () => Promise<{
+    readonly createdRoles: readonly string[];
+    readonly updatedRoles: readonly string[];
+  }>;
 }) {
   const end = vi.fn(async () => undefined);
   const createPool = vi.fn(
@@ -43,6 +47,13 @@ function dependencies(options: {
         newlyAppliedIds: [],
         pendingIds: [],
       })),
+    provision: vi.fn(
+      options.provision ??
+        (async () => ({
+          createdRoles: [],
+          updatedRoles: [],
+        })),
+    ),
   };
 }
 
@@ -132,6 +143,85 @@ describe("runDatabaseCli", () => {
     expect(exitCode).toBe(1);
     expect(JSON.parse(streams.outputs[0] ?? "{}")).toMatchObject({ status: "pending" });
     expect(adapters.end).toHaveBeenCalledOnce();
+  });
+
+  it("provisions runtime roles without printing credentials", async () => {
+    const streams = io();
+    const adapters = dependencies({
+      provision: async () => ({
+        createdRoles: ["proofstack_api", "proofstack_publisher", "proofstack_consumer"],
+        updatedRoles: [],
+      }),
+    });
+
+    const exitCode = await runDatabaseCli(
+      ["provision"],
+      {
+        PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
+        PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
+        PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
+      },
+      streams.value,
+      adapters,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(streams.outputs[0] ?? "{}")).toEqual({
+      createdRoles: ["proofstack_api", "proofstack_publisher", "proofstack_consumer"],
+      status: "provisioned",
+      updatedRoles: [],
+    });
+    expect(streams.outputs.join(" ")).not.toContain("password");
+    expect(adapters.provision).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        api: { name: "proofstack_api", password: "local-api-password" },
+      }),
+    );
+    expect(adapters.end).toHaveBeenCalledOnce();
+  });
+
+  it("requires all runtime passwords before opening a provisioning connection", async () => {
+    const adapters = dependencies({});
+
+    await expect(
+      runDatabaseCli(
+        ["provision"],
+        {
+          PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
+          PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        },
+        io().value,
+        adapters,
+      ),
+    ).rejects.toThrow("PROOFSTACK_CONSUMER_DATABASE_PASSWORD");
+    expect(adapters.createPool).not.toHaveBeenCalled();
+  });
+
+  it("passes explicit runtime role names to provisioning", async () => {
+    const adapters = dependencies({});
+
+    await runDatabaseCli(
+      ["provision"],
+      {
+        PROOFSTACK_API_DATABASE_PASSWORD: "local-api-password",
+        PROOFSTACK_API_DATABASE_ROLE: "custom_api",
+        PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
+        PROOFSTACK_CONSUMER_DATABASE_ROLE: "custom_consumer",
+        PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
+        PROOFSTACK_PUBLISHER_DATABASE_ROLE: "custom_publisher",
+      },
+      io().value,
+      adapters,
+    );
+
+    expect(adapters.provision).toHaveBeenCalledWith(expect.anything(), {
+      api: { name: "custom_api", password: "local-api-password" },
+      consumer: { name: "custom_consumer", password: "local-consumer-password" },
+      publisher: { name: "custom_publisher", password: "local-publisher-password" },
+    });
   });
 
   it("reports current status and surfaces idle connection failures", async () => {

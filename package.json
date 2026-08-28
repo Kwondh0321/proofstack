@@ -18,6 +18,7 @@
     "dev:api": "pnpm --filter @proofstack/api dev",
     "dev:web": "pnpm --filter @proofstack/web dev",
     "db:migrate": "pnpm --filter @proofstack/postgres db:migrate",
+    "db:provision": "pnpm --filter @proofstack/postgres db:provision",
     "db:status": "pnpm --filter @proofstack/postgres db:status",
     "docs:check": "node scripts/check-doc-links.mjs",
     "example:basic-agent": "pnpm build && pnpm --filter @proofstack/example-basic-agent start",

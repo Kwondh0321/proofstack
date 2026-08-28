@@ -6,11 +6,22 @@ import type { Pool } from "pg";
 import { validatePostgresConnectionString } from "./connection-string.js";
 import { createPostgresPool } from "./database.js";
 import { inspectMigrations, migrateDatabase } from "./migration-runner.js";
+import {
+  DEFAULT_RUNTIME_ROLE_NAMES,
+  provisionRuntimeRoles,
+  type RuntimeRoleProvisioningOptions,
+} from "./runtime-roles.js";
 
 interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
+  readonly PROOFSTACK_API_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_API_DATABASE_ROLE?: string;
+  readonly PROOFSTACK_CONSUMER_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_CONSUMER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_DATABASE_URL?: string;
   readonly PROOFSTACK_ENV?: string;
   readonly PROOFSTACK_MIGRATION_DATABASE_URL?: string;
+  readonly PROOFSTACK_PUBLISHER_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_PUBLISHER_DATABASE_ROLE?: string;
 }
 
 export interface DatabaseCliIo {
@@ -22,6 +33,7 @@ interface DatabaseCliDependencies {
   readonly createPool: (connectionString: string, onIdleError: (error: Error) => void) => Pool;
   readonly inspect: typeof inspectMigrations;
   readonly migrate: typeof migrateDatabase;
+  readonly provision: typeof provisionRuntimeRoles;
 }
 
 const defaultDependencies: DatabaseCliDependencies = {
@@ -34,6 +46,7 @@ const defaultDependencies: DatabaseCliDependencies = {
     }),
   inspect: inspectMigrations,
   migrate: migrateDatabase,
+  provision: provisionRuntimeRoles,
 };
 
 export class DatabaseCliUsageError extends Error {
@@ -63,6 +76,31 @@ function migrationDatabaseUrl(environment: DatabaseCliEnvironment): string {
   );
 }
 
+function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRoleProvisioningOptions {
+  const apiPassword = environment.PROOFSTACK_API_DATABASE_PASSWORD;
+  const publisherPassword = environment.PROOFSTACK_PUBLISHER_DATABASE_PASSWORD;
+  const consumerPassword = environment.PROOFSTACK_CONSUMER_DATABASE_PASSWORD;
+  if (!apiPassword || !publisherPassword || !consumerPassword) {
+    throw new DatabaseCliUsageError(
+      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
+    );
+  }
+  return {
+    api: {
+      name: environment.PROOFSTACK_API_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.api,
+      password: apiPassword,
+    },
+    consumer: {
+      name: environment.PROOFSTACK_CONSUMER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.consumer,
+      password: consumerPassword,
+    },
+    publisher: {
+      name: environment.PROOFSTACK_PUBLISHER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.publisher,
+      password: publisherPassword,
+    },
+  };
+}
+
 export async function runDatabaseCli(
   arguments_: readonly string[],
   environment: DatabaseCliEnvironment,
@@ -70,10 +108,11 @@ export async function runDatabaseCli(
   dependencies: DatabaseCliDependencies = defaultDependencies,
 ): Promise<number> {
   const command = arguments_[0];
-  if (command !== "migrate" && command !== "status") {
-    throw new DatabaseCliUsageError("Usage: proofstack-db <migrate|status>");
+  if (command !== "migrate" && command !== "provision" && command !== "status") {
+    throw new DatabaseCliUsageError("Usage: proofstack-db <migrate|provision|status>");
   }
 
+  const provisioningOptions = command === "provision" ? runtimeRoleOptions(environment) : undefined;
   const connectionString = migrationDatabaseUrl(environment);
   let idleError: Error | undefined;
   const pool = dependencies.createPool(connectionString, (error) => {
@@ -89,6 +128,18 @@ export async function runDatabaseCli(
           appliedIds: result.appliedIds,
           newlyAppliedIds: result.newlyAppliedIds,
           status: "current",
+        }),
+      );
+      return idleError ? 1 : 0;
+    }
+
+    if (command === "provision" && provisioningOptions) {
+      const result = await dependencies.provision(pool, provisioningOptions);
+      io.output(
+        JSON.stringify({
+          createdRoles: result.createdRoles,
+          status: "provisioned",
+          updatedRoles: result.updatedRoles,
         }),
       );
       return idleError ? 1 : 0;
