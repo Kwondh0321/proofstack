@@ -176,12 +176,16 @@ function requireReason(reason: string): string {
 }
 
 function requireIdentityManager(issuer: PrincipalContext, targetScope: ResourceScope): void {
+  requireIdentityAdministrator(issuer);
+  if (!canDelegateResourceScope(issuer.resourceScope, targetScope)) {
+    throw new ForbiddenError("A principal cannot manage a workload outside its resource scope");
+  }
+}
+
+function requireIdentityAdministrator(issuer: PrincipalContext): void {
   requireCapability(issuer, "identity:manage");
   if (issuer.principalType !== "user") {
     throw new ForbiddenError("Only a user principal can manage workload credentials");
-  }
-  if (!canDelegateResourceScope(issuer.resourceScope, targetScope)) {
-    throw new ForbiddenError("A principal cannot manage a workload outside its resource scope");
   }
 }
 
@@ -266,6 +270,7 @@ export class ApiKeyLifecycle {
 
   async rotate(options: RotateApiKeyOptions): Promise<IssuedApiKeyCredential> {
     const previousCredentialId = requireCredentialId(options.credentialId);
+    requireIdentityAdministrator(options.issuer);
     const previous = await this.store.findById(options.issuer.tenantId, previousCredentialId);
     if (!previous) throw new ApiKeyCredentialNotFoundError(previousCredentialId);
     if (!activeAt(previous, this.dependencies.clock)) {
@@ -307,6 +312,7 @@ export class ApiKeyLifecycle {
   async revoke(options: RevokeApiKeyOptions): Promise<boolean> {
     const credentialId = requireCredentialId(options.credentialId);
     const reason = requireReason(options.reason);
+    requireIdentityAdministrator(options.issuer);
     const credential = await this.store.findById(options.issuer.tenantId, credentialId);
     if (!credential) throw new ApiKeyCredentialNotFoundError(credentialId);
     requireIdentityManager(options.issuer, credential.resourceScope);

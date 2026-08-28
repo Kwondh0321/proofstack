@@ -72,6 +72,7 @@ function managed(input: CreateApiKeyCredential, revokedAt: string | null = null)
 class MemoryStore implements ApiKeyCredentialStore {
   readonly records = new Map<string, ManagedApiKeyCredential>();
   readonly createInputs: CreateApiKeyCredential[] = [];
+  readonly findInputs: Array<{ readonly credentialId: string; readonly tenantId: string }> = [];
   readonly rotateInputs: RotateApiKeyCredential[] = [];
   readonly revokeInputs: Array<{
     readonly actorPrincipalId: string;
@@ -96,6 +97,7 @@ class MemoryStore implements ApiKeyCredentialStore {
   }
 
   async findById(tenantId: string, credentialId: string) {
+    this.findInputs.push({ credentialId, tenantId });
     const record = this.records.get(credentialId);
     return record?.tenantId === tenantId ? record : null;
   }
@@ -395,9 +397,18 @@ describe("ApiKeyLifecycle.rotate", () => {
     await expect(
       fixture.lifecycle.rotate({
         credentialId: fixture.record.credentialId,
+        issuer: issuer({ capabilities: ["evidence:ingest"] }),
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(store.findInputs).toHaveLength(0);
+
+    await expect(
+      fixture.lifecycle.rotate({
+        credentialId: fixture.record.credentialId,
         issuer: issuer({ capabilities: ["identity:manage"] }),
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(store.findInputs).toHaveLength(1);
 
     store.rotateConflicts = 3;
     await expect(
@@ -476,6 +487,7 @@ describe("ApiKeyLifecycle.revoke", () => {
         reason: "unauthorized",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(store.findInputs).toHaveLength(0);
     await expect(
       lifecycle.revoke({
         credentialId: record.credentialId,
@@ -483,6 +495,7 @@ describe("ApiKeyLifecycle.revoke", () => {
         reason: "unauthorized",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(store.findInputs).toHaveLength(0);
     await expect(
       lifecycle.revoke({
         credentialId: record.credentialId,
