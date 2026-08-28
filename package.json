@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "boundaries": "node scripts/check-boundaries.mjs",
+    "check": "pnpm format:check && pnpm boundaries && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "clean": "turbo run clean && rm -rf .turbo coverage",
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @proofstack/api dev",
