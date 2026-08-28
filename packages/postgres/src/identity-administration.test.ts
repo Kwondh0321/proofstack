@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   bootstrapApiKey,
   type BootstrapApiKeyOptions,
+  createOidcBinding,
+  type CreateOidcBindingOptions,
+  disableOidcBinding,
   inspectIdentityCredentials,
+  updateOidcBinding,
 } from "./identity-administration.js";
 
 const options: BootstrapApiKeyOptions = {
@@ -16,6 +20,18 @@ const options: BootstrapApiKeyOptions = {
     mode: "restricted",
     projects: [{ environmentIds: ["env_production"], projectId: "prj_agents" }],
   },
+  tenantId: "ten_acme",
+};
+
+const oidcOptions: CreateOidcBindingOptions = {
+  actorPrincipalId: "usr_platform_operator",
+  bindingId: "oidc_platform_operator",
+  capabilities: ["project:read", "evidence:read", "identity:manage"],
+  issuer: "https://identity.example.test/tenant",
+  principalId: "usr_oidc_operator",
+  resourceScope: { mode: "tenant" },
+  roles: ["admin"],
+  subject: "provider-subject-001",
   tenantId: "ten_acme",
 };
 
@@ -127,5 +143,170 @@ describe("inspectIdentityCredentials", () => {
     ).rejects.toThrow("invalid active count");
     expect(database.query).toHaveBeenCalledWith("ROLLBACK");
     expect(database.release).toHaveBeenCalledOnce();
+  });
+});
+
+describe("OIDC binding administration", () => {
+  it("creates an exact pre-authorized binding inside a tenant transaction", async () => {
+    const createdAt = new Date("2026-08-28T05:00:00.000Z");
+    const database = poolWithRows([{ result: createdAt }]);
+    const assertCurrent = vi.fn(async () => undefined);
+
+    await expect(createOidcBinding(database.pool, oidcOptions, { assertCurrent })).resolves.toEqual(
+      {
+        bindingId: oidcOptions.bindingId,
+        createdAt: createdAt.toISOString(),
+        identityDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        issuer: oidcOptions.issuer,
+        principalId: oidcOptions.principalId,
+        subject: oidcOptions.subject,
+        tenantId: oidcOptions.tenantId,
+      },
+    );
+    expect(assertCurrent).toHaveBeenCalledWith(database.pool);
+    expect(database.query).toHaveBeenCalledWith(
+      expect.stringContaining("proofstack_create_oidc_binding"),
+      [
+        oidcOptions.tenantId,
+        oidcOptions.bindingId,
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+        oidcOptions.issuer,
+        oidcOptions.subject,
+        oidcOptions.principalId,
+        oidcOptions.roles,
+        oidcOptions.capabilities,
+        JSON.stringify(oidcOptions.resourceScope),
+        oidcOptions.actorPrincipalId,
+      ],
+    );
+    expect(database.query).toHaveBeenCalledWith("COMMIT");
+  });
+
+  it("updates only authorization and reports authoritative database time", async () => {
+    const updatedAt = "2026-08-28T05:30:00.000Z";
+    const database = poolWithRows([{ result: updatedAt }]);
+    const assertCurrent = vi.fn(async () => undefined);
+
+    await expect(
+      updateOidcBinding(
+        database.pool,
+        {
+          actorPrincipalId: oidcOptions.actorPrincipalId,
+          bindingId: oidcOptions.bindingId,
+          capabilities: ["project:read"],
+          resourceScope: {
+            mode: "restricted",
+            projects: [{ environmentIds: ["env_production"], projectId: "prj_agents" }],
+          },
+          roles: ["viewer"],
+          tenantId: oidcOptions.tenantId,
+        },
+        { assertCurrent },
+      ),
+    ).resolves.toEqual({
+      bindingId: oidcOptions.bindingId,
+      tenantId: oidcOptions.tenantId,
+      updatedAt,
+    });
+    expect(database.query).toHaveBeenCalledWith(
+      expect.stringContaining("proofstack_update_oidc_binding"),
+      [
+        oidcOptions.tenantId,
+        oidcOptions.bindingId,
+        ["viewer"],
+        ["project:read"],
+        JSON.stringify({
+          mode: "restricted",
+          projects: [{ environmentIds: ["env_production"], projectId: "prj_agents" }],
+        }),
+        oidcOptions.actorPrincipalId,
+      ],
+    );
+  });
+
+  it("disables a binding idempotently with a sanitized reason", async () => {
+    const database = poolWithRows([{ result: true }]);
+    await expect(
+      disableOidcBinding(
+        database.pool,
+        {
+          actorPrincipalId: oidcOptions.actorPrincipalId,
+          bindingId: oidcOptions.bindingId,
+          reason: "employment ended",
+          tenantId: oidcOptions.tenantId,
+        },
+        { assertCurrent: async () => undefined },
+      ),
+    ).resolves.toBe(true);
+    expect(database.query).toHaveBeenCalledWith(
+      expect.stringContaining("proofstack_disable_oidc_binding"),
+      [
+        oidcOptions.tenantId,
+        oidcOptions.bindingId,
+        oidcOptions.actorPrincipalId,
+        "employment ended",
+      ],
+    );
+  });
+
+  it.each([
+    [{ ...oidcOptions, bindingId: "INVALID" }, "binding identifier"],
+    [{ ...oidcOptions, issuer: "http://identity.example.test" }, "HTTPS"],
+    [{ ...oidcOptions, subject: "bad\nsubject" }, "subject"],
+    [{ ...oidcOptions, roles: ["unknown"] }, "Invalid"],
+    [{ ...oidcOptions, capabilities: ["unknown"] }, "Invalid"],
+  ])("rejects invalid create options before database access", async (invalid, _message) => {
+    const database = poolWithRows();
+    const assertCurrent = vi.fn(async () => undefined);
+    await expect(
+      createOidcBinding(database.pool, invalid as CreateOidcBindingOptions, { assertCurrent }),
+    ).rejects.toThrow();
+    expect(assertCurrent).not.toHaveBeenCalled();
+  });
+
+  it.each(["", " padded", "padded ", "bad\nreason", "가".repeat(513)])(
+    "rejects invalid disable reason %j before database access",
+    async (reason) => {
+      const database = poolWithRows();
+      const assertCurrent = vi.fn(async () => undefined);
+      await expect(
+        disableOidcBinding(
+          database.pool,
+          {
+            actorPrincipalId: oidcOptions.actorPrincipalId,
+            bindingId: oidcOptions.bindingId,
+            reason,
+            tenantId: oidcOptions.tenantId,
+          },
+          { assertCurrent },
+        ),
+      ).rejects.toThrow("disable reason is invalid");
+      expect(assertCurrent).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rolls back malformed administration results", async () => {
+    const timestampDatabase = poolWithRows([{ result: "invalid" }]);
+    await expect(
+      createOidcBinding(timestampDatabase.pool, oidcOptions, {
+        assertCurrent: async () => undefined,
+      }),
+    ).rejects.toThrow("invalid timestamp");
+    expect(timestampDatabase.query).toHaveBeenCalledWith("ROLLBACK");
+
+    const booleanDatabase = poolWithRows([{ result: "yes" }]);
+    await expect(
+      disableOidcBinding(
+        booleanDatabase.pool,
+        {
+          actorPrincipalId: oidcOptions.actorPrincipalId,
+          bindingId: oidcOptions.bindingId,
+          reason: "access removed",
+          tenantId: oidcOptions.tenantId,
+        },
+        { assertCurrent: async () => undefined },
+      ),
+    ).rejects.toThrow("invalid result");
+    expect(booleanDatabase.query).toHaveBeenCalledWith("ROLLBACK");
   });
 });

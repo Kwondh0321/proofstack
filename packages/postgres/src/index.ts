@@ -7,8 +7,15 @@ export { createPostgresPool, type PostgresPoolOptions } from "./database.js";
 export {
   bootstrapApiKey,
   type BootstrapApiKeyOptions,
+  createOidcBinding,
+  type CreatedOidcBinding,
+  type CreateOidcBindingOptions,
+  disableOidcBinding,
+  type DisableOidcBindingOptions,
   type IdentityCredentialStatus,
   inspectIdentityCredentials,
+  updateOidcBinding,
+  type UpdateOidcBindingOptions,
 } from "./identity-administration.js";
 export {
   assertMigrationsCurrent,
