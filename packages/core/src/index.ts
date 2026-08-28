@@ -1,4 +1,5 @@
 export * from "./auth/authorization.js";
+export * from "./auth/workload-delegation.js";
 export * from "./clock.js";
 export * from "./errors.js";
 export * from "./evidence/evidence-repository.js";
