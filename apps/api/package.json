@@ -22,6 +22,7 @@
     "@proofstack/contracts": "workspace:*",
     "@proofstack/core": "workspace:*",
     "@proofstack/identity": "workspace:*",
+    "@proofstack/otlp": "workspace:*",
     "@proofstack/postgres": "workspace:*",
     "fastify": "5.12.1",
     "openid-client": "6.8.7",

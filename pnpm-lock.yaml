@@ -71,6 +71,9 @@ importers:
       '@proofstack/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@proofstack/otlp':
+        specifier: workspace:*
+        version: link:../../packages/otlp
       '@proofstack/postgres':
         specifier: workspace:*
         version: link:../../packages/postgres
