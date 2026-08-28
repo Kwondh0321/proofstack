@@ -4,6 +4,7 @@ import {
   IngestEvidenceRequestSchema,
   LivenessResponseSchema,
   OpaqueIdSchema,
+  createProofStackOpenApiDocument,
   ReadinessResponseSchema,
   TraceIdSchema,
   TraceResponseSchema,
@@ -32,8 +33,13 @@ export async function registerRoutes(
   app: FastifyInstance,
   dependencies: RouteDependencies,
 ): Promise<void> {
+  const openApiDocument = createProofStackOpenApiDocument();
+
   app.get("/health/live", async () => LivenessResponseSchema.parse({ status: "ok" }));
   app.get("/health/ready", async () => ReadinessResponseSchema.parse({ status: "ready" }));
+  app.get("/openapi.json", async (_request, reply) =>
+    reply.header("cache-control", "no-store").send(openApiDocument),
+  );
 
   app.post(
     "/v1/projects/:projectId/environments/:environmentId/evidence",

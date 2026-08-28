@@ -74,6 +74,18 @@ describe("health routes", () => {
     expect(response.json()).toEqual({ status: "ready" });
   });
 
+  it("serves the canonical OpenAPI description", async () => {
+    const app = await testApp();
+    const response = await app.inject({ method: "GET", url: "/openapi.json" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toMatchObject({
+      info: { title: "ProofStack API", version: "0.1.0-foundation" },
+      openapi: "3.2.0",
+    });
+  });
+
   it("refuses to start with an unavailable production authenticator", async () => {
     const production = loadConfig({
       PROOFSTACK_AUTH_MODE: "api_key",
