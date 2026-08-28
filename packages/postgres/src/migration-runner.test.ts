@@ -93,6 +93,7 @@ describe("migration inspection", () => {
         "0006_repair_oidc_transaction_format",
         "0007_saturate_api_key_use_count",
         "0008_artifact_capabilities",
+        "0009_artifact_catalog",
       ],
     });
   });
