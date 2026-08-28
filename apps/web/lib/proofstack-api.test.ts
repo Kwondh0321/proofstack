@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiHealth, getTrace } from "./proofstack-api.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -28,6 +28,19 @@ const traceEvent = {
     tenantId: "ten_local",
   },
 };
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+function hangingFetch() {
+  return vi.fn<typeof globalThis.fetch>(
+    async (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      }),
+  );
+}
 
 describe("apiHealth", () => {
   it("accepts a valid readiness response", async () => {
@@ -64,6 +77,18 @@ describe("apiHealth", () => {
       kind: "unavailable",
       message: "API returned HTTP 503",
       ok: false,
+    });
+  });
+
+  it("bounds readiness requests with a timeout", async () => {
+    vi.useFakeTimers();
+    const result = apiHealth(hangingFetch(), 10);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(result).resolves.toMatchObject({
+      kind: "unavailable",
+      message: "ProofStack API request timed out after 10ms",
     });
   });
 });
@@ -118,6 +143,18 @@ describe("getTrace", () => {
       kind: "unavailable",
       message: "API is not reachable",
       ok: false,
+    });
+  });
+
+  it("bounds trace requests with a timeout", async () => {
+    vi.useFakeTimers();
+    const result = getTrace(traceId, hangingFetch(), 10);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(result).resolves.toMatchObject({
+      kind: "unavailable",
+      message: "ProofStack API request timed out after 10ms",
     });
   });
 });

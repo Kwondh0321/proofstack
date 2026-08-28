@@ -1,9 +1,18 @@
 import {
   ReadinessResponseSchema,
   TraceIdSchema,
-  TraceResponseSchema,
   type TraceResponse,
+  TraceResponseSchema,
 } from "@proofstack/contracts";
+
+const DEFAULT_API_TIMEOUT_MS = 3_000;
+
+class ApiRequestTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`ProofStack API request timed out after ${timeoutMs}ms`);
+    this.name = "ApiRequestTimeoutError";
+  }
+}
 
 export type ApiResult<T> =
   | { readonly data: T; readonly ok: true }
@@ -38,14 +47,33 @@ function scopedUrl(path: string, settings: ApiConnection): URL {
   return url;
 }
 
+async function fetchApi(
+  fetcher: typeof globalThis.fetch,
+  input: URL,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetcher(input, { cache: "no-store", signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new ApiRequestTimeoutError(timeoutMs);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function apiHealth(
   fetcher: typeof globalThis.fetch = globalThis.fetch,
+  timeoutMs = DEFAULT_API_TIMEOUT_MS,
 ): Promise<ApiResult<"ready">> {
   try {
     const settings = connection();
     const url = new URL(settings.baseUrl);
     url.pathname = `${url.pathname.replace(/\/$/, "")}/health/ready`;
-    const response = await fetcher(url, { cache: "no-store" });
+    const response = await fetchApi(fetcher, url, timeoutMs);
     if (!response.ok) {
       return { kind: "unavailable", message: `API returned HTTP ${response.status}`, ok: false };
     }
@@ -54,14 +82,19 @@ export async function apiHealth(
       return { kind: "invalid_response", message: "API readiness response is invalid", ok: false };
     }
     return { data: "ready", ok: true };
-  } catch {
-    return { kind: "unavailable", message: "API is not reachable", ok: false };
+  } catch (error) {
+    return {
+      kind: "unavailable",
+      message: error instanceof ApiRequestTimeoutError ? error.message : "API is not reachable",
+      ok: false,
+    };
   }
 }
 
 export async function getTrace(
   traceId: string,
   fetcher: typeof globalThis.fetch = globalThis.fetch,
+  timeoutMs = DEFAULT_API_TIMEOUT_MS,
 ): Promise<ApiResult<TraceResponse>> {
   if (!TraceIdSchema.safeParse(traceId).success) {
     return { kind: "invalid_response", message: "Trace ID is not valid", ok: false };
@@ -69,9 +102,7 @@ export async function getTrace(
 
   try {
     const settings = connection();
-    const response = await fetcher(scopedUrl(`/traces/${traceId}`, settings), {
-      cache: "no-store",
-    });
+    const response = await fetchApi(fetcher, scopedUrl(`/traces/${traceId}`, settings), timeoutMs);
     if (response.status === 404) {
       return { kind: "not_found", message: "Trace was not found", ok: false };
     }
@@ -84,7 +115,11 @@ export async function getTrace(
       return { kind: "invalid_response", message: "Trace response failed validation", ok: false };
     }
     return { data: parsed.data, ok: true };
-  } catch {
-    return { kind: "unavailable", message: "API is not reachable", ok: false };
+  } catch (error) {
+    return {
+      kind: "unavailable",
+      message: error instanceof ApiRequestTimeoutError ? error.message : "API is not reachable",
+      ok: false,
+    };
   }
 }
