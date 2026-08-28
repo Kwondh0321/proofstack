@@ -18,6 +18,10 @@ if (!databaseUrl) {
 
 const runtimeRoles = {
   api: { name: "proofstack_test_api_runtime", password: "proofstack-test-api-runtime" },
+  artifact: {
+    name: "proofstack_test_artifact_runtime",
+    password: "proofstack-test-artifact-runtime",
+  },
   consumer: {
     name: "proofstack_test_consumer_runtime",
     password: "proofstack-test-consumer-runtime",
