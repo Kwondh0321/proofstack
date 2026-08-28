@@ -152,6 +152,7 @@ describe("health routes", () => {
         identityReadinessChecks += 1;
       },
       close: async () => undefined,
+      oidcRepository: {} as IdentityStorage["oidcRepository"],
       repository: {
         confirmActiveUse: async () => true,
         create: async () => ({ createdAt: "2026-08-28T04:00:00.000Z" }),
