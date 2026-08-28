@@ -1,33 +1,19 @@
 import { z } from "zod";
+import {
+  JsonValueSchema,
+  NamespacedExtensionKeySchema,
+  OpaqueIdSchema,
+  Sha256Schema,
+  SpanIdSchema,
+  TimestampSchema,
+  TraceIdSchema,
+} from "./primitives.js";
+
+export type { JsonObject, JsonValue } from "./primitives.js";
 
 export const EVIDENCE_SCHEMA_VERSION = "0.1" as const;
 export const MAX_EVIDENCE_BATCH_SIZE = 100;
 export const MAX_ATTRIBUTE_KEYS = 128;
-
-export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
-export type JsonObject = { readonly [key: string]: JsonValue };
-
-export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.null(),
-    z.boolean(),
-    z.number().finite(),
-    z.string(),
-    z.array(JsonValueSchema),
-    z.record(z.string(), JsonValueSchema),
-  ]),
-);
-
-const OPAQUE_ID_PATTERN = /^[a-z][a-z0-9_]{2,63}$/;
-const TRACE_ID_PATTERN = /^(?!0{32}$)[0-9a-f]{32}$/;
-const SPAN_ID_PATTERN = /^(?!0{16}$)[0-9a-f]{16}$/;
-const SHA256_PATTERN = /^[0-9a-f]{64}$/;
-const EXTENSION_NAMESPACE_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/;
-
-const OpaqueIdSchema = z.string().regex(OPAQUE_ID_PATTERN);
-const TraceIdSchema = z.string().regex(TRACE_ID_PATTERN);
-const SpanIdSchema = z.string().regex(SPAN_ID_PATTERN);
-const TimestampSchema = z.iso.datetime({ offset: true });
 
 export const EvidenceKindSchema = z.enum([
   "agent.run",
@@ -60,7 +46,7 @@ export const ContentReferenceSchema = z
     classification: DataClassificationSchema,
     mediaType: z.string().min(1).max(255),
     redactedAt: RedactionStageSchema.optional(),
-    sha256: z.string().regex(SHA256_PATTERN),
+    sha256: Sha256Schema,
     sizeBytes: z.number().int().nonnegative(),
   })
   .strict();
@@ -84,7 +70,7 @@ const BoundedAttributesSchema = z
   });
 
 const ExtensionsSchema = z.record(
-  z.string().regex(EXTENSION_NAMESPACE_PATTERN),
+  NamespacedExtensionKeySchema,
   z.record(z.string(), JsonValueSchema),
 );
 
