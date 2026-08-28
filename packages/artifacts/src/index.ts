@@ -4,4 +4,5 @@ export * from "./artifact-ports.js";
 export * from "./errors.js";
 export * from "./read-artifact.js";
 export * from "./reserve-artifact.js";
+export * from "./tombstone-artifact.js";
 export * from "./upload-artifact.js";
