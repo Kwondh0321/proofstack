@@ -72,7 +72,7 @@ the demonstration worked.
 | --- | --- | --- | --- |
 | `PROOFSTACK_ENV` | `development` | API | Runtime safety mode: `development`, `test`, or `production` |
 | `PROOFSTACK_AUTH_MODE` | `development` | API | Identity adapter; non-development modes currently refuse startup |
-| `PROOFSTACK_HOST` | `127.0.0.1` | API | Listen address |
+| `PROOFSTACK_HOST` | `127.0.0.1` | API | Listen address; development authentication requires an explicit loopback host |
 | `PROOFSTACK_PORT` | `4318` | API | Listen port |
 | `PROOFSTACK_LOG_LEVEL` | `info` | API | Structured log level |
 | `PROOFSTACK_CORS_ORIGIN` | unset | API | Exact allowed browser origin when cross-origin access is needed |
@@ -91,5 +91,5 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-If a production configuration starts with development authentication, report it as a security
-issue. The intended behavior is an immediate startup refusal.
+If development authentication starts in production or on a non-loopback listener, report it as a
+security issue. Both configurations must cause an immediate startup refusal.

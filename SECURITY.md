@@ -27,9 +27,9 @@ a service-level agreement while the project remains pre-release.
 ## Deployment warning
 
 The development authenticator and in-memory repository are intentionally non-production
-components. The API refuses to start with development authentication when configured for
-production, but operators remain responsible for network isolation, encrypted transport, secret
-management, backups, and a production identity provider.
+components. The API refuses to start with development authentication in production or on a
+non-loopback listener, but operators remain responsible for network isolation, encrypted
+transport, secret management, backups, and a production identity provider.
 
 See [docs/security/threat-model.md](docs/security/threat-model.md) for the current trust boundaries
 and open security gates.

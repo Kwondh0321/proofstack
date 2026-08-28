@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const DEVELOPMENT_AUTH_LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+
 const ApiConfigSchema = z
   .object({
     authMode: z.enum(["development", "api_key", "oidc"]),
@@ -16,6 +18,17 @@ const ApiConfigSchema = z
         code: "custom",
         message: "Development authentication is forbidden in production",
         path: ["authMode"],
+      });
+    }
+
+    if (
+      value.authMode === "development" &&
+      !DEVELOPMENT_AUTH_LOOPBACK_HOSTS.has(value.host.toLowerCase())
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Development authentication requires an explicit loopback host",
+        path: ["host"],
       });
     }
   });
