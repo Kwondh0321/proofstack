@@ -183,4 +183,21 @@ describe("loadConfig", () => {
       }),
     ).toThrow();
   });
+
+  it("accepts only canonical browser origins and requires HTTPS with OIDC", () => {
+    expect(loadConfig({ PROOFSTACK_CORS_ORIGIN: "http://127.0.0.1:3010" })).toMatchObject({
+      corsOrigin: "http://127.0.0.1:3010",
+    });
+    expect(() =>
+      loadConfig({ PROOFSTACK_CORS_ORIGIN: "https://console.example.test/path" }),
+    ).toThrow("exact scheme, host");
+    expect(() =>
+      loadConfig({
+        ...OIDC_ENV,
+        PROOFSTACK_AUTH_MODE: "oidc",
+        PROOFSTACK_CORS_ORIGIN: "http://console.example.test",
+        PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
+      }),
+    ).toThrow("HTTPS CORS origin");
+  });
 });

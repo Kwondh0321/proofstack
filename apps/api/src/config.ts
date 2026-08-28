@@ -83,6 +83,23 @@ const ApiConfigSchema = z
     }
 
     const usesOidc = value.authMode === "oidc" || value.authMode === "combined";
+    if (value.corsOrigin) {
+      const corsUrl = new URL(value.corsOrigin);
+      if (value.corsOrigin !== corsUrl.origin) {
+        context.addIssue({
+          code: "custom",
+          message: "CORS origin must contain only an exact scheme, host, and optional port",
+          path: ["corsOrigin"],
+        });
+      }
+      if (usesOidc && corsUrl.protocol !== "https:") {
+        context.addIssue({
+          code: "custom",
+          message: "OIDC browser authentication requires an HTTPS CORS origin",
+          path: ["corsOrigin"],
+        });
+      }
+    }
     if (usesOidc && !value.oidc) {
       context.addIssue({
         code: "custom",
