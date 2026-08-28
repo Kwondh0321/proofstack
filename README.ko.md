@@ -1,0 +1,135 @@
+# ProofStack
+
+[English](README.md) | [한국어](README.ko.md)
+
+[![CI](https://github.com/Kwondh0321/proofstack/actions/workflows/ci.yml/badge.svg)](https://github.com/Kwondh0321/proofstack/actions/workflows/ci.yml)
+
+ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통제하며, 안전하게 출시하기
+위한 오픈 소스 Agent Reliability Engineering 플랫폼입니다.
+
+> [!IMPORTANT]
+> ProofStack은 프로덕션 릴리스가 아닌 실험적 기반 단계에 있습니다. 현재 구현된 경로는
+> 실제로 작동하고 검증되지만, 영속 저장소, 프로덕션 인증, 재현, 평가, 릴리스 게이트는
+> 아직 완성된 기능으로 표시하지 않습니다.
+
+## ProofStack이 필요한 이유
+
+에이전트를 운영하는 팀에는 로그와 대시보드 이상의 것이 필요합니다. 다음 다섯 가지
+질문에 답할 수 있는 검증 가능한 증거가 필요합니다.
+
+1. 에이전트가 무엇을 했는가?
+2. 왜 그 경로를 선택했는가?
+3. 결과가 정확하고 안전하며 경제적이었는가?
+4. 해당 실행을 재현할 수 있는가?
+5. 이 버전을 프로덕션에서 실행하도록 허용해도 되는가?
+
+ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으로 설계됩니다.
+
+`관찰 -> 재현 -> 평가 -> 집행 -> 출시 -> 학습`
+
+첫 번째 핵심 흐름은 의도적으로 하나의 완결된 과정에 집중합니다. 도구를 사용하는
+에이전트를 계측하고, 인과 관계가 보존된 트레이스를 검사하고, 실패를 회귀 테스트
+픽스처로 전환하고, 후보 릴리스를 평가한 뒤, 선언된 정책이 퇴보했을 때 출시를
+차단하는 과정입니다.
+
+## 현재 작동하는 기능
+
+| 영역 | 기반 단계의 기능 |
+| --- | --- |
+| 계약 | W3C 트레이스 식별자를 사용하는 엄격하고 버전이 명시된 공급자 중립 `EvidenceEnvelope` |
+| 코어 | 테넌트 범위 인가, 멱등 수집, 충돌 감지, 원자적 배치 처리 |
+| API | 상태 확인, 직접 JSON 수집, 트레이스 조회, 안정적인 문제 문서, OpenAPI 3.2 |
+| TypeScript SDK | 식별자 생성, 제한된 큐, 배치 처리, 타임아웃, 기본 fail-open 동작 |
+| 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
+| 예제 | 실제 SDK와 API를 통과하는 부모/자식 에이전트 및 도구 트레이스 |
+| 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
+| 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
+
+엔드투엔드 기반은 의도적으로 적은 의존성만 요구합니다.
+
+```mermaid
+flowchart LR
+    A[관찰 대상 에이전트] -->|EvidenceRecord| S[TypeScript SDK]
+    S -->|제한된 배치| H[Fastify API]
+    H -->|PrincipalContext| C[코어 유스케이스]
+    C -->|테넌트 범위 포트| R[(인메모리 저장소)]
+    W[운영자 콘솔] -->|검증된 응답| H
+    H --> O[OpenAPI 계약]
+```
+
+저장소 포트는 PostgreSQL로 교체하기 위한 경계입니다. 메모리 어댑터는 테스트와 빠른
+시작을 위한 것이며 영속 저장소로 표현하지 않습니다.
+
+## 빠른 시작
+
+요구 사항: Node.js 24 이상, pnpm 11.24.0.
+
+```bash
+git clone https://github.com/Kwondh0321/proofstack.git
+cd proofstack
+pnpm install --frozen-lockfile
+pnpm check
+pnpm dev
+```
+
+API는 <http://127.0.0.1:4318>, 기계 판독 가능한 계약은
+<http://127.0.0.1:4318/openapi.json>, 콘솔은 <http://127.0.0.1:3000>에서 시작합니다.
+
+API를 실행한 상태에서 다른 터미널을 열어 실제 SDK 트레이스를 전송합니다.
+
+```bash
+pnpm example:basic-agent
+```
+
+명령이 생성된 트레이스 ID와 콘솔 URL을 출력합니다. 설정과 문제 해결 방법은
+[로컬 개발 가이드](docs/development/local-development.md)를 참고하세요.
+
+## 저장소 구성
+
+```text
+apps/api                 HTTP 컴포지션 루트와 개발용 수집 API
+apps/web                 서버 렌더링 운영자 콘솔
+packages/contracts       런타임 스키마, 공개 타입, 인증 컨텍스트, OpenAPI 생성
+packages/core            프레임워크 독립적인 인가 및 증거 유스케이스
+sdks/typescript          공급자 중립 텔레메트리 클라이언트
+examples/basic-agent     검증된 SDK-API 트레이스 예제
+docs/architecture        번호가 지정된 아키텍처 결정 기록
+docs/product             제품 헌법과 의존 순서가 명시된 로드맵
+docs/security            신뢰 경계, 위협, 통제, 프로덕션 게이트
+scripts                  저장소 수준 아키텍처 경계 검사
+```
+
+내부 의존성 방향은 `pnpm check`에서 강제됩니다. 애플리케이션이 프레임워크 또는 저장소
+관심사를 계약과 코어 로직에 조용히 유출할 수 없습니다.
+
+## 타협하지 않는 불변 조건
+
+- 테넌트 소유권은 클라이언트 페이로드가 아니라 서버에서 인증된 컨텍스트로 지정합니다.
+- 수신된 증거는 불변이고 멱등성을 가지며, 동일한 이벤트 ID를 다른 내용으로 재사용하면
+  거부합니다.
+- 텔레메트리 장애는 기본적으로 관찰 대상 워크로드를 중단시키지 않습니다.
+- 필수 정책 집행 기능이 구현되면 해당 기능은 fail-closed 방식으로 동작합니다.
+- 민감한 콘텐츠 수집은 명시적으로 선택해야 하며 메타데이터 중심 증거와 분리합니다.
+- 실험적이거나 예정된 기능은 현재 상태를 숨기지 않고 표시합니다.
+
+넓은 범위의 변경을 시작하기 전에 [제품 헌법](docs/product/constitution.md)을 읽어주세요.
+중요한 기술적 결정은 [ADR](docs/architecture/README.md)에 기록하며, 기능 순서와 승인
+조건은 [로드맵](docs/product/roadmap.md)에 정의합니다.
+
+## 현재의 경계
+
+현재 빌드는 영속 저장소, 프로덕션 OIDC 또는 API 키 인증, 아티팩트 콘텐츠 저장소,
+OTLP 수집, 재현, 평가기, 정책 집행, 백업, 프로덕션 배포 아티팩트를 제공하지 않습니다.
+이 기능들은 명시된 의존 순서를 따르며 로드맵의 보안·호환성 게이트를 건너뛸 수 없습니다.
+
+## 기여와 보안
+
+검토 가능한 변경을 만들기 전에 `pnpm check`를 실행하고, 하나의 커밋에는 하나의 일관된
+결정만 담아주세요. 전체 절차는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+
+보안 취약점을 공개 이슈로 보고하지 마세요. [SECURITY.md](SECURITY.md)의 절차를 따르고
+[기반 위협 모델](docs/security/threat-model.md)을 검토하세요.
+
+## 라이선스
+
+Apache License 2.0을 적용합니다. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
