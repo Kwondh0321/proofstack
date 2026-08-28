@@ -22,7 +22,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@proofstack/contracts": "workspace:*"
+    "@proofstack/contracts": "workspace:*",
+    "protobufjs": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

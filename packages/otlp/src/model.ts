@@ -93,4 +93,9 @@ export interface OtlpExportTraceServiceResponse {
   readonly partialSuccess?: OtlpTracePartialSuccess;
 }
 
+export interface OtlpRpcStatus {
+  readonly code?: number;
+  readonly message: string;
+}
+
 export type OtlpHttpEncoding = "json" | "protobuf";
