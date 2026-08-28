@@ -5,6 +5,12 @@ export {
 } from "./connection-string.js";
 export { createPostgresPool, type PostgresPoolOptions } from "./database.js";
 export {
+  bootstrapApiKey,
+  type BootstrapApiKeyOptions,
+  type IdentityCredentialStatus,
+  inspectIdentityCredentials,
+} from "./identity-administration.js";
+export {
   assertMigrationsCurrent,
   inspectMigrations,
   MigrationIntegrityError,
