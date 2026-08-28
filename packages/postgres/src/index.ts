@@ -27,6 +27,7 @@ export {
   PostgresApiKeyCredentialRepository,
   PostgresIdentityDataIntegrityError,
 } from "./postgres-api-key-credential-repository.js";
+export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
   MAX_CONSUMER_RECEIPT_ERROR_LENGTH,
   MAX_CONSUMER_RECEIPT_LEASE_DURATION_MS,
