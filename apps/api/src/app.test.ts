@@ -5,8 +5,9 @@ import {
 } from "@proofstack/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
-import type { Authenticator } from "./auth.js";
+import { type Authenticator, AuthenticationRequiredError } from "./auth.js";
 import { loadConfig } from "./config.js";
+import type { IdentityStorage } from "./identity-storage.js";
 
 const config = loadConfig({ PROOFSTACK_ENV: "test", PROOFSTACK_LOG_LEVEL: "silent" });
 const apps: Awaited<ReturnType<typeof createApp>>[] = [];
@@ -74,6 +75,20 @@ describe("health routes", () => {
     expect(response.json()).toEqual({ status: "ready" });
   });
 
+  it("treats an injected repository as ready unless a check is provided", async () => {
+    const app = await createApp(config, {
+      repository: {
+        append: async () => ({ acceptedEventIds: [], duplicateEventIds: [] }),
+        listByTrace: async () => ({ cursorFound: true, events: [], hasMore: false }),
+      },
+    });
+    apps.push(app);
+
+    const response = await app.inject({ method: "GET", url: "/health/ready" });
+
+    expect(response.statusCode).toBe(200);
+  });
+
   it("reports dependency readiness failures without affecting liveness", async () => {
     const app = await createApp(config, {
       checkReadiness: async () => {
@@ -109,7 +124,7 @@ describe("health routes", () => {
 
   it("refuses to start with an unavailable production authenticator", async () => {
     const production = loadConfig({
-      PROOFSTACK_AUTH_MODE: "api_key",
+      PROOFSTACK_AUTH_MODE: "oidc",
       PROOFSTACK_DATABASE_URL: "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
       PROOFSTACK_ENV: "production",
       PROOFSTACK_IDENTITY_DATABASE_URL:
@@ -119,6 +134,44 @@ describe("health routes", () => {
     });
 
     await expect(createApp(production)).rejects.toThrow("startup refused");
+  });
+
+  it("composes API key authentication with isolated identity readiness", async () => {
+    let identityReadinessChecks = 0;
+    const identityStorage: IdentityStorage = {
+      checkReadiness: async () => {
+        identityReadinessChecks += 1;
+      },
+      close: async () => undefined,
+      repository: {
+        confirmActiveUse: async () => true,
+        create: async () => ({ createdAt: "2026-08-28T04:00:00.000Z" }),
+        findActiveByPrefix: async () => null,
+        findById: async () => null,
+        revoke: async () => true,
+        rotate: async () => ({ createdAt: "2026-08-28T04:00:00.000Z" }),
+      },
+    };
+    const apiKeyConfig = loadConfig({
+      PROOFSTACK_AUTH_MODE: "api_key",
+      PROOFSTACK_ENV: "test",
+      PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
+      PROOFSTACK_LOG_LEVEL: "silent",
+    });
+    const app = await createApp(apiKeyConfig, { identityStorage });
+    apps.push(app);
+
+    const readiness = await app.inject({ method: "GET", url: "/health/ready" });
+    const protectedRoute = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}`,
+    });
+
+    expect(readiness.statusCode).toBe(200);
+    expect(identityReadinessChecks).toBe(1);
+    expect(protectedRoute.statusCode).toBe(401);
+    expect(protectedRoute.headers["www-authenticate"]).toBe('Bearer realm="proofstack"');
+    expect(protectedRoute.json()).toMatchObject({ code: "unauthenticated", status: 401 });
   });
 
   it("returns a problem document for unknown routes", async () => {
@@ -338,5 +391,29 @@ describe("evidence routes", () => {
     expect(response.statusCode).toBe(500);
     expect(response.body).not.toContain("sensitive failure detail");
     expect(response.json()).toMatchObject({ code: "internal_error", status: 500 });
+  });
+
+  it("does not expose credential rejection details", async () => {
+    const app = await createApp(config, {
+      authenticator: {
+        authenticate: async () => {
+          throw new AuthenticationRequiredError({ cause: new Error("sensitive key detail") });
+        },
+      },
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}`,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).not.toContain("sensitive key detail");
+    expect(response.json()).toMatchObject({
+      code: "unauthenticated",
+      detail: "Authentication is required or invalid",
+      status: 401,
+    });
   });
 });

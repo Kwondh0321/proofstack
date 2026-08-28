@@ -3,11 +3,14 @@ import {
   createPostgresPool,
   PostgresApiKeyCredentialRepository,
 } from "@proofstack/postgres";
+import type { ApiKeyCredentialLookup, ApiKeyCredentialStore } from "@proofstack/identity";
+
+export type WorkloadCredentialRepository = ApiKeyCredentialLookup & ApiKeyCredentialStore;
 
 export interface IdentityStorage {
   readonly checkReadiness: () => Promise<void>;
   readonly close: () => Promise<void>;
-  readonly repository: PostgresApiKeyCredentialRepository;
+  readonly repository: WorkloadCredentialRepository;
 }
 
 interface IdentityStorageDependencies {
@@ -15,7 +18,7 @@ interface IdentityStorageDependencies {
   readonly createPool: typeof createPostgresPool;
   readonly createRepository: (
     pool: ReturnType<typeof createPostgresPool>,
-  ) => PostgresApiKeyCredentialRepository;
+  ) => WorkloadCredentialRepository;
 }
 
 const defaultDependencies: IdentityStorageDependencies = {
@@ -26,7 +29,7 @@ const defaultDependencies: IdentityStorageDependencies = {
 
 async function checkIdentityReadiness(
   pool: ReturnType<typeof createPostgresPool>,
-  repository: PostgresApiKeyCredentialRepository,
+  repository: WorkloadCredentialRepository,
   dependencies: IdentityStorageDependencies,
 ): Promise<void> {
   await dependencies.assertCurrent(pool);

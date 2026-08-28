@@ -59,6 +59,9 @@ importers:
       '@proofstack/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@proofstack/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@proofstack/postgres':
         specifier: workspace:*
         version: link:../../packages/postgres

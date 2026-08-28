@@ -15,8 +15,9 @@ import {
 } from "@proofstack/core";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
-import { type Authenticator, createAuthenticator } from "./auth.js";
+import { type Authenticator, AuthenticationRequiredError, createAuthenticator } from "./auth.js";
 import type { ApiConfig } from "./config.js";
+import { createIdentityStorage, type IdentityStorage } from "./identity-storage.js";
 import { sendProblem } from "./problem.js";
 import { registerRoutes } from "./routes.js";
 import { createEvidenceStorage } from "./storage.js";
@@ -25,6 +26,7 @@ export interface AppDependencies {
   readonly authenticator?: Authenticator;
   readonly checkReadiness?: () => Promise<void>;
   readonly clock?: Clock;
+  readonly identityStorage?: IdentityStorage;
   readonly repository?: EvidenceRepository;
 }
 
@@ -40,7 +42,6 @@ export async function createApp(
   dependencies: AppDependencies = {},
 ): Promise<FastifyInstance> {
   const clock = dependencies.clock ?? new SystemClock();
-  const authenticator = dependencies.authenticator ?? createAuthenticator(config);
 
   const app = Fastify({
     bodyLimit: 1024 * 1024,
@@ -48,11 +49,25 @@ export async function createApp(
     logController: new LogController({
       disableRequestLogging: config.environment === "test",
     }),
-    logger: config.environment === "test" ? false : { level: config.logLevel },
+    logger:
+      config.environment === "test"
+        ? false
+        : {
+            level: config.logLevel,
+            redact: {
+              censor: "[Redacted]",
+              paths: ["req.headers.authorization", "req.headers.cookie"],
+            },
+          },
     trustProxy: false,
   });
+  let authenticator = dependencies.authenticator;
 
   try {
+    if (!authenticator && config.authMode !== "api_key") {
+      authenticator = createAuthenticator(config);
+    }
+
     const storage = dependencies.repository
       ? {
           checkReadiness: dependencies.checkReadiness ?? (async () => undefined),
@@ -63,6 +78,23 @@ export async function createApp(
           app.log.error({ error }, "Idle PostgreSQL connection failed");
         });
     app.addHook("onClose", storage.close);
+
+    let identityStorage: IdentityStorage | undefined;
+    if (!authenticator && config.authMode === "api_key") {
+      if (!config.identityDatabaseUrl) {
+        throw new Error("API key identity storage is not configured; startup refused");
+      }
+      identityStorage =
+        dependencies.identityStorage ??
+        (await createIdentityStorage(config.identityDatabaseUrl, (error) => {
+          app.log.error({ error }, "Idle identity PostgreSQL connection failed");
+        }));
+      if (!dependencies.identityStorage) app.addHook("onClose", identityStorage.close);
+      authenticator = createAuthenticator(config, {
+        apiKeyCredentials: identityStorage.repository,
+      });
+    }
+    authenticator ??= createAuthenticator(config);
 
     await app.register(helmet, {
       contentSecurityPolicy: false,
@@ -77,7 +109,10 @@ export async function createApp(
 
     await registerRoutes(app, {
       authenticator,
-      checkReadiness: storage.checkReadiness,
+      checkReadiness: async () => {
+        await storage.checkReadiness();
+        await identityStorage?.checkReadiness();
+      },
       ingestEvidence: new IngestEvidence(storage.repository, clock),
       listTraceEvidence: new ListTraceEvidence(storage.repository),
     });
@@ -106,6 +141,18 @@ export async function createApp(
           status: 400,
           title: "Invalid request",
           type: "https://proofstack.dev/problems/invalid-request",
+        });
+      }
+
+      if (error instanceof AuthenticationRequiredError) {
+        reply.header("www-authenticate", 'Bearer realm="proofstack"');
+        return sendProblem(reply, {
+          code: "unauthenticated",
+          detail: error.message,
+          requestId: request.id,
+          status: 401,
+          title: "Authentication required",
+          type: "https://proofstack.dev/problems/unauthenticated",
         });
       }
 
