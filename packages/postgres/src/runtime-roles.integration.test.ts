@@ -1,6 +1,11 @@
+import type { EvidenceEnvelope } from "@proofstack/contracts";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
+import { PostgresConsumerReceiptRepository } from "./postgres-consumer-receipt-repository.js";
+import { PostgresEvidenceRepository } from "./postgres-evidence-repository.js";
+import { PostgresOutboxRepository } from "./postgres-outbox-repository.js";
+import { PostgresProjectionCursorRepository } from "./postgres-projection-cursor-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
 
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
@@ -213,6 +218,87 @@ describe("runtime role provisioning", () => {
       receipt_select: true,
       receipt_update: true,
     });
+
+    const tenantId = `ten_roles_${runKey}`;
+    const evidence: EvidenceEnvelope = {
+      evidence: {
+        attributes: {},
+        contentReferences: [],
+        eventId: `evt_roles_${runKey}`,
+        extensions: {},
+        kind: "agent.run",
+        name: "runtime-role-contract",
+        source: {
+          sdkName: "@proofstack/testkit",
+          sdkVersion: "0.0.0",
+          serviceName: "runtime-role-contract",
+        },
+        spanId: "70f067aa0ba902b7",
+        startedAt: "2026-08-28T04:59:59.000Z",
+        status: "ok",
+        traceId: "8bf92f3577b34da6a3ce929d0e0e4736",
+      },
+      receivedAt: "2026-08-28T05:00:00.000Z",
+      schemaVersion: "0.1",
+      scope: {
+        environmentId: "env_roles",
+        projectId: "prj_roles",
+        tenantId,
+      },
+    };
+    await expect(new PostgresEvidenceRepository(apiPool).append([evidence])).resolves.toEqual({
+      acceptedEventIds: [evidence.evidence.eventId],
+      duplicateEventIds: [],
+    });
+
+    const outbox = new PostgresOutboxRepository(
+      publisherPool,
+      () => "11111111-1111-4111-8111-111111111111",
+    );
+    const claimed = await outbox.claim(tenantId, {
+      leaseDurationMs: 60_000,
+      limit: 1,
+      workerId: "worker_roles",
+    });
+    const message = claimed[0];
+    expect(message).toMatchObject({ aggregateId: evidence.evidence.eventId, tenantId });
+    if (!message) throw new Error("Provisioned publisher did not receive the evidence outbox row");
+
+    const receipts = new PostgresConsumerReceiptRepository(
+      consumerPool,
+      () => "22222222-2222-4222-8222-222222222222",
+    );
+    const receipt = await receipts.claim(tenantId, {
+      consumerName: "projection.roles",
+      leaseDurationMs: 60_000,
+      messageId: `outbox:${message.outboxId}`,
+      payloadSha256: "a".repeat(64),
+      workerId: "worker_roles",
+    });
+    expect(receipt.status).toBe("acquired");
+    if (receipt.status !== "acquired" || !receipt.receipt.lease) {
+      throw new Error("Provisioned consumer did not acquire a consumer receipt lease");
+    }
+    await expect(
+      receipts.complete(tenantId, {
+        consumerName: "projection.roles",
+        leaseToken: receipt.receipt.lease.token,
+        messageId: `outbox:${message.outboxId}`,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      new PostgresProjectionCursorRepository(consumerPool).advance(tenantId, {
+        consumerName: "projection.roles",
+        generation: 1,
+        lastOutboxId: message.outboxId,
+      }),
+    ).resolves.toMatchObject({ advanced: true });
+    await expect(
+      outbox.acknowledge(tenantId, {
+        leaseToken: message.lease.token,
+        outboxId: message.outboxId,
+      }),
+    ).resolves.toBe(true);
 
     const rotated = provisioningOptions("rotated");
     await adminPool.query(`GRANT USAGE ON SEQUENCE public."${sequenceName}" TO "${roleNames.api}"`);
