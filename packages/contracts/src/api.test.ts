@@ -27,6 +27,24 @@ describe("HTTP response contracts", () => {
     ).toBe(true);
   });
 
+  it("rejects ambiguous evidence acknowledgements", () => {
+    const acknowledgement = {
+      acceptedEventIds: ["evt_shared"],
+      duplicateEventIds: ["evt_shared"],
+      requestId: "req_test_001",
+      schemaVersion: "0.1",
+    };
+
+    expect(IngestEvidenceResponseSchema.safeParse(acknowledgement).success).toBe(false);
+    expect(
+      IngestEvidenceResponseSchema.safeParse({
+        ...acknowledgement,
+        acceptedEventIds: [],
+        duplicateEventIds: [],
+      }).success,
+    ).toBe(false);
+  });
+
   it("validates empty trace responses", () => {
     expect(
       TraceResponseSchema.safeParse({

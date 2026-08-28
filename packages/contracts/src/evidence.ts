@@ -117,7 +117,17 @@ export const IngestEvidenceRequestSchema = z
     events: z.array(EvidenceRecordSchema).min(1).max(MAX_EVIDENCE_BATCH_SIZE),
     schemaVersion: z.literal(EVIDENCE_SCHEMA_VERSION),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const eventIds = value.events.map((event) => event.eventId);
+    if (new Set(eventIds).size !== eventIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "events must not contain duplicate eventIds",
+        path: ["events"],
+      });
+    }
+  });
 
 export const EvidenceScopeSchema = z
   .object({

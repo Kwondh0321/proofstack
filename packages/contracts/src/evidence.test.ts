@@ -96,6 +96,15 @@ describe("IngestEvidenceRequestSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects duplicate event identifiers inside a batch", () => {
+    const result = IngestEvidenceRequestSchema.safeParse({
+      events: [validRecord, validRecord],
+      schemaVersion: EVIDENCE_SCHEMA_VERSION,
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("EvidenceEnvelopeSchema", () => {
