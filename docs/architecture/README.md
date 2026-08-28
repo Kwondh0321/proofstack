@@ -26,3 +26,4 @@ invalidate an ADR present in this directory.
 - [ADR-0001: Begin as a modular monorepo with logical planes](0001-modular-monorepo.md)
 - [ADR-0002: Use an OTLP-compatible canonical telemetry contract](0002-canonical-telemetry-contract.md)
 - [ADR-0003: Separate system-of-record data from analytical projections](0003-persistence-and-projections.md)
+- [ADR-0004: Make identity, tenancy, and data classification explicit](0004-identity-tenancy-and-sensitive-data.md)
