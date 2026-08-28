@@ -1,11 +1,11 @@
 import {
-  EvidenceRecordSchema,
   type EvidenceRecord,
   type EvidenceRecordInput,
+  EvidenceRecordSchema,
   type EvidenceSource,
 } from "@proofstack/contracts";
 import { createEventId, createSpanId, createTraceId } from "./ids.js";
-import { HttpEvidenceTransport, type EvidenceTransport } from "./transport.js";
+import { type EvidenceTransport, HttpEvidenceTransport } from "./transport.js";
 
 const SDK_NAME = "@proofstack/sdk";
 const SDK_VERSION = "0.0.0";
@@ -49,6 +49,13 @@ export class QueueCapacityError extends Error {
   }
 }
 
+export class ClientClosedError extends Error {
+  constructor() {
+    super("ProofStack client is closed and cannot accept new evidence");
+    this.name = "ClientClosedError";
+  }
+}
+
 export class ProofStackClient {
   private readonly failOpen: boolean;
   private readonly maxBatchSize: number;
@@ -57,6 +64,9 @@ export class ProofStackClient {
   private readonly queue: EvidenceRecord[] = [];
   private readonly source: EvidenceSource;
   private readonly transport: EvidenceTransport;
+  private acceptingEvents = true;
+  private closeInFlight: Promise<FlushResult> | undefined;
+  private closed = false;
   private inFlightEventCount = 0;
   private flushInFlight: Promise<FlushResult> | undefined;
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -96,6 +106,13 @@ export class ProofStackClient {
   }
 
   emit(input: EmitEvidenceInput): EvidenceRecord {
+    if (!this.acceptingEvents) {
+      const error = new ClientClosedError();
+      this.reportError(error);
+      if (!this.failOpen) throw error;
+      return this.createRecord(input);
+    }
+
     if (this.pendingCount() >= this.maxQueueSize) {
       const error = new QueueCapacityError(this.maxQueueSize);
       this.reportError(error);
@@ -126,9 +143,24 @@ export class ProofStackClient {
   }
 
   async close(): Promise<FlushResult> {
+    this.acceptingEvents = false;
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
 
+    if (this.closed) return { pendingCount: 0, sentCount: 0, success: true };
+    if (this.closeInFlight) return this.closeInFlight;
+
+    this.closeInFlight = this.drain();
+    try {
+      const result = await this.closeInFlight;
+      if (result.success && result.pendingCount === 0) this.closed = true;
+      return result;
+    } finally {
+      this.closeInFlight = undefined;
+    }
+  }
+
+  private async drain(): Promise<FlushResult> {
     let sentCount = 0;
     if (this.flushInFlight) {
       const inFlightResult = await this.flushInFlight;

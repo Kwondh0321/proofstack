@@ -1,6 +1,6 @@
 import type { EvidenceRecord } from "@proofstack/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProofStackClient, QueueCapacityError } from "./client.js";
+import { ClientClosedError, ProofStackClient, QueueCapacityError } from "./client.js";
 import type { EvidenceTransport } from "./transport.js";
 
 class RecordingTransport implements EvidenceTransport {
@@ -186,6 +186,59 @@ describe("ProofStackClient", () => {
       sentCount: 0,
       success: true,
     });
+  });
+
+  it("drops evidence reported after close in fail-open mode", async () => {
+    const onError = vi.fn();
+    const instance = client(new RecordingTransport(), { onError });
+    await instance.close();
+
+    const record = instance.emit({ kind: "custom", name: "too-late" });
+
+    expect(record.name).toBe("too-late");
+    expect(instance.pendingCount()).toBe(0);
+    expect(onError).toHaveBeenCalledWith(expect.any(ClientClosedError));
+  });
+
+  it("rejects evidence reported after close in fail-closed mode", async () => {
+    const instance = client(new RecordingTransport(), { failOpen: false });
+    await instance.close();
+
+    expect(() => instance.emit({ kind: "custom", name: "too-late" })).toThrow(ClientClosedError);
+  });
+
+  it("allows a failed close to retry its pending evidence", async () => {
+    const transport = new RecordingTransport();
+    transport.failure = new Error("offline");
+    const instance = client(transport);
+    instance.emit({ kind: "custom", name: "retry-on-close" });
+
+    await expect(instance.close()).resolves.toMatchObject({ pendingCount: 1, success: false });
+    transport.failure = undefined;
+
+    await expect(instance.close()).resolves.toMatchObject({ pendingCount: 0, sentCount: 1 });
+  });
+
+  it("coalesces concurrent close operations", async () => {
+    let release: () => void = () => undefined;
+    const send = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const instance = client({ send });
+    instance.emit({ kind: "custom", name: "concurrent-close" });
+
+    const first = instance.close();
+    const second = instance.close();
+    release();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { pendingCount: 0, sentCount: 1, success: true },
+      { pendingCount: 0, sentCount: 1, success: true },
+    ]);
+    expect(send).toHaveBeenCalledOnce();
   });
 
   it("validates batching options", () => {
