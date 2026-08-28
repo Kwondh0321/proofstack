@@ -9,9 +9,9 @@ evaluating, governing, and safely releasing AI agents.
 
 > [!IMPORTANT]
 > ProofStack is an experimental foundation, not a production release. The implemented path is real
-> and tested, including optional PostgreSQL persistence and scoped workload API keys. Browser OIDC,
-> artifact storage, replay, evaluation, backups, and release gates are intentionally not represented
-> as complete.
+> and tested, including optional PostgreSQL persistence, scoped workload API keys, and the OIDC
+> browser-session backend. Console sign-in integration, artifact storage, replay, evaluation,
+> backups, and release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -41,6 +41,7 @@ release when a declared policy regresses.
 | Persistence | Checksum-verified PostgreSQL migrations, forced RLS, append-only evidence, atomic outbox |
 | Delivery state | Leased outbox retries, poison-message visibility, monotonic cursors, consumer receipts |
 | Workload identity | One-time API keys, bounded delegation, memory-hard hashes, rotation, revocation, audit, and isolated DB access |
+| Human identity | OIDC Authorization Code + PKCE, explicit issuer/subject bindings, encrypted one-time transactions, authoritative revocable sessions, and CSRF defense |
 | TypeScript SDK | Generated IDs, bounded queue, batching, timeout handling, fail-open by default |
 | Console | API health and exact trace inspection without placeholder telemetry |
 | Example | Runnable parent/child agent and tool trace through the real SDK and API |
@@ -65,8 +66,9 @@ flowchart LR
 The memory adapter keeps the quickstart dependency-free. The PostgreSQL adapter is the durable
 option: migration integrity, database-enforced tenant isolation, immutable evidence, atomic
 evidence/outbox writes, and four isolated least-privilege runtime roles are covered by real
-PostgreSQL tests. The experimental API-key mode is end-to-end functional for workloads. Browser
-identity and the operator console still require the planned OIDC session path.
+PostgreSQL tests. The experimental API-key mode is end-to-end functional for workloads. The OIDC
+browser API is functional with server-side bindings and sessions; provider deployment validation
+and operator console sign-in integration remain unfinished.
 
 ## Quickstart
 
@@ -129,15 +131,18 @@ The cross-layer [Foundation 1 audit](docs/development/foundation-1-audit.md) rec
 closed before durable storage work and the limitations that still block production use.
 The [Foundation 2 durable core audit](docs/development/foundation-2-durable-core-audit.md) records
 the accepted PostgreSQL and delivery-state checkpoint without claiming the remaining stage is done.
+The [Foundation 2 identity audit](docs/development/foundation-2-identity-audit.md) records the
+accepted workload and browser identity checkpoint and its remaining deployment limitations.
 
 ## Current boundaries
 
-The current build does not provide browser OIDC, artifact content storage, OTLP ingestion, a
-deployed outbox publisher, replay, evaluators, policy enforcement, backups, or production deployment
-artifacts. Workload API-key authentication is implemented and tested but remains part of an
-unfinished foundation rather than a production-readiness claim. PostgreSQL is durable development
-infrastructure, not yet a production data-recovery claim. Remaining capabilities have an explicit
-dependency order and may not bypass the security and compatibility gates described in the roadmap.
+The current build does not provide console-integrated OIDC sign-in, artifact content storage, OTLP
+ingestion, a deployed outbox publisher, replay, evaluators, policy enforcement, backups, or
+production deployment artifacts. Workload API-key and OIDC browser authentication are implemented
+and tested but remain part of an unfinished foundation rather than a production-readiness claim.
+PostgreSQL is durable development infrastructure, not yet a production data-recovery claim.
+Remaining capabilities have an explicit dependency order and may not bypass the security and
+compatibility gates described in the roadmap.
 
 ## Contributing and security
 

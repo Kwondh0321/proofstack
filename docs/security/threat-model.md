@@ -60,7 +60,7 @@ tools, change policy, or approve a release.
 | Resource exhaustion | Batch, field, body, and request-rate bounds | Tenant quotas, backpressure, load tests, and capacity alerts |
 | Missing telemetry affecting the workload | TypeScript SDK is fail-open by default with bounded buffering | Loss metrics, durable collectors, and selectable delivery guarantees |
 | API-key theft or offline recovery | Keys are scoped, shown once, and never stored in plaintext | Memory-hard hashing, expiry, rotation, revocation, and sanitized lifecycle audit tests |
-| OIDC login mix-up or account remapping | Tenant authorization never comes from an unbound claim | Exact issuer/subject binding, state, nonce, PKCE, signature, audience, and callback tests |
+| OIDC login mix-up or account remapping | Tenant authorization never comes from an unbound claim | Exact issuer/subject binding, browser-bound state, nonce, PKCE, signature, audience, and callback tests |
 | Session theft, fixation, or CSRF | Browser identity uses revocable host-only server sessions | Secure cookie, rotation, expiry, origin, CSRF, logout, and permission-reduction tests |
 | Delegation escalation | Workload scope and capabilities cannot exceed the issuing principal | Capability allowlist and resource-subset property tests |
 | Unauthorized production startup | Development authentication is rejected in production mode | Complete OIDC/API-key configuration and deployment policy checks |
@@ -86,9 +86,10 @@ tools, change policy, or approve a release.
 
 - PostgreSQL persistence is implemented for evidence and delivery state, but backup and disaster
   recovery are not yet proven.
-- Capability-scoped workload API keys, bootstrap, authoritative verification, rotation, revocation,
-  and sanitized lifecycle audit are implemented. Browser OIDC and server-side sessions still
-  intentionally refuse startup.
+- Capability-scoped workload API keys and OIDC browser identity are implemented with bootstrap,
+  explicit bindings, authoritative verification, rotation or revocation, and sanitized lifecycle
+  audit. A real-provider deployment matrix, console sign-in integration, and production TLS proxy
+  artifact are not yet complete.
 - TLS termination, encryption at rest, key rotation, backup, deletion, and retention are deployment
   responsibilities not yet implemented by the project.
 - Artifact content storage and retrieval do not exist.
