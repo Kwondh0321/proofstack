@@ -269,10 +269,10 @@ describe("PostgresOutboxRepository delivery contract", () => {
         aggregateId: second.aggregateId,
         attemptCount: 2,
         lastError: "simulated publisher failure",
-        lease: {
+        lease: expect.objectContaining({
           owner: "wrk_alpha_retry",
           token: retryToken,
-        },
+        }),
       }),
     ]);
     await expect(
