@@ -80,7 +80,11 @@ describe("migration inspection", () => {
   it("loads the bundled migration directory by default", async () => {
     const status = await inspectMigrations(poolWith(new FakeClient({})));
 
-    expect(status).toEqual({ appliedIds: [], ledgerExists: true, pendingIds: [] });
+    expect(status).toEqual({
+      appliedIds: [],
+      ledgerExists: true,
+      pendingIds: ["0001_evidence_store"],
+    });
   });
 
   it("accepts an exact migration prefix and reports the remainder", async () => {

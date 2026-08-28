@@ -20,6 +20,7 @@
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
     "test": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
