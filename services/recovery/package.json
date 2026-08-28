@@ -20,6 +20,8 @@
     "@proofstack/postgres": "workspace:*"
   },
   "devDependencies": {
+    "@proofstack/artifacts": "workspace:*",
+    "@proofstack/contracts": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",

@@ -85,6 +85,49 @@ jobs:
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration:postgres
 
+  recovery:
+    name: Recovery integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.15-alpine3.24@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_DB: proofstack_test
+          POSTGRES_PASSWORD: proofstack_test
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d proofstack_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: true
+      PROOFSTACK_TEST_DATABASE_URL: postgresql://postgres:proofstack_test@127.0.0.1:5432/proofstack_test
+      PROOFSTACK_TEST_POSTGRES_TOOL_IMAGE: postgres:16.15-alpine3.24@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b7a17adbe92613944255991203bfc76f923d4dd9 # v4.0.0
+        with:
+          version: 11.24.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@d293f469998bd6c731e4d846d744081044953bc1 # v6.3.0
+        with:
+          node-version: 24.13.1
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run recovery integration tests
+        run: pnpm test:integration:recovery
+
   s3:
     name: S3-compatible integration
     runs-on: ubuntu-latest

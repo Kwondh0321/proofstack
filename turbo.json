@@ -25,6 +25,7 @@
       "dependsOn": ["^build"],
       "passThroughEnv": [
         "PROOFSTACK_TEST_DATABASE_URL",
+        "PROOFSTACK_TEST_POSTGRES_TOOL_IMAGE",
         "PROOFSTACK_TEST_S3_ACCESS_KEY_ID",
         "PROOFSTACK_TEST_S3_ENDPOINT",
         "PROOFSTACK_TEST_S3_REGION",

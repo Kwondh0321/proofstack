@@ -403,6 +403,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/postgres
     devDependencies:
+      '@proofstack/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
+      '@proofstack/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
