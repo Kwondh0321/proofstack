@@ -37,3 +37,4 @@ invalidate an ADR present in this directory.
 - [ADR-0012: Version incident evidence as immutable regression inputs](0012-immutable-regression-versions.md)
 - [ADR-0013: Execute replay as bounded jobs with explicit boundary modes](0013-bounded-replay-execution.md)
 - [ADR-0014: Treat criteria and evaluator outputs as contestable claims](0014-contestable-evaluation-assurance.md)
+- [ADR-0015: Encode regression definitions with a fixed binary format](0015-regression-definition-digest-encoding.md)
