@@ -17,6 +17,10 @@ export interface ArtifactEncryptionPlan {
   readonly wrappedDataKey: WrappedArtifactDataKey;
 }
 
+export interface ArtifactEncryptionPlanner {
+  createPlan(metadata: ArtifactMetadata): Promise<ArtifactEncryptionPlan>;
+}
+
 export interface ArtifactObjectReceipt {
   readonly sha256: string;
   readonly sizeBytes: number;

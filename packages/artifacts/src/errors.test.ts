@@ -7,6 +7,7 @@ import {
   ArtifactNotFoundError,
   ArtifactProtectionError,
   ArtifactStateTransitionError,
+  InvalidArtifactLifecycleInputError,
 } from "./errors.js";
 
 describe("artifact errors", () => {
@@ -18,6 +19,7 @@ describe("artifact errors", () => {
     [new ArtifactNotFoundError(), "artifact_not_found"],
     [new ArtifactProtectionError(), "artifact_protection_failed"],
     [new ArtifactStateTransitionError(), "artifact_state_transition_invalid"],
+    [new InvalidArtifactLifecycleInputError("Invalid input"), "artifact_lifecycle_input_invalid"],
   ])("exposes a stable public code for %s", (error, code) => {
     expect(error).toBeInstanceOf(Error);
     expect(error.code).toBe(code);

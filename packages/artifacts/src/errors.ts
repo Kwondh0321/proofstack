@@ -60,3 +60,12 @@ export class ArtifactIdentifierGenerationError extends Error {
     this.name = "ArtifactIdentifierGenerationError";
   }
 }
+
+export class InvalidArtifactLifecycleInputError extends TypeError {
+  readonly code = "artifact_lifecycle_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidArtifactLifecycleInputError";
+  }
+}
