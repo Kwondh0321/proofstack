@@ -23,7 +23,7 @@ Exit criteria:
 - [x] Machine-readable OpenAPI contract derived from runtime schemas.
 - [x] Reproducible monorepo checks, dependency audit, and secret scanning in CI.
 - [x] Threat model, contribution workflow, and runnable end-to-end example.
-- [ ] Final clean-checkout rehearsal on the CI baseline runtime.
+- [x] Final clean-checkout rehearsal on the CI baseline runtime.
 
 The foundation is not a production release. Persistence, production identity, retention, backup,
 and release enforcement remain explicitly unsupported.
