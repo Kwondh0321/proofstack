@@ -124,8 +124,8 @@ async function formattedRoleStatement(
   const result = await client.query<StatementRow>(
     `SELECT format(
       '${operation} ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
-      $1,
-      $2
+      $1::text,
+      $2::text
     ) AS statement`,
     [roleName, password],
   );
