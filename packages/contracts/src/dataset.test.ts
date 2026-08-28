@@ -6,8 +6,11 @@ import {
   MAX_REGRESSION_VERSION_NAME_CHARACTERS,
   PublishRegressionDatasetVersionRequestSchema,
   PublishRegressionFixtureVersionRequestSchema,
+  RegressionDatasetVersionDefinitionSchema,
   RegressionDatasetVersionSchema,
+  RegressionFixtureVersionDefinitionSchema,
   RegressionFixtureVersionSchema,
+  RegressionTraceSnapshotDefinitionSchema,
   RegressionVersionDescriptionSchema,
   RegressionVersionNameSchema,
 } from "./dataset.js";
@@ -70,6 +73,39 @@ function datasetVersion() {
       projectId: "prj_checkout_agent",
       tenantId: "ten_acme",
     },
+  } as const;
+}
+
+function fixtureVersionDefinition() {
+  const value = fixtureVersion();
+  return {
+    description: value.description,
+    fixtureId: value.fixtureId,
+    fixtureVersionId: value.fixtureVersionId,
+    name: value.name,
+    replayability: value.replayability,
+    schemaVersion: value.schemaVersion,
+    scope: value.scope,
+    source: {
+      eventIds: value.source.eventIds,
+      kind: value.source.kind,
+      observedEventCount: value.source.observedEventCount,
+      sourceCompleteness: value.source.sourceCompleteness,
+      traceId: value.source.traceId,
+    },
+  } as const;
+}
+
+function datasetVersionDefinition() {
+  const value = datasetVersion();
+  return {
+    datasetId: value.datasetId,
+    datasetVersionId: value.datasetVersionId,
+    description: value.description,
+    fixtureVersions: value.fixtureVersions,
+    name: value.name,
+    schemaVersion: value.schemaVersion,
+    scope: value.scope,
   } as const;
 }
 
@@ -149,6 +185,93 @@ describe("PublishRegressionFixtureVersionRequestSchema", () => {
       PublishRegressionFixtureVersionRequestSchema.safeParse({
         ...request,
         predecessorVersionId: request.fixtureVersionId,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("RegressionTraceSnapshotDefinitionSchema", () => {
+  it("accepts and preserves the exact ordered semantic trace snapshot", () => {
+    const value = fixtureVersionDefinition().source;
+    expect(RegressionTraceSnapshotDefinitionSchema.parse(value)).toEqual(value);
+    expect(RegressionTraceSnapshotDefinitionSchema.parse(value).eventIds).toEqual([
+      "evt_agent_start",
+      "evt_model_request",
+      "evt_agent_failure",
+    ]);
+  });
+
+  it("strictly excludes the server capture timestamp", () => {
+    const value = fixtureVersionDefinition().source;
+    expect(
+      RegressionTraceSnapshotDefinitionSchema.safeParse({
+        ...value,
+        capturedAt: fixtureVersion().source.capturedAt,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("retains event uniqueness and observed-count invariants", () => {
+    const value = fixtureVersionDefinition().source;
+    expect(
+      RegressionTraceSnapshotDefinitionSchema.safeParse({
+        ...value,
+        observedEventCount: value.observedEventCount - 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      RegressionTraceSnapshotDefinitionSchema.safeParse({
+        ...value,
+        eventIds: [value.eventIds[0], value.eventIds[0]],
+        observedEventCount: 2,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("RegressionFixtureVersionDefinitionSchema", () => {
+  it("accepts only the complete semantic fixture definition", () => {
+    const value = fixtureVersionDefinition();
+    expect(RegressionFixtureVersionDefinitionSchema.parse(value)).toEqual(value);
+  });
+
+  it("rejects a stored fixture version instead of silently projecting its definition", () => {
+    expect(RegressionFixtureVersionDefinitionSchema.safeParse(fixtureVersion()).success).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    { createdAt: fixtureVersion().createdAt },
+    { createdByPrincipalId: fixtureVersion().createdByPrincipalId },
+    { definitionSha256: fixtureVersion().definitionSha256 },
+  ])("strictly excludes stored fixture provenance %#", (provenance) => {
+    expect(
+      RegressionFixtureVersionDefinitionSchema.safeParse({
+        ...fixtureVersionDefinition(),
+        ...provenance,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a stored snapshot timestamp nested in the semantic source", () => {
+    expect(
+      RegressionFixtureVersionDefinitionSchema.safeParse({
+        ...fixtureVersionDefinition(),
+        source: fixtureVersion().source,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("retains the resolved predecessor invariant", () => {
+    const value = fixtureVersionDefinition();
+    expect(
+      RegressionFixtureVersionDefinitionSchema.safeParse({
+        ...value,
+        predecessor: {
+          definitionSha256: DIGEST_B,
+          fixtureVersionId: value.fixtureVersionId,
+        },
       }).success,
     ).toBe(false);
   });
@@ -332,6 +455,56 @@ describe("PublishRegressionDatasetVersionRequestSchema", () => {
         fixtureVersions,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("RegressionDatasetVersionDefinitionSchema", () => {
+  it("accepts and preserves exact resolved fixture membership order", () => {
+    const value = datasetVersionDefinition();
+    const parsed = RegressionDatasetVersionDefinitionSchema.parse(value);
+    expect(parsed).toEqual(value);
+    expect(parsed.fixtureVersions.map(({ fixtureId }) => fixtureId)).toEqual([
+      "fix_checkout_timeout",
+      "fix_checkout_decline",
+    ]);
+  });
+
+  it("rejects a stored dataset version instead of silently projecting its definition", () => {
+    expect(RegressionDatasetVersionDefinitionSchema.safeParse(datasetVersion()).success).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    { createdAt: datasetVersion().createdAt },
+    { createdByPrincipalId: datasetVersion().createdByPrincipalId },
+    { definitionSha256: datasetVersion().definitionSha256 },
+  ])("strictly excludes stored dataset provenance %#", (provenance) => {
+    expect(
+      RegressionDatasetVersionDefinitionSchema.safeParse({
+        ...datasetVersionDefinition(),
+        ...provenance,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("retains membership uniqueness and resolved predecessor invariants", () => {
+    const value = datasetVersionDefinition();
+    expect(
+      RegressionDatasetVersionDefinitionSchema.safeParse({
+        ...value,
+        fixtureVersions: [value.fixtureVersions[0], value.fixtureVersions[0]],
+      }).success,
+    ).toBe(false);
+    expect(
+      RegressionDatasetVersionDefinitionSchema.safeParse({
+        ...value,
+        predecessor: {
+          datasetVersionId: value.datasetVersionId,
+          definitionSha256: DIGEST_A,
+        },
+      }).success,
+    ).toBe(false);
   });
 });
 

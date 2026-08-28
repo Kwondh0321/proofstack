@@ -94,54 +94,88 @@ export const RegressionFixturePredecessorSchema = z
   })
   .strict();
 
+const regressionTraceSnapshotDefinitionShape = {
+  eventIds: z
+    .array(OpaqueIdSchema)
+    .min(1)
+    .max(MAX_FIXTURE_SOURCE_EVENTS)
+    .refine(uniqueStrings, { message: "Trace snapshot eventIds must not contain duplicates" }),
+  kind: z.literal("trace_snapshot"),
+  observedEventCount: z.number().int().positive().max(MAX_FIXTURE_SOURCE_EVENTS),
+  sourceCompleteness: z.literal("observed_snapshot"),
+  traceId: TraceIdSchema,
+};
+
+function refineObservedEventCount(
+  value: { readonly eventIds: readonly string[]; readonly observedEventCount: number },
+  context: z.RefinementCtx,
+): void {
+  if (value.observedEventCount !== value.eventIds.length) {
+    context.addIssue({
+      code: "custom",
+      message: "observedEventCount must equal the number of captured eventIds",
+      path: ["observedEventCount"],
+    });
+  }
+}
+
+export const RegressionTraceSnapshotDefinitionSchema = z
+  .object(regressionTraceSnapshotDefinitionShape)
+  .strict()
+  .superRefine(refineObservedEventCount);
+
 export const RegressionTraceSnapshotSchema = z
   .object({
     capturedAt: TimestampSchema,
-    eventIds: z
-      .array(OpaqueIdSchema)
-      .min(1)
-      .max(MAX_FIXTURE_SOURCE_EVENTS)
-      .refine(uniqueStrings, { message: "Trace snapshot eventIds must not contain duplicates" }),
-    kind: z.literal("trace_snapshot"),
-    observedEventCount: z.number().int().positive().max(MAX_FIXTURE_SOURCE_EVENTS),
-    sourceCompleteness: z.literal("observed_snapshot"),
-    traceId: TraceIdSchema,
+    ...regressionTraceSnapshotDefinitionShape,
   })
   .strict()
-  .superRefine((value, context) => {
-    if (value.observedEventCount !== value.eventIds.length) {
-      context.addIssue({
-        code: "custom",
-        message: "observedEventCount must equal the number of captured eventIds",
-        path: ["observedEventCount"],
-      });
-    }
-  });
+  .superRefine(refineObservedEventCount);
+
+const regressionFixtureVersionDefinitionShape = {
+  description: RegressionVersionDescriptionSchema.optional(),
+  fixtureId: OpaqueIdSchema,
+  fixtureVersionId: OpaqueIdSchema,
+  name: RegressionVersionNameSchema,
+  predecessor: RegressionFixturePredecessorSchema.optional(),
+  replayability: z.literal("evidence_only"),
+  schemaVersion: z.literal(REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION),
+  scope: EvidenceScopeSchema,
+  source: RegressionTraceSnapshotDefinitionSchema,
+};
+
+function refineFixturePredecessor(
+  value: {
+    readonly fixtureVersionId: string;
+    readonly predecessor?: { readonly fixtureVersionId: string } | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (value.predecessor?.fixtureVersionId === value.fixtureVersionId) {
+    context.addIssue({
+      code: "custom",
+      message: "A fixture version cannot name itself as its predecessor",
+      path: ["predecessor", "fixtureVersionId"],
+    });
+  }
+}
+
+export const RegressionFixtureVersionDefinitionSchema = z
+  .object(regressionFixtureVersionDefinitionShape)
+  .strict()
+  .superRefine(refineFixturePredecessor);
 
 export const RegressionFixtureVersionSchema = z
   .object({
     createdAt: TimestampSchema,
     createdByPrincipalId: OpaqueIdSchema,
     definitionSha256: Sha256Schema,
-    description: RegressionVersionDescriptionSchema.optional(),
-    fixtureId: OpaqueIdSchema,
-    fixtureVersionId: OpaqueIdSchema,
-    name: RegressionVersionNameSchema,
-    predecessor: RegressionFixturePredecessorSchema.optional(),
-    replayability: z.literal("evidence_only"),
-    schemaVersion: z.literal(REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION),
-    scope: EvidenceScopeSchema,
+    ...regressionFixtureVersionDefinitionShape,
     source: RegressionTraceSnapshotSchema,
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.predecessor?.fixtureVersionId === value.fixtureVersionId) {
-      context.addIssue({
-        code: "custom",
-        message: "A fixture version cannot name itself as its predecessor",
-        path: ["predecessor", "fixtureVersionId"],
-      });
-    }
+    refineFixturePredecessor(value, context);
     if (Date.parse(value.source.capturedAt) > Date.parse(value.createdAt)) {
       context.addIssue({
         code: "custom",
@@ -211,30 +245,56 @@ export const RegressionDatasetPredecessorSchema = z
   })
   .strict();
 
+const regressionDatasetVersionIdentityShape = {
+  datasetId: OpaqueIdSchema,
+  datasetVersionId: OpaqueIdSchema,
+};
+
+const regressionDatasetVersionDefinitionDetailsShape = {
+  description: RegressionVersionDescriptionSchema.optional(),
+  fixtureVersions: ResolvedFixtureVersionsSchema,
+  name: RegressionVersionNameSchema,
+  predecessor: RegressionDatasetPredecessorSchema.optional(),
+  schemaVersion: z.literal(REGRESSION_DATASET_VERSION_SCHEMA_VERSION),
+  scope: EvidenceScopeSchema,
+};
+
+const regressionDatasetVersionDefinitionShape = {
+  ...regressionDatasetVersionIdentityShape,
+  ...regressionDatasetVersionDefinitionDetailsShape,
+};
+
+function refineDatasetPredecessor(
+  value: {
+    readonly datasetVersionId: string;
+    readonly predecessor?: { readonly datasetVersionId: string } | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (value.predecessor?.datasetVersionId === value.datasetVersionId) {
+    context.addIssue({
+      code: "custom",
+      message: "A dataset version cannot name itself as its predecessor",
+      path: ["predecessor", "datasetVersionId"],
+    });
+  }
+}
+
+export const RegressionDatasetVersionDefinitionSchema = z
+  .object(regressionDatasetVersionDefinitionShape)
+  .strict()
+  .superRefine(refineDatasetPredecessor);
+
 export const RegressionDatasetVersionSchema = z
   .object({
     createdAt: TimestampSchema,
     createdByPrincipalId: OpaqueIdSchema,
-    datasetId: OpaqueIdSchema,
-    datasetVersionId: OpaqueIdSchema,
+    ...regressionDatasetVersionIdentityShape,
     definitionSha256: Sha256Schema,
-    description: RegressionVersionDescriptionSchema.optional(),
-    fixtureVersions: ResolvedFixtureVersionsSchema,
-    name: RegressionVersionNameSchema,
-    predecessor: RegressionDatasetPredecessorSchema.optional(),
-    schemaVersion: z.literal(REGRESSION_DATASET_VERSION_SCHEMA_VERSION),
-    scope: EvidenceScopeSchema,
+    ...regressionDatasetVersionDefinitionDetailsShape,
   })
   .strict()
-  .superRefine((value, context) => {
-    if (value.predecessor?.datasetVersionId === value.datasetVersionId) {
-      context.addIssue({
-        code: "custom",
-        message: "A dataset version cannot name itself as its predecessor",
-        path: ["predecessor", "datasetVersionId"],
-      });
-    }
-  });
+  .superRefine(refineDatasetPredecessor);
 
 export type PublishRegressionDatasetVersionRequest = z.infer<
   typeof PublishRegressionDatasetVersionRequestSchema
@@ -243,11 +303,20 @@ export type PublishRegressionFixtureVersionRequest = z.infer<
   typeof PublishRegressionFixtureVersionRequestSchema
 >;
 export type RegressionDatasetPredecessor = z.infer<typeof RegressionDatasetPredecessorSchema>;
+export type RegressionDatasetVersionDefinition = z.infer<
+  typeof RegressionDatasetVersionDefinitionSchema
+>;
 export type RegressionDatasetVersion = z.infer<typeof RegressionDatasetVersionSchema>;
 export type RegressionFixturePredecessor = z.infer<typeof RegressionFixturePredecessorSchema>;
+export type RegressionFixtureVersionDefinition = z.infer<
+  typeof RegressionFixtureVersionDefinitionSchema
+>;
 export type RegressionFixtureVersion = z.infer<typeof RegressionFixtureVersionSchema>;
 export type RegressionFixtureVersionReference = z.infer<
   typeof RegressionFixtureVersionReferenceSchema
+>;
+export type RegressionTraceSnapshotDefinition = z.infer<
+  typeof RegressionTraceSnapshotDefinitionSchema
 >;
 export type RegressionTraceSnapshot = z.infer<typeof RegressionTraceSnapshotSchema>;
 export type RequestedRegressionFixtureVersionReference = z.infer<
