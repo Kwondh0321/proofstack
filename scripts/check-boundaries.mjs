@@ -16,6 +16,11 @@ const modules = [
   },
   {
     allowed: new Set(["@proofstack/contracts"]),
+    directory: "packages/datasets/src",
+    packageName: "@proofstack/datasets",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts"]),
     directory: "packages/otlp/src",
     packageName: "@proofstack/otlp",
   },

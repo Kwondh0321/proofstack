@@ -115,6 +115,7 @@ apps/api                 HTTP composition root and development ingestion API
 apps/web                 Server-rendered operator console
 packages/contracts       Runtime schemas, public types, identity, and OpenAPI generation
 packages/core            Framework-independent authorization and evidence use cases
+packages/datasets        Immutable regression definitions, binary encoding, and public vectors
 packages/artifacts       Encrypted content lifecycle, authorization, and storage ports
 packages/postgres        Durable repositories, migrations, delivery state, and runtime roles
 packages/recovery        Coordinated recovery manifests, object inventories, and verification
