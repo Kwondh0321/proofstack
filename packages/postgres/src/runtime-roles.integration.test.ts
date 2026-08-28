@@ -133,6 +133,15 @@ describe("runtime role provisioning", () => {
 
     const apiPool = poolFor(initial.api);
     const apiPrivileges = await apiPool.query<{
+      readonly artifactCatalogInsert: boolean;
+      readonly artifactCatalogSelect: boolean;
+      readonly artifactCatalogUpdate: boolean;
+      readonly artifactPurgeDelete: boolean;
+      readonly artifactPurgeInsert: boolean;
+      readonly artifactPurgeSelect: boolean;
+      readonly artifactTombstoneDelete: boolean;
+      readonly artifactTombstoneInsert: boolean;
+      readonly artifactTombstoneSelect: boolean;
       readonly can_create_public: boolean;
       readonly evidence_insert: boolean;
       readonly evidence_select: boolean;
@@ -169,6 +178,51 @@ describe("runtime role provisioning", () => {
         ) AS oidc_lookup_execute,
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_catalog',
+          'SELECT'
+        ) AS "artifactCatalogSelect",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_catalog',
+          'INSERT'
+        ) AS "artifactCatalogInsert",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_catalog',
+          'UPDATE'
+        ) AS "artifactCatalogUpdate",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_tombstones',
+          'SELECT'
+        ) AS "artifactTombstoneSelect",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_tombstones',
+          'INSERT'
+        ) AS "artifactTombstoneInsert",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_tombstones',
+          'DELETE'
+        ) AS "artifactTombstoneDelete",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_purge_receipts',
+          'SELECT'
+        ) AS "artifactPurgeSelect",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_purge_receipts',
+          'INSERT'
+        ) AS "artifactPurgeInsert",
+        has_table_privilege(
+          current_user,
+          'proofstack_artifact_purge_receipts',
+          'DELETE'
+        ) AS "artifactPurgeDelete",
         has_sequence_privilege(
           current_user,
           $1,
@@ -178,6 +232,15 @@ describe("runtime role provisioning", () => {
       [`public.${sequenceName}`],
     );
     expect(apiPrivileges.rows[0]).toEqual({
+      artifactCatalogInsert: true,
+      artifactCatalogSelect: true,
+      artifactCatalogUpdate: true,
+      artifactPurgeDelete: false,
+      artifactPurgeInsert: true,
+      artifactPurgeSelect: true,
+      artifactTombstoneDelete: false,
+      artifactTombstoneInsert: true,
+      artifactTombstoneSelect: true,
       can_create_public: false,
       evidence_insert: true,
       evidence_select: true,

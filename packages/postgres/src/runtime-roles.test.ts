@@ -136,7 +136,7 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_find_and_touch_active_browser_session(text) TO "proofstack_identity"',
     );
     expect(statements).toContain(
-      'REVOKE ALL PRIVILEGES ON TABLE public.proofstack_api_key_credentials, public.proofstack_browser_sessions, public.proofstack_consumer_receipts, public.proofstack_evidence_events, public.proofstack_identity_audit_events, public.proofstack_oidc_bindings, public.proofstack_oidc_login_transactions, public.proofstack_outbox, public.proofstack_projection_cursors, public.proofstack_schema_migrations FROM "proofstack_identity"',
+      'REVOKE ALL PRIVILEGES ON TABLE public.proofstack_api_key_credentials, public.proofstack_artifact_catalog, public.proofstack_artifact_purge_receipts, public.proofstack_artifact_tombstones, public.proofstack_browser_sessions, public.proofstack_consumer_receipts, public.proofstack_evidence_events, public.proofstack_identity_audit_events, public.proofstack_oidc_bindings, public.proofstack_oidc_login_transactions, public.proofstack_outbox, public.proofstack_projection_cursors, public.proofstack_schema_migrations FROM "proofstack_identity"',
     );
     expect(
       statements.some(
@@ -147,6 +147,15 @@ describe("provisionRuntimeRoles", () => {
     ).toBe(true);
     expect(statements).toContain(
       'GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO "proofstack_publisher"',
+    );
+    expect(statements).toContain(
+      'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO "proofstack_api"',
     );
     expect(statements).toContain(
       'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_consumer_receipts TO "proofstack_consumer"',

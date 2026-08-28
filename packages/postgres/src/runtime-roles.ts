@@ -50,6 +50,9 @@ interface StatementRow extends QueryResultRow {
 
 const PLATFORM_TABLES = [
   "proofstack_api_key_credentials",
+  "proofstack_artifact_catalog",
+  "proofstack_artifact_purge_receipts",
+  "proofstack_artifact_tombstones",
   "proofstack_browser_sessions",
   "proofstack_consumer_receipts",
   "proofstack_evidence_events",
@@ -72,6 +75,7 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_find_active_oidc_binding(text, text, text)",
   "public.proofstack_find_and_touch_active_browser_session(text)",
   "public.proofstack_find_api_key(text, text)",
+  "public.proofstack_guard_artifact_catalog_mutation()",
   "public.proofstack_guard_api_key_mutation()",
   "public.proofstack_guard_browser_session_mutation()",
   "public.proofstack_guard_consumer_receipt_transition()",
@@ -82,8 +86,10 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_purge_browser_sessions()",
   "public.proofstack_purge_oidc_login_transactions()",
   "public.proofstack_record_api_key_use(text, text, text)",
+  "public.proofstack_reject_artifact_receipt_mutation()",
   "public.proofstack_reject_evidence_mutation()",
   "public.proofstack_reject_identity_audit_mutation()",
+  "public.proofstack_require_artifact_lifecycle_receipt()",
   "public.proofstack_require_identity_tenant(text)",
   "public.proofstack_revoke_api_key(text, text, text, text)",
   "public.proofstack_revoke_browser_session(text)",
@@ -101,6 +107,9 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_evidence_events TO %ROLE%",
     "GRANT INSERT ON TABLE public.proofstack_outbox TO %ROLE%",
+    "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO %ROLE%",
+    "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO %ROLE%",
+    "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO %ROLE%",
   ],
   consumer: [
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_consumer_receipts TO %ROLE%",
@@ -295,6 +304,9 @@ async function assertSchemaCurrent(client: PoolClient): Promise<void> {
     FROM unnest(ARRAY[
       'public.proofstack_schema_migrations',
       'public.proofstack_api_key_credentials',
+      'public.proofstack_artifact_catalog',
+      'public.proofstack_artifact_purge_receipts',
+      'public.proofstack_artifact_tombstones',
       'public.proofstack_browser_sessions',
       'public.proofstack_evidence_events',
       'public.proofstack_identity_audit_events',
