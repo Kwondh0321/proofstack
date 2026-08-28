@@ -193,6 +193,45 @@ traffic.
 The adapter has bounded retries for conditional conflicts but does not make unbounded availability
 promises. Service composition must destroy the client during graceful shutdown.
 
+## One-shot maintenance commands
+
+`pnpm artifacts:maintenance <command>` composes a short-lived, scoped maintenance process. It is
+not a continuously running worker and it does not discover tenants, projects, environments, or
+objects. An operator must supply exactly one explicit scope through
+`PROOFSTACK_ARTIFACT_TENANT_ID`, `PROOFSTACK_ARTIFACT_PROJECT_ID`,
+`PROOFSTACK_ARTIFACT_ENVIRONMENT_ID`, and `PROOFSTACK_ARTIFACT_OPERATOR_PRINCIPAL_ID`.
+
+Every command validates that the database migration ledger is current before it reads or mutates
+lifecycle data. Its database identity must be the dedicated
+`proofstack_artifact_maintenance` role (or an equivalently restricted role), never the migration
+or application role. The process creates a restricted service principal for precisely that scope;
+it does not accept an operator-supplied broad principal.
+
+| Command | Required inputs beyond scope and database URL | Effect |
+| --- | --- | --- |
+| `key-status` | Local development/test key inventory | Reports configured and referenced key IDs; a referenced but unconfigured key yields `attention` |
+| `reconcile` | S3 settings, abandonment threshold, local development/test key inventory | Authenticates an interrupted upload before atomically activating it; missing objects remain reserved |
+| `cleanup-abandoned` | S3 settings and abandonment threshold | Tombstones and purges eligible abandoned reservations |
+| `retention` | S3 settings | Tombstones and purges artifacts whose configured retention has elapsed |
+| `retry-purges` | S3 settings | Retries object deletion for tombstones with pending purges |
+
+`PROOFSTACK_ARTIFACT_BATCH_LIMIT` is optional and bounded to 1–100. The S3 endpoint, when set,
+cannot contain credentials. Plain HTTP is accepted only for a loopback endpoint in development or
+test. The command inherits standard AWS SDK workload credentials; do not place access keys in the
+command arguments, endpoint, output, or logs.
+
+For `key-status` and `reconcile`, `PROOFSTACK_ARTIFACT_KEYS` is a JSON map of opaque key IDs to
+canonical base64url 32-byte values and `PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID` selects one member.
+That local keyring is intentionally rejected in production. Production reconciliation and key
+status require a future external key-provider composition; this prevents a file or environment
+variable full of production key material from being mistaken for a production design.
+
+The command prints one JSON result and exits `0` only for an `ok` result, `2` for actionable
+`attention`, `64` for invalid command usage, and `1` for configuration, migration, connection, or
+operation failure. Treat a nonzero result as an alerting signal; do not automatically retry it
+without preserving the result and determining whether the underlying provider or key condition is
+safe to retry.
+
 ## Deployment and upgrade gate
 
 Before first use or any provider, proxy, SDK, policy, or service-version change:
