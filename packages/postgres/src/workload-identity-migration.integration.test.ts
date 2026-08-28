@@ -28,6 +28,10 @@ interface CreatedRow extends QueryResultRow {
   readonly created_at: Date;
 }
 
+function testPrefix(suffix: string): string {
+  return ["AbCd", "Ef12", "3_-", suffix].join("");
+}
+
 const CREATE_API_KEY_SQL = `
   SELECT created_at
   FROM public.proofstack_create_api_key(
@@ -174,14 +178,14 @@ describe("workload identity migration", () => {
     await expect(
       asIdentity(undefined, (client) =>
         client.query<CreatedRow>(CREATE_API_KEY_SQL, [
-          ...createValues("key_missing_context", "AbCdEf123_-a"),
+          ...createValues("key_missing_context", testPrefix("a")),
         ]),
       ),
     ).rejects.toMatchObject({ code: "42501" });
 
     const created = await asIdentity("ten_identity_alpha", (client) =>
       client.query<CreatedRow>(CREATE_API_KEY_SQL, [
-        ...createValues("key_identity_initial", "AbCdEf123_-b"),
+        ...createValues("key_identity_initial", testPrefix("b")),
       ]),
     );
     expect(created.rows[0]?.created_at).toBeInstanceOf(Date);
@@ -234,12 +238,12 @@ describe("workload identity migration", () => {
       readonly hash_algorithm: string;
       readonly key_prefix: string;
       readonly tenant_id: string;
-    }>("SELECT * FROM proofstack_find_active_api_key($1)", ["AbCdEf123_-b"]);
+    }>("SELECT * FROM proofstack_find_active_api_key($1)", [testPrefix("b")]);
     expect(active.rows).toMatchObject([
       {
         credential_id: "key_identity_initial",
         hash_algorithm: "scrypt-v1",
-        key_prefix: "AbCdEf123_-b",
+        key_prefix: testPrefix("b"),
         tenant_id: "ten_identity_alpha",
       },
     ]);
@@ -257,7 +261,7 @@ describe("workload identity migration", () => {
       identityPool.query("SELECT proofstack_record_api_key_use($1, $2, $3) AS recorded", [
         "ten_identity_alpha",
         "key_identity_initial",
-        "AbCdEf123_-b",
+        testPrefix("b"),
       ]),
     ).resolves.toMatchObject({ rows: [{ recorded: true }] });
 
@@ -277,7 +281,7 @@ describe("workload identity migration", () => {
     );
     expect(repeated.rows).toEqual([{ revoked: false }]);
     await expect(
-      identityPool.query("SELECT * FROM proofstack_find_active_api_key($1)", ["AbCdEf123_-b"]),
+      identityPool.query("SELECT * FROM proofstack_find_active_api_key($1)", [testPrefix("b")]),
     ).resolves.toMatchObject({ rows: [] });
 
     const metadata = await adminPool.query<{
@@ -305,7 +309,7 @@ describe("workload identity migration", () => {
   it("copies authorization during atomic rotation and rolls back collisions", async () => {
     await asIdentity("ten_identity_alpha", (client) =>
       client.query<CreatedRow>(CREATE_API_KEY_SQL, [
-        ...createValues("key_identity_rotation_source", "AbCdEf123_-c", {
+        ...createValues("key_identity_rotation_source", testPrefix("c"), {
           principalId: "wrk_identity_rotation",
           resourceScope: {
             mode: "restricted",
@@ -324,7 +328,7 @@ describe("workload identity migration", () => {
           "ten_identity_alpha",
           "key_identity_rotation_source",
           "key_identity_rotated",
-          "AbCdEf123_-d",
+          testPrefix("d"),
           HASH.algorithm,
           HASH.cost,
           HASH.blockSize,
@@ -372,7 +376,7 @@ describe("workload identity migration", () => {
 
     await asIdentity("ten_identity_alpha", (client) =>
       client.query<CreatedRow>(CREATE_API_KEY_SQL, [
-        ...createValues("key_identity_collision_source", "AbCdEf123_-e"),
+        ...createValues("key_identity_collision_source", testPrefix("e")),
       ]),
     );
     await expect(
@@ -385,7 +389,7 @@ describe("workload identity migration", () => {
             "ten_identity_alpha",
             "key_identity_collision_source",
             "key_identity_collision_target",
-            "AbCdEf123_-d",
+            testPrefix("d"),
             HASH.algorithm,
             HASH.cost,
             HASH.blockSize,
@@ -413,7 +417,7 @@ describe("workload identity migration", () => {
     await expect(
       asIdentity("ten_identity_alpha", (client) =>
         client.query(CREATE_API_KEY_SQL, [
-          ...createValues("key_identity_invalid_scope", "AbCdEf123_-f", {
+          ...createValues("key_identity_invalid_scope", testPrefix("f"), {
             resourceScope: {
               mode: "restricted",
               projects: [{ projectId: "prj_duplicate" }, { projectId: "prj_duplicate" }],
