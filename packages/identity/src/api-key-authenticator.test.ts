@@ -35,9 +35,13 @@ async function fixture(): Promise<{
 }
 
 function lookup(result: AuthenticatableApiKey | null): ApiKeyCredentialLookup & {
+  readonly confirmActiveUse: ReturnType<typeof vi.fn>;
   readonly findActiveByPrefix: ReturnType<typeof vi.fn>;
 } {
-  return { findActiveByPrefix: vi.fn(async () => result) };
+  return {
+    confirmActiveUse: vi.fn(async () => true),
+    findActiveByPrefix: vi.fn(async () => result),
+  };
 }
 
 describe("ApiKeyAuthenticator", () => {
@@ -62,6 +66,11 @@ describe("ApiKeyAuthenticator", () => {
       tenantId: credential.tenantId,
     });
     expect(credentials.findActiveByPrefix).toHaveBeenCalledWith(credential.prefix);
+    expect(credentials.confirmActiveUse).toHaveBeenCalledWith({
+      credentialId: credential.credentialId,
+      prefix: credential.prefix,
+      tenantId: credential.tenantId,
+    });
   });
 
   it("rejects malformed keys without accessing credential storage", async () => {
@@ -71,6 +80,7 @@ describe("ApiKeyAuthenticator", () => {
       new ApiKeyAuthenticator(credentials).authenticate("not-a-key", "req_malformed"),
     ).rejects.toBeInstanceOf(InvalidApiKeyError);
     expect(credentials.findActiveByPrefix).not.toHaveBeenCalled();
+    expect(credentials.confirmActiveUse).not.toHaveBeenCalled();
   });
 
   it("uses one generic error for unknown prefixes and incorrect secrets", async () => {
@@ -125,10 +135,21 @@ describe("ApiKeyAuthenticator", () => {
     ).rejects.toThrow("authorization is invalid");
   });
 
+  it("rejects a credential revoked while its secret was being verified", async () => {
+    const { credential, value } = await fixture();
+    const credentials = lookup(credential);
+    credentials.confirmActiveUse.mockResolvedValue(false);
+
+    await expect(
+      new ApiKeyAuthenticator(credentials).authenticate(value, "req_revoked_during_hash"),
+    ).rejects.toBeInstanceOf(InvalidApiKeyError);
+  });
+
   it("preserves unexpected credential-store failures", async () => {
     const { value } = await fixture();
     const unavailable = new Error("identity store unavailable");
     const credentials: ApiKeyCredentialLookup = {
+      confirmActiveUse: async () => true,
       findActiveByPrefix: async () => {
         throw unavailable;
       },

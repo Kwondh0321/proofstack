@@ -17,7 +17,14 @@ export interface AuthenticatableApiKey {
 }
 
 export interface ApiKeyCredentialLookup {
+  confirmActiveUse(input: ApiKeyUseConfirmation): Promise<boolean>;
   findActiveByPrefix(prefix: string): Promise<AuthenticatableApiKey | null>;
+}
+
+export interface ApiKeyUseConfirmation {
+  readonly credentialId: string;
+  readonly prefix: string;
+  readonly tenantId: string;
 }
 
 export class InvalidApiKeyError extends Error {
@@ -78,6 +85,12 @@ export class ApiKeyAuthenticator {
         cause: principal.error,
       });
     }
+    const confirmed = await this.credentials.confirmActiveUse({
+      credentialId: credential.credentialId,
+      prefix: credential.prefix,
+      tenantId: credential.tenantId,
+    });
+    if (!confirmed) throw new InvalidApiKeyError();
     return principal.data;
   }
 }
