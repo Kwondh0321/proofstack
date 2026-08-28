@@ -81,6 +81,11 @@ export interface ArtifactCatalogRepository {
     availableAt: string,
   ): Promise<ArtifactCatalogEntry>;
   find(scope: EvidenceScope, artifactId: string): Promise<ArtifactCatalogEntry | null>;
+  listAbandoned(
+    scope: EvidenceScope,
+    createdBefore: string,
+    limit: number,
+  ): Promise<readonly ArtifactCatalogEntry[]>;
   listExpired(
     scope: EvidenceScope,
     expiresBefore: string,

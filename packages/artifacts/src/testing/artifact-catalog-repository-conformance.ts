@@ -415,7 +415,16 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
               artifactId: "art_other_scope",
               scope: { environmentId: "env_other" },
             }),
-            reserved("catalog_list", { artifactId: "art_reserved" }),
+            reserved("catalog_list", {
+              artifactId: "art_reserved_c",
+              createdAt: "2026-08-28T02:59:00.000Z",
+            }),
+            reserved("catalog_list", { artifactId: "art_reserved_b" }),
+            reserved("catalog_list", { artifactId: "art_reserved_a" }),
+            reserved("catalog_list", {
+              artifactId: "art_reserved_future",
+              createdAt: "2026-08-28T04:00:00.000Z",
+            }),
           ];
           for (const entry of entries) await repository.reserve(entry);
           for (const entry of entries.slice(0, 5)) {
@@ -470,7 +479,22 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
             ["art_b", "art_later"],
           );
 
+          assert.deepEqual(
+            (
+              await repository.listAbandoned(scope("catalog_list"), "2026-08-28T03:00:00.000Z", 2)
+            ).map(({ metadata }) => metadata.contentReference.artifactId),
+            ["art_reserved_c", "art_reserved_a"],
+          );
+
           for (const invalidLimit of [0, 101, 1.5]) {
+            await assert.rejects(
+              repository.listAbandoned(
+                scope("catalog_list"),
+                "2026-08-28T03:00:00.000Z",
+                invalidLimit,
+              ),
+              RangeError,
+            );
             await assert.rejects(
               repository.listExpired(
                 scope("catalog_list"),

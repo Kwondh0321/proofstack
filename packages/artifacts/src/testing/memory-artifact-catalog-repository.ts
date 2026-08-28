@@ -71,6 +71,15 @@ function compareExpired(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry)
   );
 }
 
+function compareAbandoned(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): number {
+  return (
+    Date.parse(left.metadata.createdAt) - Date.parse(right.metadata.createdAt) ||
+    left.metadata.contentReference.artifactId.localeCompare(
+      right.metadata.contentReference.artifactId,
+    )
+  );
+}
+
 function comparePendingPurge(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): number {
   return (
     Date.parse(left.metadata.tombstonedAt as string) -
@@ -205,6 +214,26 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
           Date.parse(entry.metadata.retention.expiresAt) <= threshold,
       )
       .sort(compareExpired)
+      .slice(0, limit)
+      .map(clone);
+  }
+
+  async listAbandoned(
+    scope: EvidenceScope,
+    createdBefore: string,
+    limit: number,
+  ): Promise<readonly ArtifactCatalogEntry[]> {
+    assertMaintenanceLimit(limit);
+    const threshold = Date.parse(createdBefore);
+    return [...this.artifacts.values()]
+      .map(({ entry }) => entry)
+      .filter(
+        (entry) =>
+          matchesScope(entry, scope) &&
+          entry.metadata.state === "reserved" &&
+          Date.parse(entry.metadata.createdAt) <= threshold,
+      )
+      .sort(compareAbandoned)
       .slice(0, limit)
       .map(clone);
   }
