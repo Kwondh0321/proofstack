@@ -1,4 +1,5 @@
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdtemp, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { ArtifactCatalogEntry } from "@proofstack/artifacts";
@@ -75,7 +76,7 @@ function quotedIdentifier(value: string): string {
 }
 
 class DockerPostgresCommandRunner extends NativePostgresCommandRunner {
-  override run(command: PostgresCommand) {
+  override async run(command: PostgresCommand) {
     const paths = command.arguments
       .map((argument) =>
         argument.startsWith("--file=") ? argument.slice("--file=".length) : argument,
@@ -85,27 +86,40 @@ class DockerPostgresCommandRunner extends NativePostgresCommandRunner {
     if (directories.some((directory) => directory.includes(","))) {
       throw new Error("Docker recovery test path cannot contain a comma");
     }
-    return super.run({
-      arguments: [
-        "run",
-        "--rm",
-        "--network=host",
-        `--entrypoint=${command.executable}`,
-        ...Object.keys(command.environment)
-          .filter((name) => name.startsWith("PG"))
-          .sort()
-          .flatMap((name) => ["--env", name]),
-        ...directories.flatMap((directory) => [
-          "--mount",
-          `type=bind,source=${directory},target=${directory}`,
-        ]),
-        postgresToolImage,
-        ...command.arguments,
-      ],
-      environment: command.environment,
-      executable: "docker",
-      ...(command.timeoutMs === undefined ? {} : { timeoutMs: command.timeoutMs }),
-    });
+    const postgresEnvironment = Object.entries(command.environment)
+      .filter(([name]) => name.startsWith("PG"))
+      .sort(([left], [right]) => left.localeCompare(right));
+    if (postgresEnvironment.some(([, value]) => /[\r\n]/u.test(value))) {
+      throw new Error("Docker recovery test environment cannot contain newlines");
+    }
+    const environmentPath = join(tmpdir(), `proofstack-pg-env-${randomUUID()}`);
+    await writeFile(
+      environmentPath,
+      `${postgresEnvironment.map(([name, value]) => `${name}=${value}`).join("\n")}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    try {
+      return await super.run({
+        arguments: [
+          "run",
+          "--rm",
+          "--network=host",
+          `--entrypoint=${command.executable}`,
+          `--env-file=${environmentPath}`,
+          ...directories.flatMap((directory) => [
+            "--mount",
+            `type=bind,source=${directory},target=${directory}`,
+          ]),
+          postgresToolImage,
+          ...command.arguments,
+        ],
+        environment: command.environment,
+        executable: "docker",
+        ...(command.timeoutMs === undefined ? {} : { timeoutMs: command.timeoutMs }),
+      });
+    } finally {
+      await unlink(environmentPath);
+    }
   }
 }
 
