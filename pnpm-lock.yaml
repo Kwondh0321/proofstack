@@ -227,6 +227,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@proofstack/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

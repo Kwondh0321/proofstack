@@ -15,7 +15,7 @@ const modules = [
     packageName: "@proofstack/core",
   },
   {
-    allowed: new Set(["@proofstack/contracts"]),
+    allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
     directory: "packages/datasets/src",
     packageName: "@proofstack/datasets",
   },
