@@ -2,7 +2,11 @@ import type { ArtifactCatalogEntry, ArtifactCatalogRepository } from "./artifact
 import type { ArtifactTombstone, PrincipalContext } from "@proofstack/contracts";
 import { ForbiddenError } from "@proofstack/core";
 import { describe, expect, it } from "vitest";
-import { ProcessArtifactRetention, RetryArtifactPurges } from "./artifact-maintenance.js";
+import {
+  ProcessAbandonedReservations,
+  ProcessArtifactRetention,
+  RetryArtifactPurges,
+} from "./artifact-maintenance.js";
 import { InvalidArtifactLifecycleInputError } from "./errors.js";
 import { PurgeArtifact } from "./purge-artifact.js";
 import { MemoryArtifactCatalogRepository, MemoryArtifactObjectStore } from "./testing/index.js";
@@ -129,9 +133,10 @@ async function harness(options: { readonly clock?: Date } = {}) {
   };
   const clock = { now: () => new Date(options.clock ?? "2026-09-02T00:00:00.000Z") };
   const purge = new PurgeArtifact({ catalog, clock, identities, objects });
+  const abandoned = new ProcessAbandonedReservations({ catalog, clock, identities, purge });
   const retention = new ProcessArtifactRetention({ catalog, clock, identities, purge });
   const retryPurges = new RetryArtifactPurges({ catalog, purge });
-  return { catalog, objects, retention, retryPurges };
+  return { abandoned, catalog, objects, retention, retryPurges };
 }
 
 async function makeAvailable(
@@ -159,6 +164,63 @@ function command(overrides: Partial<Parameters<ProcessArtifactRetention["execute
 }
 
 describe("artifact maintenance", () => {
+  it("purges abandoned reservations and orphaned objects after a safe grace period", async () => {
+    const value = await harness();
+    const orphaned = entry("art_abandoned_orphan");
+    const empty = entry("art_abandoned_empty");
+    const recentBase = entry("art_recent");
+    const recent = {
+      ...recentBase,
+      metadata: { ...recentBase.metadata, createdAt: "2026-09-01T12:00:00.000Z" },
+    };
+    await value.catalog.reserve(orphaned);
+    await value.objects.putIfAbsent(orphaned.objectKey, Uint8Array.from([1, 2, 3]));
+    await value.catalog.reserve(empty);
+    await value.catalog.reserve(recent);
+
+    await expect(
+      value.abandoned.execute({
+        ...command(),
+        abandonedBefore: "2026-09-01T00:00:00.000Z",
+      }),
+    ).resolves.toEqual({
+      failedArtifactIds: [],
+      inspected: 2,
+      purged: 2,
+      tombstoned: 2,
+    });
+    expect((await value.catalog.find(scope, "art_abandoned_orphan"))?.metadata.state).toBe(
+      "purged",
+    );
+    expect((await value.catalog.find(scope, "art_abandoned_empty"))?.metadata.state).toBe("purged");
+    expect((await value.catalog.find(scope, "art_recent"))?.metadata.state).toBe("reserved");
+    await expect(value.objects.get(orphaned.objectKey)).resolves.toBeNull();
+    expect(value.catalog.tombstones.slice(-2)).toEqual([
+      expect.objectContaining({ trigger: "abandoned" }),
+      expect.objectContaining({ trigger: "abandoned" }),
+    ]);
+  });
+
+  it.each(["invalid", "2026-09-01T23:30:00.000Z"])(
+    "rejects an unsafe abandoned threshold %s",
+    async (abandonedBefore) => {
+      const value = await harness();
+      await expect(
+        value.abandoned.execute({ ...command(), abandonedBefore }),
+      ).rejects.toBeInstanceOf(InvalidArtifactLifecycleInputError);
+    },
+  );
+
+  it("normalizes an invalid abandoned cleanup clock", async () => {
+    const value = await harness({ clock: new Date(Number.NaN) });
+    await expect(
+      value.abandoned.execute({
+        ...command(),
+        abandonedBefore: "2026-09-01T00:00:00.000Z",
+      }),
+    ).rejects.toBeInstanceOf(InvalidArtifactLifecycleInputError);
+  });
+
   it("tombstones and purges only expired content in deterministic bounded batches", async () => {
     const value = await harness();
     await makeAvailable(value, entry("art_expired_b"));
