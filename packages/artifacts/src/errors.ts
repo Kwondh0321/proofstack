@@ -51,3 +51,12 @@ export class ArtifactStateTransitionError extends Error {
     this.name = "ArtifactStateTransitionError";
   }
 }
+
+export class ArtifactIdentifierGenerationError extends Error {
+  readonly code = "artifact_identifier_generation_failed";
+
+  constructor(options?: ErrorOptions) {
+    super("Artifact storage identity generation failed", options);
+    this.name = "ArtifactIdentifierGenerationError";
+  }
+}

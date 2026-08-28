@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ArtifactConflictError,
   ArtifactContentMismatchError,
+  ArtifactIdentifierGenerationError,
   ArtifactKeyringConfigurationError,
   ArtifactNotFoundError,
   ArtifactProtectionError,
@@ -12,6 +13,7 @@ describe("artifact errors", () => {
   it.each([
     [new ArtifactConflictError(), "artifact_conflict"],
     [new ArtifactContentMismatchError(), "artifact_content_mismatch"],
+    [new ArtifactIdentifierGenerationError(), "artifact_identifier_generation_failed"],
     [new ArtifactKeyringConfigurationError(), "artifact_keyring_configuration_invalid"],
     [new ArtifactNotFoundError(), "artifact_not_found"],
     [new ArtifactProtectionError(), "artifact_protection_failed"],
