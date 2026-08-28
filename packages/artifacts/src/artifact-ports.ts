@@ -21,6 +21,19 @@ export interface ArtifactEncryptionPlanner {
   createPlan(metadata: ArtifactMetadata): Promise<ArtifactEncryptionPlan>;
 }
 
+export interface EncryptedArtifactObject {
+  readonly bytes: Uint8Array;
+  readonly receipt: ArtifactObjectReceipt;
+}
+
+export interface ArtifactContentEncryptor {
+  encrypt(
+    metadata: ArtifactMetadata,
+    plan: ArtifactEncryptionPlan,
+    plaintext: Uint8Array,
+  ): Promise<EncryptedArtifactObject>;
+}
+
 export interface ArtifactObjectReceipt {
   readonly sha256: string;
   readonly sizeBytes: number;

@@ -15,6 +15,7 @@ import {
   type ArtifactDataKeyContext,
   type ArtifactEncryptionPlan,
   type ArtifactKeyProvider,
+  type EncryptedArtifactObject,
   type ArtifactObjectReceipt,
   type WrappedArtifactDataKey,
 } from "./artifact-ports.js";
@@ -33,11 +34,6 @@ const GCM_TAG_BYTES = 16;
 const MAX_LOCAL_ARTIFACT_KEYS = 8;
 
 export type ArtifactRandomSource = (size: number) => Uint8Array;
-
-export interface EncryptedArtifactObject {
-  readonly bytes: Uint8Array;
-  readonly receipt: ArtifactObjectReceipt;
-}
 
 export interface LocalArtifactKeyringOptions {
   readonly activeKeyId: string;

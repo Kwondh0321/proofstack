@@ -69,3 +69,12 @@ export class InvalidArtifactLifecycleInputError extends TypeError {
     this.name = "InvalidArtifactLifecycleInputError";
   }
 }
+
+export class ArtifactObjectConflictError extends Error {
+  readonly code = "artifact_object_conflict";
+
+  constructor() {
+    super("Immutable artifact object does not match the reserved encrypted content");
+    this.name = "ArtifactObjectConflictError";
+  }
+}
