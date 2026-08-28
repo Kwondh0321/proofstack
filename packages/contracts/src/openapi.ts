@@ -26,7 +26,7 @@ import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.2.0-foundation" as const;
+export const PROOFSTACK_API_VERSION = "0.3.0-foundation" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -112,6 +112,86 @@ const credentialParameter = {
 const bearerSecurity = [{ bearerAuth: [] }] as const;
 const browserSecurity = [{ browserSession: [] }] as const;
 const userOrWorkloadSecurity = [...bearerSecurity, ...browserSecurity] as const;
+
+const otlpRoutingParameters = [
+  {
+    description: "Opaque project identifier authorized within the authenticated tenant",
+    in: "header",
+    name: "X-ProofStack-Project-Id",
+    required: true,
+    schema: schemaReference("OpaqueId"),
+  },
+  {
+    description: "Opaque environment identifier authorized within the selected project",
+    in: "header",
+    name: "X-ProofStack-Environment-Id",
+    required: true,
+    schema: schemaReference("OpaqueId"),
+  },
+] as const;
+
+const otlpProtobufBody = {
+  schema: {
+    description: "Binary Protobuf message",
+    format: "binary",
+    type: "string",
+  },
+} as const;
+
+const otlpJsonRequestBody = {
+  schema: {
+    additionalProperties: true,
+    description:
+      "OTLP 1.11 opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest JSON mapping",
+    type: "object",
+  },
+} as const;
+
+const otlpJsonResponseBody = {
+  schema: {
+    additionalProperties: false,
+    description:
+      "OTLP 1.11 opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse JSON mapping",
+    properties: {
+      partialSuccess: {
+        additionalProperties: false,
+        properties: {
+          errorMessage: { type: "string" },
+          rejectedSpans: { pattern: "^-?[0-9]+$", type: "string" },
+        },
+        required: ["rejectedSpans", "errorMessage"],
+        type: "object",
+      },
+    },
+    type: "object",
+  },
+} as const;
+
+const otlpJsonStatusBody = {
+  schema: {
+    additionalProperties: true,
+    description: "google.rpc.Status Protobuf JSON mapping",
+    properties: {
+      code: { format: "int32", type: "integer" },
+      message: { type: "string" },
+    },
+    required: ["message"],
+    type: "object",
+  },
+} as const;
+
+function otlpFailureResponse(description: string): Record<string, unknown> {
+  return {
+    content: {
+      "application/json": otlpJsonStatusBody,
+      "application/x-protobuf": {
+        ...otlpProtobufBody,
+        "x-protobuf-message": "google.rpc.Status",
+      },
+    },
+    description,
+  };
+}
 
 const browserMutationParameters = [
   {
@@ -199,7 +279,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "Foundation API for authenticated tenant-scoped evidence, trace inspection, workload credentials, and OIDC browser sessions.",
+        "Foundation API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -249,6 +329,57 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
           responses: { "200": { description: "The canonical OpenAPI description" } },
           summary: "Read the API contract",
           tags: ["Metadata"],
+        },
+      },
+      "/v1/traces": {
+        post: {
+          description:
+            "Accepts the stable OTLP 1.11 trace service request. Authentication runs before protected routing validation. Tenant ownership comes only from the workload principal; the required project and environment headers request an authorized scope and never grant it. Known GenAI content fields are removed before evidence persistence.",
+          externalDocs: {
+            description: "ProofStack OTLP/HTTP compatibility profile",
+            url: "https://github.com/Kwondh0321/proofstack/blob/main/docs/architecture/0010-otlp-http-trace-ingestion.md",
+          },
+          operationId: "exportOtlpTraces",
+          parameters: otlpRoutingParameters,
+          requestBody: {
+            content: {
+              "application/json": otlpJsonRequestBody,
+              "application/x-protobuf": {
+                ...otlpProtobufBody,
+                "x-protobuf-message":
+                  "opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest",
+              },
+            },
+            required: true,
+          },
+          responses: {
+            "200": {
+              content: {
+                "application/json": otlpJsonResponseBody,
+                "application/x-protobuf": {
+                  ...otlpProtobufBody,
+                  "x-protobuf-message":
+                    "opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse",
+                },
+              },
+              description:
+                "Full or partial success. A partial success is not a request to retry rejected spans.",
+            },
+            "400": otlpFailureResponse("The OTLP request or routing headers are invalid"),
+            "401": otlpFailureResponse("Workload authentication is missing or invalid"),
+            "403": otlpFailureResponse("The workload cannot ingest into the requested scope"),
+            "409": otlpFailureResponse(
+              "A deterministic event identity conflicts with different stored evidence",
+            ),
+            "413": otlpFailureResponse("The compressed or decompressed body limit was exceeded"),
+            "415": otlpFailureResponse("The media type or content encoding is unsupported"),
+            "429": otlpFailureResponse("The authenticated workload rate limit was exceeded"),
+            "500": otlpFailureResponse("An unexpected ingestion error occurred"),
+            "503": otlpFailureResponse("Atomic evidence persistence is unavailable"),
+          },
+          security: bearerSecurity,
+          summary: "Export OTLP traces",
+          tags: ["Telemetry"],
         },
       },
       "/v1/auth/oidc/login": {
@@ -568,6 +699,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       { description: "Agent execution evidence", name: "Evidence" },
       { description: "OIDC browser identity and workload credential lifecycle", name: "Identity" },
       { description: "Machine-readable service metadata", name: "Metadata" },
+      { description: "OpenTelemetry-compatible ingestion", name: "Telemetry" },
     ],
     "x-proofstack-evidence-schema-version": EVIDENCE_SCHEMA_VERSION,
   };

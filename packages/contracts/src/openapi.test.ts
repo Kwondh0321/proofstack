@@ -20,12 +20,13 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.2.0-foundation" },
+      info: { version: "0.3.0-foundation" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
         "/health/ready": {},
         "/openapi.json": {},
+        "/v1/traces": {},
         "/v1/auth/oidc/callback": {},
         "/v1/auth/oidc/login": {},
         "/v1/auth/oidc/logout": {},
@@ -37,6 +38,35 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
     });
+  });
+
+  it("documents the workload-only OTLP protocol and routing boundary", () => {
+    const document = createProofStackOpenApiDocument();
+    const { paths: rawPaths } = document;
+    const paths = rawPaths as Record<
+      string,
+      {
+        post: {
+          parameters: Array<{ name: string }>;
+          requestBody: { content: Record<string, unknown> };
+          responses: Record<string, { content: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const route = paths["/v1/traces"]?.post;
+
+    expect(route?.security).toEqual([{ bearerAuth: [] }]);
+    expect(route?.parameters.map(({ name }) => name)).toEqual([
+      "X-ProofStack-Project-Id",
+      "X-ProofStack-Environment-Id",
+    ]);
+    expect(route?.requestBody.content).toHaveProperty("application/json");
+    expect(route?.requestBody.content).toHaveProperty("application/x-protobuf");
+    for (const status of ["200", "400", "401", "403", "409", "413", "415", "429", "500", "503"]) {
+      expect(route?.responses[status]?.content).toHaveProperty("application/json");
+      expect(route?.responses[status]?.content).toHaveProperty("application/x-protobuf");
+    }
   });
 
   it("resolves every local schema reference", () => {
