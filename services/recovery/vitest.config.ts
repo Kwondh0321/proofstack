@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, "src/**/*.integration.test.ts"],
     coverage: {
-      exclude: ["src/**/*.test.ts", "src/index.ts"],
+      exclude: ["src/**/*.test.ts", "src/cli-entrypoint.ts", "src/index.ts"],
       include: ["src/**/*.ts"],
       provider: "v8",
       reporter: ["text", "json-summary"],

@@ -5,6 +5,9 @@
   "description": "Fail-closed backup, restore, and recovery verification operations",
   "license": "Apache-2.0",
   "type": "module",
+  "bin": {
+    "proofstack-recovery": "./dist/cli-entrypoint.js"
+  },
   "files": [
     "dist"
   ],
@@ -12,6 +15,8 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
+    "recovery:database:backup": "pnpm build && node dist/cli-entrypoint.js database-backup",
+    "recovery:database:restore": "pnpm build && node dist/cli-entrypoint.js database-restore",
     "test": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

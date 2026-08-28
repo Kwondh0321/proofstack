@@ -35,6 +35,8 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint . && turbo run lint",
+    "recovery:database:backup": "pnpm --filter @proofstack/recovery-operations recovery:database:backup",
+    "recovery:database:restore": "pnpm --filter @proofstack/recovery-operations recovery:database:restore",
     "test": "turbo run test",
     "test:integration:artifacts": "turbo run test:integration --concurrency=1 --filter=@proofstack/artifact-maintenance",
     "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api",
