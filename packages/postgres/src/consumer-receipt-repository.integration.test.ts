@@ -1,4 +1,4 @@
-import { ConsumerReceiptConflictError } from "@proofstack/core";
+import { ConsumerReceiptConflictError, processConsumerMessage } from "@proofstack/core";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
@@ -203,6 +203,79 @@ describe("PostgresConsumerReceiptRepository contract", () => {
       receipt: { lastError: "retry later", state: "available" },
       status: "deferred",
     });
+  });
+
+  it("lets the shared harness invoke only one concurrent handler", async () => {
+    const key = {
+      consumerName: "export.projector",
+      messageId: `message-harness-${runKey}`,
+    };
+    const firstRepository = new PostgresConsumerReceiptRepository(
+      consumerPool,
+      token("30000000-0000-4000-8000-000000000009"),
+    );
+    const secondRepository = new PostgresConsumerReceiptRepository(
+      consumerPool,
+      token("30000000-0000-4000-8000-000000000010"),
+    );
+    let releaseHandler: (() => void) | undefined;
+    let reportStarted: (() => void) | undefined;
+    const handlerGate = new Promise<void>((resolve) => {
+      releaseHandler = resolve;
+    });
+    const handlerStarted = new Promise<void>((resolve) => {
+      reportStarted = resolve;
+    });
+    let handlerCalls = 0;
+    const common = {
+      consumerName: key.consumerName,
+      leaseDurationMs: 60_000,
+      message: { eventId: "evt_harness_001" },
+      messageId: key.messageId,
+      payloadSha256,
+      retryDelayMs: 0,
+      tenantId,
+    };
+    const firstProcessing = processConsumerMessage({
+      ...common,
+      handler: async () => {
+        handlerCalls += 1;
+        reportStarted?.();
+        await handlerGate;
+        return "projected";
+      },
+      repository: firstRepository,
+      workerId: "wrk_harness_primary",
+    });
+    await handlerStarted;
+
+    await expect(
+      processConsumerMessage({
+        ...common,
+        handler: async () => {
+          handlerCalls += 1;
+          return "duplicate";
+        },
+        repository: secondRepository,
+        workerId: "wrk_harness_secondary",
+      }),
+    ).resolves.toMatchObject({ status: "busy" });
+    releaseHandler?.();
+    await expect(firstProcessing).resolves.toEqual({ status: "processed", value: "projected" });
+    expect(handlerCalls).toBe(1);
+
+    await expect(
+      processConsumerMessage({
+        ...common,
+        handler: async () => {
+          handlerCalls += 1;
+          return "duplicate";
+        },
+        repository: secondRepository,
+        workerId: "wrk_harness_secondary",
+      }),
+    ).resolves.toMatchObject({ status: "completed" });
+    expect(handlerCalls).toBe(1);
   });
 
   it("does not grant the consumer access to authoritative evidence", async () => {
