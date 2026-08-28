@@ -18,6 +18,10 @@ export {
   MigrationFileError,
 } from "./migrations.js";
 export {
+  PostgresApiKeyCredentialRepository,
+  PostgresIdentityDataIntegrityError,
+} from "./postgres-api-key-credential-repository.js";
+export {
   MAX_CONSUMER_RECEIPT_ERROR_LENGTH,
   MAX_CONSUMER_RECEIPT_LEASE_DURATION_MS,
   MAX_CONSUMER_RECEIPT_RETRY_DELAY_MS,

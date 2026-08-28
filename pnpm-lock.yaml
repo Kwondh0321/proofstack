@@ -200,6 +200,9 @@ importers:
       '@proofstack/core':
         specifier: workspace:*
         version: link:../core
+      '@proofstack/identity':
+        specifier: workspace:*
+        version: link:../identity
       pg:
         specifier: 'catalog:'
         version: 8.23.0
