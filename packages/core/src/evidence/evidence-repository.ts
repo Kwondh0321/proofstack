@@ -24,6 +24,13 @@ export interface EvidencePage {
 
 export interface EvidenceRepository {
   append(envelopes: readonly EvidenceEnvelope[]): Promise<AppendEvidenceResult>;
+
+  /**
+   * Returns at most `options.limit` events in canonical trace order. `hasMore` means the page is
+   * full and at least one additional matching event existed at the same read boundary.
+   * `cursorFound` is always true for a cursorless read and may be false only when `after` was
+   * supplied but that complete cursor was absent from the requested scope and trace.
+   */
   listByTrace(
     scope: EvidenceScope,
     traceId: string,

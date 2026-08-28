@@ -33,3 +33,12 @@ export class InvalidTraceCursorError extends Error {
     this.name = "InvalidTraceCursorError";
   }
 }
+
+export class EvidenceRepositoryContractError extends Error {
+  readonly code = "evidence_repository_contract_violation";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "EvidenceRepositoryContractError";
+  }
+}
