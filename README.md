@@ -9,8 +9,9 @@ evaluating, governing, and safely releasing AI agents.
 
 > [!IMPORTANT]
 > ProofStack is an experimental foundation, not a production release. The implemented path is real
-> and tested; durable storage, production authentication, replay, evaluation, and release gates are
-> intentionally not represented as complete.
+> and tested, including optional PostgreSQL persistence. Production authentication, artifact
+> storage, replay, evaluation, backups, and release gates are intentionally not represented as
+> complete.
 
 ## Why ProofStack
 
@@ -37,6 +38,8 @@ release when a declared policy regresses.
 | Contract | Strict, versioned, provider-neutral `EvidenceEnvelope` with W3C trace identity |
 | Core | Tenant-scoped authorization, idempotent ingestion, conflict detection, atomic batches |
 | API | Health, direct JSON ingestion, trace reads, stable problem documents, OpenAPI 3.2 |
+| Persistence | Checksum-verified PostgreSQL migrations, forced RLS, append-only evidence, atomic outbox |
+| Delivery state | Leased outbox retries, poison-message visibility, monotonic cursors, consumer receipts |
 | TypeScript SDK | Generated IDs, bounded queue, batching, timeout handling, fail-open by default |
 | Console | API health and exact trace inspection without placeholder telemetry |
 | Example | Runnable parent/child agent and tool trace through the real SDK and API |
@@ -50,13 +53,17 @@ flowchart LR
     A[Observed agent] -->|EvidenceRecord| S[TypeScript SDK]
     S -->|bounded batch| H[Fastify API]
     H -->|PrincipalContext| C[Core use cases]
-    C -->|tenant-scoped port| R[(In-memory repository)]
+    C -->|tenant-scoped port| R{Evidence repository}
+    R --> M[(Memory quickstart)]
+    R --> P[(PostgreSQL)]
+    P --> X[(Transactional outbox)]
     W[Operator console] -->|validated response| H
     H --> O[OpenAPI contract]
 ```
 
-The repository port is the replacement seam for PostgreSQL. The memory adapter exists for tests
-and the quickstart; it is not presented as durable storage.
+The memory adapter keeps the quickstart dependency-free. The PostgreSQL adapter is the durable
+option: migration integrity, database-enforced tenant isolation, immutable evidence, atomic
+evidence/outbox writes, and least-privilege runtime roles are covered by real PostgreSQL tests.
 
 ## Quickstart
 
@@ -90,6 +97,7 @@ apps/api                 HTTP composition root and development ingestion API
 apps/web                 Server-rendered operator console
 packages/contracts       Runtime schemas, public types, identity, and OpenAPI generation
 packages/core            Framework-independent authorization and evidence use cases
+packages/postgres        Durable repositories, migrations, delivery state, and runtime roles
 sdks/typescript          Provider-neutral telemetry client
 examples/basic-agent     Verified SDK-to-API trace example
 docs/architecture        Numbered architecture decision records
@@ -119,10 +127,11 @@ closed before durable storage work and the limitations that still block producti
 
 ## Current boundaries
 
-The current build does not provide durable persistence, production OIDC or API-key authentication,
-artifact content storage, OTLP ingestion, replay, evaluators, policy enforcement, backups, or
-production deployment artifacts. Those capabilities have an explicit dependency order and may not
-bypass the security and compatibility gates described in the roadmap.
+The current build does not provide production OIDC or API-key authentication, artifact content
+storage, OTLP ingestion, a deployed outbox publisher, replay, evaluators, policy enforcement,
+backups, or production deployment artifacts. PostgreSQL is durable development infrastructure, not
+yet a production data-recovery claim. Remaining capabilities have an explicit dependency order and
+may not bypass the security and compatibility gates described in the roadmap.
 
 ## Contributing and security
 
