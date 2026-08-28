@@ -11,6 +11,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "proofstack-db": "./dist/cli.js"
+  },
   "files": [
     "dist",
     "migrations"
@@ -18,6 +21,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
+    "db:migrate": "pnpm build && node dist/cli.js migrate",
+    "db:status": "pnpm build && node dist/cli.js status",
     "lint": "biome lint src",
     "test": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",

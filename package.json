@@ -17,6 +17,8 @@
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @proofstack/api dev",
     "dev:web": "pnpm --filter @proofstack/web dev",
+    "db:migrate": "pnpm --filter @proofstack/postgres db:migrate",
+    "db:status": "pnpm --filter @proofstack/postgres db:status",
     "docs:check": "node scripts/check-doc-links.mjs",
     "example:basic-agent": "pnpm build && pnpm --filter @proofstack/example-basic-agent start",
     "format": "biome format --write .",
