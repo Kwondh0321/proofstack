@@ -34,6 +34,7 @@ beforeAll(async () => {
   await adminPool.query(
     `GRANT SELECT, INSERT ON public.proofstack_evidence_events TO ${runtimeRole}`,
   );
+  await adminPool.query(`GRANT INSERT ON public.proofstack_outbox TO ${runtimeRole}`);
 });
 
 afterAll(async () => {
@@ -89,5 +90,53 @@ describe("PostgresEvidenceRepository contract", () => {
     } finally {
       await restartedPool.end();
     }
+  });
+
+  it("records one publication intent for accepted evidence and none for a retry", async () => {
+    const repository = new PostgresEvidenceRepository(runtimePool);
+    const accepted: EvidenceEnvelope = {
+      evidence: {
+        attributes: {},
+        contentReferences: [],
+        eventId: "evt_outbox_contract_001",
+        extensions: {},
+        kind: "agent.run",
+        name: "outbox-contract",
+        source: {
+          sdkName: "@proofstack/testkit",
+          sdkVersion: "0.0.0",
+          serviceName: "outbox-contract",
+        },
+        spanId: "60f067aa0ba902b7",
+        startedAt: "2026-08-28T02:59:59.000Z",
+        status: "ok",
+        traceId: "7bf92f3577b34da6a3ce929d0e0e4736",
+      },
+      receivedAt: "2026-08-28T03:00:00.000Z",
+      schemaVersion: "0.1",
+      scope: {
+        environmentId: "env_outbox",
+        projectId: "prj_outbox",
+        tenantId: "ten_outbox",
+      },
+    };
+
+    await repository.append([accepted]);
+    await repository.append([{ ...accepted, receivedAt: "2026-08-28T03:01:00.000Z" }]);
+
+    const intents = await adminPool.query<{
+      readonly aggregate_id: string;
+      readonly payload: EvidenceEnvelope;
+    }>(`
+      SELECT aggregate_id, payload
+      FROM proofstack_outbox
+      WHERE tenant_id = 'ten_outbox' AND aggregate_id = 'evt_outbox_contract_001'
+    `);
+    expect(intents.rows).toEqual([
+      {
+        aggregate_id: accepted.evidence.eventId,
+        payload: accepted,
+      },
+    ]);
   });
 });

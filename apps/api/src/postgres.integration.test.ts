@@ -39,6 +39,7 @@ beforeAll(async () => {
   await adminPool.query(
     `GRANT SELECT, INSERT ON public.proofstack_evidence_events TO ${runtimeRole}`,
   );
+  await adminPool.query(`GRANT INSERT ON public.proofstack_outbox TO ${runtimeRole}`);
 });
 
 afterAll(async () => {

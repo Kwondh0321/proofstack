@@ -128,10 +128,11 @@ describe("PostgresEvidenceRepository.append", () => {
   it("reports accepted and structurally identical duplicate events", async () => {
     let insertCount = 0;
     const harness = transactionRows((text) => {
-      if (text.includes("INSERT INTO")) {
+      if (text.includes("INSERT INTO public.proofstack_evidence_events")) {
         insertCount += 1;
         return { rows: insertCount === 1 ? [{ event_id: "evt_repository_001" }] : [] };
       }
+      if (text.includes("proofstack_outbox")) return { rows: [] };
       if (text.includes("AS identical")) return { rows: [{ identical: true }] };
       return { rows: [] };
     });
@@ -144,6 +145,30 @@ describe("PostgresEvidenceRepository.append", () => {
       duplicateEventIds: ["evt_repository_002"],
     });
     expect(harness.client.queries.map(({ text }) => text.trim())).toContain("COMMIT");
+    const outboxQueries = harness.client.queries.filter(({ text }) =>
+      text.includes("proofstack_outbox"),
+    );
+    expect(outboxQueries).toHaveLength(1);
+    expect(outboxQueries[0]?.values).toEqual([
+      "ten_local",
+      "evt_repository_001",
+      "0.1",
+      JSON.stringify(envelope()),
+      "2026-08-28T03:00:00.000Z",
+    ]);
+  });
+
+  it("rolls back evidence when its publication intent cannot be recorded", async () => {
+    const harness = transactionRows((text) => {
+      if (text.includes("INSERT INTO public.proofstack_evidence_events")) {
+        return { rows: [{ event_id: "evt_repository_001" }] };
+      }
+      if (text.includes("proofstack_outbox")) throw new Error("outbox unavailable");
+      return { rows: [] };
+    });
+
+    await expect(harness.repository.append([envelope()])).rejects.toThrow("outbox unavailable");
+    expect(harness.client.queries.map(({ text }) => text.trim())).toContain("ROLLBACK");
   });
 
   it("rolls back a conflicting event", async () => {

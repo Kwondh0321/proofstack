@@ -71,6 +71,18 @@ const IDENTICAL_EVIDENCE_SQL = `
   WHERE tenant_id = $1 AND event_id = $2
 `;
 
+const INSERT_OUTBOX_SQL = `
+  INSERT INTO public.proofstack_outbox (
+    tenant_id,
+    event_type,
+    aggregate_type,
+    aggregate_id,
+    schema_version,
+    payload,
+    created_at
+  ) VALUES ($1, 'evidence.appended', 'evidence', $2, $3, $4::jsonb, $5)
+`;
+
 const CURSOR_EXISTS_SQL = `
   SELECT EXISTS (
     SELECT 1
@@ -168,7 +180,16 @@ async function appendEnvelope(client: PoolClient, envelope: EvidenceEnvelope): P
     INSERT_EVIDENCE_SQL,
     insertValues(envelope),
   );
-  if (inserted.rows.length === 1) return true;
+  if (inserted.rows.length === 1) {
+    await client.query(INSERT_OUTBOX_SQL, [
+      envelope.scope.tenantId,
+      envelope.evidence.eventId,
+      envelope.schemaVersion,
+      JSON.stringify(envelope),
+      envelope.receivedAt,
+    ]);
+    return true;
+  }
 
   const duplicate = await client.query<DuplicateEvidenceRow>(IDENTICAL_EVIDENCE_SQL, [
     envelope.scope.tenantId,
