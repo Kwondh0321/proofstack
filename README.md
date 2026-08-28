@@ -114,6 +114,9 @@ Read the [product constitution](docs/product/constitution.md) before broad chang
 technical decisions are recorded in [ADRs](docs/architecture/README.md), and capability order and
 acceptance gates live in the [roadmap](docs/product/roadmap.md).
 
+The cross-layer [Foundation 1 audit](docs/development/foundation-1-audit.md) records the findings
+closed before durable storage work and the limitations that still block production use.
+
 ## Current boundaries
 
 The current build does not provide durable persistence, production OIDC or API-key authentication,

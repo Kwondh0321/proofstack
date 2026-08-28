@@ -116,6 +116,9 @@ scripts                  저장소 수준 아키텍처 경계 검사
 중요한 기술적 결정은 [ADR](docs/architecture/README.md)에 기록하며, 기능 순서와 승인
 조건은 [로드맵](docs/product/roadmap.md)에 정의합니다.
 
+[Foundation 1 감사 기록](docs/development/foundation-1-audit.md)에는 영구 저장소 개발 전에
+해결한 교차 계층 문제와 여전히 프로덕션 사용을 막고 있는 제한사항이 정리되어 있습니다.
+
 ## 현재의 경계
 
 현재 빌드는 영속 저장소, 프로덕션 OIDC 또는 API 키 인증, 아티팩트 콘텐츠 저장소,

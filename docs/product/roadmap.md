@@ -24,9 +24,13 @@ Exit criteria:
 - [x] Reproducible monorepo checks, dependency audit, and secret scanning in CI.
 - [x] Threat model, contribution workflow, and runnable end-to-end example.
 - [x] Final clean-checkout rehearsal on the CI baseline runtime.
+- [x] Independent cross-layer audit with closed findings and explicit next-stage entry rules.
 
 The foundation is not a production release. Persistence, production identity, retention, backup,
 and release enforcement remain explicitly unsupported.
+
+The completed review and accepted limitations are recorded in the
+[Foundation 1 audit](../development/foundation-1-audit.md).
 
 ## Foundation 2: durable evidence boundary
 
