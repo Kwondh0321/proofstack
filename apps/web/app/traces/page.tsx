@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { parseTraceLookup } from "../../lib/trace-lookup";
 
 export const metadata: Metadata = { title: "Traces" };
 
@@ -9,7 +10,10 @@ export default async function TracesPage({
   readonly searchParams: Promise<{ id?: string }>;
 }) {
   const { id } = await searchParams;
-  if (id) redirect(`/traces/${encodeURIComponent(id.trim())}`);
+  const lookup = parseTraceLookup(id);
+  if (lookup.status === "valid") {
+    redirect(`/traces/${encodeURIComponent(lookup.traceId)}`);
+  }
 
   return (
     <div className="page-stack narrow-page">
@@ -26,7 +30,10 @@ export default async function TracesPage({
           <label htmlFor="trace-id">Trace ID</label>
           <div className="lookup-row">
             <input
+              aria-describedby={lookup.status === "invalid" ? "trace-id-error" : "trace-id-help"}
+              aria-invalid={lookup.status === "invalid"}
               autoComplete="off"
+              defaultValue={lookup.status === "invalid" ? lookup.value : undefined}
               id="trace-id"
               name="id"
               pattern="[0-9a-f]{32}"
@@ -35,7 +42,15 @@ export default async function TracesPage({
             />
             <button type="submit">Inspect trace</button>
           </div>
-          <p>Trace content is never fetched until the identifier passes local validation.</p>
+          {lookup.status === "invalid" ? (
+            <p id="trace-id-error" role="alert">
+              Enter a lowercase, 32-character hexadecimal trace ID.
+            </p>
+          ) : (
+            <p id="trace-id-help">
+              Trace content is never fetched until the identifier passes validation.
+            </p>
+          )}
         </form>
       </section>
     </div>
