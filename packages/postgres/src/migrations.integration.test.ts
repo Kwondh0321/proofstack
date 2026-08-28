@@ -123,6 +123,7 @@ describe("PostgreSQL evidence schema", () => {
       "0007_saturate_api_key_use_count",
       "0008_artifact_capabilities",
       "0009_artifact_catalog",
+      "0010_force_identity_tenant_rls",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

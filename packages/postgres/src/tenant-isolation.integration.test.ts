@@ -160,12 +160,11 @@ describe("tenant isolation acceptance matrix", () => {
     `);
 
     expect(tables.rows.map(({ relname }) => relname)).toEqual(TENANT_TABLES);
-    expect(
-      tables.rows.every(
-        ({ policy_count, public_dml_grant, relforcerowsecurity, relrowsecurity }) =>
-          policy_count > 0 && !public_dml_grant && relforcerowsecurity && relrowsecurity,
-      ),
-    ).toBe(true);
+    const violations = tables.rows.filter(
+      ({ policy_count, public_dml_grant, relforcerowsecurity, relrowsecurity }) =>
+        policy_count === 0 || public_dml_grant || !relforcerowsecurity || !relrowsecurity,
+    );
+    expect(violations).toEqual([]);
   });
 
   it("denies forged and guessed access without leaking pooled tenant context", async () => {
