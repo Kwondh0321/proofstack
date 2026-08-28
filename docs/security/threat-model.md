@@ -86,7 +86,9 @@ tools, change policy, or approve a release.
 
 - PostgreSQL persistence is implemented for evidence and delivery state, but backup and disaster
   recovery are not yet proven.
-- Authentication is development-only; API key and OIDC modes intentionally refuse startup.
+- Capability-scoped workload API keys, bootstrap, authoritative verification, rotation, revocation,
+  and sanitized lifecycle audit are implemented. Browser OIDC and server-side sessions still
+  intentionally refuse startup.
 - TLS termination, encryption at rest, key rotation, backup, deletion, and retention are deployment
   responsibilities not yet implemented by the project.
 - Artifact content storage and retrieval do not exist.

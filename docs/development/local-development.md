@@ -5,8 +5,9 @@ disposable. The PostgreSQL profile persists evidence across API and database res
 the same migrations, row-level tenant isolation, and least-privilege role boundaries used by the
 durable adapter.
 
-Neither profile supplies production identity. Development authentication is restricted to an
-explicit loopback listener.
+Both profiles default to development authentication on an explicit loopback listener. The durable
+profile can also exercise the experimental workload API-key path. Browser identity is not available
+until the OIDC session implementation passes its roadmap gate.
 
 ## Requirements
 
@@ -83,6 +84,42 @@ pnpm dev:db:down
 Starting it again with `pnpm dev:db:up` reuses the named volume. Re-running migrations and
 provisioning is safe and reports the already-current or updated state.
 
+### Exercise workload API-key authentication
+
+Bootstrap is an explicit administrative operation; the API never creates a first owner or key from
+an unauthenticated request. Set the required values in the current shell, using the narrowest useful
+capabilities and resource scope, then run the one-time command:
+
+```bash
+export PROOFSTACK_IDENTITY_TENANT_ID=ten_local
+export PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID=usr_local_operator
+export PROOFSTACK_BOOTSTRAP_KEY_NAME=local-agent
+export PROOFSTACK_BOOTSTRAP_KEY_CAPABILITIES=evidence:ingest,evidence:read
+export PROOFSTACK_BOOTSTRAP_KEY_RESOURCE_SCOPE='{"mode":"tenant"}'
+pnpm db:identity:bootstrap
+```
+
+The JSON response contains `value` exactly once. Copy that complete value immediately into an
+untracked secret store; it cannot be recovered from PostgreSQL. Do not commit it, paste it into an
+issue, or pass it in a URL. Remove the temporary bootstrap variables from the shell afterward.
+
+To start the API in workload-key mode, set `PROOFSTACK_AUTH_MODE=api_key`. The committed PostgreSQL
+profile already contains the distinct least-privilege `PROOFSTACK_IDENTITY_DATABASE_URL`. Set
+`PROOFSTACK_API_KEY` only for the example process, then run:
+
+```bash
+export PROOFSTACK_AUTH_MODE=api_key
+export PROOFSTACK_API_KEY='<complete value returned once by the bootstrap command>'
+pnpm dev:api
+```
+
+From a second shell with the same `PROOFSTACK_API_KEY`, `pnpm example:basic-agent` sends authenticated
+evidence. The server reads only the `Authorization: Bearer` header; query parameters, URLs, and
+cookies are never API-key transports. `pnpm db:identity:status` reports aggregate active, expired,
+revoked, and total counts for `PROOFSTACK_IDENTITY_TENANT_ID` without returning prefixes, hashes, or
+secret material. The browser console does not accept workload secrets and remains a development-auth
+surface until OIDC is complete.
+
 ## Verify the running system
 
 From another terminal, load the same profile if you created one, then check liveness, readiness, and
@@ -106,13 +143,14 @@ cannot produce a false successful demonstration.
 | Variable | Default | Owner | Purpose |
 | --- | --- | --- | --- |
 | `PROOFSTACK_ENV` | `development` | API/database CLI | Runtime safety mode |
-| `PROOFSTACK_AUTH_MODE` | `development` | API | Identity adapter; production adapters are not implemented yet |
+| `PROOFSTACK_AUTH_MODE` | `development` | API | `development` or experimental `api_key`; OIDC modes still fail closed |
 | `PROOFSTACK_HOST` | `127.0.0.1` | API | Listen address; development auth requires explicit loopback |
 | `PROOFSTACK_PORT` | `4318` | API | Listen port |
 | `PROOFSTACK_LOG_LEVEL` | `info` | API | Structured log level |
 | `PROOFSTACK_CORS_ORIGIN` | unset | API | Exact allowed browser origin when cross-origin access is needed |
 | `PROOFSTACK_STORAGE_MODE` | `memory` | API | `memory` or `postgres` evidence adapter |
 | `PROOFSTACK_DATABASE_URL` | unset | API | Least-privilege runtime database URL in PostgreSQL mode |
+| `PROOFSTACK_IDENTITY_DATABASE_URL` | unset | API | Distinct least-privilege identity URL required by API-key mode |
 | `PROOFSTACK_MIGRATION_DATABASE_URL` | unset | database CLI | Administrative migration and provisioning URL |
 | `PROOFSTACK_API_DATABASE_ROLE` | `proofstack_api` | database CLI | Managed API role name |
 | `PROOFSTACK_IDENTITY_DATABASE_ROLE` | `proofstack_identity` | database CLI | Managed identity role name |
@@ -122,15 +160,22 @@ cannot produce a false successful demonstration.
 | `PROOFSTACK_IDENTITY_DATABASE_PASSWORD` | unset | database CLI | Identity role password used only during provisioning |
 | `PROOFSTACK_PUBLISHER_DATABASE_PASSWORD` | unset | database CLI | Publisher role password used only during provisioning |
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
+| `PROOFSTACK_IDENTITY_TENANT_ID` | unset | identity CLI | Explicit tenant for bootstrap and aggregate status |
+| `PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID` | unset | identity CLI | Audited local operator identifier for bootstrap |
+| `PROOFSTACK_BOOTSTRAP_KEY_NAME` | unset | identity CLI | Printable display name for the initial workload key |
+| `PROOFSTACK_BOOTSTRAP_KEY_CAPABILITIES` | unset | identity CLI | Unique comma-separated delegable capabilities |
+| `PROOFSTACK_BOOTSTRAP_KEY_RESOURCE_SCOPE` | unset | identity CLI | Strict JSON tenant or restricted project/environment scope |
+| `PROOFSTACK_BOOTSTRAP_KEY_EXPIRES_AT` | 90 days | identity CLI | Optional ISO 8601 expiry, bounded to 1 minute–365 days |
 | `PROOFSTACK_POSTGRES_PORT` | `5432` | Compose | Loopback host port for the local database |
 | `PROOFSTACK_API_URL` | `http://127.0.0.1:4318` | Web/example | API base URL |
+| `PROOFSTACK_API_KEY` | unset | SDK example | Complete one-time-issued key; never used by the API server or browser console |
 | `PROOFSTACK_PROJECT_ID` | `prj_local` | Web/example | Local project scope |
 | `PROOFSTACK_ENVIRONMENT_ID` | `env_local` | Web/example | Local environment scope |
 
-If `PROOFSTACK_POSTGRES_PORT` changes, update both database URLs in `.env` to the same port. When
-rotating the API password, update `PROOFSTACK_DATABASE_URL` as well as
-`PROOFSTACK_API_DATABASE_PASSWORD`, then run `pnpm db:provision` before restarting the API. Never
-commit `.env` or place production credentials in an example file.
+If `PROOFSTACK_POSTGRES_PORT` changes, update every database URL in `.env` to the same port. When
+rotating a runtime password, update its runtime URL and matching provisioning variable, then run
+`pnpm db:provision` before restarting the API. Never commit `.env`, a bootstrap response, or a
+complete API key, and never place production credentials in an example file.
 
 ## Reset and troubleshooting
 
