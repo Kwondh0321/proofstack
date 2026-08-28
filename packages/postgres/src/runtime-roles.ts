@@ -1,4 +1,5 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import { assertMigrationsCurrentOnClient } from "./migration-runner.js";
 import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
 
 export const DEFAULT_RUNTIME_ROLE_NAMES = {
@@ -206,6 +207,7 @@ async function provisionRole(
   await client.query(
     `REVOKE ALL PRIVILEGES ON TABLE ${PLATFORM_TABLES.map((table) => `public.${table}`).join(", ")} FROM ${role}`,
   );
+  await client.query(`REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ${role}`);
   for (const grant of GRANTS[kind]) {
     await client.query(grant.replace("%ROLE%", role));
   }
@@ -213,6 +215,15 @@ async function provisionRole(
 }
 
 async function assertSchemaCurrent(client: PoolClient): Promise<void> {
+  try {
+    await assertMigrationsCurrentOnClient(client);
+  } catch (error) {
+    throw new RuntimeRoleProvisioningError(
+      "ProofStack migrations must be current before provisioning runtime roles",
+      { cause: error },
+    );
+  }
+
   const result = await client.query<{ readonly present: boolean }>(`
     SELECT every(to_regclass(name) IS NOT NULL) AS present
     FROM unnest(ARRAY[

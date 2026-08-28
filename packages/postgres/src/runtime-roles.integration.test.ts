@@ -14,6 +14,7 @@ const roleNames = {
   consumer: `proofstack_it_consumer_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
 };
+const sequenceName = `proofstack_it_sequence_${runKey}`;
 const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
 const runtimePools: Pool[] = [];
 
@@ -36,6 +37,7 @@ function poolFor(credentials: { readonly name: string; readonly password: string
 
 beforeAll(async () => {
   await migrateDatabase(adminPool);
+  await adminPool.query(`CREATE SEQUENCE public."${sequenceName}"`);
 });
 
 afterAll(async () => {
@@ -50,6 +52,7 @@ afterAll(async () => {
       await adminPool.query(`DROP ROLE "${roleName}"`);
     }
   }
+  await adminPool.query(`DROP SEQUENCE IF EXISTS public."${sequenceName}"`);
   await adminPool.end();
 });
 
@@ -129,7 +132,9 @@ describe("runtime role provisioning", () => {
       readonly ledger_select: boolean;
       readonly outbox_insert: boolean;
       readonly outbox_select: boolean;
-    }>(`
+      readonly sequence_usage: boolean;
+    }>(
+      `
       SELECT
         has_schema_privilege(current_user, 'public', 'CREATE') AS can_create_public,
         has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT') AS ledger_select,
@@ -137,8 +142,15 @@ describe("runtime role provisioning", () => {
         has_table_privilege(current_user, 'proofstack_evidence_events', 'INSERT') AS evidence_insert,
         has_table_privilege(current_user, 'proofstack_evidence_events', 'UPDATE') AS evidence_update,
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
-        has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select
-    `);
+        has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
+        has_sequence_privilege(
+          current_user,
+          $1,
+          'USAGE'
+        ) AS sequence_usage
+    `,
+      [`public.${sequenceName}`],
+    );
     expect(apiPrivileges.rows[0]).toEqual({
       can_create_public: false,
       evidence_insert: true,
@@ -147,6 +159,7 @@ describe("runtime role provisioning", () => {
       ledger_select: true,
       outbox_insert: true,
       outbox_select: false,
+      sequence_usage: false,
     });
 
     const publisherPool = poolFor(initial.publisher);
@@ -202,6 +215,7 @@ describe("runtime role provisioning", () => {
     });
 
     const rotated = provisioningOptions("rotated");
+    await adminPool.query(`GRANT USAGE ON SEQUENCE public."${sequenceName}" TO "${roleNames.api}"`);
     await expect(provisionRuntimeRoles(adminPool, rotated)).resolves.toEqual({
       createdRoles: [],
       updatedRoles: [roleNames.api, roleNames.publisher, roleNames.consumer],
@@ -210,5 +224,11 @@ describe("runtime role provisioning", () => {
     await expect(rotatedApiPool.query("SELECT current_user AS role")).resolves.toMatchObject({
       rows: [{ role: roleNames.api }],
     });
+    await expect(
+      rotatedApiPool.query<{ readonly sequence_usage: boolean }>(
+        "SELECT has_sequence_privilege(current_user, $1, 'USAGE') AS sequence_usage",
+        [`public.${sequenceName}`],
+      ),
+    ).resolves.toMatchObject({ rows: [{ sequence_usage: false }] });
   });
 });

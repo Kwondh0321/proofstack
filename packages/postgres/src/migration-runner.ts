@@ -129,9 +129,26 @@ export async function assertMigrationsCurrent(
   pool: Pick<Pool, "connect">,
   migrations?: readonly Migration[],
 ): Promise<void> {
-  const status = await inspectMigrations(pool, migrations);
-  if (!status.ledgerExists || status.pendingIds.length > 0) {
-    throw new MigrationRequiredError(status.pendingIds);
+  const client = await pool.connect();
+  try {
+    await assertMigrationsCurrentOnClient(client, migrations);
+  } finally {
+    client.release();
+  }
+}
+
+export async function assertMigrationsCurrentOnClient(
+  client: PoolClient,
+  migrations?: readonly Migration[],
+): Promise<void> {
+  const availableMigrations = migrations ?? (await loadBundledMigrations());
+  if (!(await ledgerExists(client))) {
+    throw new MigrationRequiredError(availableMigrations.map((migration) => migration.id));
+  }
+
+  const pending = pendingMigrations(availableMigrations, await appliedMigrations(client));
+  if (pending.length > 0) {
+    throw new MigrationRequiredError(pending.map((migration) => migration.id));
   }
 }
 

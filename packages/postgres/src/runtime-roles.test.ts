@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
+import { loadBundledMigrations } from "./migrations.js";
 import {
   DEFAULT_RUNTIME_ROLE_NAMES,
   provisionRuntimeRoles,
@@ -7,6 +8,8 @@ import {
   type RuntimeRoleProvisioningOptions,
 } from "./runtime-roles.js";
 import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
+
+const bundledMigrations = await loadBundledMigrations();
 
 interface RoleRow {
   readonly has_memberships: boolean;
@@ -22,8 +25,10 @@ class FakeClient {
   readonly queries: Array<{ readonly text: string; readonly values?: readonly unknown[] }> = [];
   readonly releaseArguments: Array<boolean | undefined> = [];
   readonly roles = new Map<string, RoleRow>();
+  appliedMigrations = bundledMigrations.map(({ checksum, id }) => ({ checksum, id }));
   failOn?: string;
   failRollback = false;
+  migrationLedgerPresent = true;
   schemaPresent = true;
   suppressFormattedStatement = false;
 
@@ -32,6 +37,12 @@ class FakeClient {
     if (text === "ROLLBACK" && this.failRollback) throw new Error("rollback failed");
     if (this.failOn && text.includes(this.failOn)) throw new Error(`failed: ${this.failOn}`);
     if (text.includes("every(to_regclass")) return { rows: [{ present: this.schemaPresent }] };
+    if (text.includes("to_regclass('public.proofstack_schema_migrations')")) {
+      return {
+        rows: [{ ledger: this.migrationLedgerPresent ? "proofstack_schema_migrations" : null }],
+      };
+    }
+    if (text.startsWith("SELECT id, checksum")) return { rows: this.appliedMigrations };
     if (text.includes("FROM pg_roles")) {
       const row = this.roles.get(String(values?.[0]));
       return { rows: row ? [row] : [] };
@@ -107,6 +118,9 @@ describe("provisionRuntimeRoles", () => {
       'GRANT SELECT, INSERT ON TABLE public.proofstack_evidence_events TO "proofstack_api"',
     );
     expect(statements).toContain(
+      'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM "proofstack_api"',
+    );
+    expect(statements).toContain(
       'GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO "proofstack_publisher"',
     );
     expect(statements).toContain(
@@ -157,6 +171,16 @@ describe("provisionRuntimeRoles", () => {
   it("requires the durable schema before changing roles", async () => {
     const client = new FakeClient();
     client.schemaPresent = false;
+
+    await expect(provisionRuntimeRoles(poolWith(client), options())).rejects.toThrow(
+      "migrations must be current",
+    );
+    expect(client.queries.some(({ text }) => text.includes("CREATE ROLE"))).toBe(false);
+  });
+
+  it("requires every bundled migration before changing roles", async () => {
+    const client = new FakeClient();
+    client.appliedMigrations = client.appliedMigrations.slice(0, -1);
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).rejects.toThrow(
       "migrations must be current",

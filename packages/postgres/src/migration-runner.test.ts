@@ -1,7 +1,8 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   assertMigrationsCurrent,
+  assertMigrationsCurrentOnClient,
   inspectMigrations,
   MigrationIntegrityError,
   MigrationRequiredError,
@@ -129,6 +130,16 @@ describe("migration inspection", () => {
     await expect(
       assertMigrationsCurrent(poolWith(new FakeClient({ applied: [first] })), [first]),
     ).resolves.toBeUndefined();
+  });
+
+  it("can verify a current ledger on an existing transaction client", async () => {
+    const first = migration(1, "first");
+    const client = new FakeClient({ applied: [first] });
+
+    await expect(
+      assertMigrationsCurrentOnClient(client as unknown as PoolClient, [first]),
+    ).resolves.toBeUndefined();
+    expect(client.releaseArguments).toEqual([]);
   });
 
   it("distinguishes a missing empty ledger from pending migrations", async () => {
