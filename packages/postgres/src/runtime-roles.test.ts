@@ -133,7 +133,10 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_find_active_api_key(text) TO "proofstack_identity"',
     );
     expect(statements).toContain(
-      'REVOKE ALL PRIVILEGES ON TABLE public.proofstack_api_key_credentials, public.proofstack_consumer_receipts, public.proofstack_evidence_events, public.proofstack_identity_audit_events, public.proofstack_outbox, public.proofstack_projection_cursors, public.proofstack_schema_migrations FROM "proofstack_identity"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_find_and_touch_active_browser_session(text) TO "proofstack_identity"',
+    );
+    expect(statements).toContain(
+      'REVOKE ALL PRIVILEGES ON TABLE public.proofstack_api_key_credentials, public.proofstack_browser_sessions, public.proofstack_consumer_receipts, public.proofstack_evidence_events, public.proofstack_identity_audit_events, public.proofstack_oidc_bindings, public.proofstack_oidc_login_transactions, public.proofstack_outbox, public.proofstack_projection_cursors, public.proofstack_schema_migrations FROM "proofstack_identity"',
     );
     expect(
       statements.some(

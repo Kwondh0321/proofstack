@@ -140,6 +140,7 @@ describe("runtime role provisioning", () => {
       readonly identity_lookup_execute: boolean;
       readonly identity_select: boolean;
       readonly ledger_select: boolean;
+      readonly oidc_lookup_execute: boolean;
       readonly outbox_insert: boolean;
       readonly outbox_select: boolean;
       readonly sequence_usage: boolean;
@@ -161,6 +162,11 @@ describe("runtime role provisioning", () => {
           'proofstack_find_active_api_key(text)',
           'EXECUTE'
         ) AS identity_lookup_execute,
+        has_function_privilege(
+          current_user,
+          'proofstack_find_active_oidc_binding(text, text, text)',
+          'EXECUTE'
+        ) AS oidc_lookup_execute,
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
         has_sequence_privilege(
@@ -179,6 +185,7 @@ describe("runtime role provisioning", () => {
       identity_lookup_execute: false,
       identity_select: false,
       ledger_select: true,
+      oidc_lookup_execute: false,
       outbox_insert: true,
       outbox_select: false,
       sequence_usage: false,
@@ -224,6 +231,10 @@ describe("runtime role provisioning", () => {
       readonly identity_select: boolean;
       readonly ledger_select: boolean;
       readonly lookup_execute: boolean;
+      readonly oidc_binding_select: boolean;
+      readonly oidc_lookup_execute: boolean;
+      readonly session_lookup_execute: boolean;
+      readonly session_select: boolean;
     }>(`
       SELECT
         has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
@@ -232,6 +243,10 @@ describe("runtime role provisioning", () => {
           AS identity_select,
         has_table_privilege(current_user, 'proofstack_identity_audit_events', 'SELECT')
           AS audit_select,
+        has_table_privilege(current_user, 'proofstack_oidc_bindings', 'SELECT')
+          AS oidc_binding_select,
+        has_table_privilege(current_user, 'proofstack_browser_sessions', 'SELECT')
+          AS session_select,
         has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT')
           AS evidence_select,
         has_function_privilege(
@@ -246,6 +261,16 @@ describe("runtime role provisioning", () => {
         ) AS create_execute,
         has_function_privilege(
           current_user,
+          'proofstack_find_active_oidc_binding(text, text, text)',
+          'EXECUTE'
+        ) AS oidc_lookup_execute,
+        has_function_privilege(
+          current_user,
+          'proofstack_find_and_touch_active_browser_session(text)',
+          'EXECUTE'
+        ) AS session_lookup_execute,
+        has_function_privilege(
+          current_user,
           'proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)',
           'EXECUTE'
         ) AS helper_execute
@@ -258,6 +283,10 @@ describe("runtime role provisioning", () => {
       identity_select: false,
       ledger_select: true,
       lookup_execute: true,
+      oidc_binding_select: false,
+      oidc_lookup_execute: true,
+      session_lookup_execute: true,
+      session_select: false,
     });
 
     const consumerPool = poolFor(initial.consumer);
