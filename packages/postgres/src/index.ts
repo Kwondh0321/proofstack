@@ -5,17 +5,17 @@ export {
 } from "./connection-string.js";
 export { createPostgresPool, type PostgresPoolOptions } from "./database.js";
 export {
-  bootstrapApiKey,
   type BootstrapApiKeyOptions,
-  createOidcBinding,
+  bootstrapApiKey,
   type CreatedOidcBinding,
   type CreateOidcBindingOptions,
-  disableOidcBinding,
+  createOidcBinding,
   type DisableOidcBindingOptions,
+  disableOidcBinding,
   type IdentityCredentialStatus,
   inspectIdentityCredentials,
-  updateOidcBinding,
   type UpdateOidcBindingOptions,
+  updateOidcBinding,
 } from "./identity-administration.js";
 export {
   assertMigrationsCurrent,
@@ -34,7 +34,10 @@ export {
   PostgresApiKeyCredentialRepository,
   PostgresIdentityDataIntegrityError,
 } from "./postgres-api-key-credential-repository.js";
-export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
+export {
+  PostgresArtifactCatalogRepository,
+  PostgresArtifactDataIntegrityError,
+} from "./postgres-artifact-catalog-repository.js";
 export {
   MAX_CONSUMER_RECEIPT_ERROR_LENGTH,
   MAX_CONSUMER_RECEIPT_LEASE_DURATION_MS,
@@ -45,6 +48,7 @@ export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
 } from "./postgres-evidence-repository.js";
+export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
   MAX_OUTBOX_CLAIM_SIZE,
   MAX_OUTBOX_ERROR_LENGTH,
