@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { JsonObject } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import { decodeOtlpJson } from "./json-codec.js";
@@ -24,6 +25,12 @@ import type {
   OtlpSpan,
 } from "./model.js";
 import { normalizeOtlpTraceRequest } from "./normalize.js";
+import { decodeOtlpProtobuf, encodeOtlpProtobufRequest } from "./protobuf-codec.js";
+
+const upstreamTrace = readFileSync(
+  new URL("../testdata/trace-v1.11.json", import.meta.url),
+  "utf8",
+);
 
 function identifier(bytes: number, seed: number): Uint8Array {
   const value = Uint8Array.from({ length: bytes }, (_, index) => index + 1);
@@ -110,6 +117,38 @@ function repeatedAttributes(count: number, prefix = "key"): OtlpKeyValue[] {
 }
 
 describe("OTLP trace normalization", () => {
+  it("normalizes the pinned upstream trace identically from JSON and Protobuf", () => {
+    const jsonRequest = decodeOtlpJson(upstreamTrace);
+    const protobufRequest = decodeOtlpProtobuf(encodeOtlpProtobufRequest(jsonRequest));
+    const jsonResult = normalizeOtlpTraceRequest(jsonRequest);
+    const protobufResult = normalizeOtlpTraceRequest(protobufRequest);
+
+    expect(protobufResult).toEqual(jsonResult);
+    expect(jsonResult).toMatchObject({
+      acceptedSpans: 1,
+      records: [
+        {
+          attributes: { "my.span.attr": "some value" },
+          endedAt: "2018-12-13T14:51:01.000Z",
+          kind: "custom",
+          name: "I'm a server span",
+          parentSpanId: "eee19b7ec3c1b173",
+          source: {
+            sdkName: "my.library",
+            sdkVersion: "1.0.0",
+            serviceName: "my.service",
+          },
+          spanId: "eee19b7ec3c1b174",
+          startedAt: "2018-12-13T14:51:00.000Z",
+          status: "unset",
+          traceId: "5b8efff798038103d269b633813fc60c",
+        },
+      ],
+      rejectedSpans: 0,
+      totalSpans: 1,
+    });
+  });
+
   it("maps one span into deterministic canonical evidence with OTLP provenance", () => {
     const input = decodeOtlpJson(
       JSON.stringify({
