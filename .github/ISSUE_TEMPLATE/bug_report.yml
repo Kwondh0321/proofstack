@@ -1,0 +1,55 @@
+name: Bug report
+description: Report reproducible behavior that violates an existing ProofStack contract.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include secrets, customer telemetry, prompt content, or security vulnerabilities.
+        Follow SECURITY.md for private vulnerability reporting.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened, and which component or endpoint was involved?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What contract or documented behavior did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest redacted sequence that reproduces the problem.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: ProofStack revision
+      description: Commit SHA, tag, or package version.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js and pnpm versions, deployment mode, and relevant adapters.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I removed secrets and sensitive telemetry from this report.
+          required: true
+        - label: I confirmed this is not a privately reportable security vulnerability.
+          required: true

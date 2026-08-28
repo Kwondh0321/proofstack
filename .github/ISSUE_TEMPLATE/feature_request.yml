@@ -1,0 +1,38 @@
+name: Capability proposal
+description: Propose a reliability capability with a concrete user and operating decision.
+title: "proposal: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: operator
+    attributes:
+      label: User and decision
+      description: Who needs this, and what decision or action should it improve?
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current failure mode
+      description: Describe the reliability, safety, cost, or operational gap without prescribing a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and success measure
+      description: What evidence shows the problem exists, and how would success be measured?
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Data and trust boundaries
+      description: What data, tenants, identities, external systems, or automated decisions are involved?
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and alternatives
+      description: Note compatibility constraints and simpler alternatives already considered.
