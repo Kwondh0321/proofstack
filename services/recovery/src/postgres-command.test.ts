@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RecoveryOperationError } from "./errors.js";
 import { NativePostgresCommandRunner } from "./postgres-command.js";
 
@@ -32,6 +32,37 @@ describe("native PostgreSQL command runner", () => {
         code: "recovery_operation_failed",
         reason: "command exited with status 7",
       }),
+    );
+  });
+
+  it("offers bounded redacted failure diagnostics only to an explicit observer", async () => {
+    const onFailure = vi.fn();
+    const diagnosticRunner = new NativePostgresCommandRunner({ onFailure });
+    const secret = "postgresql://operator:secret@example.test/proofstack";
+    await expect(
+      diagnosticRunner.run({
+        ...nodeCommand(
+          "process.stderr.write('connection ' + process.env.PGDATABASE); process.exit(2)",
+        ),
+        environment: { PATH: processEnvironmentValue("PATH") ?? "", PGDATABASE: secret },
+      }),
+    ).rejects.toBeInstanceOf(RecoveryOperationError);
+    expect(onFailure).toHaveBeenCalledWith({
+      exitCode: 2,
+      signal: null,
+      stderr: "connection [redacted]",
+      stdout: "",
+    });
+  });
+
+  it("does not let a diagnostic observer replace the command failure", async () => {
+    const diagnosticRunner = new NativePostgresCommandRunner({
+      onFailure: () => {
+        throw new Error("observer failed");
+      },
+    });
+    await expect(diagnosticRunner.run(nodeCommand("process.exit(9)"))).rejects.toEqual(
+      expect.objectContaining({ reason: "command exited with status 9" }),
     );
   });
 

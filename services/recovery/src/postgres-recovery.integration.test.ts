@@ -356,7 +356,11 @@ describe("PostgreSQL coordinated recovery rehearsal", () => {
     const directory = await mkdtemp(join(tmpdir(), "proofstack-pg-recovery-"));
     temporaryDirectories.push(directory);
     const dumpPath = join(directory, "database.dump");
-    const runner = new DockerPostgresCommandRunner();
+    const runner = new DockerPostgresCommandRunner({
+      onFailure: ({ stderr }) => {
+        process.stderr.write(`PostgreSQL tool diagnostic: ${stderr.trim()}\n`);
+      },
+    });
     const sourceSnapshot = await authoritativeSnapshot(sourcePool);
     const sourceLedger = await inspectVerifiedMigrationLedger(sourcePool);
 

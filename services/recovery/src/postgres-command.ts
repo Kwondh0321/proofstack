@@ -20,6 +20,17 @@ export interface PostgresCommandRunner {
   readonly run: (command: PostgresCommand) => Promise<PostgresCommandResult>;
 }
 
+export interface PostgresCommandFailureDiagnostic {
+  readonly exitCode: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stderr: string;
+  readonly stdout: string;
+}
+
+export interface NativePostgresCommandRunnerOptions {
+  readonly onFailure?: (diagnostic: PostgresCommandFailureDiagnostic) => void;
+}
+
 function commandError(reason: string, cause?: unknown): RecoveryOperationError {
   return new RecoveryOperationError(
     "postgres-tool",
@@ -38,7 +49,23 @@ function boundedAppend(
   return Buffer.concat([current, chunk]);
 }
 
+function redactCommandOutput(
+  output: string,
+  environment: Readonly<Record<string, string>>,
+): string {
+  let redacted = output;
+  for (const [name, value] of Object.entries(environment)) {
+    if (!/(?:credential|database|password|secret|token|url)/iu.test(name) || value.length === 0) {
+      continue;
+    }
+    redacted = redacted.replaceAll(value, "[redacted]");
+  }
+  return redacted.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/giu, "$1[redacted]@");
+}
+
 export class NativePostgresCommandRunner implements PostgresCommandRunner {
+  constructor(private readonly options: NativePostgresCommandRunnerOptions = {}) {}
+
   run(command: PostgresCommand): Promise<PostgresCommandResult> {
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -80,6 +107,16 @@ export class NativePostgresCommandRunner implements PostgresCommandRunner {
       child.once("close", (code, signal) => {
         settle(() => {
           if (code !== 0) {
+            try {
+              this.options.onFailure?.({
+                exitCode: code,
+                signal,
+                stderr: redactCommandOutput(stderr.toString("utf8"), command.environment),
+                stdout: redactCommandOutput(stdout.toString("utf8"), command.environment),
+              });
+            } catch {
+              // Diagnostics must never replace the command's authoritative failure.
+            }
             reject(
               commandError(
                 signal === null
