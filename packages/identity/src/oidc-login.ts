@@ -165,6 +165,13 @@ export class BrowserSessionConflictError extends Error {
   }
 }
 
+export class OidcBindingNotActiveError extends Error {
+  constructor() {
+    super("OIDC binding is not active");
+    this.name = "OidcBindingNotActiveError";
+  }
+}
+
 export class OidcLoginGenerationError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -446,7 +453,15 @@ export class OidcLoginService {
     const found = await this.ports.bindings.findActiveByIssuerSubject(this.issuer, subject);
     if (!found) throw new InvalidOidcLoginError();
     const binding = requireBinding(found, this.issuer, subject);
-    const session = await this.createSession(binding.bindingId);
+    let session: Awaited<ReturnType<OidcLoginService["createSession"]>>;
+    try {
+      session = await this.createSession(binding.bindingId);
+    } catch (error) {
+      if (error instanceof OidcBindingNotActiveError) {
+        throw new InvalidOidcLoginError({ cause: error });
+      }
+      throw error;
+    }
     return {
       absoluteExpiresAt: session.created.absoluteExpiresAt,
       csrfToken: session.credentials.csrfToken,

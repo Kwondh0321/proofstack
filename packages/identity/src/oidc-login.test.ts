@@ -9,6 +9,7 @@ import {
   type CreateOidcLoginTransaction,
   InvalidOidcLoginError,
   OidcIdentityDataIntegrityError,
+  OidcBindingNotActiveError,
   OidcLoginGenerationError,
   OidcLoginService,
   type OidcLoginServiceDependencies,
@@ -589,6 +590,17 @@ describe("OidcLoginService.complete", () => {
     await expect(
       value.service.complete("https://proofstack.example.test/callback", state),
     ).rejects.toBe(storageError);
+  });
+
+  it("normalizes a binding disabled between lookup and session creation", async () => {
+    const value = fixture();
+    const { state } = await beginAndState(value);
+    value.sessions.createError = new OidcBindingNotActiveError();
+
+    await expect(
+      value.service.complete("https://proofstack.example.test/callback", state),
+    ).rejects.toEqual(expect.objectContaining({ message: "OIDC login is invalid or expired" }));
+    expect(value.sessions.createInputs).toHaveLength(1);
   });
 
   it("rejects invalid generated session identifiers and credentials", async () => {
