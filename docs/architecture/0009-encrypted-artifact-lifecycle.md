@@ -79,8 +79,9 @@ The catalog follows these states:
 
 ```text
 reserved -> available -> tombstoned -> purged
-    |            |
-    +-- retry ---+       tombstoned artifacts are never readable
+    |    |            |
+    |    +-- retry ---+  tombstoned artifacts are never readable
+    +------> tombstoned  abandoned reservations retain lifecycle evidence
 ```
 
 The reservation stores the encryption plan and a server-generated object locator before bytes are
