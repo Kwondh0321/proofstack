@@ -14,6 +14,13 @@ class ApiRequestTimeoutError extends Error {
   }
 }
 
+class ApiConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApiConfigurationError";
+  }
+}
+
 export type ApiResult<T> =
   | { readonly data: T; readonly ok: true }
   | {
@@ -30,12 +37,42 @@ interface ApiConnection {
 
 function connection(environment: NodeJS.ProcessEnv = process.env): ApiConnection {
   const { PROOFSTACK_API_URL, PROOFSTACK_ENVIRONMENT_ID, PROOFSTACK_PROJECT_ID } = environment;
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(PROOFSTACK_API_URL ?? "http://127.0.0.1:4318");
+  } catch {
+    throw new ApiConfigurationError("PROOFSTACK_API_URL must be a valid absolute URL");
+  }
+  if (baseUrl.protocol !== "https:" && baseUrl.protocol !== "http:") {
+    throw new ApiConfigurationError("PROOFSTACK_API_URL must use HTTP or HTTPS");
+  }
+  if (baseUrl.username || baseUrl.password) {
+    throw new ApiConfigurationError("PROOFSTACK_API_URL must not contain embedded credentials");
+  }
+  if (baseUrl.protocol === "http:" && !isLoopbackHostname(baseUrl.hostname)) {
+    throw new ApiConfigurationError(
+      "Unencrypted PROOFSTACK_API_URL values must use an explicit loopback host",
+    );
+  }
+  baseUrl.search = "";
+  baseUrl.hash = "";
 
   return {
-    baseUrl: new URL(PROOFSTACK_API_URL ?? "http://127.0.0.1:4318"),
+    baseUrl,
     environmentId: PROOFSTACK_ENVIRONMENT_ID ?? "env_local",
     projectId: PROOFSTACK_PROJECT_ID ?? "prj_local",
   };
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "localhost";
+}
+
+function unavailableMessage(error: unknown): string {
+  if (error instanceof ApiRequestTimeoutError || error instanceof ApiConfigurationError) {
+    return error.message;
+  }
+  return "API is not reachable";
 }
 
 function scopedUrl(path: string, settings: ApiConnection): URL {
@@ -85,7 +122,7 @@ export async function apiHealth(
   } catch (error) {
     return {
       kind: "unavailable",
-      message: error instanceof ApiRequestTimeoutError ? error.message : "API is not reachable",
+      message: unavailableMessage(error),
       ok: false,
     };
   }
@@ -118,7 +155,7 @@ export async function getTrace(
   } catch (error) {
     return {
       kind: "unavailable",
-      message: error instanceof ApiRequestTimeoutError ? error.message : "API is not reachable",
+      message: unavailableMessage(error),
       ok: false,
     };
   }

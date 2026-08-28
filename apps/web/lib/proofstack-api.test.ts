@@ -30,6 +30,7 @@ const traceEvent = {
 };
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 
@@ -90,6 +91,42 @@ describe("apiHealth", () => {
       kind: "unavailable",
       message: "ProofStack API request timed out after 10ms",
     });
+  });
+
+  it("rejects unsafe API connection settings before fetching", async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>();
+    const unsafeSettings = [
+      ["not-a-url", "PROOFSTACK_API_URL must be a valid absolute URL"],
+      ["file:///tmp/proofstack", "PROOFSTACK_API_URL must use HTTP or HTTPS"],
+      [
+        "https://user:secret@proofstack.example",
+        "PROOFSTACK_API_URL must not contain embedded credentials",
+      ],
+      [
+        "http://proofstack.internal:4318",
+        "Unencrypted PROOFSTACK_API_URL values must use an explicit loopback host",
+      ],
+    ] as const;
+
+    for (const [value, message] of unsafeSettings) {
+      vi.stubEnv("PROOFSTACK_API_URL", value);
+      await expect(apiHealth(fetcher)).resolves.toMatchObject({
+        kind: "unavailable",
+        message,
+      });
+    }
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("removes API base queries and fragments", async () => {
+    const fetcher = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(Response.json({ status: "ready" }));
+    vi.stubEnv("PROOFSTACK_API_URL", "https://proofstack.example/base?debug=true#local");
+
+    await apiHealth(fetcher);
+
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe("https://proofstack.example/base/health/ready");
   });
 });
 
