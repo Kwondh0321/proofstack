@@ -5,15 +5,28 @@ import {
 } from "@proofstack/contracts";
 import {
   ApiKeyCredentialNotActiveError,
+  generateBrowserSessionCredentials,
   InvalidApiKeyLifecycleInputError,
 } from "@proofstack/identity";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
-import { type Authenticator, AuthenticationRequiredError } from "./auth.js";
+import {
+  type Authenticator,
+  AuthenticationRequiredError,
+  BrowserSessionRequestAuthenticator,
+} from "./auth.js";
 import { loadConfig } from "./config.js";
 import type { IdentityStorage } from "./identity-storage.js";
+import type { OidcRuntime } from "./oidc-runtime.js";
 
 const config = loadConfig({ PROOFSTACK_ENV: "test", PROOFSTACK_LOG_LEVEL: "silent" });
+const OIDC_ENV = {
+  PROOFSTACK_OIDC_CLIENT_ID: "proofstack-console",
+  PROOFSTACK_OIDC_CLIENT_SECRET: "provider-client-secret",
+  PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
+  PROOFSTACK_OIDC_REDIRECT_URI: "https://proofstack.example.test/v1/auth/oidc/callback",
+  PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
+} as const;
 const apps: Awaited<ReturnType<typeof createApp>>[] = [];
 
 const evidence = {
@@ -126,23 +139,110 @@ describe("health routes", () => {
     });
   });
 
-  it("refuses to start with an unavailable production authenticator", async () => {
-    const production = loadConfig({
+  it("composes OIDC browser routes, credentialed CORS, and stable rejection problems", async () => {
+    const oidcConfig = loadConfig({
+      ...OIDC_ENV,
       PROOFSTACK_AUTH_MODE: "oidc",
-      PROOFSTACK_DATABASE_URL: "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
-      PROOFSTACK_ENV: "production",
-      PROOFSTACK_IDENTITY_DATABASE_URL:
-        "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
+      PROOFSTACK_CORS_ORIGIN: "https://console.example.test",
+      PROOFSTACK_ENV: "test",
+      PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
       PROOFSTACK_LOG_LEVEL: "silent",
-      PROOFSTACK_OIDC_CLIENT_ID: "proofstack-console",
-      PROOFSTACK_OIDC_CLIENT_SECRET: "provider-client-secret",
-      PROOFSTACK_OIDC_ISSUER: "https://identity.example.test/tenant",
-      PROOFSTACK_OIDC_REDIRECT_URI: "https://proofstack.example.test/v1/auth/oidc/callback",
-      PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
-      PROOFSTACK_STORAGE_MODE: "postgres",
+    });
+    const credentials = generateBrowserSessionCredentials((size) => new Uint8Array(size).fill(23));
+    const browserSessions = new BrowserSessionRequestAuthenticator(
+      {
+        authenticate: async (_value, requestId) => ({
+          csrfDigest: credentials.csrfDigest,
+          principal: PrincipalContextSchema.parse({
+            authentication: {
+              authenticatedAt: "2026-08-28T04:00:00.000Z",
+              credentialId: "ses_app_oidc",
+              method: "oidc",
+            },
+            capabilities: ["evidence:ingest", "evidence:read"],
+            principalId: "usr_app_oidc",
+            principalType: "user",
+            requestId,
+            resourceScope: { mode: "tenant" },
+            roles: ["member"],
+            tenantId: "ten_local",
+          }),
+          sessionDigest: credentials.sessionDigest,
+        }),
+      },
+      "https://console.example.test",
+    );
+    const login = {
+      begin: vi.fn(async () => ({
+        authorizationUrl: "https://identity.example.test/authorize",
+        expiresAt: "2026-08-28T04:10:00.000Z",
+        interactionToken: "A".repeat(43),
+      })),
+      complete: vi.fn(async () => ({
+        absoluteExpiresAt: "2026-08-28T16:00:00.000Z",
+        csrfToken: credentials.csrfToken,
+        idleExpiresAt: "2026-08-28T04:30:00.000Z",
+        returnTo: "/",
+        sessionToken: credentials.sessionToken,
+      })),
+    };
+    const identityStorage: IdentityStorage = {
+      checkReadiness: async () => undefined,
+      close: async () => undefined,
+      oidcRepository: {} as IdentityStorage["oidcRepository"],
+      repository: {
+        confirmActiveUse: async () => true,
+        create: async () => ({ createdAt: "2026-08-28T04:00:00.000Z" }),
+        findActiveByPrefix: async () => null,
+        findById: async () => null,
+        revoke: async () => true,
+        rotate: async () => ({ createdAt: "2026-08-28T04:00:00.000Z" }),
+      },
+    };
+    const oidcRuntime: OidcRuntime = {
+      browserSessions,
+      login,
+      sessionLifecycle: { revoke: async () => true },
+    };
+    const app = await createApp(oidcConfig, { identityStorage, oidcRuntime });
+    apps.push(app);
+
+    const started = await app.inject({ method: "GET", url: "/v1/auth/oidc/login" });
+    const session = await app.inject({
+      headers: {
+        cookie: `__Host-proofstack_session=${credentials.sessionToken}`,
+        origin: "https://console.example.test",
+      },
+      method: "GET",
+      url: "/v1/auth/session",
+    });
+    const invalidCallback = await app.inject({
+      method: "GET",
+      url: `/v1/auth/oidc/callback?code=provider-code&state=${"A".repeat(43)}`,
+    });
+    const rejectedMutation = await app.inject({
+      body: { events: [evidence], schemaVersion: EVIDENCE_SCHEMA_VERSION },
+      headers: { cookie: `__Host-proofstack_session=${credentials.sessionToken}` },
+      method: "POST",
+      url: "/v1/projects/prj_local/environments/env_local/evidence",
+    });
+    const missingSession = await app.inject({
+      method: "GET",
+      url: `/v1/projects/prj_local/environments/env_local/traces/${evidence.traceId}`,
     });
 
-    await expect(createApp(production)).rejects.toThrow("startup refused");
+    expect(started.statusCode).toBe(302);
+    expect(login.begin).toHaveBeenCalledWith("/");
+    expect(session.statusCode).toBe(200);
+    expect(session.headers["access-control-allow-origin"]).toBe("https://console.example.test");
+    expect(session.headers["access-control-allow-credentials"]).toBe("true");
+    expect(session.json()).toMatchObject({ principal: { principalId: "usr_app_oidc" } });
+    expect(invalidCallback.statusCode).toBe(400);
+    expect(invalidCallback.json()).toMatchObject({ code: "invalid_oidc_login" });
+    expect(rejectedMutation.statusCode).toBe(403);
+    expect(rejectedMutation.json()).toMatchObject({ code: "browser_request_rejected" });
+    expect(missingSession.statusCode).toBe(401);
+    expect(missingSession.headers).not.toHaveProperty("www-authenticate");
   });
 
   it("composes API key authentication with isolated identity readiness", async () => {

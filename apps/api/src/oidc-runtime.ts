@@ -7,6 +7,7 @@ import {
 import { BrowserSessionRequestAuthenticator } from "./auth.js";
 import type { OidcIdentityRepository } from "./identity-storage.js";
 import { createOpenIdClientProvider, type OpenIdClientProviderOptions } from "./oidc-provider.js";
+import type { BrowserSessionLifecycle, OidcLoginFlow } from "./oidc-routes.js";
 
 export interface OidcRuntimeConfig extends OpenIdClientProviderOptions {
   readonly browserOrigin: string;
@@ -15,8 +16,8 @@ export interface OidcRuntimeConfig extends OpenIdClientProviderOptions {
 
 export interface OidcRuntime {
   readonly browserSessions: BrowserSessionRequestAuthenticator;
-  readonly login: OidcLoginService;
-  readonly sessionLifecycle: OidcSessionLifecycle;
+  readonly login: OidcLoginFlow;
+  readonly sessionLifecycle: BrowserSessionLifecycle;
 }
 
 interface OidcRuntimeDependencies {

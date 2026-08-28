@@ -174,6 +174,7 @@ export class CombinedRequestAuthenticator implements Authenticator {
 
 export interface AuthenticatorDependencies {
   readonly apiKeyCredentials?: ApiKeyCredentialLookup;
+  readonly browserAuthenticator?: BrowserSessionRequestAuthenticator;
   readonly browserSessions?: BrowserSessionLookup;
 }
 
@@ -188,14 +189,20 @@ export function createAuthenticator(
     }
     return new ApiKeyRequestAuthenticator(new ApiKeyAuthenticator(dependencies.apiKeyCredentials));
   }
-  if (!config.oidc || !dependencies.browserSessions) {
+  if (!config.oidc) {
     throw new Error("OIDC browser session storage is unavailable; startup refused");
   }
   const browserOrigin = config.corsOrigin ?? new URL(config.oidc.redirectUri).origin;
-  const browserSessions = new BrowserSessionRequestAuthenticator(
-    new OidcSessionAuthenticator(dependencies.browserSessions),
-    browserOrigin,
-  );
+  let browserSessions = dependencies.browserAuthenticator;
+  if (!browserSessions) {
+    if (!dependencies.browserSessions) {
+      throw new Error("OIDC browser session storage is unavailable; startup refused");
+    }
+    browserSessions = new BrowserSessionRequestAuthenticator(
+      new OidcSessionAuthenticator(dependencies.browserSessions),
+      browserOrigin,
+    );
+  }
   if (config.authMode === "oidc") return browserSessions;
   if (!dependencies.apiKeyCredentials) {
     throw new Error("API key identity storage is unavailable; startup refused");

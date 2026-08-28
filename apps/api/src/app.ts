@@ -8,6 +8,8 @@ import {
   ApiKeyGenerationError,
   ApiKeyLifecycle,
   InvalidApiKeyLifecycleInputError,
+  InvalidOidcLoginError,
+  OidcLoginGenerationError,
 } from "@proofstack/identity";
 import {
   type Clock,
@@ -22,7 +24,12 @@ import {
 } from "@proofstack/core";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
-import { type Authenticator, AuthenticationRequiredError, createAuthenticator } from "./auth.js";
+import {
+  type Authenticator,
+  AuthenticationRequiredError,
+  BrowserRequestRejectedError,
+  createAuthenticator,
+} from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import { createIdentityStorage, type IdentityStorage } from "./identity-storage.js";
 import {
@@ -30,6 +37,8 @@ import {
   IdentityManagementUnavailableError,
   registerIdentityRoutes,
 } from "./identity-routes.js";
+import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
+import { registerOidcRoutes } from "./oidc-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerRoutes } from "./routes.js";
 import { createEvidenceStorage } from "./storage.js";
@@ -40,6 +49,7 @@ export interface AppDependencies {
   readonly checkReadiness?: () => Promise<void>;
   readonly clock?: Clock;
   readonly identityStorage?: IdentityStorage;
+  readonly oidcRuntime?: OidcRuntime;
   readonly repository?: EvidenceRepository;
 }
 
@@ -74,13 +84,7 @@ export async function createApp(
           },
     trustProxy: false,
   });
-  let authenticator = dependencies.authenticator;
-
   try {
-    if (!authenticator && config.authMode !== "api_key") {
-      authenticator = createAuthenticator(config);
-    }
-
     const storage = dependencies.repository
       ? {
           checkReadiness: dependencies.checkReadiness ?? (async () => undefined),
@@ -101,26 +105,46 @@ export async function createApp(
       });
       app.addHook("onClose", identityStorage.close);
     }
-    if (!authenticator && config.authMode === "api_key") {
-      if (!identityStorage) {
-        throw new Error("API key identity storage is not configured; startup refused");
+    const usesOidc = config.authMode === "oidc" || config.authMode === "combined";
+    let oidcRuntime = dependencies.oidcRuntime;
+    if (usesOidc) {
+      if (!config.oidc || !identityStorage) {
+        throw new Error("OIDC identity storage is not configured; startup refused");
       }
-      authenticator = createAuthenticator(config, {
-        apiKeyCredentials: identityStorage.repository,
-      });
+      oidcRuntime ??= await createOidcRuntime(
+        {
+          ...config.oidc,
+          browserOrigin: config.corsOrigin ?? new URL(config.oidc.redirectUri).origin,
+        },
+        identityStorage.oidcRepository,
+      );
     }
-    authenticator ??= createAuthenticator(config);
+    const authenticator =
+      dependencies.authenticator ??
+      createAuthenticator(config, {
+        ...(identityStorage ? { apiKeyCredentials: identityStorage.repository } : {}),
+        ...(oidcRuntime ? { browserAuthenticator: oidcRuntime.browserSessions } : {}),
+      });
 
     await app.register(helmet, {
       contentSecurityPolicy: false,
     });
     await app.register(cors, {
-      credentials: false,
+      credentials: usesOidc,
       origin: config.corsOrigin ?? false,
     });
     await app.register(rateLimit, {
       global: false,
     });
+
+    if (config.oidc && oidcRuntime) {
+      await registerOidcRoutes(app, {
+        browserSessions: oidcRuntime.browserSessions,
+        login: oidcRuntime.login,
+        redirectUri: config.oidc.redirectUri,
+        sessionLifecycle: oidcRuntime.sessionLifecycle,
+      });
+    }
 
     await registerRoutes(app, {
       authenticator,
@@ -167,7 +191,9 @@ export async function createApp(
       }
 
       if (error instanceof AuthenticationRequiredError) {
-        reply.header("www-authenticate", 'Bearer realm="proofstack"');
+        if (config.authMode === "api_key" || config.authMode === "combined") {
+          reply.header("www-authenticate", 'Bearer realm="proofstack"');
+        }
         return sendProblem(reply, {
           code: "unauthenticated",
           detail: error.message,
@@ -175,6 +201,28 @@ export async function createApp(
           status: 401,
           title: "Authentication required",
           type: "https://proofstack.dev/problems/unauthenticated",
+        });
+      }
+
+      if (error instanceof BrowserRequestRejectedError) {
+        return sendProblem(reply, {
+          code: "browser_request_rejected",
+          detail: "Browser request origin or CSRF verification failed",
+          requestId: request.id,
+          status: 403,
+          title: "Browser request rejected",
+          type: "https://proofstack.dev/problems/browser-request-rejected",
+        });
+      }
+
+      if (error instanceof InvalidOidcLoginError) {
+        return sendProblem(reply, {
+          code: "invalid_oidc_login",
+          detail: "OIDC login is invalid or expired",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid OIDC login",
+          type: "https://proofstack.dev/problems/invalid-oidc-login",
         });
       }
 
@@ -235,6 +283,7 @@ export async function createApp(
 
       if (
         error instanceof ApiKeyGenerationError ||
+        error instanceof OidcLoginGenerationError ||
         error instanceof IdentityManagementUnavailableError
       ) {
         return sendProblem(reply, {
