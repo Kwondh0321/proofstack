@@ -18,6 +18,7 @@ import {
   oidcStateDigest,
   verifyBrowserCsrfToken,
 } from "./oidc-secrets.js";
+import { requireOidcIssuer, requireOidcSubject } from "./oidc-identity.js";
 
 const DEFAULT_TRANSACTION_LIFETIME_SECONDS = 10 * 60;
 const DEFAULT_ABSOLUTE_SESSION_LIFETIME_SECONDS = 12 * 60 * 60;
@@ -27,8 +28,6 @@ const MAX_TRANSACTION_LIFETIME_SECONDS = 15 * 60;
 const MAX_SESSION_LIFETIME_SECONDS = 24 * 60 * 60;
 const MAX_GENERATION_ATTEMPTS = 3;
 const MAX_AUTHORIZATION_URL_LENGTH = 4_096;
-const MAX_ISSUER_LENGTH = 2_048;
-const MAX_SUBJECT_LENGTH = 512;
 
 export interface OidcAuthorizationInput {
   readonly codeChallenge: string;
@@ -201,42 +200,20 @@ function lifetime(
   return result;
 }
 
-function hasControlCharacter(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codeUnit = character.charCodeAt(0);
-    return codeUnit <= 0x1f || codeUnit === 0x7f;
-  });
-}
-
 function requireIssuer(value: string): string {
-  if (value.length === 0 || value.length > MAX_ISSUER_LENGTH || hasControlCharacter(value)) {
-    throw new OidcProviderConfigurationError("OIDC issuer is invalid");
-  }
-  let issuer: URL;
   try {
-    issuer = new URL(value);
+    return requireOidcIssuer(value);
   } catch (error) {
-    throw new OidcProviderConfigurationError("OIDC issuer is invalid", { cause: error });
+    throw new OidcProviderConfigurationError((error as Error).message, { cause: error });
   }
-  if (
-    issuer.protocol !== "https:" ||
-    issuer.username !== "" ||
-    issuer.password !== "" ||
-    issuer.search !== "" ||
-    issuer.hash !== ""
-  ) {
-    throw new OidcProviderConfigurationError(
-      "OIDC issuer must be an HTTPS URL without credentials, query, or fragment",
-    );
-  }
-  return value;
 }
 
 function requireSubject(value: string): string {
-  if (value.length === 0 || value.length > MAX_SUBJECT_LENGTH || hasControlCharacter(value)) {
+  try {
+    return requireOidcSubject(value);
+  } catch {
     throw new OidcIdentityDataIntegrityError("OIDC provider returned an invalid subject");
   }
-  return value;
 }
 
 function requireAuthorizationUrl(value: string, input: OidcAuthorizationInput): string {
