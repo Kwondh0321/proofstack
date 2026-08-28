@@ -403,12 +403,21 @@ importers:
         specifier: workspace:*
         version: link:../../packages/postgres
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1119.0
       '@proofstack/artifacts':
         specifier: workspace:*
         version: link:../../packages/artifacts
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/recovery':
+        specifier: workspace:*
+        version: link:../../packages/recovery
+      '@proofstack/s3':
+        specifier: workspace:*
+        version: link:../../packages/s3
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3

@@ -20,8 +20,11 @@
     "@proofstack/postgres": "workspace:*"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "catalog:",
     "@proofstack/artifacts": "workspace:*",
     "@proofstack/contracts": "workspace:*",
+    "@proofstack/recovery": "workspace:*",
+    "@proofstack/s3": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",
