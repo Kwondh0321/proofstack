@@ -36,6 +36,7 @@
     "format:check": "biome format .",
     "lint": "biome lint . && turbo run lint",
     "test": "turbo run test",
+    "test:integration:artifacts": "turbo run test:integration --concurrency=1 --filter=@proofstack/artifact-maintenance",
     "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api",
     "test:integration:s3": "turbo run test:integration --concurrency=1 --filter=@proofstack/s3",
     "typecheck": "turbo run typecheck"

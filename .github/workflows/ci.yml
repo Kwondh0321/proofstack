@@ -131,6 +131,67 @@ jobs:
       - name: Run S3-compatible integration tests
         run: pnpm test:integration:s3
 
+  artifact-maintenance:
+    name: Artifact lifecycle integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.15-alpine3.24@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_DB: proofstack_test
+          POSTGRES_PASSWORD: proofstack_test
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d proofstack_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: true
+      PROOFSTACK_TEST_DATABASE_URL: postgresql://postgres:proofstack_test@127.0.0.1:5432/proofstack_test
+      PROOFSTACK_TEST_S3_ACCESS_KEY_ID: proofstack-ci
+      PROOFSTACK_TEST_S3_ENDPOINT: http://127.0.0.1:8333
+      PROOFSTACK_TEST_S3_REGION: us-east-1
+      PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY: proofstack-ci-secret
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Start pinned S3-compatible storage
+        run: |
+          docker run --detach --name proofstack-artifact-s3 \
+            --env AWS_ACCESS_KEY_ID="$PROOFSTACK_TEST_S3_ACCESS_KEY_ID" \
+            --env AWS_SECRET_ACCESS_KEY="$PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY" \
+            --publish 127.0.0.1:8333:8333 \
+            chrislusf/seaweedfs:4.44@sha256:e67e8c385484120b78bff47ba5f4debbca47fbd27ed1a39f016f47e8baea615b \
+            mini -dir=/data -admin.ui=false -master.telemetry=false
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --output /dev/null "$PROOFSTACK_TEST_S3_ENDPOINT/"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs proofstack-artifact-s3
+          exit 1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run artifact lifecycle integration tests
+        run: pnpm test:integration:artifacts
+
   secrets:
     name: Secret scanning
     runs-on: ubuntu-latest
