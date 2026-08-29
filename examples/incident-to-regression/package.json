@@ -1,0 +1,22 @@
+{
+  "name": "@proofstack/example-incident-to-regression",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Executable evidence-only incident-to-regression ProofStack example",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "lint": "biome lint src",
+    "start": "node dist/run.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
