@@ -258,7 +258,7 @@ state와 함께 ownership row와 revocation state가 포함되어야 합니다. 
 | PostgreSQL | Publication, ownership, fixture version, outbox intent 하나가 강제 RLS, append-only trigger, scope-preserving key, 최소 runtime grant와 함께 원자적으로 commit |
 | API·SDK | 인증된 reserve/upload/status/publish/read/purge operation, stable problem, request ID, size limit, OpenAPI parity, restart persistence, fail-closed SDK behavior가 통과 |
 | Export | Metadata-only export가 기본이고 인가된 content export가 classification·digest를 보존하며 revoked·missing content를 조용히 누락하지 않고 표현 |
-| 복구 | Public, confidential, restricted, revoked, purged, key-versioned capture 대표 상태가 조정된 empty-target restore와 restore 후 격리를 통과 |
+| 복구 | `internal`, confidential, restricted, revoked, purged, key-versioned capture 대표 상태가 조정된 empty-target restore와 restore 후 격리를 통과하며 interaction 평문은 metadata-only 분류를 사용할 수 없음 |
 | 상호운용성 | 버전이 명시된 adapter가 지원하는 OpenTelemetry GenAI model·tool shape를 completeness 과장 없이 매핑하며 truncation, sampling, unknown version은 fail closed |
 | 사용성 | Provider-neutral 실행 예제가 실패한 model/tool sequence를 캡처하고 successor fixture를 발행하며 정확 metadata를 읽고 revocation을 실행하되 replay는 수행하지 않음 |
 | 저장소 | Frozen install, formatting, boundary, doc link, lint, strict type, coverage, build, dependency audit, secret scan, CodeQL, PostgreSQL, S3, artifact, recovery gate가 계속 green |

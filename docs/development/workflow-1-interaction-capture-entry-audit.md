@@ -257,7 +257,7 @@ The roadmap item remains open until all rows have executable evidence.
 | PostgreSQL | Publication, ownership, fixture version, and one outbox intent commit atomically with forced RLS, append-only triggers, scope-preserving keys, and least-privilege runtime grants |
 | API and SDK | Authenticated reserve/upload/status/publish/read/purge operations, stable problems, request IDs, size limits, OpenAPI parity, restart persistence, and fail-closed SDK behavior pass |
 | Export | Metadata-only export is the default; authorized content export preserves classification and digests; revoked or missing content is represented rather than omitted silently |
-| Recovery | Representative public, confidential, restricted, revoked, purged, and key-versioned captures survive coordinated empty-target restore with post-restore isolation |
+| Recovery | Representative internal, confidential, restricted, revoked, purged, and key-versioned captures survive coordinated empty-target restore with post-restore isolation; interaction plaintext cannot use the metadata-only classification |
 | Interoperability | Versioned adapters map supported OpenTelemetry GenAI model and tool shapes without claiming unsupported completeness; truncation, sampling, and unknown versions fail closed |
 | Usability | A provider-neutral executable example captures a failed model/tool sequence, publishes a successor fixture, reads exact metadata, exercises revocation, and never performs replay |
 | Repository | Frozen install, formatting, boundaries, documentation links, lint, strict types, coverage, builds, dependency audit, secret scan, CodeQL, PostgreSQL, S3, artifact, and recovery gates remain green |

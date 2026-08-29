@@ -73,7 +73,7 @@ Goal: turn a failed production trace into repeatable evidence.
 
 - [x] Immutable evidence-only trace snapshots and dataset versions through memory, PostgreSQL,
   API, SDK, tenant-isolation, outbox, and coordinated-recovery boundaries.
-- [ ] Retention-safe classified model and tool interaction capture with exact prompt, provider,
+- [x] Retention-safe classified model and tool interaction capture with exact prompt, provider,
   tool-contract, request, response, and artifact lineage.
 - [ ] Exact recorded-boundary replay with request matching, network-denied fallback, controlled
   runtime inputs, and honest reproducibility classification.
@@ -99,6 +99,9 @@ audit is accepted.
 
 The evidence and remaining limits for the first completed checkpoint are recorded in the
 [regression catalog audit](../development/workflow-1-regression-catalog-audit.md).
+The second checkpoint's classified content, ownership, export, revocation, interoperability,
+recovery, and explicit non-replay evidence are recorded in the
+[interaction-capture audit](../development/workflow-1-interaction-capture-audit.md).
 
 ## Workflow 2: reliability release gate
 
