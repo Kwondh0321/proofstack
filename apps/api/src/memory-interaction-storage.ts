@@ -69,6 +69,10 @@ class LockedArtifactCatalogRepository implements ArtifactCatalogRepository {
     return this.mutex.run(() => this.repository.find(scope, artifactId));
   }
 
+  findPurgeReceipt(scope: EvidenceScope, artifactId: string): Promise<ArtifactPurgeReceipt | null> {
+    return this.mutex.run(() => this.repository.findPurgeReceipt(scope, artifactId));
+  }
+
   listAbandoned(
     scope: EvidenceScope,
     createdBefore: string,

@@ -46,7 +46,7 @@ function scopeMatches(row: StoredRow, values: readonly unknown[]): boolean {
 class ArtifactCatalogFakeClient {
   private readonly artifacts = new Map<string, StoredArtifact>();
   private readonly ownerships = new Map<string, StoredRow>();
-  private readonly purgeReceipts = new Set<string>();
+  private readonly purgeReceipts = new Map<string, StoredRow>();
   private readonly tombstones = new Map<string, StoredRow>();
   readonly queries: Array<{ readonly text: string; readonly values?: readonly unknown[] }> = [];
   readonly releaseArguments: Array<boolean | undefined> = [];
@@ -114,12 +114,24 @@ class ArtifactCatalogFakeClient {
     }
 
     if (text.includes("INSERT INTO public.proofstack_artifact_purge_receipts")) {
-      this.purgeReceipts.add(artifactKey(values[0], values[1]));
+      this.purgeReceipts.set(artifactKey(values[0], values[1]), {
+        artifact_id: values[1],
+        object_was_present: values[3],
+        occurred_at: normalized(values[4]),
+        purge_id: values[2],
+      });
       return { rows: [] };
     }
 
     if (text.includes("SELECT EXISTS") && text.includes("artifact_purge_receipts")) {
       return { rows: [{ present: this.purgeReceipts.has(artifactKey(values[0], values[1])) }] };
+    }
+
+    if (text.includes("FROM public.proofstack_artifact_purge_receipts AS receipt")) {
+      const artifact = this.artifacts.get(artifactKey(values[0], values[3]));
+      const receipt = this.purgeReceipts.get(artifactKey(values[0], values[3]));
+      if (!artifact || !receipt || !scopeMatches(artifact.row, values)) return { rows: [] };
+      return { rows: [structuredClone(receipt)] };
     }
 
     if (text.includes("FROM public.proofstack_artifact_tombstones")) {
@@ -251,6 +263,12 @@ class ArtifactCatalogFakeClient {
       tenant_id: ownership.scope.tenantId,
       ...changes,
     });
+  }
+
+  corruptPurgeReceipt(tenantId: string, artifactId: string, changes: StoredRow): void {
+    const receipt = this.purgeReceipts.get(artifactKey(tenantId, artifactId));
+    if (!receipt) throw new Error("Purge receipt to corrupt was not found");
+    Object.assign(receipt, changes);
   }
 
   forgetPurgeReceipt(tenantId: string, artifactId: string): void {
@@ -470,6 +488,31 @@ describe("PostgresArtifactCatalogRepository contract", () => {
         occurredAt: "2026-09-29T03:02:00.000Z",
         purgeId: "purge_retry_postgres_catalog",
       }),
+    ).rejects.toBeInstanceOf(PostgresArtifactDataIntegrityError);
+  });
+
+  it.each([
+    ["artifact identifier", { artifact_id: "unsafe artifact" }],
+    ["purge identifier", { purge_id: "unsafe purge" }],
+    ["object presence", { object_was_present: "yes" }],
+    ["timestamp", { occurred_at: "2026-09-29T03:01:00Z" }],
+  ])("fails closed for corrupt purge receipt %s", async (_label, corruption) => {
+    const client = new ArtifactCatalogFakeClient();
+    const repository = new PostgresArtifactCatalogRepository(poolWith(client));
+    const entry = candidate();
+    const artifactId = entry.metadata.contentReference.artifactId;
+    await repository.reserve(entry);
+    await repository.tombstone(entry.metadata.scope, abandonedTombstone(artifactId));
+    await repository.recordPurge(entry.metadata.scope, {
+      artifactId,
+      objectWasPresent: false,
+      occurredAt: "2026-09-29T03:01:00.000Z",
+      purgeId: "purge_postgres_catalog",
+    });
+    client.corruptPurgeReceipt(entry.metadata.scope.tenantId, artifactId, corruption);
+
+    await expect(
+      repository.findPurgeReceipt(entry.metadata.scope, artifactId),
     ).rejects.toBeInstanceOf(PostgresArtifactDataIntegrityError);
   });
 });

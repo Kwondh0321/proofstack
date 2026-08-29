@@ -80,6 +80,7 @@ function repository(
   return {
     activate: vi.fn(),
     find,
+    findPurgeReceipt: vi.fn(),
     listAbandoned: vi.fn(),
     listExpired: vi.fn(),
     listKeyReferences: vi.fn(),

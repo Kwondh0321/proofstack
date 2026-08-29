@@ -133,6 +133,7 @@ export interface ArtifactCatalogRepository {
   ): Promise<readonly ArtifactCatalogEntry[]>;
   listPendingPurge(scope: EvidenceScope, limit: number): Promise<readonly ArtifactCatalogEntry[]>;
   listKeyReferences(scope: EvidenceScope): Promise<readonly ArtifactKeyReferenceSummary[]>;
+  findPurgeReceipt(scope: EvidenceScope, artifactId: string): Promise<ArtifactPurgeReceipt | null>;
   recordPurge(scope: EvidenceScope, receipt: ArtifactPurgeReceipt): Promise<ArtifactCatalogEntry>;
   reserve(candidate: ArtifactCatalogEntry): Promise<ReserveArtifactCatalogResult>;
   /** Atomically rejects fixture-owned content; only coordinated fixture revocation may tombstone it. */

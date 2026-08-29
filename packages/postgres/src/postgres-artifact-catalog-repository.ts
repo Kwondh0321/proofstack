@@ -22,6 +22,7 @@ import {
   ArtifactTombstoneSchema,
   type EvidenceScope,
   OpaqueIdSchema,
+  UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { withTenantTransaction } from "./tenant-transaction.js";
@@ -83,6 +84,13 @@ interface PresenceRow extends QueryResultRow {
   readonly present: boolean;
 }
 
+interface StoredPurgeReceiptRow extends QueryResultRow {
+  readonly artifact_id: string;
+  readonly object_was_present: boolean;
+  readonly occurred_at: string;
+  readonly purge_id: string;
+}
+
 interface StoredKeyReferenceRow extends QueryResultRow {
   readonly key_id: string;
   readonly reference_count: string;
@@ -135,6 +143,13 @@ const SELECT_TOMBSTONE_COLUMNS = `
   tombstone_trigger,
   reason,
   to_char(occurred_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS occurred_at
+`;
+
+const SELECT_PURGE_RECEIPT_COLUMNS = `
+  receipt.artifact_id,
+  receipt.purge_id,
+  receipt.object_was_present,
+  to_char(receipt.occurred_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS occurred_at
 `;
 
 const INSERT_ARTIFACT_SQL = `
@@ -340,6 +355,25 @@ function storedOwnership(row: StoredOwnershipRow): ArtifactOwnership {
     );
   }
   return parsed.data;
+}
+
+function storedPurgeReceipt(row: StoredPurgeReceiptRow): ArtifactPurgeReceipt {
+  if (
+    !OpaqueIdSchema.safeParse(row.artifact_id).success ||
+    !OpaqueIdSchema.safeParse(row.purge_id).success ||
+    typeof row.object_was_present !== "boolean" ||
+    !UtcMillisecondTimestampSchema.safeParse(row.occurred_at).success
+  ) {
+    throw new PostgresArtifactDataIntegrityError(
+      "Stored artifact purge receipt does not satisfy the canonical contract",
+    );
+  }
+  return {
+    artifactId: row.artifact_id,
+    objectWasPresent: row.object_was_present,
+    occurredAt: row.occurred_at,
+    purgeId: row.purge_id,
+  };
 }
 
 const ARTIFACT_REFERENCE_STATES = new Set([
@@ -587,6 +621,30 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
       const entry = storedEntry(row);
       const ownership = await findOwnership(client, scope, artifactId);
       return ownership ? { ...entry, ownership } : entry;
+    });
+  }
+
+  async findPurgeReceipt(
+    scope: EvidenceScope,
+    artifactId: string,
+  ): Promise<ArtifactPurgeReceipt | null> {
+    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
+      const result = await client.query<StoredPurgeReceiptRow>(
+        `
+          SELECT ${SELECT_PURGE_RECEIPT_COLUMNS}
+          FROM public.proofstack_artifact_purge_receipts AS receipt
+          INNER JOIN public.proofstack_artifact_catalog AS artifact
+            ON artifact.tenant_id = receipt.tenant_id
+           AND artifact.artifact_id = receipt.artifact_id
+          WHERE artifact.tenant_id = $1
+            AND artifact.project_id = $2
+            AND artifact.environment_id = $3
+            AND artifact.artifact_id = $4
+        `,
+        [scope.tenantId, scope.projectId, scope.environmentId, artifactId],
+      );
+      const row = result.rows[0];
+      return row ? storedPurgeReceipt(row) : null;
     });
   }
 

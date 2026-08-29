@@ -369,6 +369,10 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
           const candidate = reserved("catalog_purge");
           const artifactId = candidate.metadata.contentReference.artifactId;
           await repository.reserve(candidate);
+          assert.equal(
+            await repository.findPurgeReceipt(candidate.metadata.scope, artifactId),
+            null,
+          );
           await assert.rejects(
             repository.recordPurge(candidate.metadata.scope, purgeReceipt(artifactId)),
             ArtifactStateTransitionError,
@@ -382,6 +386,24 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
           assert.equal(purged.metadata.state, "purged");
           assert.equal(purged.metadata.purgedAt, "2026-09-29T03:01:00.000Z");
           assert.deepEqual(
+            await repository.findPurgeReceipt(candidate.metadata.scope, artifactId),
+            purgeReceipt(artifactId),
+          );
+          assert.equal(
+            await repository.findPurgeReceipt(
+              { ...candidate.metadata.scope, projectId: "prj_other" },
+              artifactId,
+            ),
+            null,
+          );
+          assert.equal(
+            await repository.findPurgeReceipt(
+              { ...candidate.metadata.scope, environmentId: "env_other" },
+              artifactId,
+            ),
+            null,
+          );
+          assert.deepEqual(
             await repository.recordPurge(
               candidate.metadata.scope,
               purgeReceipt(artifactId, {
@@ -391,6 +413,14 @@ export const artifactCatalogRepositoryConformanceCases: readonly ArtifactCatalog
               }),
             ),
             purged,
+          );
+          assert.deepEqual(
+            await repository.findPurgeReceipt(candidate.metadata.scope, artifactId),
+            purgeReceipt(artifactId),
+          );
+          assert.equal(
+            await repository.findPurgeReceipt(candidate.metadata.scope, "art_missing"),
+            null,
           );
           await assert.rejects(
             repository.recordPurge(candidate.metadata.scope, purgeReceipt("art_missing")),

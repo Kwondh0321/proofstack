@@ -131,6 +131,16 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
     return stored && matchesScope(stored.entry, scope) ? clone(stored.entry) : null;
   }
 
+  async findPurgeReceipt(
+    scope: EvidenceScope,
+    artifactId: string,
+  ): Promise<ArtifactPurgeReceipt | null> {
+    const stored = this.artifacts.get(artifactKey(scope.tenantId, artifactId));
+    return stored && matchesScope(stored.entry, scope) && stored.purgeReceipt
+      ? clone(stored.purgeReceipt)
+      : null;
+  }
+
   async activate(
     scope: EvidenceScope,
     artifactId: string,

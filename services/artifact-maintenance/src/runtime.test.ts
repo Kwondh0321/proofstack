@@ -68,6 +68,7 @@ function catalog(overrides: Partial<ArtifactCatalogRepository> = {}): ArtifactCa
   return {
     activate: vi.fn(unexpected),
     find: vi.fn(unexpected),
+    findPurgeReceipt: vi.fn(unexpected),
     listAbandoned: vi.fn(async () => []),
     listExpired: vi.fn(async () => []),
     listKeyReferences: vi.fn(async () => []),
