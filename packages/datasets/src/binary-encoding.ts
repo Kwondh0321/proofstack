@@ -1,6 +1,13 @@
 const MAX_UNSIGNED_32 = 0xffff_ffff;
 const textEncoder = new TextEncoder();
 
+export function encodeBoolean(value: boolean): Uint8Array {
+  if (typeof value !== "boolean") {
+    throw new TypeError("Binary encoding requires a boolean");
+  }
+  return Uint8Array.of(value ? 1 : 0);
+}
+
 export function concatenateBytes(parts: readonly Uint8Array[]): Uint8Array {
   return new Uint8Array(Buffer.concat(parts));
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   concatenateBytes,
+  encodeBoolean,
   encodeOptional,
   encodeSequence,
   encodeString,
@@ -10,6 +11,12 @@ import {
 const hex = (value: Uint8Array): string => Buffer.from(value).toString("hex");
 
 describe("fixed binary primitives", () => {
+  it("encodes booleans as one strict byte", () => {
+    expect(hex(encodeBoolean(false))).toBe("00");
+    expect(hex(encodeBoolean(true))).toBe("01");
+    expect(() => encodeBoolean(1 as unknown as boolean)).toThrow(TypeError);
+  });
+
   it.each([
     [0, "00000000"],
     [1, "00000001"],
