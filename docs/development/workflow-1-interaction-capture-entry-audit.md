@@ -195,9 +195,10 @@ the digest of the unredacted request.
 - A workload may reserve and upload classified artifacts only with its existing bounded
   `artifact:write` authority and resource scope.
 - Publishing an interaction-complete fixture is a browser or trusted-service management operation
-  requiring `dataset:manage` and `evidence:read`. The publication repository resolves protected
-  artifact metadata without fetching plaintext; publication does not require or imply
-  `artifact:read` or `artifact:read:restricted`.
+  requiring `dataset:manage`. It promotes one exact evidence-only predecessor instead of reading a
+  live trace again. The publication repository resolves that predecessor and protected artifact
+  metadata without fetching plaintext; publication does not require or imply `evidence:read`,
+  `artifact:read`, or `artifact:read:restricted`.
 - Reading fixture metadata continues to require `dataset:read`; it returns descriptors and
   availability, never plaintext.
 - Reading captured plaintext crosses the artifact read boundary and applies the additional

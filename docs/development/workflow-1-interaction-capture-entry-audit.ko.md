@@ -192,10 +192,11 @@ normalized request digest를 unredacted request의 digest처럼 표시할 수 �
 
 - Workload는 기존의 제한된 `artifact:write` 권한과 resource scope 안에서만 분류
   아티팩트를 reserve·upload할 수 있습니다.
-- Interaction-complete fixture 발행은 `dataset:manage`와 `evidence:read`가 필요한 browser
-  또는 trusted service 관리 operation입니다. Publication repository는 plaintext를 가져오지
-  않고 보호된 artifact metadata를 해석하므로 발행은 `artifact:read` 또는
-  `artifact:read:restricted`를 요구하거나 암시하지 않습니다.
+- Interaction-complete fixture 발행은 `dataset:manage`가 필요한 browser 또는 trusted
+  service 관리 operation입니다. Live trace를 다시 읽지 않고 하나의 정확한 evidence-only
+  predecessor를 승격합니다. Publication repository는 plaintext를 가져오지 않고 그
+  predecessor와 보호된 artifact metadata를 해석하므로 발행은 `evidence:read`,
+  `artifact:read` 또는 `artifact:read:restricted`를 요구하거나 암시하지 않습니다.
 - Fixture metadata read는 계속 `dataset:read`가 필요하고 descriptor와 availability만
   반환하며 plaintext를 반환하지 않습니다.
 - 캡처 plaintext read는 artifact read 경계를 통과하며 현재와 같은 restricted-content 추가
