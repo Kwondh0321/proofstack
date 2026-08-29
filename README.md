@@ -13,8 +13,9 @@ evaluating, governing, and safely releasing AI agents.
 > browser-session backend, and bounded OTLP/HTTP trace ingestion. The encrypted artifact domain and
 > maintenance path are also tested, but are not yet exposed through the API or composed with a
 > production key provider. Coordinated reference backup and isolated restore are rehearsed, but do
-> not constitute provider-specific production disaster recovery. Console sign-in integration,
-> replay, evaluation, and release gates are intentionally not represented as complete.
+> not constitute provider-specific production disaster recovery. Immutable evidence-only
+> regression fixture and dataset versions are implemented; executable replay, console sign-in
+> integration, evaluation, and release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -49,9 +50,10 @@ release when a declared policy regresses.
 | Artifact lifecycle | Opt-in classified metadata, envelope encryption, immutable S3-compatible objects, PostgreSQL tombstones and purge receipts |
 | Artifact operations | Scoped reconciliation, retention, abandoned-upload cleanup, purge retry, and referenced-key inspection |
 | Recovery | Fail-closed PostgreSQL dumps, canonical recovery manifests and inventories, empty-target coordinated restore, fresh roles, and tenant-adversarial verification |
-| TypeScript SDK | Generated IDs, bounded queue, batching, timeout handling, fail-open by default |
+| Regression catalog | Immutable observed trace snapshots and ordered dataset versions through memory, PostgreSQL, API, OpenAPI, SDK, outbox, and recovery boundaries |
+| TypeScript SDK | Generated IDs, bounded telemetry delivery, and a fail-closed exact-version regression client with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Example | Runnable parent/child agent and tool trace through the real SDK and API |
+| Examples | Runnable parent/child trace plus an executable evidence-only incident-to-regression flow through the real SDK and API |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -104,7 +106,16 @@ With the API still running, send a real SDK trace from another terminal:
 pnpm example:basic-agent
 ```
 
-The command prints the generated trace ID and console URL. See the
+Then exercise the first Workflow 1 vertical path:
+
+```bash
+pnpm example:incident-to-regression
+```
+
+The second command emits a failed trace, freezes one exact evidence-only fixture, publishes one
+dataset version, reads both versions back, and prints their immutable digests. See the
+[incident-to-regression guide](docs/guides/incident-to-regression.md) for authority, idempotency,
+failure, and non-replay boundaries, and the
 [local development guide](docs/development/local-development.md) for configuration and
 troubleshooting.
 
@@ -122,8 +133,9 @@ packages/recovery        Coordinated recovery manifests, object inventories, and
 packages/s3              Immutable S3-compatible artifact object adapter
 services/artifact-maintenance  Scoped one-shot lifecycle and key-safety commands
 services/recovery        Safe logical database operations and isolated recovery rehearsal
-sdks/typescript          Provider-neutral telemetry client
+sdks/typescript          Provider-neutral telemetry and regression control-plane clients
 examples/basic-agent     Verified SDK-to-API trace example
+examples/incident-to-regression  Executable evidence-only regression catalog flow
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
 docs/operations          Deployment contracts and operator procedures
@@ -166,9 +178,10 @@ the limits that still block a production-readiness claim.
 
 The current build does not provide console-integrated OIDC sign-in, API-integrated artifact
 capture/read routes, a production external artifact key provider, continuously scheduled artifact
-workers, OTLP/gRPC or non-trace signal ingestion, a deployed outbox publisher, replay, evaluators,
-policy enforcement, continuous provider-specific disaster recovery, or production deployment
-artifacts. Workload API-key and OIDC browser
+workers, OTLP/gRPC or non-trace signal ingestion, a deployed outbox publisher, executable replay,
+evaluators, policy enforcement, continuous provider-specific disaster recovery, or production
+deployment artifacts. Immutable evidence-only regression fixtures and datasets, workload API-key,
+and OIDC browser
 authentication and the artifact lifecycle are implemented and tested. The OTLP/HTTP trace profile
 is also implemented, but generic secret detection, distributed quotas, and a production
 exporter/collector matrix are not. Foundation 2's coordinated recovery reference is implemented

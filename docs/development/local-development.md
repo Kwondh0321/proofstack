@@ -232,11 +232,19 @@ set +a
 curl --fail-with-body http://127.0.0.1:4318/health/live
 curl --fail-with-body http://127.0.0.1:4318/health/ready
 pnpm example:basic-agent
+pnpm example:incident-to-regression
 ```
 
 The example sends an `agent.run` event and its child `tool.execute` event, waits for delivery, and
 prints the generated trace ID and console URL. It uses fail-closed delivery so an unavailable API
 cannot produce a false successful demonstration.
+
+The incident-to-regression example emits a separate failed run, freezes its exact observed events
+as an immutable evidence-only fixture, publishes and reads an exact dataset version, and verifies
+both definition digests. It uses development authentication and therefore refuses non-loopback
+endpoints. The [incident-to-regression guide](../guides/incident-to-regression.md) documents the
+browser and workload authentication split, idempotent retry contract, failure semantics, and why
+this checkpoint is not executable replay.
 
 ### Verify OTLP/HTTP ingestion
 
