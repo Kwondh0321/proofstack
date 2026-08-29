@@ -92,6 +92,7 @@ const modules = [
       "@proofstack/identity",
       "@proofstack/otlp",
       "@proofstack/postgres",
+      "@proofstack/s3",
     ]),
     directory: "apps/api/src",
     packageName: "@proofstack/api",

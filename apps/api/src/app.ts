@@ -59,6 +59,7 @@ import {
   InvalidOidcLoginError,
   OidcLoginGenerationError,
 } from "@proofstack/identity";
+import { S3ArtifactObjectStoreError } from "@proofstack/s3";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
 import { registerArtifactRoutes } from "./artifact-routes.js";
@@ -432,7 +433,8 @@ export async function createApp(
       if (
         error instanceof ArtifactIdentifierGenerationError ||
         error instanceof ArtifactObjectMissingError ||
-        error instanceof ArtifactProtectionError
+        error instanceof ArtifactProtectionError ||
+        error instanceof S3ArtifactObjectStoreError
       ) {
         return sendProblem(reply, {
           code: "artifact_storage_unavailable",

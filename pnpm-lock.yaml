@@ -83,6 +83,9 @@ importers:
       '@proofstack/postgres':
         specifier: workspace:*
         version: link:../../packages/postgres
+      '@proofstack/s3':
+        specifier: workspace:*
+        version: link:../../packages/s3
       fastify:
         specifier: 5.12.1
         version: 5.12.1
