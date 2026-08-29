@@ -104,6 +104,7 @@ describe("migration inspection", () => {
         "0016_durable_replay_definitions",
         "0017_durable_replay_job_ledger",
         "0018_replay_job_control_authority",
+        "0019_replay_worker_lease_authority",
       ],
     });
   });

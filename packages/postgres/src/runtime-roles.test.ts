@@ -190,6 +190,8 @@ describe("provisionRuntimeRoles", () => {
     ).toEqual([
       'GRANT USAGE ON SCHEMA public TO "proofstack_replay_worker"',
       'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_replay_worker"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO "proofstack_replay_worker"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO "proofstack_replay_worker"',
     ]);
     expect(statements).toContain(
       'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_api"',

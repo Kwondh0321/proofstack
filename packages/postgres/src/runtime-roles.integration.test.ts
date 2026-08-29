@@ -178,6 +178,8 @@ describe("runtime role provisioning", () => {
     const replayWorkerPool = poolFor(initial.replayWorker);
     const replayWorkerPrivileges = await replayWorkerPool.query<{
       readonly attemptsSelect: boolean;
+      readonly claimExecute: boolean;
+      readonly heartbeatExecute: boolean;
       readonly jobsInsert: boolean;
       readonly jobsSelect: boolean;
       readonly jobsUpdate: boolean;
@@ -196,11 +198,23 @@ describe("runtime role provisioning", () => {
         has_table_privilege(current_user, 'proofstack_replay_attempts', 'SELECT')
           AS "attemptsSelect",
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT')
-          AS "outboxInsert"
+          AS "outboxInsert",
+        has_function_privilege(
+          current_user,
+          'proofstack_claim_replay_job(text,text,text,text,text,text,text,text,text,bigint)',
+          'EXECUTE'
+        ) AS "claimExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_heartbeat_replay_job(text,text,text,text,text,text,bigint,bigint,bigint)',
+          'EXECUTE'
+        ) AS "heartbeatExecute"
     `);
     expect(replayWorkerPrivileges.rows).toEqual([
       {
         attemptsSelect: false,
+        claimExecute: true,
+        heartbeatExecute: true,
         jobsInsert: false,
         jobsSelect: false,
         jobsUpdate: false,

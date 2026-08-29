@@ -92,6 +92,7 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint)",
   "public.proofstack_consume_oidc_login_transaction(text)",
   "public.proofstack_create_api_key(text, text, text, text, text, text[], jsonb, text, integer, integer, integer, integer, text, text, timestamptz, text)",
   "public.proofstack_create_browser_session(text, text, text, text, integer, integer)",
@@ -117,6 +118,7 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_guard_replay_boundary_artifacts()",
   "public.proofstack_guard_replay_job_root_mutation()",
   "public.proofstack_guard_target_release_artifacts()",
+  "public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint)",
   "public.proofstack_purge_browser_sessions()",
   "public.proofstack_purge_oidc_login_transactions()",
   "public.proofstack_record_api_key_use(text, text, text)",
@@ -200,7 +202,11 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_purge_browser_sessions() TO %ROLE%",
   ],
   publisher: ["GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO %ROLE%"],
-  replayWorker: ["GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%"],
+  replayWorker: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO %ROLE%",
+  ],
 };
 
 export class RuntimeRoleProvisioningError extends Error {

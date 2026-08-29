@@ -78,7 +78,9 @@ provisioned `proofstack_identity` role can execute only the fixed credential lif
 it cannot read identity base tables or evidence. The `proofstack_artifact_maintenance` role can
 inspect and advance artifact lifecycle rows but cannot create reservations or access evidence,
 identity, outbox, sequences, or schema administration. The API verifies the complete migration
-ledger at startup and readiness checks. Stop the local database without deleting evidence with:
+ledger at startup and readiness checks. The `proofstack_replay_worker` role can execute only the
+fixed claim and heartbeat functions; it cannot read or mutate replay tables directly, create jobs,
+request cancellation, or use API authority. Stop the local database without deleting evidence with:
 
 ```bash
 pnpm dev:db:down
