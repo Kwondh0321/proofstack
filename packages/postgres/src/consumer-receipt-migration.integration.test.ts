@@ -67,7 +67,7 @@ describe("leased consumer receipt migration", () => {
       ]);
     } finally {
       await upgradePool?.end();
-      await controlPool.query(`DROP DATABASE IF EXISTS ${databaseName} WITH (FORCE)`);
+      await controlPool.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
       await controlPool.end();
     }
   });

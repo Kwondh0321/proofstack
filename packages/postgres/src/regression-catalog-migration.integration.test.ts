@@ -731,7 +731,7 @@ describe("regression catalog migration", () => {
       });
     } finally {
       await upgradePool?.end();
-      await controlPool.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+      await controlPool.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
       if (roleCreated) await controlPool.query(`DROP ROLE IF EXISTS "${runtimeRole}"`);
       await controlPool.end();
     }

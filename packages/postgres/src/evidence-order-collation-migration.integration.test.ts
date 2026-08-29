@@ -3,8 +3,8 @@ import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   assertMigrationsCurrent,
-  migrateDatabase,
   MigrationIntegrityError,
+  migrateDatabase,
 } from "./migration-runner.js";
 import { loadBundledMigrations } from "./migrations.js";
 
@@ -145,7 +145,7 @@ describe("evidence event order collation migration", () => {
       );
     } finally {
       await upgradePool?.end();
-      await controlPool.query(`DROP DATABASE IF EXISTS ${databaseName} WITH (FORCE)`);
+      await controlPool.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
       await controlPool.end();
     }
   });
