@@ -176,6 +176,9 @@ scripts                  저장소 수준 아키텍처 경계 검사
 [Foundation 2 복구·격리 감사 기록](docs/development/foundation-2-recovery-audit.md)에는 조정된
 빈 대상 복원, 마이그레이션·테넌트 경계, 단계 종료 승인과 프로덕션 준비 완료를 막는
 제한사항을 정리합니다.
+[Workflow 1 회귀 카탈로그 감사 기록](docs/development/workflow-1-regression-catalog-audit.ko.md)은
+불변 evidence-only 카탈로그 체크포인트만 승인하고 아직 남은 재현·평가·비교 작업을
+명시합니다.
 
 ## 현재의 경계
 

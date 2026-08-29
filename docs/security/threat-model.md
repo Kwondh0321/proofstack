@@ -121,8 +121,9 @@ tools, change policy, or approve a release.
   include gRPC, other signals, generic secret detection, raw-input quarantine, distributed loss
   metrics, or a production collector compatibility matrix.
 - There is no tamper-evident audit ledger, signed evidence, or production release gate.
-- Workflow 1 architecture is accepted, but immutable dataset catalogs, interaction capture, replay
-  workers, evaluator assurance, assessments, and comparison surfaces are not yet implemented.
+- Workflow 1 now includes immutable evidence-only fixture and dataset catalogs. Retention-safe
+  interaction capture, executable replay workers, evaluator assurance, assessments, and comparison
+  surfaces are not yet implemented.
 
 These limitations are visible product state. They must not be hidden behind configuration defaults
 or marketing language.

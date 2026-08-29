@@ -71,7 +71,7 @@ or provider-compatibility claim.
 
 Goal: turn a failed production trace into repeatable evidence.
 
-- [ ] Immutable evidence-only trace snapshots and dataset versions through memory, PostgreSQL,
+- [x] Immutable evidence-only trace snapshots and dataset versions through memory, PostgreSQL,
   API, SDK, tenant-isolation, outbox, and coordinated-recovery boundaries.
 - [ ] Retention-safe classified model and tool interaction capture with exact prompt, provider,
   tool-contract, request, response, and artifact lineage.
@@ -96,6 +96,9 @@ The dependency boundary, risks, and executable gates for these checkpoints are r
 [Workflow 1 entry audit](../development/workflow-1-entry-audit.md) and
 [ADRs 0012–0014](../architecture/README.md). Workflow 2 remains blocked until the final Workflow 1
 audit is accepted.
+
+The evidence and remaining limits for the first completed checkpoint are recorded in the
+[regression catalog audit](../development/workflow-1-regression-catalog-audit.md).
 
 ## Workflow 2: reliability release gate
 

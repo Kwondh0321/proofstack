@@ -173,6 +173,9 @@ trace interoperability checkpoint, independent exporter evidence, and remaining 
 The [Foundation 2 recovery and isolation audit](docs/development/foundation-2-recovery-audit.md)
 records coordinated empty-target restoration, migration and tenant barriers, the stage exit, and
 the limits that still block a production-readiness claim.
+The [Workflow 1 regression catalog audit](docs/development/workflow-1-regression-catalog-audit.md)
+accepts only the immutable evidence-only catalog checkpoint and lists the replay, evaluation, and
+comparison work that remains open.
 
 ## Current boundaries
 
