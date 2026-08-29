@@ -101,6 +101,7 @@ describe("migration inspection", () => {
         "0013_regression_catalog",
         "0014_recorded_interaction_fixtures",
         "0015_expand_artifact_tombstone_trigger",
+        "0016_durable_replay_definitions",
       ],
     });
   });

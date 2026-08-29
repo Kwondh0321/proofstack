@@ -57,6 +57,7 @@ const modules = [
       "@proofstack/core",
       "@proofstack/datasets",
       "@proofstack/identity",
+      "@proofstack/replay",
     ]),
     directory: "packages/postgres/src",
     packageName: "@proofstack/postgres",

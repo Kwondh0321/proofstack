@@ -37,6 +37,7 @@
     "@proofstack/core": "workspace:*",
     "@proofstack/datasets": "workspace:*",
     "@proofstack/identity": "workspace:*",
+    "@proofstack/replay": "workspace:*",
     "pg": "catalog:"
   },
   "devDependencies": {

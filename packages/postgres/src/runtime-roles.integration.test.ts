@@ -195,6 +195,11 @@ describe("runtime role provisioning", () => {
       readonly regressionInsert: boolean;
       readonly regressionSelect: boolean;
       readonly regressionUpdate: boolean;
+      readonly replayDelete: boolean;
+      readonly replayInsert: boolean;
+      readonly replayIntentStatusExecute: boolean;
+      readonly replaySelect: boolean;
+      readonly replayUpdate: boolean;
       readonly sequence_usage: boolean;
     }>(
       `
@@ -332,6 +337,55 @@ describe("runtime role provisioning", () => {
           'proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
           'EXECUTE'
         ) AS "regressionIntentStatusExecute",
+        (
+          SELECT bool_and(has_table_privilege(current_user, relation_name, 'SELECT'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_targets',
+            'proofstack_target_releases',
+            'proofstack_replay_plan_resources',
+            'proofstack_replay_plans',
+            'proofstack_replay_plan_budgets',
+            'proofstack_replay_plan_boundaries'
+          ]) AS replay_relation(relation_name)
+        ) AS "replaySelect",
+        (
+          SELECT bool_and(has_table_privilege(current_user, relation_name, 'INSERT'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_targets',
+            'proofstack_target_releases',
+            'proofstack_replay_plan_resources',
+            'proofstack_replay_plans',
+            'proofstack_replay_plan_budgets',
+            'proofstack_replay_plan_boundaries'
+          ]) AS replay_relation(relation_name)
+        ) AS "replayInsert",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'UPDATE'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_targets',
+            'proofstack_target_releases',
+            'proofstack_replay_plan_resources',
+            'proofstack_replay_plans',
+            'proofstack_replay_plan_budgets',
+            'proofstack_replay_plan_boundaries'
+          ]) AS replay_relation(relation_name)
+        ) AS "replayUpdate",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'DELETE'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_targets',
+            'proofstack_target_releases',
+            'proofstack_replay_plan_resources',
+            'proofstack_replay_plans',
+            'proofstack_replay_plan_budgets',
+            'proofstack_replay_plan_boundaries'
+          ]) AS replay_relation(relation_name)
+        ) AS "replayDelete",
+        has_function_privilege(
+          current_user,
+          'proofstack_replay_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS "replayIntentStatusExecute",
         has_sequence_privilege(
           current_user,
           $1,
@@ -366,6 +420,11 @@ describe("runtime role provisioning", () => {
       regressionInsert: true,
       regressionSelect: true,
       regressionUpdate: false,
+      replayDelete: false,
+      replayInsert: true,
+      replayIntentStatusExecute: true,
+      replaySelect: true,
+      replayUpdate: false,
       sequence_usage: false,
     });
 

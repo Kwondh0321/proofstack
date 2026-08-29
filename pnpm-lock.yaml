@@ -355,6 +355,9 @@ importers:
       '@proofstack/identity':
         specifier: workspace:*
         version: link:../identity
+      '@proofstack/replay':
+        specifier: workspace:*
+        version: link:../replay
       pg:
         specifier: 'catalog:'
         version: 8.23.0
