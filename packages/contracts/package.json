@@ -37,6 +37,10 @@
     "./recovery": {
       "types": "./dist/recovery.d.ts",
       "import": "./dist/recovery.js"
+    },
+    "./replay-plan": {
+      "types": "./dist/replay-plan.d.ts",
+      "import": "./dist/replay-plan.js"
     }
   },
   "files": [
