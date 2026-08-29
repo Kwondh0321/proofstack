@@ -9,6 +9,10 @@ import {
   MAX_TRACE_PAGE_SIZE,
   OidcCallbackQuerySchema,
   ProblemDocumentSchema,
+  PublishRegressionDatasetVersionResponseSchema,
+  PublishRegressionFixtureVersionResponseSchema,
+  ReadRegressionDatasetVersionResponseSchema,
+  ReadRegressionFixtureVersionResponseSchema,
   ReadinessResponseSchema,
   TraceResponseSchema,
 } from "./api.js";
@@ -50,6 +54,42 @@ const traceEnvelope = {
     tenantId: "ten_local",
   },
 };
+const fixtureVersion = {
+  createdAt: "2026-08-28T05:00:00.200Z",
+  createdByPrincipalId: "usr_contract_test",
+  definitionSha256: "a".repeat(64),
+  fixtureId: "fix_contract_test",
+  fixtureVersionId: "fixv_contract_test_001",
+  name: "Contract test fixture",
+  replayability: "evidence_only",
+  schemaVersion: "0.1",
+  scope: traceEnvelope.scope,
+  source: {
+    capturedAt: "2026-08-28T05:00:00.100Z",
+    eventIds: [traceEnvelope.evidence.eventId],
+    kind: "trace_snapshot",
+    observedEventCount: 1,
+    sourceCompleteness: "observed_snapshot",
+    traceId,
+  },
+} as const;
+const datasetVersion = {
+  createdAt: "2026-08-28T05:00:00.300Z",
+  createdByPrincipalId: "usr_contract_test",
+  datasetId: "dat_contract_test",
+  datasetVersionId: "datv_contract_test_001",
+  definitionSha256: "b".repeat(64),
+  fixtureVersions: [
+    {
+      definitionSha256: fixtureVersion.definitionSha256,
+      fixtureId: fixtureVersion.fixtureId,
+      fixtureVersionId: fixtureVersion.fixtureVersionId,
+    },
+  ],
+  name: "Contract test dataset",
+  schemaVersion: "0.1",
+  scope: traceEnvelope.scope,
+} as const;
 
 describe("HTTP response contracts", () => {
   it("validates health responses exactly", () => {
@@ -136,6 +176,56 @@ describe("HTTP response contracts", () => {
         requestId: "req_test_001",
         schemaVersion: "0.1",
         traceId,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates exact regression publication and read responses", () => {
+    const fixturePublication = {
+      created: true,
+      requestId: "req_test_001",
+      version: fixtureVersion,
+    };
+    const datasetPublication = {
+      created: false,
+      requestId: "req_test_001",
+      version: datasetVersion,
+    };
+
+    expect(PublishRegressionFixtureVersionResponseSchema.parse(fixturePublication)).toEqual(
+      fixturePublication,
+    );
+    expect(PublishRegressionDatasetVersionResponseSchema.parse(datasetPublication)).toEqual(
+      datasetPublication,
+    );
+    expect(
+      ReadRegressionFixtureVersionResponseSchema.safeParse({
+        requestId: "req_test_001",
+        version: fixtureVersion,
+      }).success,
+    ).toBe(true);
+    expect(
+      ReadRegressionDatasetVersionResponseSchema.safeParse({
+        requestId: "req_test_001",
+        version: datasetVersion,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects ambiguous regression response shapes and invalid stored versions", () => {
+    expect(
+      PublishRegressionFixtureVersionResponseSchema.safeParse({
+        created: true,
+        requestId: "req_test_001",
+        unexpected: true,
+        version: fixtureVersion,
+      }).success,
+    ).toBe(false);
+    expect(
+      PublishRegressionDatasetVersionResponseSchema.safeParse({
+        created: true,
+        requestId: "req_test_001",
+        version: { ...datasetVersion, definitionSha256: "invalid" },
       }).success,
     ).toBe(false);
   });

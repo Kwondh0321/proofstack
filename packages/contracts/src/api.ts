@@ -5,6 +5,7 @@ import {
   MAX_EVIDENCE_BATCH_SIZE,
 } from "./evidence.js";
 import { PrincipalContextSchema } from "./identity.js";
+import { RegressionDatasetVersionSchema, RegressionFixtureVersionSchema } from "./dataset.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const RequestIdSchema = z.string().min(1).max(128);
@@ -87,6 +88,36 @@ export const TraceResponseSchema = z
   })
   .strict();
 
+export const PublishRegressionFixtureVersionResponseSchema = z
+  .object({
+    created: z.boolean(),
+    requestId: RequestIdSchema,
+    version: RegressionFixtureVersionSchema,
+  })
+  .strict();
+
+export const ReadRegressionFixtureVersionResponseSchema = z
+  .object({
+    requestId: RequestIdSchema,
+    version: RegressionFixtureVersionSchema,
+  })
+  .strict();
+
+export const PublishRegressionDatasetVersionResponseSchema = z
+  .object({
+    created: z.boolean(),
+    requestId: RequestIdSchema,
+    version: RegressionDatasetVersionSchema,
+  })
+  .strict();
+
+export const ReadRegressionDatasetVersionResponseSchema = z
+  .object({
+    requestId: RequestIdSchema,
+    version: RegressionDatasetVersionSchema,
+  })
+  .strict();
+
 export const ProblemIssueSchema = z
   .object({
     message: z.string().min(1),
@@ -114,6 +145,18 @@ export type BrowserSessionResponse = z.infer<typeof BrowserSessionResponseSchema
 export type LivenessResponse = z.infer<typeof LivenessResponseSchema>;
 export type OidcCallbackQuery = z.infer<typeof OidcCallbackQuerySchema>;
 export type ProblemDocument = z.infer<typeof ProblemDocumentSchema>;
+export type PublishRegressionDatasetVersionResponse = z.infer<
+  typeof PublishRegressionDatasetVersionResponseSchema
+>;
+export type PublishRegressionFixtureVersionResponse = z.infer<
+  typeof PublishRegressionFixtureVersionResponseSchema
+>;
+export type ReadRegressionDatasetVersionResponse = z.infer<
+  typeof ReadRegressionDatasetVersionResponseSchema
+>;
+export type ReadRegressionFixtureVersionResponse = z.infer<
+  typeof ReadRegressionFixtureVersionResponseSchema
+>;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;
 export type TracePageCursor = z.infer<typeof TracePageCursorSchema>;
 export type TraceResponse = z.infer<typeof TraceResponseSchema>;
