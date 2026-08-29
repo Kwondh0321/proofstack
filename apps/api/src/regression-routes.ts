@@ -1,17 +1,25 @@
 import {
   OpaqueIdSchema,
+  PublishInteractionFixtureVersionRequestSchema,
+  PublishRecordedInteractionFixtureVersionResponseSchema,
   PublishRegressionDatasetVersionRequestSchema,
   PublishRegressionDatasetVersionResponseSchema,
   PublishRegressionFixtureVersionRequestSchema,
   PublishRegressionFixtureVersionResponseSchema,
+  ReadRecordedInteractionFixtureMetadataResponseSchema,
   ReadRegressionDatasetVersionResponseSchema,
   ReadRegressionFixtureVersionResponseSchema,
+  RevokeInteractionFixtureContentRequestSchema,
+  RevokeRecordedInteractionFixtureContentResponseSchema,
 } from "@proofstack/contracts";
 import type {
+  PublishRecordedInteractionFixtureVersion,
   PublishRegressionDatasetVersion,
   PublishRegressionFixtureVersion,
+  ReadRecordedInteractionFixtureMetadata,
   ReadRegressionDatasetVersion,
   ReadRegressionFixtureVersion,
+  RevokeRecordedInteractionFixtureContent,
 } from "@proofstack/datasets";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -47,6 +55,13 @@ export interface RegressionRouteDependencies {
   readonly publishFixtureVersion: Pick<PublishRegressionFixtureVersion, "execute">;
   readonly readDatasetVersion: Pick<ReadRegressionDatasetVersion, "execute">;
   readonly readFixtureVersion: Pick<ReadRegressionFixtureVersion, "execute">;
+}
+
+export interface InteractionFixtureRouteDependencies {
+  readonly authenticator: Authenticator;
+  readonly publishRecordedFixtureVersion: Pick<PublishRecordedInteractionFixtureVersion, "execute">;
+  readonly readRecordedFixtureMetadata: Pick<ReadRecordedInteractionFixtureMetadata, "execute">;
+  readonly revokeRecordedFixtureContent: Pick<RevokeRecordedInteractionFixtureContent, "execute">;
 }
 
 const publicationRateLimit = {
@@ -152,6 +167,81 @@ export async function registerRegressionRoutes(
         requestId: request.id,
         version,
       });
+    },
+  );
+}
+
+export async function registerInteractionFixtureRoutes(
+  app: FastifyInstance,
+  dependencies: InteractionFixtureRouteDependencies,
+): Promise<void> {
+  app.post(
+    "/v1/projects/:projectId/environments/:environmentId/regression-fixtures/:fixtureId/interaction-versions",
+    { config: { rateLimit: publicationRateLimit } },
+    async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
+      const path = RegressionFixturePathSchema.parse(request.params);
+      const body = PublishInteractionFixtureVersionRequestSchema.parse(request.body);
+      const result = await dependencies.publishRecordedFixtureVersion.execute({
+        environmentId: path.environmentId,
+        fixtureId: path.fixtureId,
+        principal,
+        projectId: path.projectId,
+        request: body,
+      });
+      return reply.status(result.created ? 201 : 200).send(
+        PublishRecordedInteractionFixtureVersionResponseSchema.parse({
+          created: result.created,
+          ownerships: result.ownerships,
+          requestId: request.id,
+          version: result.version,
+        }),
+      );
+    },
+  );
+
+  app.get(
+    "/v1/projects/:projectId/environments/:environmentId/regression-fixtures/:fixtureId/interaction-versions/:fixtureVersionId",
+    { config: { rateLimit: readRateLimit } },
+    async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
+      const path = RegressionFixtureVersionPathSchema.parse(request.params);
+      const result = await dependencies.readRecordedFixtureMetadata.execute({
+        environmentId: path.environmentId,
+        fixtureId: path.fixtureId,
+        fixtureVersionId: path.fixtureVersionId,
+        principal,
+        projectId: path.projectId,
+      });
+      reply.header("cache-control", "no-store");
+      return ReadRecordedInteractionFixtureMetadataResponseSchema.parse({
+        ...result,
+        requestId: request.id,
+      });
+    },
+  );
+
+  app.post(
+    "/v1/projects/:projectId/environments/:environmentId/regression-fixtures/:fixtureId/interaction-versions/:fixtureVersionId/revocation",
+    { config: { rateLimit: publicationRateLimit } },
+    async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
+      const path = RegressionFixtureVersionPathSchema.parse(request.params);
+      const body = RevokeInteractionFixtureContentRequestSchema.parse(request.body);
+      const result = await dependencies.revokeRecordedFixtureContent.execute({
+        environmentId: path.environmentId,
+        fixtureId: path.fixtureId,
+        fixtureVersionId: path.fixtureVersionId,
+        principal,
+        projectId: path.projectId,
+        request: body,
+      });
+      return reply.status(result.created ? 201 : 200).send(
+        RevokeRecordedInteractionFixtureContentResponseSchema.parse({
+          ...result,
+          requestId: request.id,
+        }),
+      );
     },
   );
 }
