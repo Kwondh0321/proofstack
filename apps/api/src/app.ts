@@ -71,6 +71,12 @@ import {
 } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import {
+  ExportRecordedInteractionFixtureContent,
+  ExportRecordedInteractionFixtureMetadata,
+  InteractionContentExportTooLargeError,
+  InteractionExportStateChangedError,
+} from "./interaction-export.js";
+import {
   type ApiKeyLifecycleService,
   IdentityManagementUnavailableError,
   registerIdentityRoutes,
@@ -259,15 +265,29 @@ export async function createApp(
       });
     }
     if (storage.artifacts && storage.interactionFixtureVersionRepository) {
+      const readRecordedFixtureMetadata = new ReadRecordedInteractionFixtureMetadata(
+        storage.interactionFixtureVersionRepository,
+      );
       await registerInteractionFixtureRoutes(app, {
         authenticator,
+        exportRecordedFixtureContent: new ExportRecordedInteractionFixtureContent({
+          catalog: storage.artifacts.catalog,
+          readArtifact: new ReadArtifact({
+            catalog: storage.artifacts.catalog,
+            encryption: storage.artifacts.encryption,
+            objects: storage.artifacts.objects,
+          }),
+          readRecordedFixtureMetadata,
+        }),
+        exportRecordedFixtureMetadata: new ExportRecordedInteractionFixtureMetadata({
+          catalog: storage.artifacts.catalog,
+          readRecordedFixtureMetadata,
+        }),
         publishRecordedFixtureVersion: new PublishRecordedInteractionFixtureVersion({
           clock,
           versionRepository: storage.interactionFixtureVersionRepository,
         }),
-        readRecordedFixtureMetadata: new ReadRecordedInteractionFixtureMetadata(
-          storage.interactionFixtureVersionRepository,
-        ),
+        readRecordedFixtureMetadata,
         revokeRecordedFixtureContent: new RevokeRecordedInteractionFixtureContent({
           clock,
           identities: new SecureInteractionFixtureRevocationIdentityGenerator(),
@@ -427,6 +447,28 @@ export async function createApp(
           status: 422,
           title: "Artifact content mismatch",
           type: "https://proofstack.dev/problems/artifact-content-mismatch",
+        });
+      }
+
+      if (error instanceof InteractionContentExportTooLargeError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 413,
+          title: "Interaction content export too large",
+          type: "https://proofstack.dev/problems/interaction-content-export-too-large",
+        });
+      }
+
+      if (error instanceof InteractionExportStateChangedError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Interaction export state changed",
+          type: "https://proofstack.dev/problems/interaction-export-state-changed",
         });
       }
 

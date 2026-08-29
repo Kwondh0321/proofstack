@@ -1,4 +1,7 @@
 import {
+  ExportRecordedInteractionFixtureContentRequestSchema,
+  ExportRecordedInteractionFixtureContentResponseSchema,
+  ExportRecordedInteractionFixtureMetadataResponseSchema,
   OpaqueIdSchema,
   PublishInteractionFixtureVersionRequestSchema,
   PublishRecordedInteractionFixtureVersionResponseSchema,
@@ -24,6 +27,10 @@ import type {
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Authenticator } from "./auth.js";
+import type {
+  ExportRecordedInteractionFixtureContent,
+  ExportRecordedInteractionFixtureMetadata,
+} from "./interaction-export.js";
 
 const RegressionFixturePathSchema = z
   .object({
@@ -59,6 +66,8 @@ export interface RegressionRouteDependencies {
 
 export interface InteractionFixtureRouteDependencies {
   readonly authenticator: Authenticator;
+  readonly exportRecordedFixtureContent: Pick<ExportRecordedInteractionFixtureContent, "execute">;
+  readonly exportRecordedFixtureMetadata: Pick<ExportRecordedInteractionFixtureMetadata, "execute">;
   readonly publishRecordedFixtureVersion: Pick<PublishRecordedInteractionFixtureVersion, "execute">;
   readonly readRecordedFixtureMetadata: Pick<ReadRecordedInteractionFixtureMetadata, "execute">;
   readonly revokeRecordedFixtureContent: Pick<RevokeRecordedInteractionFixtureContent, "execute">;
@@ -73,6 +82,24 @@ const readRateLimit = {
   max: 600,
   timeWindow: "1 minute",
 } as const;
+
+const contentExportRateLimit = {
+  max: 30,
+  timeWindow: "1 minute",
+} as const;
+
+function interactionFixtureCommand(
+  path: z.infer<typeof RegressionFixtureVersionPathSchema>,
+  principal: Awaited<ReturnType<Authenticator["authenticate"]>>,
+) {
+  return {
+    environmentId: path.environmentId,
+    fixtureId: path.fixtureId,
+    fixtureVersionId: path.fixtureVersionId,
+    principal,
+    projectId: path.projectId,
+  };
+}
 
 export async function registerRegressionRoutes(
   app: FastifyInstance,
@@ -201,18 +228,49 @@ export async function registerInteractionFixtureRoutes(
   );
 
   app.get(
+    "/v1/projects/:projectId/environments/:environmentId/regression-fixtures/:fixtureId/interaction-versions/:fixtureVersionId/export",
+    { config: { rateLimit: readRateLimit } },
+    async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
+      const path = RegressionFixtureVersionPathSchema.parse(request.params);
+      const result = await dependencies.exportRecordedFixtureMetadata.execute(
+        interactionFixtureCommand(path, principal),
+      );
+      reply.header("cache-control", "no-store");
+      return ExportRecordedInteractionFixtureMetadataResponseSchema.parse({
+        export: result,
+        requestId: request.id,
+      });
+    },
+  );
+
+  app.post(
+    "/v1/projects/:projectId/environments/:environmentId/regression-fixtures/:fixtureId/interaction-versions/:fixtureVersionId/export/content",
+    { config: { rateLimit: contentExportRateLimit } },
+    async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
+      const path = RegressionFixtureVersionPathSchema.parse(request.params);
+      ExportRecordedInteractionFixtureContentRequestSchema.parse(request.body);
+      const result = await dependencies.exportRecordedFixtureContent.execute(
+        interactionFixtureCommand(path, principal),
+      );
+      reply.header("cache-control", "no-store");
+      return ExportRecordedInteractionFixtureContentResponseSchema.parse({
+        export: result,
+        requestId: request.id,
+      });
+    },
+  );
+
+  app.get(
     "/v1/projects/:projectId/environments/:environmentId/regression-fixtures/:fixtureId/interaction-versions/:fixtureVersionId",
     { config: { rateLimit: readRateLimit } },
     async (request, reply) => {
       const principal = await dependencies.authenticator.authenticate(request);
       const path = RegressionFixtureVersionPathSchema.parse(request.params);
-      const result = await dependencies.readRecordedFixtureMetadata.execute({
-        environmentId: path.environmentId,
-        fixtureId: path.fixtureId,
-        fixtureVersionId: path.fixtureVersionId,
-        principal,
-        projectId: path.projectId,
-      });
+      const result = await dependencies.readRecordedFixtureMetadata.execute(
+        interactionFixtureCommand(path, principal),
+      );
       reply.header("cache-control", "no-store");
       return ReadRecordedInteractionFixtureMetadataResponseSchema.parse({
         ...result,
@@ -229,11 +287,7 @@ export async function registerInteractionFixtureRoutes(
       const path = RegressionFixtureVersionPathSchema.parse(request.params);
       const body = RevokeInteractionFixtureContentRequestSchema.parse(request.body);
       const result = await dependencies.revokeRecordedFixtureContent.execute({
-        environmentId: path.environmentId,
-        fixtureId: path.fixtureId,
-        fixtureVersionId: path.fixtureVersionId,
-        principal,
-        projectId: path.projectId,
+        ...interactionFixtureCommand(path, principal),
         request: body,
       });
       return reply.status(result.created ? 201 : 200).send(

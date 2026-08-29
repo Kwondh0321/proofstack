@@ -2,11 +2,14 @@ import { readFileSync } from "node:fs";
 import {
   PrincipalContextSchema,
   type RecordedInteractionFixtureVersionDefinition,
+  RecordedInteractionFixtureContentExportSchema,
+  RecordedInteractionFixtureMetadataExportSchema,
   RecordedInteractionFixtureVersionDefinitionSchema,
   RecordedInteractionFixtureVersionSchema,
 } from "@proofstack/contracts";
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 import type { Authenticator } from "./auth.js";
 import {
   type InteractionFixtureRouteDependencies,
@@ -78,6 +81,38 @@ const tombstones = ownerships.map((ownership, index) => ({
   tombstoneId: `del_capture_${index}`,
   trigger: "fixture_revocation" as const,
 }));
+const metadataExport = RecordedInteractionFixtureMetadataExportSchema.parse({
+  artifacts: version.interactionCapture.artifacts.map((binding, index) => ({
+    binding,
+    lifecycleStatus: "available",
+    metadata: {
+      availableAt: "2026-08-29T05:00:50.000Z",
+      contentReference: binding.contentReference,
+      createdAt: "2026-08-29T05:00:40.000Z",
+      redaction: binding.redaction,
+      retention: binding.retention,
+      schemaVersion: "0.1",
+      scope: version.scope,
+      state: "available",
+    },
+    ownership: ownerships[index],
+    purgeReceipt: null,
+    tombstone: null,
+  })),
+  contentAvailability: "available",
+  mode: "metadata",
+  revocation: null,
+  schemaVersion: "0.1",
+  version,
+});
+const contentExport = RecordedInteractionFixtureContentExportSchema.parse({
+  ...metadataExport,
+  artifacts: metadataExport.artifacts.map((artifact) => ({
+    artifact,
+    content: { status: "missing" },
+  })),
+  mode: "content",
+});
 const collectionUrl = `/v1/projects/${version.scope.projectId}/environments/${version.scope.environmentId}/regression-fixtures/${version.fixtureId}/interaction-versions`;
 const versionUrl = `${collectionUrl}/${version.fixtureVersionId}`;
 const apps: ReturnType<typeof Fastify>[] = [];
@@ -87,6 +122,8 @@ function dependencies(
 ): InteractionFixtureRouteDependencies {
   return {
     authenticator: { authenticate: vi.fn(async () => principal) },
+    exportRecordedFixtureContent: { execute: vi.fn(async () => contentExport) },
+    exportRecordedFixtureMetadata: { execute: vi.fn(async () => metadataExport) },
     publishRecordedFixtureVersion: {
       execute: vi.fn(async () => ({ created: true, ownerships, version })),
     },
@@ -116,6 +153,9 @@ function dependencies(
 async function testApp(value = dependencies()) {
   const app = Fastify({ logger: false });
   await registerInteractionFixtureRoutes(app, value);
+  app.setErrorHandler((error, _request, reply) =>
+    error instanceof ZodError ? reply.status(400).send() : reply.send(error),
+  );
   apps.push(app);
   return { app, value };
 }
@@ -125,7 +165,7 @@ afterEach(async () => {
 });
 
 describe("recorded interaction fixture routes", () => {
-  it("publishes, reads metadata, and revokes a complete captured content set", async () => {
+  it("publishes, reads, exports, and revokes a complete captured content set", async () => {
     const { app, value } = await testApp();
     const publish = await app.inject({
       body: {
@@ -138,6 +178,12 @@ describe("recorded interaction fixture routes", () => {
       url: collectionUrl,
     });
     const read = await app.inject({ method: "GET", url: versionUrl });
+    const exportMetadata = await app.inject({ method: "GET", url: `${versionUrl}/export` });
+    const exportContent = await app.inject({
+      body: { acknowledgeSensitiveContent: true },
+      method: "POST",
+      url: `${versionUrl}/export/content`,
+    });
     const revoke = await app.inject({
       body: { reason: revocation.reason },
       method: "POST",
@@ -163,6 +209,26 @@ describe("recorded interaction fixture routes", () => {
       tombstones: [],
       version,
     });
+    expect(exportMetadata.statusCode).toBe(200);
+    expect(exportMetadata.headers["cache-control"]).toBe("no-store");
+    expect(exportMetadata.json()).toMatchObject({ export: metadataExport });
+    expect(value.exportRecordedFixtureMetadata.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fixtureId: version.fixtureId,
+        fixtureVersionId: version.fixtureVersionId,
+        principal,
+      }),
+    );
+    expect(exportContent.statusCode).toBe(200);
+    expect(exportContent.headers["cache-control"]).toBe("no-store");
+    expect(exportContent.json()).toMatchObject({ export: contentExport });
+    expect(value.exportRecordedFixtureContent.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fixtureId: version.fixtureId,
+        fixtureVersionId: version.fixtureVersionId,
+        principal,
+      }),
+    );
     expect(revoke.statusCode).toBe(201);
     expect(revoke.json()).toMatchObject({
       contentAvailability: "revoked",
@@ -228,5 +294,17 @@ describe("recorded interaction fixture routes", () => {
 
     expect(response.statusCode).toBe(401);
     expect(value.publishRecordedFixtureVersion.execute).not.toHaveBeenCalled();
+  });
+
+  it("rejects content export without explicit acknowledgement", async () => {
+    const { app, value } = await testApp();
+    const response = await app.inject({
+      body: {},
+      method: "POST",
+      url: `${versionUrl}/export/content`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(value.exportRecordedFixtureContent.execute).not.toHaveBeenCalled();
   });
 });

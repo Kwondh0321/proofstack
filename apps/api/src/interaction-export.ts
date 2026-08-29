@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import {
   type ArtifactCatalogEntry,
   type ArtifactCatalogRepository,
@@ -59,7 +60,7 @@ export class InteractionContentExportTooLargeError extends Error {
 }
 
 function sameStructuredValue(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return isDeepStrictEqual(left, right);
 }
 
 function unavailableArtifact(

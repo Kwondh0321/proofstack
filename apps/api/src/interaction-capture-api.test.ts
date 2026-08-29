@@ -209,6 +209,44 @@ describe("interaction capture API", () => {
 
     const versionUrl = `${publicationUrl}/${recordedVersionId}`;
     const metadata = await app.inject({ method: "GET", url: versionUrl });
+    const metadataExport = await app.inject({ method: "GET", url: `${versionUrl}/export` });
+    const invalidContentExport = await app.inject({
+      body: {},
+      method: "POST",
+      url: `${versionUrl}/export/content`,
+    });
+    const contentExport = await app.inject({
+      body: { acknowledgeSensitiveContent: true },
+      method: "POST",
+      url: `${versionUrl}/export/content`,
+    });
+    expect(metadataExport.statusCode).toBe(200);
+    expect(metadataExport.headers["cache-control"]).toBe("no-store");
+    expect(metadataExport.json()).toMatchObject({
+      export: {
+        artifacts: { length: captured.manifest.artifacts.length },
+        contentAvailability: "available",
+        mode: "metadata",
+      },
+    });
+    expect(metadataExport.json().export.artifacts[0]).not.toHaveProperty("content");
+    expect(invalidContentExport.statusCode).toBe(400);
+    expect(invalidContentExport.json()).toMatchObject({ code: "invalid_request" });
+    expect(contentExport.statusCode, contentExport.body).toBe(200);
+    expect(contentExport.headers["cache-control"]).toBe("no-store");
+    expect(contentExport.json()).toMatchObject({
+      export: {
+        artifacts: { length: captured.manifest.artifacts.length },
+        contentAvailability: "available",
+        mode: "content",
+      },
+    });
+    for (const exported of contentExport.json().export.artifacts) {
+      expect(exported.content).toMatchObject({ encoding: "base64url", status: "available" });
+      expect(Buffer.from(exported.content.bytes, "base64url")).toEqual(
+        captured.content.get(exported.artifact.binding.contentReference.artifactId),
+      );
+    }
     const revocationBody = { reason: "Remove the complete captured content set" };
     const revoke = await app.inject({
       body: revocationBody,
@@ -230,6 +268,27 @@ describe("interaction capture API", () => {
     });
     expect(revokeRetry.statusCode).toBe(200);
     expect(revokeRetry.json()).toMatchObject({ created: false });
+    const revokedExport = await app.inject({ method: "GET", url: `${versionUrl}/export` });
+    const revokedContentExport = await app.inject({
+      body: { acknowledgeSensitiveContent: true },
+      method: "POST",
+      url: `${versionUrl}/export/content`,
+    });
+    expect(revokedExport.statusCode).toBe(200);
+    expect(revokedExport.json().export.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ lifecycleStatus: "revoked", purgeReceipt: null }),
+      ]),
+    );
+    expect(revokedContentExport.statusCode).toBe(200);
+    expect(
+      revokedContentExport
+        .json()
+        .export.artifacts.every(
+          ({ content }: { readonly content: { readonly status: string } }) =>
+            content.status === "revoked",
+        ),
+    ).toBe(true);
     const unavailable = await app.inject({ method: "GET", url: `${firstArtifactUrl}/content` });
     expect(unavailable.statusCode).toBe(409);
     expect(unavailable.json()).toMatchObject({ code: "artifact_unavailable" });
@@ -243,7 +302,31 @@ describe("interaction capture API", () => {
       expect(purge.json()).toMatchObject({ metadata: { state: "purged" } });
     }
     const revokedMetadata = await app.inject({ method: "GET", url: versionUrl });
+    const purgedExport = await app.inject({ method: "GET", url: `${versionUrl}/export` });
+    const purgedContentExport = await app.inject({
+      body: { acknowledgeSensitiveContent: true },
+      method: "POST",
+      url: `${versionUrl}/export/content`,
+    });
     expect(revokedMetadata.statusCode).toBe(200);
     expect(revokedMetadata.json()).toMatchObject({ contentAvailability: "revoked" });
+    expect(purgedExport.statusCode).toBe(200);
+    expect(
+      purgedExport
+        .json()
+        .export.artifacts.every(
+          (artifact: { readonly lifecycleStatus: string; readonly purgeReceipt: unknown }) =>
+            artifact.lifecycleStatus === "purged" && artifact.purgeReceipt !== null,
+        ),
+    ).toBe(true);
+    expect(purgedContentExport.statusCode).toBe(200);
+    expect(
+      purgedContentExport
+        .json()
+        .export.artifacts.every(
+          ({ content }: { readonly content: { readonly status: string } }) =>
+            content.status === "purged",
+        ),
+    ).toBe(true);
   });
 });
