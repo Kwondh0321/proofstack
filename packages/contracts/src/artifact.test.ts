@@ -304,6 +304,19 @@ describe("artifact tombstone contracts", () => {
     ).toBe(true);
   });
 
+  it("reserves a dedicated trigger for coordinated fixture revocation", () => {
+    expect(
+      ArtifactTombstoneSchema.safeParse({
+        actorPrincipalId: "usr_privacy_operator",
+        artifactId: "art_model_output",
+        occurredAt: "2026-08-29T00:03:00.000Z",
+        reason: "Revoke the complete fixture content set",
+        tombstoneId: "del_fixture_owned_output",
+        trigger: "fixture_revocation",
+      }).success,
+    ).toBe(true);
+  });
+
   it.each(["", " surrounding whitespace ", "line\nbreak", "x".repeat(513)])(
     "rejects invalid tombstone reason %#",
     (reason) => {

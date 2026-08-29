@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  InteractionFixtureContentAvailabilitySchema,
+  InteractionFixtureContentRevocationSchema,
   MAX_DATASET_FIXTURE_VERSIONS,
   MAX_FIXTURE_SOURCE_EVENTS,
   MAX_REGRESSION_VERSION_DESCRIPTION_CHARACTERS,
@@ -16,6 +18,7 @@ import {
   RegressionTraceSnapshotDefinitionSchema,
   RegressionVersionDescriptionSchema,
   RegressionVersionNameSchema,
+  RevokeInteractionFixtureContentRequestSchema,
 } from "./dataset.js";
 
 const DIGEST_A = "a".repeat(64);
@@ -935,6 +938,63 @@ describe("RecordedInteractionFixtureVersionSchema", () => {
         ...recordedInteractionFixtureVersion(),
         ...override,
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe("interaction fixture content revocation contracts", () => {
+  const revocation = {
+    fixtureId: "fix_checkout_timeout",
+    fixtureVersionId: "fixv_checkout_timeout_002",
+    reason: "Remove captured interaction content under an accountable operator decision",
+    revocationId: "rev_checkout_timeout_002",
+    revokedAt: "2026-08-29T00:03:00.000Z",
+    revokedByPrincipalId: "usr_privacy_operator",
+    schemaVersion: "0.1",
+    scope: fixtureVersion().scope,
+  } as const;
+
+  it("keeps available, explicitly revoked, and unexpectedly unavailable states distinct", () => {
+    expect(InteractionFixtureContentAvailabilitySchema.options).toEqual([
+      "available",
+      "revoked",
+      "unavailable",
+    ]);
+    expect(InteractionFixtureContentAvailabilitySchema.safeParse("purged").success).toBe(false);
+  });
+
+  it("accepts only a bounded caller-owned revocation reason", () => {
+    expect(
+      RevokeInteractionFixtureContentRequestSchema.parse({ reason: revocation.reason }),
+    ).toEqual({ reason: revocation.reason });
+    expect(
+      RevokeInteractionFixtureContentRequestSchema.safeParse({
+        reason: revocation.reason,
+        revokedAt: revocation.revokedAt,
+      }).success,
+    ).toBe(false);
+    expect(
+      RevokeInteractionFixtureContentRequestSchema.safeParse({ reason: " bad " }).success,
+    ).toBe(false);
+  });
+
+  it("accepts one strict server-attributed immutable revocation receipt", () => {
+    expect(InteractionFixtureContentRevocationSchema.parse(revocation)).toEqual(revocation);
+  });
+
+  it.each([
+    { fixtureId: "" },
+    { fixtureVersionId: "" },
+    { reason: "" },
+    { revocationId: "" },
+    { revokedAt: "2026-08-29T00:03:00Z" },
+    { revokedByPrincipalId: "" },
+    { schemaVersion: "0.2" },
+    { scope: { ...revocation.scope, environmentId: "" } },
+    { unexpected: true },
+  ])("rejects invalid or caller-expanded revocation provenance %#", (override) => {
+    expect(
+      InteractionFixtureContentRevocationSchema.safeParse({ ...revocation, ...override }).success,
     ).toBe(false);
   });
 });

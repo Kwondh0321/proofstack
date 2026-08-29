@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ArtifactTombstoneReasonSchema } from "./artifact.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { InteractionCaptureManifestSchema } from "./interaction.js";
 import {
@@ -12,6 +13,7 @@ import {
 export const REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION = "0.1" as const;
 export const RECORDED_INTERACTION_FIXTURE_VERSION_SCHEMA_VERSION = "0.2" as const;
 export const REGRESSION_DATASET_VERSION_SCHEMA_VERSION = "0.1" as const;
+export const INTERACTION_FIXTURE_CONTENT_REVOCATION_SCHEMA_VERSION = "0.1" as const;
 export const MAX_FIXTURE_SOURCE_EVENTS = 1_000;
 export const MAX_DATASET_FIXTURE_VERSIONS = 500;
 export const MAX_REGRESSION_VERSION_NAME_CHARACTERS = 128;
@@ -113,6 +115,29 @@ export const PublishInteractionFixtureVersionRequestSchema = z
       });
     }
   });
+
+export const InteractionFixtureContentAvailabilitySchema = z.enum([
+  "available",
+  "revoked",
+  "unavailable",
+]);
+
+export const RevokeInteractionFixtureContentRequestSchema = z
+  .object({ reason: ArtifactTombstoneReasonSchema })
+  .strict();
+
+export const InteractionFixtureContentRevocationSchema = z
+  .object({
+    fixtureId: OpaqueIdSchema,
+    fixtureVersionId: OpaqueIdSchema,
+    reason: ArtifactTombstoneReasonSchema,
+    revocationId: OpaqueIdSchema,
+    revokedAt: UtcMillisecondTimestampSchema,
+    revokedByPrincipalId: OpaqueIdSchema,
+    schemaVersion: z.literal(INTERACTION_FIXTURE_CONTENT_REVOCATION_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict();
 
 export const RegressionFixturePredecessorSchema = z
   .object({
@@ -370,6 +395,12 @@ export const RegressionDatasetVersionSchema = z
 export type PublishRegressionDatasetVersionRequest = z.infer<
   typeof PublishRegressionDatasetVersionRequestSchema
 >;
+export type InteractionFixtureContentAvailability = z.infer<
+  typeof InteractionFixtureContentAvailabilitySchema
+>;
+export type InteractionFixtureContentRevocation = z.infer<
+  typeof InteractionFixtureContentRevocationSchema
+>;
 export type PublishInteractionFixtureVersionRequest = z.infer<
   typeof PublishInteractionFixtureVersionRequestSchema
 >;
@@ -401,4 +432,7 @@ export type RecordedInteractionFixtureVersion = z.infer<
 >;
 export type RequestedRegressionFixtureVersionReference = z.infer<
   typeof RequestedRegressionFixtureVersionReferenceSchema
+>;
+export type RevokeInteractionFixtureContentRequest = z.infer<
+  typeof RevokeInteractionFixtureContentRequestSchema
 >;

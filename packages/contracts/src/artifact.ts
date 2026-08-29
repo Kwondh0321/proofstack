@@ -230,7 +230,12 @@ export const ArtifactMetadataSchema = z
     }
   });
 
-export const ArtifactTombstoneTriggerSchema = z.enum(["manual", "retention", "abandoned"]);
+export const ArtifactTombstoneTriggerSchema = z.enum([
+  "manual",
+  "retention",
+  "abandoned",
+  "fixture_revocation",
+]);
 
 export const ArtifactTombstoneReasonSchema = z
   .string()
