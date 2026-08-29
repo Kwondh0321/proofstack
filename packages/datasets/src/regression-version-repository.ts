@@ -1,6 +1,9 @@
 import type {
   ArtifactOwnership,
+  ArtifactTombstone,
   EvidenceScope,
+  InteractionFixtureContentAvailability,
+  InteractionFixtureContentRevocation,
   RecordedInteractionFixtureVersion,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
@@ -14,13 +17,29 @@ export interface PublishRegressionVersionResult<Version> {
 }
 
 export interface StoredRecordedInteractionFixtureVersion {
-  /** Canonically ordered by artifact identifier and detached from repository-owned state. */
+  /** Ordered exactly like the immutable fixture artifact bindings and detached from stored state. */
   readonly ownerships: readonly ArtifactOwnership[];
   readonly version: RecordedInteractionFixtureVersion;
 }
 
 export interface PublishRecordedInteractionFixtureVersionResult
   extends StoredRecordedInteractionFixtureVersion {
+  readonly created: boolean;
+}
+
+export interface StoredInteractionFixtureContent extends StoredRecordedInteractionFixtureVersion {
+  readonly contentAvailability: InteractionFixtureContentAvailability;
+  readonly revocation: InteractionFixtureContentRevocation | null;
+  /** Ordered like `ownerships`; empty until explicit full-fixture revocation. */
+  readonly tombstones: readonly ArtifactTombstone[];
+}
+
+export interface RevokeInteractionFixtureContentCandidate {
+  readonly revocation: InteractionFixtureContentRevocation;
+  readonly tombstones: readonly ArtifactTombstone[];
+}
+
+export interface RevokeInteractionFixtureContentResult extends StoredInteractionFixtureContent {
   readonly created: boolean;
 }
 
@@ -112,6 +131,11 @@ export interface RegressionVersionRepository {
  * An identical retry returns the original version and ownership provenance with `created: false`.
  */
 export interface InteractionFixtureVersionRepository extends RegressionVersionRepository {
+  findRecordedInteractionFixtureContent(
+    scope: EvidenceScope,
+    fixtureVersionId: string,
+  ): Promise<StoredInteractionFixtureContent | null>;
+
   findRecordedInteractionFixtureVersion(
     scope: EvidenceScope,
     fixtureVersionId: string,
@@ -120,4 +144,12 @@ export interface InteractionFixtureVersionRepository extends RegressionVersionRe
   publishRecordedInteractionFixtureVersion(
     candidate: RecordedInteractionFixtureVersion,
   ): Promise<PublishRecordedInteractionFixtureVersionResult>;
+
+  /**
+   * Atomically appends one immutable full-fixture revocation and tombstones every owned artifact.
+   * Object deletion is deliberately outside this transaction and is resumed by purge maintenance.
+   */
+  revokeRecordedInteractionFixtureContent(
+    candidate: RevokeInteractionFixtureContentCandidate,
+  ): Promise<RevokeInteractionFixtureContentResult>;
 }

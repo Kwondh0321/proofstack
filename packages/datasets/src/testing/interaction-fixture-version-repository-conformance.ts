@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type {
   ArtifactMetadata,
+  ArtifactTombstone,
   EvidenceScope,
   InteractionArtifactBinding,
   InteractionCaptureManifest,
+  InteractionFixtureContentRevocation,
   RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersionDefinition,
@@ -19,8 +21,11 @@ import {
 } from "@proofstack/contracts";
 import {
   RegressionArtifactBindingError,
+  RegressionFixtureContentRevocationConflictError,
+  RegressionRepositoryContractError,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
+  RegressionVersionNotFoundError,
 } from "../errors.js";
 import { digestRecordedInteractionFixtureVersionDefinition } from "../interaction-fixture-definition-digest.js";
 import {
@@ -160,6 +165,42 @@ function reference(version: RecordedInteractionFixtureVersion) {
     definitionSha256: version.definitionSha256,
     fixtureId: version.fixtureId,
     fixtureVersionId: version.fixtureVersionId,
+  };
+}
+
+function revocationCandidate(
+  version: RecordedInteractionFixtureVersion,
+  ownerships: readonly { readonly artifactId: string }[],
+  overrides: {
+    readonly reason?: string;
+    readonly revocationId?: string;
+    readonly revokedAt?: string;
+    readonly revokedByPrincipalId?: string;
+  } = {},
+): {
+  readonly revocation: InteractionFixtureContentRevocation;
+  readonly tombstones: readonly ArtifactTombstone[];
+} {
+  const revocation: InteractionFixtureContentRevocation = {
+    fixtureId: version.fixtureId,
+    fixtureVersionId: version.fixtureVersionId,
+    reason: overrides.reason ?? "Revoke the complete captured interaction content set",
+    revocationId: overrides.revocationId ?? `rev_${version.fixtureVersionId}`,
+    revokedAt: overrides.revokedAt ?? "2026-08-29T05:03:00.000Z",
+    revokedByPrincipalId: overrides.revokedByPrincipalId ?? "usr_privacy_operator",
+    schemaVersion: "0.1",
+    scope: version.scope,
+  };
+  return {
+    revocation,
+    tombstones: ownerships.map(({ artifactId }, index) => ({
+      actorPrincipalId: revocation.revokedByPrincipalId,
+      artifactId,
+      occurredAt: revocation.revokedAt,
+      reason: revocation.reason,
+      tombstoneId: `del_${version.fixtureVersionId}_${index}`,
+      trigger: "fixture_revocation",
+    })),
   };
 }
 
@@ -523,6 +564,140 @@ export const interactionFixtureVersionRepositoryConformanceCases: readonly Inter
         }),
     },
     {
+      name: "atomically revokes the complete owned content set and preserves first attribution",
+      run: async (factory) =>
+        withHarness(factory, "interaction_revoke", async (harness) => {
+          const predecessor = evidenceFixture("interaction_revoke");
+          const candidate = recordedFixture("interaction_revoke", { predecessor });
+          await publishPrerequisites(harness, predecessor, candidate);
+          const published =
+            await harness.repository.publishRecordedInteractionFixtureVersion(candidate);
+          const revocation = revocationCandidate(candidate, published.ownerships);
+
+          assert.equal(
+            (
+              await harness.repository.findRecordedInteractionFixtureContent(
+                candidate.scope,
+                candidate.fixtureVersionId,
+              )
+            )?.contentAvailability,
+            "available",
+          );
+          const first =
+            await harness.repository.revokeRecordedInteractionFixtureContent(revocation);
+          assert.equal(first.created, true);
+          assert.equal(first.contentAvailability, "revoked");
+          assert.deepEqual(first.revocation, revocation.revocation);
+          assert.deepEqual(first.tombstones, revocation.tombstones);
+
+          const retryCandidate = revocationCandidate(candidate, published.ownerships, {
+            revocationId: "rev_retry",
+            revokedAt: "2026-08-29T05:04:00.000Z",
+            revokedByPrincipalId: "usr_retry",
+          });
+          const retry =
+            await harness.repository.revokeRecordedInteractionFixtureContent(retryCandidate);
+          assert.equal(retry.created, false);
+          assert.deepEqual(retry.revocation, first.revocation);
+          assert.deepEqual(retry.tombstones, first.tombstones);
+
+          await assert.rejects(
+            harness.repository.revokeRecordedInteractionFixtureContent(
+              revocationCandidate(candidate, published.ownerships, {
+                reason: "A different immutable decision",
+              }),
+            ),
+            RegressionFixtureContentRevocationConflictError,
+          );
+        }),
+    },
+    {
+      name: "rolls back every content tombstone when revocation commit fails",
+      run: async (factory) =>
+        withHarness(factory, "interaction_revoke_atomic", async (harness) => {
+          const predecessor = evidenceFixture("interaction_revoke_atomic");
+          const candidate = recordedFixture("interaction_revoke_atomic", { predecessor });
+          await publishPrerequisites(harness, predecessor, candidate);
+          const published =
+            await harness.repository.publishRecordedInteractionFixtureVersion(candidate);
+          const revocation = revocationCandidate(candidate, published.ownerships);
+          await harness.failNextPublicationIntent("interaction_revocation");
+
+          await assert.rejects(
+            harness.repository.revokeRecordedInteractionFixtureContent(revocation),
+            /Injected interaction_revocation regression publication intent failure/,
+          );
+          assert.deepEqual(
+            await harness.repository.findRecordedInteractionFixtureContent(
+              candidate.scope,
+              candidate.fixtureVersionId,
+            ),
+            {
+              contentAvailability: "available",
+              ownerships: published.ownerships,
+              revocation: null,
+              tombstones: [],
+              version: candidate,
+            },
+          );
+          assert.equal(
+            (await harness.repository.revokeRecordedInteractionFixtureContent(revocation))
+              .contentAvailability,
+            "revoked",
+          );
+        }),
+    },
+    {
+      name: "rejects missing, partial, and non-canonical fixture revocation candidates",
+      run: async (factory) =>
+        withHarness(factory, "interaction_revoke_contract", async (harness) => {
+          const predecessor = evidenceFixture("interaction_revoke_contract");
+          const candidate = recordedFixture("interaction_revoke_contract", { predecessor });
+          const unboundOwnerships = candidate.interactionCapture.artifacts.map(
+            ({ contentReference }) => ({ artifactId: contentReference.artifactId }),
+          );
+          await assert.rejects(
+            harness.repository.revokeRecordedInteractionFixtureContent(
+              revocationCandidate(candidate, unboundOwnerships),
+            ),
+            RegressionVersionNotFoundError,
+          );
+
+          await publishPrerequisites(harness, predecessor, candidate);
+          const published =
+            await harness.repository.publishRecordedInteractionFixtureVersion(candidate);
+          const valid = revocationCandidate(candidate, published.ownerships);
+          const firstTombstone = valid.tombstones[0];
+          assert.ok(firstTombstone);
+          await assert.rejects(
+            harness.repository.revokeRecordedInteractionFixtureContent({
+              ...valid,
+              tombstones: valid.tombstones.slice(1),
+            }),
+            RegressionRepositoryContractError,
+          );
+          await assert.rejects(
+            harness.repository.revokeRecordedInteractionFixtureContent({
+              ...valid,
+              tombstones: [
+                { ...firstTombstone, actorPrincipalId: "usr_wrong_actor" },
+                ...valid.tombstones.slice(1),
+              ],
+            }),
+            RegressionRepositoryContractError,
+          );
+          assert.equal(
+            (
+              await harness.repository.findRecordedInteractionFixtureContent(
+                candidate.scope,
+                candidate.fixtureVersionId,
+              )
+            )?.contentAvailability,
+            "available",
+          );
+        }),
+    },
+    {
       name: "hides recorded fixture metadata outside the exact project and environment",
       run: async (factory) =>
         withHarness(factory, "interaction_scope", async (harness) => {
@@ -538,6 +713,13 @@ export const interactionFixtureVersionRepositoryConformanceCases: readonly Inter
           ]) {
             assert.equal(
               await harness.repository.findRecordedInteractionFixtureVersion(
+                hidden,
+                candidate.fixtureVersionId,
+              ),
+              null,
+            );
+            assert.equal(
+              await harness.repository.findRecordedInteractionFixtureContent(
                 hidden,
                 candidate.fixtureVersionId,
               ),

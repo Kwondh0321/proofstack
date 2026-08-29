@@ -34,6 +34,15 @@ export class RegressionArtifactBindingError extends Error {
   }
 }
 
+export class RegressionFixtureContentRevocationConflictError extends Error {
+  readonly code = "regression_fixture_content_revocation_conflict";
+
+  constructor() {
+    super("Fixture content has already been revoked under a different immutable decision");
+    this.name = "RegressionFixtureContentRevocationConflictError";
+  }
+}
+
 export class InvalidRegressionVersionInputError extends TypeError {
   readonly code = "regression_version_input_invalid";
 

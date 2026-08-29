@@ -5,7 +5,11 @@ import {
   ArtifactMetadataSchema,
   type ArtifactOwnership,
   ArtifactOwnershipSchema,
+  type ArtifactTombstone,
+  ArtifactTombstoneSchema,
   type EvidenceScope,
+  type InteractionFixtureContentRevocation,
+  InteractionFixtureContentRevocationSchema,
   type RecordedInteractionFixtureVersion,
   type RegressionDatasetVersion,
   type RegressionFixtureVersion,
@@ -14,9 +18,11 @@ import {
 } from "@proofstack/contracts";
 import {
   RegressionArtifactBindingError,
+  RegressionFixtureContentRevocationConflictError,
   RegressionRepositoryContractError,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
+  RegressionVersionNotFoundError,
 } from "../errors.js";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -37,6 +43,9 @@ import type {
   PublishRecordedInteractionFixtureVersionResult,
   PublishRegressionVersionResult,
   ResolveRegressionFixtureVersionReferencesResult,
+  RevokeInteractionFixtureContentCandidate,
+  RevokeInteractionFixtureContentResult,
+  StoredInteractionFixtureContent,
   StoredRecordedInteractionFixtureVersion,
 } from "../regression-version-repository.js";
 import type { RegressionVersionPublicationKind } from "./regression-version-repository-test-control.js";
@@ -49,11 +58,13 @@ interface LogicalResourceBinding {
 interface TenantState {
   readonly artifactMetadata: Map<string, ArtifactMetadata>;
   readonly artifactOwnerships: Map<string, ArtifactOwnership>;
+  readonly artifactTombstones: Map<string, ArtifactTombstone>;
   readonly datasetResources: Map<string, LogicalResourceBinding>;
   readonly datasetVersions: Map<string, RegressionDatasetVersion>;
   readonly fixtureResources: Map<string, LogicalResourceBinding>;
   readonly fixtureVersions: Map<string, RegressionFixtureVersion>;
   readonly publicationIntents: Map<string, RegressionVersionPublishedOutboxIntent>;
+  readonly recordedContentRevocations: Map<string, InteractionFixtureContentRevocation>;
   readonly recordedFixtureVersions: Map<string, RecordedInteractionFixtureVersion>;
 }
 
@@ -65,11 +76,13 @@ function emptyTenantState(): TenantState {
   return {
     artifactMetadata: new Map(),
     artifactOwnerships: new Map(),
+    artifactTombstones: new Map(),
     datasetResources: new Map(),
     datasetVersions: new Map(),
     fixtureResources: new Map(),
     fixtureVersions: new Map(),
     publicationIntents: new Map(),
+    recordedContentRevocations: new Map(),
     recordedFixtureVersions: new Map(),
   };
 }
@@ -78,11 +91,13 @@ function copyTenantState(state: TenantState): TenantState {
   return {
     artifactMetadata: new Map(state.artifactMetadata),
     artifactOwnerships: new Map(state.artifactOwnerships),
+    artifactTombstones: new Map(state.artifactTombstones),
     datasetResources: new Map(state.datasetResources),
     datasetVersions: new Map(state.datasetVersions),
     fixtureResources: new Map(state.fixtureResources),
     fixtureVersions: new Map(state.fixtureVersions),
     publicationIntents: new Map(state.publicationIntents),
+    recordedContentRevocations: new Map(state.recordedContentRevocations),
     recordedFixtureVersions: new Map(state.recordedFixtureVersions),
   };
 }
@@ -203,6 +218,61 @@ function storedRecordedFixtureRecord(
     buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored),
   );
   return { ownerships, version: clone(stored) };
+}
+
+function storedInteractionFixtureContent(
+  state: TenantState,
+  input: unknown,
+): StoredInteractionFixtureContent {
+  const record = storedRecordedFixtureRecord(state, input);
+  const revocationInput = state.recordedContentRevocations.get(record.version.fixtureVersionId);
+  if (revocationInput) {
+    const revocation = InteractionFixtureContentRevocationSchema.safeParse(revocationInput);
+    if (
+      !revocation.success ||
+      revocation.data.fixtureId !== record.version.fixtureId ||
+      !scopesEqual(revocation.data.scope, record.version.scope)
+    ) {
+      throw new RegressionRepositoryContractError(
+        "Stored interaction fixture content revocation violates the repository contract",
+      );
+    }
+    const tombstones = record.ownerships.map((ownership) => {
+      const tombstone = ArtifactTombstoneSchema.safeParse(
+        state.artifactTombstones.get(ownership.artifactId),
+      );
+      if (
+        !tombstone.success ||
+        tombstone.data.actorPrincipalId !== revocation.data.revokedByPrincipalId ||
+        tombstone.data.occurredAt !== revocation.data.revokedAt ||
+        tombstone.data.reason !== revocation.data.reason ||
+        tombstone.data.trigger !== "fixture_revocation"
+      ) {
+        throw new RegressionRepositoryContractError(
+          "Stored interaction fixture tombstones violate the repository contract",
+        );
+      }
+      return tombstone.data;
+    });
+    return {
+      contentAvailability: "revoked",
+      ownerships: record.ownerships,
+      revocation: revocation.data,
+      tombstones,
+      version: record.version,
+    };
+  }
+  const available = record.ownerships.every((ownership) => {
+    const metadata = state.artifactMetadata.get(ownership.artifactId);
+    return metadata?.state === "available";
+  });
+  return {
+    contentAvailability: available ? "available" : "unavailable",
+    ownerships: record.ownerships,
+    revocation: null,
+    tombstones: [],
+    version: record.version,
+  };
 }
 
 interface StoredFixtureReferenceTarget {
@@ -383,6 +453,16 @@ export class MemoryRegressionVersionRepository implements InteractionFixtureVers
     return clone(storedRecordedFixtureRecord(state, stored));
   }
 
+  async findRecordedInteractionFixtureContent(
+    scope: EvidenceScope,
+    fixtureVersionId: string,
+  ): Promise<StoredInteractionFixtureContent | null> {
+    const state = this.tenants.get(scope.tenantId);
+    const stored = state?.recordedFixtureVersions.get(fixtureVersionId);
+    if (!state || !stored || !hasExactStoredScope(stored, scope)) return null;
+    return clone(storedInteractionFixtureContent(state, stored));
+  }
+
   async fixtureResourceExists(scope: EvidenceScope, fixtureId: string): Promise<boolean> {
     const binding = this.tenants.get(scope.tenantId)?.fixtureResources.get(fixtureId);
     return binding !== undefined && hasExactStoredScope(binding, scope);
@@ -493,6 +573,63 @@ export class MemoryRegressionVersionRepository implements InteractionFixtureVers
     this.throwInjectedIntentFailure("interaction_fixture");
     this.tenants.set(version.scope.tenantId, next);
     return { created: true, ownerships: clone(ownerships), version: clone(stored) };
+  }
+
+  async revokeRecordedInteractionFixtureContent(
+    candidate: RevokeInteractionFixtureContentCandidate,
+  ): Promise<RevokeInteractionFixtureContentResult> {
+    const revocation = InteractionFixtureContentRevocationSchema.parse(candidate.revocation);
+    const tombstones = candidate.tombstones.map((value) => ArtifactTombstoneSchema.parse(value));
+    const current = this.tenants.get(revocation.scope.tenantId);
+    const stored = current?.recordedFixtureVersions.get(revocation.fixtureVersionId);
+    if (
+      !current ||
+      !stored ||
+      !hasExactStoredScope(stored, revocation.scope) ||
+      stored.fixtureId !== revocation.fixtureId
+    ) {
+      throw new RegressionVersionNotFoundError();
+    }
+    const existing = current.recordedContentRevocations.get(revocation.fixtureVersionId);
+    if (existing) {
+      if (existing.reason !== revocation.reason) {
+        throw new RegressionFixtureContentRevocationConflictError();
+      }
+      return { created: false, ...clone(storedInteractionFixtureContent(current, stored)) };
+    }
+    const content = storedInteractionFixtureContent(current, stored);
+    if (tombstones.length !== content.ownerships.length) {
+      throw new RegressionRepositoryContractError(
+        "Interaction fixture revocation tombstone set is incomplete",
+      );
+    }
+    const next = copyTenantState(current);
+    next.recordedContentRevocations.set(revocation.fixtureVersionId, clone(revocation));
+    for (const [index, tombstone] of tombstones.entries()) {
+      const ownership = content.ownerships[index] as ArtifactOwnership;
+      const metadata = current.artifactMetadata.get(ownership.artifactId);
+      if (
+        metadata?.state !== "available" ||
+        tombstone.artifactId !== ownership.artifactId ||
+        tombstone.actorPrincipalId !== revocation.revokedByPrincipalId ||
+        tombstone.occurredAt !== revocation.revokedAt ||
+        tombstone.reason !== revocation.reason ||
+        tombstone.trigger !== "fixture_revocation"
+      ) {
+        throw new RegressionRepositoryContractError(
+          "Interaction fixture revocation tombstone set is invalid",
+        );
+      }
+      next.artifactTombstones.set(tombstone.artifactId, clone(tombstone));
+      next.artifactMetadata.set(tombstone.artifactId, {
+        ...metadata,
+        state: "tombstoned",
+        tombstonedAt: tombstone.occurredAt,
+      });
+    }
+    this.throwInjectedIntentFailure("interaction_revocation");
+    this.tenants.set(revocation.scope.tenantId, next);
+    return { created: true, ...clone(storedInteractionFixtureContent(next, stored)) };
   }
 
   async resolveFixtureVersionReferences(

@@ -253,12 +253,14 @@ function harness(): Harness {
     datasetResourceExists: vi.fn().mockResolvedValue(false),
     findDatasetVersion: vi.fn().mockResolvedValue(null),
     findFixtureVersion: findEvidence,
+    findRecordedInteractionFixtureContent: vi.fn().mockResolvedValue(null),
     findRecordedInteractionFixtureVersion: findRecorded,
     fixtureResourceExists: vi.fn().mockResolvedValue(true),
     publishDatasetVersion: vi.fn(),
     publishFixtureVersion: vi.fn(),
     publishRecordedInteractionFixtureVersion: publishRecorded,
     resolveFixtureVersionReferences: vi.fn().mockResolvedValue(null),
+    revokeRecordedInteractionFixtureContent: vi.fn(),
   };
   return {
     clockNow,

@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import type {
+  ArtifactMetadata,
+  ArtifactTombstone,
+  InteractionFixtureContentRevocation,
   RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersion,
@@ -153,6 +156,27 @@ function recordedCandidate(
   });
 }
 
+async function publishRecordedCandidate(
+  repository: MemoryRegressionVersionRepository,
+  predecessor: RegressionFixtureVersion,
+  recorded: RecordedInteractionFixtureVersion,
+): Promise<void> {
+  for (const binding of recorded.interactionCapture.artifacts) {
+    repository.seedInteractionArtifact({
+      availableAt: "2026-08-29T01:00:50.000Z",
+      contentReference: binding.contentReference,
+      createdAt: "2026-08-29T01:00:40.000Z",
+      redaction: binding.redaction,
+      retention: binding.retention,
+      schemaVersion: "0.1",
+      scope: recorded.scope,
+      state: "available",
+    });
+  }
+  await repository.publishFixtureVersion(predecessor);
+  await repository.publishRecordedInteractionFixtureVersion(recorded);
+}
+
 describe("MemoryRegressionVersionRepository conformance", () => {
   for (const testCase of regressionVersionRepositoryConformanceCases) {
     it(testCase.name, async () => testCase.run(factory));
@@ -300,6 +324,64 @@ describe("MemoryRegressionVersionRepository internal integrity", () => {
       repository.resolveFixtureVersionReferences(fixture.scope, [
         { fixtureId: fixture.fixtureId, fixtureVersionId: fixture.fixtureVersionId },
       ]),
+    ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
+  });
+
+  it("reports incomplete content and fails closed on corrupt revocation records", async () => {
+    const repository = new MemoryRegressionVersionRepository();
+    const predecessor = fixtureCandidate();
+    const recorded = recordedCandidate(predecessor);
+    await publishRecordedCandidate(repository, predecessor, recorded);
+
+    interface UnsafeTenantState {
+      readonly artifactMetadata: Map<string, ArtifactMetadata>;
+      readonly artifactTombstones: Map<string, ArtifactTombstone>;
+      readonly recordedContentRevocations: Map<string, InteractionFixtureContentRevocation>;
+    }
+    const tenants = (repository as unknown as { readonly tenants: Map<string, UnsafeTenantState> })
+      .tenants;
+    const state = tenants.get(recorded.scope.tenantId);
+    expect(state).toBeDefined();
+    if (!state) throw new Error("Expected memory repository tenant state");
+    const firstArtifactId = recorded.interactionCapture.artifacts[0]?.contentReference.artifactId;
+    expect(firstArtifactId).toBeDefined();
+    if (!firstArtifactId) throw new Error("Expected recorded interaction artifact");
+    const availableMetadata = state.artifactMetadata.get(firstArtifactId);
+    expect(availableMetadata).toBeDefined();
+    if (!availableMetadata) throw new Error("Expected recorded interaction artifact metadata");
+
+    state.artifactMetadata.set(firstArtifactId, {
+      ...availableMetadata,
+      state: "tombstoned",
+      tombstonedAt: "2026-08-29T01:03:00.000Z",
+    });
+    await expect(
+      repository.findRecordedInteractionFixtureContent(recorded.scope, recorded.fixtureVersionId),
+    ).resolves.toMatchObject({ contentAvailability: "unavailable" });
+    state.artifactMetadata.set(firstArtifactId, availableMetadata);
+
+    const validRevocation: InteractionFixtureContentRevocation = {
+      fixtureId: recorded.fixtureId,
+      fixtureVersionId: recorded.fixtureVersionId,
+      reason: "Revoke the complete captured interaction content set",
+      revocationId: "rev_internal_contract",
+      revokedAt: "2026-08-29T01:03:00.000Z",
+      revokedByPrincipalId: "usr_internal_privacy_operator",
+      schemaVersion: "0.1",
+      scope: recorded.scope,
+    };
+    state.recordedContentRevocations.set(recorded.fixtureVersionId, {
+      ...validRevocation,
+      schemaVersion: "9",
+    } as never);
+    await expect(
+      repository.findRecordedInteractionFixtureContent(recorded.scope, recorded.fixtureVersionId),
+    ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
+
+    state.recordedContentRevocations.set(recorded.fixtureVersionId, validRevocation);
+    state.artifactTombstones.clear();
+    await expect(
+      repository.findRecordedInteractionFixtureContent(recorded.scope, recorded.fixtureVersionId),
     ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
   });
 });

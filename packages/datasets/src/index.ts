@@ -24,4 +24,5 @@ export {
   validateAndProjectRegressionFixtureVersion,
 } from "./regression-version-definition.js";
 export * from "./regression-version-repository.js";
+export * from "./revoke-recorded-interaction-fixture-content.js";
 export { MemoryRegressionVersionRepository } from "./testing/memory-regression-version-repository.js";
