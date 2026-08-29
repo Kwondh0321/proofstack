@@ -1,6 +1,8 @@
 export * from "./errors.js";
 export * from "./publish-regression-dataset-version.js";
 export * from "./publish-regression-fixture-version.js";
+export * from "./read-regression-dataset-version.js";
+export * from "./read-regression-fixture-version.js";
 export * from "./regression-publication-outbox.js";
 export * from "./regression-definition-digest.js";
 export {
