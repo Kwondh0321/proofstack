@@ -111,9 +111,12 @@ tools, change policy, or approve a release.
   explicit bindings, authoritative verification, rotation or revocation, and sanitized lifecycle
   audit. A real-provider deployment matrix, console sign-in integration, and production TLS proxy
   artifact are not yet complete.
-- The artifact domain, PostgreSQL catalog, S3-compatible adapter, tombstones, purge receipts, and
-  scoped maintenance commands are implemented. API routes, continuously scheduled workers, a
-  production external key provider, and provider deployment topology are not.
+- The artifact domain, PostgreSQL catalog, S3-compatible adapter, API and SDK capture/export
+  routes, fixture ownership, tombstones, purge receipts, and scoped maintenance commands are
+  implemented. Structured credential fields and configured scanner findings fail before object
+  storage, but no scanner proves opaque bytes secret-free. Continuously scheduled workers, a
+  production external key provider, scanner qualification, and provider deployment topology are
+  not.
 - Production key rotation or rewrap and disaster-recovery deletion guarantees remain
   provider-specific and unproven.
 - Rate limiting is local to one API process and is not a distributed quota.
@@ -121,8 +124,8 @@ tools, change policy, or approve a release.
   include gRPC, other signals, generic secret detection, raw-input quarantine, distributed loss
   metrics, or a production collector compatibility matrix.
 - There is no tamper-evident audit ledger, signed evidence, or production release gate.
-- Workflow 1 now includes immutable evidence-only fixture and dataset catalogs. Retention-safe
-  interaction capture, executable replay workers, evaluator assurance, assessments, and comparison
+- Workflow 1 now includes immutable evidence-only catalogs and retention-safe classified
+  interaction capture. Executable replay workers, evaluator assurance, assessments, and comparison
   surfaces are not yet implemented.
 
 These limitations are visible product state. They must not be hidden behind configuration defaults

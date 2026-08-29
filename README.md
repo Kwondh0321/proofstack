@@ -10,12 +10,13 @@ evaluating, governing, and safely releasing AI agents.
 > [!IMPORTANT]
 > ProofStack is an experimental foundation, not a production release. The implemented path is real
 > and tested, including optional PostgreSQL persistence, scoped workload API keys, the OIDC
-> browser-session backend, and bounded OTLP/HTTP trace ingestion. The encrypted artifact domain and
-> maintenance path are also tested, but are not yet exposed through the API or composed with a
-> production key provider. Coordinated reference backup and isolated restore are rehearsed, but do
-> not constitute provider-specific production disaster recovery. Immutable evidence-only
-> regression fixture and dataset versions are implemented; executable replay, console sign-in
-> integration, evaluation, and release gates are intentionally not represented as complete.
+> browser-session backend, bounded OTLP/HTTP trace ingestion, and retention-safe classified model
+> and tool interaction capture. The capture path is API- and SDK-accessible and tested through
+> encrypted artifact ownership, revocation, export, and coordinated recovery, but it is not
+> executable replay and is not composed with a production key provider. Coordinated reference
+> backup and isolated restore do not constitute provider-specific production disaster recovery.
+> Console sign-in integration, replay, evaluation, and release gates are intentionally not
+> represented as complete.
 
 ## Why ProofStack
 
@@ -51,9 +52,10 @@ release when a declared policy regresses.
 | Artifact operations | Scoped reconciliation, retention, abandoned-upload cleanup, purge retry, and referenced-key inspection |
 | Recovery | Fail-closed PostgreSQL dumps, canonical recovery manifests and inventories, empty-target coordinated restore, fresh roles, and tenant-adversarial verification |
 | Regression catalog | Immutable observed trace snapshots and ordered dataset versions through memory, PostgreSQL, API, OpenAPI, SDK, outbox, and recovery boundaries |
+| Interaction capture | Fixture-owned classified model and tool attempts, exact artifact lineage, metadata/content export, revocation, purge, and recovery without replay |
 | TypeScript SDK | Generated IDs, bounded telemetry delivery, and a fail-closed exact-version regression client with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable parent/child trace plus an executable evidence-only incident-to-regression flow through the real SDK and API |
+| Examples | Runnable trace, evidence-only regression, and provider-neutral classified interaction-capture flows through the real SDK and API |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -78,9 +80,10 @@ option: migration integrity, database-enforced tenant isolation, immutable evide
 evidence/outbox writes, and five isolated least-privilege runtime roles are covered by real
 PostgreSQL tests. The experimental API-key mode is end-to-end functional for workloads. The OIDC
 browser API is functional with server-side bindings and sessions; provider deployment validation
-and operator console sign-in integration remain unfinished. Artifact lifecycle operations are
-available as domain libraries and one-shot operator commands; API capture/read routes, continuous
-scheduling, and a production external key provider remain unfinished.
+and operator console sign-in integration remain unfinished. Artifact lifecycle and
+interaction-capture operations are available through the API and TypeScript SDK as well as domain
+libraries and one-shot operator commands. Continuous maintenance scheduling and a production
+external key provider remain unfinished.
 The bounded OTLP/HTTP trace profile accepts standard JSON or binary Protobuf exporters at
 `/v1/traces`; OTLP/gRPC, non-trace signals, distributed quotas, and a production collector matrix
 remain outside the implemented claim.
@@ -115,9 +118,20 @@ pnpm example:incident-to-regression
 The second command emits a failed trace, freezes one exact evidence-only fixture, publishes one
 dataset version, reads both versions back, and prints their immutable digests. See the
 [incident-to-regression guide](docs/guides/incident-to-regression.md) for authority, idempotency,
-failure, and non-replay boundaries, and the
-[local development guide](docs/development/local-development.md) for configuration and
-troubleshooting.
+failure, and non-replay boundaries.
+
+To capture and then revoke an exact provider-neutral model/tool interaction boundary:
+
+```bash
+pnpm example:interaction-capture
+```
+
+The capture example stores eleven dedicated classified artifacts, publishes an immutable
+`recorded_interactions` successor, verifies plaintext-free metadata and acknowledged exact-content
+exports, then tombstones and purges the complete owned set. It never executes replay. See the
+[interaction-capture guide](docs/guides/interaction-capture.md) and the
+[local development guide](docs/development/local-development.md) for authority, failure behavior,
+configuration, and troubleshooting.
 
 ## Repository map
 
@@ -136,6 +150,7 @@ services/recovery        Safe logical database operations and isolated recovery 
 sdks/typescript          Provider-neutral telemetry and regression control-plane clients
 examples/basic-agent     Verified SDK-to-API trace example
 examples/incident-to-regression  Executable evidence-only regression catalog flow
+examples/interaction-capture  Provider-neutral classified model/tool capture and revocation flow
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
 docs/operations          Deployment contracts and operator procedures
@@ -176,20 +191,24 @@ the limits that still block a production-readiness claim.
 The [Workflow 1 regression catalog audit](docs/development/workflow-1-regression-catalog-audit.md)
 accepts only the immutable evidence-only catalog checkpoint and lists the replay, evaluation, and
 comparison work that remains open.
+The [Workflow 1 interaction-capture audit](docs/development/workflow-1-interaction-capture-audit.md)
+accepts classified, fixture-owned interaction evidence while explicitly withholding executable
+replay authority.
 
 ## Current boundaries
 
-The current build does not provide console-integrated OIDC sign-in, API-integrated artifact
-capture/read routes, a production external artifact key provider, continuously scheduled artifact
-workers, OTLP/gRPC or non-trace signal ingestion, a deployed outbox publisher, executable replay,
-evaluators, policy enforcement, continuous provider-specific disaster recovery, or production
-deployment artifacts. Immutable evidence-only regression fixtures and datasets, workload API-key,
-and OIDC browser
-authentication and the artifact lifecycle are implemented and tested. The OTLP/HTTP trace profile
-is also implemented, but generic secret detection, distributed quotas, and a production
-exporter/collector matrix are not. Foundation 2's coordinated recovery reference is implemented
-and tested against pinned CI services, but external key recovery, immutable provider backups,
-measured RPO/RTO, off-site retention, and repeated deployment rehearsals remain operator-owned.
+The current build does not provide console-integrated OIDC sign-in, a production external artifact
+key provider, continuously scheduled artifact workers, OTLP/gRPC or non-trace signal ingestion, a
+deployed outbox publisher, executable replay, evaluators, policy enforcement, continuous
+provider-specific disaster recovery, or production deployment artifacts. Immutable evidence-only
+regression versions, fixture-owned classified interaction capture, workload API-key and OIDC
+browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile are implemented and
+tested. The built-in content inspector rejects structured credential fields and supports
+configured scanners, but no scanner proves arbitrary opaque bytes secret-free; scanner
+qualification, distributed quotas, and a production exporter/collector matrix remain
+deployment-owned. Foundation 2's coordinated recovery reference is implemented and tested against
+pinned CI services, but external key recovery, immutable provider backups, measured RPO/RTO,
+off-site retention, and repeated deployment rehearsals remain operator-owned.
 Remaining capabilities have an explicit dependency order and may not bypass the security and
 compatibility gates described in the roadmap.
 

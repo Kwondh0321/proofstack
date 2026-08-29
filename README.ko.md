@@ -10,12 +10,12 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > [!IMPORTANT]
 > ProofStack은 프로덕션 릴리스가 아닌 실험적 기반 단계에 있습니다. 현재 구현된 경로는
 > 선택형 PostgreSQL 영속 저장소, 범위 제한 워크로드 API 키, OIDC 브라우저 세션 백엔드,
-> 제한된 OTLP/HTTP 트레이스 수집을 포함해 실제로 작동하고 검증됩니다. 암호화된 아티팩트
-> 도메인과 유지보수 경로도 검증되었지만 아직 API 또는 프로덕션 키 공급자와 결합되지
-> 않았습니다. 조정된 기준 백업과 격리 복원 절차는 검증되었지만 공급자별 프로덕션 재해
-> 복구를 의미하지 않습니다. 불변 evidence-only 회귀 fixture와 dataset 버전은 구현되었지만,
-> 실행 가능한 재현, 콘솔 로그인 연동, 평가, 릴리스 게이트는 아직 완성된 기능으로 표시하지
-> 않습니다.
+> 제한된 OTLP/HTTP 트레이스 수집과 보존 정책에 안전한 분류 모델·도구 상호작용 캡처를
+> 포함해 실제로 작동하고 검증됩니다. 캡처 경로는 API·SDK에서 사용할 수 있고 암호화된
+> artifact 소유권, revocation, export, 조정 복구까지 검증되었지만 실행 가능한 replay가
+> 아니며 프로덕션 키 공급자와 결합되지 않았습니다. 조정된 기준 백업과 격리 복원은
+> 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 콘솔 로그인 연동, replay, 평가,
+> 릴리스 게이트는 아직 완성된 기능으로 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -53,9 +53,10 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 아티팩트 운영 | 범위 제한 복구, 보존 기간 처리, 중단 업로드 정리, 삭제 재시도, 참조 키 점검 |
 | 복구 | Fail-closed PostgreSQL 덤프, 정규 복구 매니페스트·인벤토리, 빈 대상 조정 복원, 신규 역할, 테넌트 적대적 검증 |
 | 회귀 카탈로그 | 메모리, PostgreSQL, API, OpenAPI, SDK, outbox, 복구 경계를 통과하는 불변 관측 트레이스 스냅샷과 순서가 있는 dataset 버전 |
+| 상호작용 캡처 | Replay 없이 fixture 소유 분류 모델·도구 attempt, 정확 artifact 계보, metadata/content export, revocation, purge, 복구 |
 | TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 SDK와 API를 통과하는 부모/자식 트레이스와 실행 가능한 evidence-only 사고-회귀 흐름 |
+| 예제 | 실제 SDK와 API를 통과하는 trace, evidence-only 회귀, 공급자 중립 분류 상호작용 캡처 흐름 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -80,9 +81,10 @@ flowchart LR
 증거·아웃박스 원자적 기록, 서로 격리된 다섯 개의 최소 권한 런타임 역할을 실제 PostgreSQL
 테스트로 검증합니다. 실험적 API 키 모드는 워크로드에 대해 엔드투엔드로 작동합니다.
 OIDC 브라우저 API도 서버 측 바인딩과 세션을 사용해 작동하지만, 실제 공급자 배포 검증과
-운영자 콘솔 로그인 연동은 아직 완료되지 않았습니다. 아티팩트 수명주기는 도메인
-라이브러리와 일회성 운영 명령으로 사용할 수 있지만, API 수집·조회 경로, 지속적인
-스케줄링, 프로덕션 외부 키 공급자는 아직 완료되지 않았습니다.
+운영자 콘솔 로그인 연동은 아직 완료되지 않았습니다. Artifact lifecycle과
+interaction-capture 연산은 도메인 라이브러리·일회성 운영 명령뿐 아니라 API와 TypeScript
+SDK에서도 사용할 수 있습니다. 지속적인 유지보수 스케줄링과 프로덕션 외부 키 공급자는
+아직 완료되지 않았습니다.
 제한된 OTLP/HTTP 트레이스 프로필은 표준 JSON 또는 바이너리 Protobuf 익스포터 요청을
 `/v1/traces`에서 받습니다. OTLP/gRPC, 트레이스 이외 신호, 분산 할당량, 프로덕션 컬렉터
 검증 매트릭스는 구현 완료 범위에 포함되지 않습니다.
@@ -117,7 +119,18 @@ pnpm example:incident-to-regression
 두 번째 명령은 실패 트레이스를 전송하고, 정확한 evidence-only fixture 하나를 고정하고,
 dataset 버전 하나를 발행한 뒤 두 버전을 다시 조회해 불변 digest를 출력합니다. 권한,
 멱등성, 실패, 비재현 경계는
-[사고-회귀 가이드](docs/guides/incident-to-regression.ko.md), 설정과 문제 해결은
+[사고-회귀 가이드](docs/guides/incident-to-regression.ko.md)를 참고하세요.
+
+정확한 공급자 중립 모델·도구 상호작용 경계를 캡처한 뒤 폐기하려면 다음을 실행합니다.
+
+```bash
+pnpm example:interaction-capture
+```
+
+캡처 예제는 전용 분류 artifact 11개를 저장하고, 불변 `recorded_interactions` successor를
+발행하고, 평문 없는 metadata export와 명시적으로 승인한 정확 content export를 검증한
+뒤 전체 소유 집합을 tombstone·purge합니다. Replay는 실행하지 않습니다. 권한과 실패
+동작은 [상호작용 캡처 가이드](docs/guides/interaction-capture.ko.md), 설정과 문제 해결은
 [로컬 개발 가이드](docs/development/local-development.md)를 참고하세요.
 
 ## 저장소 구성
@@ -137,6 +150,7 @@ services/recovery        안전한 논리 DB 작업과 격리 복구 리허설
 sdks/typescript          공급자 중립 텔레메트리·회귀 control-plane 클라이언트
 examples/basic-agent     검증된 SDK-API 트레이스 예제
 examples/incident-to-regression  실행 가능한 evidence-only 회귀 카탈로그 흐름
+examples/interaction-capture  공급자 중립 분류 모델·도구 캡처와 폐기 흐름
 docs/architecture        번호가 지정된 아키텍처 결정 기록
 docs/operations          배포 계약과 운영자 절차
 docs/product             제품 헌법과 의존 순서가 명시된 로드맵
@@ -179,20 +193,24 @@ scripts                  저장소 수준 아키텍처 경계 검사
 [Workflow 1 회귀 카탈로그 감사 기록](docs/development/workflow-1-regression-catalog-audit.ko.md)은
 불변 evidence-only 카탈로그 체크포인트만 승인하고 아직 남은 재현·평가·비교 작업을
 명시합니다.
+[Workflow 1 상호작용 캡처 감사 기록](docs/development/workflow-1-interaction-capture-audit.ko.md)은
+분류되고 fixture가 소유하는 상호작용 증거를 승인하지만 실행 가능한 replay 권한은
+명시적으로 승인하지 않습니다.
 
 ## 현재의 경계
 
-현재 빌드는 콘솔에 연동된 OIDC 로그인, API에 통합된 아티팩트 수집·조회 경로,
-프로덕션 외부 아티팩트 키 공급자, 지속적으로 스케줄된 아티팩트 워커, OTLP/gRPC 또는
-트레이스 이외 신호 수집, 배포된 아웃박스 발행 서비스, 실행 가능한 재현, 평가기, 정책
-집행, 지속적인 공급자별 재해 복구, 프로덕션 배포 아티팩트를 제공하지 않습니다. 불변
-evidence-only 회귀 fixture와 dataset, 워크로드 API 키, OIDC 브라우저 인증, 아티팩트
-수명주기와 OTLP/HTTP 트레이스 프로필은 구현되고 검증되었습니다. 다만 범용 비밀 탐지,
-분산 할당량,
-프로덕션 익스포터·컬렉터 매트릭스는 아직 없습니다. Foundation 2의 조정 복구 기준은
-고정된 CI 서비스에서 구현되고 검증되었지만, 외부 키 복구, 불변 공급자 백업, 측정된
-RPO/RTO, 오프사이트 보존, 반복 배포 리허설은 운영자가 책임져야 합니다. 남은 기능은
-명시된 의존 순서를 따르며 로드맵의 보안·호환성 게이트를 건너뛸 수 없습니다.
+현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
+스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
+실행 가능한 replay, evaluator, 정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포
+artifact를 제공하지 않습니다. 불변 evidence-only 회귀 버전, fixture 소유 분류 상호작용
+캡처, workload API key와 OIDC browser 인증, artifact lifecycle, OTLP/HTTP trace profile은
+구현되고 검증되었습니다. 기본 content inspector는 구조화된 자격증명 필드를 거부하고
+설정형 scanner를 지원하지만 임의 opaque byte에 비밀이 없음을 증명할 수는 없습니다.
+Scanner 적합성 검증, 분산 할당량, 프로덕션 exporter·collector matrix는 배포 책임입니다.
+Foundation 2의 조정 복구 기준은 고정된 CI 서비스에서 구현되고 검증되었지만 외부 키
+복구, 불변 공급자 백업, 측정된 RPO/RTO, off-site 보존, 반복 배포 리허설은 운영자가
+책임져야 합니다. 남은 기능은 명시된 의존 순서를 따르며 로드맵의 보안·호환성 게이트를
+건너뛸 수 없습니다.
 
 ## 기여와 보안
 

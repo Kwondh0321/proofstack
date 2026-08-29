@@ -233,6 +233,7 @@ curl --fail-with-body http://127.0.0.1:4318/health/live
 curl --fail-with-body http://127.0.0.1:4318/health/ready
 pnpm example:basic-agent
 pnpm example:incident-to-regression
+pnpm example:interaction-capture
 ```
 
 The example sends an `agent.run` event and its child `tool.execute` event, waits for delivery, and
@@ -245,6 +246,14 @@ both definition digests. It uses development authentication and therefore refuse
 endpoints. The [incident-to-regression guide](../guides/incident-to-regression.md) documents the
 browser and workload authentication split, idempotent retry contract, failure semantics, and why
 this checkpoint is not executable replay.
+
+The interaction-capture example emits a failed model/tool trace, reserves and uploads eleven
+fixture-dedicated classified artifacts, publishes one exact recorded-interaction successor,
+verifies metadata and explicitly acknowledged content exports, and then revokes and purges the
+complete content set. The default memory profile is sufficient for this disposable demonstration;
+stopping the API removes its remaining metadata. The
+[interaction-capture guide](../guides/interaction-capture.md) documents authority, secret
+inspection, retry, interoperability, revocation, and non-replay boundaries.
 
 ### Verify OTLP/HTTP ingestion
 
@@ -269,6 +278,14 @@ redaction, and retry guidance in the
 | `PROOFSTACK_DATABASE_URL` | unset | API | Least-privilege runtime database URL in PostgreSQL mode |
 | `PROOFSTACK_IDENTITY_DATABASE_URL` | unset | API | Distinct least-privilege identity URL required outside development auth |
 | `PROOFSTACK_ARTIFACT_DATABASE_URL` | unset | artifact maintenance | Dedicated lifecycle-worker database URL |
+| `PROOFSTACK_ARTIFACT_STORAGE_MODE` | `disabled` | API | Use `s3_local_keyring` with PostgreSQL for persistent classified content; memory mode always uses disposable in-process storage |
+| `PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID` | unset | API | Exact active local artifact-key identifier in the experimental persistent profile |
+| `PROOFSTACK_ARTIFACT_KEYS` | unset | API | Strict JSON object of key IDs to canonical base64url 32-byte keys; experimental and forbidden in production |
+| `PROOFSTACK_ARTIFACT_S3_BUCKET` | unset | API | Existing dedicated artifact bucket for the persistent profile |
+| `PROOFSTACK_ARTIFACT_S3_ENDPOINT` | AWS default | API | Optional S3-compatible endpoint; plaintext is allowed only on loopback outside production |
+| `PROOFSTACK_ARTIFACT_S3_EXPECTED_BUCKET_OWNER` | unset | API | Optional exact AWS account owner assertion |
+| `PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE` | `false` | API | Explicit path-style addressing toggle for compatible local services |
+| `PROOFSTACK_ARTIFACT_S3_REGION` | unset | API | Required S3 region for persistent artifact storage |
 | `PROOFSTACK_OIDC_CLIENT_ID` | unset | API | Provider client identifier required by OIDC modes |
 | `PROOFSTACK_OIDC_CLIENT_SECRET` | unset | API | Provider client secret required by OIDC modes |
 | `PROOFSTACK_OIDC_ISSUER` | unset | API/identity CLI | Exact HTTPS issuer; also selects the binding during create |
