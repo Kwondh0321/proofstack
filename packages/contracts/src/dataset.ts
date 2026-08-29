@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { evidenceTimestampOrderKey, EvidenceScopeSchema } from "./evidence.js";
+import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
+import { InteractionCaptureManifestSchema } from "./interaction.js";
 import {
   OpaqueIdSchema,
   PostgresTimestampSchema,
@@ -9,6 +10,7 @@ import {
 } from "./primitives.js";
 
 export const REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION = "0.1" as const;
+export const RECORDED_INTERACTION_FIXTURE_VERSION_SCHEMA_VERSION = "0.2" as const;
 export const REGRESSION_DATASET_VERSION_SCHEMA_VERSION = "0.1" as const;
 export const MAX_FIXTURE_SOURCE_EVENTS = 1_000;
 export const MAX_DATASET_FIXTURE_VERSIONS = 500;
@@ -81,6 +83,25 @@ export const PublishRegressionFixtureVersionRequestSchema = z
         traceId: TraceIdSchema,
       })
       .strict(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.predecessorVersionId === value.fixtureVersionId) {
+      context.addIssue({
+        code: "custom",
+        message: "A fixture version cannot name itself as its predecessor",
+        path: ["predecessorVersionId"],
+      });
+    }
+  });
+
+export const PublishInteractionFixtureVersionRequestSchema = z
+  .object({
+    description: RegressionVersionDescriptionSchema.optional(),
+    fixtureVersionId: OpaqueIdSchema,
+    interactionCapture: InteractionCaptureManifestSchema,
+    name: RegressionVersionNameSchema,
+    predecessorVersionId: OpaqueIdSchema,
   })
   .strict()
   .superRefine((value, context) => {
@@ -177,6 +198,47 @@ export const RegressionFixtureVersionSchema = z
     createdByPrincipalId: OpaqueIdSchema,
     definitionSha256: Sha256Schema,
     ...regressionFixtureVersionDefinitionShape,
+    source: RegressionTraceSnapshotSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    refineFixturePredecessor(value, context);
+    const capturedAt = PostgresTimestampSchema.safeParse(value.source.capturedAt);
+    const createdAt = UtcMillisecondTimestampSchema.safeParse(value.createdAt);
+    if (!capturedAt.success || !createdAt.success) return;
+    if (evidenceTimestampOrderKey(capturedAt.data) > evidenceTimestampOrderKey(createdAt.data)) {
+      context.addIssue({
+        code: "custom",
+        message: "createdAt cannot be earlier than the trace capture time",
+        path: ["createdAt"],
+      });
+    }
+  });
+
+const recordedInteractionFixtureVersionDefinitionShape = {
+  description: RegressionVersionDescriptionSchema.optional(),
+  fixtureId: OpaqueIdSchema,
+  fixtureVersionId: OpaqueIdSchema,
+  interactionCapture: InteractionCaptureManifestSchema,
+  name: RegressionVersionNameSchema,
+  predecessor: RegressionFixturePredecessorSchema,
+  replayability: z.literal("recorded_interactions"),
+  schemaVersion: z.literal(RECORDED_INTERACTION_FIXTURE_VERSION_SCHEMA_VERSION),
+  scope: EvidenceScopeSchema,
+  source: RegressionTraceSnapshotDefinitionSchema,
+};
+
+export const RecordedInteractionFixtureVersionDefinitionSchema = z
+  .object(recordedInteractionFixtureVersionDefinitionShape)
+  .strict()
+  .superRefine(refineFixturePredecessor);
+
+export const RecordedInteractionFixtureVersionSchema = z
+  .object({
+    createdAt: UtcMillisecondTimestampSchema,
+    createdByPrincipalId: OpaqueIdSchema,
+    definitionSha256: Sha256Schema,
+    ...recordedInteractionFixtureVersionDefinitionShape,
     source: RegressionTraceSnapshotSchema,
   })
   .strict()
@@ -308,6 +370,9 @@ export const RegressionDatasetVersionSchema = z
 export type PublishRegressionDatasetVersionRequest = z.infer<
   typeof PublishRegressionDatasetVersionRequestSchema
 >;
+export type PublishInteractionFixtureVersionRequest = z.infer<
+  typeof PublishInteractionFixtureVersionRequestSchema
+>;
 export type PublishRegressionFixtureVersionRequest = z.infer<
   typeof PublishRegressionFixtureVersionRequestSchema
 >;
@@ -328,6 +393,12 @@ export type RegressionTraceSnapshotDefinition = z.infer<
   typeof RegressionTraceSnapshotDefinitionSchema
 >;
 export type RegressionTraceSnapshot = z.infer<typeof RegressionTraceSnapshotSchema>;
+export type RecordedInteractionFixtureVersionDefinition = z.infer<
+  typeof RecordedInteractionFixtureVersionDefinitionSchema
+>;
+export type RecordedInteractionFixtureVersion = z.infer<
+  typeof RecordedInteractionFixtureVersionSchema
+>;
 export type RequestedRegressionFixtureVersionReference = z.infer<
   typeof RequestedRegressionFixtureVersionReferenceSchema
 >;

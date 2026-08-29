@@ -4,8 +4,11 @@ import {
   MAX_FIXTURE_SOURCE_EVENTS,
   MAX_REGRESSION_VERSION_DESCRIPTION_CHARACTERS,
   MAX_REGRESSION_VERSION_NAME_CHARACTERS,
+  PublishInteractionFixtureVersionRequestSchema,
   PublishRegressionDatasetVersionRequestSchema,
   PublishRegressionFixtureVersionRequestSchema,
+  RecordedInteractionFixtureVersionDefinitionSchema,
+  RecordedInteractionFixtureVersionSchema,
   RegressionDatasetVersionDefinitionSchema,
   RegressionDatasetVersionSchema,
   RegressionFixtureVersionDefinitionSchema,
@@ -83,6 +86,145 @@ function fixtureVersionDefinition() {
     fixtureId: value.fixtureId,
     fixtureVersionId: value.fixtureVersionId,
     name: value.name,
+    replayability: value.replayability,
+    schemaVersion: value.schemaVersion,
+    scope: value.scope,
+    source: {
+      eventIds: value.source.eventIds,
+      kind: value.source.kind,
+      observedEventCount: value.source.observedEventCount,
+      sourceCompleteness: value.source.sourceCompleteness,
+      traceId: value.source.traceId,
+    },
+  } as const;
+}
+
+function captureArtifact(
+  artifactId: string,
+  role:
+    | "model.input_messages"
+    | "model.normalized_request"
+    | "model.output_messages"
+    | "model.provider_configuration"
+    | "model.provider_request"
+    | "model.provider_response"
+    | "prompt.template",
+) {
+  return {
+    contentReference: {
+      artifactId,
+      classification: "confidential",
+      mediaType: "application/json",
+      sha256: DIGEST_B,
+      sizeBytes: 64,
+    },
+    redaction: { status: "not_required" },
+    retention: { mode: "retain" },
+    role,
+  } as const;
+}
+
+function interactionCapture() {
+  return {
+    artifacts: [
+      captureArtifact("art_capture_config", "model.provider_configuration"),
+      captureArtifact("art_capture_input", "model.input_messages"),
+      captureArtifact("art_capture_normalized", "model.normalized_request"),
+      captureArtifact("art_capture_output", "model.output_messages"),
+      captureArtifact("art_capture_prompt", "prompt.template"),
+      captureArtifact("art_capture_request", "model.provider_request"),
+      captureArtifact("art_capture_response", "model.provider_response"),
+    ],
+    interactions: [
+      {
+        attempts: [
+          {
+            artifacts: {
+              inputMessagesArtifactId: "art_capture_input",
+              outputMessagesArtifactId: "art_capture_output",
+              providerConfigurationArtifactId: "art_capture_config",
+              providerRequestArtifactId: "art_capture_request",
+              providerResponseArtifactId: "art_capture_response",
+            },
+            attemptId: "att_capture_model",
+            endedAt: "2026-08-29T00:01:32.000Z",
+            normalizedRequest: {
+              adapterName: "openai.responses",
+              adapterVersion: "1.0.0",
+              artifactId: "art_capture_normalized",
+              sha256: DIGEST_B,
+            },
+            outcome: "succeeded",
+            provider: {
+              endpointProfileId: "end_openai_prod",
+              endpointProfileVersion: "2026-08-01",
+              name: "openai",
+              operation: "chat",
+              requestedModel: "gpt-5.6",
+            },
+            providerMayHaveProcessed: true,
+            sequence: 0,
+            startedAt: "2026-08-29T00:01:30.000Z",
+            streaming: false,
+          },
+        ],
+        interactionId: "int_capture_model",
+        kind: "model",
+        prompt: {
+          artifactId: "art_capture_prompt",
+          definitionSha256: DIGEST_B,
+          promptId: "prm_checkout",
+          promptVersion: "2026.08.29",
+        },
+        sequence: 0,
+        terminalOutcome: "succeeded",
+        toolContracts: [],
+      },
+    ],
+    schemaVersion: "0.1",
+    source: {
+      boundary: "application_provider_and_tool",
+      captureAdapter: { name: "proofstack.capture", version: "1.0.0" },
+      completeness: {
+        limitations: ["transport_metadata_excluded", "provider_internal_state_unobserved"],
+        status: "complete_for_declared_boundary",
+      },
+      sourceFormat: { name: "proofstack.interaction", version: "1.0.0" },
+    },
+  } as const;
+}
+
+function recordedInteractionFixtureVersion() {
+  const predecessor = fixtureVersion();
+  return {
+    createdAt: "2026-08-29T00:02:00.000Z",
+    createdByPrincipalId: "usr_fixture_author",
+    definitionSha256: DIGEST_B,
+    description: "The exact captured boundary for the observed checkout timeout.",
+    fixtureId: predecessor.fixtureId,
+    fixtureVersionId: "fixv_checkout_timeout_002",
+    interactionCapture: interactionCapture(),
+    name: "Checkout timeout capture",
+    predecessor: {
+      definitionSha256: predecessor.definitionSha256,
+      fixtureVersionId: predecessor.fixtureVersionId,
+    },
+    replayability: "recorded_interactions",
+    schemaVersion: "0.2",
+    scope: predecessor.scope,
+    source: predecessor.source,
+  } as const;
+}
+
+function recordedInteractionFixtureVersionDefinition() {
+  const value = recordedInteractionFixtureVersion();
+  return {
+    description: value.description,
+    fixtureId: value.fixtureId,
+    fixtureVersionId: value.fixtureVersionId,
+    interactionCapture: value.interactionCapture,
+    name: value.name,
+    predecessor: value.predecessor,
     replayability: value.replayability,
     schemaVersion: value.schemaVersion,
     scope: value.scope,
@@ -655,6 +797,143 @@ describe("RegressionDatasetVersionSchema", () => {
             fixtureVersionId: "fixv_over_limit",
           },
         ],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("PublishInteractionFixtureVersionRequestSchema", () => {
+  function request() {
+    const value = recordedInteractionFixtureVersion();
+    return {
+      description: value.description,
+      fixtureVersionId: value.fixtureVersionId,
+      interactionCapture: value.interactionCapture,
+      name: value.name,
+      predecessorVersionId: value.predecessor.fixtureVersionId,
+    } as const;
+  }
+
+  it("accepts an exact predecessor and caller-owned interaction definition", () => {
+    expect(PublishInteractionFixtureVersionRequestSchema.parse(request())).toEqual(request());
+  });
+
+  it.each([
+    { createdAt: recordedInteractionFixtureVersion().createdAt },
+    { createdByPrincipalId: recordedInteractionFixtureVersion().createdByPrincipalId },
+    { definitionSha256: recordedInteractionFixtureVersion().definitionSha256 },
+    { fixtureId: recordedInteractionFixtureVersion().fixtureId },
+    { replayability: "recorded_interactions" },
+    { schemaVersion: "0.2" },
+    { scope: recordedInteractionFixtureVersion().scope },
+    { source: recordedInteractionFixtureVersion().source },
+  ])("rejects a server-owned or unknown publication field %#", (override) => {
+    expect(
+      PublishInteractionFixtureVersionRequestSchema.safeParse({ ...request(), ...override })
+        .success,
+    ).toBe(false);
+  });
+
+  it("requires a non-self exact predecessor", () => {
+    const value = request();
+    expect(
+      PublishInteractionFixtureVersionRequestSchema.safeParse({
+        ...value,
+        predecessorVersionId: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      PublishInteractionFixtureVersionRequestSchema.safeParse({
+        ...value,
+        predecessorVersionId: value.fixtureVersionId,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("propagates strict interaction completeness validation", () => {
+    const value = request();
+    expect(
+      PublishInteractionFixtureVersionRequestSchema.safeParse({
+        ...value,
+        interactionCapture: {
+          ...value.interactionCapture,
+          interactions: [
+            {
+              ...value.interactionCapture.interactions[0],
+              terminalOutcome: "failed",
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("RecordedInteractionFixtureVersionDefinitionSchema", () => {
+  it("accepts the complete immutable interaction fixture definition", () => {
+    const value = recordedInteractionFixtureVersionDefinition();
+    expect(RecordedInteractionFixtureVersionDefinitionSchema.parse(value)).toEqual(value);
+  });
+
+  it("rejects stored provenance and self-referential lineage", () => {
+    const value = recordedInteractionFixtureVersionDefinition();
+    expect(
+      RecordedInteractionFixtureVersionDefinitionSchema.safeParse({
+        ...value,
+        createdAt: recordedInteractionFixtureVersion().createdAt,
+      }).success,
+    ).toBe(false);
+    expect(
+      RecordedInteractionFixtureVersionDefinitionSchema.safeParse({
+        ...value,
+        predecessor: { ...value.predecessor, fixtureVersionId: value.fixtureVersionId },
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    { replayability: "evidence_only" },
+    { schemaVersion: "0.1" },
+    { interactionCapture: undefined },
+    { predecessor: undefined },
+    { unexpected: true },
+  ])("rejects an incomplete or incompatible recorded definition %#", (override) => {
+    expect(
+      RecordedInteractionFixtureVersionDefinitionSchema.safeParse({
+        ...recordedInteractionFixtureVersionDefinition(),
+        ...override,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("RecordedInteractionFixtureVersionSchema", () => {
+  it("accepts a stored successor without changing evidence-only compatibility", () => {
+    const value = recordedInteractionFixtureVersion();
+    expect(RecordedInteractionFixtureVersionSchema.parse(value)).toEqual(value);
+    expect(RegressionFixtureVersionSchema.parse(fixtureVersion())).toEqual(fixtureVersion());
+    expect(RegressionFixtureVersionSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("rejects a publication time before the inherited trace capture", () => {
+    expect(
+      RecordedInteractionFixtureVersionSchema.safeParse({
+        ...recordedInteractionFixtureVersion(),
+        createdAt: "2026-08-29T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    { definitionSha256: "invalid" },
+    { createdAt: "2026-08-29T00:02:00.123456Z" },
+    { createdByPrincipalId: "invalid principal" },
+    { unexpected: true },
+  ])("rejects invalid stored interaction fixture provenance %#", (override) => {
+    expect(
+      RecordedInteractionFixtureVersionSchema.safeParse({
+        ...recordedInteractionFixtureVersion(),
+        ...override,
       }).success,
     ).toBe(false);
   });
