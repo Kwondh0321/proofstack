@@ -128,6 +128,7 @@ describe("PostgreSQL evidence schema", () => {
       "0012_pin_evidence_event_collation",
       "0013_regression_catalog",
       "0014_recorded_interaction_fixtures",
+      "0015_expand_artifact_tombstone_trigger",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

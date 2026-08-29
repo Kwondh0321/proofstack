@@ -248,15 +248,22 @@ describe("recorded interaction fixture migration", () => {
       upgradePool = new Pool({ connectionString: upgradeUrl.toString(), max: 2 });
 
       const migrations = await loadBundledMigrations();
-      const migrationIndex = migrations.findIndex(
+      const recordedMigrationIndex = migrations.findIndex(
         ({ id }) => id === "0014_recorded_interaction_fixtures",
       );
-      expect(migrationIndex).toBeGreaterThan(0);
-      const previousMigrations = migrations.slice(0, migrationIndex);
-      const targetMigrations = migrations.slice(0, migrationIndex + 1);
+      const repairMigrationIndex = migrations.findIndex(
+        ({ id }) => id === "0015_expand_artifact_tombstone_trigger",
+      );
+      expect(recordedMigrationIndex).toBeGreaterThan(0);
+      expect(repairMigrationIndex).toBe(recordedMigrationIndex + 1);
+      const previousMigrations = migrations.slice(0, recordedMigrationIndex);
+      const targetMigrations = migrations.slice(0, repairMigrationIndex + 1);
       await migrateDatabase(upgradePool, previousMigrations);
       await expect(migrateDatabase(upgradePool, targetMigrations)).resolves.toMatchObject({
-        newlyAppliedIds: ["0014_recorded_interaction_fixtures"],
+        newlyAppliedIds: [
+          "0014_recorded_interaction_fixtures",
+          "0015_expand_artifact_tombstone_trigger",
+        ],
       });
       await expect(assertMigrationsCurrent(upgradePool, targetMigrations)).resolves.toBeUndefined();
 
