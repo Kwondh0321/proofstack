@@ -4,7 +4,13 @@ import {
   type ArtifactRedactionSummary,
   type DataClassification,
   DataClassificationSchema,
+  type ExportRecordedInteractionFixtureContentResponse,
+  ExportRecordedInteractionFixtureContentRequestSchema,
+  ExportRecordedInteractionFixtureContentResponseSchema,
+  type ExportRecordedInteractionFixtureMetadataResponse,
+  ExportRecordedInteractionFixtureMetadataResponseSchema,
   MAX_ARTIFACT_CONTENT_BYTES,
+  MAX_INTERACTION_CONTENT_EXPORT_BYTES,
   OpaqueIdSchema,
   type ProblemDocument,
   ProblemDocumentSchema,
@@ -49,6 +55,8 @@ import {
 } from "@proofstack/contracts";
 
 const MAX_CONTROL_PLANE_RESPONSE_BYTES = 1024 * 1024;
+const MAX_INTERACTION_CONTENT_EXPORT_RESPONSE_BYTES =
+  Math.ceil((MAX_INTERACTION_CONTENT_EXPORT_BYTES * 4) / 3) + MAX_CONTROL_PLANE_RESPONSE_BYTES;
 const BROWSER_CSRF_TOKEN_PATTERN = /^psc_v1_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 
 interface ResponseSchema<Output> {
@@ -133,6 +141,11 @@ export interface PublishRecordedInteractionFixtureVersionInput {
 export interface ReadRecordedInteractionFixtureMetadataInput {
   readonly fixtureId: string;
   readonly fixtureVersionId: string;
+}
+
+export interface ExportRecordedInteractionFixtureContentInput
+  extends ReadRecordedInteractionFixtureMetadataInput {
+  readonly acknowledgeSensitiveContent: true;
 }
 
 export interface RevokeRecordedInteractionFixtureContentInput
@@ -242,7 +255,10 @@ function hasJsonMediaType(response: Response): boolean {
   return response.headers.get("content-type")?.split(";", 1)[0]?.trim() === "application/json";
 }
 
-async function readBoundedResponseBody(response: Response): Promise<string> {
+async function readBoundedResponseBody(
+  response: Response,
+  maxBytes = MAX_CONTROL_PLANE_RESPONSE_BYTES,
+): Promise<string> {
   if (!response.body) return "";
 
   const reader = response.body.getReader();
@@ -255,10 +271,10 @@ async function readBoundedResponseBody(response: Response): Promise<string> {
       const chunk = await reader.read();
       if (chunk.done) break;
       receivedBytes += chunk.value.byteLength;
-      if (receivedBytes > MAX_CONTROL_PLANE_RESPONSE_BYTES) {
+      if (receivedBytes > maxBytes) {
         await reader.cancel();
         throw new ProofStackApiError(
-          `ProofStack API response exceeded ${MAX_CONTROL_PLANE_RESPONSE_BYTES} bytes`,
+          `ProofStack API response exceeded ${maxBytes} bytes`,
           response.status,
         );
       }
@@ -338,6 +354,28 @@ function parseJson(text: string, status: number): unknown {
   } catch (cause) {
     throw new ProofStackApiError("ProofStack API returned invalid JSON", status, { cause });
   }
+}
+
+function decodeBase64Url(value: string): Uint8Array {
+  const decoder = globalThis.atob;
+  if (!decoder) {
+    throw new ProofStackApiError("A base64 decoder is required to verify interaction content");
+  }
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+  let decoded: string;
+  try {
+    decoded = decoder(padded);
+  } catch (cause) {
+    throw new ProofStackApiError(
+      "ProofStack interaction content is not valid base64url",
+      undefined,
+      {
+        cause,
+      },
+    );
+  }
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
 }
 
 /**
@@ -630,6 +668,79 @@ export class ProofStackRegressionClient {
     return result;
   }
 
+  async exportRecordedInteractionFixtureMetadata(
+    input: ReadRecordedInteractionFixtureMetadataInput,
+  ): Promise<ExportRecordedInteractionFixtureMetadataResponse> {
+    const fixtureId = validatedIdentifier(input.fixtureId, "fixtureId");
+    const fixtureVersionId = validatedIdentifier(input.fixtureVersionId, "fixtureVersionId");
+    const result = (
+      await this.request<ExportRecordedInteractionFixtureMetadataResponse>(
+        ["regression-fixtures", fixtureId, "interaction-versions", fixtureVersionId, "export"],
+        "GET",
+        undefined,
+        ExportRecordedInteractionFixtureMetadataResponseSchema,
+        [200],
+        "read",
+      )
+    ).value;
+    this.assertFixtureVersionIdentity(
+      result.export.version,
+      fixtureId,
+      fixtureVersionId,
+      "recorded interaction metadata export",
+    );
+    return result;
+  }
+
+  async exportRecordedInteractionFixtureContent(
+    input: ExportRecordedInteractionFixtureContentInput,
+  ): Promise<ExportRecordedInteractionFixtureContentResponse> {
+    const fixtureId = validatedIdentifier(input.fixtureId, "fixtureId");
+    const fixtureVersionId = validatedIdentifier(input.fixtureVersionId, "fixtureVersionId");
+    const request = ExportRecordedInteractionFixtureContentRequestSchema.safeParse({
+      acknowledgeSensitiveContent: input.acknowledgeSensitiveContent,
+    });
+    if (!request.success) {
+      throw new ProofStackApiError(
+        "Recorded interaction content export acknowledgement failed local validation",
+      );
+    }
+    const result = (
+      await this.request<ExportRecordedInteractionFixtureContentResponse>(
+        [
+          "regression-fixtures",
+          fixtureId,
+          "interaction-versions",
+          fixtureVersionId,
+          "export",
+          "content",
+        ],
+        "POST",
+        request.data,
+        ExportRecordedInteractionFixtureContentResponseSchema,
+        [200],
+        "read",
+        MAX_INTERACTION_CONTENT_EXPORT_RESPONSE_BYTES,
+      )
+    ).value;
+    this.assertFixtureVersionIdentity(
+      result.export.version,
+      fixtureId,
+      fixtureVersionId,
+      "recorded interaction content export",
+    );
+    for (const item of result.export.artifacts) {
+      if (item.content.status !== "available") continue;
+      const actualSha256 = await contentSha256(decodeBase64Url(item.content.bytes));
+      if (actualSha256 !== item.artifact.binding.contentReference.sha256) {
+        throw new ProofStackApiError(
+          "ProofStack interaction content digest does not match its artifact binding",
+        );
+      }
+    }
+    return result;
+  }
+
   async revokeRecordedInteractionFixtureContent(
     input: RevokeRecordedInteractionFixtureContentInput,
   ): Promise<RevokeRecordedInteractionFixtureContentResponse> {
@@ -858,6 +969,7 @@ export class ProofStackRegressionClient {
     responseSchema: ResponseSchema<Output>,
     expectedStatuses: readonly number[],
     authority: "manage" | "read" | "write" = method === "GET" ? "read" : "manage",
+    maxResponseBytes = MAX_CONTROL_PLANE_RESPONSE_BYTES,
   ): Promise<{ readonly status: number; readonly value: Output }> {
     if (authority === "manage" && this.authentication.mode === "workload") {
       throw new ProofStackApiError(
@@ -897,7 +1009,7 @@ export class ProofStackRegressionClient {
         method,
         signal: controller.signal,
       });
-      const responseText = await readBoundedResponseBody(response);
+      const responseText = await readBoundedResponseBody(response, maxResponseBytes);
       if (!response.ok) {
         this.throwRejectedResponse(response, responseText);
       }

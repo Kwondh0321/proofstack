@@ -147,6 +147,53 @@ const revocationTombstones = recordedOwnerships.map((ownership, index) => ({
   trigger: "fixture_revocation" as const,
 }));
 
+function metadataExportArtifactsFor(
+  version: typeof recordedVersion,
+  ownerships: typeof recordedOwnerships,
+) {
+  return version.interactionCapture.artifacts.map((binding, index) => ({
+    binding,
+    lifecycleStatus: "available" as const,
+    metadata: {
+      availableAt: "2026-08-29T05:04:45.000Z",
+      contentReference: binding.contentReference,
+      createdAt: "2026-08-29T05:04:30.000Z",
+      redaction: binding.redaction,
+      retention: binding.retention,
+      schemaVersion: "0.1" as const,
+      scope: version.scope,
+      state: "available" as const,
+    },
+    ownership: ownerships[index],
+    purgeReceipt: null,
+    tombstone: null,
+  }));
+}
+
+const recordedMetadataExportArtifacts = metadataExportArtifactsFor(
+  recordedVersion,
+  recordedOwnerships,
+);
+const recordedMetadataExport = {
+  artifacts: recordedMetadataExportArtifacts,
+  contentAvailability: "available",
+  mode: "metadata",
+  revocation: null,
+  schemaVersion: "0.1",
+  version: recordedVersion,
+} as const;
+const recordedContentExport = {
+  artifacts: recordedMetadataExportArtifacts.map((artifact) => ({
+    artifact,
+    content: { status: "missing" as const },
+  })),
+  contentAvailability: "available",
+  mode: "content",
+  revocation: null,
+  schemaVersion: "0.1",
+  version: recordedVersion,
+} as const;
+
 function client(
   fetch: typeof globalThis.fetch,
   overrides: Partial<ProofStackRegressionClientOptions> = {},
@@ -235,6 +282,12 @@ describe("ProofStack interaction control client", () => {
         }),
       )
       .mockResolvedValueOnce(
+        Response.json({ export: recordedMetadataExport, requestId: "req_sdk_metadata_export" }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ export: recordedContentExport, requestId: "req_sdk_content_export" }),
+      )
+      .mockResolvedValueOnce(
         Response.json(
           {
             contentAvailability: "revoked",
@@ -285,6 +338,19 @@ describe("ProofStack interaction control client", () => {
       }),
     ).resolves.toMatchObject({ contentAvailability: "available" });
     await expect(
+      sdk.exportRecordedInteractionFixtureMetadata({
+        fixtureId: recordedVersion.fixtureId,
+        fixtureVersionId: recordedVersion.fixtureVersionId,
+      }),
+    ).resolves.toMatchObject({ export: { mode: "metadata" } });
+    await expect(
+      sdk.exportRecordedInteractionFixtureContent({
+        acknowledgeSensitiveContent: true,
+        fixtureId: recordedVersion.fixtureId,
+        fixtureVersionId: recordedVersion.fixtureVersionId,
+      }),
+    ).resolves.toMatchObject({ export: { mode: "content" } });
+    await expect(
       sdk.revokeRecordedInteractionFixtureContent({
         fixtureId: recordedVersion.fixtureId,
         fixtureVersionId: recordedVersion.fixtureVersionId,
@@ -301,6 +367,8 @@ describe("ProofStack interaction control client", () => {
       `https://proofstack.example/v1/projects/prj_agent/environments/env_prod/artifacts/${artifactId}/purge`,
       "https://proofstack.example/v1/projects/prj_agent/environments/env_prod/regression-fixtures/fix_checkout/interaction-versions",
       "https://proofstack.example/v1/projects/prj_agent/environments/env_prod/regression-fixtures/fix_checkout/interaction-versions/fiv_checkout_002",
+      "https://proofstack.example/v1/projects/prj_agent/environments/env_prod/regression-fixtures/fix_checkout/interaction-versions/fiv_checkout_002/export",
+      "https://proofstack.example/v1/projects/prj_agent/environments/env_prod/regression-fixtures/fix_checkout/interaction-versions/fiv_checkout_002/export/content",
       "https://proofstack.example/v1/projects/prj_agent/environments/env_prod/regression-fixtures/fix_checkout/interaction-versions/fiv_checkout_002/revocation",
     ]);
     expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual([
@@ -312,9 +380,11 @@ describe("ProofStack interaction control client", () => {
       "POST",
       "POST",
       "GET",
+      "GET",
+      "POST",
       "POST",
     ]);
-    for (const index of [0, 1, 4, 5, 6, 8]) {
+    for (const index of [0, 1, 4, 5, 6, 9, 10]) {
       expect(fetch.mock.calls[index]?.[1]?.headers).toMatchObject({
         "x-proofstack-csrf": csrfToken,
       });
@@ -322,6 +392,10 @@ describe("ProofStack interaction control client", () => {
     expect(fetch.mock.calls[1]?.[1]).toMatchObject({
       body: Uint8Array.from(content),
       headers: { "content-type": "application/octet-stream" },
+    });
+    expect(fetch.mock.calls[9]?.[1]).toMatchObject({
+      body: JSON.stringify({ acknowledgeSensitiveContent: true }),
+      headers: { "content-type": "application/json" },
     });
   });
 
@@ -336,11 +410,26 @@ describe("ProofStack interaction control client", () => {
       )
       .mockResolvedValueOnce(
         Response.json({ metadata: availableMetadata, requestId: "req_workload_read" }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ export: recordedMetadataExport, requestId: "req_workload_export" }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ export: recordedContentExport, requestId: "req_workload_content_export" }),
       );
     const sdk = client(fetch, { authentication: { apiKey, mode: "workload" } });
 
     await sdk.reserveArtifact({ request: reservation });
     await sdk.readArtifactMetadata({ artifactId });
+    await sdk.exportRecordedInteractionFixtureMetadata({
+      fixtureId: recordedVersion.fixtureId,
+      fixtureVersionId: recordedVersion.fixtureVersionId,
+    });
+    await sdk.exportRecordedInteractionFixtureContent({
+      acknowledgeSensitiveContent: true,
+      fixtureId: recordedVersion.fixtureId,
+      fixtureVersionId: recordedVersion.fixtureVersionId,
+    });
     await expect(sdk.purgeArtifact({ artifactId })).rejects.toThrow("user management authority");
     await expect(
       sdk.publishRecordedInteractionFixtureVersion({
@@ -349,7 +438,7 @@ describe("ProofStack interaction control client", () => {
       }),
     ).rejects.toThrow("user management authority");
 
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(4);
     for (const call of fetch.mock.calls) {
       expect(call[1]?.headers).toMatchObject({ authorization: `Bearer ${apiKey}` });
       expect(call[1]?.headers).not.toHaveProperty("x-proofstack-csrf");
@@ -392,7 +481,105 @@ describe("ProofStack interaction control client", () => {
         request: { reason: revocation.reason },
       }),
     ).rejects.toThrow("fixtureVersionId failed local validation");
+    await expect(
+      sdk.exportRecordedInteractionFixtureContent({
+        acknowledgeSensitiveContent: false,
+        fixtureId: recordedVersion.fixtureId,
+        fixtureVersionId: recordedVersion.fixtureVersionId,
+      } as never),
+    ).rejects.toThrow("acknowledgement failed local validation");
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("independently verifies available interaction export content digests", async () => {
+    const verifiedBytes = new Uint8Array(64).fill(7);
+    const expectedDigest = createHash("sha256").update(verifiedBytes).digest("hex");
+    const integrityVersion = RecordedInteractionFixtureVersionSchema.parse({
+      ...recordedVersion,
+      interactionCapture: {
+        ...recordedVersion.interactionCapture,
+        artifacts: recordedVersion.interactionCapture.artifacts.map((binding, index) =>
+          index === 0
+            ? {
+                ...binding,
+                contentReference: { ...binding.contentReference, sha256: expectedDigest },
+              }
+            : binding,
+        ),
+      },
+    });
+    const metadataArtifacts = metadataExportArtifactsFor(integrityVersion, recordedOwnerships);
+    const responseFor = (bytes: Uint8Array) =>
+      Response.json({
+        export: {
+          artifacts: metadataArtifacts.map((artifact, index) => ({
+            artifact,
+            content:
+              index === 0
+                ? {
+                    bytes: Buffer.from(bytes).toString("base64url"),
+                    encoding: "base64url",
+                    status: "available",
+                  }
+                : { status: "missing" },
+          })),
+          contentAvailability: "available",
+          mode: "content",
+          revocation: null,
+          schemaVersion: "0.1",
+          version: integrityVersion,
+        },
+        requestId: "req_sdk_integrity_export",
+      });
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(responseFor(verifiedBytes))
+      .mockResolvedValueOnce(responseFor(new Uint8Array(64).fill(8)));
+    const sdk = client(fetch);
+    const input = {
+      acknowledgeSensitiveContent: true,
+      fixtureId: integrityVersion.fixtureId,
+      fixtureVersionId: integrityVersion.fixtureVersionId,
+    } as const;
+
+    await expect(sdk.exportRecordedInteractionFixtureContent(input)).resolves.toMatchObject({
+      export: { mode: "content" },
+    });
+    await expect(sdk.exportRecordedInteractionFixtureContent(input)).rejects.toThrow(
+      "content digest does not match",
+    );
+  });
+
+  it("rejects a schema-valid interaction export that contradicts the requested identity", async () => {
+    const otherVersion = RecordedInteractionFixtureVersionSchema.parse({
+      ...recordedVersion,
+      fixtureId: "fix_other_capture",
+    });
+    const otherOwnerships = recordedOwnerships.map((ownership) => ({
+      ...ownership,
+      owner: { ...ownership.owner, fixtureId: otherVersion.fixtureId },
+    }));
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      Response.json({
+        export: {
+          artifacts: metadataExportArtifactsFor(otherVersion, otherOwnerships),
+          contentAvailability: "available",
+          mode: "metadata",
+          revocation: null,
+          schemaVersion: "0.1",
+          version: otherVersion,
+        },
+        requestId: "req_sdk_wrong_export",
+      }),
+    );
+    const sdk = client(fetch);
+
+    await expect(
+      sdk.exportRecordedInteractionFixtureMetadata({
+        fixtureId: recordedVersion.fixtureId,
+        fixtureVersionId: recordedVersion.fixtureVersionId,
+      }),
+    ).rejects.toThrow("identity that contradicts");
   });
 
   it.each([
