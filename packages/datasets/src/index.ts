@@ -7,14 +7,18 @@ export * from "./read-regression-fixture-version.js";
 export * from "./regression-definition-digest.js";
 export * from "./regression-publication-outbox.js";
 export type {
+  ValidatedRecordedInteractionFixtureVersionDefinition,
   ValidatedRegressionDatasetVersionDefinition,
   ValidatedRegressionFixtureVersionDefinition,
 } from "./regression-version-definition.js";
 export {
+  areRecordedInteractionFixtureVersionDefinitionsEqual,
   areRegressionDatasetVersionDefinitionsEqual,
   areRegressionFixtureVersionDefinitionsEqual,
+  projectRecordedInteractionFixtureVersionDefinition,
   projectRegressionDatasetVersionDefinition,
   projectRegressionFixtureVersionDefinition,
+  validateAndProjectRecordedInteractionFixtureVersion,
   validateAndProjectRegressionDatasetVersion,
   validateAndProjectRegressionFixtureVersion,
 } from "./regression-version-definition.js";

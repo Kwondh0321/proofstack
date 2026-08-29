@@ -1,5 +1,6 @@
 import type { JsonObject } from "@proofstack/contracts";
 import {
+  validateAndProjectRecordedInteractionFixtureVersion,
   validateAndProjectRegressionDatasetVersion,
   validateAndProjectRegressionFixtureVersion,
 } from "./regression-version-definition.js";
@@ -75,6 +76,28 @@ export function buildRegressionFixtureVersionPublishedOutboxIntent(
 ): RegressionFixtureVersionPublishedOutboxIntent {
   const { definition, version } = validateAndProjectRegressionFixtureVersion(input);
 
+  return {
+    aggregateId: definition.fixtureVersionId,
+    aggregateType: REGRESSION_FIXTURE_VERSION_AGGREGATE_TYPE,
+    createdAt: version.createdAt,
+    eventType: REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE,
+    payload: {
+      definitionSha256: version.definitionSha256,
+      environmentId: definition.scope.environmentId,
+      fixtureId: definition.fixtureId,
+      fixtureVersionId: definition.fixtureVersionId,
+      projectId: definition.scope.projectId,
+    },
+    schemaVersion: REGRESSION_PUBLICATION_OUTBOX_SCHEMA_VERSION,
+    tenantId: definition.scope.tenantId,
+  };
+}
+
+/** Builds the same small exact-read locator for an interaction-complete fixture version. */
+export function buildRecordedInteractionFixtureVersionPublishedOutboxIntent(
+  input: unknown,
+): RegressionFixtureVersionPublishedOutboxIntent {
+  const { definition, version } = validateAndProjectRecordedInteractionFixtureVersion(input);
   return {
     aggregateId: definition.fixtureVersionId,
     aggregateType: REGRESSION_FIXTURE_VERSION_AGGREGATE_TYPE,

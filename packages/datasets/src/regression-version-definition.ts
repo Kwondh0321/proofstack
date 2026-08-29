@@ -1,4 +1,8 @@
 import {
+  type RecordedInteractionFixtureVersion,
+  type RecordedInteractionFixtureVersionDefinition,
+  RecordedInteractionFixtureVersionDefinitionSchema,
+  RecordedInteractionFixtureVersionSchema,
   type RegressionDatasetVersion,
   type RegressionDatasetVersionDefinition,
   RegressionDatasetVersionDefinitionSchema,
@@ -9,6 +13,10 @@ import {
   RegressionFixtureVersionSchema,
 } from "@proofstack/contracts";
 import { InvalidRegressionVersionInputError } from "./errors.js";
+import {
+  digestRecordedInteractionFixtureVersionDefinition,
+  encodeRecordedInteractionFixtureVersionDefinition,
+} from "./interaction-fixture-definition-digest.js";
 import {
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
@@ -36,6 +44,17 @@ function parseDatasetVersion(input: unknown): RegressionDatasetVersion {
   return result.data;
 }
 
+function parseRecordedInteractionFixtureVersion(input: unknown): RecordedInteractionFixtureVersion {
+  const result = RecordedInteractionFixtureVersionSchema.safeParse(input);
+  if (!result.success) {
+    throw new InvalidRegressionVersionInputError(
+      "Stored recorded interaction fixture version is invalid",
+      { cause: result.error },
+    );
+  }
+  return result.data;
+}
+
 function parseFixtureDefinition(input: unknown): RegressionFixtureVersionDefinition {
   const result = RegressionFixtureVersionDefinitionSchema.safeParse(input);
   if (!result.success) {
@@ -58,6 +77,19 @@ function parseDatasetDefinition(input: unknown): RegressionDatasetVersionDefinit
   return result.data;
 }
 
+function parseRecordedInteractionFixtureDefinition(
+  input: unknown,
+): RecordedInteractionFixtureVersionDefinition {
+  const result = RecordedInteractionFixtureVersionDefinitionSchema.safeParse(input);
+  if (!result.success) {
+    throw new InvalidRegressionVersionInputError(
+      "Recorded interaction fixture version definition is invalid",
+      { cause: result.error },
+    );
+  }
+  return result.data;
+}
+
 export interface ValidatedRegressionFixtureVersionDefinition {
   readonly definition: RegressionFixtureVersionDefinition;
   readonly version: RegressionFixtureVersion;
@@ -66,6 +98,11 @@ export interface ValidatedRegressionFixtureVersionDefinition {
 export interface ValidatedRegressionDatasetVersionDefinition {
   readonly definition: RegressionDatasetVersionDefinition;
   readonly version: RegressionDatasetVersion;
+}
+
+export interface ValidatedRecordedInteractionFixtureVersionDefinition {
+  readonly definition: RecordedInteractionFixtureVersionDefinition;
+  readonly version: RecordedInteractionFixtureVersion;
 }
 
 /** Validates a fixture version once and returns its authoritative semantic projection. */
@@ -123,6 +160,37 @@ export function validateAndProjectRegressionDatasetVersion(
   return { definition, version };
 }
 
+/** Validates one interaction-complete fixture version and its authoritative definition digest. */
+export function validateAndProjectRecordedInteractionFixtureVersion(
+  input: unknown,
+): ValidatedRecordedInteractionFixtureVersionDefinition {
+  const version = parseRecordedInteractionFixtureVersion(input);
+  const definition = RecordedInteractionFixtureVersionDefinitionSchema.parse({
+    description: version.description,
+    fixtureId: version.fixtureId,
+    fixtureVersionId: version.fixtureVersionId,
+    interactionCapture: version.interactionCapture,
+    name: version.name,
+    predecessor: version.predecessor,
+    replayability: version.replayability,
+    schemaVersion: version.schemaVersion,
+    scope: version.scope,
+    source: {
+      eventIds: version.source.eventIds,
+      kind: version.source.kind,
+      observedEventCount: version.source.observedEventCount,
+      sourceCompleteness: version.source.sourceCompleteness,
+      traceId: version.source.traceId,
+    },
+  });
+  if (digestRecordedInteractionFixtureVersionDefinition(definition) !== version.definitionSha256) {
+    throw new InvalidRegressionVersionInputError(
+      "Recorded interaction fixture version digest does not match its canonical definition bytes",
+    );
+  }
+  return { definition, version };
+}
+
 /**
  * Strictly validates a stored fixture version and projects only its semantic definition.
  * Provenance, the self digest, and the nested capture timestamp are intentionally excluded.
@@ -143,6 +211,13 @@ export function projectRegressionDatasetVersionDefinition(
   return validateAndProjectRegressionDatasetVersion(input).definition;
 }
 
+/** Projects only immutable interaction fixture semantics, excluding stored provenance. */
+export function projectRecordedInteractionFixtureVersionDefinition(
+  input: unknown,
+): RecordedInteractionFixtureVersionDefinition {
+  return validateAndProjectRecordedInteractionFixtureVersion(input).definition;
+}
+
 /** Compares validated fixture semantics by canonical bytes, never by digest equality alone. */
 export function areRegressionFixtureVersionDefinitionsEqual(
   left: unknown,
@@ -160,5 +235,19 @@ export function areRegressionDatasetVersionDefinitionsEqual(
 ): boolean {
   const leftBytes = encodeRegressionDatasetVersionDefinition(parseDatasetDefinition(left));
   const rightBytes = encodeRegressionDatasetVersionDefinition(parseDatasetDefinition(right));
+  return Buffer.from(leftBytes).equals(rightBytes);
+}
+
+/** Compares validated interaction fixture semantics by canonical bytes, never digest alone. */
+export function areRecordedInteractionFixtureVersionDefinitionsEqual(
+  left: unknown,
+  right: unknown,
+): boolean {
+  const leftBytes = encodeRecordedInteractionFixtureVersionDefinition(
+    parseRecordedInteractionFixtureDefinition(left),
+  );
+  const rightBytes = encodeRecordedInteractionFixtureVersionDefinition(
+    parseRecordedInteractionFixtureDefinition(right),
+  );
   return Buffer.from(leftBytes).equals(rightBytes);
 }

@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
 import type {
   JsonObject,
+  RecordedInteractionFixtureVersion,
+  RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersion,
   RegressionDatasetVersionDefinition,
   RegressionFixtureVersion,
@@ -8,13 +11,17 @@ import type {
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  areRecordedInteractionFixtureVersionDefinitionsEqual,
   areRegressionDatasetVersionDefinitionsEqual,
   areRegressionFixtureVersionDefinitionsEqual,
+  buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
   buildRegressionDatasetVersionPublishedOutboxIntent,
   buildRegressionFixtureVersionPublishedOutboxIntent,
+  digestRecordedInteractionFixtureVersionDefinition,
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
   InvalidRegressionVersionInputError,
+  projectRecordedInteractionFixtureVersionDefinition,
   projectRegressionDatasetVersionDefinition,
   projectRegressionFixtureVersionDefinition,
   REGRESSION_DATASET_VERSION_AGGREGATE_TYPE,
@@ -23,16 +30,49 @@ import {
   REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE,
   REGRESSION_PUBLICATION_OUTBOX_SCHEMA_VERSION,
   RegressionRepositoryContractError,
-  type RegressionVersionRepository,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
   RegressionVersionNotFoundError,
+  type RegressionVersionRepository,
   type ResolveRegressionFixtureVersionReferencesResult,
 } from "./index.js";
 
 const TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
 const DIGEST_A = "a".repeat(64);
 const DIGEST_B = "b".repeat(64);
+
+const recordedVectorDocument = JSON.parse(
+  readFileSync(
+    new URL("../vectors/interaction-fixture-definition-v2.json", import.meta.url),
+    "utf8",
+  ),
+) as {
+  readonly vectors: readonly {
+    readonly input: RecordedInteractionFixtureVersionDefinition;
+  }[];
+};
+
+function recordedInteractionDefinition(): RecordedInteractionFixtureVersionDefinition {
+  const definition = recordedVectorDocument.vectors[0]?.input;
+  if (!definition) throw new Error("The recorded interaction fixture vector is missing");
+  return structuredClone(definition);
+}
+
+function recordedInteractionVersion(
+  definition = recordedInteractionDefinition(),
+  definitionSha256 = digestRecordedInteractionFixtureVersionDefinition(definition),
+): RecordedInteractionFixtureVersion {
+  return {
+    createdAt: "2026-08-29T00:03:00.000Z",
+    createdByPrincipalId: "usr_interaction_author",
+    definitionSha256,
+    ...definition,
+    source: {
+      capturedAt: "2026-08-29T00:00:30.000Z",
+      ...definition.source,
+    },
+  };
+}
 
 function fixtureDefinition(): RegressionFixtureVersionDefinition {
   return {
@@ -219,6 +259,18 @@ describe("stored regression semantic projections", () => {
     expect(projected).not.toHaveProperty("definitionSha256");
   });
 
+  it("strictly projects recorded interaction semantics without stored provenance", () => {
+    const definition = recordedInteractionDefinition();
+    const version = recordedInteractionVersion(definition);
+    const projected = projectRecordedInteractionFixtureVersionDefinition(version);
+
+    expect(projected).toEqual(definition);
+    expect(projected).not.toHaveProperty("createdAt");
+    expect(projected).not.toHaveProperty("createdByPrincipalId");
+    expect(projected).not.toHaveProperty("definitionSha256");
+    expect(projected.source).not.toHaveProperty("capturedAt");
+  });
+
   it("rejects malformed stored versions and mismatched current digests", () => {
     expect(() =>
       projectRegressionFixtureVersionDefinition({ ...fixtureVersion(), unknown: true }),
@@ -249,6 +301,19 @@ describe("stored regression semantic projections", () => {
       ),
     ).toThrowError(
       "Regression dataset version digest does not match its canonical definition bytes",
+    );
+    expect(() =>
+      projectRecordedInteractionFixtureVersionDefinition({
+        ...recordedInteractionVersion(),
+        unknown: true,
+      }),
+    ).toThrowError("Stored recorded interaction fixture version is invalid");
+    expect(() =>
+      projectRecordedInteractionFixtureVersionDefinition(
+        recordedInteractionVersion(recordedInteractionDefinition(), DIGEST_B),
+      ),
+    ).toThrowError(
+      "Recorded interaction fixture version digest does not match its canonical definition bytes",
     );
   });
 });
@@ -307,6 +372,40 @@ describe("canonical semantic definition equality", () => {
         createdAt: "2026-08-29T00:00:00.000Z",
       }),
     ).toThrowError("Regression dataset version definition is invalid");
+  });
+
+  it("compares recorded interaction definitions by fixed bytes and preserves attempt order", () => {
+    const definition = recordedInteractionDefinition();
+    const reordered: RecordedInteractionFixtureVersionDefinition = {
+      interactionCapture: definition.interactionCapture,
+      source: definition.source,
+      scope: definition.scope,
+      schemaVersion: definition.schemaVersion,
+      replayability: definition.replayability,
+      predecessor: definition.predecessor,
+      name: definition.name,
+      fixtureVersionId: definition.fixtureVersionId,
+      fixtureId: definition.fixtureId,
+    };
+    const model = definition.interactionCapture.interactions[0];
+    if (model?.kind !== "model") throw new Error("Expected a model interaction vector");
+
+    expect(areRecordedInteractionFixtureVersionDefinitionsEqual(definition, reordered)).toBe(true);
+    expect(
+      areRecordedInteractionFixtureVersionDefinitionsEqual(definition, {
+        ...definition,
+        interactionCapture: {
+          ...definition.interactionCapture,
+          interactions: [{ ...model, interactionId: "int_model_other" }],
+        },
+      }),
+    ).toBe(false);
+    expect(() =>
+      areRecordedInteractionFixtureVersionDefinitionsEqual(definition, {
+        ...definition,
+        createdAt: "2026-08-29T00:00:00.000Z",
+      }),
+    ).toThrowError("Recorded interaction fixture version definition is invalid");
   });
 });
 
@@ -376,6 +475,28 @@ describe("regression publication outbox intents", () => {
     });
     expect(Object.keys(jsonPayload)).toHaveLength(5);
     expect(JSON.stringify(jsonPayload)).not.toContain("fixtureVersions");
+  });
+
+  it("builds the same bounded locator for recorded interaction fixtures", () => {
+    const version = recordedInteractionVersion();
+    const intent = buildRecordedInteractionFixtureVersionPublishedOutboxIntent(version);
+
+    expect(intent).toEqual({
+      aggregateId: version.fixtureVersionId,
+      aggregateType: REGRESSION_FIXTURE_VERSION_AGGREGATE_TYPE,
+      createdAt: version.createdAt,
+      eventType: REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE,
+      payload: {
+        definitionSha256: version.definitionSha256,
+        environmentId: version.scope.environmentId,
+        fixtureId: version.fixtureId,
+        fixtureVersionId: version.fixtureVersionId,
+        projectId: version.scope.projectId,
+      },
+      schemaVersion: REGRESSION_PUBLICATION_OUTBOX_SCHEMA_VERSION,
+      tenantId: version.scope.tenantId,
+    });
+    expect(JSON.stringify(intent)).not.toContain("interactionCapture");
   });
 
   it("keeps aggregate, event, and intent schema identifiers stable", () => {
