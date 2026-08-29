@@ -160,6 +160,7 @@ const replayJobShape = {
   createdByPrincipalId: OpaqueIdSchema,
   currentLease: ReplayLeaseSchema.optional(),
   jobId: OpaqueIdSchema,
+  lastFencingToken: SafeNonnegativeIntegerSchema,
   latestAttemptSequence: SafeNonnegativeIntegerSchema.optional(),
   plan: ReplayPlanJobReferenceSchema,
   recoveryEpoch: SafeNonnegativeIntegerSchema,
@@ -177,6 +178,7 @@ function refineReplayJob(
 ): void {
   if (value.status === "queued") {
     if (
+      value.lastFencingToken !== 0 ||
       value.currentLease !== undefined ||
       value.latestAttemptSequence !== undefined ||
       value.startedAt !== undefined ||
@@ -197,6 +199,7 @@ function refineReplayJob(
     value.terminal.attemptId === undefined;
   if (queuedCancellation) {
     if (
+      value.lastFencingToken !== 0 ||
       value.currentLease !== undefined ||
       value.latestAttemptSequence !== undefined ||
       value.startedAt !== undefined ||
@@ -228,6 +231,13 @@ function refineReplayJob(
       path: ["startedAt"],
     });
   }
+  if (value.lastFencingToken === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Started jobs must retain their latest positive fencing token",
+      path: ["lastFencingToken"],
+    });
+  }
   if (
     value.startedAt !== undefined &&
     timestampOrder(value.startedAt) < timestampOrder(value.createdAt)
@@ -251,6 +261,7 @@ function refineReplayJob(
     const fence = value.currentLease.mutationFence;
     if (
       fence.jobId !== value.jobId ||
+      fence.fencingToken !== value.lastFencingToken ||
       fence.recoveryEpoch !== value.recoveryEpoch ||
       value.currentLease.attemptSequence !== value.latestAttemptSequence ||
       value.currentLease.scope.tenantId !== value.scope.tenantId ||

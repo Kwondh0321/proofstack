@@ -71,6 +71,7 @@ function queuedJob() {
     createdAt: "2026-08-29T00:00:00.000Z",
     createdByPrincipalId: "usr_operator",
     jobId: "job_reference_001",
+    lastFencingToken: 0,
     plan,
     recoveryEpoch: 0,
     schemaVersion: REPLAY_JOB_SCHEMA_VERSION,
@@ -84,6 +85,7 @@ function runningJob() {
   return {
     ...queuedJob(),
     currentLease: lease(),
+    lastFencingToken: 1,
     latestAttemptSequence: 0,
     startedAt: "2026-08-29T00:00:01.000Z",
     stateVersion: 2,
@@ -225,6 +227,7 @@ describe("replay job state contracts", () => {
 
   it.each([
     ["queued lease", { currentLease: lease() }],
+    ["queued historical fence", { ...queuedJob(), lastFencingToken: 1 }],
     ["started without metadata", { status: "running" }],
     [
       "start before creation",
@@ -234,6 +237,7 @@ describe("replay job state contracts", () => {
       },
     ],
     ["running without lease", { ...runningJob(), currentLease: undefined }],
+    ["running zero fence history", { ...runningJob(), lastFencingToken: 0 }],
     [
       "wrong lease job",
       {
@@ -242,6 +246,13 @@ describe("replay job state contracts", () => {
           ...lease(),
           mutationFence: { ...mutationFence(), jobId: "job_other" },
         },
+      },
+    ],
+    [
+      "wrong lease fence history",
+      {
+        ...runningJob(),
+        lastFencingToken: 2,
       },
     ],
     [
