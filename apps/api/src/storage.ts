@@ -1,7 +1,16 @@
-import { type EvidenceRepository, MemoryEvidenceRepository } from "@proofstack/core";
+import { randomBytes } from "node:crypto";
 import {
-  MemoryRegressionVersionRepository,
-  type RegressionVersionRepository,
+  type ArtifactCatalogRepository,
+  ArtifactCipher,
+  type ArtifactObjectStore,
+  LocalArtifactKeyring,
+  SecureArtifactIdentityGenerator,
+} from "@proofstack/artifacts";
+import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
+import { type EvidenceRepository, MemoryEvidenceRepository } from "@proofstack/core";
+import type {
+  InteractionFixtureVersionRepository,
+  RegressionVersionRepository,
 } from "@proofstack/datasets";
 import {
   assertMigrationsCurrent,
@@ -10,11 +19,21 @@ import {
   PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
 import type { ApiConfig } from "./config.js";
+import { createMemoryInteractionStorage } from "./memory-interaction-storage.js";
+
+export interface ApiArtifactStorage {
+  readonly catalog: ArtifactCatalogRepository;
+  readonly encryption: ArtifactCipher;
+  readonly identities: SecureArtifactIdentityGenerator;
+  readonly objects: ArtifactObjectStore;
+}
 
 export interface ApiStorage {
+  readonly artifacts?: ApiArtifactStorage;
   readonly checkReadiness: () => Promise<void>;
   readonly close: () => Promise<void>;
   readonly evidenceRepository: EvidenceRepository;
+  readonly interactionFixtureVersionRepository?: InteractionFixtureVersionRepository;
   readonly regressionVersionRepository: RegressionVersionRepository;
 }
 
@@ -34,11 +53,23 @@ export async function createApiStorage(
   dependencies: StorageDependencies = defaultDependencies,
 ): Promise<ApiStorage> {
   if (config.mode === "memory") {
+    const interactionStorage = createMemoryInteractionStorage();
+    const keyring = new LocalArtifactKeyring({
+      activeKeyId: "key_memory_process",
+      keys: { key_memory_process: randomBytes(32) },
+    });
     return {
+      artifacts: {
+        catalog: interactionStorage.artifactCatalogRepository,
+        encryption: new ArtifactCipher(keyring),
+        identities: new SecureArtifactIdentityGenerator(),
+        objects: new MemoryArtifactObjectStore(),
+      },
       checkReadiness: async () => undefined,
       close: async () => undefined,
       evidenceRepository: new MemoryEvidenceRepository(),
-      regressionVersionRepository: new MemoryRegressionVersionRepository(),
+      interactionFixtureVersionRepository: interactionStorage.regressionVersionRepository,
+      regressionVersionRepository: interactionStorage.regressionVersionRepository,
     };
   }
 
@@ -54,10 +85,12 @@ export async function createApiStorage(
     throw error;
   }
 
+  const regressionVersionRepository = new PostgresRegressionVersionRepository(pool);
   return {
     checkReadiness: () => dependencies.assertCurrent(pool),
     close: () => pool.end(),
     evidenceRepository: new PostgresEvidenceRepository(pool),
-    regressionVersionRepository: new PostgresRegressionVersionRepository(pool),
+    interactionFixtureVersionRepository: regressionVersionRepository,
+    regressionVersionRepository,
   };
 }

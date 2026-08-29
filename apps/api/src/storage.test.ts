@@ -1,5 +1,4 @@
 import { MemoryEvidenceRepository } from "@proofstack/core";
-import { MemoryRegressionVersionRepository } from "@proofstack/datasets";
 import {
   type createPostgresPool,
   MigrationRequiredError,
@@ -29,7 +28,13 @@ describe("createApiStorage", () => {
     const storage = await createApiStorage({ mode: "memory" }, vi.fn());
 
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
-    expect(storage.regressionVersionRepository).toBeInstanceOf(MemoryRegressionVersionRepository);
+    expect(storage.interactionFixtureVersionRepository).toBe(storage.regressionVersionRepository);
+    expect(storage.artifacts).toMatchObject({
+      catalog: expect.any(Object),
+      encryption: expect.any(Object),
+      identities: expect.any(Object),
+      objects: expect.any(Object),
+    });
     await expect(storage.checkReadiness()).resolves.toBeUndefined();
     await expect(storage.close()).resolves.toBeUndefined();
   });

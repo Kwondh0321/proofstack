@@ -3,14 +3,25 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
-  ApiKeyCredentialNotActiveError,
-  ApiKeyCredentialNotFoundError,
-  ApiKeyGenerationError,
-  ApiKeyLifecycle,
-  InvalidApiKeyLifecycleInputError,
-  InvalidOidcLoginError,
-  OidcLoginGenerationError,
-} from "@proofstack/identity";
+  ArtifactConflictError,
+  ArtifactContentMismatchError,
+  ArtifactIdentifierGenerationError,
+  ArtifactNotFoundError,
+  ArtifactObjectConflictError,
+  ArtifactObjectMissingError,
+  ArtifactOwnedDeletionError,
+  ArtifactOwnershipConflictError,
+  ArtifactProtectionError,
+  ArtifactStateTransitionError,
+  ArtifactUnavailableError,
+  InvalidArtifactLifecycleInputError,
+  PurgeArtifact,
+  ReadArtifact,
+  ReadArtifactMetadata,
+  ReserveArtifact,
+  TombstoneArtifact,
+  UploadArtifact,
+} from "@proofstack/artifacts";
 import {
   type Clock,
   EvidenceConflictError,
@@ -19,46 +30,61 @@ import {
   IngestEvidence,
   InvalidTraceCursorError,
   ListTraceEvidence,
-  MemoryEvidenceRepository,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
 import {
   InvalidRegressionVersionInputError,
-  MemoryRegressionVersionRepository,
+  PublishRecordedInteractionFixtureVersion,
   PublishRegressionDatasetVersion,
   PublishRegressionFixtureVersion,
+  ReadRecordedInteractionFixtureMetadata,
   ReadRegressionDatasetVersion,
   ReadRegressionFixtureVersion,
+  RegressionArtifactBindingError,
+  RegressionFixtureContentRevocationConflictError,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
   RegressionVersionNotFoundError,
   type RegressionVersionRepository,
+  RevokeRecordedInteractionFixtureContent,
+  SecureInteractionFixtureRevocationIdentityGenerator,
 } from "@proofstack/datasets";
+import {
+  ApiKeyCredentialNotActiveError,
+  ApiKeyCredentialNotFoundError,
+  ApiKeyGenerationError,
+  ApiKeyLifecycle,
+  InvalidApiKeyLifecycleInputError,
+  InvalidOidcLoginError,
+  OidcLoginGenerationError,
+} from "@proofstack/identity";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
+import { registerArtifactRoutes } from "./artifact-routes.js";
 import {
-  type Authenticator,
   AuthenticationRequiredError,
+  type Authenticator,
   BrowserRequestRejectedError,
   createAuthenticator,
 } from "./auth.js";
 import type { ApiConfig } from "./config.js";
-import { createIdentityStorage, type IdentityStorage } from "./identity-storage.js";
 import {
   type ApiKeyLifecycleService,
   IdentityManagementUnavailableError,
   registerIdentityRoutes,
 } from "./identity-routes.js";
-import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
+import { createIdentityStorage, type IdentityStorage } from "./identity-storage.js";
 import { registerOidcRoutes } from "./oidc-routes.js";
+import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
-import { registerRegressionRoutes } from "./regression-routes.js";
+import { registerInteractionFixtureRoutes, registerRegressionRoutes } from "./regression-routes.js";
 import { registerRoutes } from "./routes.js";
-import { createApiStorage } from "./storage.js";
+import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
 
 export interface AppDependencies {
+  readonly artifactStorage?: ApiArtifactStorage;
   readonly apiKeyLifecycle?: ApiKeyLifecycleService;
   readonly authenticator?: Authenticator;
   readonly checkReadiness?: () => Promise<void>;
@@ -101,18 +127,26 @@ export async function createApp(
     trustProxy: false,
   });
   try {
+    const defaultStorage = await createApiStorage(config.storage, (error) => {
+      app.log.error({ error }, "Idle PostgreSQL connection failed");
+    });
     const storage =
-      dependencies.repository || dependencies.regressionVersionRepository
+      dependencies.repository ||
+      dependencies.regressionVersionRepository ||
+      dependencies.artifactStorage
         ? {
-            checkReadiness: dependencies.checkReadiness ?? (async () => undefined),
-            close: async () => undefined,
-            evidenceRepository: dependencies.repository ?? new MemoryEvidenceRepository(),
-            regressionVersionRepository:
-              dependencies.regressionVersionRepository ?? new MemoryRegressionVersionRepository(),
+            ...defaultStorage,
+            ...(dependencies.artifactStorage ? { artifacts: dependencies.artifactStorage } : {}),
+            checkReadiness: dependencies.checkReadiness ?? defaultStorage.checkReadiness,
+            evidenceRepository: dependencies.repository ?? defaultStorage.evidenceRepository,
+            ...(dependencies.regressionVersionRepository
+              ? {
+                  interactionFixtureVersionRepository: undefined,
+                  regressionVersionRepository: dependencies.regressionVersionRepository,
+                }
+              : {}),
           }
-        : await createApiStorage(config.storage, (error) => {
-            app.log.error({ error }, "Idle PostgreSQL connection failed");
-          });
+        : defaultStorage;
     app.addHook("onClose", storage.close);
 
     let identityStorage: IdentityStorage | undefined;
@@ -189,6 +223,57 @@ export async function createApp(
       readDatasetVersion: new ReadRegressionDatasetVersion(storage.regressionVersionRepository),
       readFixtureVersion: new ReadRegressionFixtureVersion(storage.regressionVersionRepository),
     });
+    if (storage.artifacts) {
+      await registerArtifactRoutes(app, {
+        authenticator,
+        purgeArtifact: new PurgeArtifact({
+          catalog: storage.artifacts.catalog,
+          clock,
+          identities: storage.artifacts.identities,
+          objects: storage.artifacts.objects,
+        }),
+        readArtifact: new ReadArtifact({
+          catalog: storage.artifacts.catalog,
+          encryption: storage.artifacts.encryption,
+          objects: storage.artifacts.objects,
+        }),
+        readArtifactMetadata: new ReadArtifactMetadata(storage.artifacts.catalog),
+        reserveArtifact: new ReserveArtifact({
+          catalog: storage.artifacts.catalog,
+          clock,
+          encryption: storage.artifacts.encryption,
+          identities: storage.artifacts.identities,
+        }),
+        tombstoneArtifact: new TombstoneArtifact({
+          catalog: storage.artifacts.catalog,
+          clock,
+          identities: storage.artifacts.identities,
+        }),
+        uploadArtifact: new UploadArtifact({
+          catalog: storage.artifacts.catalog,
+          clock,
+          encryption: storage.artifacts.encryption,
+          objects: storage.artifacts.objects,
+        }),
+      });
+    }
+    if (storage.artifacts && storage.interactionFixtureVersionRepository) {
+      await registerInteractionFixtureRoutes(app, {
+        authenticator,
+        publishRecordedFixtureVersion: new PublishRecordedInteractionFixtureVersion({
+          clock,
+          versionRepository: storage.interactionFixtureVersionRepository,
+        }),
+        readRecordedFixtureMetadata: new ReadRecordedInteractionFixtureMetadata(
+          storage.interactionFixtureVersionRepository,
+        ),
+        revokeRecordedFixtureContent: new RevokeRecordedInteractionFixtureContent({
+          clock,
+          identities: new SecureInteractionFixtureRevocationIdentityGenerator(),
+          versionRepository: storage.interactionFixtureVersionRepository,
+        }),
+      });
+    }
     const apiKeyLifecycle =
       dependencies.apiKeyLifecycle ??
       (identityStorage ? new ApiKeyLifecycle(identityStorage.repository) : undefined);
@@ -293,6 +378,72 @@ export async function createApp(
         });
       }
 
+      if (error instanceof InvalidArtifactLifecycleInputError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The artifact request does not match the required contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid artifact request",
+          type: "https://proofstack.dev/problems/artifact-lifecycle-input-invalid",
+        });
+      }
+
+      if (error instanceof ArtifactNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Artifact not found",
+          type: "https://proofstack.dev/problems/artifact-not-found",
+        });
+      }
+
+      if (
+        error instanceof ArtifactConflictError ||
+        error instanceof ArtifactObjectConflictError ||
+        error instanceof ArtifactOwnedDeletionError ||
+        error instanceof ArtifactOwnershipConflictError ||
+        error instanceof ArtifactStateTransitionError ||
+        error instanceof ArtifactUnavailableError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Artifact lifecycle conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (error instanceof ArtifactContentMismatchError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 422,
+          title: "Artifact content mismatch",
+          type: "https://proofstack.dev/problems/artifact-content-mismatch",
+        });
+      }
+
+      if (
+        error instanceof ArtifactIdentifierGenerationError ||
+        error instanceof ArtifactObjectMissingError ||
+        error instanceof ArtifactProtectionError
+      ) {
+        return sendProblem(reply, {
+          code: "artifact_storage_unavailable",
+          detail: "Artifact storage is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Artifact storage unavailable",
+          type: "https://proofstack.dev/problems/artifact-storage-unavailable",
+        });
+      }
+
       if (error instanceof InvalidRegressionVersionInputError) {
         return sendProblem(reply, {
           code: error.code,
@@ -317,21 +468,17 @@ export async function createApp(
 
       if (
         error instanceof RegressionVersionConflictError ||
-        error instanceof RegressionVersionLineageError
+        error instanceof RegressionVersionLineageError ||
+        error instanceof RegressionArtifactBindingError ||
+        error instanceof RegressionFixtureContentRevocationConflictError
       ) {
         return sendProblem(reply, {
           code: error.code,
           detail: error.message,
           requestId: request.id,
           status: 409,
-          title:
-            error instanceof RegressionVersionConflictError
-              ? "Regression version conflict"
-              : "Invalid regression version lineage",
-          type:
-            error instanceof RegressionVersionConflictError
-              ? "https://proofstack.dev/problems/regression-version-conflict"
-              : "https://proofstack.dev/problems/regression-version-lineage-invalid",
+          title: "Regression fixture conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
         });
       }
 
