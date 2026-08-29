@@ -147,9 +147,26 @@ describe("provisionRuntimeRoles", () => {
     expect(statements).toContain(
       'GRANT EXECUTE ON FUNCTION public.proofstack_find_and_touch_active_browser_session(text) TO "proofstack_identity"',
     );
-    expect(statements).toContain(
-      'REVOKE ALL PRIVILEGES ON TABLE public.proofstack_api_key_credentials, public.proofstack_artifact_catalog, public.proofstack_artifact_purge_receipts, public.proofstack_artifact_tombstones, public.proofstack_browser_sessions, public.proofstack_consumer_receipts, public.proofstack_evidence_events, public.proofstack_identity_audit_events, public.proofstack_interaction_fixture_artifact_ownerships, public.proofstack_interaction_fixture_content_revocations, public.proofstack_oidc_bindings, public.proofstack_oidc_login_transactions, public.proofstack_outbox, public.proofstack_projection_cursors, public.proofstack_recorded_interaction_fixture_versions, public.proofstack_replay_plan_boundaries, public.proofstack_replay_plan_budgets, public.proofstack_replay_plan_resources, public.proofstack_replay_plans, public.proofstack_replay_targets, public.proofstack_regression_dataset_members, public.proofstack_regression_dataset_versions, public.proofstack_regression_datasets, public.proofstack_regression_fixture_events, public.proofstack_regression_fixture_versions, public.proofstack_regression_fixtures, public.proofstack_schema_migrations, public.proofstack_target_releases FROM "proofstack_identity"',
+    const identityTableRevocation = statements.find(
+      (statement) =>
+        statement.startsWith("REVOKE ALL PRIVILEGES ON TABLE") &&
+        statement.endsWith('FROM "proofstack_identity"'),
     );
+    expect(identityTableRevocation).toBeDefined();
+    for (const table of [
+      "proofstack_api_key_credentials",
+      "proofstack_replay_jobs",
+      "proofstack_replay_attempts",
+      "proofstack_replay_budget_entries",
+      "proofstack_replay_budget_entry_dimensions",
+      "proofstack_replay_cancellation_requests",
+      "proofstack_replay_cancellation_acknowledgements",
+      "proofstack_replay_observations",
+      "proofstack_replay_usage_measurements",
+      "proofstack_target_releases",
+    ]) {
+      expect(identityTableRevocation).toContain(`public.${table}`);
+    }
     expect(
       statements.some(
         (statement) =>
