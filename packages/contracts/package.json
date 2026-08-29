@@ -41,6 +41,10 @@
     "./replay-plan": {
       "types": "./dist/replay-plan.d.ts",
       "import": "./dist/replay-plan.js"
+    },
+    "./replay-job": {
+      "types": "./dist/replay-job.d.ts",
+      "import": "./dist/replay-job.js"
     }
   },
   "files": [
