@@ -62,3 +62,7 @@ Use this order:
 Reject the upgrade if an accepted field becomes ambiguous, an identifier or timestamp loses exact
 meaning, a new unbounded structure bypasses limits, a content-bearing value bypasses redaction, or
 the old accepted fixtures stop decoding without an explicit versioning decision.
+
+The separate [GenAI proposal import profile](GENAI_IMPORT.md) pins a semantic-convention version on
+top of this OTLP trace model. Its adapter version and review gate advance independently; changing
+the OTLP wire baseline does not silently migrate or approve GenAI interaction proposals.
