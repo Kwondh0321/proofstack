@@ -284,7 +284,7 @@ write를 수행하지 않습니다.
 
 | 경계 | 필요한 근거 |
 | --- | --- |
-| Definition | Unknown field를 거부하는 엄격한 target release·replay plan schema, exact lineage, fixed encoding, public vector, idempotent publication, mutable alias 부재 |
+| Definition | Unknown field를 거부하는 엄격한 target release·replay plan schema, exact lineage, fixed encoding, [public vector](../../packages/replay/vectors/replay-definition-v1.json), idempotent publication, mutable alias 부재 |
 | Mode | Recorded·simulation·live 선언이 effective mode를 보존하며 input 누락·실패가 fallback하거나 mode를 변경하지 않음 |
 | Budget | 모든 dimension이 유한하고 reservation·reconciliation·release·overrun·disputed usage·cancellation·retry 산술을 property test |
 | State | 모든 허용 transition은 정확히 한 번 성공하고 illegal·backward·mixed·duplicate·terminal reopen은 실패 |

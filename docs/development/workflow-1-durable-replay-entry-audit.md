@@ -283,7 +283,7 @@ The roadmap checkbox remains open until every row has executable evidence.
 
 | Boundary | Required evidence |
 | --- | --- |
-| Definitions | Strict unknown-field-rejecting target release and replay plan schemas, exact lineage, fixed encodings, public vectors, idempotent publication, and no mutable alias |
+| Definitions | Strict unknown-field-rejecting target release and replay plan schemas, exact lineage, fixed encodings, [public vectors](../../packages/replay/vectors/replay-definition-v1.json), idempotent publication, and no mutable alias |
 | Modes | Recorded, simulation, and live declarations preserve effective mode; missing or failed inputs never fall through or change mode |
 | Budgets | Every dimension is finite; checked reservation, reconciliation, release, overrun, disputed usage, cancellation, and retry arithmetic is property-tested |
 | State | Every permitted transition succeeds exactly once; illegal, backward, mixed, duplicate, and terminal-reopen transitions fail |

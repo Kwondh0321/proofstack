@@ -2,7 +2,7 @@
   "name": "@proofstack/replay",
   "version": "0.0.0",
   "private": true,
-  "description": "Fail-closed recorded-boundary replay primitives for ProofStack",
+  "description": "Canonical and fail-closed bounded replay primitives for ProofStack",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -10,7 +10,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./vectors/recorded-boundary-replay-v1.json": "./vectors/recorded-boundary-replay-v1.json"
+    "./vectors/recorded-boundary-replay-v1.json": "./vectors/recorded-boundary-replay-v1.json",
+    "./vectors/replay-definition-v1.json": "./vectors/replay-definition-v1.json"
   },
   "files": [
     "dist",
@@ -21,7 +22,8 @@
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
     "test": "vitest run --coverage",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "vectors:generate": "pnpm build && node scripts/generate-replay-definition-vectors.mjs && biome format --write vectors/replay-definition-v1.json"
   },
   "dependencies": {
     "@proofstack/contracts": "workspace:*",

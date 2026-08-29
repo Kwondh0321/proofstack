@@ -1,0 +1,218 @@
+{
+  "format": "proofstack.replay-definition-vectors.v1",
+  "vectors": [
+    {
+      "kind": "target_release",
+      "name": "minimal preinstalled recorded target release",
+      "input": {
+        "build": {
+          "builderId": "proofstack.reference_builder",
+          "dependencySnapshotSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "executableSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+          "invocationSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "provenance": {
+            "artifactId": "art_vector_provenance",
+            "classification": "internal",
+            "mediaType": "application/json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "sizeBytes": 128
+          }
+        },
+        "environmentVariableNames": [],
+        "execution": {
+          "implementationId": "impl_vector_target",
+          "implementationSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+          "kind": "preinstalled"
+        },
+        "mounts": [],
+        "outputLimits": {
+          "emittedArtifactBytes": 1048576,
+          "stderrBytes": 65536,
+          "stdoutBytes": 65536
+        },
+        "runtime": {
+          "architecture": "x64",
+          "entryPoint": "dist/target.js",
+          "family": "node",
+          "platform": "linux",
+          "version": "24.7.0"
+        },
+        "schemaVersion": "0.1",
+        "scope": {
+          "environmentId": "env_vector",
+          "projectId": "prj_vector",
+          "tenantId": "ten_vector"
+        },
+        "source": {
+          "repositoryUrl": "https://github.com/Kwondh0321/proofstack",
+          "revision": "6666666666666666666666666666666666666666"
+        },
+        "subprocessPolicy": {
+          "mode": "denied"
+        },
+        "supportedBoundaryKinds": ["model"],
+        "supportedBoundaryModes": ["recorded_stub"],
+        "targetAdapter": {
+          "name": "proofstack.reference_target",
+          "protocolVersion": "1.0.0",
+          "version": "1.0.0"
+        },
+        "targetId": "target_vector",
+        "targetReleaseId": "trg_vector_001",
+        "workerProtocol": {
+          "name": "proofstack.replay-worker",
+          "version": "1.0.0"
+        }
+      },
+      "encodedByteLength": 894,
+      "encodedHex": "0000001c70726f6f66737461636b2e7461726765742d72656c656173652e763100000003302e310000000a74656e5f766563746f720000000a70726a5f766563746f720000000a656e765f766563746f720000000d7461726765745f766563746f720000000e7472675f766563746f725f3030310000001b70726f6f66737461636b2e7265666572656e63655f74617267657400000005312e302e3000000005312e302e300000002868747470733a2f2f6769746875622e636f6d2f4b776f6e6468303332312f70726f6f66737461636b00000028363636363636363636363636363636363636363636363636363636363636363636363636363636360000001c70726f6f66737461636b2e7265666572656e63655f6275696c646572000000403333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333300000040323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232320000004031313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131000000156172745f766563746f725f70726f76656e616e636500000008696e7465726e616c000000106170706c69636174696f6e2f6a736f6e00000000403434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343434343400000000000000800000000c707265696e7374616c6c656400000012696d706c5f766563746f725f7461726765740000004035353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535353535000000046e6f64650000000632342e372e30000000056c696e7578000000037836340000000e646973742f7461726765742e6a7300000000000000000000000664656e69656400000000000100000000000000010000000000000010000000000001000000056d6f64656c000000010000000d7265636f726465645f737475620000001870726f6f66737461636b2e7265706c61792d776f726b657200000005312e302e30",
+      "sha256": "d0c74eaac166b7cd62081cadb5c8d1c22a72fa48aefa8f6fef94764c9b6041dd"
+    },
+    {
+      "kind": "replay_plan",
+      "name": "minimal exact recorded replay plan",
+      "input": {
+        "boundaries": [
+          {
+            "boundaryId": "bnd_vector_model",
+            "invocation": {
+              "fixture": {
+                "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                "fixtureId": "fix_vector",
+                "fixtureVersionId": "fiv_vector_001"
+              },
+              "invocationId": "rpi_vector_001",
+              "runtime": {
+                "boundaryMode": "recorded_stub",
+                "clock": {
+                  "instant": "2026-08-29T00:00:00.000Z",
+                  "mode": "fixed"
+                },
+                "isolation": {
+                  "mode": "cooperative_in_process"
+                },
+                "locale": "en-US",
+                "network": {
+                  "policy": "deny_fallback"
+                },
+                "random": {
+                  "algorithm": "hmac_sha256_counter_v1",
+                  "mode": "seeded",
+                  "seedHex": "8888888888888888888888888888888888888888888888888888888888888888"
+                },
+                "timeZone": "UTC"
+              },
+              "schemaVersion": "0.1",
+              "targetAdapter": {
+                "name": "proofstack.reference_target",
+                "version": "1.0.0"
+              }
+            },
+            "invocationDefinitionSha256": "71265db8af526720cef16c7faa74c15237931abe8d98581a9926faf5f41d4e7e",
+            "kind": "model",
+            "mode": "recorded_stub"
+          }
+        ],
+        "budget": {
+          "concurrentInteractions": {
+            "limit": 1,
+            "measurement": "measured"
+          },
+          "elapsedMilliseconds": {
+            "limit": 10000,
+            "measurement": "measured"
+          },
+          "emittedArtifactBytes": {
+            "limit": 1048576,
+            "measurement": "measured"
+          },
+          "inputTokens": {
+            "limit": 4096,
+            "measurement": "provider_reported"
+          },
+          "jobAttempts": {
+            "limit": 1,
+            "measurement": "measured"
+          },
+          "modelRequests": {
+            "limit": 4,
+            "measurement": "measured"
+          },
+          "outputTokens": {
+            "limit": 4096,
+            "measurement": "provider_reported"
+          },
+          "providerCostMicrounits": {
+            "limit": 1000000,
+            "measurement": "unavailable"
+          },
+          "retrievedBytes": {
+            "limit": 1048576,
+            "measurement": "measured"
+          },
+          "toolCalls": {
+            "limit": 1,
+            "measurement": "measured"
+          }
+        },
+        "dataset": {
+          "datasetId": "dat_vector",
+          "datasetVersionId": "dsv_vector_001",
+          "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999"
+        },
+        "isolationProfile": {
+          "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "id": "iso_local_child",
+          "kind": "local_child_process",
+          "version": "1.0.0"
+        },
+        "planId": "plan_vector",
+        "planVersionId": "plv_vector_001",
+        "retryPolicy": {
+          "automatic": false,
+          "backoff": {
+            "kind": "none"
+          },
+          "idempotencyRequirement": "no_external_effect",
+          "maxAttempts": 1,
+          "perAttemptTimeoutMilliseconds": 2000,
+          "retryableErrors": [],
+          "totalDeadlineMilliseconds": 5000
+        },
+        "runtimeProfile": {
+          "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "family": "node",
+          "id": "run_node_24",
+          "version": "1.0.0"
+        },
+        "schemaVersion": "0.1",
+        "scope": {
+          "environmentId": "env_vector",
+          "projectId": "prj_vector",
+          "tenantId": "ten_vector"
+        },
+        "targetRelease": {
+          "definitionSha256": "d0c74eaac166b7cd62081cadb5c8d1c22a72fa48aefa8f6fef94764c9b6041dd",
+          "targetAdapter": {
+            "name": "proofstack.reference_target",
+            "protocolVersion": "1.0.0",
+            "version": "1.0.0"
+          },
+          "targetId": "target_vector",
+          "targetReleaseId": "trg_vector_001",
+          "workerProtocol": {
+            "name": "proofstack.replay-worker",
+            "version": "1.0.0"
+          }
+        },
+        "workerProtocol": {
+          "name": "proofstack.replay-worker",
+          "version": "1.0.0"
+        }
+      },
+      "encodedByteLength": 1482,
+      "encodedHex": "0000001970726f6f66737461636b2e7265706c61792d706c616e2e763100000003302e310000000a74656e5f766563746f720000000a70726a5f766563746f720000000a656e765f766563746f720000000b706c616e5f766563746f720000000e706c765f766563746f725f3030310000000d7461726765745f766563746f720000000e7472675f766563746f725f30303100000040643063373465616163313636623763643632303831636164623563386431633232613732666134386165666138663666656639343736346339623630343164640000001b70726f6f66737461636b2e7265666572656e63655f74617267657400000005312e302e3000000005312e302e300000001870726f6f66737461636b2e7265706c61792d776f726b657200000005312e302e300000000a6461745f766563746f720000000e6473765f766563746f725f30303100000040393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939393939390000000b72756e5f6e6f64655f323400000005312e302e300000004062626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262000000046e6f64650000000f69736f5f6c6f63616c5f6368696c6400000005312e302e300000004061616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161000000136c6f63616c5f6368696c645f70726f636573730000000000000001000000086d656173757265640000000000002710000000086d656173757265640000000000100000000000086d6561737572656400000000000010000000001170726f76696465725f7265706f727465640000000000000001000000086d656173757265640000000000000004000000086d6561737572656400000000000010000000001170726f76696465725f7265706f7274656400000000000f42400000000b756e617661696c61626c650000000000100000000000086d656173757265640000000000000001000000086d6561737572656400000000000000000100000000000007d00000000000001388000000126e6f5f65787465726e616c5f65666665637400000000000000046e6f6e650000000100000010626e645f766563746f725f6d6f64656c000000056d6f64656c0000000d7265636f726465645f737475620000004037313236356462386166353236373230636566313663376661613734633135323337393331616265386439383538316139393236666166356634316434653765000001a80000002670726f6f66737461636b2e7265636f726465642d626f756e646172792d7265706c61792e763100000003302e310000000e7270695f766563746f725f3030310000000a6669785f766563746f720000000e6669765f766563746f725f30303100000040373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737373737370000001b70726f6f66737461636b2e7265666572656e63655f74617267657400000005312e302e300000000d7265636f726465645f7374756200000005666978656400000018323032362d30382d32395430303a30303a30302e3030305a0000000673656564656400000016686d61635f7368613235365f636f756e7465725f7631000000403838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383838383800000005656e2d5553000000035554430000000d64656e795f66616c6c6261636b00000016636f6f70657261746976655f696e5f70726f636573730000001870726f6f66737461636b2e7265706c61792d776f726b657200000005312e302e30",
+      "sha256": "b28e23f2ebb37f751b0577ca19ac67a80fd66eba2b9ade45038056e9814c48c0"
+    }
+  ]
+}

@@ -146,7 +146,7 @@ apps/web                 서버 렌더링 운영자 콘솔
 packages/contracts       런타임 스키마, 공개 타입, 인증 컨텍스트, OpenAPI 생성
 packages/core            프레임워크 독립적인 인가 및 증거 유스케이스
 packages/datasets        불변 회귀 정의, 이진 인코딩, 공개 검증 벡터
-packages/replay          Fail-closed 정확 기록 경계 사전 검사와 협력적 실행
+packages/replay          정규 bounded-replay 정의와 fail-closed 기록 실행
 packages/artifacts       암호화 콘텐츠 수명주기, 인가, 저장소 포트
 packages/postgres        영속 저장소, 마이그레이션, 전달 상태, 런타임 역할
 packages/recovery        조정된 복구 매니페스트, 객체 인벤토리, 무결성 검증
