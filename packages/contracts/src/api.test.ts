@@ -5,6 +5,8 @@ import {
   BrowserLoginQuerySchema,
   BrowserReturnPathSchema,
   BrowserSessionResponseSchema,
+  ExportRecordedInteractionFixtureContentResponseSchema,
+  ExportRecordedInteractionFixtureMetadataResponseSchema,
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
   MAX_TRACE_PAGE_SIZE,
@@ -24,6 +26,10 @@ import {
   TombstoneArtifactResponseSchema,
   UploadArtifactResponseSchema,
 } from "./api.js";
+import {
+  RecordedInteractionFixtureContentExportSchema,
+  RecordedInteractionFixtureMetadataExportSchema,
+} from "./interaction-export.js";
 import { RecordedInteractionFixtureVersionDefinitionSchema } from "./dataset.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -397,6 +403,56 @@ describe("HTTP response contracts", () => {
         revocation: null,
         tombstones: [],
         version: recordedVersion,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("wraps strict metadata and content exports with request provenance", () => {
+    const metadataExport = RecordedInteractionFixtureMetadataExportSchema.parse({
+      artifacts: recordedVersion.interactionCapture.artifacts.map((binding, index) => ({
+        binding,
+        lifecycleStatus: "available",
+        metadata: {
+          ...artifactMetadata,
+          contentReference: binding.contentReference,
+          redaction: binding.redaction,
+          retention: binding.retention,
+        },
+        ownership: ownerships[index],
+        purgeReceipt: null,
+        tombstone: null,
+      })),
+      contentAvailability: "available",
+      mode: "metadata",
+      revocation: null,
+      schemaVersion: "0.1",
+      version: recordedVersion,
+    });
+    const contentExport = RecordedInteractionFixtureContentExportSchema.parse({
+      ...metadataExport,
+      artifacts: metadataExport.artifacts.map((artifact) => ({
+        artifact,
+        content: { status: "missing" },
+      })),
+      mode: "content",
+    });
+
+    expect(
+      ExportRecordedInteractionFixtureMetadataResponseSchema.safeParse({
+        export: metadataExport,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      ExportRecordedInteractionFixtureContentResponseSchema.safeParse({
+        export: contentExport,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      ExportRecordedInteractionFixtureMetadataResponseSchema.safeParse({
+        ...metadataExport,
+        requestId: "req_test_001",
       }).success,
     ).toBe(false);
   });

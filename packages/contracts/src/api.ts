@@ -18,6 +18,10 @@ import {
   RegressionFixtureVersionSchema,
 } from "./dataset.js";
 import { MAX_CAPTURE_ARTIFACTS } from "./interaction.js";
+import {
+  RecordedInteractionFixtureContentExportSchema,
+  RecordedInteractionFixtureMetadataExportSchema,
+} from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const RequestIdSchema = z.string().min(1).max(128);
@@ -277,6 +281,20 @@ export const RevokeRecordedInteractionFixtureContentResponseSchema = z
     }
   });
 
+export const ExportRecordedInteractionFixtureMetadataResponseSchema = z
+  .object({
+    export: RecordedInteractionFixtureMetadataExportSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const ExportRecordedInteractionFixtureContentResponseSchema = z
+  .object({
+    export: RecordedInteractionFixtureContentExportSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
 export const ProblemIssueSchema = z
   .object({
     message: z.string().min(1),
@@ -297,6 +315,12 @@ export const ProblemDocumentSchema = z
   .strict();
 
 export type IngestEvidenceResponse = z.infer<typeof IngestEvidenceResponseSchema>;
+export type ExportRecordedInteractionFixtureContentResponse = z.infer<
+  typeof ExportRecordedInteractionFixtureContentResponseSchema
+>;
+export type ExportRecordedInteractionFixtureMetadataResponse = z.infer<
+  typeof ExportRecordedInteractionFixtureMetadataResponseSchema
+>;
 export type PurgeArtifactResponse = z.infer<typeof PurgeArtifactResponseSchema>;
 export type PublishRecordedInteractionFixtureVersionResponse = z.infer<
   typeof PublishRecordedInteractionFixtureVersionResponseSchema
