@@ -422,6 +422,40 @@ describe("ProofStackRegressionClient", () => {
     ).rejects.toThrow("inconsistent regression publication status");
   });
 
+  it("rejects schema-valid regression identities and scopes that contradict the request path", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          requestId: "req_wrong_fixture_identity",
+          version: { ...fixtureVersion, fixtureId: "fix_other" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          requestId: "req_wrong_dataset_scope",
+          version: {
+            ...datasetVersion,
+            scope: { ...datasetVersion.scope, projectId: "prj_other" },
+          },
+        }),
+      );
+    const sdk = client(fetch);
+
+    await expect(
+      sdk.readFixtureVersion({
+        fixtureId: fixtureVersion.fixtureId,
+        fixtureVersionId: fixtureVersion.fixtureVersionId,
+      }),
+    ).rejects.toThrow("identity that contradicts");
+    await expect(
+      sdk.readDatasetVersion({
+        datasetId: datasetVersion.datasetId,
+        datasetVersionId: datasetVersion.datasetVersionId,
+      }),
+    ).rejects.toThrow("scope that contradicts");
+  });
+
   it("bounds successful response bodies before parsing", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()

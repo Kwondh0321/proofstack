@@ -1,8 +1,17 @@
 import {
   ApiKeyValueSchema,
+  ArtifactMediaTypeSchema,
+  type ArtifactRedactionSummary,
+  type DataClassification,
+  DataClassificationSchema,
+  MAX_ARTIFACT_CONTENT_BYTES,
   OpaqueIdSchema,
   type ProblemDocument,
   ProblemDocumentSchema,
+  type PublishInteractionFixtureVersionRequest,
+  PublishInteractionFixtureVersionRequestSchema,
+  type PublishRecordedInteractionFixtureVersionResponse,
+  PublishRecordedInteractionFixtureVersionResponseSchema,
   type PublishRegressionDatasetVersionRequest,
   PublishRegressionDatasetVersionRequestSchema,
   type PublishRegressionDatasetVersionResponse,
@@ -11,10 +20,32 @@ import {
   PublishRegressionFixtureVersionRequestSchema,
   type PublishRegressionFixtureVersionResponse,
   PublishRegressionFixtureVersionResponseSchema,
+  type PurgeArtifactResponse,
+  PurgeArtifactResponseSchema,
+  type ReadArtifactMetadataResponse,
+  ReadArtifactMetadataResponseSchema,
+  type ReadRecordedInteractionFixtureMetadataResponse,
+  ReadRecordedInteractionFixtureMetadataResponseSchema,
   type ReadRegressionDatasetVersionResponse,
   ReadRegressionDatasetVersionResponseSchema,
   type ReadRegressionFixtureVersionResponse,
   ReadRegressionFixtureVersionResponseSchema,
+  type ReserveArtifactRequest,
+  ReserveArtifactRequestSchema,
+  type ReserveArtifactResponse,
+  ReserveArtifactResponseSchema,
+  type RevokeInteractionFixtureContentRequest,
+  RevokeInteractionFixtureContentRequestSchema,
+  type RevokeRecordedInteractionFixtureContentResponse,
+  RevokeRecordedInteractionFixtureContentResponseSchema,
+  RequestIdSchema,
+  Sha256Schema,
+  type TombstoneArtifactRequest,
+  TombstoneArtifactRequestSchema,
+  type TombstoneArtifactResponse,
+  TombstoneArtifactResponseSchema,
+  type UploadArtifactResponse,
+  UploadArtifactResponseSchema,
 } from "@proofstack/contracts";
 
 const MAX_CONTROL_PLANE_RESPONSE_BYTES = 1024 * 1024;
@@ -27,6 +58,14 @@ interface ResponseSchema<Output> {
     | { readonly data: Output; readonly success: true }
     | { readonly error: unknown; readonly success: false };
 }
+
+const artifactRedactionStatusSchema: ResponseSchema<ArtifactRedactionSummary["status"]> = {
+  safeParse(input) {
+    return input === "applied" || input === "not_performed" || input === "not_required"
+      ? { data: input, success: true }
+      : { error: new Error("Invalid artifact redaction status"), success: false };
+  },
+};
 
 export type ProofStackRegressionAuthentication =
   | {
@@ -68,6 +107,46 @@ export interface PublishRegressionDatasetVersionInput {
 export interface ReadRegressionDatasetVersionInput {
   readonly datasetId: string;
   readonly datasetVersionId: string;
+}
+
+export interface ReserveArtifactInput {
+  readonly request: ReserveArtifactRequest;
+}
+
+export interface ArtifactIdentifierInput {
+  readonly artifactId: string;
+}
+
+export interface UploadArtifactContentInput extends ArtifactIdentifierInput {
+  readonly content: Uint8Array;
+}
+
+export interface TombstoneArtifactInput extends ArtifactIdentifierInput {
+  readonly request: TombstoneArtifactRequest;
+}
+
+export interface PublishRecordedInteractionFixtureVersionInput {
+  readonly fixtureId: string;
+  readonly request: PublishInteractionFixtureVersionRequest;
+}
+
+export interface ReadRecordedInteractionFixtureMetadataInput {
+  readonly fixtureId: string;
+  readonly fixtureVersionId: string;
+}
+
+export interface RevokeRecordedInteractionFixtureContentInput
+  extends ReadRecordedInteractionFixtureMetadataInput {
+  readonly request: RevokeInteractionFixtureContentRequest;
+}
+
+export interface ArtifactContent {
+  readonly classification: DataClassification;
+  readonly content: Uint8Array;
+  readonly mediaType: string;
+  readonly redactionStatus: ArtifactRedactionSummary["status"];
+  readonly requestId: string;
+  readonly sha256: string;
 }
 
 export class ProofStackApiError extends Error {
@@ -192,6 +271,67 @@ async function readBoundedResponseBody(response: Response): Promise<string> {
   }
 }
 
+async function readBoundedBinaryBody(response: Response): Promise<Uint8Array> {
+  if (!response.body) {
+    throw new ProofStackApiError("ProofStack API returned empty artifact content", response.status);
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      receivedBytes += chunk.value.byteLength;
+      if (receivedBytes > MAX_ARTIFACT_CONTENT_BYTES) {
+        await reader.cancel();
+        throw new ProofStackApiError(
+          `ProofStack artifact content exceeded ${MAX_ARTIFACT_CONTENT_BYTES} bytes`,
+          response.status,
+        );
+      }
+      chunks.push(chunk.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (receivedBytes === 0) {
+    throw new ProofStackApiError("ProofStack API returned empty artifact content", response.status);
+  }
+  const content = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    content.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return content;
+}
+
+function requiredResponseHeader<Output>(
+  response: Response,
+  name: string,
+  schema: ResponseSchema<Output>,
+): Output {
+  const parsed = schema.safeParse(response.headers.get(name));
+  if (!parsed.success) {
+    throw new ProofStackApiError(
+      `ProofStack artifact response header ${name} violates the published contract`,
+      response.status,
+      { cause: parsed.error },
+    );
+  }
+  return parsed.data;
+}
+
+async function contentSha256(content: Uint8Array): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new ProofStackApiError("Web Crypto is required to verify artifact content integrity");
+  }
+  const digest = new Uint8Array(await subtle.digest("SHA-256", Uint8Array.from(content).buffer));
+  return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function parseJson(text: string, status: number): unknown {
   try {
     return JSON.parse(text);
@@ -252,6 +392,12 @@ export class ProofStackRegressionClient {
       [200, 201],
     );
     this.assertPublicationStatus(result.value.created, result.status);
+    this.assertFixtureVersionIdentity(
+      result.value.version,
+      fixtureId,
+      request.data.fixtureVersionId,
+      "fixture publication",
+    );
     return result.value;
   }
 
@@ -260,7 +406,7 @@ export class ProofStackRegressionClient {
   ): Promise<ReadRegressionFixtureVersionResponse> {
     const fixtureId = validatedIdentifier(input.fixtureId, "fixtureId");
     const fixtureVersionId = validatedIdentifier(input.fixtureVersionId, "fixtureVersionId");
-    return (
+    const result = (
       await this.request<ReadRegressionFixtureVersionResponse>(
         ["regression-fixtures", fixtureId, "versions", fixtureVersionId],
         "GET",
@@ -269,6 +415,8 @@ export class ProofStackRegressionClient {
         [200],
       )
     ).value;
+    this.assertFixtureVersionIdentity(result.version, fixtureId, fixtureVersionId, "fixture read");
+    return result;
   }
 
   async publishDatasetVersion(
@@ -287,6 +435,12 @@ export class ProofStackRegressionClient {
       [200, 201],
     );
     this.assertPublicationStatus(result.value.created, result.status);
+    this.assertDatasetVersionIdentity(
+      result.value.version,
+      datasetId,
+      request.data.datasetVersionId,
+      "dataset publication",
+    );
     return result.value;
   }
 
@@ -295,7 +449,7 @@ export class ProofStackRegressionClient {
   ): Promise<ReadRegressionDatasetVersionResponse> {
     const datasetId = validatedIdentifier(input.datasetId, "datasetId");
     const datasetVersionId = validatedIdentifier(input.datasetVersionId, "datasetVersionId");
-    return (
+    const result = (
       await this.request<ReadRegressionDatasetVersionResponse>(
         ["regression-datasets", datasetId, "versions", datasetVersionId],
         "GET",
@@ -304,6 +458,275 @@ export class ProofStackRegressionClient {
         [200],
       )
     ).value;
+    this.assertDatasetVersionIdentity(result.version, datasetId, datasetVersionId, "dataset read");
+    return result;
+  }
+
+  async reserveArtifact(input: ReserveArtifactInput): Promise<ReserveArtifactResponse> {
+    const request = ReserveArtifactRequestSchema.safeParse(input.request);
+    if (!request.success) {
+      throw new ProofStackApiError("Artifact reservation failed local validation");
+    }
+    const result = await this.request<ReserveArtifactResponse>(
+      ["artifacts"],
+      "POST",
+      request.data,
+      ReserveArtifactResponseSchema,
+      [200, 201],
+      "write",
+    );
+    this.assertCreatedStatus(result.value.created, result.status, "artifact reservation");
+    this.assertArtifactIdentity(
+      result.value.metadata,
+      request.data.artifactId,
+      "artifact reservation",
+    );
+    return result.value;
+  }
+
+  async uploadArtifactContent(input: UploadArtifactContentInput): Promise<UploadArtifactResponse> {
+    const artifactId = validatedIdentifier(input.artifactId, "artifactId");
+    if (!(input.content instanceof Uint8Array) || input.content.byteLength === 0) {
+      throw new ProofStackApiError("Artifact content must be a non-empty Uint8Array");
+    }
+    if (input.content.byteLength > MAX_ARTIFACT_CONTENT_BYTES) {
+      throw new ProofStackApiError(`Artifact content exceeds ${MAX_ARTIFACT_CONTENT_BYTES} bytes`);
+    }
+    const result = (
+      await this.request<UploadArtifactResponse>(
+        ["artifacts", artifactId, "content"],
+        "PUT",
+        input.content,
+        UploadArtifactResponseSchema,
+        [200],
+        "write",
+      )
+    ).value;
+    this.assertArtifactIdentity(result.metadata, artifactId, "artifact upload");
+    return result;
+  }
+
+  async readArtifactMetadata(
+    input: ArtifactIdentifierInput,
+  ): Promise<ReadArtifactMetadataResponse> {
+    const artifactId = validatedIdentifier(input.artifactId, "artifactId");
+    const result = (
+      await this.request<ReadArtifactMetadataResponse>(
+        ["artifacts", artifactId],
+        "GET",
+        undefined,
+        ReadArtifactMetadataResponseSchema,
+        [200],
+        "read",
+      )
+    ).value;
+    this.assertArtifactIdentity(result.metadata, artifactId, "artifact metadata read");
+    if (result.ownership && result.ownership.artifactId !== artifactId) {
+      throw new ProofStackApiError(
+        "ProofStack API returned artifact ownership that contradicts the requested resource",
+      );
+    }
+    return result;
+  }
+
+  async readArtifactContent(input: ArtifactIdentifierInput): Promise<ArtifactContent> {
+    const artifactId = validatedIdentifier(input.artifactId, "artifactId");
+    return this.requestArtifactContent(["artifacts", artifactId, "content"]);
+  }
+
+  async tombstoneArtifact(input: TombstoneArtifactInput): Promise<TombstoneArtifactResponse> {
+    const artifactId = validatedIdentifier(input.artifactId, "artifactId");
+    const request = TombstoneArtifactRequestSchema.safeParse(input.request);
+    if (!request.success) {
+      throw new ProofStackApiError("Artifact tombstone request failed local validation");
+    }
+    const result = await this.request<TombstoneArtifactResponse>(
+      ["artifacts", artifactId],
+      "DELETE",
+      request.data,
+      TombstoneArtifactResponseSchema,
+      [200, 201],
+      "manage",
+    );
+    this.assertCreatedStatus(result.value.created, result.status, "artifact tombstone");
+    this.assertArtifactIdentity(result.value.metadata, artifactId, "artifact tombstone");
+    if (result.value.tombstone.artifactId !== artifactId) {
+      throw new ProofStackApiError(
+        "ProofStack API returned an artifact tombstone that contradicts the requested resource",
+      );
+    }
+    return result.value;
+  }
+
+  async purgeArtifact(input: ArtifactIdentifierInput): Promise<PurgeArtifactResponse> {
+    const artifactId = validatedIdentifier(input.artifactId, "artifactId");
+    const result = (
+      await this.request<PurgeArtifactResponse>(
+        ["artifacts", artifactId, "purge"],
+        "POST",
+        undefined,
+        PurgeArtifactResponseSchema,
+        [200],
+        "manage",
+      )
+    ).value;
+    this.assertArtifactIdentity(result.metadata, artifactId, "artifact purge");
+    return result;
+  }
+
+  async publishRecordedInteractionFixtureVersion(
+    input: PublishRecordedInteractionFixtureVersionInput,
+  ): Promise<PublishRecordedInteractionFixtureVersionResponse> {
+    const fixtureId = validatedIdentifier(input.fixtureId, "fixtureId");
+    const request = PublishInteractionFixtureVersionRequestSchema.safeParse(input.request);
+    if (!request.success) {
+      throw new ProofStackApiError(
+        "Recorded interaction fixture publication failed local validation",
+      );
+    }
+    const result = await this.request<PublishRecordedInteractionFixtureVersionResponse>(
+      ["regression-fixtures", fixtureId, "interaction-versions"],
+      "POST",
+      request.data,
+      PublishRecordedInteractionFixtureVersionResponseSchema,
+      [200, 201],
+      "manage",
+    );
+    this.assertCreatedStatus(
+      result.value.created,
+      result.status,
+      "recorded interaction publication",
+    );
+    this.assertFixtureVersionIdentity(
+      result.value.version,
+      fixtureId,
+      request.data.fixtureVersionId,
+      "recorded interaction publication",
+    );
+    return result.value;
+  }
+
+  async readRecordedInteractionFixtureMetadata(
+    input: ReadRecordedInteractionFixtureMetadataInput,
+  ): Promise<ReadRecordedInteractionFixtureMetadataResponse> {
+    const fixtureId = validatedIdentifier(input.fixtureId, "fixtureId");
+    const fixtureVersionId = validatedIdentifier(input.fixtureVersionId, "fixtureVersionId");
+    const result = (
+      await this.request<ReadRecordedInteractionFixtureMetadataResponse>(
+        ["regression-fixtures", fixtureId, "interaction-versions", fixtureVersionId],
+        "GET",
+        undefined,
+        ReadRecordedInteractionFixtureMetadataResponseSchema,
+        [200],
+        "read",
+      )
+    ).value;
+    this.assertFixtureVersionIdentity(
+      result.version,
+      fixtureId,
+      fixtureVersionId,
+      "recorded interaction metadata read",
+    );
+    return result;
+  }
+
+  async revokeRecordedInteractionFixtureContent(
+    input: RevokeRecordedInteractionFixtureContentInput,
+  ): Promise<RevokeRecordedInteractionFixtureContentResponse> {
+    const fixtureId = validatedIdentifier(input.fixtureId, "fixtureId");
+    const fixtureVersionId = validatedIdentifier(input.fixtureVersionId, "fixtureVersionId");
+    const request = RevokeInteractionFixtureContentRequestSchema.safeParse(input.request);
+    if (!request.success) {
+      throw new ProofStackApiError("Interaction revocation failed local validation");
+    }
+    const result = await this.request<RevokeRecordedInteractionFixtureContentResponse>(
+      ["regression-fixtures", fixtureId, "interaction-versions", fixtureVersionId, "revocation"],
+      "POST",
+      request.data,
+      RevokeRecordedInteractionFixtureContentResponseSchema,
+      [200, 201],
+      "manage",
+    );
+    this.assertCreatedStatus(result.value.created, result.status, "interaction revocation");
+    this.assertFixtureVersionIdentity(
+      result.value.version,
+      fixtureId,
+      fixtureVersionId,
+      "interaction revocation",
+    );
+    return result.value;
+  }
+
+  private assertRequestedScope(
+    scope: { readonly environmentId: string; readonly projectId: string },
+    operation: string,
+  ): void {
+    if (scope.projectId !== this.projectId || scope.environmentId !== this.environmentId) {
+      throw new ProofStackApiError(
+        `ProofStack API returned a ${operation} scope that contradicts the requested resource`,
+      );
+    }
+  }
+
+  private assertArtifactIdentity(
+    metadata: {
+      readonly contentReference: { readonly artifactId: string };
+      readonly scope: { readonly environmentId: string; readonly projectId: string };
+    },
+    artifactId: string,
+    operation: string,
+  ): void {
+    this.assertRequestedScope(metadata.scope, operation);
+    if (metadata.contentReference.artifactId !== artifactId) {
+      throw new ProofStackApiError(
+        `ProofStack API returned an ${operation} identity that contradicts the requested resource`,
+      );
+    }
+  }
+
+  private assertFixtureVersionIdentity(
+    version: {
+      readonly fixtureId: string;
+      readonly fixtureVersionId: string;
+      readonly scope: { readonly environmentId: string; readonly projectId: string };
+    },
+    fixtureId: string,
+    fixtureVersionId: string,
+    operation: string,
+  ): void {
+    this.assertRequestedScope(version.scope, operation);
+    if (version.fixtureId !== fixtureId || version.fixtureVersionId !== fixtureVersionId) {
+      throw new ProofStackApiError(
+        `ProofStack API returned a ${operation} identity that contradicts the requested resource`,
+      );
+    }
+  }
+
+  private assertDatasetVersionIdentity(
+    version: {
+      readonly datasetId: string;
+      readonly datasetVersionId: string;
+      readonly scope: { readonly environmentId: string; readonly projectId: string };
+    },
+    datasetId: string,
+    datasetVersionId: string,
+    operation: string,
+  ): void {
+    this.assertRequestedScope(version.scope, operation);
+    if (version.datasetId !== datasetId || version.datasetVersionId !== datasetVersionId) {
+      throw new ProofStackApiError(
+        `ProofStack API returned a ${operation} identity that contradicts the requested resource`,
+      );
+    }
+  }
+
+  private assertCreatedStatus(created: boolean, status: number, operation: string): void {
+    if ((created && status !== 201) || (!created && status !== 200)) {
+      throw new ProofStackApiError(
+        `ProofStack API returned an inconsistent ${operation} status`,
+        status,
+      );
+    }
   }
 
   private assertPublicationStatus(created: boolean, status: number): void {
@@ -315,16 +738,130 @@ export class ProofStackRegressionClient {
     }
   }
 
+  private throwRejectedResponse(response: Response, responseText: string): never {
+    let responseBody: unknown;
+    try {
+      responseBody = JSON.parse(responseText);
+    } catch {
+      throw new ProofStackApiError(
+        `ProofStack API rejected the request with HTTP ${response.status}`,
+        response.status,
+      );
+    }
+    const problem = ProblemDocumentSchema.safeParse(responseBody);
+    if (problem.success && problem.data.status === response.status) {
+      throw new ProofStackProblemError(problem.data);
+    }
+    throw new ProofStackApiError(
+      `ProofStack API rejected the request with HTTP ${response.status}`,
+      response.status,
+    );
+  }
+
+  private async requestArtifactContent(resourcePath: readonly string[]): Promise<ArtifactContent> {
+    const url = scopedUrl(this.baseUrl, [
+      "v1",
+      "projects",
+      this.projectId,
+      "environments",
+      this.environmentId,
+      ...resourcePath,
+    ]);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetchImplementation(url, {
+        credentials: this.authentication.mode === "browser" ? "include" : "omit",
+        headers: {
+          accept: "*/*",
+          ...(this.authentication.mode === "workload"
+            ? { authorization: `Bearer ${this.authentication.apiKey}` }
+            : {}),
+        },
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const responseText = await readBoundedResponseBody(response);
+        this.throwRejectedResponse(response, responseText);
+      }
+      if (response.status !== 200) {
+        throw new ProofStackApiError(
+          `ProofStack API returned unexpected HTTP ${response.status}`,
+          response.status,
+        );
+      }
+      const rawMediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
+      const mediaType = ArtifactMediaTypeSchema.safeParse(rawMediaType);
+      if (!mediaType.success) {
+        throw new ProofStackApiError(
+          "ProofStack artifact response media type violates the published contract",
+          response.status,
+          { cause: mediaType.error },
+        );
+      }
+      const classification = requiredResponseHeader(
+        response,
+        "x-proofstack-artifact-classification",
+        DataClassificationSchema,
+      );
+      const redactionStatus = requiredResponseHeader(
+        response,
+        "x-proofstack-artifact-redaction-status",
+        artifactRedactionStatusSchema,
+      );
+      const declaredSha256 = requiredResponseHeader(
+        response,
+        "x-proofstack-artifact-sha256",
+        Sha256Schema,
+      );
+      const requestId = requiredResponseHeader(
+        response,
+        "x-proofstack-request-id",
+        RequestIdSchema,
+      );
+      const content = await readBoundedBinaryBody(response);
+      const actualSha256 = await contentSha256(content);
+      if (actualSha256 !== declaredSha256) {
+        throw new ProofStackApiError(
+          "ProofStack artifact content digest does not match its response header",
+          response.status,
+        );
+      }
+      return {
+        classification,
+        content,
+        mediaType: mediaType.data,
+        redactionStatus,
+        requestId,
+        sha256: declaredSha256,
+      };
+    } catch (cause) {
+      if (cause instanceof ProofStackApiError) throw cause;
+      if (controller.signal.aborted) {
+        throw new ProofStackApiError(
+          `ProofStack API request timed out after ${this.timeoutMs}ms`,
+          undefined,
+          { cause },
+        );
+      }
+      throw new ProofStackApiError("ProofStack API request failed", undefined, { cause });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private async request<Output>(
     resourcePath: readonly string[],
-    method: "GET" | "POST",
+    method: "DELETE" | "GET" | "POST" | "PUT",
     body: unknown,
     responseSchema: ResponseSchema<Output>,
     expectedStatuses: readonly number[],
+    authority: "manage" | "read" | "write" = method === "GET" ? "read" : "manage",
   ): Promise<{ readonly status: number; readonly value: Output }> {
-    if (method === "POST" && this.authentication.mode === "workload") {
+    if (authority === "manage" && this.authentication.mode === "workload") {
       throw new ProofStackApiError(
-        "Regression publication requires user management authority; workload keys are read-only",
+        "This operation requires user management authority; workload keys are read-only for management operations",
       );
     }
     const url = scopedUrl(this.baseUrl, [
@@ -339,41 +876,30 @@ export class ProofStackRegressionClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const binaryBody = body instanceof Uint8Array;
       const response = await this.fetchImplementation(url, {
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(body === undefined
+          ? {}
+          : { body: binaryBody ? Uint8Array.from(body) : JSON.stringify(body) }),
         credentials: this.authentication.mode === "browser" ? "include" : "omit",
         headers: {
           accept: "application/json",
           ...(this.authentication.mode === "workload"
             ? { authorization: `Bearer ${this.authentication.apiKey}` }
             : {}),
-          ...(this.authentication.mode === "browser" && method === "POST"
+          ...(this.authentication.mode === "browser" && method !== "GET"
             ? { "x-proofstack-csrf": this.authentication.csrfToken }
             : {}),
-          ...(body === undefined ? {} : { "content-type": "application/json" }),
+          ...(body === undefined
+            ? {}
+            : { "content-type": binaryBody ? "application/octet-stream" : "application/json" }),
         },
         method,
         signal: controller.signal,
       });
       const responseText = await readBoundedResponseBody(response);
       if (!response.ok) {
-        let responseBody: unknown;
-        try {
-          responseBody = JSON.parse(responseText);
-        } catch {
-          throw new ProofStackApiError(
-            `ProofStack API rejected the request with HTTP ${response.status}`,
-            response.status,
-          );
-        }
-        const problem = ProblemDocumentSchema.safeParse(responseBody);
-        if (problem.success && problem.data.status === response.status) {
-          throw new ProofStackProblemError(problem.data);
-        }
-        throw new ProofStackApiError(
-          `ProofStack API rejected the request with HTTP ${response.status}`,
-          response.status,
-        );
+        this.throwRejectedResponse(response, responseText);
       }
       if (!expectedStatuses.includes(response.status)) {
         throw new ProofStackApiError(
