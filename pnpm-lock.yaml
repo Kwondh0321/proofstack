@@ -68,6 +68,9 @@ importers:
       '@proofstack/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@proofstack/datasets':
+        specifier: workspace:*
+        version: link:../../packages/datasets
       '@proofstack/identity':
         specifier: workspace:*
         version: link:../../packages/identity

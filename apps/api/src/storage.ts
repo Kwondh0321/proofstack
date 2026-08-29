@@ -1,15 +1,21 @@
 import { type EvidenceRepository, MemoryEvidenceRepository } from "@proofstack/core";
 import {
+  MemoryRegressionVersionRepository,
+  type RegressionVersionRepository,
+} from "@proofstack/datasets";
+import {
   assertMigrationsCurrent,
   createPostgresPool,
   PostgresEvidenceRepository,
+  PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
 import type { ApiConfig } from "./config.js";
 
-export interface EvidenceStorage {
+export interface ApiStorage {
   readonly checkReadiness: () => Promise<void>;
   readonly close: () => Promise<void>;
-  readonly repository: EvidenceRepository;
+  readonly evidenceRepository: EvidenceRepository;
+  readonly regressionVersionRepository: RegressionVersionRepository;
 }
 
 interface StorageDependencies {
@@ -22,16 +28,17 @@ const defaultDependencies: StorageDependencies = {
   createPool: createPostgresPool,
 };
 
-export async function createEvidenceStorage(
+export async function createApiStorage(
   config: ApiConfig["storage"],
   onIdleError: (error: Error) => void,
   dependencies: StorageDependencies = defaultDependencies,
-): Promise<EvidenceStorage> {
+): Promise<ApiStorage> {
   if (config.mode === "memory") {
     return {
       checkReadiness: async () => undefined,
       close: async () => undefined,
-      repository: new MemoryEvidenceRepository(),
+      evidenceRepository: new MemoryEvidenceRepository(),
+      regressionVersionRepository: new MemoryRegressionVersionRepository(),
     };
   }
 
@@ -50,6 +57,7 @@ export async function createEvidenceStorage(
   return {
     checkReadiness: () => dependencies.assertCurrent(pool),
     close: () => pool.end(),
-    repository: new PostgresEvidenceRepository(pool),
+    evidenceRepository: new PostgresEvidenceRepository(pool),
+    regressionVersionRepository: new PostgresRegressionVersionRepository(pool),
   };
 }

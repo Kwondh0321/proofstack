@@ -1,11 +1,13 @@
 import { MemoryEvidenceRepository } from "@proofstack/core";
+import { MemoryRegressionVersionRepository } from "@proofstack/datasets";
 import {
   type createPostgresPool,
   MigrationRequiredError,
   PostgresEvidenceRepository,
+  PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
 import { describe, expect, it, vi } from "vitest";
-import { createEvidenceStorage } from "./storage.js";
+import { createApiStorage } from "./storage.js";
 
 function postgresConfig() {
   return {
@@ -22,11 +24,12 @@ function fakeDependencies(options: { readonly assertCurrent?: () => Promise<void
   return { assertCurrent, createPool, end, pool };
 }
 
-describe("createEvidenceStorage", () => {
-  it("keeps the dependency-free memory adapter as the development default", async () => {
-    const storage = await createEvidenceStorage({ mode: "memory" }, vi.fn());
+describe("createApiStorage", () => {
+  it("keeps dependency-free memory adapters as the development default", async () => {
+    const storage = await createApiStorage({ mode: "memory" }, vi.fn());
 
-    expect(storage.repository).toBeInstanceOf(MemoryEvidenceRepository);
+    expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
+    expect(storage.regressionVersionRepository).toBeInstanceOf(MemoryRegressionVersionRepository);
     await expect(storage.checkReadiness()).resolves.toBeUndefined();
     await expect(storage.close()).resolves.toBeUndefined();
   });
@@ -35,9 +38,10 @@ describe("createEvidenceStorage", () => {
     const adapters = fakeDependencies();
     const onIdleError = vi.fn();
 
-    const storage = await createEvidenceStorage(postgresConfig(), onIdleError, adapters);
+    const storage = await createApiStorage(postgresConfig(), onIdleError, adapters);
 
-    expect(storage.repository).toBeInstanceOf(PostgresEvidenceRepository);
+    expect(storage.evidenceRepository).toBeInstanceOf(PostgresEvidenceRepository);
+    expect(storage.regressionVersionRepository).toBeInstanceOf(PostgresRegressionVersionRepository);
     expect(adapters.createPool).toHaveBeenCalledWith({
       applicationName: "proofstack-api",
       connectionString: postgresConfig().databaseUrl,
@@ -59,7 +63,7 @@ describe("createEvidenceStorage", () => {
       },
     });
 
-    await expect(createEvidenceStorage(postgresConfig(), vi.fn(), adapters)).rejects.toBe(failure);
+    await expect(createApiStorage(postgresConfig(), vi.fn(), adapters)).rejects.toBe(failure);
     expect(adapters.end).toHaveBeenCalledOnce();
   });
 });

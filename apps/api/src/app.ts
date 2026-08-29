@@ -19,9 +19,14 @@ import {
   IngestEvidence,
   InvalidTraceCursorError,
   ListTraceEvidence,
+  MemoryEvidenceRepository,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
+import {
+  MemoryRegressionVersionRepository,
+  type RegressionVersionRepository,
+} from "@proofstack/datasets";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
 import {
@@ -42,7 +47,7 @@ import { registerOidcRoutes } from "./oidc-routes.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerRoutes } from "./routes.js";
-import { createEvidenceStorage } from "./storage.js";
+import { createApiStorage } from "./storage.js";
 
 export interface AppDependencies {
   readonly apiKeyLifecycle?: ApiKeyLifecycleService;
@@ -51,6 +56,7 @@ export interface AppDependencies {
   readonly clock?: Clock;
   readonly identityStorage?: IdentityStorage;
   readonly oidcRuntime?: OidcRuntime;
+  readonly regressionVersionRepository?: RegressionVersionRepository;
   readonly repository?: EvidenceRepository;
 }
 
@@ -86,15 +92,18 @@ export async function createApp(
     trustProxy: false,
   });
   try {
-    const storage = dependencies.repository
-      ? {
-          checkReadiness: dependencies.checkReadiness ?? (async () => undefined),
-          close: async () => undefined,
-          repository: dependencies.repository,
-        }
-      : await createEvidenceStorage(config.storage, (error) => {
-          app.log.error({ error }, "Idle PostgreSQL connection failed");
-        });
+    const storage =
+      dependencies.repository || dependencies.regressionVersionRepository
+        ? {
+            checkReadiness: dependencies.checkReadiness ?? (async () => undefined),
+            close: async () => undefined,
+            evidenceRepository: dependencies.repository ?? new MemoryEvidenceRepository(),
+            regressionVersionRepository:
+              dependencies.regressionVersionRepository ?? new MemoryRegressionVersionRepository(),
+          }
+        : await createApiStorage(config.storage, (error) => {
+            app.log.error({ error }, "Idle PostgreSQL connection failed");
+          });
     app.addHook("onClose", storage.close);
 
     let identityStorage: IdentityStorage | undefined;
@@ -147,7 +156,7 @@ export async function createApp(
       });
     }
 
-    const ingestEvidence = new IngestEvidence(storage.repository, clock);
+    const ingestEvidence = new IngestEvidence(storage.evidenceRepository, clock);
     await registerRoutes(app, {
       authenticator,
       checkReadiness: async () => {
@@ -155,7 +164,7 @@ export async function createApp(
         await identityStorage?.checkReadiness();
       },
       ingestEvidence,
-      listTraceEvidence: new ListTraceEvidence(storage.repository),
+      listTraceEvidence: new ListTraceEvidence(storage.evidenceRepository),
     });
     const apiKeyLifecycle =
       dependencies.apiKeyLifecycle ??

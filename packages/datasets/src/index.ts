@@ -18,3 +18,4 @@ export type {
   ValidatedRegressionFixtureVersionDefinition,
 } from "./regression-version-definition.js";
 export * from "./regression-version-repository.js";
+export { MemoryRegressionVersionRepository } from "./testing/memory-regression-version-repository.js";

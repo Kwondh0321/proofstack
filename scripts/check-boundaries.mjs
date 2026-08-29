@@ -88,6 +88,7 @@ const modules = [
       "@proofstack/contracts",
       "@proofstack/core",
       "@proofstack/artifacts",
+      "@proofstack/datasets",
       "@proofstack/identity",
       "@proofstack/otlp",
       "@proofstack/postgres",

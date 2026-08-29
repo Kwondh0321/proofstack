@@ -21,6 +21,7 @@
     "@fastify/rate-limit": "11.2.0",
     "@proofstack/contracts": "workspace:*",
     "@proofstack/core": "workspace:*",
+    "@proofstack/datasets": "workspace:*",
     "@proofstack/identity": "workspace:*",
     "@proofstack/otlp": "workspace:*",
     "@proofstack/postgres": "workspace:*",
