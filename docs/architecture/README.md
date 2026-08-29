@@ -40,3 +40,4 @@ invalidate an ADR present in this directory.
 - [ADR-0015: Encode regression definitions with a fixed binary format](0015-regression-definition-digest-encoding.md)
 - [ADR-0016: Linearize regression version publication at one repository boundary](0016-linearize-regression-version-publication.md)
 - [ADR-0017: Own captured interaction content per immutable fixture version](0017-own-interaction-content-per-fixture.md)
+- [ADR-0018: Separate replay control-plane and worker persistence authority](0018-separate-replay-control-worker-authority.md)
