@@ -359,6 +359,7 @@ async function seedRecoverableArtifacts(
     vectorDocument.vectors[0]?.input,
   );
   const recordedArtifacts: InteractionCaptureManifest["artifacts"][number][] = [];
+  const recordedDigests = new Map<string, string>();
   for (const binding of vectorDefinition.interactionCapture.artifacts) {
     const content = Buffer.from(
       JSON.stringify({ artifactId: binding.contentReference.artifactId, recovery: true }),
@@ -372,11 +373,37 @@ async function seedRecoverableArtifacts(
       sizeBytes: content.byteLength,
     };
     await store(contentReference.artifactId, content);
+    recordedDigests.set(contentReference.artifactId, contentReference.sha256);
     recordedArtifacts.push({ ...binding, contentReference });
   }
+  const recordedInteractions = vectorDefinition.interactionCapture.interactions.map(
+    (interaction) => {
+      const attempts = interaction.attempts.map((attempt) => ({
+        ...attempt,
+        normalizedRequest: {
+          ...attempt.normalizedRequest,
+          sha256:
+            recordedDigests.get(attempt.normalizedRequest.artifactId) ??
+            attempt.normalizedRequest.sha256,
+        },
+      }));
+      if (interaction.kind === "tool") return { ...interaction, attempts };
+      return {
+        ...interaction,
+        attempts,
+        prompt: {
+          ...interaction.prompt,
+          definitionSha256:
+            recordedDigests.get(interaction.prompt.artifactId) ??
+            interaction.prompt.definitionSha256,
+        },
+      };
+    },
+  );
   return InteractionCaptureManifestSchema.parse({
     ...vectorDefinition.interactionCapture,
     artifacts: recordedArtifacts,
+    interactions: recordedInteractions,
   });
 }
 

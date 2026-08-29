@@ -224,7 +224,9 @@ describe("recorded interaction fixture migration", () => {
             bound_at,
             bound_at_lexical,
             bound_by_principal_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, '0.1', $8, $8, $9)
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, '0.1', $8::timestamptz, $9::text, $10
+          )
         `,
         [
           tenantId,
@@ -234,6 +236,7 @@ describe("recorded interaction fixture migration", () => {
           fixtureId,
           versionId,
           position,
+          recordedCreatedAt,
           recordedCreatedAt,
           principalId,
         ],
@@ -563,7 +566,9 @@ describe("recorded interaction fixture migration", () => {
                 revoked_at,
                 revoked_at_lexical,
                 revoked_by_principal_id
-              ) VALUES ($1, $2, $3, $4, $5, $6, '0.1', $7, $8, $8, $9)
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, '0.1', $7, $8::timestamptz, $9::text, $10
+              )
             `,
             [
               tenantId,
@@ -573,6 +578,7 @@ describe("recorded interaction fixture migration", () => {
               recordedVersionId,
               `rev_partial_${runKey}`,
               revocationReason,
+              revocationTime,
               revocationTime,
               principalId,
             ],
@@ -624,7 +630,9 @@ describe("recorded interaction fixture migration", () => {
               revoked_at,
               revoked_at_lexical,
               revoked_by_principal_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, '0.1', $7, $8, $8, $9)
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, '0.1', $7, $8::timestamptz, $9::text, $10
+            )
           `,
           [
             tenantId,
@@ -634,6 +642,7 @@ describe("recorded interaction fixture migration", () => {
             recordedVersionId,
             `rev_complete_${runKey}`,
             revocationReason,
+            revocationTime,
             revocationTime,
             principalId,
           ],
