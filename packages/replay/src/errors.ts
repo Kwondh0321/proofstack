@@ -91,3 +91,23 @@ export class DurableReplayStateError extends Error {
     this.code = code;
   }
 }
+
+export type DurableReplayAccountingErrorCode =
+  | "accounting_conflict"
+  | "arithmetic_overflow"
+  | "duplicate_entry"
+  | "invalid_amounts"
+  | "invalid_budget"
+  | "invalid_usage"
+  | "ledger_order"
+  | "missing_reservation";
+
+export class DurableReplayAccountingError extends Error {
+  readonly code: DurableReplayAccountingErrorCode;
+
+  constructor(code: DurableReplayAccountingErrorCode, options?: ErrorOptions) {
+    super(`Durable replay accounting failed: ${code}`, options);
+    this.name = "DurableReplayAccountingError";
+    this.code = code;
+  }
+}
