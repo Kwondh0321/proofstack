@@ -20,6 +20,7 @@ const roleNames = {
   consumer: `proofstack_it_consumer_${runKey}`,
   identity: `proofstack_it_identity_role_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
+  replayWorker: `proofstack_it_replay_worker_${runKey}`,
 };
 const sequenceName = `proofstack_it_sequence_${runKey}`;
 const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
@@ -32,6 +33,10 @@ function provisioningOptions(suffix: string): RuntimeRoleProvisioningOptions {
     consumer: { name: roleNames.consumer, password: `proofstack-consumer-${suffix}-password` },
     identity: { name: roleNames.identity, password: `proofstack-identity-${suffix}-password` },
     publisher: { name: roleNames.publisher, password: `proofstack-publisher-${suffix}-password` },
+    replayWorker: {
+      name: roleNames.replayWorker,
+      password: `proofstack-replay-worker-${suffix}-password`,
+    },
   };
 }
 
@@ -80,6 +85,7 @@ describe("runtime role provisioning", () => {
       createdRoles: [
         roleNames.api,
         roleNames.identity,
+        roleNames.replayWorker,
         roleNames.artifact,
         roleNames.publisher,
         roleNames.consumer,
@@ -139,7 +145,7 @@ describe("runtime role provisioning", () => {
       `,
       [Object.values(roleNames)],
     );
-    expect(roleState.rows).toHaveLength(5);
+    expect(roleState.rows).toHaveLength(6);
     expect(
       roleState.rows.every(
         ({
@@ -166,6 +172,41 @@ describe("runtime role provisioning", () => {
       "proofstack-managed-runtime-role:v1:consumer",
       "proofstack-managed-runtime-role:v1:identity",
       "proofstack-managed-runtime-role:v1:publisher",
+      "proofstack-managed-runtime-role:v1:replayWorker",
+    ]);
+
+    const replayWorkerPool = poolFor(initial.replayWorker);
+    const replayWorkerPrivileges = await replayWorkerPool.query<{
+      readonly attemptsSelect: boolean;
+      readonly jobsInsert: boolean;
+      readonly jobsSelect: boolean;
+      readonly jobsUpdate: boolean;
+      readonly migrationsSelect: boolean;
+      readonly outboxInsert: boolean;
+    }>(`
+      SELECT
+        has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
+          AS "migrationsSelect",
+        has_table_privilege(current_user, 'proofstack_replay_jobs', 'SELECT')
+          AS "jobsSelect",
+        has_table_privilege(current_user, 'proofstack_replay_jobs', 'INSERT')
+          AS "jobsInsert",
+        has_table_privilege(current_user, 'proofstack_replay_jobs', 'UPDATE')
+          AS "jobsUpdate",
+        has_table_privilege(current_user, 'proofstack_replay_attempts', 'SELECT')
+          AS "attemptsSelect",
+        has_table_privilege(current_user, 'proofstack_outbox', 'INSERT')
+          AS "outboxInsert"
+    `);
+    expect(replayWorkerPrivileges.rows).toEqual([
+      {
+        attemptsSelect: false,
+        jobsInsert: false,
+        jobsSelect: false,
+        jobsUpdate: false,
+        migrationsSelect: true,
+        outboxInsert: false,
+      },
     ]);
 
     const apiPool = poolFor(initial.api);
@@ -894,6 +935,7 @@ describe("runtime role provisioning", () => {
       updatedRoles: [
         roleNames.api,
         roleNames.identity,
+        roleNames.replayWorker,
         roleNames.artifact,
         roleNames.publisher,
         roleNames.consumer,

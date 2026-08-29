@@ -234,6 +234,7 @@ describe("runDatabaseCli", () => {
         createdRoles: [
           "proofstack_api",
           "proofstack_identity",
+          "proofstack_replay_worker",
           "proofstack_artifact_maintenance",
           "proofstack_publisher",
           "proofstack_consumer",
@@ -251,6 +252,7 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
         PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
+        PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD: "local-replay-worker-password",
       },
       streams.value,
       adapters,
@@ -261,6 +263,7 @@ describe("runDatabaseCli", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
@@ -278,6 +281,10 @@ describe("runDatabaseCli", () => {
           password: "local-artifact-password",
         },
         identity: { name: "proofstack_identity", password: "local-identity-password" },
+        replayWorker: {
+          name: "proofstack_replay_worker",
+          password: "local-replay-worker-password",
+        },
       }),
     );
     expect(adapters.end).toHaveBeenCalledOnce();
@@ -563,6 +570,8 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_IDENTITY_DATABASE_ROLE: "custom_identity",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
         PROOFSTACK_PUBLISHER_DATABASE_ROLE: "custom_publisher",
+        PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD: "local-replay-worker-password",
+        PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE: "custom_replay_worker",
       },
       io().value,
       adapters,
@@ -574,6 +583,10 @@ describe("runDatabaseCli", () => {
       consumer: { name: "custom_consumer", password: "local-consumer-password" },
       identity: { name: "custom_identity", password: "local-identity-password" },
       publisher: { name: "custom_publisher", password: "local-publisher-password" },
+      replayWorker: {
+        name: "custom_replay_worker",
+        password: "local-replay-worker-password",
+      },
     });
   });
 

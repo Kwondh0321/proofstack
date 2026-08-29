@@ -183,6 +183,10 @@ const runtimeRoles = {
     name: "proofstack_test_publisher_runtime",
     password: "proofstack-test-publisher-runtime",
   },
+  replayWorker: {
+    name: "proofstack_test_replay_worker_runtime",
+    password: "proofstack-test-replay-worker-runtime",
+  },
 } as const;
 const adminPool = createPostgresPool({
   applicationName: "proofstack-api-integration-setup",

@@ -51,6 +51,10 @@ const credentials = {
     name: `proofstack_replay_pub_${runKey}`,
     password: `proofstack-replay-publisher-${runKey}-password`,
   },
+  replayWorker: {
+    name: `proofstack_replay_worker_${runKey}`,
+    password: `proofstack-replay-worker-${runKey}-password`,
+  },
 } as const satisfies RuntimeRoleProvisioningOptions;
 
 const adminPool = new Pool({ connectionString: databaseUrl, max: 6 });

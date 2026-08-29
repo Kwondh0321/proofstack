@@ -50,6 +50,10 @@ const roleOptions: RuntimeRoleProvisioningOptions = {
   consumer: { name: `ps_it_consumer_${runKey}`, password: `proofstack-consumer-${runKey}` },
   identity: { name: `ps_it_identity_${runKey}`, password: `proofstack-identity-${runKey}` },
   publisher: { name: `ps_it_publisher_${runKey}`, password: `proofstack-publisher-${runKey}` },
+  replayWorker: {
+    name: `ps_it_worker_${runKey}`,
+    password: `proofstack-replay-worker-${runKey}`,
+  },
 };
 
 function readEnvironmentVariable(name: string): string | undefined {

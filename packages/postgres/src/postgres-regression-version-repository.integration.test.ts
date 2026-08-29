@@ -58,6 +58,10 @@ const credentials = {
     name: `proofstack_regression_pub_${runKey}`,
     password: `proofstack-regression-publisher-${runKey}-password`,
   },
+  replayWorker: {
+    name: `proofstack_regression_worker_${runKey}`,
+    password: `proofstack-regression-replay-worker-${runKey}-password`,
+  },
 } as const satisfies RuntimeRoleProvisioningOptions;
 
 const adminPool = new Pool({ connectionString: databaseUrl, max: 4 });

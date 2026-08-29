@@ -88,12 +88,16 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
       name: DEFAULT_RUNTIME_ROLE_NAMES.publisher,
       password: "local-publisher-password",
     },
+    replayWorker: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.replayWorker,
+      password: "local-replay-worker-password",
+    },
     ...overrides,
   };
 }
 
 function managedRole(
-  kind: "api" | "artifact" | "consumer" | "identity" | "publisher",
+  kind: "api" | "artifact" | "consumer" | "identity" | "publisher" | "replayWorker",
   overrides: Partial<RoleRow> = {},
 ): RoleRow {
   return {
@@ -116,6 +120,7 @@ describe("provisionRuntimeRoles", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
@@ -177,6 +182,15 @@ describe("provisionRuntimeRoles", () => {
     expect(statements).toContain(
       'GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO "proofstack_publisher"',
     );
+    expect(statements).toContain(
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_replay_worker"',
+    );
+    expect(
+      statements.filter((statement) => statement.endsWith('TO "proofstack_replay_worker"')),
+    ).toEqual([
+      'GRANT USAGE ON SCHEMA public TO "proofstack_replay_worker"',
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_replay_worker"',
+    ]);
     expect(statements).toContain(
       'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_api"',
     );
@@ -245,18 +259,20 @@ describe("provisionRuntimeRoles", () => {
     client.roles.set("proofstack_identity", managedRole("identity"));
     client.roles.set("proofstack_publisher", managedRole("publisher"));
     client.roles.set("proofstack_consumer", managedRole("consumer"));
+    client.roles.set("proofstack_replay_worker", managedRole("replayWorker"));
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).resolves.toEqual({
       createdRoles: [],
       updatedRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
       ],
     });
-    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(5);
+    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(6);
     expect(client.queries.some(({ text }) => text.startsWith("COMMENT ON ROLE"))).toBe(false);
   });
 

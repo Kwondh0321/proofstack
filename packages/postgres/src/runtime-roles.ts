@@ -8,6 +8,7 @@ export const DEFAULT_RUNTIME_ROLE_NAMES = {
   consumer: "proofstack_consumer",
   identity: "proofstack_identity",
   publisher: "proofstack_publisher",
+  replayWorker: "proofstack_replay_worker",
 } as const;
 
 const ROLE_NAME_PATTERN = /^[a-z][a-z0-9_]{2,62}$/;
@@ -29,6 +30,7 @@ export interface RuntimeRoleProvisioningOptions {
   readonly consumer: RuntimeRoleCredentials;
   readonly identity: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
+  readonly replayWorker: RuntimeRoleCredentials;
 }
 
 export interface RuntimeRoleProvisioningResult {
@@ -198,6 +200,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_purge_browser_sessions() TO %ROLE%",
   ],
   publisher: ["GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO %ROLE%"],
+  replayWorker: ["GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%"],
 };
 
 export class RuntimeRoleProvisioningError extends Error {
@@ -235,6 +238,7 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
     consumer: validateCredentials("consumer", options.consumer),
     identity: validateCredentials("identity", options.identity),
     publisher: validateCredentials("publisher", options.publisher),
+    replayWorker: validateCredentials("replayWorker", options.replayWorker),
   };
   const names = Object.values(validated).map(({ name }) => name);
   if (new Set(names).size !== names.length) {
@@ -435,7 +439,14 @@ export async function provisionRuntimeRoles(
 
       const createdRoles: string[] = [];
       const updatedRoles: string[] = [];
-      for (const kind of ["api", "identity", "artifact", "publisher", "consumer"] as const) {
+      for (const kind of [
+        "api",
+        "identity",
+        "replayWorker",
+        "artifact",
+        "publisher",
+        "consumer",
+      ] as const) {
         const outcome = await provisionRole(client, kind, validated[kind]);
         (outcome === "created" ? createdRoles : updatedRoles).push(validated[kind].name);
       }

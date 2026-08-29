@@ -25,6 +25,7 @@ const roleNames = {
   consumer: `proofstack_adapter_consumer_${runKey}`,
   identity: `proofstack_adapter_identity_${runKey}`,
   publisher: `proofstack_adapter_publisher_${runKey}`,
+  replayWorker: `proofstack_adapter_replay_worker_${runKey}`,
 };
 const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
 let identityPool: Pool;
@@ -47,6 +48,10 @@ function options(): RuntimeRoleProvisioningOptions {
     publisher: {
       name: roleNames.publisher,
       password: `proofstack-adapter-publisher-${runKey}`,
+    },
+    replayWorker: {
+      name: roleNames.replayWorker,
+      password: `proofstack-adapter-replay-worker-${runKey}`,
     },
   };
 }

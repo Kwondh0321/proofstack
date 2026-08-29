@@ -310,11 +310,13 @@ redaction, and retry guidance in the
 | `PROOFSTACK_IDENTITY_DATABASE_ROLE` | `proofstack_identity` | database CLI | Managed identity role name |
 | `PROOFSTACK_PUBLISHER_DATABASE_ROLE` | `proofstack_publisher` | database CLI | Managed outbox publisher role name |
 | `PROOFSTACK_CONSUMER_DATABASE_ROLE` | `proofstack_consumer` | database CLI | Managed consumer role name |
+| `PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE` | `proofstack_replay_worker` | database CLI | Managed replay worker role name |
 | `PROOFSTACK_API_DATABASE_PASSWORD` | unset | database CLI | API role password used only during provisioning |
 | `PROOFSTACK_ARTIFACT_DATABASE_PASSWORD` | unset | database CLI | Artifact lifecycle role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_DATABASE_PASSWORD` | unset | database CLI | Identity role password used only during provisioning |
 | `PROOFSTACK_PUBLISHER_DATABASE_PASSWORD` | unset | database CLI | Publisher role password used only during provisioning |
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
+| `PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD` | unset | database CLI | Replay worker role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_TENANT_ID` | unset | identity CLI | Explicit tenant for bootstrap and aggregate status |
 | `PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID` | unset | identity CLI | Audited local operator identifier for bootstrap |
 | `PROOFSTACK_BOOTSTRAP_KEY_NAME` | unset | identity CLI | Printable display name for the initial workload key |

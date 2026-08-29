@@ -48,6 +48,8 @@ interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_MIGRATION_DATABASE_URL?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_ROLE?: string;
+  readonly PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID?: string;
   readonly PROOFSTACK_BOOTSTRAP_KEY_CAPABILITIES?: string;
   readonly PROOFSTACK_BOOTSTRAP_KEY_EXPIRES_AT?: string;
@@ -287,15 +289,17 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
   const publisherPassword = environment.PROOFSTACK_PUBLISHER_DATABASE_PASSWORD;
   const consumerPassword = environment.PROOFSTACK_CONSUMER_DATABASE_PASSWORD;
   const identityPassword = environment.PROOFSTACK_IDENTITY_DATABASE_PASSWORD;
+  const replayWorkerPassword = environment.PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD;
   if (
     !apiPassword ||
     !artifactPassword ||
     !publisherPassword ||
     !consumerPassword ||
-    !identityPassword
+    !identityPassword ||
+    !replayWorkerPassword
   ) {
     throw new DatabaseCliUsageError(
-      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
+      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
     );
   }
   return {
@@ -318,6 +322,12 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
     publisher: {
       name: environment.PROOFSTACK_PUBLISHER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.publisher,
       password: publisherPassword,
+    },
+    replayWorker: {
+      name:
+        environment.PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE ??
+        DEFAULT_RUNTIME_ROLE_NAMES.replayWorker,
+      password: replayWorkerPassword,
     },
   };
 }

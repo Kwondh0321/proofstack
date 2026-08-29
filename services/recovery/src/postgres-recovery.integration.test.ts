@@ -1002,6 +1002,7 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
     consumer: { name: role("consumer"), password: `recovery-consumer-${runKey}` },
     identity: { name: role("identity"), password: `recovery-identity-${runKey}` },
     publisher: { name: role("publisher"), password: `recovery-publisher-${runKey}` },
+    replayWorker: { name: role("worker"), password: `recovery-replay-worker-${runKey}` },
   } satisfies RuntimeRoleProvisioningOptions;
   managedRoles.push(...Object.values(options).map(({ name }) => name));
   return options;

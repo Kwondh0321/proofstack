@@ -45,6 +45,10 @@ const credentials = {
     name: `ps_ctrl_pub_${runKey}`,
     password: `proofstack-control-publisher-${runKey}`,
   },
+  replayWorker: {
+    name: `ps_ctrl_worker_${runKey}`,
+    password: `proofstack-control-replay-worker-${runKey}`,
+  },
 } as const satisfies RuntimeRoleProvisioningOptions;
 
 function connectionStringFor(role: RuntimeRoleCredentials): string {

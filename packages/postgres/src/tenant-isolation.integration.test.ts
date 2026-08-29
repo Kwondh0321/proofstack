@@ -47,6 +47,10 @@ const roles = {
     name: `ps_matrix_publisher_${runKey}`,
     password: `proofstack-matrix-publisher-${runKey}`,
   },
+  replayWorker: {
+    name: `ps_matrix_worker_${runKey}`,
+    password: `proofstack-matrix-replay-worker-${runKey}`,
+  },
 } satisfies RuntimeRoleProvisioningOptions;
 
 const TENANT_TABLES = [
