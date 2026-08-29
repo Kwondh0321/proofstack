@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   BrowserLogoutResponseSchema,
@@ -9,13 +10,21 @@ import {
   MAX_TRACE_PAGE_SIZE,
   OidcCallbackQuerySchema,
   ProblemDocumentSchema,
+  PublishRecordedInteractionFixtureVersionResponseSchema,
   PublishRegressionDatasetVersionResponseSchema,
   PublishRegressionFixtureVersionResponseSchema,
   ReadRegressionDatasetVersionResponseSchema,
   ReadRegressionFixtureVersionResponseSchema,
+  ReadArtifactMetadataResponseSchema,
+  ReadRecordedInteractionFixtureMetadataResponseSchema,
+  ReserveArtifactResponseSchema,
+  RevokeRecordedInteractionFixtureContentResponseSchema,
   ReadinessResponseSchema,
   TraceResponseSchema,
+  TombstoneArtifactResponseSchema,
+  UploadArtifactResponseSchema,
 } from "./api.js";
+import { RecordedInteractionFixtureVersionDefinitionSchema } from "./dataset.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
 const browserPrincipal = {
@@ -90,6 +99,66 @@ const datasetVersion = {
   schemaVersion: "0.1",
   scope: traceEnvelope.scope,
 } as const;
+const interactionDefinition = RecordedInteractionFixtureVersionDefinitionSchema.parse(
+  (
+    JSON.parse(
+      readFileSync(
+        new URL("../../datasets/vectors/interaction-fixture-definition-v2.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { readonly vectors: readonly { readonly input: unknown }[] }
+  ).vectors[0]?.input,
+);
+const recordedVersion = {
+  ...interactionDefinition,
+  createdAt: "2026-08-29T00:01:00.000Z",
+  createdByPrincipalId: "usr_contract_test",
+  definitionSha256: "c".repeat(64),
+  source: {
+    ...interactionDefinition.source,
+    capturedAt: "2026-08-29T00:00:30.000Z",
+  },
+} as const;
+const ownerships = recordedVersion.interactionCapture.artifacts.map(({ contentReference }) => ({
+  artifactId: contentReference.artifactId,
+  boundAt: recordedVersion.createdAt,
+  boundByPrincipalId: recordedVersion.createdByPrincipalId,
+  owner: {
+    fixtureId: recordedVersion.fixtureId,
+    fixtureVersionId: recordedVersion.fixtureVersionId,
+    kind: "regression_fixture_version" as const,
+  },
+  schemaVersion: "0.1" as const,
+  scope: recordedVersion.scope,
+}));
+const artifactMetadata = {
+  availableAt: "2026-08-29T00:00:45.000Z",
+  contentReference: recordedVersion.interactionCapture.artifacts[0]?.contentReference,
+  createdAt: "2026-08-29T00:00:40.000Z",
+  redaction: recordedVersion.interactionCapture.artifacts[0]?.redaction,
+  retention: recordedVersion.interactionCapture.artifacts[0]?.retention,
+  schemaVersion: "0.1" as const,
+  scope: recordedVersion.scope,
+  state: "available" as const,
+};
+const revocation = {
+  fixtureId: recordedVersion.fixtureId,
+  fixtureVersionId: recordedVersion.fixtureVersionId,
+  reason: "Remove the complete captured content set",
+  revocationId: "rev_contract_test",
+  revokedAt: "2026-08-29T00:02:00.000Z",
+  revokedByPrincipalId: "usr_contract_test",
+  schemaVersion: "0.1" as const,
+  scope: recordedVersion.scope,
+};
+const tombstones = ownerships.map(({ artifactId }, index) => ({
+  actorPrincipalId: revocation.revokedByPrincipalId,
+  artifactId,
+  occurredAt: revocation.revokedAt,
+  reason: revocation.reason,
+  tombstoneId: `del_contract_test_${index}`,
+  trigger: "fixture_revocation" as const,
+}));
 
 describe("HTTP response contracts", () => {
   it("validates health responses exactly", () => {
@@ -226,6 +295,108 @@ describe("HTTP response contracts", () => {
         created: true,
         requestId: "req_test_001",
         version: { ...datasetVersion, definitionSha256: "invalid" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates exact artifact lifecycle response contracts", () => {
+    const reserved = { ...artifactMetadata, availableAt: undefined, state: "reserved" as const };
+    expect(
+      ReserveArtifactResponseSchema.safeParse({
+        created: true,
+        metadata: reserved,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      UploadArtifactResponseSchema.safeParse({
+        metadata: artifactMetadata,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      ReadArtifactMetadataResponseSchema.safeParse({
+        metadata: artifactMetadata,
+        ownership: ownerships[0],
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      TombstoneArtifactResponseSchema.safeParse({
+        created: true,
+        metadata: {
+          ...artifactMetadata,
+          state: "tombstoned",
+          tombstonedAt: revocation.revokedAt,
+        },
+        requestId: "req_test_001",
+        tombstone: { ...tombstones[0], trigger: "manual" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("validates consistent recorded interaction publication and revocation responses", () => {
+    expect(
+      PublishRecordedInteractionFixtureVersionResponseSchema.safeParse({
+        created: true,
+        ownerships,
+        requestId: "req_test_001",
+        version: recordedVersion,
+      }).success,
+    ).toBe(true);
+    expect(
+      ReadRecordedInteractionFixtureMetadataResponseSchema.safeParse({
+        contentAvailability: "available",
+        ownerships,
+        requestId: "req_test_001",
+        revocation: null,
+        tombstones: [],
+        version: recordedVersion,
+      }).success,
+    ).toBe(true);
+    expect(
+      RevokeRecordedInteractionFixtureContentResponseSchema.safeParse({
+        contentAvailability: "revoked",
+        created: true,
+        ownerships,
+        requestId: "req_test_001",
+        revocation,
+        tombstones,
+        version: recordedVersion,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects incomplete or ambiguous recorded interaction state", () => {
+    expect(
+      ReadRecordedInteractionFixtureMetadataResponseSchema.safeParse({
+        contentAvailability: "available",
+        ownerships: ownerships.slice(1),
+        requestId: "req_test_001",
+        revocation: null,
+        tombstones: [],
+        version: recordedVersion,
+      }).success,
+    ).toBe(false);
+    expect(
+      ReadRecordedInteractionFixtureMetadataResponseSchema.safeParse({
+        contentAvailability: "revoked",
+        ownerships,
+        requestId: "req_test_001",
+        revocation: null,
+        tombstones: [],
+        version: recordedVersion,
+      }).success,
+    ).toBe(false);
+    expect(
+      RevokeRecordedInteractionFixtureContentResponseSchema.safeParse({
+        contentAvailability: "available",
+        created: true,
+        ownerships,
+        requestId: "req_test_001",
+        revocation: null,
+        tombstones: [],
+        version: recordedVersion,
       }).success,
     ).toBe(false);
   });

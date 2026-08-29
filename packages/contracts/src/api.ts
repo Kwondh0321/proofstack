@@ -5,7 +5,19 @@ import {
   MAX_EVIDENCE_BATCH_SIZE,
 } from "./evidence.js";
 import { PrincipalContextSchema } from "./identity.js";
-import { RegressionDatasetVersionSchema, RegressionFixtureVersionSchema } from "./dataset.js";
+import {
+  ArtifactMetadataSchema,
+  ArtifactOwnershipSchema,
+  ArtifactTombstoneSchema,
+} from "./artifact.js";
+import {
+  InteractionFixtureContentAvailabilitySchema,
+  InteractionFixtureContentRevocationSchema,
+  RecordedInteractionFixtureVersionSchema,
+  RegressionDatasetVersionSchema,
+  RegressionFixtureVersionSchema,
+} from "./dataset.js";
+import { MAX_CAPTURE_ARTIFACTS } from "./interaction.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const RequestIdSchema = z.string().min(1).max(128);
@@ -118,6 +130,153 @@ export const ReadRegressionDatasetVersionResponseSchema = z
   })
   .strict();
 
+export const ReserveArtifactResponseSchema = z
+  .object({
+    created: z.boolean(),
+    metadata: ArtifactMetadataSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const UploadArtifactResponseSchema = z
+  .object({ metadata: ArtifactMetadataSchema, requestId: RequestIdSchema })
+  .strict();
+
+export const ReadArtifactMetadataResponseSchema = z
+  .object({
+    metadata: ArtifactMetadataSchema,
+    ownership: ArtifactOwnershipSchema.optional(),
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const TombstoneArtifactResponseSchema = z
+  .object({
+    created: z.boolean(),
+    metadata: ArtifactMetadataSchema,
+    requestId: RequestIdSchema,
+    tombstone: ArtifactTombstoneSchema,
+  })
+  .strict();
+
+export const PurgeArtifactResponseSchema = z
+  .object({ metadata: ArtifactMetadataSchema, requestId: RequestIdSchema })
+  .strict();
+
+const StoredInteractionFixtureContentSchema = z
+  .object({
+    contentAvailability: InteractionFixtureContentAvailabilitySchema,
+    ownerships: z.array(ArtifactOwnershipSchema).min(1).max(MAX_CAPTURE_ARTIFACTS),
+    revocation: InteractionFixtureContentRevocationSchema.nullable(),
+    tombstones: z.array(ArtifactTombstoneSchema).max(MAX_CAPTURE_ARTIFACTS),
+    version: RecordedInteractionFixtureVersionSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.ownerships.length !== value.version.interactionCapture.artifacts.length) {
+      context.addIssue({
+        code: "custom",
+        message: "ownerships must cover every recorded artifact exactly once",
+        path: ["ownerships"],
+      });
+    }
+    for (const [index, ownership] of value.ownerships.entries()) {
+      const artifact = value.version.interactionCapture.artifacts[index];
+      if (
+        !artifact ||
+        ownership.artifactId !== artifact.contentReference.artifactId ||
+        ownership.boundAt !== value.version.createdAt ||
+        ownership.boundByPrincipalId !== value.version.createdByPrincipalId ||
+        ownership.owner.fixtureId !== value.version.fixtureId ||
+        ownership.owner.fixtureVersionId !== value.version.fixtureVersionId ||
+        ownership.scope.tenantId !== value.version.scope.tenantId ||
+        ownership.scope.projectId !== value.version.scope.projectId ||
+        ownership.scope.environmentId !== value.version.scope.environmentId
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "ownership does not match the recorded fixture artifact",
+          path: ["ownerships", index],
+        });
+      }
+    }
+    if (value.contentAvailability === "revoked") {
+      if (!value.revocation || value.tombstones.length !== value.ownerships.length) {
+        context.addIssue({
+          code: "custom",
+          message: "revoked content requires one revocation and one tombstone per artifact",
+          path: ["revocation"],
+        });
+      }
+    } else if (value.revocation !== null || value.tombstones.length !== 0) {
+      context.addIssue({
+        code: "custom",
+        message: "non-revoked content cannot expose revocation records",
+        path: ["revocation"],
+      });
+    }
+  });
+
+export const PublishRecordedInteractionFixtureVersionResponseSchema = z
+  .object({
+    created: z.boolean(),
+    ownerships: StoredInteractionFixtureContentSchema.shape.ownerships,
+    requestId: RequestIdSchema,
+    version: RecordedInteractionFixtureVersionSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const parsed = StoredInteractionFixtureContentSchema.safeParse({
+      contentAvailability: "available",
+      ownerships: value.ownerships,
+      revocation: null,
+      tombstones: [],
+      version: value.version,
+    });
+    if (!parsed.success) {
+      context.addIssue({
+        code: "custom",
+        message: "published ownership does not match the recorded fixture",
+        path: ["ownerships"],
+      });
+    }
+  });
+
+export const ReadRecordedInteractionFixtureMetadataResponseSchema = z
+  .object({
+    requestId: RequestIdSchema,
+    ...StoredInteractionFixtureContentSchema.shape,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const { requestId: _requestId, ...content } = value;
+    const parsed = StoredInteractionFixtureContentSchema.safeParse(content);
+    if (!parsed.success) {
+      context.addIssue({
+        code: "custom",
+        message: "stored interaction fixture metadata is inconsistent",
+      });
+    }
+  });
+
+export const RevokeRecordedInteractionFixtureContentResponseSchema = z
+  .object({
+    created: z.boolean(),
+    requestId: RequestIdSchema,
+    ...StoredInteractionFixtureContentSchema.shape,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const { created: _created, requestId: _requestId, ...content } = value;
+    const parsed = StoredInteractionFixtureContentSchema.safeParse(content);
+    if (!parsed.success || value.contentAvailability !== "revoked") {
+      context.addIssue({
+        code: "custom",
+        message: "fixture content revocation response is inconsistent",
+      });
+    }
+  });
+
 export const ProblemIssueSchema = z
   .object({
     message: z.string().min(1),
@@ -138,6 +297,10 @@ export const ProblemDocumentSchema = z
   .strict();
 
 export type IngestEvidenceResponse = z.infer<typeof IngestEvidenceResponseSchema>;
+export type PurgeArtifactResponse = z.infer<typeof PurgeArtifactResponseSchema>;
+export type PublishRecordedInteractionFixtureVersionResponse = z.infer<
+  typeof PublishRecordedInteractionFixtureVersionResponseSchema
+>;
 export type BrowserLogoutResponse = z.infer<typeof BrowserLogoutResponseSchema>;
 export type BrowserLoginQuery = z.infer<typeof BrowserLoginQuerySchema>;
 export type BrowserReturnPath = z.infer<typeof BrowserReturnPathSchema>;
@@ -151,12 +314,22 @@ export type PublishRegressionDatasetVersionResponse = z.infer<
 export type PublishRegressionFixtureVersionResponse = z.infer<
   typeof PublishRegressionFixtureVersionResponseSchema
 >;
+export type ReadArtifactMetadataResponse = z.infer<typeof ReadArtifactMetadataResponseSchema>;
+export type ReadRecordedInteractionFixtureMetadataResponse = z.infer<
+  typeof ReadRecordedInteractionFixtureMetadataResponseSchema
+>;
 export type ReadRegressionDatasetVersionResponse = z.infer<
   typeof ReadRegressionDatasetVersionResponseSchema
 >;
 export type ReadRegressionFixtureVersionResponse = z.infer<
   typeof ReadRegressionFixtureVersionResponseSchema
 >;
+export type ReserveArtifactResponse = z.infer<typeof ReserveArtifactResponseSchema>;
+export type RevokeRecordedInteractionFixtureContentResponse = z.infer<
+  typeof RevokeRecordedInteractionFixtureContentResponseSchema
+>;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;
 export type TracePageCursor = z.infer<typeof TracePageCursorSchema>;
 export type TraceResponse = z.infer<typeof TraceResponseSchema>;
+export type TombstoneArtifactResponse = z.infer<typeof TombstoneArtifactResponseSchema>;
+export type UploadArtifactResponse = z.infer<typeof UploadArtifactResponseSchema>;
