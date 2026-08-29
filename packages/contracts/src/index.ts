@@ -9,3 +9,4 @@ export * from "./interaction-export.js";
 export * from "./openapi.js";
 export * from "./primitives.js";
 export * from "./recovery.js";
+export * from "./replay.js";
