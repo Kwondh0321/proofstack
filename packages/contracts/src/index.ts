@@ -10,5 +10,6 @@ export * from "./openapi.js";
 export * from "./primitives.js";
 export * from "./recovery.js";
 export * from "./replay.js";
+export * from "./replay-accounting.js";
 export * from "./replay-job.js";
 export * from "./replay-plan.js";

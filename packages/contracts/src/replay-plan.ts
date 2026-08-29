@@ -263,7 +263,7 @@ const RecordedBoundaryDeclarationSchema = z
     boundaryId: OpaqueIdSchema,
     invocation: RecordedBoundaryReplayInvocationDefinitionSchema,
     invocationDefinitionSha256: Sha256Schema,
-    kind: ReplayBoundaryKindSchema,
+    kind: z.enum(["model", "tool"]),
     mode: z.literal("recorded_stub"),
   })
   .strict();

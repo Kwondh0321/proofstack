@@ -414,6 +414,9 @@ describe("replay boundary declarations", () => {
     };
 
     expect(ReplayBoundaryDeclarationSchema.safeParse(recorded).success).toBe(true);
+    expect(
+      ReplayBoundaryDeclarationSchema.safeParse({ ...recorded, kind: "retrieval" }).success,
+    ).toBe(false);
     expect(ReplayBoundaryDeclarationSchema.safeParse(simulated).success).toBe(true);
     expect(ReplayBoundaryDeclarationSchema.safeParse(live).success).toBe(true);
     expect(
