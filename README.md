@@ -205,6 +205,10 @@ defines the checkpoint's entry gates. The completed
 [recorded-boundary replay audit](docs/development/workflow-1-recorded-replay-audit.md) accepts exact
 recorded matching with explicit same-process limits while withholding durable-job, evaluation, and
 release authority.
+The [durable replay-job entry audit](docs/development/workflow-1-durable-replay-entry-audit.md)
+defines the still-open next checkpoint's release, budget, fencing, cancellation, worker,
+persistence, recovery, and authority gates. Its presence does not constitute checkpoint
+acceptance.
 
 ## Current boundaries
 

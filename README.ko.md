@@ -207,6 +207,9 @@ scripts                  저장소 수준 아키텍처 경계 검사
 [기록 경계 replay 감사 기록](docs/development/workflow-1-recorded-replay-audit.ko.md)은 동일
 process 제한을 명시한 정확 기록 일치를 승인하지만 영속 job, 평가, release 권한은 승인하지
 않습니다.
+[영속 replay job 진입 감사 기록](docs/development/workflow-1-durable-replay-entry-audit.ko.md)은
+아직 열린 다음 체크포인트의 release, budget, fencing, cancellation, worker, persistence,
+recovery, 권한 게이트를 정의합니다. 문서가 존재한다고 체크포인트가 승인된 것은 아닙니다.
 
 ## 현재의 경계
 

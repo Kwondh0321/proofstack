@@ -108,6 +108,9 @@ third checkpoint are fixed by the
 The third checkpoint's exact boundary evidence, explicit same-process limits, adversarial matrix,
 and remaining durable-job boundary are recorded in the
 [recorded-boundary replay audit](../development/workflow-1-recorded-replay-audit.md).
+The durable-job checkpoint's exact releases, budgets, fencing, cancellation, retry, worker,
+authority, persistence, recovery, and acceptance gates are fixed by the
+[durable replay-job entry audit](../development/workflow-1-durable-replay-entry-audit.md).
 
 ## Workflow 2: reliability release gate
 
