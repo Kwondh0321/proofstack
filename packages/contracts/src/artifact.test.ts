@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ArtifactMetadataSchema,
+  ArtifactOwnershipSchema,
   ArtifactRedactionSummarySchema,
   ArtifactTombstoneSchema,
   JsonPointerSchema,
@@ -251,6 +252,41 @@ describe("ArtifactMetadataSchema", () => {
     expect(ArtifactMetadataSchema.safeParse({ ...metadata, redaction: applied }).success).toBe(
       false,
     );
+  });
+});
+
+describe("ArtifactOwnershipSchema", () => {
+  const ownership = {
+    artifactId: "art_model_output",
+    boundAt: "2026-08-29T03:12:00.000Z",
+    boundByPrincipalId: "usr_dataset_manager",
+    owner: {
+      fixtureId: "fix_checkout_failure",
+      fixtureVersionId: "fxv_checkout_failure_interactions",
+      kind: "regression_fixture_version",
+    },
+    schemaVersion: "0.1",
+    scope: metadata.scope,
+  } as const;
+
+  it("accepts append-only fixture ownership without infrastructure or content fields", () => {
+    expect(ArtifactOwnershipSchema.parse(ownership)).toEqual(ownership);
+    expect(JSON.stringify(ownership)).not.toContain("objectKey");
+    expect(JSON.stringify(ownership)).not.toContain("wrappedDataKey");
+  });
+
+  it.each([
+    { artifactId: "" },
+    { boundAt: "2026-08-29T03:12:00Z" },
+    { boundByPrincipalId: "" },
+    { owner: { ...ownership.owner, fixtureId: "" } },
+    { owner: { ...ownership.owner, fixtureVersionId: "" } },
+    { owner: { ...ownership.owner, kind: "dataset_version" } },
+    { schemaVersion: "0.2" },
+    { scope: { ...ownership.scope, tenantId: "" } },
+    { objectKey: "objects/v1/secret" },
+  ])("rejects an invalid or caller-expanded ownership record %#", (override) => {
+    expect(ArtifactOwnershipSchema.safeParse({ ...ownership, ...override }).success).toBe(false);
   });
 });
 

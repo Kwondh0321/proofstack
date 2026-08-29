@@ -1,8 +1,14 @@
 import { z } from "zod";
 import { ContentReferenceSchema, EvidenceScopeSchema, RedactionStageSchema } from "./evidence.js";
-import { OpaqueIdSchema, Sha256Schema, TimestampSchema } from "./primitives.js";
+import {
+  OpaqueIdSchema,
+  Sha256Schema,
+  TimestampSchema,
+  UtcMillisecondTimestampSchema,
+} from "./primitives.js";
 
 export const ARTIFACT_SCHEMA_VERSION = "0.1" as const;
+export const ARTIFACT_OWNERSHIP_SCHEMA_VERSION = "0.1" as const;
 export const MAX_ARTIFACT_CONTENT_BYTES = 16 * 1024 * 1024;
 export const MAX_ARTIFACT_REDACTION_PATHS = 128;
 export const MAX_ARTIFACT_REDACTION_RECORDS = 16;
@@ -94,6 +100,32 @@ export const ArtifactRetentionPlanSchema = z.discriminatedUnion("mode", [
 ]);
 
 export const ArtifactStateSchema = z.enum(["reserved", "available", "tombstoned", "purged"]);
+
+export const ArtifactOwnershipTargetSchema = z
+  .object({
+    fixtureId: OpaqueIdSchema,
+    fixtureVersionId: OpaqueIdSchema,
+    kind: z.literal("regression_fixture_version"),
+  })
+  .strict();
+
+/**
+ * Append-only server provenance for one fixture-owned artifact.
+ *
+ * The immutable fixture definition separately binds the protected content descriptor and semantic
+ * role. This record only establishes exclusive catalog ownership and intentionally excludes object
+ * locators, wrapped keys, receipts, and plaintext.
+ */
+export const ArtifactOwnershipSchema = z
+  .object({
+    artifactId: OpaqueIdSchema,
+    boundAt: UtcMillisecondTimestampSchema,
+    boundByPrincipalId: OpaqueIdSchema,
+    owner: ArtifactOwnershipTargetSchema,
+    schemaVersion: z.literal(ARTIFACT_OWNERSHIP_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict();
 
 export const ArtifactContentReferenceSchema = ContentReferenceSchema.extend({
   mediaType: ArtifactMediaTypeSchema,
@@ -227,6 +259,8 @@ export const ArtifactTombstoneSchema = z
   .strict();
 
 export type ArtifactMetadata = z.infer<typeof ArtifactMetadataSchema>;
+export type ArtifactOwnership = z.infer<typeof ArtifactOwnershipSchema>;
+export type ArtifactOwnershipTarget = z.infer<typeof ArtifactOwnershipTargetSchema>;
 export type ArtifactRedactionRecord = z.infer<typeof ArtifactRedactionRecordSchema>;
 export type ArtifactRedactionSummary = z.infer<typeof ArtifactRedactionSummarySchema>;
 export type ArtifactRetentionPlan = z.infer<typeof ArtifactRetentionPlanSchema>;
