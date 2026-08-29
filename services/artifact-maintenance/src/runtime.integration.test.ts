@@ -5,6 +5,7 @@ import {
   LocalArtifactKeyring,
   ReserveArtifact,
   SecureArtifactIdentityGenerator,
+  StrictArtifactContentInspector,
   UploadArtifact,
 } from "@proofstack/artifacts";
 import type { PrincipalContext, ReserveArtifactRequest } from "@proofstack/contracts";
@@ -178,6 +179,7 @@ async function seedArtifact(
       catalog: writerCatalog,
       clock: { now: () => new Date(createdAt.getTime() + 1_000) },
       encryption: cipher,
+      inspection: new StrictArtifactContentInspector(),
       objects: writerObjects,
     }).execute({
       artifactId,

@@ -12,6 +12,7 @@ import {
   ReadArtifact,
   ReserveArtifact,
   SecureArtifactIdentityGenerator,
+  StrictArtifactContentInspector,
   TombstoneArtifact,
   UploadArtifact,
 } from "@proofstack/artifacts";
@@ -284,6 +285,7 @@ async function seedRecoverableArtifacts(
     catalog: artifactRepository,
     clock: { now: () => new Date("2026-08-28T03:01:00.000Z") },
     encryption: cipher,
+    inspection: new StrictArtifactContentInspector(),
     objects: sourceObjects,
   });
 

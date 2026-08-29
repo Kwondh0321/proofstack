@@ -4,7 +4,10 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
   ArtifactConflictError,
+  type ArtifactContentInspector,
+  ArtifactContentInspectionUnavailableError,
   ArtifactContentMismatchError,
+  ArtifactContentRejectedError,
   ArtifactIdentifierGenerationError,
   ArtifactNotFoundError,
   ArtifactObjectConflictError,
@@ -20,6 +23,7 @@ import {
   ReadArtifactMetadata,
   ReserveArtifact,
   TombstoneArtifact,
+  StrictArtifactContentInspector,
   UploadArtifact,
 } from "@proofstack/artifacts";
 import {
@@ -91,6 +95,7 @@ import { registerRoutes } from "./routes.js";
 import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
 
 export interface AppDependencies {
+  readonly artifactContentInspector?: ArtifactContentInspector;
   readonly artifactStorage?: ApiArtifactStorage;
   readonly apiKeyLifecycle?: ApiKeyLifecycleService;
   readonly authenticator?: Authenticator;
@@ -260,6 +265,7 @@ export async function createApp(
           catalog: storage.artifacts.catalog,
           clock,
           encryption: storage.artifacts.encryption,
+          inspection: dependencies.artifactContentInspector ?? new StrictArtifactContentInspector(),
           objects: storage.artifacts.objects,
         }),
       });
@@ -450,6 +456,17 @@ export async function createApp(
         });
       }
 
+      if (error instanceof ArtifactContentRejectedError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 422,
+          title: "Artifact content rejected",
+          type: "https://proofstack.dev/problems/artifact-content-rejected",
+        });
+      }
+
       if (error instanceof InteractionContentExportTooLargeError) {
         return sendProblem(reply, {
           code: error.code,
@@ -474,6 +491,7 @@ export async function createApp(
 
       if (
         error instanceof ArtifactIdentifierGenerationError ||
+        error instanceof ArtifactContentInspectionUnavailableError ||
         error instanceof ArtifactObjectMissingError ||
         error instanceof ArtifactProtectionError ||
         error instanceof S3ArtifactObjectStoreError

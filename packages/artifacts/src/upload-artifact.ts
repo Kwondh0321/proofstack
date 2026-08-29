@@ -17,6 +17,7 @@ import {
   ArtifactStateTransitionError,
   InvalidArtifactLifecycleInputError,
 } from "./errors.js";
+import type { ArtifactContentInspector } from "./artifact-content-inspection.js";
 
 export interface UploadArtifactCommand {
   readonly artifactId: string;
@@ -34,6 +35,7 @@ export interface UploadArtifactDependencies {
   readonly catalog: ArtifactCatalogRepository;
   readonly clock: Clock;
   readonly encryption: ArtifactContentEncryptor;
+  readonly inspection: ArtifactContentInspector;
   readonly objects: ArtifactObjectStore;
 }
 
@@ -75,6 +77,10 @@ export class UploadArtifact {
       entry.encryption,
       command.content,
     );
+    await this.dependencies.inspection.inspect({
+      content: command.content,
+      metadata: entry.metadata,
+    });
     const stored = await this.dependencies.objects.putIfAbsent(entry.objectKey, encrypted.bytes);
     if (!sameReceipt(stored.receipt, encrypted.receipt)) throw new ArtifactObjectConflictError();
 

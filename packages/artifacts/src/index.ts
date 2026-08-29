@@ -1,4 +1,5 @@
 export * from "./artifact-crypto.js";
+export * from "./artifact-content-inspection.js";
 export * from "./artifact-identifiers.js";
 export * from "./artifact-key-status.js";
 export * from "./artifact-maintenance.js";

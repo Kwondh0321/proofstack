@@ -4,6 +4,7 @@ import type { PrincipalContext } from "@proofstack/contracts";
 import { ForbiddenError } from "@proofstack/core";
 import { describe, expect, it } from "vitest";
 import { ArtifactCipher, LocalArtifactKeyring } from "./artifact-crypto.js";
+import { StrictArtifactContentInspector } from "./artifact-content-inspection.js";
 import {
   ArtifactContentMismatchError,
   ArtifactNotFoundError,
@@ -109,6 +110,7 @@ async function harness(
     catalog,
     clock: { now: () => new Date(options.clock ?? "2026-08-28T03:01:00.000Z") },
     encryption: cipher,
+    inspection: new StrictArtifactContentInspector(),
     objects,
   });
   return { catalog, cipher, entry, objects, upload };

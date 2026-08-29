@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ArtifactConflictError,
+  ArtifactContentInspectionConfigurationError,
+  ArtifactContentInspectionUnavailableError,
   ArtifactContentMismatchError,
+  ArtifactContentRejectedError,
   ArtifactIdentifierGenerationError,
   ArtifactKeyringConfigurationError,
   ArtifactNotFoundError,
@@ -16,7 +19,13 @@ import {
 describe("artifact errors", () => {
   it.each([
     [new ArtifactConflictError(), "artifact_conflict"],
+    [
+      new ArtifactContentInspectionConfigurationError(),
+      "artifact_content_inspection_configuration_invalid",
+    ],
+    [new ArtifactContentInspectionUnavailableError(), "artifact_content_inspection_unavailable"],
     [new ArtifactContentMismatchError(), "artifact_content_mismatch"],
+    [new ArtifactContentRejectedError(), "artifact_content_rejected"],
     [new ArtifactIdentifierGenerationError(), "artifact_identifier_generation_failed"],
     [new ArtifactKeyringConfigurationError(), "artifact_keyring_configuration_invalid"],
     [new ArtifactNotFoundError(), "artifact_not_found"],

@@ -321,7 +321,8 @@ const artifactConflictResponse = {
 
 const artifactStorageUnavailableResponse = {
   content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
-  description: "Artifact catalog, encryption, or immutable object storage is unavailable",
+  description:
+    "Artifact catalog, content inspection, encryption, or immutable object storage is unavailable",
 } as const;
 
 const interactionExportConflictResponse = {
@@ -891,7 +892,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         },
         put: {
           description:
-            "Encrypts and writes exact artifact content only when its declared size and digest match the reservation. Authentication and authorization run before body parsing. Existing object keys are never overwritten.",
+            "Inspects, encrypts, and writes exact artifact content only when its declared size and digest match the reservation. JSON media types reject malformed content and structured credential fields; configured secret-scanner findings fail closed. Authentication and authorization run before body parsing. Existing object keys are never overwritten.",
           operationId: "uploadArtifactContent",
           parameters: [
             projectParameter,
@@ -931,7 +932,8 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               content: {
                 "application/problem+json": { schema: schemaReference("ProblemDocument") },
               },
-              description: "The plaintext size or digest does not match the reservation",
+              description:
+                "The plaintext size or digest does not match the reservation, or content inspection rejected the upload",
             },
             "503": artifactStorageUnavailableResponse,
           },

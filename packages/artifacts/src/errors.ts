@@ -7,6 +7,33 @@ export class ArtifactContentMismatchError extends Error {
   }
 }
 
+export class ArtifactContentRejectedError extends Error {
+  readonly code = "artifact_content_rejected";
+
+  constructor(options?: ErrorOptions) {
+    super("Artifact content was rejected by the configured content policy", options);
+    this.name = "ArtifactContentRejectedError";
+  }
+}
+
+export class ArtifactContentInspectionUnavailableError extends Error {
+  readonly code = "artifact_content_inspection_unavailable";
+
+  constructor(options?: ErrorOptions) {
+    super("Artifact content inspection is unavailable", options);
+    this.name = "ArtifactContentInspectionUnavailableError";
+  }
+}
+
+export class ArtifactContentInspectionConfigurationError extends Error {
+  readonly code = "artifact_content_inspection_configuration_invalid";
+
+  constructor() {
+    super("Artifact content inspection configuration is invalid");
+    this.name = "ArtifactContentInspectionConfigurationError";
+  }
+}
+
 export class ArtifactProtectionError extends Error {
   readonly code = "artifact_protection_failed";
 

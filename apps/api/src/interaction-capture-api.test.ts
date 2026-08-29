@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { StrictArtifactContentInspector } from "@proofstack/artifacts";
 import {
   EVIDENCE_SCHEMA_VERSION,
   InteractionCaptureManifestSchema,
   type RecordedInteractionFixtureVersionDefinition,
   RecordedInteractionFixtureVersionDefinitionSchema,
 } from "@proofstack/contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 
@@ -96,6 +97,82 @@ afterEach(async () => {
 });
 
 describe("interaction capture API", () => {
+  it("rejects structured credentials and configured scanner findings before storage", async () => {
+    const scan = vi.fn(async ({ content }: { readonly content: Uint8Array }) => {
+      if (Buffer.from(content).includes(Buffer.from("configured-offline"))) {
+        throw new Error("scanner offline");
+      }
+      return Buffer.from(content).includes(Buffer.from("configured-finding"))
+        ? [{ ruleId: "configured-test-rule" }]
+        : [];
+    });
+    const app = await createApp(
+      loadConfig({ PROOFSTACK_ENV: "test", PROOFSTACK_LOG_LEVEL: "silent" }),
+      {
+        artifactContentInspector: new StrictArtifactContentInspector([
+          { name: "configured-test-scanner", scan, version: "1.0.0" },
+        ]),
+      },
+    );
+    apps.push(app);
+    const candidates = [
+      {
+        artifactId: "art_capture_credential_rejected",
+        content: Buffer.from('{"authorization":"Bearer example"}', "utf8"),
+        expectedCode: "artifact_content_rejected",
+        expectedStatus: 422,
+      },
+      {
+        artifactId: "art_capture_scanner_rejected",
+        content: Buffer.from('{"note":"configured-finding"}', "utf8"),
+        expectedCode: "artifact_content_rejected",
+        expectedStatus: 422,
+      },
+      {
+        artifactId: "art_capture_scanner_unavailable",
+        content: Buffer.from('{"note":"configured-offline"}', "utf8"),
+        expectedCode: "artifact_storage_unavailable",
+        expectedStatus: 503,
+      },
+    ];
+
+    for (const candidate of candidates) {
+      const reserve = await app.inject({
+        body: {
+          artifactId: candidate.artifactId,
+          classification: "confidential",
+          mediaType: "application/json",
+          redaction: { status: "not_required" },
+          retention: { mode: "retain" },
+          sha256: sha256(candidate.content),
+          sizeBytes: candidate.content.byteLength,
+        },
+        method: "POST",
+        url: artifactCollectionUrl,
+      });
+      const upload = await app.inject({
+        body: candidate.content,
+        headers: { "content-type": "application/octet-stream" },
+        method: "PUT",
+        url: `${artifactCollectionUrl}/${candidate.artifactId}/content`,
+      });
+      const status = await app.inject({
+        method: "GET",
+        url: `${artifactCollectionUrl}/${candidate.artifactId}`,
+      });
+
+      expect(reserve.statusCode).toBe(201);
+      expect(upload.statusCode).toBe(candidate.expectedStatus);
+      expect(upload.json()).toMatchObject({
+        code: candidate.expectedCode,
+        status: candidate.expectedStatus,
+      });
+      expect(status.statusCode).toBe(200);
+      expect(status.json()).toMatchObject({ metadata: { state: "reserved" } });
+    }
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
   it("runs reserve, upload, publish, exact reads, revocation, and purge end to end", async () => {
     const app = await createApp(
       loadConfig({ PROOFSTACK_ENV: "test", PROOFSTACK_LOG_LEVEL: "silent" }),
