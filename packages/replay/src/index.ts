@@ -1,1 +1,6 @@
+export * from "./errors.js";
+export * from "./execute-recorded-boundary-replay.js";
+export * from "./preflight.js";
 export * from "./replay-digest.js";
+export * from "./runtime-controls.js";
+export * from "./target-adapter.js";

@@ -396,6 +396,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@proofstack/datasets':
+        specifier: workspace:*
+        version: link:../datasets
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
