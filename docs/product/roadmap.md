@@ -102,6 +102,9 @@ The evidence and remaining limits for the first completed checkpoint are recorde
 The second checkpoint's classified content, ownership, export, revocation, interoperability,
 recovery, and explicit non-replay evidence are recorded in the
 [interaction-capture audit](../development/workflow-1-interaction-capture-audit.md).
+The exact matching, preflight, fallback, runtime-control, and reproducibility gates for the open
+third checkpoint are fixed by the
+[recorded-boundary replay entry audit](../development/workflow-1-recorded-replay-entry-audit.md).
 
 ## Workflow 2: reliability release gate
 
