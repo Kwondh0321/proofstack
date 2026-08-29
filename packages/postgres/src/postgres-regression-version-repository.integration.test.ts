@@ -1,4 +1,7 @@
+import { isDeepStrictEqual } from "node:util";
 import {
+  type ArtifactMetadata,
+  ArtifactMetadataSchema,
   type JsonObject,
   JsonValueSchema,
   OpaqueIdSchema,
@@ -10,9 +13,11 @@ import {
   REGRESSION_FIXTURE_VERSION_AGGREGATE_TYPE,
   REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE,
   REGRESSION_PUBLICATION_OUTBOX_SCHEMA_VERSION,
+  RegressionArtifactBindingError,
   type RegressionVersionPublishedOutboxIntent,
 } from "@proofstack/datasets";
 import {
+  interactionFixtureVersionRepositoryConformanceCases,
   regressionVersionRepositoryConformanceCases,
   type RegressionVersionPublicationKind,
 } from "@proofstack/datasets/testing";
@@ -166,13 +171,26 @@ class FaultInjectingRegressionPool implements Pick<Pool, "connect"> {
               const eventType = values[1];
               const kind =
                 eventType === REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE
-                  ? "fixture"
+                  ? pendingFailures.has("interaction_fixture")
+                    ? "interaction_fixture"
+                    : "fixture"
                   : eventType === REGRESSION_DATASET_VERSION_PUBLISHED_EVENT_TYPE
                     ? "dataset"
                     : null;
               if (kind && pendingFailures.delete(kind)) {
                 throw new Error(`Injected ${kind} regression publication intent failure`);
               }
+            }
+            if (
+              typeof statement === "string" &&
+              statement.includes(
+                "INSERT INTO public.proofstack_interaction_fixture_content_revocations",
+              ) &&
+              pendingFailures.delete("interaction_revocation")
+            ) {
+              throw new Error(
+                "Injected interaction_revocation regression publication intent failure",
+              );
             }
             const query = target.query.bind(target) as unknown as (
               ...queryArguments: unknown[]
@@ -327,12 +345,116 @@ async function insertIntentProbes(probes: readonly PublicationIntentProbe[]): Pr
   }
 }
 
+const seededArtifacts = new Map<string, ArtifactMetadata>();
+
+async function seedInteractionArtifact(metadataInput: ArtifactMetadata): Promise<void> {
+  const metadata = ArtifactMetadataSchema.parse(metadataInput);
+  const artifactId = metadata.contentReference.artifactId;
+  const identity = `${metadata.scope.tenantId}:${artifactId}`;
+  const existing = seededArtifacts.get(identity);
+  if (existing) {
+    if (!isDeepStrictEqual(existing, metadata)) throw new RegressionArtifactBindingError();
+    return;
+  }
+
+  const client = await adminPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('proofstack.tenant_id', $1, true)", [
+      metadata.scope.tenantId,
+    ]);
+    const hasObjectReceipt = metadata.availableAt !== undefined;
+    await client.query(
+      `
+        INSERT INTO public.proofstack_artifact_catalog (
+          tenant_id,
+          project_id,
+          environment_id,
+          artifact_id,
+          schema_version,
+          state,
+          classification,
+          media_type,
+          content_sha256,
+          content_size_bytes,
+          redaction,
+          retention_mode,
+          expires_at,
+          created_at,
+          available_at,
+          tombstoned_at,
+          purged_at,
+          created_by_principal_id,
+          object_key,
+          encryption_version,
+          content_nonce,
+          wrapped_key_algorithm,
+          wrapped_key_id,
+          wrapped_key_ciphertext,
+          wrapped_key_nonce,
+          wrapped_key_tag,
+          object_receipt_sha256,
+          object_receipt_size_bytes
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13::timestamptz,
+          $14::timestamptz, $15::timestamptz, $16::timestamptz, $17::timestamptz, $18, $19,
+          'a256gcm-v1', 'AAAAAAAAAAAAAAAA', 'A256GCM', 'key_interaction_seed',
+          'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'CCCCCCCCCCCCCCCC',
+          'DDDDDDDDDDDDDDDDDDDDDD', $20, $21
+        )
+      `,
+      [
+        metadata.scope.tenantId,
+        metadata.scope.projectId,
+        metadata.scope.environmentId,
+        artifactId,
+        metadata.schemaVersion,
+        metadata.state,
+        metadata.contentReference.classification,
+        metadata.contentReference.mediaType,
+        metadata.contentReference.sha256,
+        metadata.contentReference.sizeBytes,
+        JSON.stringify(metadata.redaction),
+        metadata.retention.mode,
+        metadata.retention.mode === "expire" ? metadata.retention.expiresAt : null,
+        metadata.createdAt,
+        metadata.availableAt ?? null,
+        metadata.tombstonedAt ?? null,
+        metadata.purgedAt ?? null,
+        "usr_interaction_seed",
+        `${metadata.scope.tenantId}/${artifactId}`,
+        hasObjectReceipt ? "e".repeat(64) : null,
+        hasObjectReceipt ? metadata.contentReference.sizeBytes + 20 : null,
+      ],
+    );
+    await client.query("COMMIT");
+    seededArtifacts.set(identity, structuredClone(metadata));
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      String(error.code) === "23505"
+    ) {
+      throw new RegressionArtifactBindingError();
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function resetRegressionCatalog(): Promise<void> {
+  seededArtifacts.clear();
   await adminPool.query(`
     TRUNCATE TABLE
       public.proofstack_interaction_fixture_content_revocations,
       public.proofstack_interaction_fixture_artifact_ownerships,
       public.proofstack_recorded_interaction_fixture_versions,
+      public.proofstack_artifact_purge_receipts,
+      public.proofstack_artifact_tombstones,
+      public.proofstack_artifact_catalog,
       public.proofstack_regression_dataset_members,
       public.proofstack_regression_dataset_versions,
       public.proofstack_regression_datasets,
@@ -376,6 +498,17 @@ describe("PostgresRegressionVersionRepository contract", () => {
         failNextPublicationIntent: (kind) => faultPool.failNextPublicationIntent(kind),
         publishedIntents,
         repository,
+      }));
+    });
+  }
+
+  for (const testCase of interactionFixtureVersionRepositoryConformanceCases) {
+    it(testCase.name, async () => {
+      await testCase.run(() => ({
+        failNextPublicationIntent: (kind) => faultPool.failNextPublicationIntent(kind),
+        publishedIntents,
+        repository,
+        seedInteractionArtifact,
       }));
     });
   }
