@@ -24,7 +24,15 @@ import {
   TraceNotFoundError,
 } from "@proofstack/core";
 import {
+  InvalidRegressionVersionInputError,
   MemoryRegressionVersionRepository,
+  PublishRegressionDatasetVersion,
+  PublishRegressionFixtureVersion,
+  ReadRegressionDatasetVersion,
+  ReadRegressionFixtureVersion,
+  RegressionVersionConflictError,
+  RegressionVersionLineageError,
+  RegressionVersionNotFoundError,
   type RegressionVersionRepository,
 } from "@proofstack/datasets";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
@@ -46,6 +54,7 @@ import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOidcRoutes } from "./oidc-routes.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
+import { registerRegressionRoutes } from "./regression-routes.js";
 import { registerRoutes } from "./routes.js";
 import { createApiStorage } from "./storage.js";
 
@@ -166,6 +175,20 @@ export async function createApp(
       ingestEvidence,
       listTraceEvidence: new ListTraceEvidence(storage.evidenceRepository),
     });
+    await registerRegressionRoutes(app, {
+      authenticator,
+      publishDatasetVersion: new PublishRegressionDatasetVersion({
+        clock,
+        versionRepository: storage.regressionVersionRepository,
+      }),
+      publishFixtureVersion: new PublishRegressionFixtureVersion({
+        clock,
+        evidenceRepository: storage.evidenceRepository,
+        versionRepository: storage.regressionVersionRepository,
+      }),
+      readDatasetVersion: new ReadRegressionDatasetVersion(storage.regressionVersionRepository),
+      readFixtureVersion: new ReadRegressionFixtureVersion(storage.regressionVersionRepository),
+    });
     const apiKeyLifecycle =
       dependencies.apiKeyLifecycle ??
       (identityStorage ? new ApiKeyLifecycle(identityStorage.repository) : undefined);
@@ -267,6 +290,48 @@ export async function createApp(
           status: 409,
           title: "Evidence conflict",
           type: "https://proofstack.dev/problems/evidence-conflict",
+        });
+      }
+
+      if (error instanceof InvalidRegressionVersionInputError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The regression version request does not match the required contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid regression version request",
+          type: "https://proofstack.dev/problems/regression-version-input-invalid",
+        });
+      }
+
+      if (error instanceof RegressionVersionNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Regression version not found",
+          type: "https://proofstack.dev/problems/regression-version-not-found",
+        });
+      }
+
+      if (
+        error instanceof RegressionVersionConflictError ||
+        error instanceof RegressionVersionLineageError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title:
+            error instanceof RegressionVersionConflictError
+              ? "Regression version conflict"
+              : "Invalid regression version lineage",
+          type:
+            error instanceof RegressionVersionConflictError
+              ? "https://proofstack.dev/problems/regression-version-conflict"
+              : "https://proofstack.dev/problems/regression-version-lineage-invalid",
         });
       }
 
