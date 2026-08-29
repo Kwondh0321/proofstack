@@ -1,8 +1,19 @@
+import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import {
+  CreateBucketCommand,
+  DeleteBucketCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
+import {
   EVIDENCE_SCHEMA_VERSION,
+  InteractionCaptureManifestSchema,
   type PublishRegressionDatasetVersionResponse,
   type PublishRegressionFixtureVersionResponse,
+  type RecordedInteractionFixtureVersionDefinition,
+  RecordedInteractionFixtureVersionDefinitionSchema,
 } from "@proofstack/contracts";
 import { decodeOtlpJson, encodeOtlpProtobufRequest } from "@proofstack/otlp";
 import {
@@ -13,6 +24,7 @@ import {
   PostgresApiKeyCredentialRepository,
   provisionRuntimeRoles,
 } from "@proofstack/postgres";
+import { createS3Client, type S3ClientConnectionOptions } from "@proofstack/s3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -20,6 +32,137 @@ import { loadConfig } from "./config.js";
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
 if (!databaseUrl) {
   throw new Error("PROOFSTACK_TEST_DATABASE_URL is required for PostgreSQL integration tests");
+}
+
+function requiredEnvironment(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required for PostgreSQL integration tests`);
+  return value;
+}
+
+function environmentValue(name: string): string | undefined {
+  return process.env[name];
+}
+
+const testS3AccessKeyId = requiredEnvironment("PROOFSTACK_TEST_S3_ACCESS_KEY_ID");
+const testS3SecretAccessKey = requiredEnvironment("PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY");
+const testS3Endpoint = requiredEnvironment("PROOFSTACK_TEST_S3_ENDPOINT");
+const testS3Region = requiredEnvironment("PROOFSTACK_TEST_S3_REGION");
+const s3Connection: S3ClientConnectionOptions = {
+  allowInsecureLoopback: true,
+  credentials: {
+    accessKeyId: testS3AccessKeyId,
+    secretAccessKey: testS3SecretAccessKey,
+  },
+  endpoint: testS3Endpoint,
+  forcePathStyle: true,
+  region: testS3Region,
+};
+const artifactBucket = `proofstack-api-${randomUUID()}`;
+const artifactAdministrationClient = createS3Client(s3Connection);
+const artifactKeyId = "key_integration_primary";
+const artifactKey = Buffer.alloc(32, 29).toString("base64url");
+const originalAwsCredentials = {
+  accessKeyId: environmentValue("AWS_ACCESS_KEY_ID"),
+  secretAccessKey: environmentValue("AWS_SECRET_ACCESS_KEY"),
+};
+let artifactBucketCreated = false;
+
+const interactionVector = RecordedInteractionFixtureVersionDefinitionSchema.parse(
+  (
+    JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../packages/datasets/vectors/interaction-fixture-definition-v2.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as {
+      readonly vectors: readonly {
+        readonly input: RecordedInteractionFixtureVersionDefinition;
+      }[];
+    }
+  ).vectors[0]?.input,
+);
+
+function sha256(content: Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function persistentInteractionCapture() {
+  const content = new Map(
+    interactionVector.interactionCapture.artifacts.map((binding) => {
+      const value = Buffer.from(
+        JSON.stringify({ artifactId: binding.contentReference.artifactId, persistent: true }),
+        "utf8",
+      );
+      return [binding.contentReference.artifactId, value] as const;
+    }),
+  );
+  const digests = new Map([...content].map(([artifactId, value]) => [artifactId, sha256(value)]));
+  const artifacts = interactionVector.interactionCapture.artifacts.map((binding) => {
+    const value = content.get(binding.contentReference.artifactId);
+    if (!value) throw new Error("Missing persistent interaction artifact content");
+    return {
+      ...binding,
+      contentReference: {
+        ...binding.contentReference,
+        sha256: sha256(value),
+        sizeBytes: value.byteLength,
+      },
+    };
+  });
+  const interactions = interactionVector.interactionCapture.interactions.map((interaction) => {
+    if (interaction.kind !== "model") return interaction;
+    const attempts = interaction.attempts.map((attempt) => {
+      const normalizedSha256 = digests.get(attempt.normalizedRequest.artifactId);
+      if (!normalizedSha256) throw new Error("Missing normalized request digest");
+      return {
+        ...attempt,
+        normalizedRequest: { ...attempt.normalizedRequest, sha256: normalizedSha256 },
+      };
+    });
+    const promptSha256 = digests.get(interaction.prompt.artifactId);
+    if (!promptSha256) throw new Error("Missing prompt digest");
+    return {
+      ...interaction,
+      attempts,
+      prompt: { ...interaction.prompt, definitionSha256: promptSha256 },
+    };
+  });
+  return {
+    content,
+    manifest: InteractionCaptureManifestSchema.parse({
+      ...interactionVector.interactionCapture,
+      artifacts,
+      interactions,
+    }),
+  };
+}
+
+async function emptyArtifactBucket(): Promise<void> {
+  let continuationToken: string | undefined;
+  do {
+    const page = await artifactAdministrationClient.send(
+      new ListObjectsV2Command({
+        Bucket: artifactBucket,
+        ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+      }),
+    );
+    const objects = (page.Contents ?? []).flatMap(({ Key }) => (Key ? [{ Key }] : []));
+    if (objects.length > 0) {
+      await artifactAdministrationClient.send(
+        new DeleteObjectsCommand({ Bucket: artifactBucket, Delete: { Objects: objects } }),
+      );
+    }
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+}
+
+function setEnvironment(name: "AWS_ACCESS_KEY_ID" | "AWS_SECRET_ACCESS_KEY", value?: string) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
 }
 
 const runtimeRoles = {
@@ -59,8 +202,12 @@ let issuedApiKey: Awaited<ReturnType<typeof bootstrapApiKey>>;
 let otlpApiKey: Awaited<ReturnType<typeof bootstrapApiKey>>;
 
 beforeAll(async () => {
+  setEnvironment("AWS_ACCESS_KEY_ID", testS3AccessKeyId);
+  setEnvironment("AWS_SECRET_ACCESS_KEY", testS3SecretAccessKey);
   await migrateDatabase(adminPool);
   await provisionRuntimeRoles(adminPool, runtimeRoles);
+  await artifactAdministrationClient.send(new CreateBucketCommand({ Bucket: artifactBucket }));
+  artifactBucketCreated = true;
   issuedApiKey = await bootstrapApiKey(adminPool, {
     actorPrincipalId: "usr_integration_operator",
     capabilities: ["evidence:ingest", "evidence:read"],
@@ -78,11 +225,38 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await adminPool.end();
+  try {
+    if (artifactBucketCreated) {
+      await emptyArtifactBucket();
+      await artifactAdministrationClient.send(new DeleteBucketCommand({ Bucket: artifactBucket }));
+    }
+  } finally {
+    artifactAdministrationClient.destroy();
+    setEnvironment("AWS_ACCESS_KEY_ID", originalAwsCredentials.accessKeyId);
+    setEnvironment("AWS_SECRET_ACCESS_KEY", originalAwsCredentials.secretAccessKey);
+    await adminPool.end();
+  }
 });
 
 function postgresConfig() {
   return loadConfig({
+    PROOFSTACK_AUTH_MODE: "development",
+    PROOFSTACK_DATABASE_URL: runtimeDatabaseUrl.toString(),
+    PROOFSTACK_ENV: "test",
+    PROOFSTACK_LOG_LEVEL: "silent",
+    PROOFSTACK_STORAGE_MODE: "postgres",
+  });
+}
+
+function persistentArtifactConfig() {
+  return loadConfig({
+    PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID: artifactKeyId,
+    PROOFSTACK_ARTIFACT_KEYS: JSON.stringify({ [artifactKeyId]: artifactKey }),
+    PROOFSTACK_ARTIFACT_S3_BUCKET: artifactBucket,
+    PROOFSTACK_ARTIFACT_S3_ENDPOINT: testS3Endpoint,
+    PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE: "true",
+    PROOFSTACK_ARTIFACT_S3_REGION: testS3Region,
+    PROOFSTACK_ARTIFACT_STORAGE_MODE: "s3_local_keyring",
     PROOFSTACK_AUTH_MODE: "development",
     PROOFSTACK_DATABASE_URL: runtimeDatabaseUrl.toString(),
     PROOFSTACK_ENV: "test",
@@ -356,6 +530,185 @@ describe("PostgreSQL-backed API", () => {
       await restartedApp.close();
     }
   });
+
+  it("retains encrypted interaction captures across coordinated PostgreSQL and S3 restarts", async () => {
+    const scope = { environmentId: "env_persistent", projectId: "prj_persistent" } as const;
+    const fixtureId = "fix_persistent_capture";
+    const predecessorVersionId = "fixv_persistent_capture_001";
+    const recordedVersionId = "fixv_persistent_capture_002";
+    const traceId = "abf92f3577b34da6a3ce929d0e0e4736";
+    const artifactCollectionUrl = `/v1/projects/${scope.projectId}/environments/${scope.environmentId}/artifacts`;
+    const fixtureCollectionUrl =
+      `/v1/projects/${scope.projectId}/environments/${scope.environmentId}` +
+      `/regression-fixtures/${fixtureId}`;
+    const publicationUrl = `${fixtureCollectionUrl}/interaction-versions`;
+    const capture = persistentInteractionCapture();
+    const publicationBody = {
+      fixtureVersionId: recordedVersionId,
+      interactionCapture: capture.manifest,
+      name: "Persistent encrypted interaction capture",
+      predecessorVersionId,
+    } as const;
+
+    const firstApp = await createApp(persistentArtifactConfig());
+    try {
+      const ingest = await firstApp.inject({
+        body: {
+          events: [
+            {
+              eventId: "evt_persistent_capture_001",
+              kind: "agent.run",
+              name: "persistent-interaction-capture",
+              source: {
+                sdkName: "@proofstack/sdk",
+                sdkVersion: "0.0.0",
+                serviceName: "persistent-interaction-capture",
+              },
+              spanId: "a0f067aa0ba902b7",
+              startedAt: "2026-08-29T05:00:00.000Z",
+              traceId,
+            },
+          ],
+          schemaVersion: EVIDENCE_SCHEMA_VERSION,
+        },
+        method: "POST",
+        url: `/v1/projects/${scope.projectId}/environments/${scope.environmentId}/evidence`,
+      });
+      expect(ingest.statusCode).toBe(202);
+
+      const predecessor = await firstApp.inject({
+        body: {
+          fixtureVersionId: predecessorVersionId,
+          name: "Persistent capture predecessor",
+          source: { kind: "trace_snapshot", traceId },
+        },
+        method: "POST",
+        url: `${fixtureCollectionUrl}/versions`,
+      });
+      expect(predecessor.statusCode).toBe(201);
+
+      for (const binding of capture.manifest.artifacts) {
+        const content = capture.content.get(binding.contentReference.artifactId);
+        if (!content) throw new Error("Missing persistent interaction artifact content");
+        const reserve = await firstApp.inject({
+          body: {
+            artifactId: binding.contentReference.artifactId,
+            classification: binding.contentReference.classification,
+            mediaType: binding.contentReference.mediaType,
+            redaction: binding.redaction,
+            retention: binding.retention,
+            sha256: binding.contentReference.sha256,
+            sizeBytes: binding.contentReference.sizeBytes,
+          },
+          method: "POST",
+          url: artifactCollectionUrl,
+        });
+        const upload = await firstApp.inject({
+          body: content,
+          headers: { "content-type": "application/octet-stream" },
+          method: "PUT",
+          url: `${artifactCollectionUrl}/${binding.contentReference.artifactId}/content`,
+        });
+        expect(reserve.statusCode, reserve.body).toBe(201);
+        expect(upload.statusCode, upload.body).toBe(200);
+      }
+
+      const publish = await firstApp.inject({
+        body: publicationBody,
+        method: "POST",
+        url: publicationUrl,
+      });
+      expect(publish.statusCode, publish.body).toBe(201);
+      expect(publish.json()).toMatchObject({
+        created: true,
+        ownerships: { length: capture.manifest.artifacts.length },
+        version: { fixtureVersionId: recordedVersionId },
+      });
+    } finally {
+      await firstApp.close();
+    }
+
+    const restartedApp = await createApp(persistentArtifactConfig());
+    try {
+      const versionUrl = `${publicationUrl}/${recordedVersionId}`;
+      const metadata = await restartedApp.inject({ method: "GET", url: versionUrl });
+      const retry = await restartedApp.inject({
+        body: publicationBody,
+        method: "POST",
+        url: publicationUrl,
+      });
+      const firstBinding = capture.manifest.artifacts[0];
+      if (!firstBinding) throw new Error("Expected at least one persistent artifact");
+      const artifactUrl = `${artifactCollectionUrl}/${firstBinding.contentReference.artifactId}`;
+      const artifactMetadata = await restartedApp.inject({ method: "GET", url: artifactUrl });
+      const plaintext = await restartedApp.inject({
+        method: "GET",
+        url: `${artifactUrl}/content`,
+      });
+
+      expect(metadata.statusCode, metadata.body).toBe(200);
+      expect(metadata.json()).toMatchObject({ contentAvailability: "available" });
+      expect(retry.statusCode, retry.body).toBe(200);
+      expect(retry.json()).toMatchObject({ created: false });
+      expect(artifactMetadata.statusCode, artifactMetadata.body).toBe(200);
+      expect(artifactMetadata.json()).toMatchObject({
+        metadata: {
+          contentReference: { sha256: firstBinding.contentReference.sha256 },
+          encryption: { keyId: artifactKeyId },
+          state: "available",
+        },
+        ownership: { owner: { fixtureId, fixtureVersionId: recordedVersionId } },
+      });
+      expect(plaintext.statusCode, plaintext.body).toBe(200);
+      expect(plaintext.headers["x-proofstack-artifact-sha256"]).toBe(
+        firstBinding.contentReference.sha256,
+      );
+      expect(plaintext.rawPayload).toEqual(
+        capture.content.get(firstBinding.contentReference.artifactId),
+      );
+
+      const revocation = await restartedApp.inject({
+        body: { reason: "Verify durable fixture-owned content revocation" },
+        method: "POST",
+        url: `${versionUrl}/revocation`,
+      });
+      expect(revocation.statusCode, revocation.body).toBe(201);
+      expect(revocation.json()).toMatchObject({
+        contentAvailability: "revoked",
+        tombstones: { length: capture.manifest.artifacts.length },
+      });
+    } finally {
+      await restartedApp.close();
+    }
+
+    const finalApp = await createApp(persistentArtifactConfig());
+    try {
+      const versionUrl = `${publicationUrl}/${recordedVersionId}`;
+      const revokedMetadata = await finalApp.inject({ method: "GET", url: versionUrl });
+      expect(revokedMetadata.statusCode, revokedMetadata.body).toBe(200);
+      expect(revokedMetadata.json()).toMatchObject({ contentAvailability: "revoked" });
+
+      for (const binding of capture.manifest.artifacts) {
+        const artifactUrl = `${artifactCollectionUrl}/${binding.contentReference.artifactId}`;
+        const unavailable = await finalApp.inject({
+          method: "GET",
+          url: `${artifactUrl}/content`,
+        });
+        const purge = await finalApp.inject({ method: "POST", url: `${artifactUrl}/purge` });
+        expect(unavailable.statusCode, unavailable.body).toBe(409);
+        expect(unavailable.json()).toMatchObject({ code: "artifact_unavailable" });
+        expect(purge.statusCode, purge.body).toBe(200);
+        expect(purge.json()).toMatchObject({ metadata: { state: "purged" } });
+      }
+    } finally {
+      await finalApp.close();
+    }
+
+    const remainingObjects = await artifactAdministrationClient.send(
+      new ListObjectsV2Command({ Bucket: artifactBucket }),
+    );
+    expect(remainingObjects.KeyCount).toBe(0);
+  }, 30_000);
 
   it("authenticates a bootstrapped key and observes authoritative revocation", async () => {
     const traceId = "7bf92f3577b34da6a3ce929d0e0e4736";

@@ -64,11 +64,34 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      AWS_ACCESS_KEY_ID: proofstack-ci
+      AWS_SECRET_ACCESS_KEY: proofstack-ci-secret
       CI: true
       PROOFSTACK_TEST_DATABASE_URL: postgresql://postgres:proofstack_test@127.0.0.1:5432/proofstack_test
+      PROOFSTACK_TEST_S3_ACCESS_KEY_ID: proofstack-ci
+      PROOFSTACK_TEST_S3_ENDPOINT: http://127.0.0.1:8333
+      PROOFSTACK_TEST_S3_REGION: us-east-1
+      PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY: proofstack-ci-secret
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Start pinned S3-compatible storage
+        run: |
+          docker run --detach --name proofstack-api-s3 \
+            --env AWS_ACCESS_KEY_ID="$PROOFSTACK_TEST_S3_ACCESS_KEY_ID" \
+            --env AWS_SECRET_ACCESS_KEY="$PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY" \
+            --publish 127.0.0.1:8333:8333 \
+            chrislusf/seaweedfs:4.44@sha256:e67e8c385484120b78bff47ba5f4debbca47fbd27ed1a39f016f47e8baea615b \
+            mini -dir=/data -admin.ui=false -master.telemetry=false
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --output /dev/null "$PROOFSTACK_TEST_S3_ENDPOINT/"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs proofstack-api-s3
+          exit 1
 
       - name: Install pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10

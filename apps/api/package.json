@@ -32,6 +32,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "catalog:",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/exporter-trace-otlp-http": "0.221.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.221.0",
