@@ -201,8 +201,10 @@ The [Workflow 1 interaction-capture audit](docs/development/workflow-1-interacti
 accepts classified, fixture-owned interaction evidence while explicitly withholding executable
 replay authority.
 The [recorded-boundary replay entry audit](docs/development/workflow-1-recorded-replay-entry-audit.md)
-defines the still-open checkpoint's exact matching and honest reproducibility gates. Its presence
-does not constitute final checkpoint acceptance.
+defines the checkpoint's entry gates. The completed
+[recorded-boundary replay audit](docs/development/workflow-1-recorded-replay-audit.md) accepts exact
+recorded matching with explicit same-process limits while withholding durable-job, evaluation, and
+release authority.
 
 ## Current boundaries
 

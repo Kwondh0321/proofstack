@@ -203,8 +203,10 @@ scripts                  저장소 수준 아키텍처 경계 검사
 분류되고 fixture가 소유하는 상호작용 증거를 승인하지만 실행 가능한 replay 권한은
 명시적으로 승인하지 않습니다.
 [기록 경계 replay 진입 감사 기록](docs/development/workflow-1-recorded-replay-entry-audit.ko.md)은
-아직 열린 체크포인트의 정확 일치와 정직한 재현성 게이트를 정의합니다. 문서가 존재한다고
-최종 체크포인트가 승인된 것은 아닙니다.
+체크포인트의 진입 게이트를 정의합니다. 완료된
+[기록 경계 replay 감사 기록](docs/development/workflow-1-recorded-replay-audit.ko.md)은 동일
+process 제한을 명시한 정확 기록 일치를 승인하지만 영속 job, 평가, release 권한은 승인하지
+않습니다.
 
 ## 현재의 경계
 

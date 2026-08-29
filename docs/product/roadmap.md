@@ -75,7 +75,7 @@ Goal: turn a failed production trace into repeatable evidence.
   API, SDK, tenant-isolation, outbox, and coordinated-recovery boundaries.
 - [x] Retention-safe classified model and tool interaction capture with exact prompt, provider,
   tool-contract, request, response, and artifact lineage.
-- [ ] Exact recorded-boundary replay with request matching, network-denied fallback, controlled
+- [x] Exact recorded-boundary replay with request matching, network-denied fallback, controlled
   runtime inputs, and honest reproducibility classification.
 - [ ] Durable replay jobs with multidimensional budgets, cancellation, fenced leases,
   predeclared retries, side-effect controls, usage reconciliation, and declared simulation or
@@ -105,6 +105,9 @@ recovery, and explicit non-replay evidence are recorded in the
 The exact matching, preflight, fallback, runtime-control, and reproducibility gates for the open
 third checkpoint are fixed by the
 [recorded-boundary replay entry audit](../development/workflow-1-recorded-replay-entry-audit.md).
+The third checkpoint's exact boundary evidence, explicit same-process limits, adversarial matrix,
+and remaining durable-job boundary are recorded in the
+[recorded-boundary replay audit](../development/workflow-1-recorded-replay-audit.md).
 
 ## Workflow 2: reliability release gate
 
