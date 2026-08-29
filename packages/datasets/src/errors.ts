@@ -25,6 +25,15 @@ export class RegressionVersionLineageError extends Error {
   }
 }
 
+export class RegressionArtifactBindingError extends Error {
+  readonly code = "regression_artifact_binding_invalid";
+
+  constructor() {
+    super("Interaction fixture artifacts are unavailable or ineligible for exclusive ownership");
+    this.name = "RegressionArtifactBindingError";
+  }
+}
+
 export class InvalidRegressionVersionInputError extends TypeError {
   readonly code = "regression_version_input_invalid";
 

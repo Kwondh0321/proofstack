@@ -1,5 +1,6 @@
 export * from "./errors.js";
 export * from "./interaction-fixture-definition-digest.js";
+export * from "./publish-recorded-interaction-fixture-version.js";
 export * from "./publish-regression-dataset-version.js";
 export * from "./publish-regression-fixture-version.js";
 export * from "./read-regression-dataset-version.js";

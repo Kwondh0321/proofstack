@@ -1,5 +1,7 @@
 import type {
+  ArtifactOwnership,
   EvidenceScope,
+  RecordedInteractionFixtureVersion,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
   RegressionFixtureVersionReference,
@@ -9,6 +11,17 @@ import type {
 export interface PublishRegressionVersionResult<Version> {
   readonly created: boolean;
   readonly version: Version;
+}
+
+export interface StoredRecordedInteractionFixtureVersion {
+  /** Canonically ordered by artifact identifier and detached from repository-owned state. */
+  readonly ownerships: readonly ArtifactOwnership[];
+  readonly version: RecordedInteractionFixtureVersion;
+}
+
+export interface PublishRecordedInteractionFixtureVersionResult
+  extends StoredRecordedInteractionFixtureVersion {
+  readonly created: boolean;
 }
 
 /**
@@ -87,4 +100,24 @@ export interface RegressionVersionRepository {
     scope: EvidenceScope,
     references: readonly RequestedRegressionFixtureVersionReference[],
   ): Promise<ResolveRegressionFixtureVersionReferencesResult>;
+}
+
+/**
+ * Atomic persistence boundary for an interaction-complete successor and its fixture-owned content.
+ *
+ * Implementations resolve and lock the evidence-only predecessor plus every referenced artifact in
+ * canonical identifier order. A new publication succeeds only when every artifact is available in
+ * the exact scope, retain-mode, descriptor-identical, and unowned. The immutable version, ordered
+ * interaction facts, append-only ownership rows, and one canonical outbox intent commit together.
+ * An identical retry returns the original version and ownership provenance with `created: false`.
+ */
+export interface InteractionFixtureVersionRepository extends RegressionVersionRepository {
+  findRecordedInteractionFixtureVersion(
+    scope: EvidenceScope,
+    fixtureVersionId: string,
+  ): Promise<StoredRecordedInteractionFixtureVersion | null>;
+
+  publishRecordedInteractionFixtureVersion(
+    candidate: RecordedInteractionFixtureVersion,
+  ): Promise<PublishRecordedInteractionFixtureVersionResult>;
 }
