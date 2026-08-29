@@ -62,6 +62,9 @@ importers:
       '@fastify/rate-limit':
         specifier: 11.2.0
         version: 11.2.0
+      '@proofstack/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
