@@ -7,6 +7,8 @@ export * from "./replay-definition-digest.js";
 export * from "./replay-definition-publication-outbox.js";
 export * from "./replay-definition-repository.js";
 export * from "./replay-digest.js";
+export * from "./replay-job-outbox.js";
+export * from "./replay-job-repository.js";
 export * from "./replay-job-state.js";
 export * from "./replay-retry.js";
 export * from "./runtime-controls.js";

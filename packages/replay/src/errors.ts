@@ -147,3 +147,21 @@ export class ReplayRepositoryContractError extends Error {
     this.name = "ReplayRepositoryContractError";
   }
 }
+
+export class ReplayJobConflictError extends Error {
+  readonly code = "replay_job_conflict";
+
+  constructor() {
+    super("Replay job identifier or immutable mutation identifier is already bound differently");
+    this.name = "ReplayJobConflictError";
+  }
+}
+
+export class ReplayJobNotFoundError extends Error {
+  readonly code = "replay_job_not_found";
+
+  constructor() {
+    super("Replay job was not found in the authorized scope");
+    this.name = "ReplayJobNotFoundError";
+  }
+}
