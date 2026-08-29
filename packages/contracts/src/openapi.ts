@@ -666,7 +666,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         {
           post: {
             description:
-              "Captures the currently observed bounded trace evidence into an immutable evidence-only fixture version. A semantically equivalent retry returns the original version with created=false.",
+              "Captures the currently observed bounded trace evidence into an immutable evidence-only fixture version. Requires a browser-authenticated user with dataset:manage and evidence:read; dataset:manage is not delegable to workload keys. A semantically equivalent retry returns the original version with created=false.",
             operationId: "publishRegressionFixtureVersion",
             parameters: [
               projectParameter,
@@ -703,7 +703,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               "404": regressionNotFoundResponse,
               "409": regressionConflictResponse,
             },
-            security: userOrWorkloadSecurity,
+            security: browserSecurity,
             summary: "Publish a regression fixture version",
             tags: ["Regression"],
           },
@@ -741,7 +741,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         {
           post: {
             description:
-              "Pins an ordered set of exact fixture versions and their definition digests into an immutable dataset version. An equivalent retry returns the original version with created=false.",
+              "Pins an ordered set of exact fixture versions and their definition digests into an immutable dataset version. Requires a browser-authenticated user with dataset:manage; that capability is not delegable to workload keys. An equivalent retry returns the original version with created=false.",
             operationId: "publishRegressionDatasetVersion",
             parameters: [
               projectParameter,
@@ -778,7 +778,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               "404": regressionNotFoundResponse,
               "409": regressionConflictResponse,
             },
-            security: userOrWorkloadSecurity,
+            security: browserSecurity,
             summary: "Publish a regression dataset version",
             tags: ["Regression"],
           },
@@ -839,7 +839,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               description: "Identity management storage is unavailable",
             },
           },
-          security: userOrWorkloadSecurity,
+          security: browserSecurity,
           summary: "Issue a workload API key",
           tags: ["Identity"],
         },
@@ -875,7 +875,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               description: "Identity management storage is unavailable",
             },
           },
-          security: userOrWorkloadSecurity,
+          security: browserSecurity,
           summary: "Revoke a workload API key",
           tags: ["Identity"],
         },
@@ -919,7 +919,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
               description: "Identity management storage is unavailable",
             },
           },
-          security: userOrWorkloadSecurity,
+          security: browserSecurity,
           summary: "Rotate a workload API key",
           tags: ["Identity"],
         },

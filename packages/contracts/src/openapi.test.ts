@@ -84,7 +84,7 @@ describe("ProofStack OpenAPI document", () => {
       ]?.get;
 
     for (const publication of [fixtureCollection, datasetCollection]) {
-      expect(publication?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+      expect(publication?.security).toEqual([{ browserSession: [] }]);
       expect(publication?.responses).toHaveProperty("200");
       expect(publication?.responses).toHaveProperty("201");
       expect(publication?.responses).toHaveProperty("404");
@@ -170,7 +170,7 @@ describe("ProofStack OpenAPI document", () => {
     expect(paths["/health/ready"]?.get.responses).toHaveProperty("503");
   });
 
-  it("documents workload and browser authentication with bounded identity failures", () => {
+  it("documents workload and browser authentication with user-only identity administration", () => {
     const document = createProofStackOpenApiDocument();
     const { components: rawComponents, paths: rawPaths } = document;
     const components = rawComponents as {
@@ -183,10 +183,13 @@ describe("ProofStack OpenAPI document", () => {
 
     expect(components.securitySchemes).toHaveProperty("bearerAuth");
     expect(components.securitySchemes).toHaveProperty("browserSession");
-    expect(paths["/v1/identity/api-keys"]?.post.security).toEqual([
-      { bearerAuth: [] },
-      { browserSession: [] },
-    ]);
+    for (const path of [
+      "/v1/identity/api-keys",
+      "/v1/identity/api-keys/{credentialId}/revoke",
+      "/v1/identity/api-keys/{credentialId}/rotate",
+    ]) {
+      expect(paths[path]?.post.security).toEqual([{ browserSession: [] }]);
+    }
     expect(paths["/v1/identity/api-keys"]?.post.responses).toHaveProperty("401");
     expect(paths["/v1/identity/api-keys/{credentialId}/rotate"]?.post.responses).toHaveProperty(
       "409",
