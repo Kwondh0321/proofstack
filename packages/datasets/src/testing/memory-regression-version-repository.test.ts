@@ -1,14 +1,22 @@
+import { readFileSync } from "node:fs";
 import type {
+  RecordedInteractionFixtureVersion,
+  RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersion,
   RegressionDatasetVersionDefinition,
   RegressionFixtureVersion,
   RegressionFixtureVersionDefinition,
+} from "@proofstack/contracts";
+import {
+  RecordedInteractionFixtureVersionDefinitionSchema,
+  RecordedInteractionFixtureVersionSchema,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import {
   InvalidRegressionVersionInputError,
   RegressionRepositoryContractError,
 } from "../errors.js";
+import { digestRecordedInteractionFixtureVersionDefinition } from "../interaction-fixture-definition-digest.js";
 import {
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
@@ -17,10 +25,14 @@ import {
   REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE,
   type RegressionVersionPublishedOutboxIntent,
 } from "../regression-publication-outbox.js";
+import {
+  type InteractionFixtureVersionRepositoryTestFactory,
+  interactionFixtureVersionRepositoryConformanceCases,
+} from "./interaction-fixture-version-repository-conformance.js";
 import { MemoryRegressionVersionRepository } from "./memory-regression-version-repository.js";
 import {
-  regressionVersionRepositoryConformanceCases,
   type RegressionVersionRepositoryTestFactory,
+  regressionVersionRepositoryConformanceCases,
 } from "./regression-version-repository-conformance.js";
 
 const factory: RegressionVersionRepositoryTestFactory = () => {
@@ -31,6 +43,31 @@ const factory: RegressionVersionRepositoryTestFactory = () => {
     repository,
   };
 };
+
+const interactionFactory: InteractionFixtureVersionRepositoryTestFactory = () => {
+  const repository = new MemoryRegressionVersionRepository();
+  return {
+    failNextPublicationIntent: (kind) => repository.failNextPublicationIntent(kind),
+    publishedIntents: (tenantId) => repository.publishedIntents(tenantId),
+    repository,
+    seedInteractionArtifact: (metadata) => repository.seedInteractionArtifact(metadata),
+  };
+};
+
+const recordedVectorDefinition = RecordedInteractionFixtureVersionDefinitionSchema.parse(
+  (
+    JSON.parse(
+      readFileSync(
+        new URL("../../vectors/interaction-fixture-definition-v2.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      readonly vectors: readonly {
+        readonly input: RecordedInteractionFixtureVersionDefinition;
+      }[];
+    }
+  ).vectors[0]?.input,
+);
 
 function fixtureCandidate(): RegressionFixtureVersion {
   const definition: RegressionFixtureVersionDefinition = {
@@ -84,9 +121,47 @@ function datasetCandidate(fixture: RegressionFixtureVersion): RegressionDatasetV
   };
 }
 
+function recordedCandidate(
+  predecessor: RegressionFixtureVersion,
+): RecordedInteractionFixtureVersion {
+  const definition = RecordedInteractionFixtureVersionDefinitionSchema.parse({
+    fixtureId: predecessor.fixtureId,
+    fixtureVersionId: "fixv_internal_contract_recorded",
+    interactionCapture: recordedVectorDefinition.interactionCapture,
+    name: "Internal recorded interaction fixture",
+    predecessor: {
+      definitionSha256: predecessor.definitionSha256,
+      fixtureVersionId: predecessor.fixtureVersionId,
+    },
+    replayability: "recorded_interactions",
+    schemaVersion: "0.2",
+    scope: predecessor.scope,
+    source: {
+      eventIds: predecessor.source.eventIds,
+      kind: predecessor.source.kind,
+      observedEventCount: predecessor.source.observedEventCount,
+      sourceCompleteness: predecessor.source.sourceCompleteness,
+      traceId: predecessor.source.traceId,
+    },
+  });
+  return RecordedInteractionFixtureVersionSchema.parse({
+    ...definition,
+    createdAt: "2026-08-29T01:01:30.000Z",
+    createdByPrincipalId: "usr_internal_contract",
+    definitionSha256: digestRecordedInteractionFixtureVersionDefinition(definition),
+    source: predecessor.source,
+  });
+}
+
 describe("MemoryRegressionVersionRepository conformance", () => {
   for (const testCase of regressionVersionRepositoryConformanceCases) {
     it(testCase.name, async () => testCase.run(factory));
+  }
+});
+
+describe("MemoryRegressionVersionRepository interaction fixture conformance", () => {
+  for (const testCase of interactionFixtureVersionRepositoryConformanceCases) {
+    it(testCase.name, async () => testCase.run(interactionFactory));
   }
 });
 
@@ -190,5 +265,41 @@ describe("MemoryRegressionVersionRepository internal integrity", () => {
     await expect(repository.publishFixtureVersion(fixture)).rejects.toBeInstanceOf(
       RegressionRepositoryContractError,
     );
+  });
+
+  it("fails closed on malformed, ownerless, or duplicate-family recorded fixture state", async () => {
+    const repository = new MemoryRegressionVersionRepository();
+    const fixture = fixtureCandidate();
+    const recorded = recordedCandidate(fixture);
+    await repository.publishFixtureVersion(fixture);
+
+    interface UnsafeTenantState {
+      readonly recordedFixtureVersions: Map<string, RecordedInteractionFixtureVersion>;
+    }
+    const tenants = (repository as unknown as { readonly tenants: Map<string, UnsafeTenantState> })
+      .tenants;
+    const state = tenants.get(fixture.scope.tenantId);
+    expect(state).toBeDefined();
+    if (!state) throw new Error("Expected memory repository tenant state");
+
+    state.recordedFixtureVersions.set(recorded.fixtureVersionId, {
+      ...recorded,
+      definitionSha256: "f".repeat(64),
+    });
+    await expect(
+      repository.findRecordedInteractionFixtureVersion(recorded.scope, recorded.fixtureVersionId),
+    ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
+
+    state.recordedFixtureVersions.set(recorded.fixtureVersionId, recorded);
+    await expect(
+      repository.findRecordedInteractionFixtureVersion(recorded.scope, recorded.fixtureVersionId),
+    ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
+
+    state.recordedFixtureVersions.set(fixture.fixtureVersionId, recorded);
+    await expect(
+      repository.resolveFixtureVersionReferences(fixture.scope, [
+        { fixtureId: fixture.fixtureId, fixtureVersionId: fixture.fixtureVersionId },
+      ]),
+    ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
   });
 });

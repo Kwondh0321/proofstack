@@ -1,32 +1,43 @@
 import { Buffer } from "node:buffer";
 import { isDeepStrictEqual } from "node:util";
-import type {
-  EvidenceScope,
-  RegressionDatasetVersion,
-  RegressionFixtureVersion,
-  RegressionFixtureVersionReference,
-  RequestedRegressionFixtureVersionReference,
+import {
+  type ArtifactMetadata,
+  ArtifactMetadataSchema,
+  type ArtifactOwnership,
+  ArtifactOwnershipSchema,
+  type EvidenceScope,
+  type RecordedInteractionFixtureVersion,
+  type RegressionDatasetVersion,
+  type RegressionFixtureVersion,
+  type RegressionFixtureVersionReference,
+  type RequestedRegressionFixtureVersionReference,
 } from "@proofstack/contracts";
 import {
+  RegressionArtifactBindingError,
   RegressionRepositoryContractError,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
 } from "../errors.js";
 import {
+  buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
   buildRegressionDatasetVersionPublishedOutboxIntent,
   buildRegressionFixtureVersionPublishedOutboxIntent,
   type RegressionVersionPublishedOutboxIntent,
 } from "../regression-publication-outbox.js";
 import {
+  areRecordedInteractionFixtureVersionDefinitionsEqual,
   areRegressionDatasetVersionDefinitionsEqual,
   areRegressionFixtureVersionDefinitionsEqual,
+  validateAndProjectRecordedInteractionFixtureVersion,
   validateAndProjectRegressionDatasetVersion,
   validateAndProjectRegressionFixtureVersion,
 } from "../regression-version-definition.js";
 import type {
+  InteractionFixtureVersionRepository,
+  PublishRecordedInteractionFixtureVersionResult,
   PublishRegressionVersionResult,
-  RegressionVersionRepository,
   ResolveRegressionFixtureVersionReferencesResult,
+  StoredRecordedInteractionFixtureVersion,
 } from "../regression-version-repository.js";
 import type { RegressionVersionPublicationKind } from "./regression-version-repository-test-control.js";
 
@@ -36,11 +47,14 @@ interface LogicalResourceBinding {
 }
 
 interface TenantState {
+  readonly artifactMetadata: Map<string, ArtifactMetadata>;
+  readonly artifactOwnerships: Map<string, ArtifactOwnership>;
   readonly datasetResources: Map<string, LogicalResourceBinding>;
   readonly datasetVersions: Map<string, RegressionDatasetVersion>;
   readonly fixtureResources: Map<string, LogicalResourceBinding>;
   readonly fixtureVersions: Map<string, RegressionFixtureVersion>;
   readonly publicationIntents: Map<string, RegressionVersionPublishedOutboxIntent>;
+  readonly recordedFixtureVersions: Map<string, RecordedInteractionFixtureVersion>;
 }
 
 function clone<T>(value: T): T {
@@ -49,21 +63,27 @@ function clone<T>(value: T): T {
 
 function emptyTenantState(): TenantState {
   return {
+    artifactMetadata: new Map(),
+    artifactOwnerships: new Map(),
     datasetResources: new Map(),
     datasetVersions: new Map(),
     fixtureResources: new Map(),
     fixtureVersions: new Map(),
     publicationIntents: new Map(),
+    recordedFixtureVersions: new Map(),
   };
 }
 
 function copyTenantState(state: TenantState): TenantState {
   return {
+    artifactMetadata: new Map(state.artifactMetadata),
+    artifactOwnerships: new Map(state.artifactOwnerships),
     datasetResources: new Map(state.datasetResources),
     datasetVersions: new Map(state.datasetVersions),
     fixtureResources: new Map(state.fixtureResources),
     fixtureVersions: new Map(state.fixtureVersions),
     publicationIntents: new Map(state.publicationIntents),
+    recordedFixtureVersions: new Map(state.recordedFixtureVersions),
   };
 }
 
@@ -134,6 +154,86 @@ function validateStoredDatasetVersion(input: unknown) {
   }
 }
 
+function validateStoredRecordedFixtureVersion(input: unknown) {
+  try {
+    return validateAndProjectRecordedInteractionFixtureVersion(input);
+  } catch (cause) {
+    throw new RegressionRepositoryContractError(
+      "Stored recorded interaction fixture version violates the repository contract",
+      { cause },
+    );
+  }
+}
+
+function expectedOwnerships(
+  version: RecordedInteractionFixtureVersion,
+): readonly ArtifactOwnership[] {
+  return version.interactionCapture.artifacts.map(({ contentReference }) =>
+    ArtifactOwnershipSchema.parse({
+      artifactId: contentReference.artifactId,
+      boundAt: version.createdAt,
+      boundByPrincipalId: version.createdByPrincipalId,
+      owner: {
+        fixtureId: version.fixtureId,
+        fixtureVersionId: version.fixtureVersionId,
+        kind: "regression_fixture_version",
+      },
+      schemaVersion: "0.1",
+      scope: version.scope,
+    }),
+  );
+}
+
+function storedRecordedFixtureRecord(
+  state: TenantState,
+  input: unknown,
+): StoredRecordedInteractionFixtureVersion {
+  const stored = validateStoredRecordedFixtureVersion(input).version;
+  const ownerships = expectedOwnerships(stored).map((expected) => {
+    const ownership = state.artifactOwnerships.get(expected.artifactId);
+    if (!ownership || !isDeepStrictEqual(ownership, expected)) {
+      throw new RegressionRepositoryContractError(
+        "Stored recorded interaction fixture is missing canonical artifact ownership",
+      );
+    }
+    return clone(ownership);
+  });
+  requireCanonicalIntent(
+    state,
+    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored),
+  );
+  return { ownerships, version: clone(stored) };
+}
+
+interface StoredFixtureReferenceTarget {
+  readonly kind: "evidence" | "recorded";
+  readonly value: RegressionFixtureVersion | RecordedInteractionFixtureVersion;
+}
+
+function storedFixtureReferenceTarget(
+  state: TenantState,
+  fixtureVersionId: string,
+): StoredFixtureReferenceTarget | null {
+  const evidence = state.fixtureVersions.get(fixtureVersionId);
+  const recorded = state.recordedFixtureVersions.get(fixtureVersionId);
+  if (evidence && recorded) {
+    throw new RegressionRepositoryContractError(
+      "A fixture version identifier is stored in multiple version families",
+    );
+  }
+  if (evidence) return { kind: "evidence", value: evidence };
+  if (recorded) return { kind: "recorded", value: recorded };
+  return null;
+}
+
+function validateFixtureReferenceTarget(
+  target: StoredFixtureReferenceTarget,
+): RegressionFixtureVersion | RecordedInteractionFixtureVersion {
+  return target.kind === "evidence"
+    ? validateStoredFixtureVersion(target.value).version
+    : validateStoredRecordedFixtureVersion(target.value).version;
+}
+
 function fixtureBindingForPublication(
   state: TenantState,
   version: RegressionFixtureVersion,
@@ -186,21 +286,65 @@ function datasetBindingForPublication(
 
 function validateDatasetMembership(state: TenantState, version: RegressionDatasetVersion): void {
   for (const reference of version.fixtureVersions) {
-    const stored = state.fixtureVersions.get(reference.fixtureVersionId);
-    if (!stored) throw new RegressionVersionConflictError();
-    const authoritative = validateStoredFixtureVersion(stored).version;
+    const target = storedFixtureReferenceTarget(state, reference.fixtureVersionId);
+    if (!target) throw new RegressionVersionConflictError();
+    const stored = validateFixtureReferenceTarget(target);
     if (
-      authoritative.fixtureId !== reference.fixtureId ||
-      !scopesEqual(authoritative.scope, version.scope) ||
-      authoritative.definitionSha256 !== reference.definitionSha256
+      stored.fixtureId !== reference.fixtureId ||
+      !scopesEqual(stored.scope, version.scope) ||
+      stored.definitionSha256 !== reference.definitionSha256
     ) {
       throw new RegressionVersionConflictError();
     }
   }
 }
 
+function interactionFixtureBindingForPublication(
+  state: TenantState,
+  version: RecordedInteractionFixtureVersion,
+): void {
+  const binding = state.fixtureResources.get(version.fixtureId);
+  if (!binding) throw new RegressionVersionLineageError();
+  if (!scopesEqual(binding.scope, version.scope)) throw new RegressionVersionConflictError();
+
+  const predecessor = state.fixtureVersions.get(version.predecessor.fixtureVersionId);
+  if (!predecessor) throw new RegressionVersionLineageError();
+  const authoritative = validateStoredFixtureVersion(predecessor).version;
+  if (
+    authoritative.fixtureId !== version.fixtureId ||
+    !scopesEqual(authoritative.scope, version.scope) ||
+    authoritative.definitionSha256 !== version.predecessor.definitionSha256 ||
+    !isDeepStrictEqual(authoritative.source, version.source)
+  ) {
+    throw new RegressionVersionLineageError();
+  }
+}
+
+function ownershipsForPublication(
+  state: TenantState,
+  version: RecordedInteractionFixtureVersion,
+): readonly ArtifactOwnership[] {
+  for (const binding of version.interactionCapture.artifacts) {
+    const artifactId = binding.contentReference.artifactId;
+    const metadataInput = state.artifactMetadata.get(artifactId);
+    const metadata = ArtifactMetadataSchema.safeParse(metadataInput);
+    if (
+      !metadata.success ||
+      !scopesEqual(metadata.data.scope, version.scope) ||
+      metadata.data.state !== "available" ||
+      metadata.data.retention.mode !== "retain" ||
+      !isDeepStrictEqual(metadata.data.contentReference, binding.contentReference) ||
+      !isDeepStrictEqual(metadata.data.redaction, binding.redaction) ||
+      state.artifactOwnerships.has(artifactId)
+    ) {
+      throw new RegressionArtifactBindingError();
+    }
+  }
+  return expectedOwnerships(version);
+}
+
 /** Test adapter that linearizes every publication with one detached tenant-state replacement. */
-export class MemoryRegressionVersionRepository implements RegressionVersionRepository {
+export class MemoryRegressionVersionRepository implements InteractionFixtureVersionRepository {
   private readonly failedIntentKinds = new Set<RegressionVersionPublicationKind>();
   private readonly tenants = new Map<string, TenantState>();
 
@@ -227,6 +371,16 @@ export class MemoryRegressionVersionRepository implements RegressionVersionRepos
     if (!stored || !hasExactStoredScope(stored, scope)) return null;
     const authoritative = validateStoredFixtureVersion(stored).version;
     return clone(authoritative);
+  }
+
+  async findRecordedInteractionFixtureVersion(
+    scope: EvidenceScope,
+    fixtureVersionId: string,
+  ): Promise<StoredRecordedInteractionFixtureVersion | null> {
+    const state = this.tenants.get(scope.tenantId);
+    const stored = state?.recordedFixtureVersions.get(fixtureVersionId);
+    if (!state || !stored || !hasExactStoredScope(stored, scope)) return null;
+    return clone(storedRecordedFixtureRecord(state, stored));
   }
 
   async fixtureResourceExists(scope: EvidenceScope, fixtureId: string): Promise<boolean> {
@@ -273,6 +427,9 @@ export class MemoryRegressionVersionRepository implements RegressionVersionRepos
     const validated = validateAndProjectRegressionFixtureVersion(candidate);
     const version = validated.version;
     const current = this.tenants.get(version.scope.tenantId) ?? emptyTenantState();
+    if (current.recordedFixtureVersions.has(version.fixtureVersionId)) {
+      throw new RegressionVersionConflictError();
+    }
     const existing = current.fixtureVersions.get(version.fixtureVersionId);
     if (existing) {
       const stored = validateStoredFixtureVersion(existing);
@@ -299,6 +456,45 @@ export class MemoryRegressionVersionRepository implements RegressionVersionRepos
     return result;
   }
 
+  async publishRecordedInteractionFixtureVersion(
+    candidate: RecordedInteractionFixtureVersion,
+  ): Promise<PublishRecordedInteractionFixtureVersionResult> {
+    const validated = validateAndProjectRecordedInteractionFixtureVersion(candidate);
+    const version = validated.version;
+    const current = this.tenants.get(version.scope.tenantId) ?? emptyTenantState();
+    const existing = current.recordedFixtureVersions.get(version.fixtureVersionId);
+    if (existing) {
+      const stored = storedRecordedFixtureRecord(current, existing);
+      const storedDefinition = validateStoredRecordedFixtureVersion(stored.version).definition;
+      if (
+        !areRecordedInteractionFixtureVersionDefinitionsEqual(
+          storedDefinition,
+          validated.definition,
+        )
+      ) {
+        throw new RegressionVersionConflictError();
+      }
+      return { created: false, ownerships: stored.ownerships, version: stored.version };
+    }
+    if (current.fixtureVersions.has(version.fixtureVersionId)) {
+      throw new RegressionVersionConflictError();
+    }
+
+    interactionFixtureBindingForPublication(current, version);
+    const ownerships = ownershipsForPublication(current, version);
+    const stored = clone(version);
+    const intent = buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored);
+    const next = copyTenantState(current);
+    next.recordedFixtureVersions.set(version.fixtureVersionId, stored);
+    for (const ownership of ownerships) {
+      next.artifactOwnerships.set(ownership.artifactId, clone(ownership));
+    }
+    next.publicationIntents.set(intentKey(intent), clone(intent));
+    this.throwInjectedIntentFailure("interaction_fixture");
+    this.tenants.set(version.scope.tenantId, next);
+    return { created: true, ownerships: clone(ownerships), version: clone(stored) };
+  }
+
   async resolveFixtureVersionReferences(
     scope: EvidenceScope,
     references: readonly RequestedRegressionFixtureVersionReference[],
@@ -309,19 +505,19 @@ export class MemoryRegressionVersionRepository implements RegressionVersionRepos
 
     const resolved: RegressionFixtureVersionReference[] = [];
     for (const reference of references) {
-      const stored = state.fixtureVersions.get(reference.fixtureVersionId);
+      const target = storedFixtureReferenceTarget(state, reference.fixtureVersionId);
       if (
-        !stored ||
-        !hasExactStoredScope(stored, scope) ||
-        stored.fixtureId !== reference.fixtureId
+        !target ||
+        !hasExactStoredScope(target.value, scope) ||
+        target.value.fixtureId !== reference.fixtureId
       ) {
         return null;
       }
-      const authoritative = validateStoredFixtureVersion(stored).version;
+      const stored = validateFixtureReferenceTarget(target);
       resolved.push({
-        definitionSha256: authoritative.definitionSha256,
-        fixtureId: authoritative.fixtureId,
-        fixtureVersionId: authoritative.fixtureVersionId,
+        definitionSha256: stored.definitionSha256,
+        fixtureId: stored.fixtureId,
+        fixtureVersionId: stored.fixtureVersionId,
       });
     }
     return clone(resolved);
@@ -330,6 +526,21 @@ export class MemoryRegressionVersionRepository implements RegressionVersionRepos
   /** Schedules one test-only outbox insertion failure without mutating authoritative state. */
   failNextPublicationIntent(kind: RegressionVersionPublicationKind): void {
     this.failedIntentKinds.add(kind);
+  }
+
+  /** Seeds one authoritative catalog row for interaction-publication adapter tests. */
+  seedInteractionArtifact(metadataInput: ArtifactMetadata): void {
+    const metadata = ArtifactMetadataSchema.parse(metadataInput);
+    const artifactId = metadata.contentReference.artifactId;
+    const current = this.tenants.get(metadata.scope.tenantId) ?? emptyTenantState();
+    const existing = current.artifactMetadata.get(artifactId);
+    if (existing && !isDeepStrictEqual(existing, metadata)) {
+      throw new RegressionArtifactBindingError();
+    }
+    if (existing) return;
+    const next = copyTenantState(current);
+    next.artifactMetadata.set(artifactId, clone(metadata));
+    this.tenants.set(metadata.scope.tenantId, next);
   }
 
   /** Returns isolated publication intents in deterministic bytewise identifier order. */
