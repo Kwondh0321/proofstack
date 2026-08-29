@@ -499,6 +499,140 @@ describe("replay worker lease authority", () => {
     ]);
   });
 
+  it("permits one guarded attempt closure and preserves both immutable history states", async () => {
+    const jobId = `job_worker_history_${runKey}`;
+    const attemptId = `att_worker_history_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(client, jobId, attemptId, `lease_worker_history_${runKey}`),
+    );
+    const runningAttempt = ReplayAttemptSchema.parse(claimed.rows[0]?.attempt);
+    const endedAt = new Date(Date.parse(runningAttempt.startedAt) + 1).toISOString();
+    const closedAttempt = ReplayAttemptSchema.parse({
+      ...runningAttempt,
+      endedAt,
+      error: {
+        code: "worker_internal_error",
+        effectCertainty: "none",
+        message: "The isolated worker stopped before producing a result.",
+      },
+      retryDisposition: "not_retryable",
+      status: "failed",
+    });
+
+    await expect(
+      withTenantTransaction(adminPool, tenantId, (client) =>
+        client.query(
+          `UPDATE public.proofstack_replay_attempts
+           SET status = 'failed', ended_at = $3::timestamptz, ended_at_lexical = $4,
+             retry_disposition = 'not_retryable', error_code = 'worker_internal_error',
+             effect_certainty = 'none', attempt = $5::jsonb
+           WHERE tenant_id = $1 AND attempt_id = $2`,
+          [tenantId, attemptId, endedAt, endedAt, JSON.stringify(closedAttempt)],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    await expect(
+      withTenantTransaction(adminPool, tenantId, async (client) => {
+        await client.query(
+          "SELECT set_config('proofstack.replay_attempt_writer', 'stored-function-v1', true)",
+        );
+        return client.query(
+          `UPDATE public.proofstack_replay_attempts
+           SET worker_id = $3, status = 'failed', ended_at = $4::timestamptz,
+             ended_at_lexical = $5, retry_disposition = 'not_retryable',
+             error_code = 'worker_internal_error', effect_certainty = 'none',
+             attempt = $6::jsonb
+           WHERE tenant_id = $1 AND attempt_id = $2`,
+          [
+            tenantId,
+            attemptId,
+            `worker_changed_${runKey}`,
+            endedAt,
+            endedAt,
+            JSON.stringify(closedAttempt),
+          ],
+        );
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    await withTenantTransaction(adminPool, tenantId, async (client) => {
+      await client.query(
+        "SELECT set_config('proofstack.replay_attempt_writer', 'stored-function-v1', true)",
+      );
+      await client.query(
+        `UPDATE public.proofstack_replay_attempts
+         SET status = 'failed', ended_at = $3::timestamptz, ended_at_lexical = $4,
+           retry_disposition = 'not_retryable', error_code = 'worker_internal_error',
+           effect_certainty = 'none', attempt = $5::jsonb
+         WHERE tenant_id = $1 AND attempt_id = $2`,
+        [tenantId, attemptId, endedAt, endedAt, JSON.stringify(closedAttempt)],
+      );
+    });
+
+    await expect(
+      withTenantTransaction(adminPool, tenantId, async (client) => {
+        await client.query(
+          "SELECT set_config('proofstack.replay_attempt_writer', 'stored-function-v1', true)",
+        );
+        return client.query(
+          `UPDATE public.proofstack_replay_attempts
+           SET ended_at = ended_at
+           WHERE tenant_id = $1 AND attempt_id = $2`,
+          [tenantId, attemptId],
+        );
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    const history = await withTenantTransaction(adminPool, tenantId, (client) =>
+      client.query<{
+        readonly event: unknown;
+        readonly event_type: string;
+        readonly status: string;
+        readonly transition_sequence: string;
+      }>(
+        `SELECT event_type, status, transition_sequence::text, event
+         FROM public.proofstack_replay_attempt_events
+         WHERE tenant_id = $1 AND attempt_id = $2
+         ORDER BY transition_sequence`,
+        [tenantId, attemptId],
+      ),
+    );
+    expect(
+      history.rows.map(({ event_type, status, transition_sequence }) => ({
+        event_type,
+        status,
+        transition_sequence,
+      })),
+    ).toEqual([
+      { event_type: "attempt_claimed", status: "running", transition_sequence: "0" },
+      { event_type: "attempt_closed", status: "failed", transition_sequence: "1" },
+    ]);
+    expect(history.rows[0]?.event).toMatchObject({ attempt: runningAttempt });
+    expect(history.rows[1]?.event).toMatchObject({ attempt: closedAttempt });
+
+    await expect(
+      withTenantTransaction(adminPool, tenantId, (client) =>
+        client.query(
+          `UPDATE public.proofstack_replay_attempt_events
+           SET status = status
+           WHERE tenant_id = $1 AND attempt_id = $2`,
+          [tenantId, attemptId],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        client.query(
+          `SELECT * FROM public.proofstack_replay_attempt_events
+           WHERE tenant_id = $1 AND attempt_id = $2`,
+          [tenantId, attemptId],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
   it("keeps worker and API capabilities mutually exclusive", async () => {
     const jobId = `job_worker_split_${runKey}`;
     await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));

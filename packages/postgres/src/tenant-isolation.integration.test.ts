@@ -74,6 +74,7 @@ const TENANT_TABLES = [
   "proofstack_regression_fixture_events",
   "proofstack_regression_fixture_versions",
   "proofstack_regression_fixtures",
+  "proofstack_replay_attempt_events",
   "proofstack_replay_attempts",
   "proofstack_replay_budget_entries",
   "proofstack_replay_budget_entry_dimensions",

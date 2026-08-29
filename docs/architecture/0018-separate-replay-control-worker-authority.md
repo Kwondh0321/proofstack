@@ -83,16 +83,19 @@ state version, recovery epoch, latest attempt sequence, last fencing token, curr
 and expiry, start time, and terminal status, code, attempt, and time. Its strict public job JSON is a
 canonical projection that must agree with those columns and is reparsed on every repository read.
 
-Attempts, cancellation requests, cancellation acknowledgements, budget ledger entries, usage
-observations, and execution observations use tenant-bearing append-only tables. Their sequence,
-identity, fence, amount, disposition, timestamp, and lineage fields remain typed. Strict canonical
-JSON may be retained for exact reconstruction only when database constraints or deferred triggers
-prove that the normalized rows match it.
+Attempt snapshot rows permit exactly one guarded `running`-to-terminal transition so completion and
+lease recovery can close the authoritative attempt. An append-only attempt-event table records the
+claimed snapshot and the closed snapshot. Cancellation requests, cancellation acknowledgements,
+budget ledger entries, usage observations, execution observations, and attempt events remain
+tenant-bearing append-only histories. Their sequence, identity, fence, amount, disposition,
+timestamp, and lineage fields remain typed. Strict canonical JSON may be retained for exact
+reconstruction only when database constraints or deferred triggers prove that the normalized rows
+match it.
 
-Mutable job-root updates are allowed only through guarded functions. Every child history table
-rejects update and delete. Direct job-root mutation by a table owner during maintenance is also
-blocked unless an explicit migration or recovery procedure disables the guard under exclusive
-operational control.
+Mutable job-root updates and the single attempt closure are allowed only through guarded functions.
+Every append-only child history table rejects update and delete. Direct guarded mutation by a table
+owner during maintenance is also blocked unless an explicit migration or recovery procedure
+disables the guard under exclusive operational control.
 
 ### Let PostgreSQL own time, order, and fencing
 

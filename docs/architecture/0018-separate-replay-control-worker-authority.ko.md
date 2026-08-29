@@ -80,15 +80,18 @@ latest attempt sequence, last fencing token, current lease identity·expiry, sta
 status·code·attempt·time을 typed column으로 저장합니다. Strict public job JSON은 이 column들과
 일치해야 하는 canonical projection이며 repository read마다 다시 parse합니다.
 
-Attempt, cancellation request, cancellation acknowledgement, budget ledger entry, usage
-observation, execution observation은 tenant-bearing append-only table을 사용합니다. Sequence,
-identity, fence, amount, disposition, timestamp, lineage field는 typed 상태로 유지합니다. Strict
-canonical JSON은 DB constraint 또는 deferred trigger가 정규화 row와 일치함을 증명할 때만 exact
-reconstruction을 위해 보존할 수 있습니다.
+Attempt snapshot row는 완료와 lease recovery가 권위 있는 attempt를 닫을 수 있도록, 보호된
+`running`에서 terminal로의 전이 한 번만 허용합니다. Append-only attempt-event table은 claim된
+snapshot과 닫힌 snapshot을 기록합니다. Cancellation request, cancellation acknowledgement,
+budget ledger entry, usage observation, execution observation, attempt event는 tenant-bearing
+append-only history로 유지됩니다. Sequence, identity, fence, amount, disposition, timestamp,
+lineage field는 typed 상태로 유지합니다. Strict canonical JSON은 DB constraint 또는 deferred
+trigger가 정규화 row와 일치함을 증명할 때만 exact reconstruction을 위해 보존할 수 있습니다.
 
-Mutable job-root update는 guarded function으로만 허용합니다. 모든 child history table은 update와
-delete를 거부합니다. Table owner의 direct job-root mutation도 막으며, migration 또는 recovery
-procedure가 배타적 운영 통제 아래 guard를 명시적으로 비활성화할 때만 예외로 둡니다.
+Mutable job-root update와 attempt closure 한 번은 guarded function으로만 허용합니다. 모든
+append-only child history table은 update와 delete를 거부합니다. Table owner의 direct guarded
+mutation도 막으며, migration 또는 recovery procedure가 배타적 운영 통제 아래 guard를 명시적으로
+비활성화할 때만 예외로 둡니다.
 
 ### PostgreSQL이 시간, 순서, fencing을 소유
 

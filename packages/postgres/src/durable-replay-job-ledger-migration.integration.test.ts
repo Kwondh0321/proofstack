@@ -10,6 +10,7 @@ if (!databaseUrl) {
 const pool = new Pool({ connectionString: databaseUrl, max: 3 });
 
 const replayJobTables = [
+  "proofstack_replay_attempt_events",
   "proofstack_replay_attempts",
   "proofstack_replay_budget_entries",
   "proofstack_replay_budget_entry_dimensions",
@@ -74,10 +75,10 @@ describe("durable replay job ledger migration", () => {
          AND relation.relname = ANY($1::text[])`,
       [replayJobTables],
     );
-    expect(policies.rows).toEqual([{ count: 17 }]);
+    expect(policies.rows).toEqual([{ count: 19 }]);
   });
 
-  it("guards mutable roots and makes every child history append-only", async () => {
+  it("guards mutable roots, audits attempt closure, and keeps histories append-only", async () => {
     await expect(
       pool.query("INSERT INTO public.proofstack_replay_jobs (tenant_id) VALUES ('ten_guard')"),
     ).rejects.toMatchObject({ code: "42501" });
@@ -94,7 +95,9 @@ describe("durable replay job ledger migration", () => {
       [replayJobTables],
     );
     expect(triggers.rows.map(({ tgname }) => tgname)).toEqual([
-      "proofstack_replay_attempts_append_only",
+      "proofstack_replay_attempt_events_append_only",
+      "proofstack_replay_attempts_history",
+      "proofstack_replay_attempts_transition_guard",
       "proofstack_replay_budget_entries_append_only",
       "proofstack_replay_budget_entries_dimensions_complete",
       "proofstack_replay_budget_entry_dimensions_append_only",
@@ -118,7 +121,9 @@ describe("durable replay job ledger migration", () => {
       WHERE namespace.nspname = 'public'
         AND procedure.proname IN (
           'proofstack_create_replay_job',
+          'proofstack_guard_replay_attempt_transition',
           'proofstack_guard_replay_job_root_mutation',
+          'proofstack_record_replay_attempt_event',
           'proofstack_replay_job_intent_status',
           'proofstack_request_replay_cancellation',
           'proofstack_verify_replay_budget_entry_dimensions',

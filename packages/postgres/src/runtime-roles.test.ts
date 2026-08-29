@@ -162,6 +162,7 @@ describe("provisionRuntimeRoles", () => {
       "proofstack_api_key_credentials",
       "proofstack_replay_jobs",
       "proofstack_replay_attempts",
+      "proofstack_replay_attempt_events",
       "proofstack_replay_budget_entries",
       "proofstack_replay_budget_entry_dimensions",
       "proofstack_replay_cancellation_requests",
