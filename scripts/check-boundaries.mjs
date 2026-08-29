@@ -11,6 +11,7 @@ const modules = [
   },
   {
     allowed: new Set(["@proofstack/contracts", "@proofstack/datasets"]),
+    productionExternalAllowlist: new Set(["node:crypto"]),
     directory: "packages/replay/src",
     packageName: "@proofstack/replay",
   },
@@ -143,6 +144,10 @@ function packageNameFor(specifier) {
   return specifier.split("/").slice(0, 2).join("/");
 }
 
+function isTestSource(file) {
+  return /\.(?:spec|test)\.tsx?$/.test(file);
+}
+
 function importedSpecifiers(file) {
   const source = ts.createSourceFile(
     file,
@@ -192,12 +197,23 @@ for (const module of modules) {
     checkedFileCount += 1;
     for (const specifier of importedSpecifiers(file)) {
       const importedPackage = packageNameFor(specifier);
-      if (!importedPackage || !internalPackages.has(importedPackage)) continue;
-      if (importedPackage === module.packageName || module.allowed.has(importedPackage)) continue;
-
-      violations.push(
-        `${relative(repositoryRoot, file)}: ${module.packageName} cannot import ${specifier}`,
-      );
+      if (importedPackage && internalPackages.has(importedPackage)) {
+        if (importedPackage === module.packageName || module.allowed.has(importedPackage)) continue;
+        violations.push(
+          `${relative(repositoryRoot, file)}: ${module.packageName} cannot import ${specifier}`,
+        );
+        continue;
+      }
+      if (
+        module.productionExternalAllowlist &&
+        !isTestSource(file) &&
+        !specifier.startsWith(".") &&
+        !module.productionExternalAllowlist.has(specifier)
+      ) {
+        violations.push(
+          `${relative(repositoryRoot, file)}: ${module.packageName} production code cannot import ${specifier}`,
+        );
+      }
     }
   }
 }

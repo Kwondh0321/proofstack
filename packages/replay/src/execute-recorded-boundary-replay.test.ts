@@ -3,6 +3,7 @@ import {
   type RecordedBoundaryReplayInvocationDefinition,
   type RecordedBoundaryRequest,
   type RecordedInteractionFixtureContentExport,
+  type ReplayAttemptOutcome,
   RecordedInteractionFixtureContentExportSchema,
   RecordedInteractionFixtureVersionSchema,
 } from "@proofstack/contracts";
@@ -305,6 +306,103 @@ function buildFixture(): {
   };
 }
 
+function refreshFixtureDefinitionDigest(fixture: ReturnType<typeof buildFixture>): void {
+  const version = fixture.contentExport.version;
+  const definitionSha256 = digestRecordedInteractionFixtureVersionDefinition({
+    ...(version.description === undefined ? {} : { description: version.description }),
+    fixtureId: version.fixtureId,
+    fixtureVersionId: version.fixtureVersionId,
+    interactionCapture: version.interactionCapture,
+    name: version.name,
+    predecessor: version.predecessor,
+    replayability: version.replayability,
+    schemaVersion: version.schemaVersion,
+    scope: version.scope,
+    source: {
+      eventIds: version.source.eventIds,
+      kind: version.source.kind,
+      observedEventCount: version.source.observedEventCount,
+      sourceCompleteness: version.source.sourceCompleteness,
+      traceId: version.source.traceId,
+    },
+  });
+  version.definitionSha256 = definitionSha256;
+  fixture.invocation = {
+    ...fixture.invocation,
+    fixture: { ...fixture.invocation.fixture, definitionSha256 },
+  };
+}
+
+function revokeFixtureContent(
+  fixture: ReturnType<typeof buildFixture>,
+  lifecycleStatus: "revoked" | "purged",
+): void {
+  const revokedAt = "2026-08-29T00:00:12.000Z";
+  const purgedAt = "2026-08-29T00:00:13.000Z";
+  const reason = "Recorded replay preflight test";
+  const revokedByPrincipalId = "usr_replay_revoker";
+  fixture.contentExport.contentAvailability = "revoked";
+  fixture.contentExport.revocation = {
+    fixtureId: fixture.contentExport.version.fixtureId,
+    fixtureVersionId: fixture.contentExport.version.fixtureVersionId,
+    reason,
+    revocationId: "rev_replay_preflight",
+    revokedAt,
+    revokedByPrincipalId,
+    schemaVersion: "0.1",
+    scope,
+  };
+  fixture.contentExport.artifacts = fixture.contentExport.artifacts.map((item, index) => {
+    if (item.artifact.metadata === null) throw new Error("Expected available artifact metadata");
+    const artifactId = item.artifact.binding.contentReference.artifactId;
+    const tombstone = {
+      actorPrincipalId: revokedByPrincipalId,
+      artifactId,
+      occurredAt: revokedAt,
+      reason,
+      tombstoneId: `tom_replay_${index}`,
+      trigger: "fixture_revocation" as const,
+    };
+    if (lifecycleStatus === "purged") {
+      return {
+        artifact: {
+          ...item.artifact,
+          lifecycleStatus,
+          metadata: {
+            ...item.artifact.metadata,
+            purgedAt,
+            state: "purged" as const,
+            tombstonedAt: revokedAt,
+          },
+          purgeReceipt: {
+            artifactId,
+            objectWasPresent: true,
+            occurredAt: purgedAt,
+            purgeId: `pur_replay_${index}`,
+            schemaVersion: "0.1" as const,
+          },
+          tombstone,
+        },
+        content: { status: "purged" as const },
+      };
+    }
+    return {
+      artifact: {
+        ...item.artifact,
+        lifecycleStatus,
+        metadata: {
+          ...item.artifact.metadata,
+          state: "tombstoned" as const,
+          tombstonedAt: revokedAt,
+        },
+        purgeReceipt: null,
+        tombstone,
+      },
+      content: { status: "revoked" as const },
+    };
+  });
+}
+
 function target(
   run: (context: RecordedBoundaryReplayContext) => Promise<void> | void,
   reference = targetReference,
@@ -469,6 +567,82 @@ describe("recorded boundary replay preflight", () => {
     );
   });
 
+  it("rejects non-executable export modes, lifecycle states, roles, and byte sizes", () => {
+    const metadataFixture = buildFixture();
+    const metadataOnly = {
+      ...metadataFixture.contentExport,
+      artifacts: metadataFixture.contentExport.artifacts.map(({ artifact }) => artifact),
+      mode: "metadata",
+    };
+    expectPreflightCode(
+      () =>
+        prepareRecordedBoundaryReplay({
+          contentExport: metadataOnly,
+          invocation: metadataFixture.invocation,
+          targetAdapter: targetReference,
+        }),
+      "invalid_content_export",
+    );
+
+    const evidenceOnly = structuredClone(buildFixture());
+    Object.assign(evidenceOnly.contentExport.version, {
+      replayability: "evidence_only",
+      schemaVersion: "0.1",
+    });
+    expectPreflightCode(
+      () =>
+        prepareRecordedBoundaryReplay({
+          contentExport: evidenceOnly.contentExport,
+          invocation: evidenceOnly.invocation,
+          targetAdapter: targetReference,
+        }),
+      "invalid_content_export",
+    );
+
+    for (const lifecycleStatus of ["revoked", "purged"] as const) {
+      const fixture = buildFixture();
+      revokeFixtureContent(fixture, lifecycleStatus);
+      expectPreflightCode(
+        () =>
+          prepareRecordedBoundaryReplay({
+            contentExport: fixture.contentExport,
+            invocation: fixture.invocation,
+            targetAdapter: targetReference,
+          }),
+        "fixture_content_unavailable",
+      );
+    }
+
+    const wrongRole = structuredClone(buildFixture());
+    const wronglyBoundArtifact = wrongRole.contentExport.artifacts[0];
+    if (!wronglyBoundArtifact) throw new Error("Expected exported artifact");
+    wronglyBoundArtifact.artifact.binding.role = "tool.result";
+    expectPreflightCode(
+      () =>
+        prepareRecordedBoundaryReplay({
+          contentExport: wrongRole.contentExport,
+          invocation: wrongRole.invocation,
+          targetAdapter: targetReference,
+        }),
+      "invalid_content_export",
+    );
+
+    const wrongSize = structuredClone(buildFixture());
+    const sizedContent = wrongSize.contentExport.artifacts[0]?.content;
+    if (!sizedContent) throw new Error("Expected exported artifact content");
+    if (sizedContent.status !== "available") throw new Error("Expected available content");
+    sizedContent.bytes = Buffer.from("wrong-size", "utf8").toString("base64url");
+    expectPreflightCode(
+      () =>
+        prepareRecordedBoundaryReplay({
+          contentExport: wrongSize.contentExport,
+          invocation: wrongSize.invocation,
+          targetAdapter: targetReference,
+        }),
+      "invalid_content_export",
+    );
+  });
+
   it("requires runtime locale and time-zone identifiers to be canonical and supported", () => {
     const fixture = buildFixture();
     expectPreflightCode(
@@ -535,6 +709,78 @@ describe("recorded boundary replay execution", () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain("classified:");
     expect(serialized).not.toContain('"bytes":');
+  });
+
+  it.each([
+    "succeeded",
+    "failed",
+    "timed_out",
+    "cancelled",
+    "indeterminate",
+  ] satisfies readonly ReplayAttemptOutcome[])(
+    "preserves the recorded %s model outcome and provider uncertainty",
+    async (outcome) => {
+      const fixture = buildFixture();
+      const interaction = fixture.contentExport.version.interactionCapture.interactions[0];
+      if (interaction?.kind !== "model") throw new Error("Expected model interaction");
+      const attempt = interaction.attempts[0];
+      if (!attempt) throw new Error("Expected model attempt");
+      attempt.outcome = outcome;
+      interaction.terminalOutcome = outcome;
+      if (outcome === "succeeded") {
+        delete attempt.errorType;
+      } else {
+        attempt.errorType = `recorded_${outcome}`;
+      }
+      refreshFixtureDefinitionDigest(fixture);
+
+      const result = await executeRecordedBoundaryReplay({
+        contentExport: fixture.contentExport,
+        invocation: fixture.invocation,
+        target: target(async (context) => {
+          await context.resolveBoundary(fixture.modelRequest);
+          await context.resolveBoundary(fixture.toolRequest);
+        }),
+      });
+      expect(result.status).toBe("completed");
+      const observation = result.observations[0];
+      expect(observation?.status).toBe("matched");
+      if (observation?.status !== "matched") throw new Error("Expected matched observation");
+      expect(observation.resolution.recordedAttempt).toMatchObject({
+        attempt: {
+          outcome,
+          providerMayHaveProcessed: true,
+          ...(outcome === "succeeded" ? {} : { errorType: `recorded_${outcome}` }),
+        },
+        kind: "model",
+      });
+    },
+  );
+
+  it("preserves uncertain tool-side-effect evidence without executing the tool", async () => {
+    const fixture = buildFixture();
+    const interaction = fixture.contentExport.version.interactionCapture.interactions[1];
+    if (interaction?.kind !== "tool") throw new Error("Expected tool interaction");
+    const attempt = interaction.attempts[0];
+    if (!attempt) throw new Error("Expected tool attempt");
+    attempt.sideEffect = "unknown";
+    attempt.effectMayHaveOccurred = true;
+    refreshFixtureDefinitionDigest(fixture);
+
+    const result = await executeRecordedBoundaryReplay({
+      contentExport: fixture.contentExport,
+      invocation: fixture.invocation,
+      target: target(async (context) => {
+        await context.resolveBoundary(fixture.modelRequest);
+        const recorded = await context.resolveBoundary(fixture.toolRequest);
+        const recordedAttempt = recorded.resolution.recordedAttempt;
+        expect(recordedAttempt).toMatchObject({
+          attempt: { effectMayHaveOccurred: true, sideEffect: "unknown" },
+          kind: "tool",
+        });
+      }),
+    });
+    expect(result.status).toBe("completed");
   });
 
   it.each([
