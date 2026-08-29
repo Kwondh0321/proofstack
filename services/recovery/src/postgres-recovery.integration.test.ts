@@ -18,9 +18,15 @@ import {
 import type {
   EvidenceEnvelope,
   EvidenceScope,
+  InteractionCaptureManifest,
   PrincipalContext,
+  RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
+} from "@proofstack/contracts";
+import {
+  InteractionCaptureManifestSchema,
+  RecordedInteractionFixtureVersionDefinitionSchema,
 } from "@proofstack/contracts";
 import {
   buildRegressionDatasetVersionPublishedOutboxIntent,
@@ -259,7 +265,7 @@ function regressionPrincipal(tenantId = scope.tenantId): PrincipalContext {
 
 async function seedRecoverableArtifacts(
   artifactRepository: PostgresArtifactCatalogRepository,
-): Promise<void> {
+): Promise<InteractionCaptureManifest> {
   const cipher = new ArtifactCipher(
     new LocalArtifactKeyring({
       activeKeyId: artifactKeyId,
@@ -334,6 +340,43 @@ async function seedRecoverableArtifacts(
     environmentId: scope.environmentId,
     principal,
     projectId: scope.projectId,
+  });
+
+  const vectorDocument = JSON.parse(
+    await readFile(
+      new URL(
+        "../../../packages/datasets/vectors/interaction-fixture-definition-v2.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as {
+    readonly vectors: readonly {
+      readonly input: RecordedInteractionFixtureVersionDefinition;
+    }[];
+  };
+  const vectorDefinition = RecordedInteractionFixtureVersionDefinitionSchema.parse(
+    vectorDocument.vectors[0]?.input,
+  );
+  const recordedArtifacts: InteractionCaptureManifest["artifacts"][number][] = [];
+  for (const binding of vectorDefinition.interactionCapture.artifacts) {
+    const content = Buffer.from(
+      JSON.stringify({ artifactId: binding.contentReference.artifactId, recovery: true }),
+      "utf8",
+    );
+    const contentReference = {
+      ...binding.contentReference,
+      classification: "confidential" as const,
+      mediaType: "application/json",
+      sha256: sha256(content),
+      sizeBytes: content.byteLength,
+    };
+    await store(contentReference.artifactId, content);
+    recordedArtifacts.push({ ...binding, contentReference });
+  }
+  return InteractionCaptureManifestSchema.parse({
+    ...vectorDefinition.interactionCapture,
+    artifacts: recordedArtifacts,
   });
 }
 
@@ -493,13 +536,240 @@ async function seedRecoverableRegressionCatalog(): Promise<void> {
   };
 }
 
+async function seedRecoverableRecordedFixture(
+  interactionCapture: InteractionCaptureManifest,
+): Promise<void> {
+  const predecessor = requiredRegressionCatalogState().fixtureChild;
+  const fixtureVersionId = "fixv_recovery_primary_recorded";
+  const definitionSha256 = "d".repeat(64);
+  const createdAt = "2026-08-28T03:09:00.000Z";
+  const revokedAt = "2026-08-28T03:10:00.000Z";
+  const reason = "Recovery rehearsal recorded content revocation";
+  const principalId = regressionPrincipal().principalId;
+  const client = await sourcePool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `
+        INSERT INTO public.proofstack_regression_fixture_versions (
+          tenant_id,
+          project_id,
+          environment_id,
+          fixture_id,
+          root_fixture_version_id,
+          root_definition_sha256,
+          fixture_version_id,
+          schema_version,
+          name,
+          description,
+          predecessor_fixture_version_id,
+          predecessor_definition_sha256,
+          replayability,
+          source_kind,
+          source_trace_id,
+          source_event_count,
+          source_completeness,
+          source_captured_at,
+          source_captured_at_lexical,
+          created_at,
+          created_at_lexical,
+          created_by_principal_id,
+          definition_sha256
+        )
+        SELECT
+          predecessor.tenant_id,
+          predecessor.project_id,
+          predecessor.environment_id,
+          predecessor.fixture_id,
+          predecessor.root_fixture_version_id,
+          predecessor.root_definition_sha256,
+          $3,
+          '0.2',
+          'Recovery recorded interaction fixture',
+          NULL,
+          predecessor.fixture_version_id,
+          predecessor.definition_sha256,
+          'recorded_interactions',
+          predecessor.source_kind,
+          predecessor.source_trace_id,
+          predecessor.source_event_count,
+          predecessor.source_completeness,
+          predecessor.source_captured_at,
+          predecessor.source_captured_at_lexical,
+          $4::timestamptz,
+          $5::text,
+          $6,
+          $7
+        FROM public.proofstack_regression_fixture_versions AS predecessor
+        WHERE predecessor.tenant_id = $1
+          AND predecessor.fixture_version_id = $2
+      `,
+      [
+        scope.tenantId,
+        predecessor.fixtureVersionId,
+        fixtureVersionId,
+        createdAt,
+        createdAt,
+        principalId,
+        definitionSha256,
+      ],
+    );
+    await client.query(
+      `
+        INSERT INTO public.proofstack_regression_fixture_events (
+          tenant_id,
+          project_id,
+          environment_id,
+          fixture_id,
+          fixture_version_id,
+          source_trace_id,
+          source_event_count,
+          event_position,
+          event_id
+        )
+        SELECT
+          event.tenant_id,
+          event.project_id,
+          event.environment_id,
+          event.fixture_id,
+          $3,
+          event.source_trace_id,
+          event.source_event_count,
+          event.event_position,
+          event.event_id
+        FROM public.proofstack_regression_fixture_events AS event
+        WHERE event.tenant_id = $1
+          AND event.fixture_version_id = $2
+      `,
+      [scope.tenantId, predecessor.fixtureVersionId, fixtureVersionId],
+    );
+    await client.query(
+      `
+        INSERT INTO public.proofstack_recorded_interaction_fixture_versions (
+          tenant_id,
+          project_id,
+          environment_id,
+          fixture_id,
+          fixture_version_id,
+          interaction_capture
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+      `,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        predecessor.fixtureId,
+        fixtureVersionId,
+        interactionCapture,
+      ],
+    );
+    for (const [position, binding] of interactionCapture.artifacts.entries()) {
+      await client.query(
+        `
+          INSERT INTO public.proofstack_interaction_fixture_artifact_ownerships (
+            tenant_id,
+            project_id,
+            environment_id,
+            artifact_id,
+            fixture_id,
+            fixture_version_id,
+            artifact_position,
+            schema_version,
+            bound_at,
+            bound_at_lexical,
+            bound_by_principal_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, '0.1', $8::timestamptz, $9::text, $10)
+        `,
+        [
+          scope.tenantId,
+          scope.projectId,
+          scope.environmentId,
+          binding.contentReference.artifactId,
+          predecessor.fixtureId,
+          fixtureVersionId,
+          position,
+          createdAt,
+          createdAt,
+          principalId,
+        ],
+      );
+    }
+    await client.query(
+      `
+        INSERT INTO public.proofstack_interaction_fixture_content_revocations (
+          tenant_id,
+          project_id,
+          environment_id,
+          fixture_id,
+          fixture_version_id,
+          revocation_id,
+          schema_version,
+          reason,
+          revoked_at,
+          revoked_at_lexical,
+          revoked_by_principal_id
+        ) VALUES ($1, $2, $3, $4, $5, 'rev_recovery_recorded', '0.1', $6, $7::timestamptz, $8::text, $9)
+      `,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        predecessor.fixtureId,
+        fixtureVersionId,
+        reason,
+        revokedAt,
+        revokedAt,
+        principalId,
+      ],
+    );
+    for (const [position, binding] of interactionCapture.artifacts.entries()) {
+      await client.query(
+        `
+          INSERT INTO public.proofstack_artifact_tombstones (
+            tenant_id,
+            artifact_id,
+            tombstone_id,
+            actor_principal_id,
+            tombstone_trigger,
+            reason,
+            occurred_at
+          ) VALUES ($1, $2, $3, $4, 'fixture_revocation', $5, $6)
+        `,
+        [
+          scope.tenantId,
+          binding.contentReference.artifactId,
+          `del_recovery_recorded_${position}`,
+          principalId,
+          reason,
+          revokedAt,
+        ],
+      );
+      await client.query(
+        `
+          UPDATE public.proofstack_artifact_catalog
+          SET state = 'tombstoned', tombstoned_at = $3
+          WHERE tenant_id = $1 AND artifact_id = $2
+        `,
+        [scope.tenantId, binding.contentReference.artifactId, revokedAt],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
   const artifactRepository = new PostgresArtifactCatalogRepository(sourcePool);
-  await seedRecoverableArtifacts(artifactRepository);
+  const interactionCapture = await seedRecoverableArtifacts(artifactRepository);
 
   await seedRecoverableRegressionCatalog();
+  await seedRecoverableRecordedFixture(interactionCapture);
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,

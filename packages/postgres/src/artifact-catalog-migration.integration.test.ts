@@ -106,6 +106,9 @@ beforeAll(async () => {
   await pool.query(
     `GRANT SELECT, INSERT ON public.proofstack_artifact_purge_receipts TO ${runtimeRole}`,
   );
+  await pool.query(
+    `GRANT SELECT ON public.proofstack_interaction_fixture_artifact_ownerships, public.proofstack_interaction_fixture_content_revocations TO ${runtimeRole}`,
+  );
 });
 
 afterAll(async () => {

@@ -64,8 +64,8 @@ const INSERT_FIXTURE_VERSION_SQL = `
     definition_sha256
   ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, 'trace_snapshot',
-    $13, 1, 'observed_snapshot', $14::timestamptz, $14::text, $15::timestamptz,
-    $15::text, $16, $17
+    $13, 1, 'observed_snapshot', $14::timestamptz, $15::text, $16::timestamptz,
+    $17::text, $18, $19
   )
 `;
 
@@ -152,6 +152,8 @@ describe("recorded interaction fixture migration", () => {
         options.replayability,
         traceId,
         predecessorCreatedAt,
+        predecessorCreatedAt,
+        createdAt,
         createdAt,
         principalId,
         options.definitionDigest,
