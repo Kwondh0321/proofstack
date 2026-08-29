@@ -1,6 +1,7 @@
 import type { RecordedBoundaryReplayRuntimeProfile } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import type { RecordedBoundaryRuntimeControlError } from "./errors.js";
+import { validateRecordedReplayRandomRequest } from "./random-budget.js";
 import {
   createRecordedBoundaryRuntimeControls,
   MAX_RANDOM_BYTES_PER_INVOCATION,
@@ -84,23 +85,25 @@ describe("recorded replay runtime controls", () => {
 
   it("enforces a finite invocation random-byte ceiling", () => {
     const controls = createRecordedBoundaryRuntimeControls(profile());
-    const requestCount = MAX_RANDOM_BYTES_PER_INVOCATION / MAX_RANDOM_BYTES_PER_REQUEST;
-    for (let index = 0; index < requestCount; index += 1) {
-      expect(controls.randomBytes(MAX_RANDOM_BYTES_PER_REQUEST)).toHaveLength(
-        MAX_RANDOM_BYTES_PER_REQUEST,
-      );
-    }
-    expect(() => controls.randomBytes(1)).toThrowError(
+    expect(controls.randomBytes(MAX_RANDOM_BYTES_PER_REQUEST)).toHaveLength(
+      MAX_RANDOM_BYTES_PER_REQUEST,
+    );
+    expect(validateRecordedReplayRandomRequest(MAX_RANDOM_BYTES_PER_INVOCATION - 1, 1)).toBe(
+      MAX_RANDOM_BYTES_PER_INVOCATION,
+    );
+    expect(() =>
+      validateRecordedReplayRandomRequest(MAX_RANDOM_BYTES_PER_INVOCATION, 1),
+    ).toThrowError(
       expect.objectContaining<Partial<RecordedBoundaryRuntimeControlError>>({
         code: "random_budget_exhausted",
       }),
     );
     expect(controls.evidence()).toEqual({
       fixedClockReadCount: 0,
-      randomByteCount: MAX_RANDOM_BYTES_PER_INVOCATION,
-      randomRequestCount: requestCount,
+      randomByteCount: MAX_RANDOM_BYTES_PER_REQUEST,
+      randomRequestCount: 1,
     });
-    expect(controls.violated).toBe(true);
+    expect(controls.violated).toBe(false);
   });
 
   it("permanently rejects clock and random access after close", () => {

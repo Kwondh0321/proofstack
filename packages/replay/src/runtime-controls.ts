@@ -1,10 +1,14 @@
 import { createHmac } from "node:crypto";
 import type { RecordedBoundaryReplayRuntimeProfile } from "@proofstack/contracts";
 import { RecordedBoundaryRuntimeControlError } from "./errors.js";
+import {
+  MAX_RANDOM_BYTES_PER_INVOCATION,
+  MAX_RANDOM_BYTES_PER_REQUEST,
+  validateRecordedReplayRandomRequest,
+} from "./random-budget.js";
 import type { RecordedBoundaryRuntimeControls } from "./target-adapter.js";
 
-export const MAX_RANDOM_BYTES_PER_REQUEST = 65_536;
-export const MAX_RANDOM_BYTES_PER_INVOCATION = 1_048_576;
+export { MAX_RANDOM_BYTES_PER_INVOCATION, MAX_RANDOM_BYTES_PER_REQUEST };
 export const RECORDED_REPLAY_RANDOM_DOMAIN = "proofstack.replay.random.v1" as const;
 
 class HmacSha256CounterRuntimeControls implements RecordedBoundaryRuntimeControls {
@@ -50,13 +54,15 @@ class HmacSha256CounterRuntimeControls implements RecordedBoundaryRuntimeControl
 
   randomBytes(length: number): Uint8Array {
     this.requireOpen();
-    if (!Number.isInteger(length) || length < 1 || length > MAX_RANDOM_BYTES_PER_REQUEST) {
+    let nextRandomBytesGenerated: number;
+    try {
+      nextRandomBytesGenerated = validateRecordedReplayRandomRequest(
+        this.randomBytesGenerated,
+        length,
+      );
+    } catch (error) {
       this.runtimeViolated = true;
-      throw new RecordedBoundaryRuntimeControlError("random_request_out_of_range");
-    }
-    if (this.randomBytesGenerated + length > MAX_RANDOM_BYTES_PER_INVOCATION) {
-      this.runtimeViolated = true;
-      throw new RecordedBoundaryRuntimeControlError("random_budget_exhausted");
+      throw error;
     }
 
     const output = new Uint8Array(length);
@@ -68,7 +74,7 @@ class HmacSha256CounterRuntimeControls implements RecordedBoundaryRuntimeControl
       this.pending = this.pending.slice(count);
       offset += count;
     }
-    this.randomBytesGenerated += length;
+    this.randomBytesGenerated = nextRandomBytesGenerated;
     this.randomRequests += 1;
     return output;
   }
