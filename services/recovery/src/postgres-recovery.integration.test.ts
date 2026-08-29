@@ -5,7 +5,10 @@ import { dirname, isAbsolute, join } from "node:path";
 import { CreateBucketCommand, DeleteBucketCommand } from "@aws-sdk/client-s3";
 import {
   ArtifactCipher,
+  ArtifactConflictError,
   ArtifactNotFoundError,
+  ArtifactObjectMissingError,
+  ArtifactProtectionError,
   ArtifactUnavailableError,
   LocalArtifactKeyring,
   PurgeArtifact,
@@ -21,6 +24,7 @@ import type {
   EvidenceScope,
   InteractionCaptureManifest,
   PrincipalContext,
+  RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
@@ -32,8 +36,12 @@ import {
 import {
   buildRegressionDatasetVersionPublishedOutboxIntent,
   buildRegressionFixtureVersionPublishedOutboxIntent,
+  buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
+  PublishRecordedInteractionFixtureVersion,
   PublishRegressionDatasetVersion,
   PublishRegressionFixtureVersion,
+  RevokeRecordedInteractionFixtureContent,
+  SecureInteractionFixtureRevocationIdentityGenerator,
   type RegressionVersionPublishedOutboxIntent,
 } from "@proofstack/datasets";
 import {
@@ -119,8 +127,10 @@ const scope: EvidenceScope = {
 const traceId = "9bf92f3577b34da6a3ce929d0e0e4736";
 const availableArtifactId = "art_recovery_available";
 const purgedArtifactId = "art_recovery_purged";
-const artifactKeyId = "key_recovery_integration";
+const artifactKeyId = "key_recovery_primary";
+const rotatedArtifactKeyId = "key_recovery_rotated";
 const artifactKeyMaterial = Buffer.alloc(32, 29);
+const rotatedArtifactKeyMaterial = Buffer.alloc(32, 37);
 const availableArtifactContent = Buffer.from(
   JSON.stringify({ evidence: "coordinated recovery", status: "available" }),
   "utf8",
@@ -160,6 +170,15 @@ let regressionCatalogState:
       readonly fixtureChild: RegressionFixtureVersion;
       readonly fixtureRoot: RegressionFixtureVersion;
       readonly secondFixtureRoot: RegressionFixtureVersion;
+    }
+  | undefined;
+let recordedRecoveryState:
+  | {
+      readonly afterRestoreContent: ReadonlyMap<string, Uint8Array>;
+      readonly afterRestoreManifest: InteractionCaptureManifest;
+      readonly availableContent: ReadonlyMap<string, Uint8Array>;
+      readonly availableVersion: RecordedInteractionFixtureVersion;
+      readonly revokedVersion: RecordedInteractionFixtureVersion;
     }
   | undefined;
 
@@ -235,7 +254,12 @@ function artifactPrincipal(tenantId = scope.tenantId): PrincipalContext {
       credentialId: "key_recovery_rehearsal",
       method: "api_key",
     },
-    capabilities: ["artifact:delete", "artifact:read", "artifact:write"],
+    capabilities: [
+      "artifact:delete",
+      "artifact:read",
+      "artifact:read:restricted",
+      "artifact:write",
+    ],
     principalId: "wrk_recovery_rehearsal",
     principalType: "workload",
     requestId: "req_recovery_rehearsal",
@@ -254,7 +278,7 @@ function regressionPrincipal(tenantId = scope.tenantId): PrincipalContext {
       authenticatedAt: "2026-08-28T03:00:00.000Z",
       method: "development",
     },
-    capabilities: ["dataset:manage", "evidence:read"],
+    capabilities: ["artifact:delete", "dataset:manage", "evidence:read"],
     principalId: "usr_recovery_regression",
     principalType: "user",
     requestId: "req_recovery_regression",
@@ -266,61 +290,91 @@ function regressionPrincipal(tenantId = scope.tenantId): PrincipalContext {
 
 async function seedRecoverableArtifacts(
   artifactRepository: PostgresArtifactCatalogRepository,
-): Promise<InteractionCaptureManifest> {
-  const cipher = new ArtifactCipher(
-    new LocalArtifactKeyring({
-      activeKeyId: artifactKeyId,
-      keys: { [artifactKeyId]: artifactKeyMaterial },
-    }),
-  );
+): Promise<{
+  readonly afterRestore: {
+    readonly content: ReadonlyMap<string, Uint8Array>;
+    readonly manifest: InteractionCaptureManifest;
+  };
+  readonly available: {
+    readonly content: ReadonlyMap<string, Uint8Array>;
+    readonly manifest: InteractionCaptureManifest;
+    readonly rotatedArtifactId: string;
+  };
+  readonly revoked: {
+    readonly content: ReadonlyMap<string, Uint8Array>;
+    readonly manifest: InteractionCaptureManifest;
+  };
+}> {
   const identities = new SecureArtifactIdentityGenerator();
   const principal = artifactPrincipal();
-  const reserve = new ReserveArtifact({
-    catalog: artifactRepository,
-    clock: { now: () => new Date("2026-08-28T03:00:00.000Z") },
-    encryption: cipher,
-    identities,
-  });
-  const upload = new UploadArtifact({
-    catalog: artifactRepository,
-    clock: { now: () => new Date("2026-08-28T03:01:00.000Z") },
-    encryption: cipher,
-    inspection: new StrictArtifactContentInspector(),
-    objects: sourceObjects,
-  });
-
-  const store = async (artifactId: string, content: Uint8Array): Promise<void> => {
+  const keys = {
+    [artifactKeyId]: artifactKeyMaterial,
+    [rotatedArtifactKeyId]: rotatedArtifactKeyMaterial,
+  };
+  const store = async (input: {
+    readonly artifactId: string;
+    readonly classification: "confidential" | "internal" | "restricted";
+    readonly content: Uint8Array;
+    readonly keyId: string;
+    readonly mediaType: string;
+  }): Promise<void> => {
+    const cipher = new ArtifactCipher(new LocalArtifactKeyring({ activeKeyId: input.keyId, keys }));
+    const reserve = new ReserveArtifact({
+      catalog: artifactRepository,
+      clock: { now: () => new Date("2026-08-28T03:00:00.000Z") },
+      encryption: cipher,
+      identities,
+    });
+    const upload = new UploadArtifact({
+      catalog: artifactRepository,
+      clock: { now: () => new Date("2026-08-28T03:01:00.000Z") },
+      encryption: cipher,
+      inspection: new StrictArtifactContentInspector(),
+      objects: sourceObjects,
+    });
     await reserve.execute({
       environmentId: scope.environmentId,
       principal,
       projectId: scope.projectId,
       request: {
-        artifactId,
-        classification: "confidential",
-        mediaType: "application/json",
+        artifactId: input.artifactId,
+        classification: input.classification,
+        mediaType: input.mediaType,
         redaction: { status: "not_required" },
         retention: { mode: "retain" },
-        sha256: sha256(content),
-        sizeBytes: content.byteLength,
+        sha256: sha256(input.content),
+        sizeBytes: input.content.byteLength,
       },
     });
     await upload.execute({
-      artifactId,
-      content,
+      artifactId: input.artifactId,
+      content: input.content,
       environmentId: scope.environmentId,
       principal,
       projectId: scope.projectId,
     });
-    const entry = await artifactRepository.find(scope, artifactId);
-    if (!entry) throw new Error(`Recovery artifact ${artifactId} is missing after upload`);
+    const entry = await artifactRepository.find(scope, input.artifactId);
+    if (!entry) throw new Error(`Recovery artifact ${input.artifactId} is missing after upload`);
     trackedObjectKeys.add(entry.objectKey);
   };
 
-  await store(availableArtifactId, availableArtifactContent);
-  await store(
-    purgedArtifactId,
-    Buffer.from(JSON.stringify({ evidence: "must remain deleted", status: "purged" }), "utf8"),
-  );
+  await store({
+    artifactId: availableArtifactId,
+    classification: "internal",
+    content: availableArtifactContent,
+    keyId: artifactKeyId,
+    mediaType: "application/json",
+  });
+  await store({
+    artifactId: purgedArtifactId,
+    classification: "confidential",
+    content: Buffer.from(
+      JSON.stringify({ evidence: "must remain deleted", status: "purged" }),
+      "utf8",
+    ),
+    keyId: artifactKeyId,
+    mediaType: "application/json",
+  });
   await new TombstoneArtifact({
     catalog: artifactRepository,
     clock: { now: () => new Date("2026-08-28T03:02:00.000Z") },
@@ -360,53 +414,169 @@ async function seedRecoverableArtifacts(
   const vectorDefinition = RecordedInteractionFixtureVersionDefinitionSchema.parse(
     vectorDocument.vectors[0]?.input,
   );
-  const recordedArtifacts: InteractionCaptureManifest["artifacts"][number][] = [];
-  const recordedDigests = new Map<string, string>();
-  for (const binding of vectorDefinition.interactionCapture.artifacts) {
-    const content = Buffer.from(
-      JSON.stringify({ artifactId: binding.contentReference.artifactId, recovery: true }),
-      "utf8",
+  const buildCapture = (
+    variant: "after_restore" | "available" | "revoked",
+  ): {
+    readonly content: ReadonlyMap<string, Uint8Array>;
+    readonly manifest: InteractionCaptureManifest;
+  } => {
+    const remappedIds = new Map(
+      vectorDefinition.interactionCapture.artifacts.map((binding) => [
+        binding.contentReference.artifactId,
+        `${binding.contentReference.artifactId}_${variant}`,
+      ]),
     );
-    const contentReference = {
-      ...binding.contentReference,
-      classification: "confidential" as const,
-      mediaType: "application/json",
-      sha256: sha256(content),
-      sizeBytes: content.byteLength,
+    const remap = (artifactId: string): string => {
+      const remapped = remappedIds.get(artifactId);
+      if (!remapped) throw new Error(`Recovery capture artifact ${artifactId} is not declared`);
+      return remapped;
     };
-    await store(contentReference.artifactId, content);
-    recordedDigests.set(contentReference.artifactId, contentReference.sha256);
-    recordedArtifacts.push({ ...binding, contentReference });
-  }
-  const recordedInteractions = vectorDefinition.interactionCapture.interactions.map(
-    (interaction) => {
-      const attempts = interaction.attempts.map((attempt) => ({
-        ...attempt,
-        normalizedRequest: {
-          ...attempt.normalizedRequest,
-          sha256:
-            recordedDigests.get(attempt.normalizedRequest.artifactId) ??
-            attempt.normalizedRequest.sha256,
-        },
-      }));
-      if (interaction.kind === "tool") return { ...interaction, attempts };
+    const content = new Map(
+      vectorDefinition.interactionCapture.artifacts.map((binding) => {
+        const artifactId = remap(binding.contentReference.artifactId);
+        return [
+          artifactId,
+          Buffer.from(JSON.stringify({ artifactId, recovery: true, variant }), "utf8"),
+        ] as const;
+      }),
+    );
+    const digests = new Map(
+      [...content].map(([artifactId, value]) => [artifactId, sha256(value)] as const),
+    );
+    const artifacts = vectorDefinition.interactionCapture.artifacts.map((binding, index) => {
+      const artifactId = remap(binding.contentReference.artifactId);
+      const value = content.get(artifactId);
+      if (!value) throw new Error(`Recovery capture content ${artifactId} is missing`);
+      const classification =
+        variant === "revoked"
+          ? ("confidential" as const)
+          : (["internal", "confidential", "restricted"] as const)[index % 3];
+      if (!classification) throw new Error("Recovery capture classification is missing");
       return {
-        ...interaction,
-        attempts,
-        prompt: {
-          ...interaction.prompt,
-          definitionSha256:
-            recordedDigests.get(interaction.prompt.artifactId) ??
-            interaction.prompt.definitionSha256,
+        ...binding,
+        contentReference: {
+          ...binding.contentReference,
+          artifactId,
+          classification,
+          sha256: sha256(value),
+          sizeBytes: value.byteLength,
         },
       };
-    },
-  );
-  return InteractionCaptureManifestSchema.parse({
-    ...vectorDefinition.interactionCapture,
-    artifacts: recordedArtifacts,
-    interactions: recordedInteractions,
-  });
+    });
+    const interactions = vectorDefinition.interactionCapture.interactions.map((interaction) => {
+      if (interaction.kind === "model") {
+        return {
+          ...interaction,
+          attempts: interaction.attempts.map((attempt) => ({
+            ...attempt,
+            artifacts: {
+              inputMessagesArtifactId: remap(attempt.artifacts.inputMessagesArtifactId),
+              ...(attempt.artifacts.outputMessagesArtifactId
+                ? {
+                    outputMessagesArtifactId: remap(attempt.artifacts.outputMessagesArtifactId),
+                  }
+                : {}),
+              ...(attempt.artifacts.promptVariablesArtifactId
+                ? {
+                    promptVariablesArtifactId: remap(attempt.artifacts.promptVariablesArtifactId),
+                  }
+                : {}),
+              providerConfigurationArtifactId: remap(
+                attempt.artifacts.providerConfigurationArtifactId,
+              ),
+              providerRequestArtifactId: remap(attempt.artifacts.providerRequestArtifactId),
+              ...(attempt.artifacts.providerResponseArtifactId
+                ? {
+                    providerResponseArtifactId: remap(attempt.artifacts.providerResponseArtifactId),
+                  }
+                : {}),
+              ...(attempt.artifacts.streamingFramesArtifactId
+                ? {
+                    streamingFramesArtifactId: remap(attempt.artifacts.streamingFramesArtifactId),
+                  }
+                : {}),
+              ...(attempt.artifacts.systemInstructionsArtifactId
+                ? {
+                    systemInstructionsArtifactId: remap(
+                      attempt.artifacts.systemInstructionsArtifactId,
+                    ),
+                  }
+                : {}),
+            },
+            normalizedRequest: {
+              ...attempt.normalizedRequest,
+              artifactId: remap(attempt.normalizedRequest.artifactId),
+              sha256: digests.get(remap(attempt.normalizedRequest.artifactId)),
+            },
+          })),
+          prompt: {
+            ...interaction.prompt,
+            artifactId: remap(interaction.prompt.artifactId),
+            definitionSha256: digests.get(remap(interaction.prompt.artifactId)),
+          },
+          toolContracts: interaction.toolContracts.map((tool) => ({
+            ...tool,
+            artifactId: remap(tool.artifactId),
+            definitionSha256: digests.get(remap(tool.artifactId)),
+          })),
+        };
+      }
+      return {
+        ...interaction,
+        attempts: interaction.attempts.map((attempt) => ({
+          ...attempt,
+          artifacts: {
+            argumentsArtifactId: remap(attempt.artifacts.argumentsArtifactId),
+            ...(attempt.artifacts.resultArtifactId
+              ? { resultArtifactId: remap(attempt.artifacts.resultArtifactId) }
+              : {}),
+          },
+          normalizedRequest: {
+            ...attempt.normalizedRequest,
+            artifactId: remap(attempt.normalizedRequest.artifactId),
+            sha256: digests.get(remap(attempt.normalizedRequest.artifactId)),
+          },
+        })),
+        tool: {
+          ...interaction.tool,
+          artifactId: remap(interaction.tool.artifactId),
+          definitionSha256: digests.get(remap(interaction.tool.artifactId)),
+        },
+      };
+    });
+    return {
+      content,
+      manifest: InteractionCaptureManifestSchema.parse({
+        ...vectorDefinition.interactionCapture,
+        artifacts,
+        interactions,
+      }),
+    };
+  };
+
+  const afterRestore = buildCapture("after_restore");
+  const available = buildCapture("available");
+  const revoked = buildCapture("revoked");
+  for (const capture of [available, revoked]) {
+    for (const [index, binding] of capture.manifest.artifacts.entries()) {
+      const content = capture.content.get(binding.contentReference.artifactId);
+      if (!content) throw new Error("Recovery capture content is missing before storage");
+      const classification = binding.contentReference.classification;
+      if (classification === "metadata") {
+        throw new Error("Recovery interaction content cannot use metadata classification");
+      }
+      await store({
+        artifactId: binding.contentReference.artifactId,
+        classification,
+        content,
+        keyId: index % 2 === 0 ? artifactKeyId : rotatedArtifactKeyId,
+        mediaType: binding.contentReference.mediaType,
+      });
+    }
+  }
+  const rotatedArtifactId = available.manifest.artifacts[1]?.contentReference.artifactId;
+  if (!rotatedArtifactId) throw new Error("Recovery capture rotated artifact is missing");
+  return { afterRestore, available: { ...available, rotatedArtifactId }, revoked };
 }
 
 function evidence(
@@ -565,240 +735,89 @@ async function seedRecoverableRegressionCatalog(): Promise<void> {
   };
 }
 
-async function seedRecoverableRecordedFixture(
-  interactionCapture: InteractionCaptureManifest,
+async function seedRecoverableRecordedFixtures(
+  captures: Awaited<ReturnType<typeof seedRecoverableArtifacts>>,
 ): Promise<void> {
-  const predecessor = requiredRegressionCatalogState().fixtureChild;
-  const fixtureVersionId = "fixv_recovery_primary_recorded";
-  const definitionSha256 = "d".repeat(64);
-  const createdAt = "2026-08-28T03:09:00.000Z";
-  const revokedAt = "2026-08-28T03:10:00.000Z";
-  const reason = "Recovery rehearsal recorded content revocation";
-  const principalId = regressionPrincipal().principalId;
-  const client = await sourcePool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      `
-        INSERT INTO public.proofstack_regression_fixture_versions (
-          tenant_id,
-          project_id,
-          environment_id,
-          fixture_id,
-          root_fixture_version_id,
-          root_definition_sha256,
-          fixture_version_id,
-          schema_version,
-          name,
-          description,
-          predecessor_fixture_version_id,
-          predecessor_definition_sha256,
-          replayability,
-          source_kind,
-          source_trace_id,
-          source_event_count,
-          source_completeness,
-          source_captured_at,
-          source_captured_at_lexical,
-          created_at,
-          created_at_lexical,
-          created_by_principal_id,
-          definition_sha256
-        )
-        SELECT
-          predecessor.tenant_id,
-          predecessor.project_id,
-          predecessor.environment_id,
-          predecessor.fixture_id,
-          predecessor.root_fixture_version_id,
-          predecessor.root_definition_sha256,
-          $3,
-          '0.2',
-          'Recovery recorded interaction fixture',
-          NULL,
-          predecessor.fixture_version_id,
-          predecessor.definition_sha256,
-          'recorded_interactions',
-          predecessor.source_kind,
-          predecessor.source_trace_id,
-          predecessor.source_event_count,
-          predecessor.source_completeness,
-          predecessor.source_captured_at,
-          predecessor.source_captured_at_lexical,
-          $4::timestamptz,
-          $5::text,
-          $6,
-          $7
-        FROM public.proofstack_regression_fixture_versions AS predecessor
-        WHERE predecessor.tenant_id = $1
-          AND predecessor.fixture_version_id = $2
-      `,
-      [
-        scope.tenantId,
-        predecessor.fixtureVersionId,
-        fixtureVersionId,
-        createdAt,
-        createdAt,
-        principalId,
-        definitionSha256,
-      ],
-    );
-    await client.query(
-      `
-        INSERT INTO public.proofstack_regression_fixture_events (
-          tenant_id,
-          project_id,
-          environment_id,
-          fixture_id,
-          fixture_version_id,
-          source_trace_id,
-          source_event_count,
-          event_position,
-          event_id
-        )
-        SELECT
-          event.tenant_id,
-          event.project_id,
-          event.environment_id,
-          event.fixture_id,
-          $3,
-          event.source_trace_id,
-          event.source_event_count,
-          event.event_position,
-          event.event_id
-        FROM public.proofstack_regression_fixture_events AS event
-        WHERE event.tenant_id = $1
-          AND event.fixture_version_id = $2
-      `,
-      [scope.tenantId, predecessor.fixtureVersionId, fixtureVersionId],
-    );
-    await client.query(
-      `
-        INSERT INTO public.proofstack_recorded_interaction_fixture_versions (
-          tenant_id,
-          project_id,
-          environment_id,
-          fixture_id,
-          fixture_version_id,
-          interaction_capture
-        ) VALUES ($1, $2, $3, $4, $5, $6)
-      `,
-      [
-        scope.tenantId,
-        scope.projectId,
-        scope.environmentId,
-        predecessor.fixtureId,
-        fixtureVersionId,
-        interactionCapture,
-      ],
-    );
-    for (const [position, binding] of interactionCapture.artifacts.entries()) {
-      await client.query(
-        `
-          INSERT INTO public.proofstack_interaction_fixture_artifact_ownerships (
-            tenant_id,
-            project_id,
-            environment_id,
-            artifact_id,
-            fixture_id,
-            fixture_version_id,
-            artifact_position,
-            schema_version,
-            bound_at,
-            bound_at_lexical,
-            bound_by_principal_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, '0.1', $8::timestamptz, $9::text, $10)
-        `,
-        [
-          scope.tenantId,
-          scope.projectId,
-          scope.environmentId,
-          binding.contentReference.artifactId,
-          predecessor.fixtureId,
-          fixtureVersionId,
-          position,
-          createdAt,
-          createdAt,
-          principalId,
-        ],
-      );
-    }
-    await client.query(
-      `
-        INSERT INTO public.proofstack_interaction_fixture_content_revocations (
-          tenant_id,
-          project_id,
-          environment_id,
-          fixture_id,
-          fixture_version_id,
-          revocation_id,
-          schema_version,
-          reason,
-          revoked_at,
-          revoked_at_lexical,
-          revoked_by_principal_id
-        ) VALUES ($1, $2, $3, $4, $5, 'rev_recovery_recorded', '0.1', $6, $7::timestamptz, $8::text, $9)
-      `,
-      [
-        scope.tenantId,
-        scope.projectId,
-        scope.environmentId,
-        predecessor.fixtureId,
-        fixtureVersionId,
-        reason,
-        revokedAt,
-        revokedAt,
-        principalId,
-      ],
-    );
-    for (const [position, binding] of interactionCapture.artifacts.entries()) {
-      await client.query(
-        `
-          INSERT INTO public.proofstack_artifact_tombstones (
-            tenant_id,
-            artifact_id,
-            tombstone_id,
-            actor_principal_id,
-            tombstone_trigger,
-            reason,
-            occurred_at
-          ) VALUES ($1, $2, $3, $4, 'fixture_revocation', $5, $6)
-        `,
-        [
-          scope.tenantId,
-          binding.contentReference.artifactId,
-          `del_recovery_recorded_${position}`,
-          principalId,
-          reason,
-          revokedAt,
-        ],
-      );
-      await client.query(
-        `
-          UPDATE public.proofstack_artifact_catalog
-          SET state = 'tombstoned', tombstoned_at = $3
-          WHERE tenant_id = $1 AND artifact_id = $2
-        `,
-        [scope.tenantId, binding.contentReference.artifactId, revokedAt],
-      );
-    }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-}
+  const catalog = requiredRegressionCatalogState();
+  const versionRepository = new PostgresRegressionVersionRepository(sourcePool);
+  const principal = regressionPrincipal();
+  const publishAt = (instant: string) =>
+    new PublishRecordedInteractionFixtureVersion({
+      clock: regressionClock(instant),
+      versionRepository,
+    });
+  const available = await publishAt("2026-08-28T03:09:00.000Z").execute({
+    environmentId: scope.environmentId,
+    fixtureId: catalog.secondFixtureRoot.fixtureId,
+    principal,
+    projectId: scope.projectId,
+    request: {
+      fixtureVersionId: "fixv_recovery_secondary_recorded",
+      interactionCapture: captures.available.manifest,
+      name: "Recovery available interaction fixture",
+      predecessorVersionId: catalog.secondFixtureRoot.fixtureVersionId,
+    },
+  });
+  const revoked = await publishAt("2026-08-28T03:10:00.000Z").execute({
+    environmentId: scope.environmentId,
+    fixtureId: catalog.fixtureChild.fixtureId,
+    principal,
+    projectId: scope.projectId,
+    request: {
+      fixtureVersionId: "fixv_recovery_primary_recorded",
+      interactionCapture: captures.revoked.manifest,
+      name: "Recovery revoked interaction fixture",
+      predecessorVersionId: catalog.fixtureChild.fixtureVersionId,
+    },
+  });
+  const revocation = await new RevokeRecordedInteractionFixtureContent({
+    clock: regressionClock("2026-08-28T03:11:00.000Z"),
+    identities: new SecureInteractionFixtureRevocationIdentityGenerator(),
+    versionRepository,
+  }).execute({
+    environmentId: scope.environmentId,
+    fixtureId: revoked.version.fixtureId,
+    fixtureVersionId: revoked.version.fixtureVersionId,
+    principal,
+    projectId: scope.projectId,
+    request: { reason: "Recovery rehearsal recorded content revocation" },
+  });
+  expect(revocation.contentAvailability).toBe("revoked");
 
+  const artifactRepository = new PostgresArtifactCatalogRepository(sourcePool);
+  const purge = new PurgeArtifact({
+    catalog: artifactRepository,
+    clock: { now: () => new Date("2026-08-28T03:12:00.000Z") },
+    identities: new SecureArtifactIdentityGenerator(),
+    objects: sourceObjects,
+  });
+  for (const [index, binding] of captures.revoked.manifest.artifacts.entries()) {
+    if (index % 2 === 0) {
+      await purge.execute({
+        artifactId: binding.contentReference.artifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      });
+    }
+  }
+
+  recordedRecoveryState = {
+    afterRestoreContent: captures.afterRestore.content,
+    afterRestoreManifest: captures.afterRestore.manifest,
+    availableContent: captures.available.content,
+    availableVersion: available.version,
+    revokedVersion: revoked.version,
+  };
+}
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
   const artifactRepository = new PostgresArtifactCatalogRepository(sourcePool);
-  const interactionCapture = await seedRecoverableArtifacts(artifactRepository);
+  const interactionCaptures = await seedRecoverableArtifacts(artifactRepository);
 
   await seedRecoverableRegressionCatalog();
-  await seedRecoverableRecordedFixture(interactionCapture);
+  await seedRecoverableRecordedFixtures(interactionCaptures);
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,
@@ -881,18 +900,26 @@ function requiredRegressionCatalogState(): NonNullable<typeof regressionCatalogS
   return regressionCatalogState;
 }
 
+function requiredRecordedRecoveryState(): NonNullable<typeof recordedRecoveryState> {
+  if (!recordedRecoveryState) throw new Error("Recorded recovery fixtures were not seeded");
+  return recordedRecoveryState;
+}
+
 function intentOrderKey(intent: RegressionVersionPublishedOutboxIntent): Buffer {
   return Buffer.from(`${intent.eventType}\0${intent.aggregateType}\0${intent.aggregateId}`, "utf8");
 }
 
 function expectedRegressionPublicationIntents(): readonly RegressionVersionPublishedOutboxIntent[] {
   const state = requiredRegressionCatalogState();
+  const recorded = requiredRecordedRecoveryState();
   return [
     buildRegressionFixtureVersionPublishedOutboxIntent(state.fixtureRoot),
     buildRegressionFixtureVersionPublishedOutboxIntent(state.secondFixtureRoot),
     buildRegressionFixtureVersionPublishedOutboxIntent(state.fixtureChild),
     buildRegressionDatasetVersionPublishedOutboxIntent(state.datasetRoot),
     buildRegressionDatasetVersionPublishedOutboxIntent(state.datasetChild),
+    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(recorded.availableVersion),
+    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(recorded.revokedVersion),
   ].sort((left, right) => Buffer.compare(intentOrderKey(left), intentOrderKey(right)));
 }
 
@@ -1069,30 +1096,43 @@ describe("coordinated recovery rehearsal", () => {
     });
     expect(backup.sizeBytes).toBe((await stat(dumpPath)).size);
     const databaseDump = await readFile(dumpPath);
-    const sourceCiphertext = await sourceObjects.get(sourceAvailable.objectKey);
-    if (!sourceCiphertext) throw new Error("Available recovery ciphertext is missing");
-    const inventory = [
-      {
-        ciphertextSha256: sha256(sourceCiphertext),
-        objectKey: sourceAvailable.objectKey,
-        sizeBytes: sourceCiphertext.byteLength,
-      },
-    ];
+    const availableObjectRows = await sourcePool.query<{ readonly object_key: string }>(`
+      SELECT object_key
+      FROM public.proofstack_artifact_catalog
+      WHERE tenant_id = 'ten_recovery' AND state = 'available'
+      ORDER BY object_key COLLATE "C"
+    `);
+    const sourceCiphertexts = new Map<string, Uint8Array>();
+    const inventory = [];
+    for (const { object_key: objectKey } of availableObjectRows.rows) {
+      const ciphertext = await sourceObjects.get(objectKey);
+      if (!ciphertext) throw new Error(`Available recovery ciphertext ${objectKey} is missing`);
+      sourceCiphertexts.set(objectKey, ciphertext);
+      inventory.push({
+        ciphertextSha256: sha256(ciphertext),
+        objectKey,
+        sizeBytes: ciphertext.byteLength,
+      });
+    }
+    expect(inventory.length).toBeGreaterThan(1);
     const encodedInventory = encodeRecoveryObjectInventory(inventory);
-    await expect(
-      backupObjects.putIfAbsent(sourceAvailable.objectKey, sourceCiphertext),
-    ).resolves.toMatchObject({
-      created: true,
-      receipt: {
-        sha256: inventory[0]?.ciphertextSha256,
-        sizeBytes: inventory[0]?.sizeBytes,
-      },
-    });
+    for (const entry of inventory) {
+      const ciphertext = sourceCiphertexts.get(entry.objectKey);
+      if (!ciphertext) throw new Error(`Inventory ciphertext ${entry.objectKey} is missing`);
+      await expect(backupObjects.putIfAbsent(entry.objectKey, ciphertext)).resolves.toMatchObject({
+        created: true,
+        receipt: {
+          sha256: entry.ciphertextSha256,
+          sizeBytes: entry.sizeBytes,
+        },
+      });
+    }
     await expect(sourceObjects.get(sourcePurged.objectKey)).resolves.toBeNull();
     await expect(backupObjects.get(sourcePurged.objectKey)).resolves.toBeNull();
 
     const keySnapshot = {
       [artifactKeyId]: Uint8Array.from(artifactKeyMaterial),
+      [rotatedArtifactKeyId]: Uint8Array.from(rotatedArtifactKeyMaterial),
     };
     const configuration = Buffer.from(
       `${JSON.stringify({
@@ -1128,7 +1168,7 @@ describe("coordinated recovery rehearsal", () => {
       keyProvider: {
         provider: "test-keyring",
         reference: "provider:test-key-snapshot",
-        referencedKeyIds: [artifactKeyId],
+        referencedKeyIds: [artifactKeyId, rotatedArtifactKeyId].sort(),
       },
       objectSnapshot: {
         bucketPolicySha256: sha256(bucketPolicy),
@@ -1225,11 +1265,11 @@ describe("coordinated recovery rehearsal", () => {
       }),
     ).toEqual({
       databaseBytes: databaseDump.byteLength,
-      keyCount: 1,
+      keyCount: 2,
       migrationCount: sourceLedger.length,
-      objectCount: 1,
+      objectCount: inventory.length,
       recoverySetId: "rec_foundation_two_rehearsal",
-      totalCiphertextBytes: sourceCiphertext.byteLength,
+      totalCiphertextBytes: encodedInventory.summary.totalCiphertextBytes,
     });
 
     const migrations = await loadBundledMigrations();
@@ -1336,6 +1376,123 @@ describe("coordinated recovery rehearsal", () => {
 
     const expectedRegression = requiredRegressionCatalogState();
     const restoredRegression = new PostgresRegressionVersionRepository(runtimePool);
+    const expectedRecorded = requiredRecordedRecoveryState();
+    const restoredAvailableCapture = await restoredRegression.findRecordedInteractionFixtureContent(
+      scope,
+      expectedRecorded.availableVersion.fixtureVersionId,
+    );
+    expect(restoredAvailableCapture).toMatchObject({
+      contentAvailability: "available",
+      revocation: null,
+      version: expectedRecorded.availableVersion,
+    });
+    expect(
+      new Set(
+        expectedRecorded.availableVersion.interactionCapture.artifacts.map(
+          ({ contentReference }) => contentReference.classification,
+        ),
+      ),
+    ).toEqual(new Set(["internal", "confidential", "restricted"]));
+    for (const binding of expectedRecorded.availableVersion.interactionCapture.artifacts) {
+      const restored = await restoredArtifactReader.execute({
+        artifactId: binding.contentReference.artifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      });
+      expect(Buffer.from(restored.content)).toEqual(
+        expectedRecorded.availableContent.get(binding.contentReference.artifactId),
+      );
+    }
+
+    const restoredRevokedCapture = await restoredRegression.findRecordedInteractionFixtureContent(
+      scope,
+      expectedRecorded.revokedVersion.fixtureVersionId,
+    );
+    expect(restoredRevokedCapture).toMatchObject({
+      contentAvailability: "revoked",
+      tombstones: {
+        length: expectedRecorded.revokedVersion.interactionCapture.artifacts.length,
+      },
+      version: expectedRecorded.revokedVersion,
+    });
+    const restoredRevokedStates: string[] = [];
+    const restoredPurger = new PurgeArtifact({
+      catalog: restoredArtifactCatalog,
+      clock: { now: () => new Date("2026-08-28T03:13:00.000Z") },
+      identities: new SecureArtifactIdentityGenerator(),
+      objects: restoredObjects,
+    });
+    for (const binding of expectedRecorded.revokedVersion.interactionCapture.artifacts) {
+      const entry = await restoredArtifactCatalog.find(scope, binding.contentReference.artifactId);
+      if (!entry) throw new Error("Restored revoked artifact catalog entry is missing");
+      restoredRevokedStates.push(entry.metadata.state);
+      await expect(
+        restoredArtifactReader.execute({
+          artifactId: binding.contentReference.artifactId,
+          environmentId: scope.environmentId,
+          principal: artifactPrincipal(),
+          projectId: scope.projectId,
+        }),
+      ).rejects.toBeInstanceOf(ArtifactUnavailableError);
+      if (entry.metadata.state === "tombstoned") {
+        await restoredPurger.execute({
+          artifactId: binding.contentReference.artifactId,
+          environmentId: scope.environmentId,
+          principal: artifactPrincipal(),
+          projectId: scope.projectId,
+        });
+      }
+      await expect(
+        restoredArtifactCatalog.findPurgeReceipt(scope, binding.contentReference.artifactId),
+      ).resolves.toMatchObject({ artifactId: binding.contentReference.artifactId });
+    }
+    expect(new Set(restoredRevokedStates)).toEqual(new Set(["purged", "tombstoned"]));
+    await expect(
+      restoredRegression.findRecordedInteractionFixtureContent(
+        scope,
+        expectedRecorded.revokedVersion.fixtureVersionId,
+      ),
+    ).resolves.toMatchObject({ contentAvailability: "revoked" });
+
+    const readerMissingRotatedKey = new ReadArtifact({
+      catalog: restoredArtifactCatalog,
+      encryption: new ArtifactCipher(
+        new LocalArtifactKeyring({
+          activeKeyId: artifactKeyId,
+          keys: { [artifactKeyId]: artifactKeyMaterial },
+        }),
+      ),
+      objects: restoredObjects,
+    });
+    const rotatedKeyBinding = expectedRecorded.availableVersion.interactionCapture.artifacts[1];
+    if (!rotatedKeyBinding) throw new Error("Available recovery fixture has no rotated-key entry");
+    await expect(
+      readerMissingRotatedKey.execute({
+        artifactId: rotatedKeyBinding.contentReference.artifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      }),
+    ).rejects.toBeInstanceOf(ArtifactProtectionError);
+
+    const missingObjectBinding = expectedRecorded.availableVersion.interactionCapture.artifacts[0];
+    if (!missingObjectBinding) throw new Error("Available recovery fixture is empty");
+    const missingObjectEntry = await restoredArtifactCatalog.find(
+      scope,
+      missingObjectBinding.contentReference.artifactId,
+    );
+    if (!missingObjectEntry) throw new Error("Available recovery artifact entry is missing");
+    await restoredObjects.delete(missingObjectEntry.objectKey);
+    await expect(
+      restoredArtifactReader.execute({
+        artifactId: missingObjectBinding.contentReference.artifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      }),
+    ).rejects.toBeInstanceOf(ArtifactObjectMissingError);
+
     await expect(
       restoredRegression.findFixtureVersion(
         scope,
@@ -1458,8 +1615,109 @@ describe("coordinated recovery rehearsal", () => {
       ),
     ).resolves.toEqual(restoredFixtureAfterWrite.version);
 
+    const restoredArtifactCipher = new ArtifactCipher(
+      new LocalArtifactKeyring({
+        activeKeyId: artifactKeyId,
+        keys: keySnapshot,
+      }),
+    );
+    const restoredArtifactReserve = new ReserveArtifact({
+      catalog: restoredArtifactCatalog,
+      clock: { now: () => new Date("2026-08-28T03:10:00.000Z") },
+      encryption: restoredArtifactCipher,
+      identities: new SecureArtifactIdentityGenerator(),
+    });
+    const restoredArtifactUpload = new UploadArtifact({
+      catalog: restoredArtifactCatalog,
+      clock: { now: () => new Date("2026-08-28T03:10:01.000Z") },
+      encryption: restoredArtifactCipher,
+      inspection: new StrictArtifactContentInspector(),
+      objects: restoredObjects,
+    });
+    for (const binding of expectedRecorded.afterRestoreManifest.artifacts) {
+      const content = expectedRecorded.afterRestoreContent.get(binding.contentReference.artifactId);
+      if (!content) throw new Error("Post-restore capture content is missing");
+      await expect(
+        restoredArtifactReserve.execute({
+          environmentId: scope.environmentId,
+          principal: artifactPrincipal(),
+          projectId: scope.projectId,
+          request: {
+            artifactId: binding.contentReference.artifactId,
+            classification: binding.contentReference.classification,
+            mediaType: binding.contentReference.mediaType,
+            redaction: binding.redaction,
+            retention: binding.retention,
+            sha256: binding.contentReference.sha256,
+            sizeBytes: binding.contentReference.sizeBytes,
+          },
+        }),
+      ).resolves.toMatchObject({ created: true });
+      const entry = await restoredArtifactCatalog.find(scope, binding.contentReference.artifactId);
+      if (!entry) throw new Error("Post-restore artifact reservation is missing");
+      trackedObjectKeys.add(entry.objectKey);
+      await restoredArtifactUpload.execute({
+        artifactId: binding.contentReference.artifactId,
+        content,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      });
+      await expect(
+        restoredArtifactReader.execute({
+          artifactId: binding.contentReference.artifactId,
+          environmentId: scope.environmentId,
+          principal: artifactPrincipal(),
+          projectId: scope.projectId,
+        }),
+      ).resolves.toMatchObject({ content });
+    }
+    const postRestoreCollisionBinding = expectedRecorded.afterRestoreManifest.artifacts[0];
+    if (!postRestoreCollisionBinding) throw new Error("Post-restore capture is empty");
+    await expect(
+      restoredArtifactReserve.execute({
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+        request: {
+          artifactId: postRestoreCollisionBinding.contentReference.artifactId,
+          classification: postRestoreCollisionBinding.contentReference.classification,
+          mediaType: postRestoreCollisionBinding.contentReference.mediaType,
+          redaction: postRestoreCollisionBinding.redaction,
+          retention: postRestoreCollisionBinding.retention,
+          sha256: "f".repeat(64),
+          sizeBytes: postRestoreCollisionBinding.contentReference.sizeBytes,
+        },
+      }),
+    ).rejects.toBeInstanceOf(ArtifactConflictError);
+
+    const restoredRecordedAfterWrite = await new PublishRecordedInteractionFixtureVersion({
+      clock: regressionClock("2026-08-28T03:11:00.000Z"),
+      versionRepository: restoredRegression,
+    }).execute({
+      environmentId: scope.environmentId,
+      fixtureId: restoredFixtureAfterWrite.version.fixtureId,
+      principal: regressionPrincipal(),
+      projectId: scope.projectId,
+      request: {
+        fixtureVersionId: "fixv_recovery_primary_recorded_after_restore",
+        interactionCapture: expectedRecorded.afterRestoreManifest,
+        name: "Recovery recorded fixture after restore",
+        predecessorVersionId: restoredFixtureAfterWrite.version.fixtureVersionId,
+      },
+    });
+    await expect(
+      restoredRegression.findRecordedInteractionFixtureContent(
+        scope,
+        restoredRecordedAfterWrite.version.fixtureVersionId,
+      ),
+    ).resolves.toMatchObject({
+      contentAvailability: "available",
+      version: restoredRecordedAfterWrite.version,
+    });
+
     const restoredDatasetAfterWrite = await new PublishRegressionDatasetVersion({
-      clock: regressionClock("2026-08-28T03:10:00.000Z"),
+      clock: regressionClock("2026-08-28T03:12:00.000Z"),
       versionRepository: restoredRegression,
     }).execute({
       datasetId: expectedRegression.datasetChild.datasetId,
@@ -1492,6 +1750,9 @@ describe("coordinated recovery rehearsal", () => {
     const restoredRegressionIntents = [
       ...expectedRegressionPublicationIntents(),
       buildRegressionFixtureVersionPublishedOutboxIntent(restoredFixtureAfterWrite.version),
+      buildRecordedInteractionFixtureVersionPublishedOutboxIntent(
+        restoredRecordedAfterWrite.version,
+      ),
       buildRegressionDatasetVersionPublishedOutboxIntent(restoredDatasetAfterWrite.version),
     ].sort((left, right) => Buffer.compare(intentOrderKey(left), intentOrderKey(right)));
     await expect(regressionPublicationIntents(restoredPool)).resolves.toEqual(
@@ -1509,6 +1770,12 @@ describe("coordinated recovery rehearsal", () => {
       sourceRegression.findDatasetVersion(
         scope,
         restoredDatasetAfterWrite.version.datasetVersionId,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      sourceRegression.findRecordedInteractionFixtureVersion(
+        scope,
+        restoredRecordedAfterWrite.version.fixtureVersionId,
       ),
     ).resolves.toBeNull();
     await expect(regressionPublicationIntents(sourcePool)).resolves.toEqual(
