@@ -1667,14 +1667,14 @@ describe("coordinated recovery rehearsal", () => {
         principal: artifactPrincipal(),
         projectId: scope.projectId,
       });
-      await expect(
-        restoredArtifactReader.execute({
-          artifactId: binding.contentReference.artifactId,
-          environmentId: scope.environmentId,
-          principal: artifactPrincipal(),
-          projectId: scope.projectId,
-        }),
-      ).resolves.toMatchObject({ content });
+      const restoredContent = await restoredArtifactReader.execute({
+        artifactId: binding.contentReference.artifactId,
+        environmentId: scope.environmentId,
+        principal: artifactPrincipal(),
+        projectId: scope.projectId,
+      });
+      expect(Buffer.from(restoredContent.content)).toEqual(Buffer.from(content));
+      expect(restoredContent.metadata.state).toBe("available");
     }
     const postRestoreCollisionBinding = expectedRecorded.afterRestoreManifest.artifacts[0];
     if (!postRestoreCollisionBinding) throw new Error("Post-restore capture is empty");
