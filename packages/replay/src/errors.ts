@@ -111,3 +111,39 @@ export class DurableReplayAccountingError extends Error {
     this.code = code;
   }
 }
+
+export class ReplayDefinitionConflictError extends Error {
+  readonly code = "replay_definition_conflict";
+
+  constructor() {
+    super("Replay definition identifier is already bound to different immutable semantics");
+    this.name = "ReplayDefinitionConflictError";
+  }
+}
+
+export class ReplayDefinitionLineageError extends Error {
+  readonly code = "replay_definition_lineage_invalid";
+
+  constructor() {
+    super("Replay definition references unavailable or conflicting immutable lineage");
+    this.name = "ReplayDefinitionLineageError";
+  }
+}
+
+export class InvalidReplayDefinitionInputError extends TypeError {
+  readonly code = "replay_definition_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidReplayDefinitionInputError";
+  }
+}
+
+export class ReplayRepositoryContractError extends Error {
+  readonly code = "replay_repository_contract_violation";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ReplayRepositoryContractError";
+  }
+}
