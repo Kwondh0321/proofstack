@@ -24,7 +24,7 @@ function randomIdentity(source: InteractionRevocationIdentityRandomSource): stri
       "Interaction fixture content revocation identity generation failed",
     );
   }
-  return Buffer.from(value).toString("base64url");
+  return Buffer.from(value).toString("hex");
 }
 
 /** Generates opaque, non-sequential identifiers for fixture content revocations. */

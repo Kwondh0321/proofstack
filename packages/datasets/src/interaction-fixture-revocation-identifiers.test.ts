@@ -10,9 +10,11 @@ describe("SecureInteractionFixtureRevocationIdentityGenerator", () => {
       return Uint8Array.from({ length: size }, (_, index) => index + invocation);
     });
 
-    expect(identities.generateRevocationId()).toBe("rev_AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcY");
+    expect(identities.generateRevocationId()).toBe(
+      "rev_0102030405060708090a0b0c0d0e0f101112131415161718",
+    );
     expect(identities.generateArtifactTombstoneId("art_ignored_by_design")).toBe(
-      "del_AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZ",
+      "del_02030405060708090a0b0c0d0e0f10111213141516171819",
     );
   });
 
