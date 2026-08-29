@@ -425,6 +425,36 @@ describe("RevokeRecordedInteractionFixtureContent repository contracts", () => {
     });
   });
 
+  it("translates reflective revocation-result failures to repository contract errors", async () => {
+    const validResult = { ...revokedState(), created: true };
+    const ownKeysFailure = harness();
+    ownKeysFailure.revokeContent.mockResolvedValue(
+      new Proxy(validResult, {
+        ownKeys: () => {
+          throw new Error("untrusted result ownKeys trap");
+        },
+      }),
+    );
+    await expect(ownKeysFailure.service.execute(command())).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: "untrusted result ownKeys trap" }),
+      code: "regression_repository_contract_violation",
+    });
+
+    const propertyFailure = harness();
+    propertyFailure.revokeContent.mockResolvedValue(
+      new Proxy(validResult, {
+        get: (target, property, receiver) => {
+          if (property === "ownerships") throw new Error("untrusted result property trap");
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    );
+    await expect(propertyFailure.service.execute(command())).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: "untrusted result property trap" }),
+      code: "regression_repository_contract_violation",
+    });
+  });
+
   it.each([
     undefined,
     {},
