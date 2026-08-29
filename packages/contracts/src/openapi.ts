@@ -10,13 +10,21 @@ import {
   MAX_TRACE_PAGE_SIZE,
   OidcStateSchema,
   ProblemDocumentSchema,
+  PublishRecordedInteractionFixtureVersionResponseSchema,
   PublishRegressionDatasetVersionResponseSchema,
   PublishRegressionFixtureVersionResponseSchema,
+  PurgeArtifactResponseSchema,
+  ReadArtifactMetadataResponseSchema,
+  ReadRecordedInteractionFixtureMetadataResponseSchema,
   ReadRegressionDatasetVersionResponseSchema,
   ReadRegressionFixtureVersionResponseSchema,
   ReadinessResponseSchema,
+  ReserveArtifactResponseSchema,
+  RevokeRecordedInteractionFixtureContentResponseSchema,
+  TombstoneArtifactResponseSchema,
   TracePageCursorSchema,
   TraceResponseSchema,
+  UploadArtifactResponseSchema,
 } from "./api.js";
 import {
   IssueApiKeyRequestSchema,
@@ -26,15 +34,18 @@ import {
   RotateApiKeyRequestSchema,
   RotateApiKeyResponseSchema,
 } from "./api-key.js";
+import { ReserveArtifactRequestSchema, TombstoneArtifactRequestSchema } from "./artifact.js";
 import {
+  PublishInteractionFixtureVersionRequestSchema,
   PublishRegressionDatasetVersionRequestSchema,
   PublishRegressionFixtureVersionRequestSchema,
+  RevokeInteractionFixtureContentRequestSchema,
 } from "./dataset.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.4.0-workflow-1" as const;
+export const PROOFSTACK_API_VERSION = "0.5.0-workflow-1" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -129,6 +140,14 @@ const fixtureVersionParameter = {
   description: "Exact immutable regression fixture version identifier",
   in: "path",
   name: "fixtureVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const artifactParameter = {
+  description: "Opaque immutable artifact identifier within the authorized scope",
+  in: "path",
+  name: "artifactId",
   required: true,
   schema: schemaReference("OpaqueId"),
 } as const;
@@ -286,6 +305,22 @@ const regressionConflictResponse = {
     "The immutable version identifier conflicts with another definition or violates logical-resource lineage",
 } as const;
 
+const artifactNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "The artifact does not exist in the authorized scope",
+} as const;
+
+const artifactConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The artifact definition, lifecycle state, fixture ownership, or content availability conflicts with the operation",
+} as const;
+
+const artifactStorageUnavailableResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "Artifact catalog, encryption, or immutable object storage is unavailable",
+} as const;
+
 export function createProofStackOpenApiDocument(): Record<string, unknown> {
   const schemas = {
     ...componentsFor("OpaqueId", OpaqueIdSchema, "input"),
@@ -322,6 +357,38 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor(
       "ReadRegressionDatasetVersionResponse",
       ReadRegressionDatasetVersionResponseSchema,
+      "output",
+    ),
+    ...componentsFor("ReserveArtifactRequest", ReserveArtifactRequestSchema, "input"),
+    ...componentsFor("ReserveArtifactResponse", ReserveArtifactResponseSchema, "output"),
+    ...componentsFor("UploadArtifactResponse", UploadArtifactResponseSchema, "output"),
+    ...componentsFor("ReadArtifactMetadataResponse", ReadArtifactMetadataResponseSchema, "output"),
+    ...componentsFor("TombstoneArtifactRequest", TombstoneArtifactRequestSchema, "input"),
+    ...componentsFor("TombstoneArtifactResponse", TombstoneArtifactResponseSchema, "output"),
+    ...componentsFor("PurgeArtifactResponse", PurgeArtifactResponseSchema, "output"),
+    ...componentsFor(
+      "PublishInteractionFixtureVersionRequest",
+      PublishInteractionFixtureVersionRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "PublishRecordedInteractionFixtureVersionResponse",
+      PublishRecordedInteractionFixtureVersionResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadRecordedInteractionFixtureMetadataResponse",
+      ReadRecordedInteractionFixtureMetadataResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "RevokeInteractionFixtureContentRequest",
+      RevokeInteractionFixtureContentRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "RevokeRecordedInteractionFixtureContentResponse",
+      RevokeRecordedInteractionFixtureContentResponseSchema,
       "output",
     ),
     ...componentsFor("ProblemDocument", ProblemDocumentSchema, "output"),
@@ -361,7 +428,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, immutable evidence-only regression fixture and dataset versions, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -662,6 +729,346 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
           tags: ["Evidence"],
         },
       },
+      "/v1/projects/{projectId}/environments/{environmentId}/artifacts": {
+        post: {
+          description:
+            "Reserves one immutable, digest-bound artifact before content upload. An equivalent retry returns the original reservation. Browser callers must provide the mutation headers; workload callers require artifact:write within the exact requested scope.",
+          operationId: "reserveArtifact",
+          parameters: [projectParameter, environmentParameter, ...browserMutationParameters],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("ReserveArtifactRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("ReserveArtifactResponse") },
+              },
+              description: "An identical retry returned the existing immutable reservation",
+            },
+            "201": {
+              content: {
+                "application/json": { schema: schemaReference("ReserveArtifactResponse") },
+              },
+              description: "A new immutable artifact reservation was created",
+            },
+            ...problemResponses,
+            "409": artifactConflictResponse,
+            "503": artifactStorageUnavailableResponse,
+          },
+          security: userOrWorkloadSecurity,
+          summary: "Reserve an immutable artifact",
+          tags: ["Artifacts"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}": {
+        delete: {
+          description:
+            "Tombstones an artifact without deleting ciphertext. This administrative capability is not delegable to workload keys, and fixture-owned artifacts can only be tombstoned through fixture revocation.",
+          operationId: "tombstoneArtifact",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            artifactParameter,
+            ...browserMutationParameters,
+          ],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("TombstoneArtifactRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("TombstoneArtifactResponse") },
+              },
+              description: "An identical retry returned the existing tombstone",
+            },
+            "201": {
+              content: {
+                "application/json": { schema: schemaReference("TombstoneArtifactResponse") },
+              },
+              description: "The artifact was tombstoned",
+            },
+            ...problemResponses,
+            "404": artifactNotFoundResponse,
+            "409": artifactConflictResponse,
+            "503": artifactStorageUnavailableResponse,
+          },
+          security: browserSecurity,
+          summary: "Tombstone an artifact",
+          tags: ["Artifacts"],
+        },
+        get: {
+          description:
+            "Returns exact artifact lifecycle metadata and fixture ownership without reading or decrypting content.",
+          operationId: "getArtifactMetadata",
+          parameters: [projectParameter, environmentParameter, artifactParameter],
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("ReadArtifactMetadataResponse") },
+              },
+              description: "Exact artifact metadata and optional immutable fixture ownership",
+            },
+            ...problemResponses,
+            "404": artifactNotFoundResponse,
+            "503": artifactStorageUnavailableResponse,
+          },
+          security: userOrWorkloadSecurity,
+          summary: "Read artifact metadata",
+          tags: ["Artifacts"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/content": {
+        get: {
+          description:
+            "Reads and integrity-verifies exact plaintext content. Restricted content additionally requires the non-delegable artifact:read:restricted capability. Revoked, tombstoned, purged, or missing object content fails closed.",
+          operationId: "getArtifactContent",
+          parameters: [projectParameter, environmentParameter, artifactParameter],
+          responses: {
+            "200": {
+              content: {
+                "application/octet-stream": {
+                  schema: { format: "binary", type: "string" },
+                },
+              },
+              description: "Integrity-verified artifact plaintext using the recorded media type",
+              headers: {
+                "X-ProofStack-Artifact-Classification": {
+                  description: "Recorded content classification",
+                  schema: { type: "string" },
+                },
+                "X-ProofStack-Artifact-Redaction-Status": {
+                  description: "Recorded redaction status",
+                  schema: { type: "string" },
+                },
+                "X-ProofStack-Artifact-Sha256": {
+                  description: "Verified lowercase SHA-256 digest of the plaintext",
+                  schema: { pattern: "^[a-f0-9]{64}$", type: "string" },
+                },
+                "X-ProofStack-Request-Id": {
+                  description: "Stable request correlation identifier",
+                  schema: { type: "string" },
+                },
+              },
+            },
+            ...problemResponses,
+            "404": artifactNotFoundResponse,
+            "409": artifactConflictResponse,
+            "503": artifactStorageUnavailableResponse,
+          },
+          security: userOrWorkloadSecurity,
+          summary: "Read artifact content",
+          tags: ["Artifacts"],
+        },
+        put: {
+          description:
+            "Encrypts and writes exact artifact content only when its declared size and digest match the reservation. Authentication and authorization run before body parsing. Existing object keys are never overwritten.",
+          operationId: "uploadArtifactContent",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            artifactParameter,
+            ...browserMutationParameters,
+          ],
+          requestBody: {
+            content: {
+              "application/octet-stream": { schema: { format: "binary", type: "string" } },
+            },
+            required: true,
+          },
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("UploadArtifactResponse") },
+              },
+              description: "The encrypted object is durable and the catalog marks it available",
+            },
+            ...problemResponses,
+            "404": artifactNotFoundResponse,
+            "409": artifactConflictResponse,
+            "413": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "The binary body exceeds the artifact content limit",
+            },
+            "415": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "The request is not application/octet-stream",
+            },
+            "422": {
+              content: {
+                "application/problem+json": { schema: schemaReference("ProblemDocument") },
+              },
+              description: "The plaintext size or digest does not match the reservation",
+            },
+            "503": artifactStorageUnavailableResponse,
+          },
+          security: userOrWorkloadSecurity,
+          summary: "Upload immutable artifact content",
+          tags: ["Artifacts"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/purge": {
+        post: {
+          description:
+            "Deletes ciphertext only after a durable tombstone exists and appends an immutable purge receipt. Repeated calls remain safe. This administrative capability is not delegable to workload keys.",
+          operationId: "purgeArtifactContent",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            artifactParameter,
+            ...browserMutationParameters,
+          ],
+          responses: {
+            "200": {
+              content: {
+                "application/json": { schema: schemaReference("PurgeArtifactResponse") },
+              },
+              description: "The object is absent and the durable purge state is returned",
+            },
+            ...problemResponses,
+            "404": artifactNotFoundResponse,
+            "409": artifactConflictResponse,
+            "503": artifactStorageUnavailableResponse,
+          },
+          security: browserSecurity,
+          summary: "Purge tombstoned artifact content",
+          tags: ["Artifacts"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions":
+        {
+          post: {
+            description:
+              "Publishes one exact recorded-interaction fixture successor and atomically binds every same-scope, retain-mode, available, unowned artifact. Requires a browser-authenticated user with dataset:manage. Equivalent retries return the original version; reuse or lineage conflicts fail closed.",
+            operationId: "publishRecordedInteractionFixtureVersion",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishInteractionFixtureVersionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("PublishRecordedInteractionFixtureVersionResponse"),
+                  },
+                },
+                description: "An identical retry returned the existing immutable version",
+              },
+              "201": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("PublishRecordedInteractionFixtureVersionResponse"),
+                  },
+                },
+                description: "The version and all artifact ownerships committed atomically",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+              "409": regressionConflictResponse,
+              "503": artifactStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish a recorded interaction fixture version",
+            tags: ["Regression", "Artifacts"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}":
+        {
+          get: {
+            description:
+              "Returns exact immutable recorded-interaction metadata, ownerships, revocation state, and explicit content availability without returning artifact plaintext.",
+            operationId: "getRecordedInteractionFixtureMetadata",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              fixtureVersionParameter,
+            ],
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("ReadRecordedInteractionFixtureMetadataResponse"),
+                  },
+                },
+                description:
+                  "Exact metadata with explicit available, revoked, or unavailable state",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read recorded interaction fixture metadata",
+            tags: ["Regression", "Artifacts"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/revocation":
+        {
+          post: {
+            description:
+              "Atomically revokes the recorded content set and creates one fixture-authority tombstone per owned artifact. Physical object deletion remains a separate retryable purge step.",
+            operationId: "revokeRecordedInteractionFixtureContent",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              fixtureVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("RevokeInteractionFixtureContentRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("RevokeRecordedInteractionFixtureContentResponse"),
+                  },
+                },
+                description: "An identical retry returned the existing revocation",
+              },
+              "201": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("RevokeRecordedInteractionFixtureContentResponse"),
+                  },
+                },
+                description: "The version and all owned artifacts were durably revoked",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+              "409": regressionConflictResponse,
+              "503": artifactStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Revoke recorded interaction fixture content",
+            tags: ["Regression", "Artifacts"],
+          },
+        },
       "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions":
         {
           post: {

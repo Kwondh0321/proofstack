@@ -20,7 +20,7 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.4.0-workflow-1" },
+      info: { version: "0.5.0-workflow-1" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -35,6 +35,10 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/identity/api-keys/{credentialId}/revoke": {},
         "/v1/identity/api-keys/{credentialId}/rotate": {},
         "/v1/projects/{projectId}/environments/{environmentId}/evidence": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/artifacts": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/content": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/purge": {},
         "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions/{datasetVersionId}":
@@ -42,6 +46,12 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions/{fixtureVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/revocation":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
@@ -105,6 +115,103 @@ describe("ProofStack OpenAPI document", () => {
     ]);
     expect(fixtureVersion?.responses).toHaveProperty("404");
     expect(datasetVersion?.responses).toHaveProperty("404");
+  });
+
+  it("documents the complete artifact and recorded-interaction lifecycle", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        delete?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, unknown>;
+          security: unknown;
+        };
+        get?: {
+          responses: Record<
+            string,
+            { content?: Record<string, unknown>; headers?: Record<string, unknown> }
+          >;
+          security: unknown;
+        };
+        post?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, unknown>;
+          security: unknown;
+        };
+        put?: {
+          requestBody: { content: Record<string, unknown> };
+          responses: Record<string, unknown>;
+          security: unknown;
+        };
+      }
+    >;
+    const artifactCollection =
+      paths["/v1/projects/{projectId}/environments/{environmentId}/artifacts"]?.post;
+    const artifact =
+      paths["/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}"];
+    const content =
+      paths["/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/content"];
+    const purge =
+      paths["/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/purge"]
+        ?.post;
+    const interactionCollection =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions"
+      ]?.post;
+    const interactionVersion =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}"
+      ]?.get;
+    const revocation =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/revocation"
+      ]?.post;
+
+    expect(artifactCollection?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(artifactCollection?.responses).toHaveProperty("200");
+    expect(artifactCollection?.responses).toHaveProperty("201");
+    expect(artifactCollection?.responses).toHaveProperty("409");
+    expect(artifactCollection?.responses).toHaveProperty("503");
+    expect(artifactCollection?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+
+    expect(artifact?.get?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(artifact?.delete?.security).toEqual([{ browserSession: [] }]);
+    expect(artifact?.delete?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    expect(artifact?.delete?.responses).toHaveProperty("409");
+    expect(content?.put?.requestBody.content).toHaveProperty("application/octet-stream");
+    for (const status of ["200", "404", "409", "413", "415", "422", "503"]) {
+      expect(content?.put?.responses).toHaveProperty(status);
+    }
+    expect(content?.get?.responses["200"]?.content).toHaveProperty("application/octet-stream");
+    expect(content?.get?.responses["200"]?.headers).toHaveProperty("X-ProofStack-Artifact-Sha256");
+    expect(purge?.security).toEqual([{ browserSession: [] }]);
+    expect(purge?.responses).toHaveProperty("409");
+
+    for (const mutation of [interactionCollection, revocation]) {
+      expect(mutation?.security).toEqual([{ browserSession: [] }]);
+      expect(mutation?.responses).toHaveProperty("200");
+      expect(mutation?.responses).toHaveProperty("201");
+      expect(mutation?.responses).toHaveProperty("404");
+      expect(mutation?.responses).toHaveProperty("409");
+      expect(mutation?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    }
+    expect(interactionVersion?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(interactionVersion?.responses).toHaveProperty("404");
+
+    for (const schema of [
+      "ReserveArtifactRequest",
+      "ReserveArtifactResponse",
+      "ReadArtifactMetadataResponse",
+      "PublishInteractionFixtureVersionRequest",
+      "PublishRecordedInteractionFixtureVersionResponse",
+      "ReadRecordedInteractionFixtureMetadataResponse",
+      "RevokeRecordedInteractionFixtureContentResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
   });
 
   it("documents the workload-only OTLP protocol and routing boundary", () => {
