@@ -192,6 +192,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/replay':
+        specifier: workspace:*
+        version: link:../../packages/replay
       '@proofstack/sdk':
         specifier: workspace:*
         version: link:../../sdks/typescript

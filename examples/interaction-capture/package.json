@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@proofstack/contracts": "workspace:*",
+    "@proofstack/replay": "workspace:*",
     "@proofstack/sdk": "workspace:*"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     coverage: {
       exclude: ["src/**/*.test.ts", "src/run.ts"],
-      include: ["src/capture.ts"],
+      include: ["src/capture.ts", "src/reference-recorded-target.ts"],
       provider: "v8",
       reporter: ["text", "json-summary"],
       thresholds: {

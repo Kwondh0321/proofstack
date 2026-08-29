@@ -118,7 +118,7 @@ const modules = [
     packageName: "@proofstack/example-incident-to-regression",
   },
   {
-    allowed: new Set(["@proofstack/contracts", "@proofstack/sdk"]),
+    allowed: new Set(["@proofstack/contracts", "@proofstack/replay", "@proofstack/sdk"]),
     directory: "examples/interaction-capture/src",
     packageName: "@proofstack/example-interaction-capture",
   },

@@ -4,7 +4,12 @@ import {
   createSpanId,
   createTraceId,
 } from "@proofstack/sdk";
+import { executeRecordedBoundaryReplay } from "@proofstack/replay";
 import { createProviderNeutralCapture } from "./capture.js";
+import {
+  createProviderNeutralRecordedTarget,
+  PROVIDER_NEUTRAL_RECORDED_TARGET_REFERENCE,
+} from "./reference-recorded-target.js";
 
 const { PROOFSTACK_API_URL, PROOFSTACK_ENVIRONMENT_ID, PROOFSTACK_PROJECT_ID } = process.env;
 
@@ -216,6 +221,72 @@ for (const item of contentExport.export.artifacts) {
   );
 }
 
+const modelNormalizedRequest = capture.contentByArtifactId.get(`art_${suffix}_model_normalized`);
+const toolNormalizedRequest = capture.contentByArtifactId.get(`art_${suffix}_tool_normalized`);
+assert(modelNormalizedRequest, "Reference replay requires the captured normalized model request");
+assert(toolNormalizedRequest, "Reference replay requires the captured normalized tool request");
+const replayInvocation = {
+  fixture: {
+    definitionSha256: published.version.definitionSha256,
+    fixtureId,
+    fixtureVersionId: recordedVersionId,
+  },
+  invocationId: `rpi_${suffix}_exact`,
+  runtime: {
+    boundaryMode: "recorded_stub" as const,
+    clock: { instant: captureStartedAt.toISOString(), mode: "fixed" as const },
+    isolation: { mode: "cooperative_in_process" as const },
+    locale: "en-US",
+    network: { policy: "deny_fallback" as const },
+    random: {
+      algorithm: "hmac_sha256_counter_v1" as const,
+      mode: "seeded" as const,
+      seedHex: traceId.repeat(2),
+    },
+    timeZone: "UTC",
+  },
+  schemaVersion: "0.1" as const,
+  targetAdapter: PROVIDER_NEUTRAL_RECORDED_TARGET_REFERENCE,
+};
+const replay = await executeRecordedBoundaryReplay({
+  contentExport: contentExport.export,
+  invocation: replayInvocation,
+  target: createProviderNeutralRecordedTarget({
+    modelNormalizedRequest,
+    toolNormalizedRequest,
+  }),
+});
+assert(replay.status === "completed", "Exact recorded requests must complete replay");
+assert(
+  replay.reproducibility.classification === "bounded",
+  "In-process recorded replay must not claim exact reproducibility",
+);
+assert(replay.consumedAttemptCount === 2, "Replay must consume the model and failed tool attempts");
+const recordedToolObservation = replay.observations[1];
+assert(
+  recordedToolObservation?.status === "matched" &&
+    recordedToolObservation.resolution.recordedAttempt.kind === "tool" &&
+    recordedToolObservation.resolution.recordedAttempt.attempt.outcome === "failed",
+  "Replay must preserve the recorded tool failure",
+);
+
+const changedModelRequest = Uint8Array.from(modelNormalizedRequest);
+changedModelRequest[0] = (changedModelRequest[0] ?? 0) ^ 1;
+const mismatch = await executeRecordedBoundaryReplay({
+  contentExport: contentExport.export,
+  invocation: { ...replayInvocation, invocationId: `rpi_${suffix}_mismatch` },
+  target: createProviderNeutralRecordedTarget({
+    modelNormalizedRequest: changedModelRequest,
+    toolNormalizedRequest,
+  }),
+});
+assert(mismatch.status === "mismatch", "Changed normalized bytes must fail closed as mismatch");
+assert(
+  mismatch.observations[0]?.status === "mismatch" &&
+    mismatch.observations[0].code === "normalized_request_digest_mismatch",
+  "Mismatch result must preserve the exact failure reason",
+);
+
 const revocationRequest = { reason: "Complete the reference revocation and purge lifecycle" };
 const revoked = await regression.revokeRecordedInteractionFixtureContent({
   fixtureId,
@@ -287,6 +358,17 @@ console.log(
         plaintextFieldsPresent: false,
         sensitiveMarkersPresent: false,
       },
+      replay: {
+        classification: replay.reproducibility.classification,
+        consumedAttemptCount: replay.consumedAttemptCount,
+        expectedAttemptCount: replay.expectedAttemptCount,
+        isolationLimitations: replay.reproducibility.limitations,
+        liveBoundaryInterfaces: 0,
+        mismatchCode:
+          mismatch.observations[0]?.status === "mismatch" ? mismatch.observations[0].code : null,
+        mismatchStatus: mismatch.status,
+        status: replay.status,
+      },
       revocation: {
         contentAvailability: finalMetadata.contentAvailability,
         purgeReceipts: finalExport.export.artifacts.length,
@@ -294,7 +376,7 @@ console.log(
       },
       traceId,
       warning:
-        "This example records and revokes an exact declared interaction boundary; it never executes replay or grants model, network, tool, or policy authority.",
+        "This example replays only exact recorded boundaries in one cooperative process; it grants no live model, network, credential, search, evaluator, or policy authority and does not claim process isolation.",
     },
     null,
     2,
