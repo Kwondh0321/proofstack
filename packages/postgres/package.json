@@ -11,9 +11,6 @@
       "import": "./dist/index.js"
     }
   },
-  "bin": {
-    "proofstack-db": "./dist/cli.js"
-  },
   "files": [
     "dist",
     "migrations"
