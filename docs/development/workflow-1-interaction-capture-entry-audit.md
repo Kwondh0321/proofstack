@@ -20,6 +20,9 @@ The existing evidence-only fixture schema and versions remain unchanged and non-
 This audit does not accept a schema, API, or implementation. It fixes the safety and ownership
 requirements that those surfaces must satisfy before the roadmap item can be checked.
 
+The resulting architecture decision is recorded in
+[ADR-0017](../architecture/0017-own-interaction-content-per-fixture.md).
+
 ## Standards and guidance cross-check
 
 The current

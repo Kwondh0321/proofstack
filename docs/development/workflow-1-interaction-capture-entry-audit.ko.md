@@ -20,6 +20,9 @@ ProofStack은 두 번째 Workflow 1 체크포인트 구현을 시작할 수 있�
 이 감사는 스키마, API 또는 구현을 승인하지 않습니다. 로드맵 항목을 체크하기 전에 해당
 표면이 충족해야 할 안전성과 소유권 요구사항을 고정합니다.
 
+그 결과로 채택한 아키텍처 결정은
+[ADR-0017](../architecture/0017-own-interaction-content-per-fixture.md)에 기록합니다.
+
 ## 표준 및 지침 교차 확인
 
 현재
