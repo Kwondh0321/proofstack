@@ -12,11 +12,13 @@ evaluating, governing, and safely releasing AI agents.
 > and tested, including optional PostgreSQL persistence, scoped workload API keys, the OIDC
 > browser-session backend, bounded OTLP/HTTP trace ingestion, and retention-safe classified model
 > and tool interaction capture. The capture path is API- and SDK-accessible and tested through
-> encrypted artifact ownership, revocation, export, and coordinated recovery, but it is not
-> executable replay and is not composed with a production key provider. Coordinated reference
+> encrypted artifact ownership, revocation, export, and coordinated recovery. Experimental
+> recorded-boundary replay consumes exact SDK exports outside the API process with fail-closed
+> matching and honest same-process limitations, but it has no durable jobs, worker isolation, or
+> production key provider. Coordinated reference
 > backup and isolated restore do not constitute provider-specific production disaster recovery.
-> Console sign-in integration, replay, evaluation, and release gates are intentionally not
-> represented as complete.
+> Console sign-in integration, durable replay execution, evaluation, and release gates are
+> intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -52,10 +54,11 @@ release when a declared policy regresses.
 | Artifact operations | Scoped reconciliation, retention, abandoned-upload cleanup, purge retry, and referenced-key inspection |
 | Recovery | Fail-closed PostgreSQL dumps, canonical recovery manifests and inventories, empty-target coordinated restore, fresh roles, and tenant-adversarial verification |
 | Regression catalog | Immutable observed trace snapshots and ordered dataset versions through memory, PostgreSQL, API, OpenAPI, SDK, outbox, and recovery boundaries |
-| Interaction capture | Fixture-owned classified model and tool attempts, exact artifact lineage, metadata/content export, revocation, purge, and recovery without replay |
+| Interaction capture | Fixture-owned classified model and tool attempts, exact artifact lineage, metadata/content export, revocation, purge, and recovery |
+| Recorded-boundary replay | Strict full-content preflight, ordered exact normalized-request matching, no live fallback, cooperative fixed runtime inputs, and bounded or unknown results |
 | TypeScript SDK | Generated IDs, bounded telemetry delivery, and a fail-closed exact-version regression client with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable trace, evidence-only regression, and provider-neutral classified interaction-capture flows through the real SDK and API |
+| Examples | Runnable trace, evidence-only regression, and provider-neutral capture-to-recorded-replay flows through the real SDK and API |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -126,10 +129,12 @@ To capture and then revoke an exact provider-neutral model/tool interaction boun
 pnpm example:interaction-capture
 ```
 
-The capture example stores eleven dedicated classified artifacts, publishes an immutable
+The example stores eleven dedicated classified artifacts, publishes an immutable
 `recorded_interactions` successor, verifies plaintext-free metadata and acknowledged exact-content
-exports, then tombstones and purges the complete owned set. It never executes replay. See the
-[interaction-capture guide](docs/guides/interaction-capture.md) and the
+exports, runs one exact recorded model/tool flow and one forced mismatch outside the API process,
+then tombstones and purges the complete owned set. See the
+[interaction-capture guide](docs/guides/interaction-capture.md), the
+[recorded-boundary replay guide](docs/guides/recorded-boundary-replay.md), and the
 [local development guide](docs/development/local-development.md) for authority, failure behavior,
 configuration, and troubleshooting.
 
@@ -141,6 +146,7 @@ apps/web                 Server-rendered operator console
 packages/contracts       Runtime schemas, public types, identity, and OpenAPI generation
 packages/core            Framework-independent authorization and evidence use cases
 packages/datasets        Immutable regression definitions, binary encoding, and public vectors
+packages/replay          Fail-closed exact recorded-boundary preflight and cooperative execution
 packages/artifacts       Encrypted content lifecycle, authorization, and storage ports
 packages/postgres        Durable repositories, migrations, delivery state, and runtime roles
 packages/recovery        Coordinated recovery manifests, object inventories, and verification
@@ -150,7 +156,7 @@ services/recovery        Safe logical database operations and isolated recovery 
 sdks/typescript          Provider-neutral telemetry and regression control-plane clients
 examples/basic-agent     Verified SDK-to-API trace example
 examples/incident-to-regression  Executable evidence-only regression catalog flow
-examples/interaction-capture  Provider-neutral classified model/tool capture and revocation flow
+examples/interaction-capture  Provider-neutral capture, recorded replay, mismatch, and revocation flow
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
 docs/operations          Deployment contracts and operator procedures
@@ -194,16 +200,20 @@ comparison work that remains open.
 The [Workflow 1 interaction-capture audit](docs/development/workflow-1-interaction-capture-audit.md)
 accepts classified, fixture-owned interaction evidence while explicitly withholding executable
 replay authority.
+The [recorded-boundary replay entry audit](docs/development/workflow-1-recorded-replay-entry-audit.md)
+defines the still-open checkpoint's exact matching and honest reproducibility gates. Its presence
+does not constitute final checkpoint acceptance.
 
 ## Current boundaries
 
 The current build does not provide console-integrated OIDC sign-in, a production external artifact
 key provider, continuously scheduled artifact workers, OTLP/gRPC or non-trace signal ingestion, a
-deployed outbox publisher, executable replay, evaluators, policy enforcement, continuous
+deployed outbox publisher, durable replay jobs, isolated target workers, evaluators, policy enforcement, continuous
 provider-specific disaster recovery, or production deployment artifacts. Immutable evidence-only
-regression versions, fixture-owned classified interaction capture, workload API-key and OIDC
-browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile are implemented and
-tested. The built-in content inspector rejects structured credential fields and supports
+regression versions, fixture-owned classified interaction capture, cooperative recorded-boundary
+replay, workload API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP
+trace profile are implemented and tested. Replay does not claim OS-enforced network, filesystem,
+process, or dependency isolation. The built-in content inspector rejects structured credential fields and supports
 configured scanners, but no scanner proves arbitrary opaque bytes secret-free; scanner
 qualification, distributed quotas, and a production exporter/collector matrix remain
 deployment-owned. Foundation 2's coordinated recovery reference is implemented and tested against

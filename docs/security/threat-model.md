@@ -65,7 +65,8 @@ tools, change policy, or approve a release.
 | Partial database/object-store commit | Explicit reserved, available, tombstoned, and purged states | Reconciliation, bounded retries, pending-state alerts, and recovery rehearsal |
 | Key loss or unsafe retirement | Versioned key references and active/configured key inspection | External key backup, rotation, rewrap, restore, and destruction procedures |
 | Prompt injection through telemetry | Evidence is treated as untrusted display data | Sandboxed analysis and explicit tool/policy authorization |
-| Incomplete trace presented as a replay | A fixture records exact observed event IDs and declares evidence-only snapshot semantics | Retention-safe interaction capture and executable replay acceptance |
+| Incomplete trace presented as a replay | Evidence-only snapshots are non-executable; recorded replay requires one complete available interaction fixture and verifies every owned byte before target execution | Durable worker and target-release acceptance |
+| Recorded mismatch silently falls through to a live boundary | The ordered resolver has no provider, network, credential, search, or arbitrary-tool dependency and permanently closes on the first mismatch | OS-enforced worker egress isolation and adversarial deployment tests |
 | Poisoned, inapplicable, or stale evaluation criteria | Sources, applicability, assumptions, counterevidence, approvals, and versions remain separate evidence | Qualification corpus, independent review, freshness checks, and Workflow 2 policy |
 | Search or generated summaries treated as authority | Search records discovery provenance only; the underlying primary source must be snapshotted and verified | Source licensing, conflict, supersession, and applicability operations |
 | Model-judge bias, correlation, or prompt injection | Evaluators are untrusted, versioned, qualified, calibrated, grouped by lineage, and allowed to abstain | Blinded order swaps, injection corpus, slice metrics, disagreement, and non-model evidence |
@@ -124,9 +125,11 @@ tools, change policy, or approve a release.
   include gRPC, other signals, generic secret detection, raw-input quarantine, distributed loss
   metrics, or a production collector compatibility matrix.
 - There is no tamper-evident audit ledger, signed evidence, or production release gate.
-- Workflow 1 now includes immutable evidence-only catalogs and retention-safe classified
-  interaction capture. Executable replay workers, evaluator assurance, assessments, and comparison
-  surfaces are not yet implemented.
+- Workflow 1 now includes immutable evidence-only catalogs, retention-safe classified interaction
+  capture, and cooperative in-process recorded-boundary replay. The executor verifies exact
+  fixture bytes and normalized boundary requests but cannot enforce target process, filesystem,
+  dependency, clock, random, or network isolation. Durable replay workers, evaluator assurance,
+  assessments, and comparison surfaces are not yet implemented.
 
 These limitations are visible product state. They must not be hidden behind configuration defaults
 or marketing language.

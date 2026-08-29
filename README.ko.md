@@ -12,10 +12,12 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > 선택형 PostgreSQL 영속 저장소, 범위 제한 워크로드 API 키, OIDC 브라우저 세션 백엔드,
 > 제한된 OTLP/HTTP 트레이스 수집과 보존 정책에 안전한 분류 모델·도구 상호작용 캡처를
 > 포함해 실제로 작동하고 검증됩니다. 캡처 경로는 API·SDK에서 사용할 수 있고 암호화된
-> artifact 소유권, revocation, export, 조정 복구까지 검증되었지만 실행 가능한 replay가
-> 아니며 프로덕션 키 공급자와 결합되지 않았습니다. 조정된 기준 백업과 격리 복원은
-> 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 콘솔 로그인 연동, replay, 평가,
-> 릴리스 게이트는 아직 완성된 기능으로 표시하지 않습니다.
+> artifact 소유권, revocation, export, 조정 복구까지 검증됩니다. 실험적 기록 경계 replay는
+> API 프로세스 밖에서 정확한 SDK export를 fail-closed 방식으로 소비하고 동일 프로세스
+> 제한을 정직하게 공개하지만 영속 job, worker 격리, 프로덕션 키 공급자는 없습니다.
+> 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다.
+> 콘솔 로그인 연동, 영속 replay 실행, 평가, 릴리스 게이트는 아직 완성된 기능으로
+> 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -53,10 +55,11 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 아티팩트 운영 | 범위 제한 복구, 보존 기간 처리, 중단 업로드 정리, 삭제 재시도, 참조 키 점검 |
 | 복구 | Fail-closed PostgreSQL 덤프, 정규 복구 매니페스트·인벤토리, 빈 대상 조정 복원, 신규 역할, 테넌트 적대적 검증 |
 | 회귀 카탈로그 | 메모리, PostgreSQL, API, OpenAPI, SDK, outbox, 복구 경계를 통과하는 불변 관측 트레이스 스냅샷과 순서가 있는 dataset 버전 |
-| 상호작용 캡처 | Replay 없이 fixture 소유 분류 모델·도구 attempt, 정확 artifact 계보, metadata/content export, revocation, purge, 복구 |
+| 상호작용 캡처 | Fixture 소유 분류 모델·도구 attempt, 정확 artifact 계보, metadata/content export, revocation, purge, 복구 |
+| 기록 경계 replay | 엄격한 전체 content 사전 검사, 순서가 있는 정확 정규화 요청 일치, live fallback 부재, 협력적 고정 runtime input, bounded 또는 unknown 결과 |
 | TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 SDK와 API를 통과하는 trace, evidence-only 회귀, 공급자 중립 분류 상호작용 캡처 흐름 |
+| 예제 | 실제 SDK와 API를 통과하는 trace, evidence-only 회귀, 공급자 중립 캡처-기록 replay 흐름 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -127,10 +130,12 @@ dataset 버전 하나를 발행한 뒤 두 버전을 다시 조회해 불변 dig
 pnpm example:interaction-capture
 ```
 
-캡처 예제는 전용 분류 artifact 11개를 저장하고, 불변 `recorded_interactions` successor를
-발행하고, 평문 없는 metadata export와 명시적으로 승인한 정확 content export를 검증한
-뒤 전체 소유 집합을 tombstone·purge합니다. Replay는 실행하지 않습니다. 권한과 실패
-동작은 [상호작용 캡처 가이드](docs/guides/interaction-capture.ko.md), 설정과 문제 해결은
+예제는 전용 분류 artifact 11개를 저장하고, 불변 `recorded_interactions` successor를
+발행하고, 평문 없는 metadata export와 명시적으로 승인한 정확 content export를 검증하고,
+API 프로세스 밖에서 정확 기록 모델·도구 흐름 하나와 강제 mismatch 하나를 실행한 뒤 전체
+소유 집합을 tombstone·purge합니다. 권한과 실패 동작은
+[상호작용 캡처 가이드](docs/guides/interaction-capture.ko.md),
+[기록 경계 replay 가이드](docs/guides/recorded-boundary-replay.ko.md), 설정과 문제 해결은
 [로컬 개발 가이드](docs/development/local-development.md)를 참고하세요.
 
 ## 저장소 구성
@@ -141,6 +146,7 @@ apps/web                 서버 렌더링 운영자 콘솔
 packages/contracts       런타임 스키마, 공개 타입, 인증 컨텍스트, OpenAPI 생성
 packages/core            프레임워크 독립적인 인가 및 증거 유스케이스
 packages/datasets        불변 회귀 정의, 이진 인코딩, 공개 검증 벡터
+packages/replay          Fail-closed 정확 기록 경계 사전 검사와 협력적 실행
 packages/artifacts       암호화 콘텐츠 수명주기, 인가, 저장소 포트
 packages/postgres        영속 저장소, 마이그레이션, 전달 상태, 런타임 역할
 packages/recovery        조정된 복구 매니페스트, 객체 인벤토리, 무결성 검증
@@ -150,7 +156,7 @@ services/recovery        안전한 논리 DB 작업과 격리 복구 리허설
 sdks/typescript          공급자 중립 텔레메트리·회귀 control-plane 클라이언트
 examples/basic-agent     검증된 SDK-API 트레이스 예제
 examples/incident-to-regression  실행 가능한 evidence-only 회귀 카탈로그 흐름
-examples/interaction-capture  공급자 중립 분류 모델·도구 캡처와 폐기 흐름
+examples/interaction-capture  공급자 중립 캡처, 기록 replay, mismatch, 폐기 흐름
 docs/architecture        번호가 지정된 아키텍처 결정 기록
 docs/operations          배포 계약과 운영자 절차
 docs/product             제품 헌법과 의존 순서가 명시된 로드맵
@@ -196,15 +202,19 @@ scripts                  저장소 수준 아키텍처 경계 검사
 [Workflow 1 상호작용 캡처 감사 기록](docs/development/workflow-1-interaction-capture-audit.ko.md)은
 분류되고 fixture가 소유하는 상호작용 증거를 승인하지만 실행 가능한 replay 권한은
 명시적으로 승인하지 않습니다.
+[기록 경계 replay 진입 감사 기록](docs/development/workflow-1-recorded-replay-entry-audit.ko.md)은
+아직 열린 체크포인트의 정확 일치와 정직한 재현성 게이트를 정의합니다. 문서가 존재한다고
+최종 체크포인트가 승인된 것은 아닙니다.
 
 ## 현재의 경계
 
 현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
 스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
-실행 가능한 replay, evaluator, 정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포
-artifact를 제공하지 않습니다. 불변 evidence-only 회귀 버전, fixture 소유 분류 상호작용
-캡처, workload API key와 OIDC browser 인증, artifact lifecycle, OTLP/HTTP trace profile은
-구현되고 검증되었습니다. 기본 content inspector는 구조화된 자격증명 필드를 거부하고
+영속 replay job, 격리 target worker, evaluator, 정책 집행, 지속적인 공급자별 재해 복구,
+프로덕션 배포 artifact를 제공하지 않습니다. 불변 evidence-only 회귀 버전, fixture 소유
+분류 상호작용 캡처, 협력적 기록 경계 replay, workload API key와 OIDC browser 인증,
+artifact lifecycle, OTLP/HTTP trace profile은 구현되고 검증되었습니다. Replay 결과는
+OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content inspector는 구조화된 자격증명 필드를 거부하고
 설정형 scanner를 지원하지만 임의 opaque byte에 비밀이 없음을 증명할 수는 없습니다.
 Scanner 적합성 검증, 분산 할당량, 프로덕션 exporter·collector matrix는 배포 책임입니다.
 Foundation 2의 조정 복구 기준은 고정된 CI 서비스에서 구현되고 검증되었지만 외부 키

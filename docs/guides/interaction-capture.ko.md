@@ -4,18 +4,18 @@
 
 상태: 실험적 Workflow 1 체크포인트, 프로덕션 준비 미완료
 
-실행 가능한 재현: 포함되지 않음
+기록 경계 재현: 후속 실험 체크포인트에서 결합됨. 영속 작업과 프로세스 격리는 포함되지 않음
 
 이 가이드는 ProofStack의 보존 정책에 안전한 공급자 중립 모델·도구 상호작용 캡처를
 실행합니다. 기준 흐름은 성공한 모델 시도 하나와 실패한 읽기 전용 도구 시도 하나를
 기록하고, 정확한 evidence-only predecessor를 불변 `recorded_interactions` fixture로
-승격하고, metadata·content export를 검증한 뒤 fixture가 소유한 모든 content를 폐기하고
-purge합니다.
+승격하고, metadata·content export를 검증하고, 해당 SDK export를 별도의 기록 경계
+executor에 전달한 뒤 fixture가 소유한 모든 content를 폐기하고 purge합니다.
 
-이 흐름은 선언된 애플리케이션/공급자와 애플리케이션/도구 경계를 통과한 내용을
-기록합니다. 에이전트가 무엇을 해야 하는지 결정하거나, 결과의 정확성을 평가하거나,
-에이전트를 다시 실행하거나, 모델·도구·네트워크·자격증명·예산·정책·릴리스 권한을
-부여하지 않습니다.
+캡처 흐름은 선언된 애플리케이션/공급자와 애플리케이션/도구 경계를 통과한 내용을
+기록합니다. 후속 재현 단계는 로컬 기준 target 하나를 해당 기록 경계만 사용해 실행합니다.
+어느 단계도 에이전트가 무엇을 해야 하는지 결정하거나, 결과의 정확성을 평가하거나,
+live 모델·도구·네트워크·자격증명·예산·정책·평가기·릴리스 권한을 부여하지 않습니다.
 
 ## 기준 흐름 실행
 
@@ -51,6 +51,9 @@ pnpm example:interaction-capture
 - 평문 필드와 기준 민감 marker가 없는 metadata export
 - 명시적 승인을 거친 content export와 선언된 digest에 일치하는 정확한 decoded byte
 - content revocation 하나, tombstone 11개, purge receipt 11개, 최종 `revoked` 상태
+- 정확한 성공 모델·실패 도구 attempt를 소비하고 `exact`가 아닌 `bounded`를 보고하는
+  `completed` 재현 하나
+- live fallback 없이 `normalized_request_digest_mismatch`로 종료되는 변경 요청 재현 하나
 
 각 실행은 새로운 trace, fixture version, interaction, attempt, artifact 식별자를 사용합니다.
 따라서 변경 가능한 `latest` alias나 숨은 서버 기본값에 의존하지 않습니다.
@@ -153,7 +156,9 @@ truncation, 역할 누락, 중복 순서, 금지된 자격증명, normalized dig
 
 ## 다음 작업
 
-다음 의존 순서 체크포인트는 정확한 recorded-boundary replay입니다. 버전이 있는 normalized
-request를 일치시키고, network fallback을 차단하고, runtime input을 제한하고, 모든 보호
-artifact를 사전 검사하고, 정직한 reproducibility 이유를 보고해야 합니다. 이번 캡처
-체크포인트는 이 작업을 구현하거나 승인하지 않습니다.
+후속 [기록 경계 재현 가이드](recorded-boundary-replay.ko.md)는 이 기준 흐름이 실행하는 정확
+일치, fallback 거부, 협력적 runtime input, 전체 content 사전 검사, 정직한 재현성 제한을
+설명합니다. 다음 의존 순서 체크포인트는 예산, 취소, lease, retry·부작용 통제, target
+release, 격리 worker를 갖춘 영속 replay job입니다. `4aa3394`에서 승인된 상호작용 캡처
+체크포인트는 캡처만 승인한 상태로 유지되며 이후 replay 코드가 그 범위를 소급해 확장하지
+않습니다.

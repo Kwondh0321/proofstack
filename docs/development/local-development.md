@@ -249,11 +249,14 @@ this checkpoint is not executable replay.
 
 The interaction-capture example emits a failed model/tool trace, reserves and uploads eleven
 fixture-dedicated classified artifacts, publishes one exact recorded-interaction successor,
-verifies metadata and explicitly acknowledged content exports, and then revokes and purges the
-complete content set. The default memory profile is sufficient for this disposable demonstration;
-stopping the API removes its remaining metadata. The
-[interaction-capture guide](../guides/interaction-capture.md) documents authority, secret
-inspection, retry, interoperability, revocation, and non-replay boundaries.
+verifies metadata and explicitly acknowledged content exports, runs one exact recorded-boundary
+flow and one forced mismatch outside the API process, and then revokes and purges the complete
+content set. The default memory profile is sufficient for this disposable demonstration; stopping
+the API removes its remaining metadata. The
+[interaction-capture guide](../guides/interaction-capture.md) documents capture authority, secret
+inspection, retry, interoperability, and revocation. The
+[recorded-boundary replay guide](../guides/recorded-boundary-replay.md) documents exact matching,
+denied fallback, cooperative runtime inputs, and same-process isolation limits.
 
 ### Verify OTLP/HTTP ingestion
 

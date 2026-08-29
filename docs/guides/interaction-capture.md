@@ -4,17 +4,19 @@
 
 Status: experimental Workflow 1 checkpoint; not production-ready
 
-Executable replay: not included
+Recorded-boundary replay: composed by the follow-on experimental checkpoint; durable jobs and
+process isolation are not included
 
 This guide exercises ProofStack's retention-safe, provider-neutral model and tool interaction
 capture. The reference flow records one successful model attempt followed by one failed read-only
 tool attempt, promotes an exact evidence-only predecessor into an immutable
-`recorded_interactions` fixture, verifies metadata and content export, then revokes and purges all
-fixture-owned content.
+`recorded_interactions` fixture, verifies metadata and content export, passes that exact SDK export
+to the separate recorded-boundary executor, then revokes and purges all fixture-owned content.
 
-The flow records what crossed the declared application/provider and application/tool boundaries.
-It does not decide what the agent should do, judge whether the result was correct, execute the
-agent again, or grant model, tool, network, credential, budget, policy, or release authority.
+The capture flow records what crossed the declared application/provider and application/tool
+boundaries. The follow-on replay step runs one local reference target only against those recorded
+boundaries. Neither step decides what the agent should do, judges whether the result was correct,
+or grants live model, tool, network, credential, budget, policy, evaluator, or release authority.
 
 ## Run the reference flow
 
@@ -51,7 +53,11 @@ The successful summary includes:
 - a metadata export with no plaintext field or reference sensitive marker;
 - an explicitly acknowledged content export whose decoded bytes match every declared digest; and
 - one content revocation, eleven tombstones, eleven purge receipts, and a final `revoked`
-  availability state.
+  availability state;
+- one `completed` replay that consumes the exact successful-model and failed-tool attempts and
+  reports `bounded`, not `exact`, reproducibility; and
+- one changed-request replay that terminates as `normalized_request_digest_mismatch` without live
+  fallback.
 
 Every run uses new trace, fixture-version, interaction, attempt, and artifact identifiers. It
 therefore does not depend on mutable `latest` aliases or hidden server defaults.
@@ -157,7 +163,9 @@ contract and threat boundary.
 
 ## What comes next
 
-The next dependency-ordered checkpoint is exact recorded-boundary replay. It must match versioned
-normalized requests, deny network fallback, constrain runtime inputs, preflight every protected
-artifact, and report honest reproducibility reasons. This capture checkpoint does not implement or
-authorize any of that work.
+The follow-on [recorded-boundary replay guide](recorded-boundary-replay.md) documents the exact
+matching, denied fallback, cooperative runtime inputs, full-content preflight, and honest
+reproducibility limits now exercised by this reference flow. The next dependency-ordered
+checkpoint is durable replay jobs with budgets, cancellation, leases, retry and side-effect
+controls, target releases, and isolated workers. The accepted interaction-capture checkpoint at
+`4aa3394` remains a capture-only acceptance; later replay code does not retroactively expand it.
