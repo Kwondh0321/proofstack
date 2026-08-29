@@ -728,17 +728,31 @@ describe("recorded interaction fixture migration", () => {
         `GRANT UPDATE, DELETE ON TABLE ${NEW_TABLES.map((table) => `public.${table}`).join(", ")} TO "${runtimeRole}"`,
       );
       for (const table of NEW_TABLES) {
+        const stored = await upgradePool.query<{ readonly count: number }>(
+          `SELECT count(*)::integer AS count FROM public.${table} WHERE tenant_id = $1`,
+          [tenantId],
+        );
+        expect(stored.rows[0]?.count).toBeGreaterThan(0);
+
+        const runtimeUpdate = await asRuntime(upgradePool, runtimeRole, tenantId, (client) =>
+          client.query(`UPDATE public.${table} SET tenant_id = tenant_id WHERE tenant_id = $1`, [
+            tenantId,
+          ]),
+        );
+        expect(runtimeUpdate.rowCount).toBe(0);
+        const runtimeDelete = await asRuntime(upgradePool, runtimeRole, tenantId, (client) =>
+          client.query(`DELETE FROM public.${table} WHERE tenant_id = $1`, [tenantId]),
+        );
+        expect(runtimeDelete.rowCount).toBe(0);
+
         await expect(
-          asRuntime(upgradePool, runtimeRole, tenantId, (client) =>
-            client.query(`UPDATE public.${table} SET tenant_id = tenant_id WHERE tenant_id = $1`, [
-              tenantId,
-            ]),
+          upgradePool.query(
+            `UPDATE public.${table} SET tenant_id = tenant_id WHERE tenant_id = $1`,
+            [tenantId],
           ),
         ).rejects.toMatchObject({ code: "55000" });
         await expect(
-          asRuntime(upgradePool, runtimeRole, tenantId, (client) =>
-            client.query(`DELETE FROM public.${table} WHERE tenant_id = $1`, [tenantId]),
-          ),
+          upgradePool.query(`DELETE FROM public.${table} WHERE tenant_id = $1`, [tenantId]),
         ).rejects.toMatchObject({ code: "55000" });
       }
 
