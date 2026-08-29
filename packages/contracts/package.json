@@ -26,6 +26,10 @@
       "types": "./dist/interaction.d.ts",
       "import": "./dist/interaction.js"
     },
+    "./interaction-export": {
+      "types": "./dist/interaction-export.d.ts",
+      "import": "./dist/interaction-export.js"
+    },
     "./openapi": {
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js"

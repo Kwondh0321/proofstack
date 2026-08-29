@@ -5,6 +5,7 @@ export * from "./dataset.js";
 export * from "./evidence.js";
 export * from "./identity.js";
 export * from "./interaction.js";
+export * from "./interaction-export.js";
 export * from "./openapi.js";
 export * from "./primitives.js";
 export * from "./recovery.js";
