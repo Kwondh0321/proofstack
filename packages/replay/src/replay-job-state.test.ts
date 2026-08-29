@@ -148,7 +148,7 @@ describe("durable replay job creation and claim", () => {
       claimOptions({
         attemptId: "att_state_002",
         currentAttempt: first.attempt,
-        expiredEffectCertainty: "none",
+        expiredEffect: { effectCertainty: "none" },
         leaseId: "lea_state_002",
         now: first.lease.expiresAt,
         workerId: "wrk_state_002",
@@ -177,7 +177,57 @@ describe("durable replay job creation and claim", () => {
           claimOptions({
             attemptId: "att_state_002",
             currentAttempt: first.attempt,
-            expiredEffectCertainty: "may_have_occurred",
+            expiredEffect: { effectCertainty: "may_have_occurred" },
+            leaseId: "lea_state_002",
+            now: first.lease.expiresAt,
+          }),
+        ),
+      "effect_uncertain",
+    );
+  });
+
+  it.each([
+    {
+      effectCertainty: "may_have_occurred" as const,
+      effectRetrySafety: { evidenceSha256: sha("7"), kind: "read_only" as const },
+    },
+    {
+      effectCertainty: "confirmed" as const,
+      effectRetrySafety: {
+        evidenceSha256: sha("8"),
+        idempotencyKeySha256: sha("9"),
+        kind: "destination_idempotency_verified" as const,
+      },
+    },
+  ])("reclaims an expired effect only with verified retry safety", (expiredEffect) => {
+    const first = initialClaim();
+    const second = claimReplayJob(
+      first.job,
+      claimOptions({
+        attemptId: "att_state_002",
+        currentAttempt: first.attempt,
+        expiredEffect,
+        leaseId: "lea_state_002",
+        now: first.lease.expiresAt,
+      }),
+    );
+    expect(second.expiredAttempt?.error).toMatchObject(expiredEffect);
+    expect(second.expiredAttempt?.retryDisposition).toBe("retry_scheduled");
+  });
+
+  it("blocks reclaim when explicit effect safety says not to retry", () => {
+    const first = initialClaim();
+    expectStateError(
+      () =>
+        claimReplayJob(
+          first.job,
+          claimOptions({
+            attemptId: "att_state_002",
+            currentAttempt: first.attempt,
+            expiredEffect: {
+              effectCertainty: "confirmed",
+              effectRetrySafety: { kind: "not_retryable" },
+            },
             leaseId: "lea_state_002",
             now: first.lease.expiresAt,
           }),
@@ -242,7 +292,7 @@ describe("durable replay job creation and claim", () => {
     const first = initialClaim();
     const expiredOptions = {
       attemptId: "att_state_002",
-      expiredEffectCertainty: "none" as const,
+      expiredEffect: { effectCertainty: "none" as const },
       leaseId: "lea_state_002",
       now: first.lease.expiresAt,
     };
@@ -309,7 +359,7 @@ describe("durable replay job creation and claim", () => {
           claimOptions({
             attemptId: "att_state_002",
             currentAttempt: exhaustedAttempt,
-            expiredEffectCertainty: "none",
+            expiredEffect: { effectCertainty: "none" },
             leaseId: "lea_state_002",
             now: first.lease.expiresAt,
           }),

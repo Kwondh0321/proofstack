@@ -42,7 +42,7 @@ export interface CreateQueuedReplayJobOptions {
 export interface ClaimReplayJobOptions {
   readonly attemptId: string;
   readonly currentAttempt?: ReplayAttempt;
-  readonly expiredEffectCertainty?: "may_have_occurred" | "none";
+  readonly expiredEffect?: Pick<ReplayAttemptError, "effectCertainty" | "effectRetrySafety">;
   readonly isolationProfile: ReplayIsolationProfileReference;
   readonly leaseDurationMilliseconds: number;
   readonly leaseId: string;
@@ -239,7 +239,13 @@ export function claimReplayJob(
   let expiredAttempt: ReplayAttempt | undefined;
   if (job.status === "running") {
     const currentAttempt = assertCurrentAttempt(job, options.currentAttempt);
-    if (options.expiredEffectCertainty !== "none") {
+    const expiredEffect = options.expiredEffect;
+    if (
+      !expiredEffect ||
+      (expiredEffect.effectCertainty !== "none" &&
+        expiredEffect.effectRetrySafety?.kind !== "read_only" &&
+        expiredEffect.effectRetrySafety?.kind !== "destination_idempotency_verified")
+    ) {
       throw new DurableReplayStateError("effect_uncertain");
     }
     expiredAttempt = ReplayAttemptSchema.parse({
@@ -247,7 +253,7 @@ export function claimReplayJob(
       endedAt: now,
       error: {
         code: "lease_expired",
-        effectCertainty: "none",
+        ...expiredEffect,
         message: "The worker lease expired before a terminal attempt commit.",
       },
       retryDisposition: "retry_scheduled",

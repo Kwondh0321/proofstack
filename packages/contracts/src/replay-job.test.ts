@@ -403,7 +403,54 @@ describe("replay attempt contracts", () => {
     expect(
       ReplayAttemptSchema.safeParse({
         ...retryable,
-        error: { ...retryable.error, effectCertainty: "may_have_occurred" },
+        error: {
+          ...retryable.error,
+          effectCertainty: "may_have_occurred",
+          effectRetrySafety: { kind: "not_retryable" },
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      ReplayAttemptSchema.safeParse({
+        ...retryable,
+        error: {
+          ...retryable.error,
+          effectCertainty: "may_have_occurred",
+          effectRetrySafety: { evidenceSha256: sha("7"), kind: "read_only" },
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ReplayAttemptSchema.safeParse({
+        ...retryable,
+        error: {
+          ...retryable.error,
+          effectCertainty: "confirmed",
+          effectRetrySafety: {
+            evidenceSha256: sha("8"),
+            idempotencyKeySha256: sha("9"),
+            kind: "destination_idempotency_verified",
+          },
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires retry-safety evidence exactly when an external effect may exist", () => {
+    const failed = failedAttempt("failed", "worker_internal_error");
+    expect(
+      ReplayAttemptSchema.safeParse({
+        ...failed,
+        error: { ...failed.error, effectCertainty: "may_have_occurred" },
+      }).success,
+    ).toBe(false);
+    expect(
+      ReplayAttemptSchema.safeParse({
+        ...failed,
+        error: {
+          ...failed.error,
+          effectRetrySafety: { evidenceSha256: sha("a"), kind: "read_only" },
+        },
       }).success,
     ).toBe(false);
   });

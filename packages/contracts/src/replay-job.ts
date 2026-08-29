@@ -324,6 +324,23 @@ export const ReplayAttemptStatusSchema = z.enum([
 
 export const ReplayEffectCertaintySchema = z.enum(["confirmed", "may_have_occurred", "none"]);
 
+export const ReplayEffectRetrySafetySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("not_retryable") }).strict(),
+  z
+    .object({
+      evidenceSha256: Sha256Schema,
+      kind: z.literal("read_only"),
+    })
+    .strict(),
+  z
+    .object({
+      evidenceSha256: Sha256Schema,
+      idempotencyKeySha256: Sha256Schema,
+      kind: z.literal("destination_idempotency_verified"),
+    })
+    .strict(),
+]);
+
 export const ReplayAttemptErrorCodeSchema = z.enum([
   "accounting_violation",
   "authority_denied",
@@ -349,12 +366,22 @@ export const ReplayAttemptErrorSchema = z
     code: ReplayAttemptErrorCodeSchema,
     detailsSha256: Sha256Schema.optional(),
     effectCertainty: ReplayEffectCertaintySchema,
+    effectRetrySafety: ReplayEffectRetrySafetySchema.optional(),
     message: canonicalHumanText(
       MAX_REPLAY_ATTEMPT_ERROR_MESSAGE_CHARACTERS,
       "Attempt error message",
     ),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if ((value.effectCertainty === "none") === (value.effectRetrySafety !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "External effect certainty requires one explicit retry-safety decision",
+        path: ["effectRetrySafety"],
+      });
+    }
+  });
 
 export const ReplayAttemptRetryDispositionSchema = z.enum([
   "not_retryable",
@@ -488,12 +515,12 @@ function refineReplayAttempt(
     });
   }
   if (
-    value.error?.effectCertainty === "may_have_occurred" &&
+    value.error?.effectRetrySafety?.kind === "not_retryable" &&
     value.retryDisposition !== "not_retryable"
   ) {
     context.addIssue({
       code: "custom",
-      message: "Effect uncertainty blocks automatic retry",
+      message: "An external effect without verified retry safety blocks automatic retry",
       path: ["retryDisposition"],
     });
   }
@@ -596,6 +623,7 @@ export type ReplayCancellationAcknowledgement = z.infer<
 export type ReplayCancellationRequest = z.infer<typeof ReplayCancellationRequestSchema>;
 export type ReplayCancellationReasonCode = z.infer<typeof ReplayCancellationReasonCodeSchema>;
 export type ReplayEffectCertainty = z.infer<typeof ReplayEffectCertaintySchema>;
+export type ReplayEffectRetrySafety = z.infer<typeof ReplayEffectRetrySafetySchema>;
 export type ReplayJob = z.infer<typeof ReplayJobSchema>;
 export type ReplayJobStatus = z.infer<typeof ReplayJobStatusSchema>;
 export type ReplayJobTerminalCode = z.infer<typeof ReplayJobTerminalCodeSchema>;
