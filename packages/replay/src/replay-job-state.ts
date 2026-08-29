@@ -160,6 +160,16 @@ function assertCurrentFence(
   return currentLease;
 }
 
+export function assertReplayWorkerMutationFence(
+  jobInput: ReplayJob,
+  fence: ReplayWorkerMutationFence,
+  nowInput: string,
+): ReplayLease {
+  const job = ReplayJobSchema.parse(jobInput);
+  const now = canonicalTime(nowInput);
+  return ReplayLeaseSchema.parse(assertCurrentFence(job, fence, now));
+}
+
 function assertCurrentAttempt(job: ReplayJob, attempt: ReplayAttempt | undefined): ReplayAttempt {
   const currentLease = ReplayLeaseSchema.parse(job.currentLease);
   if (

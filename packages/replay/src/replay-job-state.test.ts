@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { DurableReplayStateError, type DurableReplayStateErrorCode } from "./errors.js";
 import {
   acknowledgeReplayCancellation,
+  assertReplayWorkerMutationFence,
   type ClaimReplayJobOptions,
   claimReplayJob,
   closeExpiredReplayAttempt,
@@ -371,6 +372,31 @@ describe("durable replay job creation and claim", () => {
 });
 
 describe("durable replay heartbeat and terminal commit", () => {
+  it("validates current worker mutation authority without changing job state", () => {
+    const first = initialClaim();
+    expect(
+      assertReplayWorkerMutationFence(first.job, first.lease.mutationFence, first.lease.acquiredAt),
+    ).toEqual(first.lease);
+    expectStateError(
+      () =>
+        assertReplayWorkerMutationFence(
+          first.job,
+          { ...first.lease.mutationFence, fencingToken: 2 },
+          first.lease.acquiredAt,
+        ),
+      "stale_fence",
+    );
+    expectStateError(
+      () =>
+        assertReplayWorkerMutationFence(
+          first.job,
+          first.lease.mutationFence,
+          first.lease.expiresAt,
+        ),
+      "lease_expired",
+    );
+  });
+
   it("closes an expired attempt without reopening or inventing a retry", () => {
     const first = initialClaim();
     const closed = closeExpiredReplayAttempt(first.job, first.attempt, {
