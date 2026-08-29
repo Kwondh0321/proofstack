@@ -1,3 +1,4 @@
+import { OpaqueIdSchema } from "@proofstack/contracts";
 import {
   PostgresConnectionStringError,
   validatePostgresConnectionString,
@@ -8,10 +9,60 @@ const DEVELOPMENT_AUTH_LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"
 export const DEFAULT_OTLP_BODY_LIMIT_BYTES = 1024 * 1024;
 export const MAX_OTLP_BODY_LIMIT_BYTES = 64 * 1024 * 1024;
 
+const EncodedArtifactKeySchema = z.string().superRefine((value, context) => {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    context.addIssue({ code: "custom", message: "Artifact keys must use canonical base64url" });
+    return;
+  }
+  const decoded = Buffer.from(value, "base64url");
+  if (decoded.byteLength !== 32 || decoded.toString("base64url") !== value) {
+    context.addIssue({ code: "custom", message: "Artifact keys must encode exactly 32 bytes" });
+  }
+});
+
+const LocalS3ArtifactStorageConfigSchema = z
+  .object({
+    activeKeyId: OpaqueIdSchema,
+    allowInsecureLoopback: z.boolean(),
+    bucket: z.string().min(3).max(63),
+    endpoint: z.string().min(1).optional(),
+    expectedBucketOwner: z
+      .string()
+      .regex(/^\d{12}$/)
+      .optional(),
+    forcePathStyle: z.boolean(),
+    keys: z
+      .record(OpaqueIdSchema, EncodedArtifactKeySchema)
+      .refine((value) => Object.keys(value).length >= 1 && Object.keys(value).length <= 8, {
+        message: "Artifact keyring must contain from one to eight keys",
+      })
+      .refine((value) => new Set(Object.values(value)).size === Object.keys(value).length, {
+        message: "Artifact key material must be unique",
+      }),
+    mode: z.literal("s3_local_keyring"),
+    region: z.string().min(1).max(128),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (!(value.activeKeyId in value.keys)) {
+      context.addIssue({
+        code: "custom",
+        message: "The active artifact key ID must exist in the configured keyring",
+        path: ["activeKeyId"],
+      });
+    }
+  });
+
+const PostgresArtifactStorageConfigSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("disabled") }).strict(),
+  LocalS3ArtifactStorageConfigSchema,
+]);
+
 const StorageConfigSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("memory") }).strict(),
   z
     .object({
+      artifacts: PostgresArtifactStorageConfigSchema,
       databaseUrl: z.string().min(1),
       mode: z.literal("postgres"),
     })
@@ -79,6 +130,19 @@ const ApiConfigSchema = z
         code: "custom",
         message: "In-memory evidence storage is forbidden in production",
         path: ["storage", "mode"],
+      });
+    }
+
+    if (
+      value.environment === "production" &&
+      value.storage.mode === "postgres" &&
+      value.storage.artifacts.mode === "s3_local_keyring"
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Local artifact keyring configuration is forbidden in production; compose an external key provider",
+        path: ["storage", "artifacts", "mode"],
       });
     }
 
@@ -177,6 +241,14 @@ const ApiConfigSchema = z
 export type ApiConfig = z.infer<typeof ApiConfigSchema>;
 
 interface ProofStackEnvironment extends NodeJS.ProcessEnv {
+  readonly PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID?: string;
+  readonly PROOFSTACK_ARTIFACT_KEYS?: string;
+  readonly PROOFSTACK_ARTIFACT_S3_BUCKET?: string;
+  readonly PROOFSTACK_ARTIFACT_S3_ENDPOINT?: string;
+  readonly PROOFSTACK_ARTIFACT_S3_EXPECTED_BUCKET_OWNER?: string;
+  readonly PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE?: string;
+  readonly PROOFSTACK_ARTIFACT_S3_REGION?: string;
+  readonly PROOFSTACK_ARTIFACT_STORAGE_MODE?: string;
   readonly PROOFSTACK_AUTH_MODE?: string;
   readonly PROOFSTACK_CORS_ORIGIN?: string;
   readonly PROOFSTACK_DATABASE_URL?: string;
@@ -196,6 +268,65 @@ interface ProofStackEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_STORAGE_MODE?: string;
 }
 
+const ARTIFACT_STORAGE_SETTINGS = [
+  "PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID",
+  "PROOFSTACK_ARTIFACT_KEYS",
+  "PROOFSTACK_ARTIFACT_S3_BUCKET",
+  "PROOFSTACK_ARTIFACT_S3_ENDPOINT",
+  "PROOFSTACK_ARTIFACT_S3_EXPECTED_BUCKET_OWNER",
+  "PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE",
+  "PROOFSTACK_ARTIFACT_S3_REGION",
+] as const satisfies readonly (keyof ProofStackEnvironment)[];
+
+function artifactStorageConfig(
+  environment: ProofStackEnvironment,
+  storageMode: string,
+  deploymentEnvironment: string,
+): unknown {
+  const mode = environment.PROOFSTACK_ARTIFACT_STORAGE_MODE ?? "disabled";
+  const hasSettings = ARTIFACT_STORAGE_SETTINGS.some((name) => environment[name] !== undefined);
+  if (storageMode !== "postgres") {
+    if (mode !== "disabled" || hasSettings) {
+      throw new Error("Persistent artifact storage configuration requires PostgreSQL storage mode");
+    }
+    return undefined;
+  }
+  if (mode === "disabled") {
+    if (hasSettings) {
+      throw new Error(
+        "Artifact storage settings require PROOFSTACK_ARTIFACT_STORAGE_MODE=s3_local_keyring",
+      );
+    }
+    return { mode };
+  }
+
+  let keys: unknown;
+  try {
+    keys = JSON.parse(environment.PROOFSTACK_ARTIFACT_KEYS ?? "");
+  } catch {
+    keys = environment.PROOFSTACK_ARTIFACT_KEYS;
+  }
+  const forcePathStyle =
+    environment.PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE === undefined
+      ? false
+      : environment.PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE === "true"
+        ? true
+        : environment.PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE === "false"
+          ? false
+          : environment.PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE;
+  return {
+    activeKeyId: environment.PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID,
+    allowInsecureLoopback: deploymentEnvironment !== "production",
+    bucket: environment.PROOFSTACK_ARTIFACT_S3_BUCKET,
+    endpoint: environment.PROOFSTACK_ARTIFACT_S3_ENDPOINT || undefined,
+    expectedBucketOwner: environment.PROOFSTACK_ARTIFACT_S3_EXPECTED_BUCKET_OWNER || undefined,
+    forcePathStyle,
+    keys,
+    mode,
+    region: environment.PROOFSTACK_ARTIFACT_S3_REGION,
+  };
+}
+
 export function loadConfig(environment: ProofStackEnvironment = process.env): ApiConfig {
   const oidcConfigured = [
     environment.PROOFSTACK_OIDC_CLIENT_ID,
@@ -205,10 +336,13 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
     environment.PROOFSTACK_OIDC_SCOPES,
     environment.PROOFSTACK_OIDC_TRANSACTION_SECRET,
   ].some((value) => value !== undefined);
+  const storageMode = environment.PROOFSTACK_STORAGE_MODE ?? "memory";
+  const deploymentEnvironment = environment.PROOFSTACK_ENV ?? "development";
+  const artifacts = artifactStorageConfig(environment, storageMode, deploymentEnvironment);
   return ApiConfigSchema.parse({
     authMode: environment.PROOFSTACK_AUTH_MODE ?? "development",
     corsOrigin: environment.PROOFSTACK_CORS_ORIGIN || undefined,
-    environment: environment.PROOFSTACK_ENV ?? "development",
+    environment: deploymentEnvironment,
     host: environment.PROOFSTACK_HOST ?? "127.0.0.1",
     identityDatabaseUrl: environment.PROOFSTACK_IDENTITY_DATABASE_URL || undefined,
     logLevel: environment.PROOFSTACK_LOG_LEVEL ?? "info",
@@ -234,8 +368,12 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
     },
     port: Number(environment.PROOFSTACK_PORT ?? "4318"),
     storage:
-      environment.PROOFSTACK_STORAGE_MODE === "postgres"
-        ? { databaseUrl: environment.PROOFSTACK_DATABASE_URL, mode: "postgres" }
-        : { mode: environment.PROOFSTACK_STORAGE_MODE ?? "memory" },
+      storageMode === "postgres"
+        ? {
+            artifacts,
+            databaseUrl: environment.PROOFSTACK_DATABASE_URL,
+            mode: "postgres",
+          }
+        : { mode: storageMode },
   });
 }

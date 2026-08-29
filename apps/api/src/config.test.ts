@@ -10,6 +10,24 @@ const OIDC_ENV = {
   PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
 } as const;
 
+function artifactEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID: "key_primary",
+    PROOFSTACK_ARTIFACT_KEYS: JSON.stringify({
+      key_archived: Buffer.alloc(32, 2).toString("base64url"),
+      key_primary: Buffer.alloc(32, 1).toString("base64url"),
+    }),
+    PROOFSTACK_ARTIFACT_S3_BUCKET: "proofstack-artifacts",
+    PROOFSTACK_ARTIFACT_S3_ENDPOINT: "http://127.0.0.1:8333",
+    PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE: "true",
+    PROOFSTACK_ARTIFACT_S3_REGION: "us-east-1",
+    PROOFSTACK_ARTIFACT_STORAGE_MODE: "s3_local_keyring",
+    PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1:5432/proofstack",
+    PROOFSTACK_STORAGE_MODE: "postgres",
+    ...overrides,
+  };
+}
+
 describe("loadConfig", () => {
   it("loads safe development defaults", () => {
     expect(loadConfig({})).toMatchObject({
@@ -87,10 +105,86 @@ describe("loadConfig", () => {
       }),
     ).toMatchObject({
       storage: {
+        artifacts: { mode: "disabled" },
         databaseUrl: "postgresql://runtime@127.0.0.1:5432/proofstack",
         mode: "postgres",
       },
     });
+  });
+
+  it("loads explicit persistent artifact storage with canonical local key material", () => {
+    expect(loadConfig(artifactEnvironment())).toMatchObject({
+      storage: {
+        artifacts: {
+          activeKeyId: "key_primary",
+          allowInsecureLoopback: true,
+          bucket: "proofstack-artifacts",
+          endpoint: "http://127.0.0.1:8333",
+          forcePathStyle: true,
+          keys: {
+            key_archived: expect.any(String),
+            key_primary: expect.any(String),
+          },
+          mode: "s3_local_keyring",
+          region: "us-east-1",
+        },
+        mode: "postgres",
+      },
+    });
+  });
+
+  it("rejects partial, ambiguous, or invalid persistent artifact storage", () => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_ARTIFACT_S3_BUCKET: "proofstack-artifacts",
+        PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1:5432/proofstack",
+        PROOFSTACK_STORAGE_MODE: "postgres",
+      }),
+    ).toThrow("PROOFSTACK_ARTIFACT_STORAGE_MODE=s3_local_keyring");
+    expect(() =>
+      loadConfig(artifactEnvironment({ PROOFSTACK_ARTIFACT_S3_FORCE_PATH_STYLE: "sometimes" })),
+    ).toThrow();
+    expect(() =>
+      loadConfig(artifactEnvironment({ PROOFSTACK_ARTIFACT_KEYS: "not-json" })),
+    ).toThrow();
+    expect(() =>
+      loadConfig(
+        artifactEnvironment({
+          PROOFSTACK_ARTIFACT_KEYS: JSON.stringify({
+            key_primary: Buffer.alloc(31, 1).toString("base64url"),
+          }),
+        }),
+      ),
+    ).toThrow("32 bytes");
+    expect(() =>
+      loadConfig(
+        artifactEnvironment({
+          PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID: "key_missing",
+        }),
+      ),
+    ).toThrow("active artifact key ID");
+  });
+
+  it("rejects persistent artifact settings in memory mode and local keys in production", () => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_ARTIFACT_S3_BUCKET: "proofstack-artifacts",
+      }),
+    ).toThrow("requires PostgreSQL storage mode");
+    expect(() =>
+      loadConfig(
+        artifactEnvironment({
+          ...OIDC_ENV,
+          PROOFSTACK_AUTH_MODE: "oidc",
+          PROOFSTACK_DATABASE_URL:
+            "postgresql://runtime@db.example.test/proofstack?sslmode=verify-full",
+          PROOFSTACK_ENV: "production",
+          PROOFSTACK_IDENTITY_DATABASE_URL:
+            "postgresql://identity@db.example.test/proofstack?sslmode=verify-full",
+          PROOFSTACK_ARTIFACT_S3_ENDPOINT: "https://objects.example.test",
+        }),
+      ),
+    ).toThrow("forbidden in production");
   });
 
   it("requires a database URL when PostgreSQL storage is selected", () => {

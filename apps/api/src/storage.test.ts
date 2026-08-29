@@ -10,6 +10,7 @@ import { createApiStorage } from "./storage.js";
 
 function postgresConfig() {
   return {
+    artifacts: { mode: "disabled" as const },
     databaseUrl: "postgresql://runtime@127.0.0.1:5432/proofstack",
     mode: "postgres" as const,
   };
