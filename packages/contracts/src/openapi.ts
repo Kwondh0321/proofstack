@@ -5,6 +5,8 @@ import {
   BrowserReturnPathSchema,
   BrowserSessionResponseSchema,
   DEFAULT_TRACE_PAGE_SIZE,
+  ExportRecordedInteractionFixtureContentResponseSchema,
+  ExportRecordedInteractionFixtureMetadataResponseSchema,
   IngestEvidenceResponseSchema,
   LivenessResponseSchema,
   MAX_TRACE_PAGE_SIZE,
@@ -42,10 +44,11 @@ import {
   RevokeInteractionFixtureContentRequestSchema,
 } from "./dataset.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
+import { ExportRecordedInteractionFixtureContentRequestSchema } from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.5.0-workflow-1" as const;
+export const PROOFSTACK_API_VERSION = "0.6.0-workflow-1" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -321,6 +324,12 @@ const artifactStorageUnavailableResponse = {
   description: "Artifact catalog, encryption, or immutable object storage is unavailable",
 } as const;
 
+const interactionExportConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable fixture, artifact catalog, ownership, revocation, or purge state changed while the export was assembled",
+} as const;
+
 export function createProofStackOpenApiDocument(): Record<string, unknown> {
   const schemas = {
     ...componentsFor("OpaqueId", OpaqueIdSchema, "input"),
@@ -379,6 +388,21 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor(
       "ReadRecordedInteractionFixtureMetadataResponse",
       ReadRecordedInteractionFixtureMetadataResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ExportRecordedInteractionFixtureMetadataResponse",
+      ExportRecordedInteractionFixtureMetadataResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ExportRecordedInteractionFixtureContentRequest",
+      ExportRecordedInteractionFixtureContentRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "ExportRecordedInteractionFixtureContentResponse",
+      ExportRecordedInteractionFixtureContentResponseSchema,
       "output",
     ),
     ...componentsFor(
@@ -1018,6 +1042,95 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             },
             security: userOrWorkloadSecurity,
             summary: "Read recorded interaction fixture metadata",
+            tags: ["Regression", "Artifacts"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/export":
+        {
+          get: {
+            description:
+              "Exports a versioned, provider-neutral metadata envelope for one exact recorded interaction. The response preserves artifact bindings, ownership, redaction, retention, lifecycle state, tombstones, and purge receipts, but never includes plaintext content or storage locators. Requires dataset:read and is never cacheable.",
+            operationId: "exportRecordedInteractionFixtureMetadata",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              fixtureVersionParameter,
+            ],
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("ExportRecordedInteractionFixtureMetadataResponse"),
+                  },
+                },
+                description: "The complete metadata-only export envelope",
+                headers: {
+                  "Cache-Control": {
+                    description: "Sensitive export responses are never cacheable",
+                    schema: { const: "no-store", type: "string" },
+                  },
+                },
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+              "409": interactionExportConflictResponse,
+              "503": artifactStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Export recorded interaction metadata",
+            tags: ["Regression", "Artifacts"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/export/content":
+        {
+          post: {
+            description:
+              "Exports a bounded, provider-neutral envelope with canonical base64url plaintext only after an explicit sensitive-content acknowledgement. Requires dataset:read and artifact:read; restricted artifacts additionally require artifact:read:restricted. Missing, unavailable, revoked, and purged content remains explicit, and total returned plaintext is limited to 16 MiB. The response is never cacheable.",
+            operationId: "exportRecordedInteractionFixtureContent",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              fixtureVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("ExportRecordedInteractionFixtureContentRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("ExportRecordedInteractionFixtureContentResponse"),
+                  },
+                },
+                description: "The bounded content export envelope",
+                headers: {
+                  "Cache-Control": {
+                    description: "Sensitive export responses are never cacheable",
+                    schema: { const: "no-store", type: "string" },
+                  },
+                },
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+              "409": interactionExportConflictResponse,
+              "413": {
+                content: {
+                  "application/problem+json": { schema: schemaReference("ProblemDocument") },
+                },
+                description: "The aggregate declared interaction content exceeds 16 MiB",
+              },
+              "503": artifactStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Export recorded interaction content",
             tags: ["Regression", "Artifacts"],
           },
         },

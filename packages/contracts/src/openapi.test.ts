@@ -20,7 +20,7 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.5.0-workflow-1" },
+      info: { version: "0.6.0-workflow-1" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -50,6 +50,10 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/export":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/export/content":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/revocation":
           {},
@@ -138,7 +142,10 @@ describe("ProofStack OpenAPI document", () => {
         };
         post?: {
           parameters: Array<{ name: string }>;
-          responses: Record<string, unknown>;
+          responses: Record<
+            string,
+            { content?: Record<string, unknown>; headers?: Record<string, unknown> }
+          >;
           security: unknown;
         };
         put?: {
@@ -168,6 +175,14 @@ describe("ProofStack OpenAPI document", () => {
     const revocation =
       paths[
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/revocation"
+      ]?.post;
+    const metadataExport =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/export"
+      ]?.get;
+    const contentExport =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/export/content"
       ]?.post;
 
     expect(artifactCollection?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
@@ -201,6 +216,32 @@ describe("ProofStack OpenAPI document", () => {
     expect(interactionVersion?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
     expect(interactionVersion?.responses).toHaveProperty("404");
 
+    expect(metadataExport?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(metadataExport?.responses).toHaveProperty("200");
+    expect(metadataExport?.responses).toHaveProperty("404");
+    expect(metadataExport?.responses).toHaveProperty("409");
+    expect(metadataExport?.responses).toHaveProperty("503");
+    expect(metadataExport?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+
+    expect(contentExport?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(contentExport?.responses).toHaveProperty("200");
+    expect(contentExport?.responses).toHaveProperty("404");
+    expect(contentExport?.responses).toHaveProperty("409");
+    expect(contentExport?.responses).toHaveProperty("413");
+    expect(contentExport?.responses).toHaveProperty("503");
+    expect(contentExport?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    expect(contentExport?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    expect(contentExport).toMatchObject({
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ExportRecordedInteractionFixtureContentRequest" },
+          },
+        },
+        required: true,
+      },
+    });
+
     for (const schema of [
       "ReserveArtifactRequest",
       "ReserveArtifactResponse",
@@ -208,6 +249,9 @@ describe("ProofStack OpenAPI document", () => {
       "PublishInteractionFixtureVersionRequest",
       "PublishRecordedInteractionFixtureVersionResponse",
       "ReadRecordedInteractionFixtureMetadataResponse",
+      "ExportRecordedInteractionFixtureMetadataResponse",
+      "ExportRecordedInteractionFixtureContentRequest",
+      "ExportRecordedInteractionFixtureContentResponse",
       "RevokeRecordedInteractionFixtureContentResponse",
     ]) {
       expect(components).toHaveProperty(schema);
