@@ -3,6 +3,7 @@ import {
   type ArtifactOwnership,
   ArtifactOwnershipSchema,
   type ArtifactTombstone,
+  ArtifactTombstoneSchema,
   type EvidenceScope,
 } from "@proofstack/contracts";
 import type {
@@ -301,6 +302,43 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
     }
     stored.entry = { ...stored.entry, ownership: clone(ownership) };
     return clone(stored.entry);
+  }
+
+  /** Testing-only equivalent of the owned tombstone written by a fixture revocation transaction. */
+  tombstoneFixtureOwnershipForTesting(
+    scope: EvidenceScope,
+    tombstone: ArtifactTombstone,
+  ): TombstoneArtifactCatalogResult {
+    const candidate = ArtifactTombstoneSchema.parse(tombstone);
+    const stored = this.required(scope, candidate.artifactId);
+    if (!stored.entry.ownership || candidate.trigger !== "fixture_revocation") {
+      throw new ArtifactStateTransitionError();
+    }
+    if (stored.tombstone) {
+      if (!isSameTombstone(stored.tombstone, candidate)) throw new ArtifactConflictError();
+      return {
+        created: false,
+        entry: clone(stored.entry),
+        tombstone: clone(stored.tombstone),
+      };
+    }
+    /* v8 ignore next -- ownership is claimable only while available and every later state has a tombstone. */
+    if (stored.entry.metadata.state !== "available") throw new ArtifactStateTransitionError();
+
+    stored.tombstone = clone(candidate);
+    stored.entry = {
+      ...stored.entry,
+      metadata: {
+        ...stored.entry.metadata,
+        state: "tombstoned",
+        tombstonedAt: candidate.occurredAt,
+      },
+    };
+    return {
+      created: true,
+      entry: clone(stored.entry),
+      tombstone: clone(candidate),
+    };
   }
 
   private required(scope: EvidenceScope, artifactId: string): StoredArtifact {

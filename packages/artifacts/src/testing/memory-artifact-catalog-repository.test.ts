@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactCatalogEntry } from "../artifact-ports.js";
 import {
+  ArtifactConflictError,
   ArtifactOwnedDeletionError,
   ArtifactOwnershipConflictError,
   ArtifactStateTransitionError,
@@ -127,6 +128,79 @@ describe("MemoryArtifactCatalogRepository", () => {
         trigger: "manual",
       }),
     ).rejects.toBeInstanceOf(ArtifactOwnedDeletionError);
+  });
+
+  it("applies only the fixture revocation tombstone to owned content idempotently", async () => {
+    const repository = new MemoryArtifactCatalogRepository();
+    const input = candidate();
+    await repository.reserve(input);
+    await repository.activate(
+      input.metadata.scope,
+      input.metadata.contentReference.artifactId,
+      { sha256: "2".repeat(64), sizeBytes: 21 },
+      "2026-08-28T03:01:00.000Z",
+    );
+    repository.claimFixtureOwnershipForTesting(ownership());
+    const tombstone = {
+      actorPrincipalId: "usr_owner",
+      artifactId: input.metadata.contentReference.artifactId,
+      occurredAt: "2026-08-28T03:03:00.000Z",
+      reason: "Revoke the complete fixture content set",
+      tombstoneId: "del_owned",
+      trigger: "fixture_revocation" as const,
+    };
+
+    const first = repository.tombstoneFixtureOwnershipForTesting(input.metadata.scope, tombstone);
+    const retry = repository.tombstoneFixtureOwnershipForTesting(input.metadata.scope, tombstone);
+    expect(first).toMatchObject({
+      created: true,
+      entry: { metadata: { state: "tombstoned" }, ownership: ownership() },
+      tombstone,
+    });
+    expect(retry).toEqual({ ...first, created: false });
+    first.entry.metadata.scope.projectId = "prj_mutated";
+    expect(
+      (await repository.find(input.metadata.scope, input.metadata.contentReference.artifactId))
+        ?.metadata.scope.projectId,
+    ).toBe("prj_mutation");
+
+    expect(() =>
+      repository.tombstoneFixtureOwnershipForTesting(input.metadata.scope, {
+        ...tombstone,
+        reason: "A different immutable decision",
+      }),
+    ).toThrow(ArtifactConflictError);
+  });
+
+  it("rejects fixture tombstones for unowned content or a non-fixture trigger", async () => {
+    const repository = new MemoryArtifactCatalogRepository();
+    const input = candidate();
+    await repository.reserve(input);
+    await repository.activate(
+      input.metadata.scope,
+      input.metadata.contentReference.artifactId,
+      { sha256: "2".repeat(64), sizeBytes: 21 },
+      "2026-08-28T03:01:00.000Z",
+    );
+    const tombstone = {
+      actorPrincipalId: "usr_owner",
+      artifactId: input.metadata.contentReference.artifactId,
+      occurredAt: "2026-08-28T03:03:00.000Z",
+      reason: "Revoke the complete fixture content set",
+      tombstoneId: "del_owned",
+      trigger: "fixture_revocation" as const,
+    };
+    expect(() =>
+      repository.tombstoneFixtureOwnershipForTesting(input.metadata.scope, tombstone),
+    ).toThrow(ArtifactStateTransitionError);
+
+    repository.claimFixtureOwnershipForTesting(ownership());
+    expect(() =>
+      repository.tombstoneFixtureOwnershipForTesting(input.metadata.scope, {
+        ...tombstone,
+        trigger: "manual",
+      }),
+    ).toThrow(ArtifactStateTransitionError);
   });
 
   it("refuses ownership during reservation, before activation, or with expiry", async () => {
