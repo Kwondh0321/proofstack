@@ -1330,6 +1330,7 @@ describe("coordinated recovery rehearsal", () => {
     runtimeUrl.password = roles.api.password;
     const runtimePool = new Pool({ connectionString: runtimeUrl.toString(), max: 2 });
     runtimePools.push(runtimePool);
+    const restoredArtifactWriterCatalog = new PostgresArtifactCatalogRepository(runtimePool);
     const artifactUrl = new URL(restoredDatabaseUrl);
     artifactUrl.username = roles.artifact.name;
     artifactUrl.password = roles.artifact.password;
@@ -1622,13 +1623,13 @@ describe("coordinated recovery rehearsal", () => {
       }),
     );
     const restoredArtifactReserve = new ReserveArtifact({
-      catalog: restoredArtifactCatalog,
+      catalog: restoredArtifactWriterCatalog,
       clock: { now: () => new Date("2026-08-28T03:10:00.000Z") },
       encryption: restoredArtifactCipher,
       identities: new SecureArtifactIdentityGenerator(),
     });
     const restoredArtifactUpload = new UploadArtifact({
-      catalog: restoredArtifactCatalog,
+      catalog: restoredArtifactWriterCatalog,
       clock: { now: () => new Date("2026-08-28T03:10:01.000Z") },
       encryption: restoredArtifactCipher,
       inspection: new StrictArtifactContentInspector(),
@@ -1653,7 +1654,10 @@ describe("coordinated recovery rehearsal", () => {
           },
         }),
       ).resolves.toMatchObject({ created: true });
-      const entry = await restoredArtifactCatalog.find(scope, binding.contentReference.artifactId);
+      const entry = await restoredArtifactWriterCatalog.find(
+        scope,
+        binding.contentReference.artifactId,
+      );
       if (!entry) throw new Error("Post-restore artifact reservation is missing");
       trackedObjectKeys.add(entry.objectKey);
       await restoredArtifactUpload.execute({
