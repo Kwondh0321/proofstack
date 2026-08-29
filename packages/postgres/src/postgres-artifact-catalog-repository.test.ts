@@ -1,6 +1,6 @@
 import { type ArtifactCatalogEntry, ArtifactConflictError } from "@proofstack/artifacts";
 import { artifactCatalogRepositoryConformanceCases } from "@proofstack/artifacts/testing";
-import type { ArtifactTombstone } from "@proofstack/contracts";
+import type { ArtifactOwnership, ArtifactTombstone } from "@proofstack/contracts";
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import {
@@ -45,6 +45,7 @@ function scopeMatches(row: StoredRow, values: readonly unknown[]): boolean {
 
 class ArtifactCatalogFakeClient {
   private readonly artifacts = new Map<string, StoredArtifact>();
+  private readonly ownerships = new Map<string, StoredRow>();
   private readonly purgeReceipts = new Set<string>();
   private readonly tombstones = new Map<string, StoredRow>();
   readonly queries: Array<{ readonly text: string; readonly values?: readonly unknown[] }> = [];
@@ -124,6 +125,12 @@ class ArtifactCatalogFakeClient {
     if (text.includes("FROM public.proofstack_artifact_tombstones")) {
       const row = this.tombstones.get(artifactKey(values[0], values[1]));
       return { rows: row ? [structuredClone(row)] : [] };
+    }
+
+    if (text.includes("FROM public.proofstack_interaction_fixture_artifact_ownerships")) {
+      const row = this.ownerships.get(artifactKey(values[0], values[3]));
+      if (!row || !scopeMatches(row, values)) return { rows: [] };
+      return { rows: [structuredClone(row)] };
     }
 
     if (text.includes("UPDATE public.proofstack_artifact_catalog")) {
@@ -228,6 +235,22 @@ class ArtifactCatalogFakeClient {
     const stored = this.artifacts.get(artifactKey(tenantId, artifactId));
     if (!stored) throw new Error("Artifact to corrupt was not found");
     Object.assign(stored.row, changes);
+  }
+
+  bindOwnership(ownership: ArtifactOwnership, changes: StoredRow = {}): void {
+    this.ownerships.set(artifactKey(ownership.scope.tenantId, ownership.artifactId), {
+      artifact_id: ownership.artifactId,
+      bound_at_lexical: ownership.boundAt,
+      bound_at_matches: true,
+      bound_by_principal_id: ownership.boundByPrincipalId,
+      environment_id: ownership.scope.environmentId,
+      fixture_id: ownership.owner.fixtureId,
+      fixture_version_id: ownership.owner.fixtureVersionId,
+      project_id: ownership.scope.projectId,
+      schema_version: ownership.schemaVersion,
+      tenant_id: ownership.scope.tenantId,
+      ...changes,
+    });
   }
 
   forgetPurgeReceipt(tenantId: string, artifactId: string): void {
@@ -357,6 +380,35 @@ describe("PostgresArtifactCatalogRepository contract", () => {
     await expect(
       repository.find(entry.metadata.scope, entry.metadata.contentReference.artifactId),
     ).resolves.toEqual(activated);
+  });
+
+  it("returns canonical fixture ownership and fails closed for corrupt ownership", async () => {
+    const client = new ArtifactCatalogFakeClient();
+    const repository = new PostgresArtifactCatalogRepository(poolWith(client));
+    const entry = candidate();
+    const ownership: ArtifactOwnership = {
+      artifactId: entry.metadata.contentReference.artifactId,
+      boundAt: "2026-08-28T03:02:00.000Z",
+      boundByPrincipalId: "usr_fixture_publisher",
+      owner: {
+        fixtureId: "fix_postgres_catalog",
+        fixtureVersionId: "fixv_postgres_catalog_001",
+        kind: "regression_fixture_version",
+      },
+      schemaVersion: "0.1",
+      scope: entry.metadata.scope,
+    };
+    await repository.reserve(entry);
+    client.bindOwnership(ownership);
+
+    await expect(
+      repository.find(entry.metadata.scope, entry.metadata.contentReference.artifactId),
+    ).resolves.toEqual({ ...entry, ownership });
+
+    client.bindOwnership(ownership, { bound_at_matches: false });
+    await expect(
+      repository.find(entry.metadata.scope, entry.metadata.contentReference.artifactId),
+    ).rejects.toBeInstanceOf(PostgresArtifactDataIntegrityError);
   });
 
   it.each([

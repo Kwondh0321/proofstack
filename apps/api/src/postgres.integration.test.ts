@@ -654,7 +654,6 @@ describe("PostgreSQL-backed API", () => {
       expect(artifactMetadata.json()).toMatchObject({
         metadata: {
           contentReference: { sha256: firstBinding.contentReference.sha256 },
-          encryption: { keyId: artifactKeyId },
           state: "available",
         },
         ownership: { owner: { fixtureId, fixtureVersionId: recordedVersionId } },

@@ -16,6 +16,8 @@ import {
 } from "@proofstack/artifacts";
 import {
   ArtifactMetadataSchema,
+  type ArtifactOwnership,
+  ArtifactOwnershipSchema,
   type ArtifactTombstone,
   ArtifactTombstoneSchema,
   type EvidenceScope,
@@ -62,6 +64,19 @@ interface StoredTombstoneRow extends QueryResultRow {
   readonly reason: string;
   readonly tombstone_id: string;
   readonly tombstone_trigger: string;
+}
+
+interface StoredOwnershipRow extends QueryResultRow {
+  readonly artifact_id: string;
+  readonly bound_at_lexical: string;
+  readonly bound_at_matches: boolean;
+  readonly bound_by_principal_id: string;
+  readonly environment_id: string;
+  readonly fixture_id: string;
+  readonly fixture_version_id: string;
+  readonly project_id: string;
+  readonly schema_version: string;
+  readonly tenant_id: string;
 }
 
 interface PresenceRow extends QueryResultRow {
@@ -301,6 +316,32 @@ function storedTombstone(row: StoredTombstoneRow): ArtifactTombstone {
   return parsed.data;
 }
 
+function storedOwnership(row: StoredOwnershipRow): ArtifactOwnership {
+  const parsed = ArtifactOwnershipSchema.safeParse({
+    artifactId: row.artifact_id,
+    boundAt: row.bound_at_lexical,
+    boundByPrincipalId: row.bound_by_principal_id,
+    owner: {
+      fixtureId: row.fixture_id,
+      fixtureVersionId: row.fixture_version_id,
+      kind: "regression_fixture_version",
+    },
+    schemaVersion: row.schema_version,
+    scope: {
+      environmentId: row.environment_id,
+      projectId: row.project_id,
+      tenantId: row.tenant_id,
+    },
+  });
+  if (!row.bound_at_matches || !parsed.success) {
+    throw new PostgresArtifactDataIntegrityError(
+      "Stored artifact ownership does not satisfy the canonical contract",
+      { ...(parsed.success ? {} : { cause: parsed.error }) },
+    );
+  }
+  return parsed.data;
+}
+
 const ARTIFACT_REFERENCE_STATES = new Set([
   "available",
   "purged",
@@ -473,6 +514,36 @@ async function findTombstone(
   return row ? storedTombstone(row) : null;
 }
 
+async function findOwnership(
+  client: PoolClient,
+  scope: EvidenceScope,
+  artifactId: string,
+): Promise<ArtifactOwnership | null> {
+  const result = await client.query<StoredOwnershipRow>(
+    `
+      SELECT
+        tenant_id,
+        project_id,
+        environment_id,
+        artifact_id,
+        fixture_id,
+        fixture_version_id,
+        schema_version,
+        bound_at_lexical,
+        bound_at = bound_at_lexical::timestamptz AS bound_at_matches,
+        bound_by_principal_id
+      FROM public.proofstack_interaction_fixture_artifact_ownerships
+      WHERE tenant_id = $1
+        AND project_id = $2
+        AND environment_id = $3
+        AND artifact_id = $4
+    `,
+    [scope.tenantId, scope.projectId, scope.environmentId, artifactId],
+  );
+  const row = result.rows[0];
+  return row ? storedOwnership(row) : null;
+}
+
 export class PostgresArtifactCatalogRepository implements ArtifactCatalogRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
@@ -512,7 +583,10 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
         [scope.tenantId, scope.projectId, scope.environmentId, artifactId],
       );
       const row = result.rows[0];
-      return row ? storedEntry(row) : null;
+      if (!row) return null;
+      const entry = storedEntry(row);
+      const ownership = await findOwnership(client, scope, artifactId);
+      return ownership ? { ...entry, ownership } : entry;
     });
   }
 
