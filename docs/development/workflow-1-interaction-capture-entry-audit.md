@@ -183,17 +183,21 @@ The first schema must be closed over a small role vocabulary rather than accept 
 
 Credentials, authorization headers, bearer tokens, cookies, raw chain-of-thought, and hidden
 provider reasoning are prohibited capture content. A rejection is preferable to retaining a
-secret and later attempting to redact it. Redaction provenance is required where content was
-changed before capture; a normalized request digest can never be represented as the digest of the
-unredacted request.
+secret and later attempting to redact it. Structured credential fields and configured
+secret-scanner findings are rejected, but no scanner proves that arbitrary opaque bytes are
+secret-free. The capture producer remains responsible for source minimization, and deployments
+must qualify their scanners for their own credential formats. Redaction provenance is required
+where content was changed before capture; a normalized request digest can never be represented as
+the digest of the unredacted request.
 
 ### Authorization
 
 - A workload may reserve and upload classified artifacts only with its existing bounded
   `artifact:write` authority and resource scope.
 - Publishing an interaction-complete fixture is a browser or trusted-service management operation
-  requiring `dataset:manage`, `evidence:read`, `artifact:read`, and
-  `artifact:read:restricted` when any referenced content is restricted.
+  requiring `dataset:manage` and `evidence:read`. The publication repository resolves protected
+  artifact metadata without fetching plaintext; publication does not require or imply
+  `artifact:read` or `artifact:read:restricted`.
 - Reading fixture metadata continues to require `dataset:read`; it returns descriptors and
   availability, never plaintext.
 - Reading captured plaintext crosses the artifact read boundary and applies the additional
@@ -238,7 +242,7 @@ The roadmap item remains open until all rows have executable evidence.
 
 | Boundary | Required evidence |
 | --- | --- |
-| Contract | Strict versioned schemas reject unknown fields, unsafe text, missing attempts, duplicate order, incomplete pairing, mutable aliases, forbidden content roles, secrets, and caller-owned server fields |
+| Contract | Strict versioned schemas reject unknown fields, unsafe text, missing attempts, duplicate order, incomplete pairing, mutable aliases, forbidden structured credential fields, configured secret-scanner findings, and caller-owned server fields while documenting scanner limits |
 | Integrity | Public fixed vectors prove domain separation and sensitivity to predecessor, order, outcomes, versions, normalization, side effects, artifact roles, classifications, digests, and bounds |
 | Ownership | Publication accepts only same-scope, available, retain-mode, unowned artifacts; ownership is unique, immutable, idempotent for one definition, and conflicting for every reuse |
 | Authorization | Upload, publish, metadata read, plaintext read, restricted read, and purge have distinct tested authority; denial occurs before storage access and cross-scope identifiers do not leak |

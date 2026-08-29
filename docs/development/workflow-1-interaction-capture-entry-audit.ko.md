@@ -182,16 +182,20 @@ Server time, 인증된 publisher provenance, 변경 가능한 artifact lifecycle
 
 Credential, authorization header, bearer token, cookie, raw chain-of-thought, 숨겨진 provider
 reasoning은 캡처 금지 content입니다. 저장한 뒤 redaction을 시도하는 것보다 거부하는 편이
-낫습니다. Capture 전에 content가 변경되었다면 redaction provenance가 필요하며, normalized
-request digest를 unredacted request의 digest처럼 표시할 수 없습니다.
+낫습니다. 구조화된 credential field와 설정된 secret scanner가 찾은 항목은 거부하지만 어떤
+scanner도 임의의 opaque byte에 secret이 없음을 증명하지는 못합니다. Capture producer는
+source minimization 책임을 유지하고, deployment는 자체 credential format에 맞게 scanner를
+검증해야 합니다. Capture 전에 content가 변경되었다면 redaction provenance가 필요하며,
+normalized request digest를 unredacted request의 digest처럼 표시할 수 없습니다.
 
 ### 인가
 
 - Workload는 기존의 제한된 `artifact:write` 권한과 resource scope 안에서만 분류
   아티팩트를 reserve·upload할 수 있습니다.
-- Interaction-complete fixture 발행은 `dataset:manage`, `evidence:read`, `artifact:read`, 그리고
-  restricted content가 있으면 `artifact:read:restricted`가 필요한 browser 또는 trusted
-  service 관리 operation입니다.
+- Interaction-complete fixture 발행은 `dataset:manage`와 `evidence:read`가 필요한 browser
+  또는 trusted service 관리 operation입니다. Publication repository는 plaintext를 가져오지
+  않고 보호된 artifact metadata를 해석하므로 발행은 `artifact:read` 또는
+  `artifact:read:restricted`를 요구하거나 암시하지 않습니다.
 - Fixture metadata read는 계속 `dataset:read`가 필요하고 descriptor와 availability만
   반환하며 plaintext를 반환하지 않습니다.
 - 캡처 plaintext read는 artifact read 경계를 통과하며 현재와 같은 restricted-content 추가
@@ -239,7 +243,7 @@ state와 함께 ownership row와 revocation state가 포함되어야 합니다. 
 
 | 경계 | 필요한 증거 |
 | --- | --- |
-| 계약 | 엄격한 버전 스키마가 unknown field, unsafe text, 누락된 attempt, 중복 순서, 불완전 pairing, mutable alias, 금지 content role, secret, caller 소유 server field를 거부 |
+| 계약 | 엄격한 버전 스키마가 unknown field, unsafe text, 누락된 attempt, 중복 순서, 불완전 pairing, mutable alias, 금지된 구조화 credential field, 설정된 secret-scanner finding, caller 소유 server field를 거부하고 scanner 한계를 문서화 |
 | 무결성 | 공개 고정 vector가 domain separation, predecessor, 순서, 결과, 버전, normalization, side effect, artifact role, classification, digest, limit 민감도를 검증 |
 | 소유권 | Publication은 same-scope, available, retain-mode, unowned artifact만 수락하며 ownership은 한 definition에 대해 고유·불변·멱등이고 모든 재사용은 conflict |
 | 인가 | Upload, publish, metadata read, plaintext read, restricted read, purge 권한이 분리되어 검증되고 storage 접근 전에 거부하며 cross-scope identifier를 유출하지 않음 |
