@@ -196,6 +196,15 @@ describe("provisionRuntimeRoles", () => {
       'GRANT SELECT, INSERT ON TABLE public.proofstack_replay_targets, public.proofstack_target_releases, public.proofstack_replay_plan_resources, public.proofstack_replay_plans, public.proofstack_replay_plan_budgets, public.proofstack_replay_plan_boundaries TO "proofstack_api"',
     );
     expect(statements).toContain(
+      'GRANT SELECT ON TABLE public.proofstack_replay_jobs, public.proofstack_replay_attempts, public.proofstack_replay_cancellation_requests, public.proofstack_replay_cancellation_acknowledgements, public.proofstack_replay_budget_entries, public.proofstack_replay_budget_entry_dimensions, public.proofstack_replay_observations, public.proofstack_replay_usage_measurements TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_create_replay_job(text, text, text, text, text, text, text) TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_request_replay_cancellation(text, text, text, text, text, text, text) TO "proofstack_api"',
+    );
+    expect(statements).toContain(
       'GRANT EXECUTE ON FUNCTION public.proofstack_valid_regression_text(text, integer) TO "proofstack_api"',
     );
     expect(statements).toContain(

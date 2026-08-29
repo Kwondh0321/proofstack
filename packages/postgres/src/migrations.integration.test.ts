@@ -131,6 +131,7 @@ describe("PostgreSQL evidence schema", () => {
       "0015_expand_artifact_tombstone_trigger",
       "0016_durable_replay_definitions",
       "0017_durable_replay_job_ledger",
+      "0018_replay_job_control_authority",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

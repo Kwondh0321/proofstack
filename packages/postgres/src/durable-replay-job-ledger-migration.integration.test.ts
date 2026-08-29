@@ -107,7 +107,7 @@ describe("durable replay job ledger migration", () => {
     ]);
   });
 
-  it("keeps internal guard and completeness functions private", async () => {
+  it("keeps internal guards and control-plane functions private", async () => {
     const publicFunctionPrivileges = await pool.query<{ readonly count: number }>(`
       SELECT count(*)::integer AS count
       FROM pg_proc AS procedure
@@ -117,13 +117,50 @@ describe("durable replay job ledger migration", () => {
       ) AS privilege
       WHERE namespace.nspname = 'public'
         AND procedure.proname IN (
+          'proofstack_create_replay_job',
           'proofstack_guard_replay_job_root_mutation',
+          'proofstack_replay_job_intent_status',
+          'proofstack_request_replay_cancellation',
           'proofstack_verify_replay_budget_entry_dimensions',
           'proofstack_verify_replay_usage_measurements'
         )
         AND privilege.grantee = 0
     `);
     expect(publicFunctionPrivileges.rows).toEqual([{ count: 0 }]);
+
+    const functionSecurity = await pool.query<{
+      readonly proconfig: string[];
+      readonly proname: string;
+      readonly prosecdef: boolean;
+    }>(`
+      SELECT procedure.proname, procedure.prosecdef, procedure.proconfig
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND procedure.proname IN (
+          'proofstack_create_replay_job',
+          'proofstack_replay_job_intent_status',
+          'proofstack_request_replay_cancellation'
+        )
+      ORDER BY procedure.proname
+    `);
+    expect(functionSecurity.rows).toEqual([
+      {
+        proconfig: ["search_path=pg_catalog"],
+        proname: "proofstack_create_replay_job",
+        prosecdef: true,
+      },
+      {
+        proconfig: ["search_path=pg_catalog"],
+        proname: "proofstack_replay_job_intent_status",
+        prosecdef: true,
+      },
+      {
+        proconfig: ["search_path=pg_catalog"],
+        proname: "proofstack_request_replay_cancellation",
+        prosecdef: true,
+      },
+    ]);
 
     const completeness = await pool.query<{
       readonly condeferrable: boolean;

@@ -198,6 +198,13 @@ describe("runtime role provisioning", () => {
       readonly replayDelete: boolean;
       readonly replayInsert: boolean;
       readonly replayIntentStatusExecute: boolean;
+      readonly replayJobCancelExecute: boolean;
+      readonly replayJobCreateExecute: boolean;
+      readonly replayJobDelete: boolean;
+      readonly replayJobInsert: boolean;
+      readonly replayJobIntentStatusExecute: boolean;
+      readonly replayJobSelect: boolean;
+      readonly replayJobUpdate: boolean;
       readonly replaySelect: boolean;
       readonly replayUpdate: boolean;
       readonly sequence_usage: boolean;
@@ -386,6 +393,73 @@ describe("runtime role provisioning", () => {
           'proofstack_replay_publication_intent_status(text, text, text, text, text, jsonb, timestamp with time zone)',
           'EXECUTE'
         ) AS "replayIntentStatusExecute",
+        (
+          SELECT bool_and(has_table_privilege(current_user, relation_name, 'SELECT'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_jobs',
+            'proofstack_replay_attempts',
+            'proofstack_replay_cancellation_requests',
+            'proofstack_replay_cancellation_acknowledgements',
+            'proofstack_replay_budget_entries',
+            'proofstack_replay_budget_entry_dimensions',
+            'proofstack_replay_observations',
+            'proofstack_replay_usage_measurements'
+          ]) AS replay_job_relation(relation_name)
+        ) AS "replayJobSelect",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'INSERT'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_jobs',
+            'proofstack_replay_attempts',
+            'proofstack_replay_cancellation_requests',
+            'proofstack_replay_cancellation_acknowledgements',
+            'proofstack_replay_budget_entries',
+            'proofstack_replay_budget_entry_dimensions',
+            'proofstack_replay_observations',
+            'proofstack_replay_usage_measurements'
+          ]) AS replay_job_relation(relation_name)
+        ) AS "replayJobInsert",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'UPDATE'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_jobs',
+            'proofstack_replay_attempts',
+            'proofstack_replay_cancellation_requests',
+            'proofstack_replay_cancellation_acknowledgements',
+            'proofstack_replay_budget_entries',
+            'proofstack_replay_budget_entry_dimensions',
+            'proofstack_replay_observations',
+            'proofstack_replay_usage_measurements'
+          ]) AS replay_job_relation(relation_name)
+        ) AS "replayJobUpdate",
+        (
+          SELECT bool_or(has_table_privilege(current_user, relation_name, 'DELETE'))
+          FROM unnest(ARRAY[
+            'proofstack_replay_jobs',
+            'proofstack_replay_attempts',
+            'proofstack_replay_cancellation_requests',
+            'proofstack_replay_cancellation_acknowledgements',
+            'proofstack_replay_budget_entries',
+            'proofstack_replay_budget_entry_dimensions',
+            'proofstack_replay_observations',
+            'proofstack_replay_usage_measurements'
+          ]) AS replay_job_relation(relation_name)
+        ) AS "replayJobDelete",
+        has_function_privilege(
+          current_user,
+          'proofstack_create_replay_job(text, text, text, text, text, text, text)',
+          'EXECUTE'
+        ) AS "replayJobCreateExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_request_replay_cancellation(text, text, text, text, text, text, text)',
+          'EXECUTE'
+        ) AS "replayJobCancelExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_replay_job_intent_status(text, text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS "replayJobIntentStatusExecute",
         has_sequence_privilege(
           current_user,
           $1,
@@ -423,6 +497,13 @@ describe("runtime role provisioning", () => {
       replayDelete: false,
       replayInsert: true,
       replayIntentStatusExecute: true,
+      replayJobCancelExecute: true,
+      replayJobCreateExecute: true,
+      replayJobDelete: false,
+      replayJobInsert: false,
+      replayJobIntentStatusExecute: true,
+      replayJobSelect: true,
+      replayJobUpdate: false,
       replaySelect: true,
       replayUpdate: false,
       sequence_usage: false,
