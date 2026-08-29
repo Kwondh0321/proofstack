@@ -330,6 +330,9 @@ async function insertIntentProbes(probes: readonly PublicationIntentProbe[]): Pr
 async function resetRegressionCatalog(): Promise<void> {
   await adminPool.query(`
     TRUNCATE TABLE
+      public.proofstack_interaction_fixture_content_revocations,
+      public.proofstack_interaction_fixture_artifact_ownerships,
+      public.proofstack_recorded_interaction_fixture_versions,
       public.proofstack_regression_dataset_members,
       public.proofstack_regression_dataset_versions,
       public.proofstack_regression_datasets,

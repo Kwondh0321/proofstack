@@ -269,6 +269,9 @@ describe("runtime role provisioning", () => {
         (
           SELECT bool_and(has_table_privilege(current_user, relation_name, 'SELECT'))
           FROM unnest(ARRAY[
+            'proofstack_recorded_interaction_fixture_versions',
+            'proofstack_interaction_fixture_artifact_ownerships',
+            'proofstack_interaction_fixture_content_revocations',
             'proofstack_regression_fixtures',
             'proofstack_regression_fixture_versions',
             'proofstack_regression_fixture_events',
@@ -280,6 +283,9 @@ describe("runtime role provisioning", () => {
         (
           SELECT bool_and(has_table_privilege(current_user, relation_name, 'INSERT'))
           FROM unnest(ARRAY[
+            'proofstack_recorded_interaction_fixture_versions',
+            'proofstack_interaction_fixture_artifact_ownerships',
+            'proofstack_interaction_fixture_content_revocations',
             'proofstack_regression_fixtures',
             'proofstack_regression_fixture_versions',
             'proofstack_regression_fixture_events',
@@ -291,6 +297,9 @@ describe("runtime role provisioning", () => {
         (
           SELECT bool_or(has_table_privilege(current_user, relation_name, 'UPDATE'))
           FROM unnest(ARRAY[
+            'proofstack_recorded_interaction_fixture_versions',
+            'proofstack_interaction_fixture_artifact_ownerships',
+            'proofstack_interaction_fixture_content_revocations',
             'proofstack_regression_fixtures',
             'proofstack_regression_fixture_versions',
             'proofstack_regression_fixture_events',
@@ -302,6 +311,9 @@ describe("runtime role provisioning", () => {
         (
           SELECT bool_or(has_table_privilege(current_user, relation_name, 'DELETE'))
           FROM unnest(ARRAY[
+            'proofstack_recorded_interaction_fixture_versions',
+            'proofstack_interaction_fixture_artifact_ownerships',
+            'proofstack_interaction_fixture_content_revocations',
             'proofstack_regression_fixtures',
             'proofstack_regression_fixture_versions',
             'proofstack_regression_fixture_events',

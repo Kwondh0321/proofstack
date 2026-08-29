@@ -99,6 +99,7 @@ describe("migration inspection", () => {
         "0011_dataset_capabilities",
         "0012_pin_evidence_event_collation",
         "0013_regression_catalog",
+        "0014_recorded_interaction_fixtures",
       ],
     });
   });

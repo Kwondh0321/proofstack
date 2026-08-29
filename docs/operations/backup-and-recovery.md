@@ -206,7 +206,7 @@ under the mutation fence while monitoring lock wait, storage, and replication la
 query code first and fully drain older processes: the new code is correct before and after 0012,
 while an already-running old process can still issue locale-sensitive reads. Apply 0012 only after
 that drain, verify the checksum ledger and valid/ready index collation, and then release the fence.
-Any defect is repaired by a new 0014-or-later forward migration; never edit 0012 or synthesize a
+Any defect is repaired by a new 0015-or-later forward migration; never edit 0012 or synthesize a
 down migration. Capture a coordinated pre-0012 recovery set when whole-installation binary rollback
 must remain possible, because a binary that does not recognize 0012 must reject its ledger. CI
 proves clean installation, an isolated 0011-to-0012 upgrade with preserved evidence, index
@@ -221,8 +221,19 @@ takes heavyweight catalog locks and consumes WAL. Apply 0013 only under the muta
 draining old processes, with a coordinated pre-0013 recovery set available. Verify scope-bound
 membership, deferred membership completeness, forced RLS, exact runtime grants, migration ledger,
 and valid indexes before releasing the fence. A binary that knows only 0012 must reject the newer
-ledger; remediation is a 0014-or-later forward repair or restoration of the complete pre-0013
+ledger; remediation is a 0015-or-later forward repair or restoration of the complete pre-0013
 recovery set, never a partial catalog rollback.
+
+Migration `0014_recorded_interaction_fixtures` extends fixture headers to the versioned
+`recorded_interactions` form and adds the immutable capture manifest, unique artifact ownership,
+and content-revocation tables. It also widens the artifact tombstone trigger vocabulary and adds
+deferred transaction guards that require complete ownership at publication and complete matching
+tombstones at revocation. Apply 0014 under the mutation fence after draining processes that know
+only the evidence-only fixture schema. Retain a coordinated pre-0014 recovery set, verify forced
+RLS and least-privilege grants, rehearse both complete and deliberately partial publication and
+revocation transactions, and confirm the exact ownership and revocation records after restore
+before releasing the fence. Repair defects with a new forward migration; never edit 0014 or restore
+only the regression or artifact half of the installation.
 
 ## What the repository proves
 
@@ -235,7 +246,8 @@ The dedicated recovery CI job:
   canonical outbox locators, and cross-scope hiding after restore;
 - copies real encrypted S3-compatible bytes through isolated source, backup, and restore buckets;
 - restores the matching test key version and decrypts content through the normal artifact read;
-- reprovisions fresh runtime roles and proves evidence, artifact, and regression tenant isolation;
+- reprovisions fresh runtime roles and proves evidence, artifact, recorded-fixture, and regression
+  tenant isolation;
 - proves purged content remains absent and new restored evidence and regression publications do not
   affect the source; and
 - proves an older migration set rejects the newer ledger.
