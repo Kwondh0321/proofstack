@@ -18,6 +18,7 @@ import {
 } from "@proofstack/contracts";
 
 const MAX_CONTROL_PLANE_RESPONSE_BYTES = 1024 * 1024;
+const BROWSER_CSRF_TOKEN_PATTERN = /^psc_v1_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 
 interface ResponseSchema<Output> {
   safeParse(
@@ -27,8 +28,21 @@ interface ResponseSchema<Output> {
     | { readonly error: unknown; readonly success: false };
 }
 
+export type ProofStackRegressionAuthentication =
+  | {
+      readonly csrfToken: string;
+      readonly mode: "browser";
+    }
+  | {
+      readonly mode: "development";
+    }
+  | {
+      readonly apiKey: string;
+      readonly mode: "workload";
+    };
+
 export interface ProofStackRegressionClientOptions {
-  readonly apiKey?: string;
+  readonly authentication: ProofStackRegressionAuthentication;
   readonly endpoint: string | URL;
   readonly environmentId: string;
   readonly fetch?: typeof globalThis.fetch;
@@ -116,6 +130,24 @@ function validatedEndpoint(endpoint: string | URL): URL {
   return url;
 }
 
+function validatedAuthentication(
+  authentication: ProofStackRegressionAuthentication,
+): ProofStackRegressionAuthentication {
+  if (authentication.mode === "development") return { mode: "development" };
+  if (authentication.mode === "browser") {
+    if (!BROWSER_CSRF_TOKEN_PATTERN.test(authentication.csrfToken)) {
+      throw new ProofStackApiError("Browser CSRF token failed local validation");
+    }
+    return { csrfToken: authentication.csrfToken, mode: "browser" };
+  }
+  if (authentication.mode === "workload") {
+    const apiKey = ApiKeyValueSchema.safeParse(authentication.apiKey);
+    if (!apiKey.success) throw new ProofStackApiError("Workload API key failed local validation");
+    return { apiKey: apiKey.data, mode: "workload" };
+  }
+  throw new ProofStackApiError("ProofStack regression authentication mode is invalid");
+}
+
 function isLoopbackHostname(hostname: string): boolean {
   return hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "localhost";
 }
@@ -172,10 +204,12 @@ function parseJson(text: string, status: number): unknown {
  * Fail-closed client for immutable regression control-plane operations.
  *
  * Publication calls are never retried automatically. Callers may safely retry the same immutable
- * definition and inspect the returned `created` marker.
+ * definition and inspect the returned `created` marker. Browser mode includes credentials and the
+ * required CSRF header, workload keys are restricted to exact reads, and development mode is
+ * accepted only for explicit loopback endpoints.
  */
 export class ProofStackRegressionClient {
-  private readonly apiKey: string | undefined;
+  private readonly authentication: ProofStackRegressionAuthentication;
   private readonly baseUrl: URL;
   private readonly environmentId: string;
   private readonly fetchImplementation: typeof globalThis.fetch;
@@ -184,6 +218,12 @@ export class ProofStackRegressionClient {
 
   constructor(options: ProofStackRegressionClientOptions) {
     this.baseUrl = validatedEndpoint(options.endpoint);
+    this.authentication = validatedAuthentication(options.authentication);
+    if (this.authentication.mode === "development" && !isLoopbackHostname(this.baseUrl.hostname)) {
+      throw new ProofStackApiError(
+        "Development authentication requires an explicit loopback endpoint",
+      );
+    }
     this.environmentId = validatedIdentifier(options.environmentId, "environmentId");
     this.projectId = validatedIdentifier(options.projectId, "projectId");
     this.fetchImplementation = options.fetch ?? globalThis.fetch;
@@ -193,11 +233,6 @@ export class ProofStackRegressionClient {
     this.timeoutMs = options.timeoutMs ?? 5_000;
     if (!Number.isInteger(this.timeoutMs) || this.timeoutMs <= 0) {
       throw new ProofStackApiError("timeoutMs must be a positive integer");
-    }
-    if (options.apiKey !== undefined) {
-      const apiKey = ApiKeyValueSchema.safeParse(options.apiKey);
-      if (!apiKey.success) throw new ProofStackApiError("apiKey failed local validation");
-      this.apiKey = apiKey.data;
     }
   }
 
@@ -287,6 +322,11 @@ export class ProofStackRegressionClient {
     responseSchema: ResponseSchema<Output>,
     expectedStatuses: readonly number[],
   ): Promise<{ readonly status: number; readonly value: Output }> {
+    if (method === "POST" && this.authentication.mode === "workload") {
+      throw new ProofStackApiError(
+        "Regression publication requires user management authority; workload keys are read-only",
+      );
+    }
     const url = scopedUrl(this.baseUrl, [
       "v1",
       "projects",
@@ -301,9 +341,15 @@ export class ProofStackRegressionClient {
     try {
       const response = await this.fetchImplementation(url, {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        credentials: this.authentication.mode === "browser" ? "include" : "omit",
         headers: {
           accept: "application/json",
-          ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+          ...(this.authentication.mode === "workload"
+            ? { authorization: `Bearer ${this.authentication.apiKey}` }
+            : {}),
+          ...(this.authentication.mode === "browser" && method === "POST"
+            ? { "x-proofstack-csrf": this.authentication.csrfToken }
+            : {}),
           ...(body === undefined ? {} : { "content-type": "application/json" }),
         },
         method,

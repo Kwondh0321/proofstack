@@ -7,6 +7,7 @@ import {
 } from "./regression-client.js";
 
 const apiKey = `psk_v1_ABCDEFGHIJKL_${"A".repeat(43)}`;
+const csrfToken = `psc_v1_${"E".repeat(43)}`;
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
 const fixtureRequest = {
   fixtureVersionId: "fixv_checkout_001",
@@ -69,7 +70,7 @@ function client(
   overrides: Partial<ProofStackRegressionClientOptions> = {},
 ) {
   return new ProofStackRegressionClient({
-    apiKey,
+    authentication: { csrfToken, mode: "browser" },
     endpoint: "https://proofstack.example/base/?debug=true#fragment",
     environmentId: "env_local",
     fetch,
@@ -143,15 +144,17 @@ describe("ProofStackRegressionClient", () => {
     const fixtureRead = fetch.mock.calls[1]?.[1];
     expect(fixturePublication).toMatchObject({
       body: JSON.stringify(fixtureRequest),
+      credentials: "include",
       headers: {
         accept: "application/json",
-        authorization: `Bearer ${apiKey}`,
         "content-type": "application/json",
+        "x-proofstack-csrf": csrfToken,
       },
       method: "POST",
     });
     expect(fixtureRead).toMatchObject({
-      headers: { accept: "application/json", authorization: `Bearer ${apiKey}` },
+      credentials: "include",
+      headers: { accept: "application/json" },
       method: "GET",
     });
     expect(fixtureRead).not.toHaveProperty("body");
@@ -162,6 +165,7 @@ describe("ProofStackRegressionClient", () => {
       .fn<typeof globalThis.fetch>()
       .mockResolvedValue(Response.json({ requestId: "req_local", version: fixtureVersion }));
     const sdk = new ProofStackRegressionClient({
+      authentication: { mode: "development" },
       endpoint: "http://127.0.0.1:3010",
       environmentId: "env_local",
       fetch,
@@ -173,7 +177,33 @@ describe("ProofStackRegressionClient", () => {
       fixtureVersionId: fixtureRequest.fixtureVersionId,
     });
 
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+      credentials: "omit",
+      headers: { accept: "application/json" },
+    });
     expect(fetch.mock.calls[0]?.[1]?.headers).not.toHaveProperty("authorization");
+  });
+
+  it("uses workload credentials only for exact reads and rejects publication before fetch", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(Response.json({ requestId: "req_workload", version: fixtureVersion }));
+    const sdk = client(fetch, { authentication: { apiKey, mode: "workload" } });
+
+    await sdk.readFixtureVersion({
+      fixtureId: "fix_checkout",
+      fixtureVersionId: fixtureRequest.fixtureVersionId,
+    });
+    await expect(
+      sdk.publishFixtureVersion({ fixtureId: "fix_checkout", request: fixtureRequest }),
+    ).rejects.toThrow("workload keys are read-only");
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+      credentials: "omit",
+      headers: { accept: "application/json", authorization: `Bearer ${apiKey}` },
+      method: "GET",
+    });
   });
 
   it("validates configuration before retaining an unsafe endpoint or credential", () => {
@@ -193,7 +223,21 @@ describe("ProofStackRegressionClient", () => {
     expect(() => client(fetch, { environmentId: "INVALID" })).toThrow(
       "environmentId failed local validation",
     );
-    expect(() => client(fetch, { apiKey: "not-a-key" })).toThrow("apiKey failed local validation");
+    expect(() =>
+      client(fetch, { authentication: { apiKey: "not-a-key", mode: "workload" } }),
+    ).toThrow("Workload API key failed local validation");
+    expect(() =>
+      client(fetch, { authentication: { csrfToken: "not-a-token", mode: "browser" } }),
+    ).toThrow("Browser CSRF token failed local validation");
+    expect(() =>
+      client(fetch, {
+        authentication: { mode: "development" },
+        endpoint: "https://proofstack.example",
+      }),
+    ).toThrow("Development authentication requires an explicit loopback endpoint");
+    expect(() => client(fetch, { authentication: { mode: "unknown" } as never })).toThrow(
+      "authentication mode is invalid",
+    );
     expect(() => client(fetch, { timeoutMs: 0 })).toThrow("positive integer");
   });
 
@@ -203,6 +247,7 @@ describe("ProofStackRegressionClient", () => {
     expect(
       () =>
         new ProofStackRegressionClient({
+          authentication: { csrfToken, mode: "browser" },
           endpoint: "https://proofstack.example",
           environmentId: "env_local",
           projectId: "prj_local",
