@@ -10,6 +10,10 @@ import {
   MAX_TRACE_PAGE_SIZE,
   OidcStateSchema,
   ProblemDocumentSchema,
+  PublishRegressionDatasetVersionResponseSchema,
+  PublishRegressionFixtureVersionResponseSchema,
+  ReadRegressionDatasetVersionResponseSchema,
+  ReadRegressionFixtureVersionResponseSchema,
   ReadinessResponseSchema,
   TracePageCursorSchema,
   TraceResponseSchema,
@@ -22,11 +26,15 @@ import {
   RotateApiKeyRequestSchema,
   RotateApiKeyResponseSchema,
 } from "./api-key.js";
+import {
+  PublishRegressionDatasetVersionRequestSchema,
+  PublishRegressionFixtureVersionRequestSchema,
+} from "./dataset.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.3.0-foundation" as const;
+export const PROOFSTACK_API_VERSION = "0.4.0-workflow-1" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -105,6 +113,38 @@ const credentialParameter = {
   description: "Opaque API key credential identifier within the authenticated tenant",
   in: "path",
   name: "credentialId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const fixtureParameter = {
+  description: "Opaque logical regression fixture identifier within the authorized scope",
+  in: "path",
+  name: "fixtureId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const fixtureVersionParameter = {
+  description: "Exact immutable regression fixture version identifier",
+  in: "path",
+  name: "fixtureVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const datasetParameter = {
+  description: "Opaque logical regression dataset identifier within the authorized scope",
+  in: "path",
+  name: "datasetId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const datasetVersionParameter = {
+  description: "Exact immutable regression dataset version identifier",
+  in: "path",
+  name: "datasetVersionId",
   required: true,
   schema: schemaReference("OpaqueId"),
 } as const;
@@ -234,6 +274,18 @@ const problemResponses = {
   },
 } as const;
 
+const regressionNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The exact version, source trace, or referenced fixture version does not exist in the authorized scope",
+} as const;
+
+const regressionConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable version identifier conflicts with another definition or violates logical-resource lineage",
+} as const;
+
 export function createProofStackOpenApiDocument(): Record<string, unknown> {
   const schemas = {
     ...componentsFor("OpaqueId", OpaqueIdSchema, "input"),
@@ -242,6 +294,36 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor("IngestEvidenceResponse", IngestEvidenceResponseSchema, "output"),
     ...componentsFor("TraceResponse", TraceResponseSchema, "output"),
     ...componentsFor("TracePageCursor", TracePageCursorSchema, "input"),
+    ...componentsFor(
+      "PublishRegressionFixtureVersionRequest",
+      PublishRegressionFixtureVersionRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "PublishRegressionFixtureVersionResponse",
+      PublishRegressionFixtureVersionResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadRegressionFixtureVersionResponse",
+      ReadRegressionFixtureVersionResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "PublishRegressionDatasetVersionRequest",
+      PublishRegressionDatasetVersionRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "PublishRegressionDatasetVersionResponse",
+      PublishRegressionDatasetVersionResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadRegressionDatasetVersionResponse",
+      ReadRegressionDatasetVersionResponseSchema,
+      "output",
+    ),
     ...componentsFor("ProblemDocument", ProblemDocumentSchema, "output"),
     ...componentsFor("LivenessResponse", LivenessResponseSchema, "output"),
     ...componentsFor("ReadinessResponse", ReadinessResponseSchema, "output"),
@@ -279,7 +361,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "Foundation API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, immutable evidence-only regression fixture and dataset versions, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -580,6 +662,156 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
           tags: ["Evidence"],
         },
       },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions":
+        {
+          post: {
+            description:
+              "Captures the currently observed bounded trace evidence into an immutable evidence-only fixture version. A semantically equivalent retry returns the original version with created=false.",
+            operationId: "publishRegressionFixtureVersion",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishRegressionFixtureVersionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("PublishRegressionFixtureVersionResponse"),
+                  },
+                },
+                description: "An identical retry returned the original immutable fixture version",
+              },
+              "201": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("PublishRegressionFixtureVersionResponse"),
+                  },
+                },
+                description: "A new immutable evidence-only fixture version was created",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+              "409": regressionConflictResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Publish a regression fixture version",
+            tags: ["Regression"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions/{fixtureVersionId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable fixture version. Logical-resource mismatches and absent versions share the same scope-safe not-found response.",
+            operationId: "getRegressionFixtureVersion",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              fixtureParameter,
+              fixtureVersionParameter,
+            ],
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("ReadRegressionFixtureVersionResponse"),
+                  },
+                },
+                description: "The exact immutable fixture version",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact regression fixture version",
+            tags: ["Regression"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions":
+        {
+          post: {
+            description:
+              "Pins an ordered set of exact fixture versions and their definition digests into an immutable dataset version. An equivalent retry returns the original version with created=false.",
+            operationId: "publishRegressionDatasetVersion",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              datasetParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishRegressionDatasetVersionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("PublishRegressionDatasetVersionResponse"),
+                  },
+                },
+                description: "An identical retry returned the original immutable dataset version",
+              },
+              "201": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("PublishRegressionDatasetVersionResponse"),
+                  },
+                },
+                description: "A new immutable dataset version was created",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+              "409": regressionConflictResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Publish a regression dataset version",
+            tags: ["Regression"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions/{datasetVersionId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable dataset version and its pinned fixture-version digests. Logical-resource mismatches and absent versions share the same scope-safe not-found response.",
+            operationId: "getRegressionDatasetVersion",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              datasetParameter,
+              datasetVersionParameter,
+            ],
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: schemaReference("ReadRegressionDatasetVersionResponse"),
+                  },
+                },
+                description: "The exact immutable dataset version",
+              },
+              ...problemResponses,
+              "404": regressionNotFoundResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact regression dataset version",
+            tags: ["Regression"],
+          },
+        },
       "/v1/identity/api-keys": {
         post: {
           description:
@@ -699,6 +931,10 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       { description: "Agent execution evidence", name: "Evidence" },
       { description: "OIDC browser identity and workload credential lifecycle", name: "Identity" },
       { description: "Machine-readable service metadata", name: "Metadata" },
+      {
+        description: "Immutable evidence-only fixture and dataset version lifecycle",
+        name: "Regression",
+      },
       { description: "OpenTelemetry-compatible ingestion", name: "Telemetry" },
     ],
     "x-proofstack-evidence-schema-version": EVIDENCE_SCHEMA_VERSION,

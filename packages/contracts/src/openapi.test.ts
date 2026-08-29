@@ -16,11 +16,11 @@ function collectReferences(value: unknown, references: string[] = []): string[] 
 }
 
 describe("ProofStack OpenAPI document", () => {
-  it("describes the implemented foundation routes", () => {
+  it("describes the implemented workflow routes", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.3.0-foundation" },
+      info: { version: "0.4.0-workflow-1" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -35,9 +35,76 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/identity/api-keys/{credentialId}/revoke": {},
         "/v1/identity/api-keys/{credentialId}/rotate": {},
         "/v1/projects/{projectId}/environments/{environmentId}/evidence": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions/{datasetVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions/{fixtureVersionId}":
+          {},
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
     });
+  });
+
+  it("documents exact regression versions, idempotent publication, and bounded failures", () => {
+    const document = createProofStackOpenApiDocument();
+    const { paths: rawPaths } = document;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, unknown>;
+          security: unknown;
+        };
+        post?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, unknown>;
+          security: unknown;
+        };
+      }
+    >;
+    const fixtureCollection =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions"
+      ]?.post;
+    const fixtureVersion =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/versions/{fixtureVersionId}"
+      ]?.get;
+    const datasetCollection =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions"
+      ]?.post;
+    const datasetVersion =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/regression-datasets/{datasetId}/versions/{datasetVersionId}"
+      ]?.get;
+
+    for (const publication of [fixtureCollection, datasetCollection]) {
+      expect(publication?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+      expect(publication?.responses).toHaveProperty("200");
+      expect(publication?.responses).toHaveProperty("201");
+      expect(publication?.responses).toHaveProperty("404");
+      expect(publication?.responses).toHaveProperty("409");
+      expect(publication?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    }
+    expect(fixtureVersion?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "fixtureId",
+      "fixtureVersionId",
+    ]);
+    expect(datasetVersion?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "datasetId",
+      "datasetVersionId",
+    ]);
+    expect(fixtureVersion?.responses).toHaveProperty("404");
+    expect(datasetVersion?.responses).toHaveProperty("404");
   });
 
   it("documents the workload-only OTLP protocol and routing boundary", () => {
