@@ -1,5 +1,9 @@
 import { gzipSync } from "node:zlib";
-import { EVIDENCE_SCHEMA_VERSION } from "@proofstack/contracts";
+import {
+  EVIDENCE_SCHEMA_VERSION,
+  type PublishRegressionDatasetVersionResponse,
+  type PublishRegressionFixtureVersionResponse,
+} from "@proofstack/contracts";
 import { decodeOtlpJson, encodeOtlpProtobufRequest } from "@proofstack/otlp";
 import {
   bootstrapApiKey,
@@ -234,6 +238,119 @@ describe("PostgreSQL-backed API", () => {
           },
         ],
         traceId,
+      });
+    } finally {
+      await restartedApp.close();
+    }
+  });
+
+  it("retains exact development-authenticated regression versions across an API restart", async () => {
+    const traceId = "9bf92f3577b34da6a3ce929d0e0e4736";
+    const fixtureId = "fix_api_restart_001";
+    const fixtureVersionId = "fixv_api_restart_001";
+    const datasetId = "dat_api_restart_001";
+    const datasetVersionId = "datv_api_restart_001";
+    let publishedFixture: PublishRegressionFixtureVersionResponse;
+    let publishedDataset: PublishRegressionDatasetVersionResponse;
+
+    const firstApp = await createApp(postgresConfig());
+    try {
+      const ingest = await firstApp.inject({
+        body: {
+          events: [
+            {
+              eventId: "evt_regression_api_restart_001",
+              kind: "agent.run",
+              name: "regression-api-restart-test",
+              source: {
+                sdkName: "@proofstack/sdk",
+                sdkVersion: "0.0.0",
+                serviceName: "regression-api-restart-test",
+              },
+              spanId: "80f067aa0ba902b7",
+              startedAt: "2026-08-28T04:59:59.000Z",
+              status: "error",
+              traceId,
+            },
+          ],
+          schemaVersion: EVIDENCE_SCHEMA_VERSION,
+        },
+        method: "POST",
+        url: "/v1/projects/prj_local/environments/env_local/evidence",
+      });
+      expect(ingest.statusCode).toBe(202);
+
+      const fixtureRequest = {
+        fixtureVersionId,
+        name: "Authenticated restart incident",
+        source: { kind: "trace_snapshot", traceId },
+      } as const;
+      const fixtureUrl = `/v1/projects/prj_local/environments/env_local/regression-fixtures/${fixtureId}/versions`;
+      const fixture = await firstApp.inject({
+        body: fixtureRequest,
+        method: "POST",
+        url: fixtureUrl,
+      });
+      const fixtureRetry = await firstApp.inject({
+        body: fixtureRequest,
+        method: "POST",
+        url: fixtureUrl,
+      });
+      expect(fixture.statusCode).toBe(201);
+      expect(fixtureRetry.statusCode).toBe(200);
+      expect(fixtureRetry.json()).toMatchObject({
+        created: false,
+        version: fixture.json<PublishRegressionFixtureVersionResponse>().version,
+      });
+      publishedFixture = fixture.json<PublishRegressionFixtureVersionResponse>();
+
+      const dataset = await firstApp.inject({
+        body: {
+          datasetVersionId,
+          fixtureVersions: [{ fixtureId, fixtureVersionId }],
+          name: "Authenticated restart regressions",
+        },
+        method: "POST",
+        url: `/v1/projects/prj_local/environments/env_local/regression-datasets/${datasetId}/versions`,
+      });
+      expect(dataset.statusCode).toBe(201);
+      publishedDataset = dataset.json<PublishRegressionDatasetVersionResponse>();
+    } finally {
+      await firstApp.close();
+    }
+
+    const restartedApp = await createApp(postgresConfig());
+    try {
+      const fixture = await restartedApp.inject({
+        method: "GET",
+        url:
+          `/v1/projects/prj_local/environments/env_local/regression-fixtures/${fixtureId}` +
+          `/versions/${fixtureVersionId}`,
+      });
+      const dataset = await restartedApp.inject({
+        method: "GET",
+        url:
+          `/v1/projects/prj_local/environments/env_local/regression-datasets/${datasetId}` +
+          `/versions/${datasetVersionId}`,
+      });
+
+      expect(fixture.statusCode).toBe(200);
+      expect(dataset.statusCode).toBe(200);
+      expect(fixture.json()).toMatchObject({
+        version: publishedFixture.version,
+      });
+      expect(fixture.json()).toMatchObject({
+        version: {
+          replayability: "evidence_only",
+          source: {
+            eventIds: ["evt_regression_api_restart_001"],
+            observedEventCount: 1,
+            sourceCompleteness: "observed_snapshot",
+          },
+        },
+      });
+      expect(dataset.json()).toMatchObject({
+        version: publishedDataset.version,
       });
     } finally {
       await restartedApp.close();
