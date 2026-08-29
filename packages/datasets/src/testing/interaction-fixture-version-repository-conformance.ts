@@ -321,6 +321,90 @@ export const interactionFixtureVersionRepositoryConformanceCases: readonly Inter
         }),
     },
     {
+      name: "serializes concurrent recorded publication, definition conflict, and ownership races",
+      run: async (factory) => {
+        await withHarness(factory, "interaction_concurrent_retry", async (harness) => {
+          const predecessor = evidenceFixture("interaction_concurrent_retry");
+          const candidate = recordedFixture("interaction_concurrent_retry", { predecessor });
+          await publishPrerequisites(harness, predecessor, candidate);
+
+          const outcomes = await Promise.all(
+            Array.from({ length: 8 }, () =>
+              harness.repository.publishRecordedInteractionFixtureVersion(candidate),
+            ),
+          );
+          assert.equal(outcomes.filter(({ created }) => created).length, 1);
+          assert.equal(outcomes.filter(({ created }) => !created).length, 7);
+          for (const outcome of outcomes) {
+            assert.deepEqual(outcome.version, candidate);
+            assert.equal(outcome.ownerships.length, candidate.interactionCapture.artifacts.length);
+          }
+        });
+
+        await withHarness(factory, "interaction_concurrent_conflict", async (harness) => {
+          const predecessor = evidenceFixture("interaction_concurrent_conflict");
+          const first = recordedFixture("interaction_concurrent_conflict", { predecessor });
+          const conflicting = recordedFixture("interaction_concurrent_conflict", {
+            name: "A conflicting immutable definition",
+            predecessor,
+          });
+          await publishPrerequisites(harness, predecessor, first);
+
+          const outcomes = await Promise.allSettled([
+            harness.repository.publishRecordedInteractionFixtureVersion(first),
+            harness.repository.publishRecordedInteractionFixtureVersion(conflicting),
+          ]);
+          const fulfilled = outcomes.filter(
+            (
+              outcome,
+            ): outcome is PromiseFulfilledResult<
+              Awaited<
+                ReturnType<typeof harness.repository.publishRecordedInteractionFixtureVersion>
+              >
+            > => outcome.status === "fulfilled",
+          );
+          const rejected = outcomes.filter(
+            (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+          );
+          assert.equal(fulfilled.length, 1);
+          assert.equal(fulfilled[0]?.value.created, true);
+          assert.equal(rejected.length, 1);
+          assert.ok(rejected[0]?.reason instanceof RegressionVersionConflictError);
+        });
+
+        await withHarness(factory, "interaction_concurrent_ownership", async (harness) => {
+          const predecessor = evidenceFixture("interaction_concurrent_ownership");
+          const first = recordedFixture("interaction_concurrent_ownership", { predecessor });
+          const second = recordedFixture("interaction_concurrent_ownership", {
+            fixtureVersionId: "fixv_interaction_concurrent_ownership_recorded_002",
+            predecessor,
+          });
+          await publishPrerequisites(harness, predecessor, first);
+
+          const outcomes = await Promise.allSettled([
+            harness.repository.publishRecordedInteractionFixtureVersion(first),
+            harness.repository.publishRecordedInteractionFixtureVersion(second),
+          ]);
+          const fulfilled = outcomes.filter(
+            (
+              outcome,
+            ): outcome is PromiseFulfilledResult<
+              Awaited<
+                ReturnType<typeof harness.repository.publishRecordedInteractionFixtureVersion>
+              >
+            > => outcome.status === "fulfilled",
+          );
+          const rejected = outcomes.filter(
+            (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+          );
+          assert.equal(fulfilled.length, 1);
+          assert.equal(fulfilled[0]?.value.created, true);
+          assert.equal(rejected.length, 1);
+          assert.ok(rejected[0]?.reason instanceof RegressionArtifactBindingError);
+        });
+      },
+    },
+    {
       name: "rejects unavailable, expiring, mismatched, cross-scope, and missing artifacts",
       run: async (factory) => {
         const variants = [
@@ -610,6 +694,64 @@ export const interactionFixtureVersionRepositoryConformanceCases: readonly Inter
             RegressionFixtureContentRevocationConflictError,
           );
         }),
+    },
+    {
+      name: "serializes concurrent revocation retries and immutable decision conflicts",
+      run: async (factory) => {
+        await withHarness(factory, "interaction_concurrent_revoke", async (harness) => {
+          const predecessor = evidenceFixture("interaction_concurrent_revoke");
+          const candidate = recordedFixture("interaction_concurrent_revoke", { predecessor });
+          await publishPrerequisites(harness, predecessor, candidate);
+          const published =
+            await harness.repository.publishRecordedInteractionFixtureVersion(candidate);
+          const revocation = revocationCandidate(candidate, published.ownerships);
+
+          const outcomes = await Promise.all(
+            Array.from({ length: 8 }, () =>
+              harness.repository.revokeRecordedInteractionFixtureContent(revocation),
+            ),
+          );
+          assert.equal(outcomes.filter(({ created }) => created).length, 1);
+          assert.equal(outcomes.filter(({ created }) => !created).length, 7);
+          for (const outcome of outcomes) {
+            assert.equal(outcome.contentAvailability, "revoked");
+            assert.deepEqual(outcome.revocation, revocation.revocation);
+          }
+        });
+
+        await withHarness(factory, "interaction_concurrent_revoke_conflict", async (harness) => {
+          const predecessor = evidenceFixture("interaction_concurrent_revoke_conflict");
+          const candidate = recordedFixture("interaction_concurrent_revoke_conflict", {
+            predecessor,
+          });
+          await publishPrerequisites(harness, predecessor, candidate);
+          const published =
+            await harness.repository.publishRecordedInteractionFixtureVersion(candidate);
+          const first = revocationCandidate(candidate, published.ownerships);
+          const conflicting = revocationCandidate(candidate, published.ownerships, {
+            reason: "A conflicting concurrent revocation decision",
+          });
+
+          const outcomes = await Promise.allSettled([
+            harness.repository.revokeRecordedInteractionFixtureContent(first),
+            harness.repository.revokeRecordedInteractionFixtureContent(conflicting),
+          ]);
+          const fulfilled = outcomes.filter(
+            (
+              outcome,
+            ): outcome is PromiseFulfilledResult<
+              Awaited<ReturnType<typeof harness.repository.revokeRecordedInteractionFixtureContent>>
+            > => outcome.status === "fulfilled",
+          );
+          const rejected = outcomes.filter(
+            (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+          );
+          assert.equal(fulfilled.length, 1);
+          assert.equal(fulfilled[0]?.value.created, true);
+          assert.equal(rejected.length, 1);
+          assert.ok(rejected[0]?.reason instanceof RegressionFixtureContentRevocationConflictError);
+        });
+      },
     },
     {
       name: "rolls back every content tombstone when revocation commit fails",
