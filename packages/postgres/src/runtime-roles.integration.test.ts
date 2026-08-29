@@ -376,6 +376,10 @@ describe("runtime role provisioning", () => {
       readonly catalogSelect: boolean;
       readonly catalogUpdate: boolean;
       readonly evidenceSelect: boolean;
+      readonly fixtureMetadataDelete: boolean;
+      readonly fixtureMetadataInsert: boolean;
+      readonly fixtureMetadataSelect: boolean;
+      readonly fixtureMetadataUpdate: boolean;
       readonly ledgerSelect: boolean;
       readonly outboxSelect: boolean;
       readonly purgeDelete: boolean;
@@ -421,6 +425,34 @@ describe("runtime role provisioning", () => {
             AS "purgeDelete",
           has_table_privilege(current_user, 'proofstack_evidence_events', 'SELECT')
             AS "evidenceSelect",
+          (
+            SELECT bool_and(has_table_privilege(current_user, relation_name, 'SELECT'))
+            FROM unnest(ARRAY[
+              'proofstack_interaction_fixture_artifact_ownerships',
+              'proofstack_interaction_fixture_content_revocations'
+            ]) AS fixture_metadata(relation_name)
+          ) AS "fixtureMetadataSelect",
+          (
+            SELECT bool_or(has_table_privilege(current_user, relation_name, 'INSERT'))
+            FROM unnest(ARRAY[
+              'proofstack_interaction_fixture_artifact_ownerships',
+              'proofstack_interaction_fixture_content_revocations'
+            ]) AS fixture_metadata(relation_name)
+          ) AS "fixtureMetadataInsert",
+          (
+            SELECT bool_or(has_table_privilege(current_user, relation_name, 'UPDATE'))
+            FROM unnest(ARRAY[
+              'proofstack_interaction_fixture_artifact_ownerships',
+              'proofstack_interaction_fixture_content_revocations'
+            ]) AS fixture_metadata(relation_name)
+          ) AS "fixtureMetadataUpdate",
+          (
+            SELECT bool_or(has_table_privilege(current_user, relation_name, 'DELETE'))
+            FROM unnest(ARRAY[
+              'proofstack_interaction_fixture_artifact_ownerships',
+              'proofstack_interaction_fixture_content_revocations'
+            ]) AS fixture_metadata(relation_name)
+          ) AS "fixtureMetadataDelete",
           has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS "outboxSelect",
           has_table_privilege(
             current_user,
@@ -447,6 +479,10 @@ describe("runtime role provisioning", () => {
       catalogSelect: true,
       catalogUpdate: true,
       evidenceSelect: false,
+      fixtureMetadataDelete: false,
+      fixtureMetadataInsert: false,
+      fixtureMetadataSelect: true,
+      fixtureMetadataUpdate: false,
       ledgerSelect: true,
       outboxSelect: false,
       purgeDelete: false,

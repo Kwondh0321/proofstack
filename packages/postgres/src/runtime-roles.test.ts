@@ -185,6 +185,12 @@ describe("provisionRuntimeRoles", () => {
       'GRANT SELECT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_artifact_maintenance"',
     );
     expect(statements).toContain(
+      'GRANT SELECT ON TABLE public.proofstack_interaction_fixture_artifact_ownerships, public.proofstack_interaction_fixture_content_revocations TO "proofstack_artifact_maintenance"',
+    );
+    expect(statements).not.toContain(
+      'GRANT INSERT, UPDATE, DELETE ON TABLE public.proofstack_interaction_fixture_artifact_ownerships, public.proofstack_interaction_fixture_content_revocations TO "proofstack_artifact_maintenance"',
+    );
+    expect(statements).toContain(
       'GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO "proofstack_artifact_maintenance"',
     );
     expect(statements).toContain(

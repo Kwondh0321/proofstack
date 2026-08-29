@@ -137,6 +137,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
   ],
   artifact: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_interaction_fixture_artifact_ownerships, public.proofstack_interaction_fixture_content_revocations TO %ROLE%",
     "GRANT SELECT, UPDATE ON TABLE public.proofstack_artifact_catalog TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_purge_receipts TO %ROLE%",
