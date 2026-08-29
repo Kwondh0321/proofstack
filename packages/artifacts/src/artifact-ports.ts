@@ -1,5 +1,6 @@
 import {
   type ArtifactMetadata,
+  type ArtifactOwnership,
   type ArtifactTombstone,
   type EvidenceScope,
   MAX_ARTIFACT_CONTENT_BYTES,
@@ -77,6 +78,8 @@ export interface ArtifactCatalogEntry {
   readonly metadata: ArtifactMetadata;
   readonly objectKey: string;
   readonly objectReceipt?: ArtifactObjectReceipt;
+  /** Append-only fixture ownership, when the artifact has been claimed by a coordinated publisher. */
+  readonly ownership?: ArtifactOwnership;
 }
 
 export interface ReserveArtifactCatalogResult {
@@ -132,6 +135,7 @@ export interface ArtifactCatalogRepository {
   listKeyReferences(scope: EvidenceScope): Promise<readonly ArtifactKeyReferenceSummary[]>;
   recordPurge(scope: EvidenceScope, receipt: ArtifactPurgeReceipt): Promise<ArtifactCatalogEntry>;
   reserve(candidate: ArtifactCatalogEntry): Promise<ReserveArtifactCatalogResult>;
+  /** Atomically rejects fixture-owned content; only coordinated fixture revocation may tombstone it. */
   tombstone(
     scope: EvidenceScope,
     tombstone: ArtifactTombstone,

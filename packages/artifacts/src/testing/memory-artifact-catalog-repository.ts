@@ -1,5 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
-import type { ArtifactTombstone, EvidenceScope } from "@proofstack/contracts";
+import {
+  type ArtifactOwnership,
+  ArtifactOwnershipSchema,
+  type ArtifactTombstone,
+  type EvidenceScope,
+} from "@proofstack/contracts";
 import type {
   ArtifactCatalogEntry,
   ArtifactCatalogRepository,
@@ -16,6 +21,8 @@ import {
 import {
   ArtifactConflictError,
   ArtifactNotFoundError,
+  ArtifactOwnedDeletionError,
+  ArtifactOwnershipConflictError,
   ArtifactStateTransitionError,
 } from "../errors.js";
 
@@ -99,7 +106,11 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
   private readonly artifacts = new Map<string, StoredArtifact>();
 
   async reserve(candidate: ArtifactCatalogEntry): Promise<ReserveArtifactCatalogResult> {
-    if (candidate.metadata.state !== "reserved" || candidate.objectReceipt !== undefined) {
+    if (
+      candidate.metadata.state !== "reserved" ||
+      candidate.objectReceipt !== undefined ||
+      candidate.ownership !== undefined
+    ) {
       throw new ArtifactStateTransitionError();
     }
     const artifactId = candidate.metadata.contentReference.artifactId;
@@ -147,6 +158,7 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
     tombstone: ArtifactTombstone,
   ): Promise<TombstoneArtifactCatalogResult> {
     const stored = this.required(scope, tombstone.artifactId);
+    if (stored.entry.ownership) throw new ArtifactOwnedDeletionError();
     if (stored.tombstone) {
       if (!isSameTombstone(stored.tombstone, tombstone)) throw new ArtifactConflictError();
       return {
@@ -269,6 +281,26 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
     return [...references.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([keyId, counts]) => ({ counts: { ...counts }, keyId }));
+  }
+
+  /** Testing-only equivalent of the ownership row written by a coordinated fixture transaction. */
+  claimFixtureOwnershipForTesting(ownershipInput: ArtifactOwnership): ArtifactCatalogEntry {
+    const ownership = ArtifactOwnershipSchema.parse(ownershipInput);
+    const stored = this.required(ownership.scope, ownership.artifactId);
+    if (stored.entry.ownership) {
+      if (!isDeepStrictEqual(stored.entry.ownership, ownership)) {
+        throw new ArtifactOwnershipConflictError();
+      }
+      return clone(stored.entry);
+    }
+    if (
+      stored.entry.metadata.state !== "available" ||
+      stored.entry.metadata.retention.mode !== "retain"
+    ) {
+      throw new ArtifactStateTransitionError();
+    }
+    stored.entry = { ...stored.entry, ownership: clone(ownership) };
+    return clone(stored.entry);
   }
 
   private required(scope: EvidenceScope, artifactId: string): StoredArtifact {

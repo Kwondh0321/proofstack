@@ -34,6 +34,24 @@ export class ArtifactConflictError extends Error {
   }
 }
 
+export class ArtifactOwnershipConflictError extends Error {
+  readonly code = "artifact_ownership_conflict";
+
+  constructor() {
+    super("Artifact ownership is already bound to a different immutable resource");
+    this.name = "ArtifactOwnershipConflictError";
+  }
+}
+
+export class ArtifactOwnedDeletionError extends Error {
+  readonly code = "artifact_fixture_owned";
+
+  constructor() {
+    super("Fixture-owned content must be removed through fixture content revocation");
+    this.name = "ArtifactOwnedDeletionError";
+  }
+}
+
 export class ArtifactNotFoundError extends Error {
   readonly code = "artifact_not_found";
 
