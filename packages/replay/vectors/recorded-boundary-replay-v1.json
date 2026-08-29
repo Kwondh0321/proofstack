@@ -1,0 +1,64 @@
+{
+  "format": "proofstack.recorded-boundary-replay-vectors.v1",
+  "vectors": [
+    {
+      "kind": "invocation",
+      "name": "minimal recorded boundary invocation",
+      "input": {
+        "fixture": {
+          "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "fixtureId": "fix_vector",
+          "fixtureVersionId": "fiv_vector_001"
+        },
+        "invocationId": "rpi_vector_001",
+        "runtime": {
+          "boundaryMode": "recorded_stub",
+          "clock": {
+            "instant": "2026-08-29T00:00:00.000Z",
+            "mode": "fixed"
+          },
+          "isolation": {
+            "mode": "cooperative_in_process"
+          },
+          "locale": "en-US",
+          "network": {
+            "policy": "deny_fallback"
+          },
+          "random": {
+            "algorithm": "hmac_sha256_counter_v1",
+            "mode": "seeded",
+            "seedHex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "timeZone": "UTC"
+        },
+        "schemaVersion": "0.1",
+        "targetAdapter": {
+          "name": "proofstack.reference_target",
+          "version": "1.0.0"
+        }
+      },
+      "encodedByteLength": 424,
+      "encodedHex": "0000002670726f6f66737461636b2e7265636f726465642d626f756e646172792d7265706c61792e763100000003302e310000000e7270695f766563746f725f3030310000000a6669785f766563746f720000000e6669765f766563746f725f30303100000040616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610000001b70726f6f66737461636b2e7265666572656e63655f74617267657400000005312e302e300000000d7265636f726465645f7374756200000005666978656400000018323032362d30382d32395430303a30303a30302e3030305a0000000673656564656400000016686d61635f7368613235365f636f756e7465725f7631000000406262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626200000005656e2d5553000000035554430000000d64656e795f66616c6c6261636b00000016636f6f70657261746976655f696e5f70726f63657373",
+      "sha256": "84ec0f0af6ff16f8beb3ca595ca5d3c50e322ce2556cef39645925c15a4d0c2f"
+    },
+    {
+      "kind": "boundary_request",
+      "name": "minimal model boundary request",
+      "input": {
+        "boundaryRequestId": "req_vector_001",
+        "kind": "model",
+        "normalizedRequest": {
+          "adapterName": "proofstack.reference.model",
+          "adapterVersion": "1.0.0",
+          "bytes": "eyJtZXNzYWdlcyI6W10gfQo",
+          "encoding": "base64url"
+        },
+        "schemaVersion": "0.1"
+      },
+      "encodedByteLength": 137,
+      "encodedHex": "0000002770726f6f66737461636b2e7265636f726465642d626f756e646172792d726571756573742e763100000003302e310000000e7265715f766563746f725f303031000000056d6f64656c0000001a70726f6f66737461636b2e7265666572656e63652e6d6f64656c00000005312e302e30000000117b226d65737361676573223a5b5d207d0a",
+      "normalizedRequestSha256": "1e6be541d182821e4485d57dbac9e66cfae81a452c80d09b37dc659a60bb5fd9",
+      "sha256": "41fbcc316ce816837fb1af756a448c82b7c6cf0172d4bae66384edacc1122ce6"
+    }
+  ]
+}

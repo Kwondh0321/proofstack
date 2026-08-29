@@ -11,6 +11,11 @@ const modules = [
   },
   {
     allowed: new Set(["@proofstack/contracts"]),
+    directory: "packages/replay/src",
+    packageName: "@proofstack/replay",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts"]),
     directory: "packages/core/src",
     packageName: "@proofstack/core",
   },
@@ -106,6 +111,16 @@ const modules = [
     allowed: new Set(["@proofstack/sdk"]),
     directory: "examples/basic-agent/src",
     packageName: "@proofstack/example-basic-agent",
+  },
+  {
+    allowed: new Set(["@proofstack/sdk"]),
+    directory: "examples/incident-to-regression/src",
+    packageName: "@proofstack/example-incident-to-regression",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/sdk"]),
+    directory: "examples/interaction-capture/src",
+    packageName: "@proofstack/example-interaction-capture",
   },
 ];
 
