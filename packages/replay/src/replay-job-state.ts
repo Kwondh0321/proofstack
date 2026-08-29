@@ -71,6 +71,20 @@ export interface CompleteReplayAttemptOptions {
   readonly status: ReplayJobTerminalStatus;
 }
 
+export type CloseExpiredReplayAttemptOptions = {
+  readonly effect: Pick<ReplayAttemptError, "effectCertainty" | "effectRetrySafety">;
+  readonly now: string;
+} & (
+  | {
+      readonly code: Extract<ReplayJobTerminalCode, "execution_failed" | "retries_exhausted">;
+      readonly status: Extract<ReplayJobTerminalStatus, "failed">;
+    }
+  | {
+      readonly code: Extract<ReplayJobTerminalCode, "deadline_reached">;
+      readonly status: Extract<ReplayJobTerminalStatus, "timed_out">;
+    }
+);
+
 export interface RequestReplayCancellationOptions {
   readonly existing?: ReplayCancellationRequest;
   readonly input: unknown;
@@ -299,6 +313,46 @@ export function heartbeatReplayJob(
     currentLease: lease,
     stateVersion: nextCounter(job.stateVersion),
   });
+}
+
+export function closeExpiredReplayAttempt(
+  jobInput: ReplayJob,
+  attemptInput: ReplayAttempt,
+  options: CloseExpiredReplayAttemptOptions,
+): { readonly attempt: ReplayAttempt; readonly job: ReplayJob } {
+  const job = ReplayJobSchema.parse(jobInput);
+  const attempt = ReplayAttemptSchema.parse(attemptInput);
+  const now = canonicalTime(options.now);
+  if (job.status !== "running") throw new DurableReplayStateError("state_conflict");
+  const lease = ReplayLeaseSchema.parse(job.currentLease);
+  assertCurrentAttempt(job, attempt);
+  if (timeValue(now) < timeValue(lease.expiresAt)) {
+    throw new DurableReplayStateError("lease_active");
+  }
+  const expiredAttempt = ReplayAttemptSchema.parse({
+    ...attempt,
+    endedAt: lease.expiresAt,
+    error: {
+      code: "lease_expired",
+      ...options.effect,
+      message: "The worker lease expired before a terminal attempt commit.",
+    },
+    retryDisposition: "not_retryable",
+    status: "lease_expired",
+  });
+  const terminalJob = ReplayJobSchema.parse({
+    ...job,
+    currentLease: undefined,
+    stateVersion: nextCounter(job.stateVersion),
+    status: options.status,
+    terminal: {
+      attemptId: attempt.attemptId,
+      code: options.code,
+      committedAt: now,
+      status: options.status,
+    },
+  });
+  return { attempt: expiredAttempt, job: terminalJob };
 }
 
 export function completeReplayAttempt(

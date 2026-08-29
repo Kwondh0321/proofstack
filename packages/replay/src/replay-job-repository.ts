@@ -54,10 +54,17 @@ export interface ClaimDurableReplayJobCommand {
   readonly workerProtocol: WorkerProtocolReference;
 }
 
-export interface ClaimDurableReplayJobResult {
-  readonly snapshot: ReplayJobSnapshot;
-  readonly workerFence: ReplayWorkerMutationFence;
-}
+export type ClaimDurableReplayJobResult =
+  | {
+      readonly claimed: false;
+      readonly reason: "retry_not_ready" | "terminalized";
+      readonly snapshot: ReplayJobSnapshot;
+    }
+  | {
+      readonly claimed: true;
+      readonly snapshot: ReplayJobSnapshot;
+      readonly workerFence: ReplayWorkerMutationFence;
+    };
 
 export interface HeartbeatDurableReplayJobCommand {
   readonly leaseDurationMilliseconds: number;

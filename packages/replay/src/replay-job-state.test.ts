@@ -10,6 +10,7 @@ import {
   acknowledgeReplayCancellation,
   type ClaimReplayJobOptions,
   claimReplayJob,
+  closeExpiredReplayAttempt,
   completeReplayAttempt,
   createQueuedReplayJob,
   heartbeatReplayJob,
@@ -370,6 +371,55 @@ describe("durable replay job creation and claim", () => {
 });
 
 describe("durable replay heartbeat and terminal commit", () => {
+  it("closes an expired attempt without reopening or inventing a retry", () => {
+    const first = initialClaim();
+    const closed = closeExpiredReplayAttempt(first.job, first.attempt, {
+      code: "retries_exhausted",
+      effect: {
+        effectCertainty: "may_have_occurred",
+        effectRetrySafety: { kind: "not_retryable" },
+      },
+      now: first.lease.expiresAt,
+      status: "failed",
+    });
+    expect(closed.attempt).toMatchObject({
+      endedAt: first.lease.expiresAt,
+      error: {
+        code: "lease_expired",
+        effectCertainty: "may_have_occurred",
+        effectRetrySafety: { kind: "not_retryable" },
+      },
+      retryDisposition: "not_retryable",
+      status: "lease_expired",
+    });
+    expect(closed.job).toMatchObject({
+      currentLease: undefined,
+      stateVersion: 3,
+      status: "failed",
+      terminal: { code: "retries_exhausted", status: "failed" },
+    });
+  });
+
+  it("requires an expired running lease and a matching current attempt", () => {
+    const first = initialClaim();
+    const close = (job: ReplayJob, attempt: ReplayAttempt, now: string) =>
+      closeExpiredReplayAttempt(job, attempt, {
+        code: "deadline_reached",
+        effect: { effectCertainty: "none" },
+        now,
+        status: "timed_out",
+      });
+    expectStateError(() => close(first.job, first.attempt, first.lease.acquiredAt), "lease_active");
+    expectStateError(
+      () => close(queuedJob(), first.attempt, first.lease.expiresAt),
+      "state_conflict",
+    );
+    expectStateError(
+      () => close(first.job, { ...first.attempt, attemptSequence: 1 }, first.lease.expiresAt),
+      "invalid_attempt_state",
+    );
+  });
+
   it("heartbeats only the current unexpired lease using server time", () => {
     const first = initialClaim();
     const heartbeat = heartbeatReplayJob(
