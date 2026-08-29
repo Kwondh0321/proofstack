@@ -433,6 +433,26 @@ function requireOptionalArtifactRole(
   }
 }
 
+function registerSemanticReference(
+  identities: Map<string, string>,
+  artifactId: string,
+  identity: string,
+  label: string,
+  context: z.RefinementCtx,
+  path: readonly (string | number)[],
+): void {
+  const existing = identities.get(artifactId);
+  if (existing !== undefined && existing !== identity) {
+    context.addIssue({
+      code: "custom",
+      message: `${label} artifact references must use one semantic identity`,
+      path: [...path],
+    });
+    return;
+  }
+  identities.set(artifactId, identity);
+}
+
 export const InteractionCaptureManifestSchema = z
   .object({
     artifacts: InteractionArtifactsSchema,
@@ -458,6 +478,9 @@ export const InteractionCaptureManifestSchema = z
     );
     const referencedArtifactIds = new Set<string>();
     const attemptIds: string[] = [];
+    const normalizedRequestIdentities = new Map<string, string>();
+    const promptIdentities = new Map<string, string>();
+    const toolContractIdentities = new Map<string, string>();
     const toolCallIds: string[] = [];
     let attemptCount = 0;
 
@@ -480,6 +503,14 @@ export const InteractionCaptureManifestSchema = z
       }
 
       if (interaction.kind === "model") {
+        registerSemanticReference(
+          promptIdentities,
+          interaction.prompt.artifactId,
+          `${interaction.prompt.promptId}\u0000${interaction.prompt.promptVersion}\u0000${interaction.prompt.definitionSha256}`,
+          "Prompt",
+          context,
+          ["interactions", interactionIndex, "prompt", "artifactId"],
+        );
         requireArtifactRole(
           artifactIndex,
           referencedArtifactIds,
@@ -490,6 +521,14 @@ export const InteractionCaptureManifestSchema = z
           interaction.prompt.definitionSha256,
         );
         interaction.toolContracts.forEach((tool, toolIndex) => {
+          registerSemanticReference(
+            toolContractIdentities,
+            tool.artifactId,
+            `${tool.toolId}\u0000${tool.toolVersion}\u0000${tool.definitionSha256}`,
+            "Tool contract",
+            context,
+            ["interactions", interactionIndex, "toolContracts", toolIndex, "artifactId"],
+          );
           requireArtifactRole(
             artifactIndex,
             referencedArtifactIds,
@@ -502,6 +541,14 @@ export const InteractionCaptureManifestSchema = z
         });
         interaction.attempts.forEach((attempt, attemptIndex) => {
           const basePath = ["interactions", interactionIndex, "attempts", attemptIndex] as const;
+          registerSemanticReference(
+            normalizedRequestIdentities,
+            attempt.normalizedRequest.artifactId,
+            `${attempt.normalizedRequest.adapterName}\u0000${attempt.normalizedRequest.adapterVersion}\u0000${attempt.normalizedRequest.sha256}`,
+            "Normalized request",
+            context,
+            [...basePath, "normalizedRequest", "artifactId"],
+          );
           requireArtifactRole(
             artifactIndex,
             referencedArtifactIds,
@@ -578,6 +625,14 @@ export const InteractionCaptureManifestSchema = z
         });
       } else {
         toolCallIds.push(interaction.callId);
+        registerSemanticReference(
+          toolContractIdentities,
+          interaction.tool.artifactId,
+          `${interaction.tool.toolId}\u0000${interaction.tool.toolVersion}\u0000${interaction.tool.definitionSha256}`,
+          "Tool contract",
+          context,
+          ["interactions", interactionIndex, "tool", "artifactId"],
+        );
         requireArtifactRole(
           artifactIndex,
           referencedArtifactIds,
@@ -589,6 +644,14 @@ export const InteractionCaptureManifestSchema = z
         );
         interaction.attempts.forEach((attempt, attemptIndex) => {
           const basePath = ["interactions", interactionIndex, "attempts", attemptIndex] as const;
+          registerSemanticReference(
+            normalizedRequestIdentities,
+            attempt.normalizedRequest.artifactId,
+            `${attempt.normalizedRequest.adapterName}\u0000${attempt.normalizedRequest.adapterVersion}\u0000${attempt.normalizedRequest.sha256}`,
+            "Normalized request",
+            context,
+            [...basePath, "normalizedRequest", "artifactId"],
+          );
           requireArtifactRole(
             artifactIndex,
             referencedArtifactIds,

@@ -371,6 +371,59 @@ describe("InteractionCaptureManifestSchema", () => {
     ).toBe(false);
   });
 
+  it("requires one semantic identity per prompt, tool contract, and normalized artifact", () => {
+    const value = validManifest();
+    const model = value.interactions[0];
+    const tool = value.interactions[1];
+    expect(
+      InteractionCaptureManifestSchema.safeParse({
+        ...value,
+        interactions: [model, { ...tool, tool: { ...tool.tool, toolVersion: "9.9.9" } }],
+      }).success,
+    ).toBe(false);
+
+    const secondModel = {
+      ...model,
+      attempts: [
+        {
+          ...model.attempts[0],
+          attemptId: "att_model_two",
+          normalizedRequest: {
+            ...model.attempts[0].normalizedRequest,
+            adapterVersion: "9.9.9",
+          },
+        },
+      ],
+      interactionId: "int_model_two",
+      sequence: 2,
+    } as const;
+    expect(
+      InteractionCaptureManifestSchema.safeParse({
+        ...value,
+        interactions: [model, tool, secondModel],
+      }).success,
+    ).toBe(false);
+    expect(
+      InteractionCaptureManifestSchema.safeParse({
+        ...value,
+        interactions: [
+          model,
+          tool,
+          {
+            ...secondModel,
+            attempts: [
+              {
+                ...secondModel.attempts[0],
+                normalizedRequest: model.attempts[0].normalizedRequest,
+              },
+            ],
+            prompt: { ...model.prompt, promptVersion: "9.9.9" },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   it("requires contiguous unique interaction and attempt identities", () => {
     const value = validManifest();
     const model = value.interactions[0];
