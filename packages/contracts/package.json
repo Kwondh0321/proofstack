@@ -22,6 +22,10 @@
       "types": "./dist/dataset.d.ts",
       "import": "./dist/dataset.js"
     },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "import": "./dist/interaction.js"
+    },
     "./openapi": {
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js"
