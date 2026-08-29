@@ -1,0 +1,113 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": { "stringValue": "proofstack-genai-fixture" }
+          }
+        ]
+      },
+      "schemaUrl": "https://opentelemetry.io/schemas/1.41.0",
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "proofstack.fixture.instrumentation",
+            "version": "1.0.0"
+          },
+          "schemaUrl": "https://opentelemetry.io/schemas/1.41.0",
+          "spans": [
+            {
+              "traceId": "0102030405060708090a0b0c0d0e0f10",
+              "spanId": "0102030405060708",
+              "name": "chat model-version-2026-08-01",
+              "startTimeUnixNano": "1787980000000000000",
+              "endTimeUnixNano": "1787980001000000000",
+              "kind": 3,
+              "flags": 1,
+              "status": { "code": 1 },
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": { "stringValue": "chat" }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": { "stringValue": "openai" }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": { "stringValue": "model-version-2026-08-01" }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": { "stringValue": "model-version-2026-08-15" }
+                },
+                {
+                  "key": "gen_ai.response.id",
+                  "value": { "stringValue": "response-123" }
+                },
+                {
+                  "key": "gen_ai.request.stream",
+                  "value": { "boolValue": false }
+                },
+                {
+                  "key": "gen_ai.input.messages",
+                  "value": {
+                    "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"sensitive-model-input\"}]}]"
+                  }
+                },
+                {
+                  "key": "gen_ai.output.messages",
+                  "value": {
+                    "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"sensitive-model-output\"}],\"finish_reason\":\"stop\"}]"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "0102030405060708090a0b0c0d0e0f10",
+              "spanId": "1112131415161718",
+              "parentSpanId": "0102030405060708",
+              "name": "execute_tool lookup_inventory",
+              "startTimeUnixNano": "1787980002000000000",
+              "endTimeUnixNano": "1787980003000000000",
+              "kind": 1,
+              "flags": 1,
+              "status": { "code": 1 },
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": { "stringValue": "execute_tool" }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": { "stringValue": "lookup_inventory" }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": { "stringValue": "call-123" }
+                },
+                {
+                  "key": "gen_ai.tool.type",
+                  "value": { "stringValue": "function" }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"query\":\"sensitive-tool-arguments\"}"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.result",
+                  "value": { "stringValue": "{\"value\":\"sensitive-tool-result\"}" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
