@@ -68,3 +68,26 @@ export class RecordedBoundaryRuntimeControlError extends Error {
     this.code = code;
   }
 }
+
+export type DurableReplayStateErrorCode =
+  | "attempt_limit_reached"
+  | "cancellation_conflict"
+  | "cancellation_required"
+  | "counter_exhausted"
+  | "effect_uncertain"
+  | "invalid_attempt_state"
+  | "invalid_lease_duration"
+  | "lease_active"
+  | "lease_expired"
+  | "stale_fence"
+  | "state_conflict";
+
+export class DurableReplayStateError extends Error {
+  readonly code: DurableReplayStateErrorCode;
+
+  constructor(code: DurableReplayStateErrorCode, options?: ErrorOptions) {
+    super(`Durable replay state transition failed: ${code}`, options);
+    this.name = "DurableReplayStateError";
+    this.code = code;
+  }
+}
