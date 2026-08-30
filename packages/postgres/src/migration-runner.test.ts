@@ -109,6 +109,7 @@ describe("migration inspection", () => {
         "0021_replay_worker_completion_authority",
         "0022_replay_worker_cancellation_acknowledgement",
         "0023_replay_estimated_budget_measurement",
+        "0024_replay_budget_work_boundary_kinds",
       ],
     });
   });

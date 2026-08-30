@@ -212,4 +212,21 @@ describe("durable replay job ledger migration", () => {
       expect(constraint.rows[0]?.definition).toContain(`'${measurement}'::character varying`);
     }
   });
+
+  it("accepts every boundary kind declared by the public budget work contract", async () => {
+    const constraint = await pool.query<{ readonly definition: string }>(`
+      SELECT pg_get_constraintdef(constraint_metadata.oid) AS definition
+      FROM pg_constraint AS constraint_metadata
+      JOIN pg_class AS relation ON relation.oid = constraint_metadata.conrelid
+      JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND relation.relname = 'proofstack_replay_budget_entries'
+        AND constraint_metadata.conname = 'proofstack_replay_budget_entries_work'
+    `);
+
+    expect(constraint.rows).toHaveLength(1);
+    for (const boundaryKind of ["data", "model", "retrieval", "tool"]) {
+      expect(constraint.rows[0]?.definition).toContain(`'${boundaryKind}'::character varying`);
+    }
+  });
 });
