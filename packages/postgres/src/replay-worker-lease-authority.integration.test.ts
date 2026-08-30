@@ -2246,13 +2246,22 @@ describe("replay worker lease authority", () => {
       readonly disposition: string;
       readonly reserved_amount: string;
     }>(
-      `SELECT dimension, disposition, actual_amount::text, reserved_amount::text
-       FROM public.proofstack_replay_budget_entry_dimensions
-       WHERE tenant_id = $1
-         AND job_id = $2
-         AND reservation_id = $3
-         AND entry_type = 'reconciliation'
-         AND dimension = 'toolCalls'`,
+      `SELECT
+         dimension.dimension,
+         dimension.disposition,
+         dimension.actual_amount::text,
+         dimension.reserved_amount::text
+       FROM public.proofstack_replay_budget_entry_dimensions AS dimension
+       JOIN public.proofstack_replay_budget_entries AS entry
+         ON entry.tenant_id = dimension.tenant_id
+        AND entry.job_id = dimension.job_id
+        AND entry.ledger_sequence = dimension.ledger_sequence
+        AND entry.entry_type = dimension.entry_type
+       WHERE dimension.tenant_id = $1
+         AND dimension.job_id = $2
+         AND entry.reservation_id = $3
+         AND dimension.entry_type = 'reconciliation'
+         AND dimension.dimension = 'toolCalls'`,
       [tenantId, jobId, cancellationReservationId],
     );
     expect(retainedOverrun.rows).toEqual([
