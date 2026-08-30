@@ -33,6 +33,15 @@ describe("PrincipalContextSchema", () => {
     ).toBe(true);
   });
 
+  it("keeps replay control-plane capabilities distinct from evaluation and release authority", () => {
+    expect(
+      PrincipalContextSchema.safeParse({
+        ...developmentPrincipal,
+        capabilities: ["replay:read", "replay:run", "replay:cancel", "replay:manage"],
+      }).success,
+    ).toBe(true);
+  });
+
   it("requires a credential identifier for non-development authentication", () => {
     const result = PrincipalContextSchema.safeParse({
       ...developmentPrincipal,
@@ -119,6 +128,9 @@ describe("WorkloadCapabilitySchema", () => {
     "artifact:write",
     "artifact:read",
     "dataset:read",
+    "replay:read",
+    "replay:run",
+    "replay:cancel",
     "evaluation:run",
     "policy:evaluate",
   ])("accepts delegable capability %s", (capability) => {
@@ -129,6 +141,7 @@ describe("WorkloadCapabilitySchema", () => {
     "artifact:read:restricted",
     "artifact:delete",
     "dataset:manage",
+    "replay:manage",
     "identity:manage",
     "approval:decide",
     "project:manage",

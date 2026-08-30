@@ -88,6 +88,28 @@ describe("requireWorkloadDelegation", () => {
     ).not.toThrow();
   });
 
+  it("delegates bounded replay work but never replay definition management", () => {
+    const replayIssuer = principal({
+      capabilities: [
+        "identity:manage",
+        "replay:read",
+        "replay:run",
+        "replay:cancel",
+        "replay:manage",
+      ],
+    });
+    expect(() =>
+      requireWorkloadDelegation(
+        replayIssuer,
+        ["replay:read", "replay:run", "replay:cancel"],
+        restricted,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      requireWorkloadDelegation(replayIssuer, ["replay:manage" as WorkloadCapability], restricted),
+    ).toThrow("capabilities are invalid");
+  });
+
   it("requires identity management capability", () => {
     expect(() =>
       requireWorkloadDelegation(

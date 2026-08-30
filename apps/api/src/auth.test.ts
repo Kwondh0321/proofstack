@@ -8,13 +8,13 @@ import type { FastifyRequest } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import {
   ApiKeyRequestAuthenticator,
+  type ApiKeyVerifier,
   AuthenticationRequiredError,
   BrowserRequestRejectedError,
   BrowserSessionRequestAuthenticator,
+  type BrowserSessionVerifier,
   CombinedRequestAuthenticator,
   createAuthenticator,
-  type ApiKeyVerifier,
-  type BrowserSessionVerifier,
 } from "./auth.js";
 import { loadConfig } from "./config.js";
 
@@ -320,7 +320,14 @@ describe("createAuthenticator", () => {
   it("creates the development adapter only for development mode", async () => {
     const authenticator = createAuthenticator(loadConfig({ PROOFSTACK_ENV: "test" }));
     await expect(authenticator.authenticate(request())).resolves.toMatchObject({
-      capabilities: expect.arrayContaining(["dataset:read", "dataset:manage"]),
+      capabilities: expect.arrayContaining([
+        "dataset:read",
+        "dataset:manage",
+        "replay:read",
+        "replay:run",
+        "replay:cancel",
+        "replay:manage",
+      ]),
       principalId: "usr_local",
       tenantId: "ten_local",
     });
