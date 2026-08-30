@@ -79,6 +79,11 @@ const modules = [
     packageName: "@proofstack/artifact-maintenance",
   },
   {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/postgres", "@proofstack/replay"]),
+    directory: "services/replay-worker/src",
+    packageName: "@proofstack/replay-worker",
+  },
+  {
     allowed: new Set([
       "@proofstack/artifacts",
       "@proofstack/contracts",
