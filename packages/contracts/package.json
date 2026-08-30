@@ -49,6 +49,10 @@
     "./replay-accounting": {
       "types": "./dist/replay-accounting.d.ts",
       "import": "./dist/replay-accounting.js"
+    },
+    "./replay-worker-protocol": {
+      "types": "./dist/replay-worker-protocol.d.ts",
+      "import": "./dist/replay-worker-protocol.js"
     }
   },
   "files": [
