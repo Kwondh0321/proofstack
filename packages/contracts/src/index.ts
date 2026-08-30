@@ -13,6 +13,7 @@ export * from "./replay.js";
 export * from "./replay-accounting.js";
 export * from "./replay-boundary-execution.js";
 export * from "./replay-job.js";
+export * from "./replay-job-snapshot.js";
 export * from "./replay-plan.js";
 export * from "./replay-worker-protocol.js";
 export * from "./replay-worker-protocol-v2.js";
