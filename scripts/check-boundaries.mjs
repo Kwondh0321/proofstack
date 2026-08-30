@@ -130,6 +130,11 @@ const modules = [
     directory: "examples/interaction-capture/src",
     packageName: "@proofstack/example-interaction-capture",
   },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/replay-worker"]),
+    directory: "examples/durable-replay/src",
+    packageName: "@proofstack/example-durable-replay",
+  },
 ];
 
 const internalPackages = new Set(modules.map((module) => module.packageName));
