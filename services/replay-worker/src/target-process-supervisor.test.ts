@@ -9,7 +9,6 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { PreparedTargetLaunch } from "./target-launch.js";
 import {
-  MAX_REPLAY_TARGET_TIMER_DELAY_MS,
   superviseReplayTargetProcess,
   type SuperviseReplayTargetProcessOptions,
 } from "./target-process-supervisor.js";
@@ -372,16 +371,26 @@ describe("superviseReplayTargetProcess", () => {
     });
   });
 
-  it("honors cooperative and forced deadlines", async () => {
-    for (const mode of ["hang", "ignore_stop", "ignore_kill"]) {
-      const value = await fixture(mode, { deadlineAtMs: Date.now() + 40 });
-      const result = await superviseReplayTargetProcess(value.options);
+  it("honors cooperative and forced deadlines", { timeout: 10_000 }, async () => {
+    const results = await Promise.all(
+      (
+        [
+          ["hang", null],
+          ["ignore_stop", "SIGTERM"],
+          ["ignore_kill", "SIGKILL"],
+        ] as const
+      ).map(async ([mode, expectedSignal]) => {
+        const value = await fixture(mode, { deadlineAtMs: Date.now() + 5_000 });
+        const result = await superviseReplayTargetProcess(value.options);
+        return { expectedSignal, mode, result };
+      }),
+    );
+    for (const { expectedSignal, mode, result } of results) {
       expect(result).toMatchObject({
         failureCode: "deadline_reached",
         status: "deadline_reached",
       });
-      if (mode === "ignore_stop") expect(result.signal).toBe("SIGTERM");
-      if (mode === "ignore_kill") expect(result.signal).toBe("SIGKILL");
+      expect(result.signal, mode).toBe(expectedSignal);
     }
   });
 
@@ -447,7 +456,7 @@ describe("superviseReplayTargetProcess", () => {
     });
 
     const distantDeadline = await fixture("complete", {
-      deadlineAtMs: Date.now() + MAX_REPLAY_TARGET_TIMER_DELAY_MS + 10_000,
+      deadlineAtMs: Number.MAX_SAFE_INTEGER,
     });
     await expect(superviseReplayTargetProcess(distantDeadline.options)).rejects.toMatchObject({
       code: "invalid_supervisor_options",
