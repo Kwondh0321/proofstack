@@ -7,15 +7,11 @@ import {
   type TargetRelease,
 } from "@proofstack/contracts";
 import { requireCapability, requireEnvironmentAccess } from "@proofstack/core";
+import { InvalidReplayDefinitionInputError, ReplayDefinitionNotFoundError } from "./errors.js";
 import {
-  InvalidReplayDefinitionInputError,
-  ReplayDefinitionNotFoundError,
-  ReplayRepositoryContractError,
-} from "./errors.js";
-import {
-  validateAndProjectReplayPlan,
-  validateAndProjectTargetRelease,
-} from "./replay-definition.js";
+  validatedStoredReplayPlan,
+  validatedStoredTargetRelease,
+} from "./replay-definition-validation.js";
 import type { ReplayDefinitionRepository } from "./replay-definition-repository.js";
 
 interface ReplayDefinitionReadRoute {
@@ -68,57 +64,6 @@ function readIdentifier(input: unknown, field: string): string {
   return parsed.data;
 }
 
-function scopesEqual(left: TargetRelease["scope"], right: TargetRelease["scope"]): boolean {
-  return (
-    left.tenantId === right.tenantId &&
-    left.projectId === right.projectId &&
-    left.environmentId === right.environmentId
-  );
-}
-
-function validatedStoredTargetRelease(
-  input: unknown,
-  scope: TargetRelease["scope"],
-  targetReleaseId: string,
-): TargetRelease {
-  let release: TargetRelease;
-  try {
-    release = validateAndProjectTargetRelease(input).release;
-  } catch (cause) {
-    throw new ReplayRepositoryContractError(
-      "The replay repository returned an invalid target release",
-      { cause },
-    );
-  }
-  if (release.targetReleaseId !== targetReleaseId || !scopesEqual(release.scope, scope)) {
-    throw new ReplayRepositoryContractError(
-      "The replay repository substituted a target release outside the exact query",
-    );
-  }
-  return release;
-}
-
-function validatedStoredReplayPlan(
-  input: unknown,
-  scope: ReplayPlan["scope"],
-  planVersionId: string,
-): ReplayPlan {
-  let plan: ReplayPlan;
-  try {
-    plan = validateAndProjectReplayPlan(input).plan;
-  } catch (cause) {
-    throw new ReplayRepositoryContractError("The replay repository returned an invalid plan", {
-      cause,
-    });
-  }
-  if (plan.planVersionId !== planVersionId || !scopesEqual(plan.scope, scope)) {
-    throw new ReplayRepositoryContractError(
-      "The replay repository substituted a plan outside the exact query",
-    );
-  }
-  return plan;
-}
-
 function authorizedScope(command: ReplayDefinitionReadRoute): {
   readonly scope: ReturnType<typeof EvidenceScopeSchema.parse>;
 } {
@@ -140,7 +85,7 @@ export class ReadTargetRelease {
     const targetReleaseId = readIdentifier(command.targetReleaseId, "targetReleaseId");
     const stored = await this.repository.findTargetRelease(structuredClone(scope), targetReleaseId);
     if (stored === null) throw new ReplayDefinitionNotFoundError();
-    const release = validatedStoredTargetRelease(stored, scope, targetReleaseId);
+    const release = validatedStoredTargetRelease(stored, scope, targetReleaseId).release;
     if (release.targetId !== targetId) throw new ReplayDefinitionNotFoundError();
     return structuredClone(release);
   }
@@ -156,7 +101,7 @@ export class ReadReplayPlan {
     const planVersionId = readIdentifier(command.planVersionId, "planVersionId");
     const stored = await this.repository.findReplayPlan(structuredClone(scope), planVersionId);
     if (stored === null) throw new ReplayDefinitionNotFoundError();
-    const plan = validatedStoredReplayPlan(stored, scope, planVersionId);
+    const plan = validatedStoredReplayPlan(stored, scope, planVersionId).plan;
     if (plan.planId !== planId) throw new ReplayDefinitionNotFoundError();
     return structuredClone(plan);
   }

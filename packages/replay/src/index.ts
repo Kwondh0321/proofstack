@@ -1,5 +1,6 @@
 export * from "./errors.js";
 export * from "./execute-recorded-boundary-replay.js";
+export * from "./publish-replay-definitions.js";
 export * from "./preflight.js";
 export * from "./replay-budget.js";
 export * from "./replay-definition.js";
