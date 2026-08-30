@@ -71,6 +71,12 @@ function failureError(processResult: ReplayTargetProcessResult): ReplayAttemptEr
         "The target exceeded a declared bounded output control.",
         processResult,
       );
+    case "runtime_control_violated":
+      return attemptError(
+        "isolation_failed",
+        "The target violated a declared deterministic runtime control.",
+        processResult,
+      );
     case "protocol_failed":
     case "target_incomplete":
       return attemptError(
@@ -88,6 +94,12 @@ function failureError(processResult: ReplayTargetProcessResult): ReplayAttemptEr
       return attemptError(
         "target_process_interrupted",
         "The target process exited unsuccessfully before completion.",
+        processResult,
+      );
+    case "result_publication_failed":
+      return attemptError(
+        "target_temporary_failure",
+        "The bounded attempt report could not be published.",
         processResult,
       );
     case "worker_cancelled":

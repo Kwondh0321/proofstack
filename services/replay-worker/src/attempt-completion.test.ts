@@ -304,10 +304,12 @@ describe("completeSupervisedReplayAttempt", () => {
     const cases = [
       ["boundary_resolution_failed", "fixture_unavailable"],
       ["output_limit_exceeded", "isolation_failed"],
+      ["runtime_control_violated", "isolation_failed"],
       ["protocol_failed", "contract_mismatch"],
       ["target_incomplete", "contract_mismatch"],
       ["spawn_failed", "target_content_unavailable"],
       ["target_exit_failed", "target_process_interrupted"],
+      ["result_publication_failed", "target_temporary_failure"],
       ["worker_cancelled", "authority_denied"],
       ["invalid_supervisor_options", "worker_internal_error"],
       [null, "worker_internal_error"],

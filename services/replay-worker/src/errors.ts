@@ -46,6 +46,8 @@ export type ReplayTargetSupervisorFailureCode =
   | "invalid_supervisor_options"
   | "output_limit_exceeded"
   | "protocol_failed"
+  | "result_publication_failed"
+  | "runtime_control_violated"
   | "spawn_failed"
   | "target_exit_failed"
   | "target_incomplete"
@@ -170,6 +172,18 @@ export class ReplayAttemptReportError extends Error {
   constructor(code: ReplayAttemptReportErrorCode, options?: ErrorOptions) {
     super(`Replay attempt report failed: ${code}`, options);
     this.name = "ReplayAttemptReportError";
+    this.code = code;
+  }
+}
+
+export type ReplayAttemptRunnerErrorCode = "invalid_runner_context" | "invalid_runner_policy";
+
+export class ReplayAttemptRunnerError extends Error {
+  readonly code: ReplayAttemptRunnerErrorCode;
+
+  constructor(code: ReplayAttemptRunnerErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt runner failed: ${code}`, options);
+    this.name = "ReplayAttemptRunnerError";
     this.code = code;
   }
 }
