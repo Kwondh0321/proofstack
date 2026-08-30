@@ -70,6 +70,8 @@ export class RecordedBoundaryRuntimeControlError extends Error {
 }
 
 export type ReplayTargetProcessProtocolErrorCode =
+  | "boundary_request_mismatch"
+  | "boundary_result_mismatch"
   | "boundary_response_mismatch"
   | "duplicate_request_id"
   | "invalid_start_message"
@@ -77,6 +79,7 @@ export type ReplayTargetProcessProtocolErrorCode =
   | "invalid_worker_message"
   | "random_response_mismatch"
   | "request_sequence_mismatch"
+  | "runtime_control_unavailable"
   | "session_closed"
   | "session_mismatch"
   | "target_adapter_mismatch"

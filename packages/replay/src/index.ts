@@ -12,5 +12,6 @@ export * from "./replay-job-repository.js";
 export * from "./replay-job-state.js";
 export * from "./replay-retry.js";
 export * from "./replay-target-process-session.js";
+export * from "./replay-target-process-v2-session.js";
 export * from "./runtime-controls.js";
 export * from "./target-adapter.js";
