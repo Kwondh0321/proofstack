@@ -10,7 +10,6 @@ import {
   ReplayBudgetLedgerEntrySchema,
   ReplayBudgetWorkReferenceSchema,
   ReplayCancellationAcknowledgementSchema,
-  ReplayCancellationRequestSchema,
   ReplayExecutionObservationPayloadSchema,
   ReplayExecutionObservationSchema,
   ReplayJobSchema,
@@ -45,18 +44,14 @@ import {
   type ReserveDurableReplayBudgetCommand,
 } from "@proofstack/replay";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import {
+  loadPostgresReplayJobSnapshot,
+  replayFencesEqual,
+  requirePostgresReplayJobSnapshot,
+} from "./postgres-replay-job-snapshot.js";
 import { withTenantTransaction } from "./tenant-transaction.js";
 
 const MAX_LEASE_DURATION_MILLISECONDS = 86_400_000;
-const SNAPSHOT_KEYS = [
-  "attempts",
-  "budgetLedger",
-  "cancellationAcknowledgements",
-  "cancellationRequest",
-  "executionObservations",
-  "job",
-  "usageObservations",
-] as const;
 
 type WorkerOperation =
   | "acknowledge"
@@ -67,10 +62,6 @@ type WorkerOperation =
   | "heartbeat"
   | "reconcile"
   | "reserve";
-
-interface SnapshotRow extends QueryResultRow {
-  readonly snapshot: unknown;
-}
 
 interface CreatedMutationRow extends QueryResultRow {
   readonly created: boolean;
@@ -107,16 +98,6 @@ interface JobMutationRow extends QueryResultRow {
 interface CompletionRow extends QueryResultRow {
   readonly attempt: unknown;
   readonly job: unknown;
-}
-
-interface RawSnapshot {
-  readonly attempts: unknown;
-  readonly budgetLedger: unknown;
-  readonly cancellationAcknowledgements: unknown;
-  readonly cancellationRequest: unknown;
-  readonly executionObservations: unknown;
-  readonly job: unknown;
-  readonly usageObservations: unknown;
 }
 
 function contractViolation(message: string, cause?: unknown): never {
@@ -194,194 +175,11 @@ function mapPersistenceError(error: unknown, operation: WorkerOperation): never 
   throw error;
 }
 
-function sameScope(left: EvidenceScope, right: EvidenceScope): boolean {
-  return (
-    left.tenantId === right.tenantId &&
-    left.projectId === right.projectId &&
-    left.environmentId === right.environmentId
-  );
-}
-
-function sameFence(left: ReplayWorkerMutationFence, right: ReplayWorkerMutationFence): boolean {
-  return (
-    left.jobId === right.jobId &&
-    left.attemptId === right.attemptId &&
-    left.leaseId === right.leaseId &&
-    left.workerId === right.workerId &&
-    left.fencingToken === right.fencingToken &&
-    left.recoveryEpoch === right.recoveryEpoch
-  );
-}
-
 function requireRecord(input: unknown, label: string): Readonly<Record<string, unknown>> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     contractViolation(`${label} is not an object`);
   }
   return input as Readonly<Record<string, unknown>>;
-}
-
-function requireArray(input: unknown, label: string): readonly unknown[] {
-  if (!Array.isArray(input)) contractViolation(`${label} is not an array`);
-  return input;
-}
-
-function requireExactSnapshotKeys(value: Readonly<Record<string, unknown>>): void {
-  const keys = Object.keys(value).sort();
-  if (!isDeepStrictEqual(keys, [...SNAPSHOT_KEYS].sort())) {
-    contractViolation("PostgreSQL returned an invalid replay snapshot shape");
-  }
-}
-
-function parseSnapshot(
-  input: unknown,
-  expectedScope: EvidenceScope,
-  expectedJobId: string,
-): ReplayJobSnapshot {
-  try {
-    const value = requireRecord(input, "Replay snapshot");
-    requireExactSnapshotKeys(value);
-    const raw = value as unknown as RawSnapshot;
-    const job = ReplayJobSchema.parse(raw.job);
-    const attempts = requireArray(raw.attempts, "Replay attempts").map((item) =>
-      ReplayAttemptSchema.parse(item),
-    );
-    const budgetLedger = requireArray(raw.budgetLedger, "Replay budget ledger").map((item) =>
-      ReplayBudgetLedgerEntrySchema.parse(item),
-    );
-    const cancellationAcknowledgements = requireArray(
-      raw.cancellationAcknowledgements,
-      "Replay cancellation acknowledgements",
-    ).map((item) => ReplayCancellationAcknowledgementSchema.parse(item));
-    const cancellationRequest =
-      raw.cancellationRequest === null
-        ? null
-        : ReplayCancellationRequestSchema.parse(raw.cancellationRequest);
-    const executionObservations = requireArray(
-      raw.executionObservations,
-      "Replay execution observations",
-    ).map((item) => ReplayExecutionObservationSchema.parse(item));
-    const usageObservations = requireArray(raw.usageObservations, "Replay usage observations").map(
-      (item) => ReplayUsageObservationSchema.parse(item),
-    );
-
-    if (job.jobId !== expectedJobId || !sameScope(job.scope, expectedScope)) {
-      contractViolation("PostgreSQL replay snapshot escaped its authorized scope");
-    }
-    if (
-      attempts.some((attempt, index) => {
-        const previous = attempts[index - 1];
-        return (
-          attempt.jobId !== job.jobId ||
-          attempt.attemptSequence !== index ||
-          !sameScope(attempt.scope, job.scope) ||
-          !isDeepStrictEqual(attempt.plan, job.plan) ||
-          attempt.mutationFence.recoveryEpoch > job.recoveryEpoch ||
-          attempt.mutationFence.fencingToken > job.lastFencingToken ||
-          (previous !== undefined &&
-            (attempt.mutationFence.fencingToken <= previous.mutationFence.fencingToken ||
-              attempt.mutationFence.recoveryEpoch < previous.mutationFence.recoveryEpoch))
-        );
-      }) ||
-      (attempts.length === 0
-        ? job.latestAttemptSequence !== undefined
-        : job.latestAttemptSequence !== attempts.length - 1 ||
-          attempts.at(-1)?.mutationFence.fencingToken !== job.lastFencingToken)
-    ) {
-      contractViolation("PostgreSQL replay attempt history is not contiguous");
-    }
-
-    const attemptsById = new Map(attempts.map((attempt) => [attempt.attemptId, attempt]));
-    const requireKnownFence = (fence: ReplayWorkerMutationFence) => {
-      const attempt = attemptsById.get(fence.attemptId);
-      if (!attempt || !sameFence(attempt.mutationFence, fence) || fence.jobId !== job.jobId) {
-        contractViolation("PostgreSQL replay history contains an unknown worker fence");
-      }
-    };
-    const latestAttempt = attempts.at(-1);
-    if (job.currentLease) {
-      requireKnownFence(job.currentLease.mutationFence);
-      if (
-        latestAttempt?.status !== "running" ||
-        !sameFence(latestAttempt.mutationFence, job.currentLease.mutationFence)
-      ) {
-        contractViolation(
-          "PostgreSQL replay current lease does not own the latest running attempt",
-        );
-      }
-    }
-    if (job.terminal?.attemptId) {
-      const terminalAttempt = attemptsById.get(job.terminal.attemptId);
-      if (
-        !terminalAttempt ||
-        terminalAttempt.attemptId !== latestAttempt?.attemptId ||
-        terminalAttempt.status === "running" ||
-        terminalAttempt.endedAt === undefined ||
-        Date.parse(job.terminal.committedAt) < Date.parse(terminalAttempt.endedAt)
-      ) {
-        contractViolation("PostgreSQL replay terminal record does not close the latest attempt");
-      }
-    }
-
-    if (
-      budgetLedger.some((entry, index) => {
-        requireKnownFence(entry.mutationFence);
-        return entry.ledgerSequence !== index || !sameScope(entry.scope, job.scope);
-      })
-    ) {
-      contractViolation("PostgreSQL replay budget history is not contiguous");
-    }
-    if (
-      cancellationRequest &&
-      (cancellationRequest.jobId !== job.jobId || !sameScope(cancellationRequest.scope, job.scope))
-    ) {
-      contractViolation("PostgreSQL replay cancellation request escaped its job scope");
-    }
-    for (const acknowledgement of cancellationAcknowledgements) {
-      requireKnownFence(acknowledgement.mutationFence);
-      if (
-        !cancellationRequest ||
-        acknowledgement.cancellationId !== cancellationRequest.cancellationId ||
-        !sameScope(acknowledgement.scope, job.scope)
-      ) {
-        contractViolation("PostgreSQL replay cancellation acknowledgement has no exact request");
-      }
-    }
-
-    const observations = [...executionObservations, ...usageObservations].sort(
-      (left, right) => left.observationSequence - right.observationSequence,
-    );
-    if (
-      observations.some((observation, index) => {
-        requireKnownFence(observation.mutationFence);
-        return (
-          observation.observationSequence !== index || !sameScope(observation.scope, job.scope)
-        );
-      })
-    ) {
-      contractViolation("PostgreSQL replay observation history is not contiguous");
-    }
-    for (const observation of executionObservations) {
-      if (
-        observation.payload.kind === "cancellation" &&
-        observation.payload.cancellationId !== cancellationRequest?.cancellationId
-      ) {
-        contractViolation("PostgreSQL replay cancellation observation has no exact request");
-      }
-    }
-
-    return structuredClone({
-      attempts,
-      budgetLedger,
-      cancellationAcknowledgements,
-      cancellationRequest,
-      executionObservations,
-      job,
-      usageObservations,
-    });
-  } catch (error) {
-    if (error instanceof ReplayRepositoryContractError) throw error;
-    contractViolation("PostgreSQL returned an invalid replay job snapshot", error);
-  }
 }
 
 function requireScope(input: EvidenceScope): EvidenceScope {
@@ -446,29 +244,6 @@ function requireOneRow<Row extends QueryResultRow>(rows: readonly Row[], label: 
   return row;
 }
 
-async function loadSnapshot(
-  client: PoolClient,
-  scope: EvidenceScope,
-  jobId: string,
-): Promise<ReplayJobSnapshot | null> {
-  const result = await client.query<SnapshotRow>(
-    "SELECT public.proofstack_read_replay_job_snapshot($1, $2, $3) AS snapshot",
-    [scope.projectId, scope.environmentId, jobId],
-  );
-  const row = requireOneRow(result.rows, "replay snapshot result");
-  return row.snapshot === null ? null : parseSnapshot(row.snapshot, scope, jobId);
-}
-
-async function requireSnapshot(
-  client: PoolClient,
-  scope: EvidenceScope,
-  jobId: string,
-): Promise<ReplayJobSnapshot> {
-  const snapshot = await loadSnapshot(client, scope, jobId);
-  if (!snapshot) contractViolation("A successful replay mutation returned no durable snapshot");
-  return snapshot;
-}
-
 async function requireCreatedMutation<Row extends CreatedMutationRow>(
   client: PoolClient,
   sql: string,
@@ -490,7 +265,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
     const scope = requireScope(scopeInput);
     const jobId = requireId(jobIdInput);
     return withTenantTransaction(this.pool, scope.tenantId, (client) =>
-      loadSnapshot(client, scope, jobId),
+      loadPostgresReplayJobSnapshot(client, scope, jobId),
     );
   }
 
@@ -523,7 +298,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
           ],
         );
         const row = requireOneRow(result.rows, "replay claim result");
-        const snapshot = await requireSnapshot(client, scope, jobId);
+        const snapshot = await requirePostgresReplayJobSnapshot(client, scope, jobId);
         const returnedJob = ReplayJobSchema.parse(row.job);
         if (!isDeepStrictEqual(returnedJob, snapshot.job)) {
           contractViolation("PostgreSQL replay claim job disagrees with its durable snapshot");
@@ -546,7 +321,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         if (
           !isDeepStrictEqual(returnedJob, snapshot.job) ||
           !isDeepStrictEqual(returnedAttempt, snapshot.attempts.at(-1)) ||
-          !sameFence(workerFence, returnedAttempt.mutationFence)
+          !replayFencesEqual(workerFence, returnedAttempt.mutationFence)
         ) {
           contractViolation("PostgreSQL replay claim result disagrees with its durable snapshot");
         }
@@ -567,7 +342,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         [scope.projectId, scope.environmentId, ...fenceParameters(fence), leaseDuration],
       );
       const row = requireOneRow(result.rows, "replay heartbeat result");
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       if (!isDeepStrictEqual(ReplayJobSchema.parse(row.job), snapshot.job)) {
         contractViolation("PostgreSQL replay heartbeat disagrees with its durable snapshot");
       }
@@ -600,7 +375,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         ],
         "replay cancellation acknowledgement result",
       );
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       const acknowledgement = ReplayCancellationAcknowledgementSchema.parse(row.acknowledgement);
       if (
         !isDeepStrictEqual(
@@ -638,7 +413,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         ],
         "replay budget reservation result",
       );
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       const reservation = ReplayBudgetLedgerEntrySchema.parse(row.reservation);
       if (
         reservation.entryType !== "reservation" ||
@@ -675,7 +450,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         ],
         "replay budget reconciliation result",
       );
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       const reconciliation = ReplayBudgetLedgerEntrySchema.parse(row.reconciliation);
       if (
         reconciliation.entryType !== "reconciliation" ||
@@ -713,7 +488,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         ],
         "replay execution observation result",
       );
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       const observation = ReplayExecutionObservationSchema.parse(row.observation);
       if (
         !isDeepStrictEqual(
@@ -769,7 +544,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         ],
         "replay usage observation result",
       );
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       const observation = ReplayUsageObservationSchema.parse(row.observation);
       if (
         !isDeepStrictEqual(
@@ -808,7 +583,7 @@ export class PostgresReplayJobWorkerRepository implements ReplayJobWorkerReposit
         ],
       );
       const row = requireOneRow(query.rows, "replay completion result");
-      const snapshot = await requireSnapshot(client, scope, fence.jobId);
+      const snapshot = await requirePostgresReplayJobSnapshot(client, scope, fence.jobId);
       const attempt = ReplayAttemptSchema.parse(row.attempt);
       if (
         !isDeepStrictEqual(ReplayJobSchema.parse(row.job), snapshot.job) ||

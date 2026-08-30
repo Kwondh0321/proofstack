@@ -261,6 +261,58 @@ function reconciliation() {
   });
 }
 
+function cancellationRequest(requestedAt = startedAt) {
+  return {
+    cancellationId: "can_worker_test",
+    jobId,
+    reason: "Stop the bounded test worker.",
+    reasonCode: "operator_request",
+    requestedAt,
+    requestedByPrincipalId: "usr_worker_test",
+    schemaVersion: "0.1",
+    scope,
+  } as const;
+}
+
+function executionObservation(
+  observationSequence: number,
+  observationId: string,
+  observedAt = endedAt,
+) {
+  return {
+    mutationFence: fence,
+    observationId,
+    observationSequence,
+    observedAt,
+    payload: {
+      afterCancellationRequest: false,
+      evidenceSha256: sha("8"),
+      event: "started",
+      kind: "target",
+    },
+    schemaVersion: "0.1",
+    scope,
+  } as const;
+}
+
+function usageObservation(observationSequence: number, observationId: string) {
+  return ReplayUsageObservationSchema.parse({
+    measurements: [
+      {
+        dimension: "jobAttempts",
+        usage: { amount: 1, source: "measured", status: "observed" },
+      },
+    ],
+    mutationFence: fence,
+    observationId,
+    observationSequence,
+    observedAt: endedAt,
+    schemaVersion: "0.1",
+    scope,
+    sourceEventSha256: sha("7"),
+  });
+}
+
 describe("PostgresReplayJobWorkerRepository", () => {
   it("reads one detached tenant-scoped snapshot and hides unavailable scope", async () => {
     const stored = queuedSnapshot();
@@ -578,6 +630,7 @@ describe("PostgresReplayJobWorkerRepository", () => {
   it.each([
     ["non-object payload", () => "invalid"],
     ["missing key", () => ({ ...queuedSnapshot(), attempts: undefined })],
+    ["extra key", () => ({ ...queuedSnapshot(), unexpected: true })],
     ["non-array attempts", () => ({ ...queuedSnapshot(), attempts: {} })],
     [
       "wrong scope",
@@ -594,6 +647,32 @@ describe("PostgresReplayJobWorkerRepository", () => {
       () => ({
         ...runningSnapshot(),
         attempts: [{ ...runningAttempt(), attemptSequence: 1 }],
+      }),
+    ],
+    [
+      "duplicate attempt identifiers",
+      () => ({
+        ...runningSnapshot(),
+        attempts: [runningAttempt(), runningAttempt()],
+      }),
+    ],
+    [
+      "duplicate lease identifiers",
+      () => ({
+        ...runningSnapshot(),
+        attempts: [
+          runningAttempt(),
+          {
+            ...runningAttempt(),
+            attemptId: "att_worker_second",
+            attemptSequence: 1,
+            mutationFence: {
+              ...fence,
+              attemptId: "att_worker_second",
+              fencingToken: 2,
+            },
+          },
+        ],
       }),
     ],
     [
@@ -654,10 +733,94 @@ describe("PostgresReplayJobWorkerRepository", () => {
       }),
     ],
     [
+      "terminal commit before attempt completion",
+      () => ({
+        ...runningSnapshot(),
+        attempts: [
+          {
+            ...runningAttempt(),
+            endedAt,
+            result: resultArtifact,
+            retryDisposition: "not_retryable",
+            status: "succeeded",
+          },
+        ],
+        job: {
+          ...runningJob(),
+          currentLease: undefined,
+          status: "succeeded",
+          terminal: {
+            attemptId,
+            code: "completed",
+            committedAt: startedAt,
+            status: "succeeded",
+          },
+        },
+      }),
+    ],
+    [
       "budget sequence gap",
       () => ({
         ...runningSnapshot(),
         budgetLedger: [{ ...reservation(), ledgerSequence: 1 }],
+      }),
+    ],
+    [
+      "duplicate budget reservation identifiers",
+      () => ({
+        ...runningSnapshot(),
+        budgetLedger: [reservation(), { ...reservation(), ledgerSequence: 1 }],
+      }),
+    ],
+    [
+      "reconciliation without a reservation",
+      () => ({
+        ...runningSnapshot(),
+        budgetLedger: [{ ...reconciliation(), ledgerSequence: 0 }],
+      }),
+    ],
+    [
+      "duplicate budget reconciliation identifiers",
+      () => ({
+        ...runningSnapshot(),
+        budgetLedger: [
+          reservation(),
+          { ...reconciliation(), reconciliationId: "rec_worker_duplicate" },
+          {
+            ...reservation(),
+            ledgerSequence: 2,
+            reservationId: "res_worker_second",
+          },
+          {
+            ...reconciliation(),
+            ledgerSequence: 3,
+            reconciliationId: "rec_worker_duplicate",
+            reservationId: "res_worker_second",
+          },
+        ],
+      }),
+    ],
+    [
+      "cancellation terminal without a request",
+      () => ({
+        ...queuedSnapshot(),
+        job: {
+          ...queuedSnapshot().job,
+          stateVersion: 2,
+          status: "cancelled",
+          terminal: {
+            code: "cancellation_committed",
+            committedAt: endedAt,
+            status: "cancelled",
+          },
+        },
+      }),
+    ],
+    [
+      "cancellation request before job creation",
+      () => ({
+        ...runningSnapshot(),
+        cancellationRequest: cancellationRequest("2026-08-29T01:00:00.000Z"),
       }),
     ],
     [
@@ -694,6 +857,78 @@ describe("PostgresReplayJobWorkerRepository", () => {
       }),
     ],
     [
+      "duplicate acknowledgement identifiers",
+      () => ({
+        ...runningSnapshot(),
+        cancellationAcknowledgements: [
+          {
+            acknowledgementId: "ack_worker_duplicate",
+            acknowledgedAt: endedAt,
+            action: "stop_requested",
+            cancellationId: "can_worker_test",
+            mutationFence: fence,
+            schemaVersion: "0.1",
+            scope,
+          },
+          {
+            acknowledgementId: "ack_worker_duplicate",
+            acknowledgedAt: endedAt,
+            action: "stop_requested",
+            cancellationId: "can_worker_test",
+            mutationFence: fence,
+            schemaVersion: "0.1",
+            scope,
+          },
+        ],
+        cancellationRequest: cancellationRequest(),
+      }),
+    ],
+    [
+      "acknowledgement before its request",
+      () => ({
+        ...runningSnapshot(),
+        cancellationAcknowledgements: [
+          {
+            acknowledgementId: "ack_worker_early",
+            acknowledgedAt: startedAt,
+            action: "stop_requested",
+            cancellationId: "can_worker_test",
+            mutationFence: fence,
+            schemaVersion: "0.1",
+            scope,
+          },
+        ],
+        cancellationRequest: cancellationRequest(endedAt),
+      }),
+    ],
+    [
+      "unordered acknowledgements",
+      () => ({
+        ...runningSnapshot(),
+        cancellationAcknowledgements: [
+          {
+            acknowledgementId: "ack_worker_second",
+            acknowledgedAt: "2026-08-30T01:00:00.500Z",
+            action: "stop_requested",
+            cancellationId: "can_worker_test",
+            mutationFence: fence,
+            schemaVersion: "0.1",
+            scope,
+          },
+          {
+            acknowledgementId: "ack_worker_first",
+            acknowledgedAt: "2026-08-30T01:00:00.250Z",
+            action: "stop_requested",
+            cancellationId: "can_worker_test",
+            mutationFence: fence,
+            schemaVersion: "0.1",
+            scope,
+          },
+        ],
+        cancellationRequest: cancellationRequest(),
+      }),
+    ],
+    [
       "observation sequence gap",
       () => ({
         ...runningSnapshot(),
@@ -712,6 +947,45 @@ describe("PostgresReplayJobWorkerRepository", () => {
             schemaVersion: "0.1",
             scope,
           },
+        ],
+      }),
+    ],
+    [
+      "duplicate observation identifiers",
+      () => ({
+        ...runningSnapshot(),
+        executionObservations: [
+          executionObservation(0, "obs_worker_duplicate"),
+          executionObservation(1, "obs_worker_duplicate"),
+        ],
+      }),
+    ],
+    [
+      "unordered execution observations",
+      () => ({
+        ...runningSnapshot(),
+        executionObservations: [
+          executionObservation(1, "obs_worker_second"),
+          executionObservation(0, "obs_worker_first"),
+        ],
+      }),
+    ],
+    [
+      "unordered usage observations",
+      () => ({
+        ...runningSnapshot(),
+        usageObservations: [
+          usageObservation(1, "obs_worker_usage_second"),
+          usageObservation(0, "obs_worker_usage_first"),
+        ],
+      }),
+    ],
+    [
+      "observation before attempt start",
+      () => ({
+        ...runningSnapshot(),
+        executionObservations: [
+          executionObservation(0, "obs_worker_early", "2026-08-29T01:00:00.000Z"),
         ],
       }),
     ],
