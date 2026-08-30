@@ -224,3 +224,52 @@ export class ReplaySimulationBoundaryError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayLiveProviderBoundaryErrorCode =
+  | "cancelled"
+  | "credential_unavailable"
+  | "invalid_context"
+  | "invalid_declaration"
+  | "invalid_provider_result"
+  | "invalid_request"
+  | "non_idempotent_write_denied"
+  | "provider_contract_failed"
+  | "provider_failed"
+  | "provider_identity_mismatch"
+  | "provider_rate_limited"
+  | "provider_temporarily_unavailable"
+  | "provider_unavailable"
+  | "request_kind_mismatch"
+  | "request_rejected"
+  | "request_too_large";
+
+export interface ReplayLiveProviderBoundaryErrorEvidence {
+  readonly effectCertainty: "confirmed" | "may_have_occurred" | "none";
+  readonly effectRetrySafety?:
+    | { readonly kind: "not_retryable" }
+    | { readonly evidenceSha256: string; readonly kind: "read_only" }
+    | {
+        readonly evidenceSha256: string;
+        readonly idempotencyKeySha256: string;
+        readonly kind: "destination_idempotency_verified";
+      };
+}
+
+export class ReplayLiveProviderBoundaryError extends Error {
+  readonly code: ReplayLiveProviderBoundaryErrorCode;
+  readonly effectCertainty: ReplayLiveProviderBoundaryErrorEvidence["effectCertainty"];
+  readonly effectRetrySafety?: ReplayLiveProviderBoundaryErrorEvidence["effectRetrySafety"];
+
+  constructor(
+    code: ReplayLiveProviderBoundaryErrorCode,
+    evidence: ReplayLiveProviderBoundaryErrorEvidence,
+  ) {
+    super(`Replay live-provider boundary failed: ${code}`);
+    this.name = "ReplayLiveProviderBoundaryError";
+    this.code = code;
+    this.effectCertainty = evidence.effectCertainty;
+    if (evidence.effectRetrySafety !== undefined) {
+      this.effectRetrySafety = evidence.effectRetrySafety;
+    }
+  }
+}

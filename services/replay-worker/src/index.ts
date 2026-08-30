@@ -10,6 +10,7 @@ export * from "./dispatch-loop.js";
 export * from "./errors.js";
 export * from "./json-line-channel.js";
 export * from "./lease-heartbeat.js";
+export * from "./live-provider-boundary.js";
 export * from "./simulation-boundary.js";
 export * from "./target-launch.js";
 export * from "./target-process-supervisor.js";
