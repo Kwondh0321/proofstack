@@ -1095,6 +1095,79 @@ export const replayJobRepositoryConformanceCases: readonly ReplayJobRepositoryCo
   {
     name: "terminalizes unsafe work and reclaims only evidence-safe expired effects",
     async run(factory) {
+      await withHarness(factory, "job_expired_cancel", async (harness) => {
+        const replayPlan = await publishPlan(harness, "job_expired_cancel", {
+          automatic: true,
+          maxAttempts: 2,
+        });
+        const create = createCommand("job_expired_cancel", replayPlan);
+        await harness.repository.createJob(create);
+        await harness.repository.claimJob(claimCommand("job_expired_cancel", replayPlan));
+        await harness.repository.requestCancellation({
+          input: {
+            cancellationId: "can_job_expired_cancel_001",
+            reason: "Do not retry work after its worker lease expires.",
+            reasonCode: "operator_request",
+          },
+          jobId: create.jobId,
+          requestedByPrincipalId: create.createdByPrincipalId,
+          scope: create.scope,
+        });
+        harness.setNow("2026-08-29T12:00:03.000Z");
+        const terminal = await harness.repository.claimJob(
+          claimCommand("job_expired_cancel", replayPlan, create.jobId, 2),
+        );
+        assert(!terminal.claimed, "expired cancellation terminal");
+        equal(terminal.reason, "terminalized", "expired cancellation reason");
+        equal(terminal.snapshot.job.status, "cancelled", "expired cancellation status");
+        equal(terminal.snapshot.attempts[0]?.status, "lease_expired", "expired attempt status");
+      });
+
+      await withHarness(factory, "job_expired_accounting", async (harness) => {
+        const replayPlan = await publishPlan(harness, "job_expired_accounting", {
+          automatic: true,
+          maxAttempts: 2,
+        });
+        const create = createCommand("job_expired_accounting", replayPlan);
+        await harness.repository.createJob(create);
+        const claimed = await harness.repository.claimJob(
+          claimCommand("job_expired_accounting", replayPlan),
+        );
+        assert(claimed.claimed, "expired accounting first claim");
+        const settledReservation = {
+          requested: amounts({ jobAttempts: 1 }),
+          reservationId: "res_job_expired_accounting_001",
+          scope: create.scope,
+          work: { kind: "attempt_start" },
+          workerFence: claimed.workerFence,
+        } as const;
+        await harness.repository.reserveBudget(settledReservation);
+        await harness.repository.reconcileBudget({
+          reconciliationId: "rec_job_expired_accounting_001",
+          reservationId: settledReservation.reservationId,
+          scope: create.scope,
+          usage: usage({
+            jobAttempts: { amount: 1, source: "measured", status: "observed" },
+          }),
+          workerFence: claimed.workerFence,
+        });
+        await harness.repository.reserveBudget({
+          requested: amounts({ jobAttempts: 1 }),
+          reservationId: "res_job_expired_accounting_002",
+          scope: create.scope,
+          work: { kind: "attempt_start" },
+          workerFence: claimed.workerFence,
+        });
+        harness.setNow("2026-08-29T12:00:03.000Z");
+        const terminal = await harness.repository.claimJob(
+          claimCommand("job_expired_accounting", replayPlan, create.jobId, 2),
+        );
+        assert(!terminal.claimed, "expired accounting terminal");
+        equal(terminal.reason, "terminalized", "expired accounting reason");
+        equal(terminal.snapshot.job.status, "failed", "expired accounting status");
+        equal(terminal.snapshot.budgetLedger.length, 3, "open reservation preservation");
+      });
+
       await withHarness(factory, "job_deadline", async (harness) => {
         const replayPlan = await publishPlan(harness, "job_deadline", {
           automatic: true,

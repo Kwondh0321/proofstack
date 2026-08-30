@@ -201,6 +201,50 @@ function terminalCloseReason(
   };
 }
 
+function hasOpenBudgetReservation(stored: StoredReplayJob): boolean {
+  const reconciledReservationIds = new Set<string>();
+  for (const entry of stored.budgetLedger) {
+    if (entry.entryType === "reconciliation") {
+      reconciledReservationIds.add(entry.reservationId);
+    }
+  }
+  for (const entry of stored.budgetLedger) {
+    if (entry.entryType === "reservation" && !reconciledReservationIds.has(entry.reservationId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type ExpiredTerminalDecision =
+  | { readonly code: "cancellation_committed"; readonly status: "cancelled" }
+  | {
+      readonly code: "execution_failed" | "retries_exhausted";
+      readonly status: "failed";
+    }
+  | { readonly code: "deadline_reached"; readonly status: "timed_out" };
+
+function terminalizeExpiredAttempt(
+  stored: StoredReplayJob,
+  effect: ReturnType<typeof expiredEffect>,
+  now: string,
+  terminal: ExpiredTerminalDecision,
+): StoredReplayJob {
+  const closed = closeExpiredReplayAttempt(stored.job, currentAttempt(stored), {
+    ...terminal,
+    effect,
+    now,
+  });
+  return withIntent(
+    {
+      ...stored,
+      attempts: replaceAttempt(stored.attempts, closed.attempt),
+      job: closed.job,
+    },
+    buildReplayJobTerminalOutboxIntent(closed.job),
+  );
+}
+
 /** Atomic in-memory reference adapter for the complete durable replay job port. */
 export class MemoryReplayJobRepository implements ReplayJobRepository {
   private readonly definitions: ReplayDefinitionRepository;
@@ -299,6 +343,24 @@ export class MemoryReplayJobRepository implements ReplayJobRepository {
       if (Date.parse(now) >= Date.parse(lease.expiresAt)) {
         expiredEffectValue = expiredEffect(plan);
         const attempt = currentAttempt(stored);
+        if (stored.cancellationRequest) {
+          const next = terminalizeExpiredAttempt(stored, expiredEffectValue, now, {
+            code: "cancellation_committed",
+            status: "cancelled",
+          });
+          this.throwInjectedIntentFailure("job_terminal");
+          this.replace(command.scope.tenantId, command.jobId, next);
+          return { claimed: false, reason: "terminalized", snapshot: snapshot(next) };
+        }
+        if (hasOpenBudgetReservation(stored)) {
+          const next = terminalizeExpiredAttempt(stored, expiredEffectValue, now, {
+            code: "execution_failed",
+            status: "failed",
+          });
+          this.throwInjectedIntentFailure("job_terminal");
+          this.replace(command.scope.tenantId, command.jobId, next);
+          return { claimed: false, reason: "terminalized", snapshot: snapshot(next) };
+        }
         const startedAt = stored.job.startedAt;
         /* v8 ignore next -- A running job is created only by a claim that also assigns startedAt. */
         if (!startedAt) {
@@ -316,18 +378,12 @@ export class MemoryReplayJobRepository implements ReplayJobRepository {
           policy: plan.retryPolicy,
         });
         if (!retry.eligible) {
-          const terminal = terminalCloseReason(retry.reason);
-          const closed = closeExpiredReplayAttempt(stored.job, attempt, {
-            ...terminal,
-            effect: expiredEffectValue,
+          const next = terminalizeExpiredAttempt(
+            stored,
+            expiredEffectValue,
             now,
-          });
-          let next: StoredReplayJob = {
-            ...stored,
-            attempts: replaceAttempt(stored.attempts, closed.attempt),
-            job: closed.job,
-          };
-          next = withIntent(next, buildReplayJobTerminalOutboxIntent(closed.job));
+            terminalCloseReason(retry.reason),
+          );
           this.throwInjectedIntentFailure("job_terminal");
           this.replace(command.scope.tenantId, command.jobId, next);
           return { claimed: false, reason: "terminalized", snapshot: snapshot(next) };

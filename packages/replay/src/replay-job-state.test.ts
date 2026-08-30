@@ -426,6 +426,30 @@ describe("durable replay heartbeat and terminal commit", () => {
     });
   });
 
+  it("lets a durable cancellation close an expired worker lease", () => {
+    const first = initialClaim();
+    const closed = closeExpiredReplayAttempt(first.job, first.attempt, {
+      code: "cancellation_committed",
+      effect: { effectCertainty: "none" },
+      now: first.lease.expiresAt,
+      status: "cancelled",
+    });
+    expect(closed.attempt).toMatchObject({
+      error: { code: "lease_expired", effectCertainty: "none" },
+      retryDisposition: "not_retryable",
+      status: "lease_expired",
+    });
+    expect(closed.job).toMatchObject({
+      currentLease: undefined,
+      status: "cancelled",
+      terminal: {
+        attemptId: first.attempt.attemptId,
+        code: "cancellation_committed",
+        status: "cancelled",
+      },
+    });
+  });
+
   it("requires an expired running lease and a matching current attempt", () => {
     const first = initialClaim();
     const close = (job: ReplayJob, attempt: ReplayAttempt, now: string) =>

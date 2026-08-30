@@ -76,6 +76,10 @@ export type CloseExpiredReplayAttemptOptions = {
   readonly now: string;
 } & (
   | {
+      readonly code: Extract<ReplayJobTerminalCode, "cancellation_committed">;
+      readonly status: Extract<ReplayJobTerminalStatus, "cancelled">;
+    }
+  | {
       readonly code: Extract<ReplayJobTerminalCode, "execution_failed" | "retries_exhausted">;
       readonly status: Extract<ReplayJobTerminalStatus, "failed">;
     }
