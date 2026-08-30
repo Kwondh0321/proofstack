@@ -182,6 +182,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/example-interaction-capture':
+        specifier: workspace:*
+        version: link:../interaction-capture
       '@proofstack/postgres':
         specifier: workspace:*
         version: link:../../packages/postgres
@@ -191,10 +194,22 @@ importers:
       '@proofstack/replay-worker':
         specifier: workspace:*
         version: link:../../services/replay-worker
+      '@proofstack/sdk':
+        specifier: workspace:*
+        version: link:../../sdks/typescript
       zod:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1119.0
+      '@proofstack/api':
+        specifier: workspace:*
+        version: link:../../apps/api
+      '@proofstack/s3':
+        specifier: workspace:*
+        version: link:../../packages/s3
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3

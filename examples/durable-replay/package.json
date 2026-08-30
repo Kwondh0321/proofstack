@@ -9,18 +9,25 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
+    "start": "node dist/run.js",
     "test": "vitest run --coverage",
+    "test:integration": "pnpm build && vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "worker": "node dist/worker.js"
   },
   "dependencies": {
     "@proofstack/contracts": "workspace:*",
+    "@proofstack/example-interaction-capture": "workspace:*",
     "@proofstack/postgres": "workspace:*",
     "@proofstack/replay": "workspace:*",
     "@proofstack/replay-worker": "workspace:*",
+    "@proofstack/sdk": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@proofstack/api": "workspace:*",
+    "@proofstack/s3": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",

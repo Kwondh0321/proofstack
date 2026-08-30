@@ -132,10 +132,14 @@ const modules = [
   },
   {
     allowed: new Set([
+      "@proofstack/api",
       "@proofstack/contracts",
+      "@proofstack/example-interaction-capture",
       "@proofstack/postgres",
       "@proofstack/replay",
       "@proofstack/replay-worker",
+      "@proofstack/s3",
+      "@proofstack/sdk",
     ]),
     directory: "examples/durable-replay/src",
     packageName: "@proofstack/example-durable-replay",

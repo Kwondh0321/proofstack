@@ -34,6 +34,7 @@
     "example:basic-agent": "pnpm build && pnpm --filter @proofstack/example-basic-agent start",
     "example:incident-to-regression": "pnpm build && pnpm --filter @proofstack/example-incident-to-regression start",
     "example:interaction-capture": "pnpm build && pnpm --filter @proofstack/example-interaction-capture start",
+    "example:durable-replay": "pnpm build && pnpm --filter @proofstack/example-durable-replay start",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint . && turbo run lint",
@@ -41,7 +42,7 @@
     "recovery:database:restore": "pnpm --filter @proofstack/recovery-operations recovery:database:restore",
     "test": "turbo run test",
     "test:integration:artifacts": "turbo run test:integration --concurrency=1 --filter=@proofstack/artifact-maintenance",
-    "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api",
+    "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api --filter=@proofstack/example-durable-replay",
     "test:integration:recovery": "turbo run test:integration --concurrency=1 --filter=@proofstack/recovery-operations",
     "test:integration:s3": "turbo run test:integration --concurrency=1 --filter=@proofstack/s3",
     "typecheck": "turbo run typecheck"
