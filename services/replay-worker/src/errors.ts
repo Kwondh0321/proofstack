@@ -187,3 +187,20 @@ export class ReplayAttemptRunnerError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayDispatchLoopErrorCode =
+  | "invalid_claim_identity"
+  | "invalid_delivery"
+  | "invalid_dispatch_policy"
+  | "settlement_failed"
+  | "source_unavailable";
+
+export class ReplayDispatchLoopError extends Error {
+  readonly code: ReplayDispatchLoopErrorCode;
+
+  constructor(code: ReplayDispatchLoopErrorCode, options?: ErrorOptions) {
+    super(`Replay dispatch loop failed: ${code}`, options);
+    this.name = "ReplayDispatchLoopError";
+    this.code = code;
+  }
+}
