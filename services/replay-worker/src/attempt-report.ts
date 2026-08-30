@@ -2,20 +2,28 @@ import { createHash } from "node:crypto";
 import {
   ArtifactContentReferenceSchema,
   EvidenceScopeSchema,
+  RecordedBoundaryReplayRuntimeEvidenceSchema,
   type ReplayArtifactContentReference,
+  type ReplayBoundaryExecutionResult,
+  ReplayBoundaryExecutionResultSchema,
   ReplayExecutionObservationPayloadSchema,
   ReplayWorkerMutationFenceSchema,
   ReplayWorkerStartTargetMessageSchema,
-  RecordedBoundaryReplayRuntimeEvidenceSchema,
+  type ReplayWorkerStartTargetV2Message,
+  ReplayWorkerStartTargetV2MessageSchema,
 } from "@proofstack/contracts";
-import { ReplayAttemptReportError } from "./errors.js";
+import { measureReplayAttemptUsage } from "./attempt-usage.js";
 import type { ReplayTargetOutputEvidence } from "./bounded-output.js";
+import { ReplayAttemptReportError } from "./errors.js";
 import type { ReplayTargetProcessResult } from "./target-process-supervisor.js";
 
 export const REPLAY_ATTEMPT_REPORT_MEDIA_TYPE =
   "application/vnd.proofstack.replay-attempt-report+json" as const;
 
-const REPORT_NAMESPACE = "proofstack.replay-attempt-report.v1";
+const REPORT_NAMESPACE_BY_VERSION = {
+  "0.1": "proofstack.replay-attempt-report.v1",
+  "0.2": "proofstack.replay-attempt-report.v2",
+} as const;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const ISOLATION_CONTROLS = [
   "environment_allowlist",
@@ -63,13 +71,16 @@ function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function artifactId(workerFence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>): string {
+function artifactId(
+  workerFence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  schemaVersion: keyof typeof REPORT_NAMESPACE_BY_VERSION,
+): string {
   return `art_${digest(
     JSON.stringify({
       attemptId: workerFence.attemptId,
       fencingToken: workerFence.fencingToken,
       jobId: workerFence.jobId,
-      namespace: REPORT_NAMESPACE,
+      namespace: REPORT_NAMESPACE_BY_VERSION[schemaVersion],
     }),
   ).slice(0, 40)}`;
 }
@@ -234,23 +245,179 @@ function processEvidence(processResult: ReplayTargetProcessResult, boundaryIds: 
   });
 }
 
+function reportTargetRelease(
+  targetRelease:
+    | ReturnType<typeof ReplayWorkerStartTargetMessageSchema.parse>["targetRelease"]
+    | ReplayWorkerStartTargetV2Message["targetRelease"],
+) {
+  return {
+    definitionSha256: targetRelease.definitionSha256,
+    targetAdapter: {
+      name: targetRelease.targetAdapter.name,
+      protocolVersion: targetRelease.targetAdapter.protocolVersion,
+      version: targetRelease.targetAdapter.version,
+    },
+    targetId: targetRelease.targetId,
+    targetReleaseId: targetRelease.targetReleaseId,
+    workerProtocol: {
+      name: targetRelease.workerProtocol.name,
+      version: targetRelease.workerProtocol.version,
+    },
+  };
+}
+
+function outputSummary(result: ReplayBoundaryExecutionResult) {
+  const outputSha256 = digest(JSON.stringify(result.output));
+  if (result.output.kind === "normalized_response") {
+    return {
+      adapter: result.output.response.adapter,
+      contentSha256: result.output.response.normalizedResponseSha256,
+      kind: result.output.kind,
+      outputSha256,
+      sizeBytes: result.output.response.sizeBytes,
+    } as const;
+  }
+  return {
+    artifactCount: result.output.response.artifacts.length,
+    kind: result.output.kind,
+    outputSha256,
+    resolutionSha256: digest(JSON.stringify(result.output.response.resolution)),
+    returnedArtifactsSha256: digest(
+      JSON.stringify(result.output.response.resolution.returnedArtifacts),
+    ),
+  } as const;
+}
+
+function boundaryResultEntry(result: ReplayBoundaryExecutionResult) {
+  return {
+    actualRequest: result.actualRequest,
+    boundaryId: result.boundaryId,
+    declarationSha256: digest(JSON.stringify(result.declaration)),
+    effectCertainty: result.effectCertainty,
+    ...(result.effectRetrySafety === undefined
+      ? {}
+      : { effectRetrySafety: result.effectRetrySafety }),
+    executionOrigin: result.executionOrigin,
+    mode: result.mode,
+    output: outputSummary(result),
+    usage: result.usage,
+  };
+}
+
+function boundaryResultsEvidence(
+  processResult: ReplayTargetProcessResult,
+  startMessage: ReplayWorkerStartTargetV2Message,
+) {
+  try {
+    if (!("boundaryResults" in processResult) || !Array.isArray(processResult.boundaryResults)) {
+      throw new TypeError("Protocol v2 process result is missing boundary results");
+    }
+    const results = Object.freeze(
+      processResult.boundaryResults.map((candidate) =>
+        ReplayBoundaryExecutionResultSchema.parse(candidate),
+      ),
+    );
+    const byBoundary = new Map(
+      startMessage.boundaries.map((boundary) => [boundary.boundaryId, boundary] as const),
+    );
+    for (const result of results) {
+      const boundary = byBoundary.get(result.boundaryId);
+      if (
+        boundary === undefined ||
+        boundary.kind !== result.actualRequest.kind ||
+        boundary.mode !== result.mode
+      ) {
+        throw new TypeError("Boundary result does not match the projected process declaration");
+      }
+    }
+    measureReplayAttemptUsage({
+      boundaryResults: results,
+      elapsedMilliseconds: 0,
+      emittedArtifactBytes: 0,
+      executionObservations: processResult.executionObservations,
+    });
+    const entries = Object.freeze(results.map(boundaryResultEntry));
+    return Object.freeze({
+      count: entries.length,
+      entries,
+      fullResultsSha256: digest(JSON.stringify(results)),
+      summarySha256: digest(JSON.stringify(entries)),
+    });
+  } catch (error) {
+    throw new ReplayAttemptReportError("invalid_process_result", { cause: error });
+  }
+}
+
+type ReplayStartMessage =
+  | ReturnType<typeof ReplayWorkerStartTargetMessageSchema.parse>
+  | ReplayWorkerStartTargetV2Message;
+
+function parseStartMessage(input: unknown): ReplayStartMessage {
+  const v2 = ReplayWorkerStartTargetV2MessageSchema.safeParse(input);
+  if (v2.success) return v2.data;
+  return ReplayWorkerStartTargetMessageSchema.parse(input);
+}
+
 function reportContent(options: PublishSuccessfulReplayAttemptReportOptions): {
   readonly bytes: Uint8Array;
+  readonly schemaVersion: "0.1" | "0.2";
   readonly scope: ReturnType<typeof EvidenceScopeSchema.parse>;
   readonly workerFence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>;
 } {
   let scope: ReturnType<typeof EvidenceScopeSchema.parse>;
   let workerFence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>;
-  let startMessage: ReturnType<typeof ReplayWorkerStartTargetMessageSchema.parse>;
+  let startMessage: ReplayStartMessage;
   try {
     scope = EvidenceScopeSchema.parse(options.scope);
     workerFence = ReplayWorkerMutationFenceSchema.parse(options.workerFence);
-    startMessage = ReplayWorkerStartTargetMessageSchema.parse(options.startMessage);
+    startMessage = parseStartMessage(options.startMessage);
     if (!/^rsv_[a-z0-9_]{1,60}$/.test(options.reservationId)) {
       throw new TypeError("Attempt reservation identifier is invalid");
     }
   } catch (error) {
     throw new ReplayAttemptReportError("invalid_report_context", { cause: error });
+  }
+  if (startMessage.schemaVersion === "0.2") {
+    const recordedBoundaryIds = startMessage.boundaries.flatMap((boundary) =>
+      boundary.mode === "recorded_stub" ? [boundary.boundaryId] : [],
+    );
+    const process = processEvidence(options.processResult, recordedBoundaryIds);
+    const boundaryResults = boundaryResultsEvidence(options.processResult, startMessage);
+    const report = {
+      attempt: {
+        attemptId: workerFence.attemptId,
+        fencingToken: workerFence.fencingToken,
+        jobId: workerFence.jobId,
+        leaseId: workerFence.leaseId,
+        recoveryEpoch: workerFence.recoveryEpoch,
+        workerId: workerFence.workerId,
+      },
+      boundaryResults,
+      budgetReservationId: options.reservationId,
+      process,
+      schemaVersion: "0.2",
+      scope: {
+        environmentId: scope.environmentId,
+        projectId: scope.projectId,
+        tenantId: scope.tenantId,
+      },
+      session: {
+        boundaries: startMessage.boundaries.map(({ boundaryId, kind, mode }) => ({
+          boundaryId,
+          kind,
+          mode,
+        })),
+        boundaryIds: startMessage.boundaries.map(({ boundaryId }) => boundaryId),
+        sessionId: startMessage.sessionId,
+        targetRelease: reportTargetRelease(startMessage.targetRelease),
+      },
+    } as const;
+    return {
+      bytes: Buffer.from(JSON.stringify(report), "utf8"),
+      schemaVersion: "0.2",
+      scope,
+      workerFence,
+    };
   }
   const process = processEvidence(
     options.processResult,
@@ -276,24 +443,12 @@ function reportContent(options: PublishSuccessfulReplayAttemptReportOptions): {
     session: {
       boundaryIds: startMessage.boundaries.map(({ boundaryId }) => boundaryId),
       sessionId: startMessage.sessionId,
-      targetRelease: {
-        definitionSha256: startMessage.targetRelease.definitionSha256,
-        targetAdapter: {
-          name: startMessage.targetRelease.targetAdapter.name,
-          protocolVersion: startMessage.targetRelease.targetAdapter.protocolVersion,
-          version: startMessage.targetRelease.targetAdapter.version,
-        },
-        targetId: startMessage.targetRelease.targetId,
-        targetReleaseId: startMessage.targetRelease.targetReleaseId,
-        workerProtocol: {
-          name: startMessage.targetRelease.workerProtocol.name,
-          version: startMessage.targetRelease.workerProtocol.version,
-        },
-      },
+      targetRelease: reportTargetRelease(startMessage.targetRelease),
     },
   } as const;
   return {
     bytes: Buffer.from(JSON.stringify(report), "utf8"),
+    schemaVersion: "0.1",
     scope,
     workerFence,
   };
@@ -308,7 +463,7 @@ export async function publishSuccessfulReplayAttemptReport(
     throw new ReplayAttemptReportError("invalid_report_size");
   }
   const expected = ArtifactContentReferenceSchema.parse({
-    artifactId: artifactId(content.workerFence),
+    artifactId: artifactId(content.workerFence, content.schemaVersion),
     classification: "internal",
     mediaType: REPLAY_ATTEMPT_REPORT_MEDIA_TYPE,
     sha256: digest(content.bytes),
