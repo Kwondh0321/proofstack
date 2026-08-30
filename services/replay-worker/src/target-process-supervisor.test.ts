@@ -531,6 +531,14 @@ describe("superviseReplayTargetProcess", () => {
       superviseReplayTargetProcess({ ...invalidExecutable.options, launch: invalidLaunch }),
     ).rejects.toMatchObject({ code: "spawn_failed" });
 
+    const undersizedStartFrame = await fixture("complete", { maxProtocolFrameBytes: 64 });
+    await expect(superviseReplayTargetProcess(undersizedStartFrame.options)).resolves.toMatchObject(
+      {
+        failureCode: "protocol_failed",
+        status: "failed",
+      },
+    );
+
     const messageLimit = await fixture("clock_random", { maxProtocolMessages: 1 });
     await expect(superviseReplayTargetProcess(messageLimit.options)).resolves.toMatchObject({
       failureCode: "protocol_failed",
