@@ -1302,7 +1302,7 @@ async function seedRecoverableReplayState(): Promise<void> {
         fencing_token, recovery_epoch, observed_at, observed_at_lexical, observation
       ) VALUES (
         $1, $2, $3, $4, $5, 1, '0.1', 'usage', NULL, $6, $7,
-        $8, $9, $10, $11, $12, $13::timestamptz, $13, $14::jsonb
+        $8, $9, $10, $11, $12, $13::timestamptz, $14, $15::jsonb
       )`,
       [
         scope.tenantId,
@@ -1317,6 +1317,7 @@ async function seedRecoverableReplayState(): Promise<void> {
         fence.workerId,
         fence.fencingToken,
         fence.recoveryEpoch,
+        observedAt,
         observedAt,
         JSON.stringify(usageObservation),
       ],
