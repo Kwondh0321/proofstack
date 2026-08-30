@@ -194,6 +194,15 @@ export class ReplayJobConflictError extends Error {
   }
 }
 
+export class InvalidReplayJobInputError extends TypeError {
+  readonly code = "replay_job_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidReplayJobInputError";
+  }
+}
+
 export class ReplayJobNotFoundError extends Error {
   readonly code = "replay_job_not_found";
 
