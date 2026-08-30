@@ -114,6 +114,7 @@ describe("migration inspection", () => {
         "0026_replay_worker_budget_reconciliation_authority",
         "0027_replay_worker_execution_observation_authority",
         "0028_replay_worker_usage_observation_authority",
+        "0029_normalize_replay_retry_policy",
       ],
     });
   });

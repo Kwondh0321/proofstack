@@ -77,8 +77,18 @@ interface ReplayPlanRow extends QueryResultRow {
   readonly project_id: string;
   readonly resource_matches: boolean;
   readonly retry_automatic: boolean;
+  readonly retry_backoff_delay_milliseconds: string | null;
+  readonly retry_backoff_initial_delay_milliseconds: string | null;
+  readonly retry_backoff_kind: string;
+  readonly retry_backoff_maximum_delay_milliseconds: string | null;
+  readonly retry_backoff_multiplier: number | null;
+  readonly retry_boundary_rate_limited: boolean;
+  readonly retry_boundary_temporarily_unavailable: boolean;
+  readonly retry_idempotency_requirement: string;
   readonly retry_max_attempts: number;
   readonly retry_per_attempt_timeout_milliseconds: string;
+  readonly retry_target_process_interrupted: boolean;
+  readonly retry_target_temporary_failure: boolean;
   readonly retry_total_deadline_milliseconds: string;
   readonly runtime_profile_definition_sha256: string;
   readonly runtime_profile_id: string;
@@ -495,6 +505,8 @@ function boundaryProjection(boundary: ReplayBoundaryDeclaration): BoundaryProjec
 }
 
 function requirePlanRowMatches(row: ReplayPlanRow, plan: ReplayPlan): void {
+  const backoff = plan.retryPolicy.backoff;
+  const retryableErrors = new Set(plan.retryPolicy.retryableErrors);
   if (
     row.resource_matches !== true ||
     row.created_at_matches !== true ||
@@ -524,6 +536,20 @@ function requirePlanRowMatches(row: ReplayPlanRow, plan: ReplayPlan): void {
     row.isolation_profile_definition_sha256 !== plan.isolationProfile.definitionSha256 ||
     row.boundary_count !== plan.boundaries.length ||
     row.retry_automatic !== plan.retryPolicy.automatic ||
+    row.retry_idempotency_requirement !== plan.retryPolicy.idempotencyRequirement ||
+    row.retry_backoff_kind !== backoff.kind ||
+    row.retry_backoff_delay_milliseconds !==
+      (backoff.kind === "fixed" ? String(backoff.delayMilliseconds) : null) ||
+    row.retry_backoff_initial_delay_milliseconds !==
+      (backoff.kind === "exponential" ? String(backoff.initialDelayMilliseconds) : null) ||
+    row.retry_backoff_maximum_delay_milliseconds !==
+      (backoff.kind === "exponential" ? String(backoff.maximumDelayMilliseconds) : null) ||
+    row.retry_backoff_multiplier !== (backoff.kind === "exponential" ? backoff.multiplier : null) ||
+    row.retry_boundary_rate_limited !== retryableErrors.has("boundary_rate_limited") ||
+    row.retry_boundary_temporarily_unavailable !==
+      retryableErrors.has("boundary_temporarily_unavailable") ||
+    row.retry_target_process_interrupted !== retryableErrors.has("target_process_interrupted") ||
+    row.retry_target_temporary_failure !== retryableErrors.has("target_temporary_failure") ||
     row.retry_max_attempts !== plan.retryPolicy.maxAttempts ||
     row.retry_per_attempt_timeout_milliseconds !==
       String(plan.retryPolicy.perAttemptTimeoutMilliseconds) ||
@@ -617,6 +643,11 @@ async function loadReplayPlan(
           AND resource.plan_id = plan.plan_id
       ) AS resource_matches,
       plan.retry_per_attempt_timeout_milliseconds::text AS retry_per_attempt_timeout_milliseconds,
+      plan.retry_backoff_delay_milliseconds::text AS retry_backoff_delay_milliseconds,
+      plan.retry_backoff_initial_delay_milliseconds::text AS
+        retry_backoff_initial_delay_milliseconds,
+      plan.retry_backoff_maximum_delay_milliseconds::text AS
+        retry_backoff_maximum_delay_milliseconds,
       plan.retry_total_deadline_milliseconds::text AS retry_total_deadline_milliseconds
     FROM public.proofstack_replay_plans AS plan
     WHERE plan.tenant_id = $1 AND plan.plan_version_id = $2`,

@@ -142,6 +142,7 @@ describe("PostgreSQL evidence schema", () => {
       "0026_replay_worker_budget_reconciliation_authority",
       "0027_replay_worker_execution_observation_authority",
       "0028_replay_worker_usage_observation_authority",
+      "0029_normalize_replay_retry_policy",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -150,6 +151,79 @@ describe("PostgreSQL evidence schema", () => {
         : expectedMigrations.slice(-firstMigration.newlyAppliedIds.length),
     );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
+
+    const normalizedRetryColumns = await pool.query<{
+      readonly column_name: string;
+      readonly is_generated: string;
+      readonly is_nullable: string;
+    }>(`
+      SELECT column_name, is_generated, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'proofstack_replay_plans'
+        AND column_name LIKE 'retry_%'
+      ORDER BY column_name
+    `);
+    expect(normalizedRetryColumns.rows).toEqual([
+      { column_name: "retry_automatic", is_generated: "NEVER", is_nullable: "NO" },
+      {
+        column_name: "retry_backoff_delay_milliseconds",
+        is_generated: "ALWAYS",
+        is_nullable: "YES",
+      },
+      {
+        column_name: "retry_backoff_initial_delay_milliseconds",
+        is_generated: "ALWAYS",
+        is_nullable: "YES",
+      },
+      { column_name: "retry_backoff_kind", is_generated: "ALWAYS", is_nullable: "NO" },
+      {
+        column_name: "retry_backoff_maximum_delay_milliseconds",
+        is_generated: "ALWAYS",
+        is_nullable: "YES",
+      },
+      {
+        column_name: "retry_backoff_multiplier",
+        is_generated: "ALWAYS",
+        is_nullable: "YES",
+      },
+      {
+        column_name: "retry_boundary_rate_limited",
+        is_generated: "ALWAYS",
+        is_nullable: "NO",
+      },
+      {
+        column_name: "retry_boundary_temporarily_unavailable",
+        is_generated: "ALWAYS",
+        is_nullable: "NO",
+      },
+      {
+        column_name: "retry_idempotency_requirement",
+        is_generated: "ALWAYS",
+        is_nullable: "NO",
+      },
+      { column_name: "retry_max_attempts", is_generated: "NEVER", is_nullable: "NO" },
+      {
+        column_name: "retry_per_attempt_timeout_milliseconds",
+        is_generated: "NEVER",
+        is_nullable: "NO",
+      },
+      {
+        column_name: "retry_target_process_interrupted",
+        is_generated: "ALWAYS",
+        is_nullable: "NO",
+      },
+      {
+        column_name: "retry_target_temporary_failure",
+        is_generated: "ALWAYS",
+        is_nullable: "NO",
+      },
+      {
+        column_name: "retry_total_deadline_milliseconds",
+        is_generated: "NEVER",
+        is_nullable: "NO",
+      },
+    ]);
 
     const traceOrderIndex = await pool.query<{
       readonly collation_name: string;

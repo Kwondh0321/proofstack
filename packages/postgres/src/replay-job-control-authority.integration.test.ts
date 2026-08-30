@@ -81,8 +81,11 @@ function testPlan() {
     planVersionId,
     retryPolicy: {
       automatic: false,
+      backoff: { kind: "none" },
+      idempotencyRequirement: "no_external_effect",
       maxAttempts: 1,
       perAttemptTimeoutMilliseconds: 2_000,
+      retryableErrors: [],
       totalDeadlineMilliseconds: 10_000,
     },
     runtimeProfile: {
