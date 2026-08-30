@@ -222,6 +222,26 @@ export class ReplayBoundaryDispatchError extends Error {
   }
 }
 
+export type ReplayRecordedStubBoundaryErrorCode =
+  | "artifact_digest_mismatch"
+  | "cancelled"
+  | "invalid_declaration"
+  | "invalid_request"
+  | "invalid_response"
+  | "invocation_digest_mismatch"
+  | "request_kind_mismatch"
+  | "response_mismatch";
+
+export class ReplayRecordedStubBoundaryError extends Error {
+  readonly code: ReplayRecordedStubBoundaryErrorCode;
+
+  constructor(code: ReplayRecordedStubBoundaryErrorCode) {
+    super(`Replay recorded-stub boundary failed: ${code}`);
+    this.name = "ReplayRecordedStubBoundaryError";
+    this.code = code;
+  }
+}
+
 export type ReplaySimulationBoundaryErrorCode =
   | "cancelled"
   | "invalid_declaration"
