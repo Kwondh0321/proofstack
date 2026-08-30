@@ -182,6 +182,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/replay':
+        specifier: workspace:*
+        version: link:../../packages/replay
       '@proofstack/replay-worker':
         specifier: workspace:*
         version: link:../../services/replay-worker
