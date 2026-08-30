@@ -175,6 +175,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT SELECT ON TABLE public.proofstack_replay_jobs, public.proofstack_replay_attempts, public.proofstack_replay_cancellation_requests, public.proofstack_replay_cancellation_acknowledgements, public.proofstack_replay_budget_entries, public.proofstack_replay_budget_entry_dimensions, public.proofstack_replay_observations, public.proofstack_replay_usage_measurements TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_create_replay_job(text, text, text, text, text, text, text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_request_replay_cancellation(text, text, text, text, text, text, text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_read_replay_job_snapshot(text, text, text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_replay_job_intent_status(text, text, text, jsonb, timestamptz) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_regression_publication_intent_status(text, text, text, text, text, jsonb, timestamptz) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_replay_publication_intent_status(text, text, text, text, text, jsonb, timestamptz) TO %ROLE%",

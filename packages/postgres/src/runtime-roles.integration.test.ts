@@ -311,6 +311,7 @@ describe("runtime role provisioning", () => {
       readonly replayJobDelete: boolean;
       readonly replayJobInsert: boolean;
       readonly replayJobIntentStatusExecute: boolean;
+      readonly replayJobSnapshotExecute: boolean;
       readonly replayJobSelect: boolean;
       readonly replayJobUpdate: boolean;
       readonly replaySelect: boolean;
@@ -568,6 +569,11 @@ describe("runtime role provisioning", () => {
           'proofstack_replay_job_intent_status(text, text, text, jsonb, timestamp with time zone)',
           'EXECUTE'
         ) AS "replayJobIntentStatusExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_read_replay_job_snapshot(text, text, text)',
+          'EXECUTE'
+        ) AS "replayJobSnapshotExecute",
         has_sequence_privilege(
           current_user,
           $1,
@@ -610,6 +616,7 @@ describe("runtime role provisioning", () => {
       replayJobDelete: false,
       replayJobInsert: false,
       replayJobIntentStatusExecute: true,
+      replayJobSnapshotExecute: true,
       replayJobSelect: true,
       replayJobUpdate: false,
       replaySelect: true,

@@ -229,6 +229,9 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_request_replay_cancellation(text, text, text, text, text, text, text) TO "proofstack_api"',
     );
     expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_read_replay_job_snapshot(text, text, text) TO "proofstack_api"',
+    );
+    expect(statements).toContain(
       'GRANT EXECUTE ON FUNCTION public.proofstack_valid_regression_text(text, integer) TO "proofstack_api"',
     );
     expect(statements).toContain(
