@@ -262,6 +262,31 @@ describe("completeSupervisedReplayAttempt", () => {
     expect(command).not.toHaveProperty("result");
   });
 
+  it("decides completion from the authoritative final heartbeat snapshot", async () => {
+    const initial = snapshot({ ledger: ledger() });
+    const authoritative = snapshot({
+      acknowledgements: [acknowledgement],
+      cancellationRequest: cancellation,
+      ledger: ledger(),
+    });
+    const targetRepository = repository(authoritative);
+    await completeSupervisedReplayAttempt({
+      leaseDurationMilliseconds: 1_000,
+      processResult: processResult("completed", null),
+      repository: targetRepository,
+      result: resultArtifact,
+      scope,
+      snapshot: initial,
+      workerFence,
+    });
+    expect(targetRepository.completeJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "cancellation_committed",
+        status: "cancelled",
+      }),
+    );
+  });
+
   it("preserves reconciled overruns as budget exhaustion", async () => {
     const command = await completionCommand({
       current: snapshot({ ledger: ledger({ overrun: true }) }),

@@ -230,12 +230,15 @@ export async function completeSupervisedReplayAttempt(
   options: CompleteSupervisedReplayAttemptOptions,
 ): Promise<ReplayJobSnapshot> {
   validateLeaseDuration(options.leaseDurationMilliseconds);
-  const context = validateContext(options);
-  const command = completionCommand(options, context);
-  await options.repository.heartbeatJob({
+  const requestedContext = validateContext(options);
+  completionCommand(options, requestedContext);
+  const snapshot = await options.repository.heartbeatJob({
     leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-    scope: context.scope,
-    workerFence: context.workerFence,
+    scope: requestedContext.scope,
+    workerFence: requestedContext.workerFence,
   });
+  const authoritativeOptions = { ...options, snapshot };
+  const context = validateContext(authoritativeOptions);
+  const command = completionCommand(authoritativeOptions, context);
   return await options.repository.completeJob(command);
 }
