@@ -5,6 +5,7 @@ import {
   ReplayBudgetReservationSchema,
   ReplayCancellationAcknowledgementSchema,
   ReplayCancellationRequestSchema,
+  ReplayExecutionObservationSchema,
   ReplayJobSchema,
   ReplayWorkerMutationFenceSchema,
   type WorkerProtocolReference,
@@ -499,6 +500,31 @@ async function reconcileBudget(
   );
 }
 
+async function appendExecutionObservation(
+  client: PoolClient,
+  fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  observationId: string,
+  payload: Readonly<Record<string, unknown>>,
+) {
+  return client.query<{ readonly created: boolean; readonly observation: unknown }>(
+    `SELECT * FROM public.proofstack_append_replay_execution_observation(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb
+    )`,
+    [
+      projectId,
+      environmentId,
+      fence.jobId,
+      fence.attemptId,
+      fence.leaseId,
+      fence.workerId,
+      fence.fencingToken,
+      fence.recoveryEpoch,
+      observationId,
+      JSON.stringify(payload),
+    ],
+  );
+}
+
 async function completeJob(
   client: PoolClient,
   fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
@@ -956,6 +982,163 @@ describe("replay worker lease authority", () => {
       }),
     );
     expect(ReplayJobSchema.parse(exhausted.rows[0]?.job).status).toBe("budget_exhausted");
+  });
+
+  it("appends ordered execution evidence through the current live fence", async () => {
+    const jobId = `job_worker_observe_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        `att_worker_observe_${runKey}`,
+        `lease_worker_observe_${runKey}`,
+        workerProtocol,
+        2_000,
+      ),
+    );
+    const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    const targetObservationId = `obs_worker_target_${runKey}`;
+    const targetPayload = {
+      afterCancellationRequest: false,
+      event: "started",
+      evidenceSha256: "a".repeat(64),
+      kind: "target",
+    } as const;
+
+    await expect(
+      withTenantTransaction(apiPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, targetObservationId, targetPayload),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(
+          client,
+          { ...fence, fencingToken: 2 },
+          targetObservationId,
+          targetPayload,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_exit_bad_${runKey}`, {
+          afterCancellationRequest: false,
+          event: "started",
+          evidenceSha256: "b".repeat(64),
+          exitCode: 0,
+          kind: "target",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_null_bad_${runKey}`, {
+          ...targetPayload,
+          event: null,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+
+    const concurrent = await Promise.all([
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, targetObservationId, targetPayload),
+      ),
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_isolation_${runKey}`, {
+          control: "network_policy",
+          evidenceSha256: "c".repeat(64),
+          kind: "isolation",
+          verdict: "verified",
+        }),
+      ),
+    ]);
+    const ordered = concurrent
+      .map((result) => ReplayExecutionObservationSchema.parse(result.rows[0]?.observation))
+      .sort((left, right) => left.observationSequence - right.observationSequence);
+    expect(ordered.map(({ observationSequence }) => observationSequence)).toEqual([0, 1]);
+    const targetObservation = ordered.find(
+      ({ observationId }) => observationId === targetObservationId,
+    );
+    expect(targetObservation?.payload).toEqual(targetPayload);
+
+    const retried = await withTenantTransaction(workerPool, tenantId, (client) =>
+      appendExecutionObservation(client, fence, targetObservationId, targetPayload),
+    );
+    expect(retried.rows).toEqual([{ created: false, observation: targetObservation }]);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, targetObservationId, {
+          ...targetPayload,
+          evidenceSha256: "d".repeat(64),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_boundary_missing_${runKey}`, {
+          afterCancellationRequest: false,
+          boundaryId: `bnd_worker_missing_${runKey}`,
+          boundaryKind: "retrieval",
+          effectCertainty: "none",
+          evidenceSha256: "e".repeat(64),
+          executionOrigin: "recorded",
+          kind: "boundary",
+          mode: "recorded_stub",
+          phase: "request_started",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+
+    const cancellationId = `can_worker_observe_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) =>
+      requestCancellation(client, jobId, cancellationId),
+    );
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      heartbeatJob(client, fence, 2_000),
+    );
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_cancel_order_bad_${runKey}`, {
+          ...targetPayload,
+          evidenceSha256: "f".repeat(64),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    const afterCancellation = await withTenantTransaction(workerPool, tenantId, (client) =>
+      appendExecutionObservation(client, fence, `obs_worker_after_cancel_${runKey}`, {
+        ...targetPayload,
+        afterCancellationRequest: true,
+        evidenceSha256: "1".repeat(64),
+      }),
+    );
+    expect(
+      ReplayExecutionObservationSchema.parse(afterCancellation.rows[0]?.observation)
+        .observationSequence,
+    ).toBe(2);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_cancel_wrong_${runKey}`, {
+          cancellationId: `can_worker_wrong_${runKey}`,
+          event: "request_observed",
+          evidenceSha256: "2".repeat(64),
+          kind: "cancellation",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    const cancellationObservation = await withTenantTransaction(workerPool, tenantId, (client) =>
+      appendExecutionObservation(client, fence, `obs_worker_cancel_${runKey}`, {
+        cancellationId,
+        event: "request_observed",
+        evidenceSha256: "3".repeat(64),
+        kind: "cancellation",
+      }),
+    );
+    expect(
+      ReplayExecutionObservationSchema.parse(cancellationObservation.rows[0]?.observation)
+        .observationSequence,
+    ).toBe(3);
   });
 
   it("rejects caller-authored lineage, excessive leases, null input, and stale fences", async () => {

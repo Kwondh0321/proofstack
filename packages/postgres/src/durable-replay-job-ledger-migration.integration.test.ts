@@ -121,6 +121,7 @@ describe("durable replay job ledger migration", () => {
       WHERE namespace.nspname = 'public'
         AND procedure.proname IN (
           'proofstack_acknowledge_replay_cancellation',
+          'proofstack_append_replay_execution_observation',
           'proofstack_create_replay_job',
           'proofstack_complete_replay_job',
           'proofstack_guard_replay_attempt_transition',

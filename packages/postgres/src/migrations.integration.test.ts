@@ -140,6 +140,7 @@ describe("PostgreSQL evidence schema", () => {
       "0024_replay_budget_work_boundary_kinds",
       "0025_replay_worker_budget_reservation_authority",
       "0026_replay_worker_budget_reconciliation_authority",
+      "0027_replay_worker_execution_observation_authority",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
