@@ -136,6 +136,7 @@ describe("PostgreSQL evidence schema", () => {
       "0020_audited_replay_attempt_transitions",
       "0021_replay_worker_completion_authority",
       "0022_replay_worker_cancellation_acknowledgement",
+      "0023_replay_estimated_budget_measurement",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

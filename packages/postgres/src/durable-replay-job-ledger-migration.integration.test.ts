@@ -195,4 +195,21 @@ describe("durable replay job ledger migration", () => {
       },
     ]);
   });
+
+  it("accepts every measurement declared by the public replay budget contract", async () => {
+    const constraint = await pool.query<{ readonly definition: string }>(`
+      SELECT pg_get_constraintdef(constraint_metadata.oid) AS definition
+      FROM pg_constraint AS constraint_metadata
+      JOIN pg_class AS relation ON relation.oid = constraint_metadata.conrelid
+      JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND relation.relname = 'proofstack_replay_budget_entry_dimensions'
+        AND constraint_metadata.conname = 'proofstack_replay_budget_entry_dimensions_shape'
+    `);
+
+    expect(constraint.rows).toHaveLength(1);
+    for (const measurement of ["estimated", "measured", "provider_reported", "unavailable"]) {
+      expect(constraint.rows[0]?.definition).toContain(`'${measurement}'::character varying`);
+    }
+  });
 });
