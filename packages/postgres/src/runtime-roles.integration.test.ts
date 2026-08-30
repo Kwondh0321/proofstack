@@ -179,6 +179,7 @@ describe("runtime role provisioning", () => {
     const replayWorkerPrivileges = await replayWorkerPool.query<{
       readonly acknowledgeExecute: boolean;
       readonly appendExecutionExecute: boolean;
+      readonly appendUsageExecute: boolean;
       readonly attemptsSelect: boolean;
       readonly attemptEventsSelect: boolean;
       readonly claimExecute: boolean;
@@ -219,6 +220,11 @@ describe("runtime role provisioning", () => {
         ) AS "appendExecutionExecute",
         has_function_privilege(
           current_user,
+          'proofstack_append_replay_usage_observation(text,text,text,text,text,text,bigint,bigint,text,text,text,jsonb)',
+          'EXECUTE'
+        ) AS "appendUsageExecute",
+        has_function_privilege(
+          current_user,
           'proofstack_claim_replay_job(text,text,text,text,text,text,text,text,text,bigint)',
           'EXECUTE'
         ) AS "claimExecute",
@@ -247,6 +253,7 @@ describe("runtime role provisioning", () => {
       {
         acknowledgeExecute: true,
         appendExecutionExecute: true,
+        appendUsageExecute: true,
         attemptsSelect: false,
         attemptEventsSelect: false,
         claimExecute: true,

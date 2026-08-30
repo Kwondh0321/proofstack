@@ -95,6 +95,7 @@ const PLATFORM_TABLES = [
 const PLATFORM_FUNCTIONS = [
   "public.proofstack_acknowledge_replay_cancellation(text, text, text, text, text, text, bigint, bigint, text, text)",
   "public.proofstack_append_replay_execution_observation(text, text, text, text, text, text, bigint, bigint, text, jsonb)",
+  "public.proofstack_append_replay_usage_observation(text, text, text, text, text, text, bigint, bigint, text, text, text, jsonb)",
   "public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint)",
   "public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb)",
   "public.proofstack_consume_oidc_login_transaction(text)",
@@ -214,6 +215,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_acknowledge_replay_cancellation(text, text, text, text, text, text, bigint, bigint, text, text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_append_replay_execution_observation(text, text, text, text, text, text, bigint, bigint, text, jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_append_replay_usage_observation(text, text, text, text, text, text, bigint, bigint, text, text, text, jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO %ROLE%",

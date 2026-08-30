@@ -7,6 +7,7 @@ import {
   ReplayCancellationRequestSchema,
   ReplayExecutionObservationSchema,
   ReplayJobSchema,
+  ReplayUsageObservationSchema,
   ReplayWorkerMutationFenceSchema,
   type WorkerProtocolReference,
 } from "@proofstack/contracts";
@@ -521,6 +522,35 @@ async function appendExecutionObservation(
       fence.recoveryEpoch,
       observationId,
       JSON.stringify(payload),
+    ],
+  );
+}
+
+async function appendUsageObservation(
+  client: PoolClient,
+  fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  observationId: string,
+  sourceEventSha256: string,
+  measurements: readonly Readonly<Record<string, unknown>>[],
+  boundaryId?: string,
+) {
+  return client.query<{ readonly created: boolean; readonly observation: unknown }>(
+    `SELECT * FROM public.proofstack_append_replay_usage_observation(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb
+    )`,
+    [
+      projectId,
+      environmentId,
+      fence.jobId,
+      fence.attemptId,
+      fence.leaseId,
+      fence.workerId,
+      fence.fencingToken,
+      fence.recoveryEpoch,
+      observationId,
+      boundaryId ?? null,
+      sourceEventSha256,
+      JSON.stringify(measurements),
     ],
   );
 }
@@ -1139,6 +1169,163 @@ describe("replay worker lease authority", () => {
       ReplayExecutionObservationSchema.parse(cancellationObservation.rows[0]?.observation)
         .observationSequence,
     ).toBe(3);
+  });
+
+  it("appends normalized usage evidence through the shared live-fence sequence", async () => {
+    const jobId = `job_worker_usage_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        `att_worker_usage_${runKey}`,
+        `lease_worker_usage_${runKey}`,
+        workerProtocol,
+        2_000,
+      ),
+    );
+    const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    const observationId = `obs_worker_usage_${runKey}`;
+    const sourceEventSha256 = "4".repeat(64);
+    const measurements = [
+      {
+        dimension: "inputTokens",
+        usage: { amount: 12, source: "provider_reported", status: "observed" },
+      },
+      {
+        dimension: "outputTokens",
+        usage: { reason: "provider_did_not_report", status: "unavailable" },
+      },
+    ] as const;
+
+    await expect(
+      withTenantTransaction(apiPool, tenantId, (client) =>
+        appendUsageObservation(client, fence, observationId, sourceEventSha256, measurements),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendUsageObservation(
+          client,
+          { ...fence, fencingToken: 2 },
+          observationId,
+          sourceEventSha256,
+          measurements,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendUsageObservation(
+          client,
+          fence,
+          `obs_worker_usage_order_${runKey}`,
+          sourceEventSha256,
+          [...measurements].reverse(),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendUsageObservation(
+          client,
+          fence,
+          `obs_worker_usage_null_${runKey}`,
+          sourceEventSha256,
+          [
+            {
+              dimension: "inputTokens",
+              usage: { amount: 1, source: null, status: "observed" },
+            },
+          ],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendUsageObservation(
+          client,
+          fence,
+          `obs_worker_usage_boundary_${runKey}`,
+          sourceEventSha256,
+          measurements,
+          `bnd_worker_missing_${runKey}`,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+
+    const concurrent = await Promise.all([
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendUsageObservation(client, fence, observationId, sourceEventSha256, measurements),
+      ),
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendExecutionObservation(client, fence, `obs_worker_usage_peer_${runKey}`, {
+          control: "output_limits",
+          evidenceSha256: "5".repeat(64),
+          kind: "isolation",
+          verdict: "verified",
+        }),
+      ),
+    ]);
+    const usageObservation = ReplayUsageObservationSchema.parse(
+      concurrent[0]?.rows[0]?.observation,
+    );
+    const executionObservation = ReplayExecutionObservationSchema.parse(
+      concurrent[1]?.rows[0]?.observation,
+    );
+    expect(
+      [usageObservation.observationSequence, executionObservation.observationSequence].sort(
+        (left, right) => left - right,
+      ),
+    ).toEqual([0, 1]);
+    expect(usageObservation).toMatchObject({
+      measurements,
+      mutationFence: fence,
+      observationId,
+      scope: { environmentId, projectId, tenantId },
+      sourceEventSha256,
+    });
+    expect(usageObservation).not.toHaveProperty("boundaryId");
+
+    const retried = await withTenantTransaction(workerPool, tenantId, (client) =>
+      appendUsageObservation(client, fence, observationId, sourceEventSha256, measurements),
+    );
+    expect(retried.rows).toEqual([{ created: false, observation: usageObservation }]);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        appendUsageObservation(client, fence, observationId, "6".repeat(64), measurements),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+
+    const normalized = await adminPool.query<{
+      readonly amount: string | null;
+      readonly dimension: string;
+      readonly source: string | null;
+      readonly unavailable_reason: string | null;
+      readonly usage_status: string;
+    }>(
+      `SELECT dimension, usage_status, amount::text, source, unavailable_reason
+       FROM public.proofstack_replay_usage_measurements
+       WHERE tenant_id = $1 AND observation_id = $2
+       ORDER BY dimension`,
+      [tenantId, observationId],
+    );
+    expect(normalized.rows).toEqual([
+      {
+        amount: "12",
+        dimension: "inputTokens",
+        source: "provider_reported",
+        unavailable_reason: null,
+        usage_status: "observed",
+      },
+      {
+        amount: null,
+        dimension: "outputTokens",
+        source: null,
+        unavailable_reason: "provider_did_not_report",
+        usage_status: "unavailable",
+      },
+    ]);
   });
 
   it("rejects caller-authored lineage, excessive leases, null input, and stale fences", async () => {

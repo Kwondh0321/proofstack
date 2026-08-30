@@ -122,6 +122,7 @@ describe("durable replay job ledger migration", () => {
         AND procedure.proname IN (
           'proofstack_acknowledge_replay_cancellation',
           'proofstack_append_replay_execution_observation',
+          'proofstack_append_replay_usage_observation',
           'proofstack_create_replay_job',
           'proofstack_complete_replay_job',
           'proofstack_guard_replay_attempt_transition',
