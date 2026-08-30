@@ -3,6 +3,7 @@ export * from "./attempt-cancellation.js";
 export * from "./attempt-completion.js";
 export * from "./attempt-observation-recorder.js";
 export * from "./attempt-preflight.js";
+export * from "./attempt-preflight-v2.js";
 export * from "./attempt-report.js";
 export * from "./attempt-runner.js";
 export * from "./boundary-dispatch.js";
