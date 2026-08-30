@@ -376,6 +376,34 @@ async function requestCancellation(client: PoolClient, jobId: string, cancellati
   );
 }
 
+async function acknowledgeCancellation(
+  client: PoolClient,
+  fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  acknowledgementId: string,
+  action:
+    | "observed_after_uninterruptible_completion"
+    | "stop_requested"
+    | "stopped_before_target_start" = "stopped_before_target_start",
+) {
+  return client.query<{ readonly acknowledgement: unknown; readonly created: boolean }>(
+    `SELECT * FROM public.proofstack_acknowledge_replay_cancellation(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    )`,
+    [
+      projectId,
+      environmentId,
+      fence.jobId,
+      fence.attemptId,
+      fence.leaseId,
+      fence.workerId,
+      fence.fencingToken,
+      fence.recoveryEpoch,
+      acknowledgementId,
+      action,
+    ],
+  );
+}
+
 async function completeJob(
   client: PoolClient,
   fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
@@ -568,6 +596,11 @@ describe("replay worker lease authority", () => {
       claimJob(client, lineageJobId, `att_worker_valid_${runKey}`, `lease_worker_valid_${runKey}`),
     );
     const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        acknowledgeCancellation(client, fence, `ack_worker_missing_${runKey}`),
+      ),
+    ).rejects.toMatchObject({ code: "P0002" });
     await expect(
       withTenantTransaction(workerPool, tenantId, (client) =>
         heartbeatJob(client, { ...fence, fencingToken: fence.fencingToken + 1 }),
@@ -887,48 +920,42 @@ describe("replay worker lease authority", () => {
       ),
     ).rejects.toMatchObject({ code: "55000" });
 
-    const acknowledgedAt = new Date(
-      Math.max(Date.now(), Date.parse(request.requestedAt)) + 1,
-    ).toISOString();
-    const acknowledgement = ReplayCancellationAcknowledgementSchema.parse({
-      acknowledgedAt,
-      acknowledgementId: `ack_worker_cancel_${runKey}`,
+    const acknowledgementId = `ack_worker_cancel_${runKey}`;
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        acknowledgeCancellation(client, { ...fence, fencingToken: 2 }, acknowledgementId),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    const acknowledged = await withTenantTransaction(workerPool, tenantId, (client) =>
+      acknowledgeCancellation(client, fence, acknowledgementId),
+    );
+    const acknowledgement = ReplayCancellationAcknowledgementSchema.parse(
+      acknowledged.rows[0]?.acknowledgement,
+    );
+    expect(acknowledged.rows[0]?.created).toBe(true);
+    expect(acknowledgement).toMatchObject({
+      acknowledgementId,
       action: "stopped_before_target_start",
       cancellationId,
       mutationFence: fence,
-      schemaVersion: "0.1",
-      scope: { environmentId, projectId, tenantId },
     });
-    await withTenantTransaction(adminPool, tenantId, (client) =>
-      client.query(
-        `INSERT INTO public.proofstack_replay_cancellation_acknowledgements (
-          tenant_id, project_id, environment_id, job_id, cancellation_id,
-          acknowledgement_id, schema_version, action, attempt_id, lease_id, worker_id,
-          fencing_token, recovery_epoch, acknowledged_at, acknowledged_at_lexical,
-          acknowledgement
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, '0.1', $7, $8, $9, $10, $11, $12,
-          $13::timestamptz, $14, $15::jsonb
-        )`,
-        [
-          tenantId,
-          projectId,
-          environmentId,
-          jobId,
-          cancellationId,
-          acknowledgement.acknowledgementId,
-          acknowledgement.action,
-          fence.attemptId,
-          fence.leaseId,
-          fence.workerId,
-          fence.fencingToken,
-          fence.recoveryEpoch,
-          acknowledgedAt,
-          acknowledgedAt,
-          JSON.stringify(acknowledgement),
-        ],
-      ),
+    expect(Date.parse(acknowledgement.acknowledgedAt)).toBeGreaterThanOrEqual(
+      Date.parse(request.requestedAt),
     );
+    const retried = await withTenantTransaction(workerPool, tenantId, (client) =>
+      acknowledgeCancellation(client, fence, acknowledgementId),
+    );
+    expect(retried.rows).toEqual([{ acknowledgement, created: false }]);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        acknowledgeCancellation(client, fence, acknowledgementId, "stop_requested"),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+    await expect(
+      withTenantTransaction(apiPool, tenantId, (client) =>
+        acknowledgeCancellation(client, fence, `ack_worker_api_${runKey}`),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
     const completed = await withTenantTransaction(workerPool, tenantId, (client) =>
       completeJob(client, fence, {
         code: "cancellation_committed",

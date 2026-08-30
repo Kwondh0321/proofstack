@@ -177,6 +177,7 @@ describe("runtime role provisioning", () => {
 
     const replayWorkerPool = poolFor(initial.replayWorker);
     const replayWorkerPrivileges = await replayWorkerPool.query<{
+      readonly acknowledgeExecute: boolean;
       readonly attemptsSelect: boolean;
       readonly attemptEventsSelect: boolean;
       readonly claimExecute: boolean;
@@ -205,6 +206,11 @@ describe("runtime role provisioning", () => {
           AS "outboxInsert",
         has_function_privilege(
           current_user,
+          'proofstack_acknowledge_replay_cancellation(text,text,text,text,text,text,bigint,bigint,text,text)',
+          'EXECUTE'
+        ) AS "acknowledgeExecute",
+        has_function_privilege(
+          current_user,
           'proofstack_claim_replay_job(text,text,text,text,text,text,text,text,text,bigint)',
           'EXECUTE'
         ) AS "claimExecute",
@@ -221,6 +227,7 @@ describe("runtime role provisioning", () => {
     `);
     expect(replayWorkerPrivileges.rows).toEqual([
       {
+        acknowledgeExecute: true,
         attemptsSelect: false,
         attemptEventsSelect: false,
         claimExecute: true,
