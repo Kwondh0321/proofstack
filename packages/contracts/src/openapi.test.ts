@@ -20,7 +20,7 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.6.0-workflow-1" },
+      info: { version: "0.7.0-workflow-1" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -57,9 +57,124 @@ describe("ProofStack OpenAPI document", () => {
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/regression-fixtures/{fixtureId}/interaction-versions/{fixtureVersionId}/revocation":
           {},
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-targets/{targetId}/releases/{targetReleaseId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-plans/{planId}/versions/{planVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-jobs/{jobId}": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-jobs/{jobId}/cancellation-requests/{cancellationId}":
+          {},
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
     });
+  });
+
+  it("documents exact replay control without latest or synchronous execution routes", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+        post?: {
+          parameters: Array<{ name: string }>;
+          requestBody: {
+            content: { "application/json": { schema: { $ref: string } } };
+          };
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const target =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-targets/{targetId}/releases/{targetReleaseId}"
+      ];
+    const plan =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-plans/{planId}/versions/{planVersionId}"
+      ];
+    const job = paths["/v1/projects/{projectId}/environments/{environmentId}/replay-jobs/{jobId}"];
+    const cancellation =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/replay-jobs/{jobId}/cancellation-requests/{cancellationId}"
+      ]?.post;
+
+    expect(target?.post?.security).toEqual([{ browserSession: [] }]);
+    expect(plan?.post?.security).toEqual([{ browserSession: [] }]);
+    for (const operation of [target?.get, plan?.get, job?.get, job?.post, cancellation]) {
+      expect(operation?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    }
+    expect(target?.get?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "targetId",
+      "targetReleaseId",
+    ]);
+    expect(plan?.get?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "planId",
+      "planVersionId",
+    ]);
+    expect(cancellation?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "jobId",
+      "cancellationId",
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
+    expect(target?.post?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/TargetReleaseDefinition",
+    );
+    expect(plan?.post?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/ReplayPlanDefinition",
+    );
+    expect(job?.post?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/CreateReplayJobRequest",
+    );
+    expect(cancellation?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/RequestReplayCancellation",
+    );
+
+    for (const mutation of [target?.post, plan?.post, job?.post, cancellation]) {
+      expect(mutation?.responses).toHaveProperty("200");
+      expect(mutation?.responses).toHaveProperty("201");
+      expect(mutation?.responses).toHaveProperty("409");
+      expect(mutation?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+      expect(mutation?.responses["201"]?.headers).toHaveProperty("Cache-Control");
+      expect(mutation?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    }
+    for (const read of [target?.get, plan?.get, job?.get]) {
+      expect(read?.responses).toHaveProperty("200");
+      expect(read?.responses).toHaveProperty("404");
+      expect(read?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    }
+    expect(cancellation?.responses).toHaveProperty("404");
+
+    for (const schema of [
+      "TargetReleaseDefinition",
+      "PublishTargetReleaseResponse",
+      "ReadTargetReleaseResponse",
+      "ReplayPlanDefinition",
+      "PublishReplayPlanResponse",
+      "ReadReplayPlanResponse",
+      "CreateReplayJobRequest",
+      "CreateReplayJobResponse",
+      "ReadReplayJobResponse",
+      "RequestReplayCancellation",
+      "RequestReplayCancellationResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
+    expect(Object.keys(paths).filter((path) => path.includes("replay"))).not.toEqual([]);
+    expect(Object.keys(paths).some((path) => /latest|execute/.test(path))).toBe(false);
   });
 
   it("documents exact regression versions, idempotent publication, and bounded failures", () => {

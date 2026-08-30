@@ -4,6 +4,7 @@ import {
   BrowserLogoutResponseSchema,
   BrowserReturnPathSchema,
   BrowserSessionResponseSchema,
+  CreateReplayJobResponseSchema,
   DEFAULT_TRACE_PAGE_SIZE,
   ExportRecordedInteractionFixtureContentResponseSchema,
   ExportRecordedInteractionFixtureMetadataResponseSchema,
@@ -12,6 +13,8 @@ import {
   MAX_TRACE_PAGE_SIZE,
   OidcStateSchema,
   ProblemDocumentSchema,
+  PublishReplayPlanResponseSchema,
+  PublishTargetReleaseResponseSchema,
   PublishRecordedInteractionFixtureVersionResponseSchema,
   PublishRegressionDatasetVersionResponseSchema,
   PublishRegressionFixtureVersionResponseSchema,
@@ -21,12 +24,16 @@ import {
   ReadRegressionDatasetVersionResponseSchema,
   ReadRegressionFixtureVersionResponseSchema,
   ReadinessResponseSchema,
+  ReadReplayJobResponseSchema,
+  ReadReplayPlanResponseSchema,
+  ReadTargetReleaseResponseSchema,
   ReserveArtifactResponseSchema,
   RevokeRecordedInteractionFixtureContentResponseSchema,
   TombstoneArtifactResponseSchema,
   TracePageCursorSchema,
   TraceResponseSchema,
   UploadArtifactResponseSchema,
+  RequestReplayCancellationResponseSchema,
 } from "./api.js";
 import {
   IssueApiKeyRequestSchema,
@@ -46,9 +53,11 @@ import {
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
 import { ExportRecordedInteractionFixtureContentRequestSchema } from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
+import { CreateReplayJobRequestSchema, RequestReplayCancellationSchema } from "./replay-job.js";
+import { ReplayPlanDefinitionSchema, TargetReleaseDefinitionSchema } from "./replay-plan.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.6.0-workflow-1" as const;
+export const PROOFSTACK_API_VERSION = "0.7.0-workflow-1" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -167,6 +176,54 @@ const datasetVersionParameter = {
   description: "Exact immutable regression dataset version identifier",
   in: "path",
   name: "datasetVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const targetParameter = {
+  description: "Opaque logical replay target identifier within the authorized scope",
+  in: "path",
+  name: "targetId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const targetReleaseParameter = {
+  description: "Exact immutable target release identifier",
+  in: "path",
+  name: "targetReleaseId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const replayPlanParameter = {
+  description: "Opaque logical replay plan identifier within the authorized scope",
+  in: "path",
+  name: "planId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const replayPlanVersionParameter = {
+  description: "Exact immutable replay plan version identifier",
+  in: "path",
+  name: "planVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const replayJobParameter = {
+  description: "Exact durable replay job identifier",
+  in: "path",
+  name: "jobId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const replayCancellationParameter = {
+  description: "Exact immutable replay cancellation request identifier",
+  in: "path",
+  name: "cancellationId",
   required: true,
   schema: schemaReference("OpaqueId"),
 } as const;
@@ -331,6 +388,30 @@ const interactionExportConflictResponse = {
     "The immutable fixture, artifact catalog, ownership, revocation, or purge state changed while the export was assembled",
 } as const;
 
+const replayNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "The exact replay definition or job does not exist in the authorized scope",
+} as const;
+
+const replayConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable replay identifier conflicts, required lineage is unavailable, or the job mutation is incompatible",
+} as const;
+
+function replayJsonResponse(schemaName: string, description: string): Record<string, unknown> {
+  return {
+    content: { "application/json": { schema: schemaReference(schemaName) } },
+    description,
+    headers: {
+      "Cache-Control": {
+        description: "Replay control-plane responses are never cacheable",
+        schema: { const: "no-store", type: "string" },
+      },
+    },
+  };
+}
+
 export function createProofStackOpenApiDocument(): Record<string, unknown> {
   const schemas = {
     ...componentsFor("OpaqueId", OpaqueIdSchema, "input"),
@@ -430,6 +511,21 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor("RotateApiKeyResponse", RotateApiKeyResponseSchema, "output"),
     ...componentsFor("RevokeApiKeyRequest", RevokeApiKeyRequestSchema, "input"),
     ...componentsFor("RevokeApiKeyResponse", RevokeApiKeyResponseSchema, "output"),
+    ...componentsFor("TargetReleaseDefinition", TargetReleaseDefinitionSchema, "input"),
+    ...componentsFor("PublishTargetReleaseResponse", PublishTargetReleaseResponseSchema, "output"),
+    ...componentsFor("ReadTargetReleaseResponse", ReadTargetReleaseResponseSchema, "output"),
+    ...componentsFor("ReplayPlanDefinition", ReplayPlanDefinitionSchema, "input"),
+    ...componentsFor("PublishReplayPlanResponse", PublishReplayPlanResponseSchema, "output"),
+    ...componentsFor("ReadReplayPlanResponse", ReadReplayPlanResponseSchema, "output"),
+    ...componentsFor("CreateReplayJobRequest", CreateReplayJobRequestSchema, "input"),
+    ...componentsFor("CreateReplayJobResponse", CreateReplayJobResponseSchema, "output"),
+    ...componentsFor("ReadReplayJobResponse", ReadReplayJobResponseSchema, "output"),
+    ...componentsFor("RequestReplayCancellation", RequestReplayCancellationSchema, "input"),
+    ...componentsFor(
+      "RequestReplayCancellationResponse",
+      RequestReplayCancellationResponseSchema,
+      "output",
+    ),
   };
 
   return {
@@ -453,7 +549,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, durable bounded replay control, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -1334,6 +1430,210 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             tags: ["Regression"],
           },
         },
+      "/v1/projects/{projectId}/environments/{environmentId}/replay-targets/{targetId}/releases/{targetReleaseId}":
+        {
+          post: {
+            description:
+              "Publishes one exact immutable target release with server-authored time, principal, and canonical definition digest. Requires replay:manage, which is not workload-delegable. An equivalent retry returns the original release.",
+            operationId: "publishTargetRelease",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              targetParameter,
+              targetReleaseParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": { schema: schemaReference("TargetReleaseDefinition") },
+              },
+              required: true,
+            },
+            responses: {
+              "200": replayJsonResponse(
+                "PublishTargetReleaseResponse",
+                "An identical retry returned the existing immutable target release",
+              ),
+              "201": replayJsonResponse(
+                "PublishTargetReleaseResponse",
+                "A new immutable target release was published",
+              ),
+              ...problemResponses,
+              "409": replayConflictResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish an exact target release",
+            tags: ["Replay"],
+          },
+          get: {
+            description:
+              "Returns one exact immutable target release after scope authorization. Logical-target mismatch and absence share the same scope-safe not-found response.",
+            operationId: "getTargetRelease",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              targetParameter,
+              targetReleaseParameter,
+            ],
+            responses: {
+              "200": replayJsonResponse(
+                "ReadTargetReleaseResponse",
+                "The exact immutable target release",
+              ),
+              ...problemResponses,
+              "404": replayNotFoundResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact target release",
+            tags: ["Replay"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/replay-plans/{planId}/versions/{planVersionId}":
+        {
+          post: {
+            description:
+              "Publishes one exact immutable replay plan pinned to an existing target release and finite execution controls. Requires replay:manage, which is not workload-delegable. An equivalent retry returns the original plan.",
+            operationId: "publishReplayPlan",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              replayPlanParameter,
+              replayPlanVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": { schema: schemaReference("ReplayPlanDefinition") },
+              },
+              required: true,
+            },
+            responses: {
+              "200": replayJsonResponse(
+                "PublishReplayPlanResponse",
+                "An identical retry returned the existing immutable replay plan",
+              ),
+              "201": replayJsonResponse(
+                "PublishReplayPlanResponse",
+                "A new immutable replay plan was published",
+              ),
+              ...problemResponses,
+              "409": replayConflictResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish an exact replay plan",
+            tags: ["Replay"],
+          },
+          get: {
+            description:
+              "Returns one exact immutable replay plan and its pinned release, fixture, runtime, isolation, budget, retry, boundary, and side-effect declarations.",
+            operationId: "getReplayPlan",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              replayPlanParameter,
+              replayPlanVersionParameter,
+            ],
+            responses: {
+              "200": replayJsonResponse(
+                "ReadReplayPlanResponse",
+                "The exact immutable replay plan",
+              ),
+              ...problemResponses,
+              "404": replayNotFoundResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact replay plan",
+            tags: ["Replay"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/replay-jobs/{jobId}": {
+        post: {
+          description:
+            "Creates one durable queued job from an exact published plan reference. The route never executes work synchronously; a separately authorized worker claims it later. An equivalent retry returns the existing snapshot.",
+          operationId: "createReplayJob",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            replayJobParameter,
+            ...browserMutationParameters,
+          ],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("CreateReplayJobRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "200": replayJsonResponse(
+              "CreateReplayJobResponse",
+              "An identical retry returned the existing durable replay job",
+            ),
+            "201": replayJsonResponse(
+              "CreateReplayJobResponse",
+              "A new durable queued replay job was created",
+            ),
+            ...problemResponses,
+            "409": replayConflictResponse,
+          },
+          security: userOrWorkloadSecurity,
+          summary: "Create a durable replay job",
+          tags: ["Replay"],
+        },
+        get: {
+          description:
+            "Returns one exact validated durable snapshot including attempts, budget ledger, cancellation history, usage, and execution observations without protected plaintext.",
+          operationId: "getReplayJob",
+          parameters: [projectParameter, environmentParameter, replayJobParameter],
+          responses: {
+            "200": replayJsonResponse(
+              "ReadReplayJobResponse",
+              "The complete exact durable replay job snapshot",
+            ),
+            ...problemResponses,
+            "404": replayNotFoundResponse,
+          },
+          security: userOrWorkloadSecurity,
+          summary: "Read an exact durable replay job",
+          tags: ["Replay"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/replay-jobs/{jobId}/cancellation-requests/{cancellationId}":
+        {
+          post: {
+            description:
+              "Records the first authorized immutable cancellation request. The route and body cancellation IDs must match. A queued job may terminalize atomically; a running worker observes and acknowledges the request through its separately fenced authority.",
+            operationId: "requestReplayCancellation",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              replayJobParameter,
+              replayCancellationParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": { schema: schemaReference("RequestReplayCancellation") },
+              },
+              required: true,
+            },
+            responses: {
+              "200": replayJsonResponse(
+                "RequestReplayCancellationResponse",
+                "An identical retry or terminal race returned the durable job snapshot",
+              ),
+              "201": replayJsonResponse(
+                "RequestReplayCancellationResponse",
+                "A new immutable cancellation request was committed",
+              ),
+              ...problemResponses,
+              "404": replayNotFoundResponse,
+              "409": replayConflictResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Request durable replay cancellation",
+            tags: ["Replay"],
+          },
+        },
       "/v1/identity/api-keys": {
         post: {
           description:
@@ -1456,6 +1756,11 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       {
         description: "Immutable evidence-only fixture and dataset version lifecycle",
         name: "Regression",
+      },
+      {
+        description:
+          "Exact immutable replay definitions and durable bounded job control without synchronous execution",
+        name: "Replay",
       },
       { description: "OpenTelemetry-compatible ingestion", name: "Telemetry" },
     ],
