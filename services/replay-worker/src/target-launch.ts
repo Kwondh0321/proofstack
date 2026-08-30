@@ -32,12 +32,16 @@ export interface ResolvedPreinstalledTarget {
 }
 
 export interface PreinstalledTargetRegistry {
-  resolve(implementationId: string): Promise<ResolvedPreinstalledTarget | null>;
+  resolve(
+    implementationId: string,
+    signal: AbortSignal,
+  ): Promise<ResolvedPreinstalledTarget | null>;
 }
 
 export interface PrepareTargetLaunchOptions {
   readonly availableEnvironment: Readonly<Record<string, string | undefined>>;
   readonly registry: PreinstalledTargetRegistry;
+  readonly signal: AbortSignal;
   readonly startMessage: unknown;
   readonly targetRelease: unknown;
   readonly workspaceParent: string;
@@ -194,6 +198,9 @@ function validateReleaseForLocalChild(release: TargetRelease): asserts release i
 export async function prepareTargetLaunch(
   options: PrepareTargetLaunchOptions,
 ): Promise<PreparedTargetLaunch> {
+  if (options.signal.aborted) {
+    throw new ReplayTargetLaunchError("launch_cancelled", { cause: options.signal.reason });
+  }
   let release: TargetRelease;
   try {
     release = validateAndProjectTargetRelease(options.targetRelease).release;
@@ -203,7 +210,10 @@ export async function prepareTargetLaunch(
   validateReleaseForLocalChild(release);
   const startMessage = validateStart(release, options.startMessage);
   const execution = release.execution;
-  const resolved = await options.registry.resolve(execution.implementationId);
+  const resolved = await options.registry.resolve(execution.implementationId, options.signal);
+  if (options.signal.aborted) {
+    throw new ReplayTargetLaunchError("launch_cancelled", { cause: options.signal.reason });
+  }
   if (!resolved) throw new ReplayTargetLaunchError("implementation_unavailable");
   validateResolvedTarget(release, resolved);
   await requireRegularFile(resolved.entryPointPath, fileConstants.R_OK);

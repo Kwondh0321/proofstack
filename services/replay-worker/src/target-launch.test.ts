@@ -21,7 +21,7 @@ import {
   digestRecordedBoundaryReplayInvocationDefinition,
   digestTargetReleaseDefinition,
 } from "@proofstack/replay";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReplayTargetLaunchError } from "./errors.js";
 import {
   MAX_TARGET_ENVIRONMENT_TOTAL_BYTES,
@@ -235,6 +235,7 @@ async function fixture(): Promise<Fixture> {
   const options: PrepareTargetLaunchOptions = {
     availableEnvironment: { ALLOWED_TOKEN: "fixture-token", AMBIENT_SECRET: "must-not-pass" },
     registry: { resolve: async () => resolved },
+    signal: new AbortController().signal,
     startMessage,
     targetRelease: release,
     workspaceParent,
@@ -289,6 +290,39 @@ describe("prepareTargetLaunch", () => {
     await launch.cleanup();
     await launch.cleanup();
     await expect(lstat(launch.workspacePath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("stops before protected target preparation when cancellation is observed", async () => {
+    const value = await fixture();
+    const before = new AbortController();
+    before.abort("cancelled before registry resolution");
+    const skippedResolve = vi.fn(async () => value.resolved);
+    await expectLaunchCode(
+      prepareTargetLaunch({
+        ...value.options,
+        registry: { resolve: skippedResolve },
+        signal: before.signal,
+      }),
+      "launch_cancelled",
+    );
+    expect(skippedResolve).not.toHaveBeenCalled();
+
+    const during = new AbortController();
+    await expectLaunchCode(
+      prepareTargetLaunch({
+        ...value.options,
+        registry: {
+          resolve: async (_implementationId, signal) => {
+            expect(signal).toBe(during.signal);
+            during.abort("cancelled during registry resolution");
+            return value.resolved;
+          },
+        },
+        signal: during.signal,
+      }),
+      "launch_cancelled",
+    );
+    expect(await readdir(value.workspaceParent)).toEqual([]);
   });
 
   it("rejects an invalid release and any start-message lineage change", async () => {

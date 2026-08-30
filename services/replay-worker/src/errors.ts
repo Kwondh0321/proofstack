@@ -23,6 +23,7 @@ export type ReplayTargetLaunchErrorCode =
   | "implementation_mismatch"
   | "implementation_unavailable"
   | "invalid_target_release"
+  | "launch_cancelled"
   | "runtime_incompatible"
   | "start_message_mismatch"
   | "unsupported_execution"
