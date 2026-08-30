@@ -432,6 +432,7 @@ describe("replay boundary execution result contract", () => {
         usage: { amount: 1, source: "measured", status: "observed" },
       },
     ];
+    expect(ReplayBoundaryExecutionUsageSchema.safeParse([]).success).toBe(false);
     expect(ReplayBoundaryExecutionUsageSchema.safeParse(usage).success).toBe(false);
   });
 });

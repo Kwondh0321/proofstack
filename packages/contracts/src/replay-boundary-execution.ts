@@ -60,6 +60,7 @@ export const ReplayBoundaryExecutionUsageSchema = z
       })
       .strict(),
   )
+  .min(1)
   .max(REPLAY_BUDGET_DIMENSIONS.length)
   .refine(
     (values) =>
