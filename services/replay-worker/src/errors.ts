@@ -38,3 +38,24 @@ export class ReplayTargetLaunchError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayTargetSupervisorFailureCode =
+  | "boundary_resolution_failed"
+  | "deadline_reached"
+  | "invalid_supervisor_options"
+  | "output_limit_exceeded"
+  | "protocol_failed"
+  | "spawn_failed"
+  | "target_exit_failed"
+  | "target_incomplete"
+  | "worker_cancelled";
+
+export class ReplayTargetSupervisorError extends Error {
+  readonly code: ReplayTargetSupervisorFailureCode;
+
+  constructor(code: ReplayTargetSupervisorFailureCode, options?: ErrorOptions) {
+    super(`Replay target supervision failed: ${code}`, options);
+    this.name = "ReplayTargetSupervisorError";
+    this.code = code;
+  }
+}
