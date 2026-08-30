@@ -545,6 +545,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/replay':
+        specifier: workspace:*
+        version: link:../../packages/replay
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
