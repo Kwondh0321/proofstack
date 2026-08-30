@@ -59,3 +59,26 @@ export class ReplayTargetSupervisorError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayAttemptPreflightErrorCode =
+  | "attempt_timeout_unsupported"
+  | "invocation_digest_mismatch"
+  | "invalid_plan"
+  | "invalid_target_release"
+  | "isolation_profile_unsupported"
+  | "runtime_profile_mismatch"
+  | "scope_mismatch"
+  | "session_invalid"
+  | "target_reference_mismatch"
+  | "unsupported_boundary_kind"
+  | "unsupported_boundary_mode";
+
+export class ReplayAttemptPreflightError extends Error {
+  readonly code: ReplayAttemptPreflightErrorCode;
+
+  constructor(code: ReplayAttemptPreflightErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt preflight failed: ${code}`, options);
+    this.name = "ReplayAttemptPreflightError";
+    this.code = code;
+  }
+}
