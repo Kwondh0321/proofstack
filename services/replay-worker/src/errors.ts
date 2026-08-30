@@ -94,3 +94,17 @@ export class ReplayLeaseHeartbeatError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayAttemptObservationErrorCode =
+  | "invalid_lease_policy"
+  | "invalid_observation_batch";
+
+export class ReplayAttemptObservationError extends Error {
+  readonly code: ReplayAttemptObservationErrorCode;
+
+  constructor(code: ReplayAttemptObservationErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt observation recording failed: ${code}`, options);
+    this.name = "ReplayAttemptObservationError";
+    this.code = code;
+  }
+}
