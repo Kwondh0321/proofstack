@@ -4,8 +4,14 @@ import {
   MigrationRequiredError,
   PostgresArtifactCatalogRepository,
   PostgresEvidenceRepository,
+  PostgresReplayDefinitionRepository,
+  PostgresReplayJobControlRepository,
   PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
+import {
+  MemoryReplayDefinitionRepository,
+  MemoryReplayJobRepository,
+} from "@proofstack/replay/testing";
 import { describe, expect, it, vi } from "vitest";
 import { createApiStorage } from "./storage.js";
 
@@ -58,6 +64,8 @@ describe("createApiStorage", () => {
 
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
     expect(storage.interactionFixtureVersionRepository).toBe(storage.regressionVersionRepository);
+    expect(storage.replayDefinitionRepository).toBeInstanceOf(MemoryReplayDefinitionRepository);
+    expect(storage.replayJobControlRepository).toBeInstanceOf(MemoryReplayJobRepository);
     expect(storage.artifacts).toMatchObject({
       catalog: expect.any(Object),
       encryption: expect.any(Object),
@@ -76,6 +84,8 @@ describe("createApiStorage", () => {
 
     expect(storage.evidenceRepository).toBeInstanceOf(PostgresEvidenceRepository);
     expect(storage.regressionVersionRepository).toBeInstanceOf(PostgresRegressionVersionRepository);
+    expect(storage.replayDefinitionRepository).toBeInstanceOf(PostgresReplayDefinitionRepository);
+    expect(storage.replayJobControlRepository).toBeInstanceOf(PostgresReplayJobControlRepository);
     expect(adapters.createPool).toHaveBeenCalledWith({
       applicationName: "proofstack-api",
       connectionString: postgresConfig().databaseUrl,

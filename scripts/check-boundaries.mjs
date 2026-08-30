@@ -104,6 +104,7 @@ const modules = [
       "@proofstack/identity",
       "@proofstack/otlp",
       "@proofstack/postgres",
+      "@proofstack/replay",
       "@proofstack/s3",
     ]),
     directory: "apps/api/src",

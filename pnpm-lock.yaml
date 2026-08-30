@@ -83,6 +83,9 @@ importers:
       '@proofstack/postgres':
         specifier: workspace:*
         version: link:../../packages/postgres
+      '@proofstack/replay':
+        specifier: workspace:*
+        version: link:../../packages/replay
       '@proofstack/s3':
         specifier: workspace:*
         version: link:../../packages/s3

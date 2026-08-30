@@ -17,8 +17,15 @@ import {
   createPostgresPool,
   PostgresArtifactCatalogRepository,
   PostgresEvidenceRepository,
+  PostgresReplayDefinitionRepository,
+  PostgresReplayJobControlRepository,
   PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
+import type { ReplayDefinitionRepository, ReplayJobControlRepository } from "@proofstack/replay";
+import {
+  MemoryReplayDefinitionRepository,
+  MemoryReplayJobRepository,
+} from "@proofstack/replay/testing";
 import { createS3ArtifactObjectStore } from "@proofstack/s3";
 import type { ApiConfig } from "./config.js";
 import { createMemoryInteractionStorage } from "./memory-interaction-storage.js";
@@ -37,6 +44,8 @@ export interface ApiStorage {
   readonly evidenceRepository: EvidenceRepository;
   readonly interactionFixtureVersionRepository?: InteractionFixtureVersionRepository;
   readonly regressionVersionRepository: RegressionVersionRepository;
+  readonly replayDefinitionRepository: ReplayDefinitionRepository;
+  readonly replayJobControlRepository: ReplayJobControlRepository;
 }
 
 type ManagedArtifactObjectStore = ArtifactObjectStore & {
@@ -66,6 +75,11 @@ export async function createApiStorage(
 ): Promise<ApiStorage> {
   if (config.mode === "memory") {
     const interactionStorage = createMemoryInteractionStorage();
+    const replayDefinitionRepository = new MemoryReplayDefinitionRepository();
+    const replayJobRepository = new MemoryReplayJobRepository({
+      definitions: replayDefinitionRepository,
+      now: () => new Date().toISOString(),
+    });
     const keyring = new LocalArtifactKeyring({
       activeKeyId: "key_memory_process",
       keys: { key_memory_process: randomBytes(32) },
@@ -82,6 +96,8 @@ export async function createApiStorage(
       evidenceRepository: new MemoryEvidenceRepository(),
       interactionFixtureVersionRepository: interactionStorage.regressionVersionRepository,
       regressionVersionRepository: interactionStorage.regressionVersionRepository,
+      replayDefinitionRepository,
+      replayJobControlRepository: replayJobRepository,
     };
   }
 
@@ -139,5 +155,7 @@ export async function createApiStorage(
     evidenceRepository: new PostgresEvidenceRepository(pool),
     interactionFixtureVersionRepository: regressionVersionRepository,
     regressionVersionRepository,
+    replayDefinitionRepository: new PostgresReplayDefinitionRepository(pool),
+    replayJobControlRepository: new PostgresReplayJobControlRepository(pool),
   };
 }
