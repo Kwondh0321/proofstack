@@ -320,6 +320,7 @@ const IsolationExecutionObservationSchema = z
       "output_limits",
       "process_boundary",
       "resource_limits",
+      "subprocess_policy",
     ]),
     evidenceSha256: Sha256Schema,
     kind: z.literal("isolation"),

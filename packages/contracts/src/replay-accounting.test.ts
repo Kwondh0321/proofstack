@@ -369,7 +369,7 @@ describe("replay execution observations", () => {
     expect(
       ReplayExecutionObservationSchema.safeParse(
         executionObservation({
-          control: "network_policy",
+          control: "subprocess_policy",
           evidenceSha256: sha("5"),
           kind: "isolation",
           verdict: "not_verified",

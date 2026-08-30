@@ -1176,6 +1176,17 @@ describe("replay worker lease authority", () => {
         }),
       ),
     ).rejects.toMatchObject({ code: "23505" });
+    const subprocessObservation = await withTenantTransaction(workerPool, tenantId, (client) =>
+      appendExecutionObservation(client, fence, `obs_worker_subprocess_${runKey}`, {
+        control: "subprocess_policy",
+        evidenceSha256: "4".repeat(64),
+        kind: "isolation",
+        verdict: "not_verified",
+      }),
+    );
+    expect(
+      ReplayExecutionObservationSchema.parse(subprocessObservation.rows[0]?.observation).payload,
+    ).toMatchObject({ control: "subprocess_policy", verdict: "not_verified" });
     await expect(
       withTenantTransaction(workerPool, tenantId, (client) =>
         appendExecutionObservation(client, fence, `obs_worker_boundary_missing_${runKey}`, {
@@ -1217,7 +1228,7 @@ describe("replay worker lease authority", () => {
     expect(
       ReplayExecutionObservationSchema.parse(afterCancellation.rows[0]?.observation)
         .observationSequence,
-    ).toBe(2);
+    ).toBe(3);
     await expect(
       withTenantTransaction(workerPool, tenantId, (client) =>
         appendExecutionObservation(client, fence, `obs_worker_cancel_wrong_${runKey}`, {
@@ -1239,7 +1250,7 @@ describe("replay worker lease authority", () => {
     expect(
       ReplayExecutionObservationSchema.parse(cancellationObservation.rows[0]?.observation)
         .observationSequence,
-    ).toBe(3);
+    ).toBe(4);
   });
 
   it("appends normalized usage evidence through the shared live-fence sequence", async () => {

@@ -93,6 +93,7 @@ function isolationEvidence(
     ["output_limits", outputLimitsVerified ? "verified" : "failed"],
     ["process_boundary", spawned ? "verified" : "not_verified"],
     ["resource_limits", "not_verified"],
+    ["subprocess_policy", "not_verified"],
   ] as const;
   return Object.freeze(
     verdicts.map(([control, verdict]) =>

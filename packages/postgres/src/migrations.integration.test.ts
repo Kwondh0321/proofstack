@@ -145,6 +145,7 @@ describe("PostgreSQL evidence schema", () => {
       "0029_normalize_replay_retry_policy",
       "0030_reconcile_expired_replay_leases",
       "0031_enforce_replay_reclaim_deadlines",
+      "0032_record_replay_subprocess_isolation",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

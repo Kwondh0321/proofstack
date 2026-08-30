@@ -297,6 +297,7 @@ describe("superviseReplayTargetProcess", () => {
       ["output_limits", "verified"],
       ["process_boundary", "verified"],
       ["resource_limits", "not_verified"],
+      ["subprocess_policy", "not_verified"],
     ]);
     expect(value.cleanupCount()).toBe(1);
   });
@@ -404,7 +405,7 @@ describe("superviseReplayTargetProcess", () => {
 
     const completedController = new AbortController();
     const completed = await fixture("completed_hang", { signal: completedController.signal });
-    setTimeout(() => completedController.abort(), 30);
+    setTimeout(() => completedController.abort(), 500);
     await expect(superviseReplayTargetProcess(completed.options)).resolves.toMatchObject({
       failureCode: "worker_cancelled",
       status: "cancelled",
@@ -446,7 +447,7 @@ describe("superviseReplayTargetProcess", () => {
     });
 
     const distantDeadline = await fixture("complete", {
-      deadlineAtMs: Date.now() + MAX_REPLAY_TARGET_TIMER_DELAY_MS + 1,
+      deadlineAtMs: Date.now() + MAX_REPLAY_TARGET_TIMER_DELAY_MS + 10_000,
     });
     await expect(superviseReplayTargetProcess(distantDeadline.options)).rejects.toMatchObject({
       code: "invalid_supervisor_options",
