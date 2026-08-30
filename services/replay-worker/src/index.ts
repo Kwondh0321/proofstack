@@ -5,6 +5,7 @@ export * from "./attempt-observation-recorder.js";
 export * from "./attempt-preflight.js";
 export * from "./attempt-report.js";
 export * from "./attempt-runner.js";
+export * from "./boundary-dispatch.js";
 export * from "./bounded-output.js";
 export * from "./dispatch-loop.js";
 export * from "./errors.js";

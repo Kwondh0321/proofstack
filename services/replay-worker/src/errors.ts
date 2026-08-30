@@ -205,6 +205,23 @@ export class ReplayDispatchLoopError extends Error {
   }
 }
 
+export type ReplayBoundaryDispatchErrorCode =
+  | "cancelled"
+  | "invalid_declaration"
+  | "invalid_request"
+  | "result_mismatch"
+  | "selected_executor_unavailable";
+
+export class ReplayBoundaryDispatchError extends Error {
+  readonly code: ReplayBoundaryDispatchErrorCode;
+
+  constructor(code: ReplayBoundaryDispatchErrorCode) {
+    super(`Replay boundary dispatch failed: ${code}`);
+    this.name = "ReplayBoundaryDispatchError";
+    this.code = code;
+  }
+}
+
 export type ReplaySimulationBoundaryErrorCode =
   | "cancelled"
   | "invalid_declaration"
