@@ -50,6 +50,10 @@
       "types": "./dist/replay-accounting.d.ts",
       "import": "./dist/replay-accounting.js"
     },
+    "./replay-boundary-execution": {
+      "types": "./dist/replay-boundary-execution.d.ts",
+      "import": "./dist/replay-boundary-execution.js"
+    },
     "./replay-worker-protocol": {
       "types": "./dist/replay-worker-protocol.d.ts",
       "import": "./dist/replay-worker-protocol.js"
