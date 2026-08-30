@@ -52,6 +52,7 @@ export {
 } from "./postgres-evidence-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export { PostgresReplayDefinitionRepository } from "./postgres-replay-definition-repository.js";
+export { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
 export { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-repository.js";
 export { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
 export {
