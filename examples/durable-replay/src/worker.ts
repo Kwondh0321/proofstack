@@ -105,11 +105,9 @@ async function execute(command: DurableReplayWorkerCommand): Promise<void> {
       return;
     }
     emit({
-      attemptId: claimed.workerFence.attemptId,
       event: "claimed",
-      fencingToken: claimed.workerFence.fencingToken,
       jobId: command.jobId,
-      leaseId: claimed.workerFence.leaseId,
+      workerFence: claimed.workerFence,
     });
     if (command.command === "claim") return;
 
