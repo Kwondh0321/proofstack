@@ -1,5 +1,7 @@
 import {
+  REPLAY_BUDGET_DIMENSIONS,
   ReplayAttemptSchema,
+  ReplayBudgetReservationSchema,
   ReplayCancellationAcknowledgementSchema,
   ReplayCancellationRequestSchema,
   ReplayJobSchema,
@@ -86,6 +88,18 @@ function testPlan() {
   const createdAt = "2026-08-29T10:00:00.000Z";
   return {
     boundaries: [{}],
+    budget: {
+      concurrentInteractions: { limit: 4, measurement: "measured" },
+      elapsedMilliseconds: { limit: 20_000, measurement: "measured" },
+      emittedArtifactBytes: { limit: 1_000_000, measurement: "measured" },
+      inputTokens: { limit: 4_096, measurement: "estimated" },
+      jobAttempts: { limit: 1, measurement: "measured" },
+      modelRequests: { limit: 4, measurement: "measured" },
+      outputTokens: { limit: 4_096, measurement: "provider_reported" },
+      providerCostMicrounits: { limit: 1_000_000, measurement: "unavailable" },
+      retrievedBytes: { limit: 1_000_000, measurement: "measured" },
+      toolCalls: { limit: 4, measurement: "measured" },
+    },
     createdAt,
     createdByPrincipalId: "usr_worker_seed",
     dataset: {
@@ -246,6 +260,17 @@ async function seedExactPlan(): Promise<void> {
         JSON.stringify(plan),
       ],
     );
+    await client.query(
+      `INSERT INTO public.proofstack_replay_plan_budgets (
+        tenant_id, project_id, environment_id, plan_id, plan_version_id,
+        dimension, limit_value, measurement
+      )
+      SELECT $1, $2, $3, $4, $5, budget.key,
+        (budget.value ->> 'limit')::bigint,
+        budget.value ->> 'measurement'
+      FROM jsonb_each($6::jsonb) AS budget(key, value)`,
+      [tenantId, projectId, environmentId, planId, planVersionId, JSON.stringify(plan.budget)],
+    );
     const result = resultArtifact();
     await client.query(
       `INSERT INTO public.proofstack_artifact_catalog (
@@ -404,6 +429,39 @@ async function acknowledgeCancellation(
   );
 }
 
+function requestedAmounts(overrides: Readonly<Record<string, number>> = {}) {
+  return Object.fromEntries(
+    REPLAY_BUDGET_DIMENSIONS.map((dimension) => [dimension, overrides[dimension] ?? 0]),
+  );
+}
+
+async function reserveBudget(
+  client: PoolClient,
+  fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  reservationId: string,
+  requested: Readonly<Record<string, number>>,
+  work: Readonly<Record<string, unknown>> = { kind: "attempt_start" },
+) {
+  return client.query<{ readonly created: boolean; readonly reservation: unknown }>(
+    `SELECT * FROM public.proofstack_reserve_replay_budget(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb
+    )`,
+    [
+      projectId,
+      environmentId,
+      fence.jobId,
+      fence.attemptId,
+      fence.leaseId,
+      fence.workerId,
+      fence.fencingToken,
+      fence.recoveryEpoch,
+      reservationId,
+      JSON.stringify(work),
+      JSON.stringify(requested),
+    ],
+  );
+}
+
 async function completeJob(
   client: PoolClient,
   fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
@@ -546,6 +604,152 @@ describe("replay worker lease authority", () => {
       [tenantId, jobId],
     );
     expect(stored.rows).toEqual([{ attempt_count: 1, state_version: "3" }]);
+  });
+
+  it("reserves exact-plan budget through the current live worker fence", async () => {
+    const jobId = `job_worker_reserve_${runKey}`;
+    const reservationId = `res_worker_reserve_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        `att_worker_reserve_${runKey}`,
+        `lease_worker_reserve_${runKey}`,
+        workerProtocol,
+        2_000,
+      ),
+    );
+    const attempt = ReplayAttemptSchema.parse(claimed.rows[0]?.attempt);
+    const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    const requested = requestedAmounts({ inputTokens: 10, jobAttempts: 1 });
+
+    await expect(
+      withTenantTransaction(apiPool, tenantId, (client) =>
+        reserveBudget(client, fence, reservationId, requested),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(client, { ...fence, fencingToken: 2 }, reservationId, requested),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(client, fence, reservationId, requestedAmounts()),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(client, fence, reservationId, requested, {
+          boundaryId: `bnd_worker_missing_${runKey}`,
+          boundaryKind: "retrieval",
+          kind: "boundary_call",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      heartbeatJob(client, fence, 2_000),
+    );
+
+    const reserved = await withTenantTransaction(workerPool, tenantId, (client) =>
+      reserveBudget(client, fence, reservationId, requested),
+    );
+    const reservation = ReplayBudgetReservationSchema.parse(reserved.rows[0]?.reservation);
+    expect(reserved.rows[0]?.created).toBe(true);
+    expect(reservation).toMatchObject({
+      ledgerSequence: 0,
+      mutationFence: fence,
+      reservationId,
+      scope: { environmentId, projectId, tenantId },
+      work: { kind: "attempt_start" },
+    });
+    expect(reservation.dimensions.inputTokens).toEqual({
+      committedBefore: 0,
+      limit: 4_096,
+      measurement: "estimated",
+      reservedAmount: 10,
+    });
+    expect(Date.parse(reservation.reservedAt)).toBeGreaterThanOrEqual(
+      Date.parse(attempt.startedAt),
+    );
+
+    const retried = await withTenantTransaction(workerPool, tenantId, (client) =>
+      reserveBudget(client, fence, reservationId, requested),
+    );
+    expect(retried.rows).toEqual([{ created: false, reservation }]);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(
+          client,
+          fence,
+          reservationId,
+          requestedAmounts({ inputTokens: 11, jobAttempts: 1 }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      heartbeatJob(client, fence, 2_000),
+    );
+    const concurrentReservations = await Promise.all([
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(
+          client,
+          fence,
+          `res_worker_parallel_a_${runKey}`,
+          requestedAmounts({ toolCalls: 1 }),
+        ),
+      ),
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(
+          client,
+          fence,
+          `res_worker_parallel_b_${runKey}`,
+          requestedAmounts({ toolCalls: 1 }),
+        ),
+      ),
+    ]);
+    const serialized = concurrentReservations
+      .map((result) => ReplayBudgetReservationSchema.parse(result.rows[0]?.reservation))
+      .sort((left, right) => left.ledgerSequence - right.ledgerSequence);
+    expect(serialized.map(({ ledgerSequence }) => ledgerSequence)).toEqual([1, 2]);
+    expect(serialized.map(({ dimensions }) => dimensions.toolCalls.committedBefore)).toEqual([
+      0, 1,
+    ]);
+
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(
+          client,
+          fence,
+          `res_worker_limit_${runKey}`,
+          requestedAmounts({ toolCalls: 5 }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "22003" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "completed",
+          result: resultArtifact(),
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+
+    const normalized = await adminPool.query<{
+      readonly dimension_count: number;
+      readonly input_measurement: string;
+    }>(
+      `SELECT
+         count(*)::integer AS dimension_count,
+         max(measurement) FILTER (WHERE dimension = 'inputTokens') AS input_measurement
+       FROM public.proofstack_replay_budget_entry_dimensions
+       WHERE tenant_id = $1 AND job_id = $2 AND ledger_sequence = 0`,
+      [tenantId, jobId],
+    );
+    expect(normalized.rows).toEqual([{ dimension_count: 10, input_measurement: "estimated" }]);
   });
 
   it("rejects caller-authored lineage, excessive leases, null input, and stale fences", async () => {
@@ -891,6 +1095,16 @@ describe("replay worker lease authority", () => {
       requestCancellation(client, jobId, cancellationId),
     );
     const request = ReplayCancellationRequestSchema.parse(cancellation.rows[0]?.request);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reserveBudget(
+          client,
+          fence,
+          `res_worker_cancel_${runKey}`,
+          requestedAmounts({ toolCalls: 1 }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
     const cancellationError = {
       code: "cancelled",
       effectCertainty: "none",

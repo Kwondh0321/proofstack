@@ -139,6 +139,7 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_revoke_api_key(text, text, text, text)",
   "public.proofstack_revoke_browser_session(text)",
   "public.proofstack_request_replay_cancellation(text, text, text, text, text, text, text)",
+  "public.proofstack_reserve_replay_budget(text, text, text, text, text, text, bigint, bigint, text, jsonb, jsonb)",
   "public.proofstack_rotate_api_key(text, text, text, text, text, integer, integer, integer, integer, text, text, timestamptz, text)",
   "public.proofstack_update_oidc_binding(text, text, text[], text[], jsonb, text)",
   "public.proofstack_valid_regression_text(text, integer)",
@@ -213,6 +214,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_reserve_replay_budget(text, text, text, text, text, text, bigint, bigint, text, jsonb, jsonb) TO %ROLE%",
   ],
 };
 

@@ -195,6 +195,7 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO "proofstack_replay_worker"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_reserve_replay_budget(text, text, text, text, text, text, bigint, bigint, text, jsonb, jsonb) TO "proofstack_replay_worker"',
     ]);
     expect(statements).toContain(
       'GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO "proofstack_api"',

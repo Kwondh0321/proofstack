@@ -188,6 +188,7 @@ describe("runtime role provisioning", () => {
       readonly jobsUpdate: boolean;
       readonly migrationsSelect: boolean;
       readonly outboxInsert: boolean;
+      readonly reserveExecute: boolean;
     }>(`
       SELECT
         has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
@@ -223,7 +224,12 @@ describe("runtime role provisioning", () => {
           current_user,
           'proofstack_heartbeat_replay_job(text,text,text,text,text,text,bigint,bigint,bigint)',
           'EXECUTE'
-        ) AS "heartbeatExecute"
+        ) AS "heartbeatExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_reserve_replay_budget(text,text,text,text,text,text,bigint,bigint,text,jsonb,jsonb)',
+          'EXECUTE'
+        ) AS "reserveExecute"
     `);
     expect(replayWorkerPrivileges.rows).toEqual([
       {
@@ -238,6 +244,7 @@ describe("runtime role provisioning", () => {
         jobsUpdate: false,
         migrationsSelect: true,
         outboxInsert: false,
+        reserveExecute: true,
       },
     ]);
 
