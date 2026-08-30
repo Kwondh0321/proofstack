@@ -197,6 +197,7 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO "proofstack_replay_worker"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_read_replay_job_snapshot(text, text, text) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_reconcile_replay_budget(text, text, text, text, text, text, bigint, bigint, text, text, jsonb) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_reserve_replay_budget(text, text, text, text, text, text, bigint, bigint, text, jsonb, jsonb) TO "proofstack_replay_worker"',
     ]);

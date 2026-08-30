@@ -397,6 +397,13 @@ async function createJob(client: PoolClient, jobId: string) {
   );
 }
 
+async function readJobSnapshot(client: PoolClient, jobId: string) {
+  return client.query<{ readonly snapshot: unknown }>(
+    `SELECT public.proofstack_read_replay_job_snapshot($1, $2, $3) AS snapshot`,
+    [projectId, environmentId, jobId],
+  );
+}
+
 interface ClaimRow extends QueryResultRow {
   readonly attempt: unknown;
   readonly claimed: boolean;
@@ -2068,6 +2075,37 @@ describe("replay worker lease authority", () => {
       status: "succeeded",
     });
     expect(attempt.endedAt).toBe(job.terminal?.committedAt);
+
+    const snapshotResult = await withTenantTransaction(workerPool, tenantId, (client) =>
+      readJobSnapshot(client, jobId),
+    );
+    const snapshot = snapshotResult.rows[0]?.snapshot;
+    if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) {
+      throw new Error("Replay snapshot authority did not return an object");
+    }
+    const value = snapshot as { readonly attempts: readonly unknown[]; readonly job: unknown };
+    expect(ReplayJobSchema.parse(value.job)).toEqual(job);
+    expect(value.attempts.map((item) => ReplayAttemptSchema.parse(item))).toEqual([attempt]);
+    expect(value).toMatchObject({
+      budgetLedger: [],
+      cancellationAcknowledgements: [],
+      cancellationRequest: null,
+      executionObservations: [],
+      usageObservations: [],
+    });
+
+    const hiddenScope = await withTenantTransaction(workerPool, tenantId, (client) =>
+      client.query<{ readonly snapshot: unknown }>(
+        `SELECT public.proofstack_read_replay_job_snapshot($1, $2, $3) AS snapshot`,
+        [`prj_worker_hidden_${runKey}`, environmentId, jobId],
+      ),
+    );
+    expect(hiddenScope.rows).toEqual([{ snapshot: null }]);
+    const missingTenant = await workerPool.query<{ readonly snapshot: unknown }>(
+      `SELECT public.proofstack_read_replay_job_snapshot($1, $2, $3) AS snapshot`,
+      [projectId, environmentId, jobId],
+    );
+    expect(missingTenant.rows).toEqual([{ snapshot: null }]);
 
     const durable = await adminPool.query<{
       readonly event_types: string[];

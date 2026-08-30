@@ -191,6 +191,7 @@ describe("runtime role provisioning", () => {
       readonly migrationsSelect: boolean;
       readonly outboxInsert: boolean;
       readonly reconcileExecute: boolean;
+      readonly replaySnapshotExecute: boolean;
       readonly reserveExecute: boolean;
     }>(`
       SELECT
@@ -245,6 +246,11 @@ describe("runtime role provisioning", () => {
         ) AS "reconcileExecute",
         has_function_privilege(
           current_user,
+          'proofstack_read_replay_job_snapshot(text,text,text)',
+          'EXECUTE'
+        ) AS "replaySnapshotExecute",
+        has_function_privilege(
+          current_user,
           'proofstack_reserve_replay_budget(text,text,text,text,text,text,bigint,bigint,text,jsonb,jsonb)',
           'EXECUTE'
         ) AS "reserveExecute"
@@ -265,6 +271,7 @@ describe("runtime role provisioning", () => {
         migrationsSelect: true,
         outboxInsert: false,
         reconcileExecute: true,
+        replaySnapshotExecute: true,
         reserveExecute: true,
       },
     ]);
