@@ -4,11 +4,11 @@ import {
   EvidenceScopeSchema,
   type RecordedInteractionFixtureVersion,
   type ReplayArtifactContentReference,
-  ReplayPlanDefinitionSchema,
   type ReplayPlanDefinition,
+  ReplayPlanDefinitionSchema,
   type TargetRelease,
-  TargetReleaseDefinitionSchema,
   type TargetReleaseDefinition,
+  TargetReleaseDefinitionSchema,
 } from "@proofstack/contracts";
 import {
   digestRecordedBoundaryReplayInvocationDefinition,
@@ -259,12 +259,12 @@ export function createDurableReplayDefinitions(
     planId: `plan_${input.suffix}_durable`,
     planVersionId: `plv_${input.suffix}_durable_001`,
     retryPolicy: {
-      automatic: false,
-      backoff: { kind: "none" },
+      automatic: true,
+      backoff: { delayMilliseconds: 100, kind: "fixed" },
       idempotencyRequirement: "no_external_effect",
       maxAttempts: 2,
       perAttemptTimeoutMilliseconds: 15_000,
-      retryableErrors: [],
+      retryableErrors: ["target_process_interrupted"],
       totalDeadlineMilliseconds: 45_000,
     },
     runtimeProfile: {

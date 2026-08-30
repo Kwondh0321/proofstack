@@ -65,6 +65,15 @@ describe("durable replay definitions", () => {
     expect(value.targetReleaseDefinition.environmentVariableNames).toEqual([
       "PROOFSTACK_EXAMPLE_HOLD_MILLISECONDS",
     ]);
+    expect(value.replayPlanDefinition.retryPolicy).toEqual({
+      automatic: true,
+      backoff: { delayMilliseconds: 100, kind: "fixed" },
+      idempotencyRequirement: "no_external_effect",
+      maxAttempts: 2,
+      perAttemptTimeoutMilliseconds: 15_000,
+      retryableErrors: ["target_process_interrupted"],
+      totalDeadlineMilliseconds: 45_000,
+    });
   });
 
   it("projects the published preinstalled release into an exact local registry record", () => {
