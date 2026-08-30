@@ -9,8 +9,8 @@ import {
 } from "@proofstack/contracts";
 import {
   type ReplayBudgetAmounts,
-  type ReplayJobRepository,
   type ReplayJobSnapshot,
+  type ReplayJobWorkerRepository,
   type ReplayUsageMeasurements,
   summarizeReplayBudgetLedger,
   validateAndProjectReplayPlan,
@@ -22,7 +22,7 @@ const ATTEMPT_ACCOUNTING_NAMESPACE = "proofstack.replay-attempt-accounting.v1";
 export interface ReserveReplayAttemptBudgetOptions {
   readonly leaseDurationMilliseconds: number;
   readonly plan: unknown;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly scope: unknown;
   readonly snapshot: ReplayJobSnapshot;
   readonly workerFence: unknown;
@@ -44,7 +44,7 @@ export interface ReconcileReplayAttemptBudgetOptions {
   readonly actual: unknown;
   readonly leaseDurationMilliseconds: number;
   readonly plan: unknown;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly reservationId: string;
   readonly scope: unknown;
   readonly workerFence: unknown;

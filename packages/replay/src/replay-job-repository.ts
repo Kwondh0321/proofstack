@@ -143,7 +143,19 @@ export interface CompleteDurableReplayJobCommand {
  * propose opaque mutation identifiers and bounded work, but cannot supply authoritative state,
  * timestamps, counters, target releases, runtime profiles, limits, or retry eligibility.
  */
-export interface ReplayJobRepository {
+/** Control-plane replay authority. Implementations must not carry worker mutation credentials. */
+export interface ReplayJobControlRepository {
+  createJob(command: CreateReplayJobCommand): Promise<CreateReplayJobResult>;
+
+  findJob(scope: EvidenceScope, jobId: string): Promise<ReplayJobSnapshot | null>;
+
+  requestCancellation(
+    command: RequestDurableReplayCancellationCommand,
+  ): Promise<RequestDurableReplayCancellationResult>;
+}
+
+/** Worker replay authority. Implementations must not carry control-plane mutation credentials. */
+export interface ReplayJobWorkerRepository {
   acknowledgeCancellation(
     command: AcknowledgeDurableReplayCancellationCommand,
   ): Promise<ReplayJobSnapshot>;
@@ -158,17 +170,21 @@ export interface ReplayJobRepository {
 
   completeJob(command: CompleteDurableReplayJobCommand): Promise<ReplayJobSnapshot>;
 
-  createJob(command: CreateReplayJobCommand): Promise<CreateReplayJobResult>;
-
   findJob(scope: EvidenceScope, jobId: string): Promise<ReplayJobSnapshot | null>;
 
   heartbeatJob(command: HeartbeatDurableReplayJobCommand): Promise<ReplayJobSnapshot>;
 
   reconcileBudget(command: ReconcileDurableReplayBudgetCommand): Promise<ReplayJobSnapshot>;
 
-  requestCancellation(
-    command: RequestDurableReplayCancellationCommand,
-  ): Promise<RequestDurableReplayCancellationResult>;
-
   reserveBudget(command: ReserveDurableReplayBudgetCommand): Promise<ReplayJobSnapshot>;
 }
+
+/**
+ * Complete semantic contract used by shared conformance suites and in-memory testing.
+ *
+ * Production composition must inject the narrower control or worker port so a runtime cannot
+ * obtain both database authorities through one repository dependency.
+ */
+export interface ReplayJobRepository
+  extends ReplayJobControlRepository,
+    ReplayJobWorkerRepository {}

@@ -13,8 +13,8 @@ import {
 } from "@proofstack/contracts";
 import type {
   ReplayDefinitionRepository,
-  ReplayJobRepository,
   ReplayJobSnapshot,
+  ReplayJobWorkerRepository,
 } from "@proofstack/replay";
 import {
   measureRecordedStubAttemptUsage,
@@ -78,7 +78,7 @@ export interface RunClaimedReplayAttemptOptions {
   readonly leaseDurationMilliseconds: number;
   readonly registry: PreinstalledTargetRegistry;
   readonly reportPublisher: ReplayAttemptReportPublisher;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly scope: unknown;
   readonly signal?: AbortSignal;
   readonly snapshot: ReplayJobSnapshot;
@@ -272,7 +272,7 @@ async function acknowledgeCancellationIfRequired(options: {
   readonly context: RunnerContext;
   readonly leaseDurationMilliseconds: number;
   readonly processResult: ReplayTargetProcessResult;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly snapshot: ReplayJobSnapshot;
 }): Promise<ReplayJobSnapshot> {
   if (
@@ -295,7 +295,7 @@ async function completeWithCancellationRace(options: {
   readonly context: RunnerContext;
   readonly leaseDurationMilliseconds: number;
   readonly processResult: ReplayTargetProcessResult;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly result?: ExecutedAttempt["result"];
   readonly snapshot: ReplayJobSnapshot;
 }): Promise<ReplayJobSnapshot> {
@@ -338,7 +338,7 @@ async function finishWithoutReservation(options: {
   readonly context: RunnerContext;
   readonly leaseDurationMilliseconds: number;
   readonly processResult: ReplayTargetProcessResult;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly sessionId: string;
   readonly snapshot: ReplayJobSnapshot;
 }): Promise<RunClaimedReplayAttemptResult> {

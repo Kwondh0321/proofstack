@@ -5,14 +5,14 @@ import {
   ReplayExecutionObservationPayloadSchema,
   ReplayWorkerMutationFenceSchema,
 } from "@proofstack/contracts";
-import type { ReplayJobRepository, ReplayJobSnapshot } from "@proofstack/replay";
+import type { ReplayJobSnapshot, ReplayJobWorkerRepository } from "@proofstack/replay";
 import { ReplayAttemptObservationError } from "./errors.js";
 import type { ReplayTargetProcessResult } from "./target-process-supervisor.js";
 
 export interface RecordSupervisedExecutionObservationsOptions {
   readonly leaseDurationMilliseconds: number;
   readonly processResult: Pick<ReplayTargetProcessResult, "executionObservations" | "isolation">;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly scope: unknown;
   readonly workerFence: unknown;
 }

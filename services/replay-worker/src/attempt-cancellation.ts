@@ -6,7 +6,7 @@ import {
   type ReplayExecutionObservationPayload,
   ReplayWorkerMutationFenceSchema,
 } from "@proofstack/contracts";
-import type { ReplayJobRepository, ReplayJobSnapshot } from "@proofstack/replay";
+import type { ReplayJobSnapshot, ReplayJobWorkerRepository } from "@proofstack/replay";
 import { ReplayAttemptCancellationError } from "./errors.js";
 
 const CANCELLATION_NAMESPACE = "proofstack.replay-attempt-cancellation.v1";
@@ -14,7 +14,7 @@ const CANCELLATION_NAMESPACE = "proofstack.replay-attempt-cancellation.v1";
 export interface AcknowledgeReplayAttemptCancellationOptions {
   readonly action: ReplayCancellationAcknowledgement["action"];
   readonly leaseDurationMilliseconds: number;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly scope: unknown;
   readonly snapshot: ReplayJobSnapshot;
   readonly workerFence: unknown;

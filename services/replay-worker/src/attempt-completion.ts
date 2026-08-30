@@ -8,8 +8,8 @@ import {
 } from "@proofstack/contracts";
 import {
   type CompleteDurableReplayJobCommand,
-  type ReplayJobRepository,
   type ReplayJobSnapshot,
+  type ReplayJobWorkerRepository,
   summarizeReplayBudgetLedger,
 } from "@proofstack/replay";
 import { ReplayAttemptCompletionError } from "./errors.js";
@@ -18,7 +18,7 @@ import type { ReplayTargetProcessResult } from "./target-process-supervisor.js";
 export interface CompleteSupervisedReplayAttemptOptions {
   readonly leaseDurationMilliseconds: number;
   readonly processResult: ReplayTargetProcessResult;
-  readonly repository: ReplayJobRepository;
+  readonly repository: ReplayJobWorkerRepository;
   readonly result?: unknown;
   readonly scope: unknown;
   readonly snapshot: ReplayJobSnapshot;
