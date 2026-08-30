@@ -182,12 +182,18 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/postgres':
+        specifier: workspace:*
+        version: link:../../packages/postgres
       '@proofstack/replay':
         specifier: workspace:*
         version: link:../../packages/replay
       '@proofstack/replay-worker':
         specifier: workspace:*
         version: link:../../services/replay-worker
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

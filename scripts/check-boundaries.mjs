@@ -131,7 +131,12 @@ const modules = [
     packageName: "@proofstack/example-interaction-capture",
   },
   {
-    allowed: new Set(["@proofstack/contracts", "@proofstack/replay", "@proofstack/replay-worker"]),
+    allowed: new Set([
+      "@proofstack/contracts",
+      "@proofstack/postgres",
+      "@proofstack/replay",
+      "@proofstack/replay-worker",
+    ]),
     directory: "examples/durable-replay/src",
     packageName: "@proofstack/example-durable-replay",
   },
