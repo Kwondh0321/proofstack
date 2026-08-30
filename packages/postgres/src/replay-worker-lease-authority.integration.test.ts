@@ -12,10 +12,13 @@ import {
   ReplayWorkerMutationFenceSchema,
   type WorkerProtocolReference,
 } from "@proofstack/contracts";
+import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "@proofstack/replay";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
+import { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
+import { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-repository.js";
 import {
   provisionRuntimeRoles,
   type RuntimeRoleCredentials,
@@ -87,6 +90,8 @@ const workerPool = new Pool({
   connectionString: connectionStringFor(credentials.replayWorker),
   max: 4,
 });
+const controlRepository = new PostgresReplayJobControlRepository(apiPool);
+const workerRepository = new PostgresReplayJobWorkerRepository(workerPool);
 
 function testPlan() {
   const createdAt = "2026-08-29T10:00:00.000Z";
@@ -2475,5 +2480,166 @@ describe("replay worker lease authority", () => {
     } finally {
       unscopedWorker.release();
     }
+  });
+
+  it("routes the complete adapter lifecycle through split runtime credentials", async () => {
+    const jobId = `job_adapter_split_${runKey}`;
+    const scope = { environmentId, projectId, tenantId } as const;
+    const created = await controlRepository.createJob({
+      createdByPrincipalId: "usr_adapter_operator",
+      jobId,
+      plan: { definitionSha256: planDefinitionSha256, planId, planVersionId },
+      scope,
+    });
+    expect(created.created).toBe(true);
+    await expect(
+      controlRepository.createJob({
+        createdByPrincipalId: "usr_adapter_operator",
+        jobId,
+        plan: { definitionSha256: planDefinitionSha256, planId, planVersionId },
+        scope,
+      }),
+    ).resolves.toMatchObject({ created: false });
+    await expect(workerRepository.findJob(scope, jobId)).resolves.toEqual(created.snapshot);
+
+    const claimed = await workerRepository.claimJob({
+      attemptId: `att_adapter_split_${runKey}`,
+      jobId,
+      leaseDurationMilliseconds: 1_500,
+      leaseId: `lease_adapter_split_${runKey}`,
+      scope,
+      workerBuildSha256: "6".repeat(64),
+      workerId: `worker_adapter_${runKey}`,
+      workerProtocol,
+    });
+    expect(claimed.claimed).toBe(true);
+    if (!claimed.claimed) throw new Error("Expected the adapter job to be claimed");
+    const workerFence = claimed.workerFence;
+
+    await expect(
+      workerRepository.heartbeatJob({
+        leaseDurationMilliseconds: 1_500,
+        scope,
+        workerFence,
+      }),
+    ).resolves.toMatchObject({ job: { status: "running" } });
+
+    const requested = requestedAmounts({ jobAttempts: 1 }) as ReplayBudgetAmounts;
+    await expect(
+      workerRepository.reserveBudget({
+        requested,
+        reservationId: `res_adapter_split_${runKey}`,
+        scope,
+        work: { kind: "attempt_start" },
+        workerFence,
+      }),
+    ).resolves.toMatchObject({ budgetLedger: [{ entryType: "reservation" }] });
+
+    const usage = usageMeasurements({
+      jobAttempts: { amount: 1, source: "measured", status: "observed" },
+    }) as ReplayUsageMeasurements;
+    await expect(
+      workerRepository.reconcileBudget({
+        reconciliationId: `rec_adapter_split_${runKey}`,
+        reservationId: `res_adapter_split_${runKey}`,
+        scope,
+        usage,
+        workerFence,
+      }),
+    ).resolves.toMatchObject({
+      budgetLedger: [{ entryType: "reservation" }, { entryType: "reconciliation" }],
+    });
+
+    await expect(
+      workerRepository.appendExecutionObservation({
+        observationId: `obs_adapter_exec_${runKey}`,
+        payload: {
+          afterCancellationRequest: false,
+          evidenceSha256: "d".repeat(64),
+          event: "started",
+          kind: "target",
+        },
+        scope,
+        workerFence,
+      }),
+    ).resolves.toMatchObject({ executionObservations: [{ observationSequence: 0 }] });
+    await expect(
+      workerRepository.appendUsageObservation({
+        measurements: [
+          {
+            dimension: "jobAttempts",
+            usage: { amount: 1, source: "measured", status: "observed" },
+          },
+        ],
+        observationId: `obs_adapter_usage_${runKey}`,
+        scope,
+        sourceEventSha256: "e".repeat(64),
+        workerFence,
+      }),
+    ).resolves.toMatchObject({ usageObservations: [{ observationSequence: 1 }] });
+
+    const cancellation = await controlRepository.requestCancellation({
+      input: {
+        cancellationId: `can_adapter_split_${runKey}`,
+        reason: "Stop the split-authority adapter conformance replay.",
+        reasonCode: "operator_request",
+      },
+      jobId,
+      requestedByPrincipalId: "usr_adapter_operator",
+      scope,
+    });
+    expect(cancellation.created).toBe(true);
+    await expect(
+      workerRepository.acknowledgeCancellation({
+        acknowledgementId: `ack_adapter_split_${runKey}`,
+        action: "stopped_before_target_start",
+        scope,
+        workerFence,
+      }),
+    ).resolves.toMatchObject({
+      cancellationAcknowledgements: [{ action: "stopped_before_target_start" }],
+    });
+
+    const completed = await workerRepository.completeJob({
+      code: "cancellation_committed",
+      error: {
+        code: "cancelled",
+        effectCertainty: "none",
+        message: "The split-authority worker stopped before target execution.",
+      },
+      scope,
+      status: "cancelled",
+      workerFence,
+    });
+    expect(completed).toMatchObject({
+      attempts: [{ status: "cancelled" }],
+      budgetLedger: [{ entryType: "reservation" }, { entryType: "reconciliation" }],
+      job: { status: "cancelled" },
+    });
+    await expect(controlRepository.findJob(scope, jobId)).resolves.toEqual(completed);
+
+    const apiAsWorker = new PostgresReplayJobWorkerRepository(apiPool);
+    await expect(
+      apiAsWorker.claimJob({
+        attemptId: `att_adapter_api_${runKey}`,
+        jobId,
+        leaseDurationMilliseconds: 1_500,
+        leaseId: `lease_adapter_api_${runKey}`,
+        scope,
+        workerBuildSha256: "6".repeat(64),
+        workerId: `worker_adapter_api_${runKey}`,
+        workerProtocol,
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    const workerAsControl = new PostgresReplayJobControlRepository(workerPool);
+    await expect(
+      workerAsControl.createJob({
+        createdByPrincipalId: "usr_adapter_operator",
+        jobId: `job_adapter_worker_${runKey}`,
+        plan: { definitionSha256: planDefinitionSha256, planId, planVersionId },
+        scope,
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
   });
 });
