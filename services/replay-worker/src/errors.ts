@@ -154,3 +154,20 @@ export class ReplayAttemptCompletionError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayAttemptReportErrorCode =
+  | "invalid_process_result"
+  | "invalid_report_context"
+  | "invalid_report_size"
+  | "publish_failed"
+  | "publisher_mismatch";
+
+export class ReplayAttemptReportError extends Error {
+  readonly code: ReplayAttemptReportErrorCode;
+
+  constructor(code: ReplayAttemptReportErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt report failed: ${code}`, options);
+    this.name = "ReplayAttemptReportError";
+    this.code = code;
+  }
+}
