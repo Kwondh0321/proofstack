@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   type ReplayBudgetLedgerEntry,
@@ -18,6 +19,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   measureRecordedStubAttemptUsage,
   reconcileReplayAttemptBudget,
+  reconcileReplayAttemptUsage,
   reserveReplayAttemptBudget,
 } from "./attempt-accounting.js";
 
@@ -322,6 +324,18 @@ describe("attempt accounting", () => {
       usageCommand?.measurements.find(({ dimension }) => dimension === "elapsedMilliseconds")
         ?.usage,
     ).toEqual({ amount: 321, source: "measured", status: "observed" });
+    expect(usageCommand?.sourceEventSha256).toBe(
+      createHash("sha256")
+        .update(
+          JSON.stringify({
+            actual,
+            namespace: "proofstack.replay-attempt-accounting.v1",
+            reservationId: reserved.reservationId,
+          }),
+          "utf8",
+        )
+        .digest("hex"),
+    );
 
     const retryRepository = repository(initial);
     await reconcileReplayAttemptBudget({
@@ -339,6 +353,109 @@ describe("attempt accounting", () => {
     expect(retryRepository.reconcileBudget.mock.calls[0]?.[0].reconciliationId).toBe(
       firstRepository.reconcileBudget.mock.calls[0]?.[0].reconciliationId,
     );
+  });
+
+  it("preserves multi-mode evidence sources and disputes missing or plan-mismatched usage", async () => {
+    const initial = snapshot();
+    const reserved = await reserveReplayAttemptBudget({
+      leaseDurationMilliseconds: 1_000,
+      plan,
+      repository: repository(initial),
+      scope,
+      snapshot: initial,
+      workerFence,
+    });
+    const evidence = {
+      concurrentInteractions: { amount: 1, source: "measured", status: "observed" },
+      elapsedMilliseconds: { amount: 10, source: "measured", status: "observed" },
+      emittedArtifactBytes: { amount: 20, source: "measured", status: "observed" },
+      inputTokens: { amount: 30, source: "provider_reported", status: "observed" },
+      jobAttempts: { amount: 1, source: "measured", status: "observed" },
+      modelRequests: { amount: 2, source: "measured", status: "observed" },
+      outputTokens: { reason: "provider_did_not_report", status: "unavailable" },
+      providerCostMicrounits: { amount: 40, source: "measured", status: "observed" },
+      retrievedBytes: { amount: 50, source: "measured", status: "observed" },
+      toolCalls: { amount: 1, source: "measured", status: "observed" },
+    } as const;
+    const order: string[] = [];
+    const evidenceRepository = repository(initial, order);
+    await reconcileReplayAttemptUsage({
+      leaseDurationMilliseconds: 1_000,
+      plan,
+      repository: evidenceRepository,
+      reservationId: reserved.reservationId,
+      scope,
+      usage: evidence,
+      workerFence,
+    });
+    expect(order).toEqual(["heartbeat", "usage", "heartbeat", "reconcile"]);
+    const command = evidenceRepository.appendUsageObservation.mock.calls[0]?.[0];
+    const usageFor = (dimension: string) =>
+      command?.measurements.find((measurement) => measurement.dimension === dimension)?.usage;
+    expect(usageFor("inputTokens")).toEqual(evidence.inputTokens);
+    expect(usageFor("outputTokens")).toEqual(evidence.outputTokens);
+    expect(usageFor("providerCostMicrounits")).toEqual({
+      reason: "source_unavailable",
+      status: "unavailable",
+    });
+
+    const mismatchedRepository = repository(initial);
+    await reconcileReplayAttemptUsage({
+      leaseDurationMilliseconds: 1_000,
+      plan,
+      repository: mismatchedRepository,
+      reservationId: reserved.reservationId,
+      scope,
+      usage: {
+        ...evidence,
+        inputTokens: { amount: 30, source: "estimated", status: "observed" },
+      },
+      workerFence,
+    });
+    expect(
+      mismatchedRepository.appendUsageObservation.mock.calls[0]?.[0].measurements.find(
+        ({ dimension }) => dimension === "inputTokens",
+      )?.usage,
+    ).toEqual({ reason: "measurement_failed", status: "unavailable" });
+
+    await expect(
+      reconcileReplayAttemptUsage({
+        leaseDurationMilliseconds: 1_000,
+        plan,
+        repository: repository(initial),
+        reservationId: "rsv_other",
+        scope,
+        usage: evidence,
+        workerFence,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_accounting_context" });
+  });
+
+  it("rejects invalid source-bearing usage before durable mutation", async () => {
+    const initial = snapshot();
+    const reserved = await reserveReplayAttemptBudget({
+      leaseDurationMilliseconds: 1_000,
+      plan,
+      repository: repository(initial),
+      scope,
+      snapshot: initial,
+      workerFence,
+    });
+    for (const usage of [null, {}, { unexpected: true }, reserved.requested]) {
+      const invalidRepository = repository(initial);
+      await expect(
+        reconcileReplayAttemptUsage({
+          leaseDurationMilliseconds: 1_000,
+          plan,
+          repository: invalidRepository,
+          reservationId: reserved.reservationId,
+          scope,
+          usage,
+          workerFence,
+        }),
+      ).rejects.toMatchObject({ code: "invalid_usage" });
+      expect(invalidRepository.heartbeatJob).not.toHaveBeenCalled();
+    }
   });
 
   it("rejects invalid authority, policy, ledger, capacity, and usage before mutation", async () => {

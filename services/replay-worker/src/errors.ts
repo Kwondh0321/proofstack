@@ -113,10 +113,12 @@ export class ReplayAttemptObservationError extends Error {
 }
 
 export type ReplayAttemptAccountingErrorCode =
+  | "arithmetic_overflow"
   | "budget_exhausted_before_attempt"
   | "invalid_accounting_context"
   | "invalid_lease_policy"
-  | "invalid_usage";
+  | "invalid_usage"
+  | "invalid_usage_evidence";
 
 export class ReplayAttemptAccountingError extends Error {
   readonly code: ReplayAttemptAccountingErrorCode;

@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import {
   EvidenceScopeSchema,
-  type ReplayBudgetDimension,
   REPLAY_BUDGET_DIMENSIONS,
+  type ReplayBudgetDimension,
   type ReplayBudgetReservation,
   type ReplayExecutionObservationPayload,
+  type ReplayUsageMeasurement,
+  ReplayUsageMeasurementSchema,
   ReplayWorkerMutationFenceSchema,
 } from "@proofstack/contracts";
 import {
@@ -47,6 +49,16 @@ export interface ReconcileReplayAttemptBudgetOptions {
   readonly repository: ReplayJobWorkerRepository;
   readonly reservationId: string;
   readonly scope: unknown;
+  readonly workerFence: unknown;
+}
+
+export interface ReconcileReplayAttemptUsageOptions {
+  readonly leaseDurationMilliseconds: number;
+  readonly plan: unknown;
+  readonly repository: ReplayJobWorkerRepository;
+  readonly reservationId: string;
+  readonly scope: unknown;
+  readonly usage: unknown;
   readonly workerFence: unknown;
 }
 
@@ -98,6 +110,27 @@ function parseActualUsage(input: unknown): ReplayBudgetAmounts {
     }
     return value as number;
   });
+}
+
+function parseUsageMeasurements(input: unknown): ReplayUsageMeasurements {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    throw new ReplayAttemptAccountingError("invalid_usage");
+  }
+  const values = input as Readonly<Record<string, unknown>>;
+  const keys = Object.keys(values);
+  if (
+    keys.length !== REPLAY_BUDGET_DIMENSIONS.length ||
+    keys.some((key) => !REPLAY_BUDGET_DIMENSIONS.includes(key as ReplayBudgetDimension))
+  ) {
+    throw new ReplayAttemptAccountingError("invalid_usage");
+  }
+  return Object.fromEntries(
+    REPLAY_BUDGET_DIMENSIONS.map((dimension) => {
+      const parsed = ReplayUsageMeasurementSchema.safeParse(values[dimension]);
+      if (!parsed.success) throw new ReplayAttemptAccountingError("invalid_usage");
+      return [dimension, parsed.data];
+    }),
+  ) as ReplayUsageMeasurements;
 }
 
 function parseContext(options: {
@@ -263,6 +296,76 @@ function usageMeasurements(
   ) as ReplayUsageMeasurements;
 }
 
+function usageForPlan(
+  usage: ReplayUsageMeasurements,
+  context: ReturnType<typeof parseContext>,
+): ReplayUsageMeasurements {
+  return Object.fromEntries(
+    REPLAY_BUDGET_DIMENSIONS.map((dimension) => {
+      const expected = context.plan.budget[dimension].measurement;
+      const actual = usage[dimension];
+      let selected: ReplayUsageMeasurement;
+      if (expected === "unavailable") {
+        selected = { reason: "source_unavailable", status: "unavailable" };
+      } else if (actual.status === "unavailable" || actual.source === expected) {
+        selected = actual;
+      } else {
+        selected = { reason: "measurement_failed", status: "unavailable" };
+      }
+      return [dimension, selected];
+    }),
+  ) as ReplayUsageMeasurements;
+}
+
+async function persistReplayAttemptUsage(options: {
+  readonly context: ReturnType<typeof parseContext>;
+  readonly leaseDurationMilliseconds: number;
+  readonly repository: ReplayJobWorkerRepository;
+  readonly reservationId: string;
+  readonly source: Readonly<Record<string, unknown>>;
+  readonly usage: ReplayUsageMeasurements;
+}): Promise<ReplayJobSnapshot> {
+  const observationId = stableId("obs", options.context.workerFence, "attempt-usage");
+  const reconciliationId = stableId("rec", options.context.workerFence, "attempt-reconciliation");
+  const sourceEventSha256 = createHash("sha256")
+    .update(
+      JSON.stringify({
+        ...options.source,
+        namespace: ATTEMPT_ACCOUNTING_NAMESPACE,
+        reservationId: options.reservationId,
+      }),
+      "utf8",
+    )
+    .digest("hex");
+  await options.repository.heartbeatJob({
+    leaseDurationMilliseconds: options.leaseDurationMilliseconds,
+    scope: options.context.scope,
+    workerFence: options.context.workerFence,
+  });
+  await options.repository.appendUsageObservation({
+    measurements: REPLAY_BUDGET_DIMENSIONS.map((dimension) => ({
+      dimension,
+      usage: options.usage[dimension],
+    })),
+    observationId,
+    scope: options.context.scope,
+    sourceEventSha256,
+    workerFence: options.context.workerFence,
+  });
+  await options.repository.heartbeatJob({
+    leaseDurationMilliseconds: options.leaseDurationMilliseconds,
+    scope: options.context.scope,
+    workerFence: options.context.workerFence,
+  });
+  return await options.repository.reconcileBudget({
+    reconciliationId,
+    reservationId: options.reservationId,
+    scope: options.context.scope,
+    usage: options.usage,
+    workerFence: options.context.workerFence,
+  });
+}
+
 export async function reconcileReplayAttemptBudget(
   options: ReconcileReplayAttemptBudgetOptions,
 ): Promise<ReplayJobSnapshot> {
@@ -276,43 +379,36 @@ export async function reconcileReplayAttemptBudget(
   }
   const actual = parseActualUsage(options.actual);
   const usage = usageMeasurements(actual, context);
-  const observationId = stableId("obs", context.workerFence, "attempt-usage");
-  const reconciliationId = stableId("rec", context.workerFence, "attempt-reconciliation");
-  const sourceEventSha256 = createHash("sha256")
-    .update(
-      JSON.stringify({
-        actual,
-        namespace: ATTEMPT_ACCOUNTING_NAMESPACE,
-        reservationId: options.reservationId,
-      }),
-      "utf8",
-    )
-    .digest("hex");
-  await options.repository.heartbeatJob({
+  return await persistReplayAttemptUsage({
+    context,
     leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-    scope: context.scope,
-    workerFence: context.workerFence,
-  });
-  await options.repository.appendUsageObservation({
-    measurements: REPLAY_BUDGET_DIMENSIONS.map((dimension) => ({
-      dimension,
-      usage: usage[dimension],
-    })),
-    observationId,
-    scope: context.scope,
-    sourceEventSha256,
-    workerFence: context.workerFence,
-  });
-  await options.repository.heartbeatJob({
-    leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-    scope: context.scope,
-    workerFence: context.workerFence,
-  });
-  return await options.repository.reconcileBudget({
-    reconciliationId,
+    repository: options.repository,
     reservationId: options.reservationId,
-    scope: context.scope,
+    source: { actual },
     usage,
-    workerFence: context.workerFence,
+  });
+}
+
+/** Reconciles a source-bearing multi-mode usage vector without inventing measurement provenance. */
+export async function reconcileReplayAttemptUsage(
+  options: ReconcileReplayAttemptUsageOptions,
+): Promise<ReplayJobSnapshot> {
+  const context = parseContext(options);
+  validateLeaseDuration(
+    options.leaseDurationMilliseconds,
+    context.plan.retryPolicy.perAttemptTimeoutMilliseconds,
+  );
+  if (options.reservationId !== stableId("rsv", context.workerFence, "attempt-start")) {
+    throw new ReplayAttemptAccountingError("invalid_accounting_context");
+  }
+  const evidence = parseUsageMeasurements(options.usage);
+  const usage = usageForPlan(evidence, context);
+  return await persistReplayAttemptUsage({
+    context,
+    leaseDurationMilliseconds: options.leaseDurationMilliseconds,
+    repository: options.repository,
+    reservationId: options.reservationId,
+    source: { evidence, kind: "source_preserving_usage" },
+    usage,
   });
 }
