@@ -169,6 +169,7 @@ function options(
     processResult: processResult(),
     publisher: targetPublisher,
     reservationId: `rsv_${"6".repeat(40)}`,
+    signal: new AbortController().signal,
     scope,
     startMessage,
     workerFence,
@@ -207,6 +208,7 @@ describe("publishSuccessfulReplayAttemptReport", () => {
     expect(firstCommand).toBeDefined();
     expect(secondCommand).toBeDefined();
     expect(firstCommand?.content).toEqual(secondCommand?.content);
+    expect(firstCommand?.signal).toBeInstanceOf(AbortSignal);
     expect(firstCommand?.scope).toEqual(scope);
     expect(firstCommand?.contentReference.sizeBytes).toBe(firstCommand?.content.byteLength);
     const text = Buffer.from(firstCommand?.content ?? []).toString("utf8");
@@ -365,5 +367,27 @@ describe("publishSuccessfulReplayAttemptReport", () => {
       options(publisher(async (command) => ({ ...command.contentReference, sha256: sha("f") }))),
       "publisher_mismatch",
     );
+  });
+
+  it("never adopts publication after cancellation", async () => {
+    const before = new AbortController();
+    before.abort("cancelled before publication");
+    const skippedPublisher = publisher();
+    await expectCode(options(skippedPublisher, { signal: before.signal }), "publish_cancelled");
+    expect(skippedPublisher.publish).not.toHaveBeenCalled();
+
+    const during = new AbortController();
+    const cancelledPublisher = publisher(async () => {
+      during.abort("cancelled during publication");
+      throw new Error("publication aborted");
+    });
+    await expectCode(options(cancelledPublisher, { signal: during.signal }), "publish_cancelled");
+
+    const after = new AbortController();
+    const latePublisher = publisher(async (command) => {
+      after.abort("cancelled as publication completed");
+      return command.contentReference;
+    });
+    await expectCode(options(latePublisher, { signal: after.signal }), "publish_cancelled");
   });
 });

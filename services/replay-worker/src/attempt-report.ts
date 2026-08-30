@@ -31,6 +31,7 @@ const ISOLATION_CONTROLS = [
 export interface PublishReplayAttemptReportCommand {
   readonly content: Uint8Array;
   readonly contentReference: ReplayArtifactContentReference;
+  readonly signal: AbortSignal;
   readonly scope: ReturnType<typeof EvidenceScopeSchema.parse>;
 }
 
@@ -43,6 +44,7 @@ export interface PublishSuccessfulReplayAttemptReportOptions {
   readonly processResult: ReplayTargetProcessResult;
   readonly publisher: ReplayAttemptReportPublisher;
   readonly reservationId: string;
+  readonly signal: AbortSignal;
   readonly scope: unknown;
   readonly startMessage: unknown;
   readonly workerFence: unknown;
@@ -312,15 +314,25 @@ export async function publishSuccessfulReplayAttemptReport(
     sha256: digest(content.bytes),
     sizeBytes: content.bytes.byteLength,
   });
+  if (options.signal.aborted) {
+    throw new ReplayAttemptReportError("publish_cancelled", { cause: options.signal.reason });
+  }
   let published: unknown;
   try {
     published = await options.publisher.publish({
       content: Uint8Array.from(content.bytes),
       contentReference: expected,
+      signal: options.signal,
       scope: content.scope,
     });
   } catch (error) {
+    if (options.signal.aborted) {
+      throw new ReplayAttemptReportError("publish_cancelled", { cause: error });
+    }
     throw new ReplayAttemptReportError("publish_failed", { cause: error });
+  }
+  if (options.signal.aborted) {
+    throw new ReplayAttemptReportError("publish_cancelled", { cause: options.signal.reason });
   }
   let reference: ReplayArtifactContentReference;
   try {

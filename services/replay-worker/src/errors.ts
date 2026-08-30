@@ -159,6 +159,7 @@ export type ReplayAttemptReportErrorCode =
   | "invalid_process_result"
   | "invalid_report_context"
   | "invalid_report_size"
+  | "publish_cancelled"
   | "publish_failed"
   | "publisher_mismatch";
 
