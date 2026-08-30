@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@proofstack/contracts": "workspace:*",
+    "@proofstack/core": "workspace:*",
     "@proofstack/datasets": "workspace:*"
   },
   "devDependencies": {

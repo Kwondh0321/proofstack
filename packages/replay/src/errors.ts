@@ -176,6 +176,15 @@ export class ReplayRepositoryContractError extends Error {
   }
 }
 
+export class ReplayDefinitionNotFoundError extends Error {
+  readonly code = "replay_definition_not_found";
+
+  constructor() {
+    super("Replay definition was not found in the authorized scope");
+    this.name = "ReplayDefinitionNotFoundError";
+  }
+}
+
 export class ReplayJobConflictError extends Error {
   readonly code = "replay_job_conflict";
 

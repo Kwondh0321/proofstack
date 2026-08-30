@@ -10,7 +10,7 @@ const modules = [
     packageName: "@proofstack/contracts",
   },
   {
-    allowed: new Set(["@proofstack/contracts", "@proofstack/datasets"]),
+    allowed: new Set(["@proofstack/contracts", "@proofstack/core", "@proofstack/datasets"]),
     productionExternalAllowlist: new Set(["node:crypto"]),
     directory: "packages/replay/src",
     packageName: "@proofstack/replay",
