@@ -204,3 +204,23 @@ export class ReplayDispatchLoopError extends Error {
     this.code = code;
   }
 }
+
+export type ReplaySimulationBoundaryErrorCode =
+  | "cancelled"
+  | "invalid_declaration"
+  | "invalid_request"
+  | "invalid_simulator_result"
+  | "request_kind_mismatch"
+  | "simulator_failed"
+  | "simulator_identity_mismatch"
+  | "simulator_unavailable";
+
+export class ReplaySimulationBoundaryError extends Error {
+  readonly code: ReplaySimulationBoundaryErrorCode;
+
+  constructor(code: ReplaySimulationBoundaryErrorCode, options?: ErrorOptions) {
+    super(`Replay simulation boundary failed: ${code}`, options);
+    this.name = "ReplaySimulationBoundaryError";
+    this.code = code;
+  }
+}
