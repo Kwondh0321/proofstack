@@ -684,7 +684,11 @@ export class MemoryReplayJobRepository implements ReplayJobRepository {
     if (ledger.openReservationIds.length > 0) {
       throw new DurableReplayAccountingError("accounting_conflict");
     }
-    if (ledger.overruns.length > 0 && command.status !== "budget_exhausted") {
+    if (
+      ledger.overruns.length > 0 &&
+      command.status !== "budget_exhausted" &&
+      stored.cancellationRequest === null
+    ) {
       throw new DurableReplayAccountingError("accounting_conflict");
     }
     if (

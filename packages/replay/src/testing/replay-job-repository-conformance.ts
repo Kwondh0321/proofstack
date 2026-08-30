@@ -20,6 +20,7 @@ import {
   ReplayJobNotFoundError,
   ReplayRepositoryContractError,
 } from "../errors.js";
+import { summarizeReplayBudgetLedger } from "../replay-budget.js";
 import type { ReplayDefinitionRepository } from "../replay-definition-repository.js";
 import {
   digestReplayPlanDefinition,
@@ -865,6 +866,14 @@ export const replayJobRepositoryConformanceCases: readonly ReplayJobRepositoryCo
           claimCommand("job_cancel_running", replayPlan),
         );
         assert(claimed.claimed, "running cancellation claim");
+        const cancellationReservation = {
+          requested: amounts({ inputTokens: 2 }),
+          reservationId: "res_job_cancel_running_001",
+          scope: create.scope,
+          work: { kind: "attempt_start" as const },
+          workerFence: claimed.workerFence,
+        };
+        await harness.repository.reserveBudget(cancellationReservation);
         const cancel = {
           input: {
             cancellationId: "can_job_cancel_running_001",
@@ -876,6 +885,15 @@ export const replayJobRepositoryConformanceCases: readonly ReplayJobRepositoryCo
           scope: create.scope,
         };
         await harness.repository.requestCancellation(cancel);
+        await harness.repository.reconcileBudget({
+          reconciliationId: "rec_job_cancel_running_001",
+          reservationId: cancellationReservation.reservationId,
+          scope: create.scope,
+          usage: usage({
+            inputTokens: { amount: 3, source: "provider_reported", status: "observed" },
+          }),
+          workerFence: claimed.workerFence,
+        });
         equal(
           (await harness.repository.requestCancellation(cancel)).created,
           false,
@@ -947,6 +965,12 @@ export const replayJobRepositoryConformanceCases: readonly ReplayJobRepositoryCo
           workerFence: claimed.workerFence,
         });
         equal(terminal.job.status, "cancelled", "running terminal cancellation");
+        assert(
+          summarizeReplayBudgetLedger(terminal.budgetLedger).overruns.includes(
+            `${cancellationReservation.reservationId}:inputTokens`,
+          ),
+          "running cancellation preserves overrun accounting",
+        );
         equal(
           (await harness.repository.requestCancellation(cancel)).created,
           false,

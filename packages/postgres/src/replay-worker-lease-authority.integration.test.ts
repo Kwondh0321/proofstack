@@ -2162,7 +2162,7 @@ describe("replay worker lease authority", () => {
         fence,
         `rec_worker_cancel_existing_${runKey}`,
         cancellationReservationId,
-        usageMeasurements({ toolCalls: { amount: 1, source: "measured", status: "observed" } }),
+        usageMeasurements({ toolCalls: { amount: 2, source: "measured", status: "observed" } }),
       ),
     );
     expect(cancellationReconciliation.rows[0]?.created).toBe(true);
@@ -2240,6 +2240,29 @@ describe("replay worker lease authority", () => {
     );
     expect(ReplayJobSchema.parse(completed.rows[0]?.job).status).toBe("cancelled");
     expect(ReplayAttemptSchema.parse(completed.rows[0]?.attempt).status).toBe("cancelled");
+    const retainedOverrun = await adminPool.query<{
+      readonly actual_amount: string;
+      readonly dimension: string;
+      readonly disposition: string;
+      readonly reserved_amount: string;
+    }>(
+      `SELECT dimension, disposition, actual_amount::text, reserved_amount::text
+       FROM public.proofstack_replay_budget_entry_dimensions
+       WHERE tenant_id = $1
+         AND job_id = $2
+         AND reservation_id = $3
+         AND entry_type = 'reconciliation'
+         AND dimension = 'toolCalls'`,
+      [tenantId, jobId, cancellationReservationId],
+    );
+    expect(retainedOverrun.rows).toEqual([
+      {
+        actual_amount: "2",
+        dimension: "toolCalls",
+        disposition: "overrun",
+        reserved_amount: "1",
+      },
+    ]);
   });
 
   it("rejects untrusted completion payloads and preserves state when terminal intent conflicts", async () => {
