@@ -1,11 +1,5 @@
 import { z } from "zod";
 import {
-  EVIDENCE_SCHEMA_VERSION,
-  EvidenceEnvelopeSchema,
-  MAX_EVIDENCE_BATCH_SIZE,
-} from "./evidence.js";
-import { PrincipalContextSchema } from "./identity.js";
-import {
   ArtifactMetadataSchema,
   ArtifactOwnershipSchema,
   ArtifactTombstoneSchema,
@@ -17,12 +11,20 @@ import {
   RegressionDatasetVersionSchema,
   RegressionFixtureVersionSchema,
 } from "./dataset.js";
+import {
+  EVIDENCE_SCHEMA_VERSION,
+  EvidenceEnvelopeSchema,
+  MAX_EVIDENCE_BATCH_SIZE,
+} from "./evidence.js";
+import { PrincipalContextSchema } from "./identity.js";
 import { MAX_CAPTURE_ARTIFACTS } from "./interaction.js";
 import {
   RecordedInteractionFixtureContentExportSchema,
   RecordedInteractionFixtureMetadataExportSchema,
 } from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
+import { ReplayJobSnapshotSchema } from "./replay-job-snapshot.js";
+import { ReplayPlanSchema, TargetReleaseSchema } from "./replay-plan.js";
 
 export const RequestIdSchema = z.string().min(1).max(128);
 export const DEFAULT_TRACE_PAGE_SIZE = 100;
@@ -131,6 +133,59 @@ export const ReadRegressionDatasetVersionResponseSchema = z
   .object({
     requestId: RequestIdSchema,
     version: RegressionDatasetVersionSchema,
+  })
+  .strict();
+
+export const PublishTargetReleaseResponseSchema = z
+  .object({
+    created: z.boolean(),
+    release: TargetReleaseSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const ReadTargetReleaseResponseSchema = z
+  .object({
+    release: TargetReleaseSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const PublishReplayPlanResponseSchema = z
+  .object({
+    created: z.boolean(),
+    plan: ReplayPlanSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const ReadReplayPlanResponseSchema = z
+  .object({
+    plan: ReplayPlanSchema,
+    requestId: RequestIdSchema,
+  })
+  .strict();
+
+export const CreateReplayJobResponseSchema = z
+  .object({
+    created: z.boolean(),
+    requestId: RequestIdSchema,
+    snapshot: ReplayJobSnapshotSchema,
+  })
+  .strict();
+
+export const ReadReplayJobResponseSchema = z
+  .object({
+    requestId: RequestIdSchema,
+    snapshot: ReplayJobSnapshotSchema,
+  })
+  .strict();
+
+export const RequestReplayCancellationResponseSchema = z
+  .object({
+    created: z.boolean(),
+    requestId: RequestIdSchema,
+    snapshot: ReplayJobSnapshotSchema,
   })
   .strict();
 
@@ -315,6 +370,7 @@ export const ProblemDocumentSchema = z
   .strict();
 
 export type IngestEvidenceResponse = z.infer<typeof IngestEvidenceResponseSchema>;
+export type CreateReplayJobResponse = z.infer<typeof CreateReplayJobResponseSchema>;
 export type ExportRecordedInteractionFixtureContentResponse = z.infer<
   typeof ExportRecordedInteractionFixtureContentResponseSchema
 >;
@@ -322,6 +378,7 @@ export type ExportRecordedInteractionFixtureMetadataResponse = z.infer<
   typeof ExportRecordedInteractionFixtureMetadataResponseSchema
 >;
 export type PurgeArtifactResponse = z.infer<typeof PurgeArtifactResponseSchema>;
+export type PublishReplayPlanResponse = z.infer<typeof PublishReplayPlanResponseSchema>;
 export type PublishRecordedInteractionFixtureVersionResponse = z.infer<
   typeof PublishRecordedInteractionFixtureVersionResponseSchema
 >;
@@ -338,6 +395,7 @@ export type PublishRegressionDatasetVersionResponse = z.infer<
 export type PublishRegressionFixtureVersionResponse = z.infer<
   typeof PublishRegressionFixtureVersionResponseSchema
 >;
+export type PublishTargetReleaseResponse = z.infer<typeof PublishTargetReleaseResponseSchema>;
 export type ReadArtifactMetadataResponse = z.infer<typeof ReadArtifactMetadataResponseSchema>;
 export type ReadRecordedInteractionFixtureMetadataResponse = z.infer<
   typeof ReadRecordedInteractionFixtureMetadataResponseSchema
@@ -348,9 +406,15 @@ export type ReadRegressionDatasetVersionResponse = z.infer<
 export type ReadRegressionFixtureVersionResponse = z.infer<
   typeof ReadRegressionFixtureVersionResponseSchema
 >;
+export type ReadReplayJobResponse = z.infer<typeof ReadReplayJobResponseSchema>;
+export type ReadReplayPlanResponse = z.infer<typeof ReadReplayPlanResponseSchema>;
+export type ReadTargetReleaseResponse = z.infer<typeof ReadTargetReleaseResponseSchema>;
 export type ReserveArtifactResponse = z.infer<typeof ReserveArtifactResponseSchema>;
 export type RevokeRecordedInteractionFixtureContentResponse = z.infer<
   typeof RevokeRecordedInteractionFixtureContentResponseSchema
+>;
+export type RequestReplayCancellationResponse = z.infer<
+  typeof RequestReplayCancellationResponseSchema
 >;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;
 export type TracePageCursor = z.infer<typeof TracePageCursorSchema>;

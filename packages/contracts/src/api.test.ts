@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  BrowserLogoutResponseSchema,
   BrowserLoginQuerySchema,
+  BrowserLogoutResponseSchema,
   BrowserReturnPathSchema,
   BrowserSessionResponseSchema,
+  CreateReplayJobResponseSchema,
   ExportRecordedInteractionFixtureContentResponseSchema,
   ExportRecordedInteractionFixtureMetadataResponseSchema,
   IngestEvidenceResponseSchema,
@@ -15,22 +16,34 @@ import {
   PublishRecordedInteractionFixtureVersionResponseSchema,
   PublishRegressionDatasetVersionResponseSchema,
   PublishRegressionFixtureVersionResponseSchema,
+  PublishReplayPlanResponseSchema,
+  PublishTargetReleaseResponseSchema,
+  ReadArtifactMetadataResponseSchema,
+  ReadinessResponseSchema,
+  ReadRecordedInteractionFixtureMetadataResponseSchema,
   ReadRegressionDatasetVersionResponseSchema,
   ReadRegressionFixtureVersionResponseSchema,
-  ReadArtifactMetadataResponseSchema,
-  ReadRecordedInteractionFixtureMetadataResponseSchema,
+  ReadReplayJobResponseSchema,
+  ReadReplayPlanResponseSchema,
+  ReadTargetReleaseResponseSchema,
+  RequestReplayCancellationResponseSchema,
   ReserveArtifactResponseSchema,
   RevokeRecordedInteractionFixtureContentResponseSchema,
-  ReadinessResponseSchema,
-  TraceResponseSchema,
   TombstoneArtifactResponseSchema,
+  TraceResponseSchema,
   UploadArtifactResponseSchema,
 } from "./api.js";
+import { RecordedInteractionFixtureVersionDefinitionSchema } from "./dataset.js";
 import {
   RecordedInteractionFixtureContentExportSchema,
   RecordedInteractionFixtureMetadataExportSchema,
 } from "./interaction-export.js";
-import { RecordedInteractionFixtureVersionDefinitionSchema } from "./dataset.js";
+import {
+  ReplayPlanDefinitionSchema,
+  ReplayPlanSchema,
+  TargetReleaseDefinitionSchema,
+  TargetReleaseSchema,
+} from "./replay-plan.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
 const browserPrincipal = {
@@ -165,6 +178,61 @@ const tombstones = ownerships.map(({ artifactId }, index) => ({
   tombstoneId: `del_contract_test_${index}`,
   trigger: "fixture_revocation" as const,
 }));
+const replayDefinitionVectors = (
+  JSON.parse(
+    readFileSync(
+      new URL("../../replay/vectors/replay-definition-v1.json", import.meta.url),
+      "utf8",
+    ),
+  ) as {
+    readonly vectors: readonly {
+      readonly input: unknown;
+      readonly kind: "replay_plan" | "target_release";
+      readonly sha256: string;
+    }[];
+  }
+).vectors;
+const targetReleaseVector = replayDefinitionVectors.find(({ kind }) => kind === "target_release");
+const replayPlanVector = replayDefinitionVectors.find(({ kind }) => kind === "replay_plan");
+if (!targetReleaseVector || !replayPlanVector) {
+  throw new Error("Replay definition vectors are incomplete");
+}
+const targetRelease = TargetReleaseSchema.parse({
+  ...TargetReleaseDefinitionSchema.parse(targetReleaseVector.input),
+  createdAt: "2026-08-30T02:00:00.000Z",
+  createdByPrincipalId: "usr_contract_test",
+  definitionSha256: targetReleaseVector.sha256,
+});
+const replayPlan = ReplayPlanSchema.parse({
+  ...ReplayPlanDefinitionSchema.parse(replayPlanVector.input),
+  createdAt: "2026-08-30T02:00:01.000Z",
+  createdByPrincipalId: "usr_contract_test",
+  definitionSha256: replayPlanVector.sha256,
+});
+const replayJobSnapshot = {
+  attempts: [],
+  budgetLedger: [],
+  cancellationAcknowledgements: [],
+  cancellationRequest: null,
+  executionObservations: [],
+  job: {
+    createdAt: "2026-08-30T02:00:02.000Z",
+    createdByPrincipalId: "usr_contract_test",
+    jobId: "job_contract_test",
+    lastFencingToken: 0,
+    plan: {
+      definitionSha256: replayPlan.definitionSha256,
+      planId: replayPlan.planId,
+      planVersionId: replayPlan.planVersionId,
+    },
+    recoveryEpoch: 0,
+    schemaVersion: "0.1",
+    scope: replayPlan.scope,
+    stateVersion: 1,
+    status: "queued",
+  },
+  usageObservations: [],
+} as const;
 
 describe("HTTP response contracts", () => {
   it("validates health responses exactly", () => {
@@ -301,6 +369,89 @@ describe("HTTP response contracts", () => {
         created: true,
         requestId: "req_test_001",
         version: { ...datasetVersion, definitionSha256: "invalid" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates exact replay definition and job response envelopes", () => {
+    expect(
+      PublishTargetReleaseResponseSchema.parse({
+        created: true,
+        release: targetRelease,
+        requestId: "req_test_001",
+      }),
+    ).toEqual({ created: true, release: targetRelease, requestId: "req_test_001" });
+    expect(
+      ReadTargetReleaseResponseSchema.safeParse({
+        release: targetRelease,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      PublishReplayPlanResponseSchema.safeParse({
+        created: false,
+        plan: replayPlan,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      ReadReplayPlanResponseSchema.safeParse({
+        plan: replayPlan,
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(true);
+    expect(
+      CreateReplayJobResponseSchema.safeParse({
+        created: true,
+        requestId: "req_test_001",
+        snapshot: replayJobSnapshot,
+      }).success,
+    ).toBe(true);
+    expect(
+      ReadReplayJobResponseSchema.safeParse({
+        requestId: "req_test_001",
+        snapshot: replayJobSnapshot,
+      }).success,
+    ).toBe(true);
+    expect(
+      RequestReplayCancellationResponseSchema.safeParse({
+        created: false,
+        requestId: "req_test_001",
+        snapshot: replayJobSnapshot,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects ambiguous or internally inconsistent replay response envelopes", () => {
+    expect(
+      PublishTargetReleaseResponseSchema.safeParse({
+        created: true,
+        release: targetRelease,
+        requestId: "req_test_001",
+        result: "accepted",
+      }).success,
+    ).toBe(false);
+    expect(
+      ReadReplayPlanResponseSchema.safeParse({
+        plan: { ...replayPlan, definitionSha256: "invalid" },
+        requestId: "req_test_001",
+      }).success,
+    ).toBe(false);
+    expect(
+      ReadReplayJobResponseSchema.safeParse({
+        requestId: "req_test_001",
+        snapshot: {
+          ...replayJobSnapshot,
+          job: { ...replayJobSnapshot.job, latestAttemptSequence: 0 },
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      RequestReplayCancellationResponseSchema.safeParse({
+        created: false,
+        requestId: "req_test_001",
+        snapshot: replayJobSnapshot,
+        synchronousResult: {},
       }).success,
     ).toBe(false);
   });
