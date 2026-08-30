@@ -69,6 +69,31 @@ export class RecordedBoundaryRuntimeControlError extends Error {
   }
 }
 
+export type ReplayTargetProcessProtocolErrorCode =
+  | "boundary_response_mismatch"
+  | "duplicate_request_id"
+  | "invalid_start_message"
+  | "invalid_target_message"
+  | "invalid_worker_message"
+  | "random_response_mismatch"
+  | "request_sequence_mismatch"
+  | "session_closed"
+  | "session_mismatch"
+  | "target_adapter_mismatch"
+  | "unexpected_message"
+  | "unknown_boundary"
+  | "worker_protocol_mismatch";
+
+export class ReplayTargetProcessProtocolError extends Error {
+  readonly code: ReplayTargetProcessProtocolErrorCode;
+
+  constructor(code: ReplayTargetProcessProtocolErrorCode, options?: ErrorOptions) {
+    super(`Replay target process protocol failed: ${code}`, options);
+    this.name = "ReplayTargetProcessProtocolError";
+    this.code = code;
+  }
+}
+
 export type DurableReplayStateErrorCode =
   | "attempt_limit_reached"
   | "cancellation_conflict"
