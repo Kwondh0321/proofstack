@@ -124,3 +124,17 @@ export class ReplayAttemptAccountingError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayAttemptCancellationErrorCode =
+  | "invalid_cancellation_context"
+  | "invalid_lease_policy";
+
+export class ReplayAttemptCancellationError extends Error {
+  readonly code: ReplayAttemptCancellationErrorCode;
+
+  constructor(code: ReplayAttemptCancellationErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt cancellation failed: ${code}`, options);
+    this.name = "ReplayAttemptCancellationError";
+    this.code = code;
+  }
+}
