@@ -4,8 +4,8 @@ import {
   lstat,
   mkdir,
   mkdtemp,
-  readFile,
   readdir,
+  readFile,
   rm,
   symlink,
   writeFile,
@@ -27,8 +27,9 @@ import {
   MAX_TARGET_ENVIRONMENT_TOTAL_BYTES,
   MAX_TARGET_ENVIRONMENT_VALUE_BYTES,
   MAX_TARGET_LAUNCH_ARGUMENTS,
-  prepareTargetLaunch,
   type PrepareTargetLaunchOptions,
+  prepareTargetLaunch,
+  prepareTargetLaunchV2,
   type ResolvedPreinstalledTarget,
   targetLaunchEntryPointBasename,
 } from "./target-launch.js";
@@ -188,6 +189,32 @@ function startFor(release: TargetRelease) {
   } as const;
 }
 
+function startV2For(release: TargetRelease) {
+  const recorded = startFor(release).boundaries[0];
+  if (!recorded) throw new Error("Expected recorded launch boundary");
+  return {
+    boundaries: [
+      { boundaryId: "bnd_live", kind: "model" as const, mode: "live_provider" as const },
+      {
+        ...recorded,
+        boundaryId: "bnd_recorded",
+        kind: "tool" as const,
+        mode: "recorded_stub" as const,
+      },
+    ],
+    schemaVersion: "0.2" as const,
+    sessionId: "rts_launch_002",
+    targetRelease: {
+      definitionSha256: release.definitionSha256,
+      targetAdapter: release.targetAdapter,
+      targetId: release.targetId,
+      targetReleaseId: release.targetReleaseId,
+      workerProtocol: release.workerProtocol,
+    },
+    type: "start" as const,
+  };
+}
+
 function rebindResolvedTarget(
   resolved: ResolvedPreinstalledTarget,
   release: TargetRelease,
@@ -290,6 +317,83 @@ describe("prepareTargetLaunch", () => {
     await launch.cleanup();
     await launch.cleanup();
     await expect(lstat(launch.workspacePath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("prepares a strict multi-mode v2 start without weakening launch verification", async () => {
+    const value = await fixture();
+    const definition = releaseDefinition(value.release.build.executableSha256, {
+      supportedBoundaryKinds: ["model", "tool"],
+      supportedBoundaryModes: ["live_provider", "recorded_stub"],
+    });
+    const release = releaseFromDefinition(definition);
+    const resolved = rebindResolvedTarget(value.resolved, release);
+    const startMessage = startV2For(release);
+    const launch = await prepareTargetLaunchV2({
+      ...value.options,
+      registry: { resolve: async () => resolved },
+      startMessage,
+      targetRelease: release,
+    });
+    expect(launch.startMessage).toEqual(startMessage);
+    expect(launch.targetRelease).toEqual(release);
+    await launch.cleanup();
+
+    await expectLaunchCode(
+      prepareTargetLaunchV2({
+        ...value.options,
+        registry: { resolve: async () => resolved },
+        startMessage: {
+          ...startMessage,
+          targetRelease: { ...startMessage.targetRelease, targetId: "target_other" },
+        },
+        targetRelease: release,
+      }),
+      "start_message_mismatch",
+    );
+    await expectLaunchCode(
+      prepareTargetLaunchV2({
+        ...value.options,
+        registry: { resolve: async () => resolved },
+        startMessage: {
+          ...startMessage,
+          boundaries: [
+            { ...startMessage.boundaries[0], credentialId: "cred_forbidden" },
+            startMessage.boundaries[1],
+          ],
+        },
+        targetRelease: release,
+      }),
+      "start_message_mismatch",
+    );
+    await expectLaunchCode(
+      prepareTargetLaunchV2({
+        ...value.options,
+        registry: { resolve: async () => resolved },
+        startMessage: {
+          ...startMessage,
+          boundaries: [
+            startMessage.boundaries[0],
+            { ...startMessage.boundaries[1], invocationDefinitionSha256: sha("f") },
+          ],
+        },
+        targetRelease: release,
+      }),
+      "start_message_mismatch",
+    );
+    const unsupportedRelease = releaseFromDefinition(
+      releaseDefinition(value.release.build.executableSha256),
+    );
+    await expectLaunchCode(
+      prepareTargetLaunchV2({
+        ...value.options,
+        registry: {
+          resolve: async () => rebindResolvedTarget(value.resolved, unsupportedRelease),
+        },
+        startMessage: startV2For(unsupportedRelease),
+        targetRelease: unsupportedRelease,
+      }),
+      "start_message_mismatch",
+    );
   });
 
   it("stops before protected target preparation when cancellation is observed", async () => {

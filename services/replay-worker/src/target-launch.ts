@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
-import { constants as fileConstants, createReadStream, type Stats } from "node:fs";
+import { createReadStream, constants as fileConstants, type Stats } from "node:fs";
 import { access, chmod, copyFile, lstat, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import {
   type ReplayWorkerStartTargetMessage,
   ReplayWorkerStartTargetMessageSchema,
+  type ReplayWorkerStartTargetV2Message,
+  ReplayWorkerStartTargetV2MessageSchema,
   type TargetRelease,
+  type TargetReleaseReference,
 } from "@proofstack/contracts";
 import {
   digestRecordedBoundaryReplayInvocationDefinition,
@@ -47,22 +50,27 @@ export interface PrepareTargetLaunchOptions {
   readonly workspaceParent: string;
 }
 
-export interface PreparedTargetLaunch {
+export type PrepareTargetLaunchV2Options = PrepareTargetLaunchOptions;
+
+interface PreparedTargetLaunchBase<TStartMessage> {
   readonly arguments: readonly string[];
   readonly environment: Readonly<Record<string, string>>;
   readonly executablePath: string;
-  readonly startMessage: ReplayWorkerStartTargetMessage;
+  readonly startMessage: TStartMessage;
   readonly targetRelease: TargetRelease;
   readonly verifiedEntryPointPath: string;
   readonly workspacePath: string;
   cleanup(): Promise<void>;
 }
 
+export type PreparedTargetLaunch = PreparedTargetLaunchBase<ReplayWorkerStartTargetMessage>;
+export type PreparedTargetLaunchV2 = PreparedTargetLaunchBase<ReplayWorkerStartTargetV2Message>;
+
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function targetReference(release: TargetRelease): ReplayWorkerStartTargetMessage["targetRelease"] {
+function targetReference(release: TargetRelease): TargetReleaseReference {
   return {
     definitionSha256: release.definitionSha256,
     targetAdapter: release.targetAdapter,
@@ -177,6 +185,31 @@ function validateStart(release: TargetRelease, input: unknown): ReplayWorkerStar
   return parsed.data;
 }
 
+function validateStartV2(release: TargetRelease, input: unknown): ReplayWorkerStartTargetV2Message {
+  const parsed = ReplayWorkerStartTargetV2MessageSchema.safeParse(input);
+  if (!parsed.success || !sameJson(parsed.data.targetRelease, targetReference(release))) {
+    throw new ReplayTargetLaunchError("start_message_mismatch", {
+      ...(parsed.success ? {} : { cause: parsed.error }),
+    });
+  }
+  for (const boundary of parsed.data.boundaries) {
+    if (
+      !release.supportedBoundaryModes.includes(boundary.mode) ||
+      !release.supportedBoundaryKinds.includes(boundary.kind)
+    ) {
+      throw new ReplayTargetLaunchError("start_message_mismatch");
+    }
+    if (
+      boundary.mode === "recorded_stub" &&
+      digestRecordedBoundaryReplayInvocationDefinition(boundary.invocation) !==
+        boundary.invocationDefinitionSha256
+    ) {
+      throw new ReplayTargetLaunchError("start_message_mismatch");
+    }
+  }
+  return parsed.data;
+}
+
 function validateReleaseForLocalChild(release: TargetRelease): asserts release is TargetRelease & {
   readonly execution: Extract<TargetRelease["execution"], { readonly kind: "preinstalled" }>;
 } {
@@ -195,9 +228,10 @@ function validateReleaseForLocalChild(release: TargetRelease): asserts release i
   }
 }
 
-export async function prepareTargetLaunch(
+async function prepareTargetLaunchWithStart<TStartMessage>(
   options: PrepareTargetLaunchOptions,
-): Promise<PreparedTargetLaunch> {
+  startValidator: (release: TargetRelease, input: unknown) => TStartMessage,
+): Promise<PreparedTargetLaunchBase<TStartMessage>> {
   if (options.signal.aborted) {
     throw new ReplayTargetLaunchError("launch_cancelled", { cause: options.signal.reason });
   }
@@ -208,7 +242,7 @@ export async function prepareTargetLaunch(
     throw new ReplayTargetLaunchError("invalid_target_release", { cause: error });
   }
   validateReleaseForLocalChild(release);
-  const startMessage = validateStart(release, options.startMessage);
+  const startMessage = startValidator(release, options.startMessage);
   const execution = release.execution;
   const resolved = await options.registry.resolve(execution.implementationId, options.signal);
   if (options.signal.aborted) {
@@ -254,6 +288,20 @@ export async function prepareTargetLaunch(
   }
 }
 
-export function targetLaunchEntryPointBasename(launch: PreparedTargetLaunch): string {
+export async function prepareTargetLaunch(
+  options: PrepareTargetLaunchOptions,
+): Promise<PreparedTargetLaunch> {
+  return await prepareTargetLaunchWithStart(options, validateStart);
+}
+
+export async function prepareTargetLaunchV2(
+  options: PrepareTargetLaunchV2Options,
+): Promise<PreparedTargetLaunchV2> {
+  return await prepareTargetLaunchWithStart(options, validateStartV2);
+}
+
+export function targetLaunchEntryPointBasename(launch: {
+  readonly verifiedEntryPointPath: string;
+}): string {
   return basename(launch.verifiedEntryPointPath);
 }
