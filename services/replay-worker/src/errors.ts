@@ -108,3 +108,19 @@ export class ReplayAttemptObservationError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayAttemptAccountingErrorCode =
+  | "budget_exhausted_before_attempt"
+  | "invalid_accounting_context"
+  | "invalid_lease_policy"
+  | "invalid_usage";
+
+export class ReplayAttemptAccountingError extends Error {
+  readonly code: ReplayAttemptAccountingErrorCode;
+
+  constructor(code: ReplayAttemptAccountingErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt accounting failed: ${code}`, options);
+    this.name = "ReplayAttemptAccountingError";
+    this.code = code;
+  }
+}
