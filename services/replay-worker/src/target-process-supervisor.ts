@@ -1,27 +1,37 @@
+import { type ChildProcess, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { spawn, type ChildProcess } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
 import type {
+  RecordedBoundaryReplayRuntimeEvidence,
   RecordedBoundaryRequest,
   RecordedBoundaryResponse,
-  RecordedBoundaryReplayRuntimeEvidence,
+  ReplayBoundaryExecutionRequest,
+  ReplayBoundaryExecutionResult,
   ReplayExecutionObservationPayload,
   ReplayTargetProcessStopReason,
   ReplayWorkerToTargetMessage,
+  ReplayWorkerToTargetV2Message,
 } from "@proofstack/contracts";
+import { ReplayBoundaryExecutionResultSchema } from "@proofstack/contracts";
 import {
   createRecordedBoundaryRuntimeControls,
   type RecordedBoundaryRuntimeControls,
   ReplayTargetProcessSession,
+  ReplayTargetProcessV2Session,
 } from "@proofstack/replay";
 import { BoundedReplayTargetOutput, type ReplayTargetOutputEvidence } from "./bounded-output.js";
-import { ReplayTargetSupervisorError, type ReplayTargetSupervisorFailureCode } from "./errors.js";
+import {
+  ReplayLiveProviderBoundaryError,
+  ReplayTargetSupervisorError,
+  type ReplayTargetSupervisorFailureCode,
+} from "./errors.js";
 import {
   encodeReplayWorkerMessage,
+  encodeReplayWorkerV2Message,
   MAX_REPLAY_TARGET_PROTOCOL_FRAME_BYTES,
   ReplayTargetJsonLineDecoder,
 } from "./json-line-channel.js";
-import type { PreparedTargetLaunch } from "./target-launch.js";
+import type { PreparedTargetLaunch, PreparedTargetLaunchV2 } from "./target-launch.js";
 
 export const DEFAULT_REPLAY_TARGET_TERMINATION_GRACE_MS = 1_000;
 export const MAX_REPLAY_TARGET_PROTOCOL_MESSAGES = 10_000;
@@ -41,6 +51,24 @@ export interface SuperviseReplayTargetProcessOptions {
   readonly resolveBoundary: (
     input: ResolveReplayTargetBoundaryInput,
   ) => Promise<RecordedBoundaryResponse>;
+  readonly signal?: AbortSignal;
+  readonly terminationGraceMs?: number;
+}
+
+export interface ResolveReplayTargetV2BoundaryInput {
+  readonly boundaryId: string;
+  readonly request: ReplayBoundaryExecutionRequest;
+}
+
+export interface SuperviseReplayTargetProcessV2Options {
+  readonly cancellationRequested?: () => boolean;
+  readonly deadlineAtMs: number;
+  readonly launch: PreparedTargetLaunchV2;
+  readonly maxProtocolFrameBytes?: number;
+  readonly maxProtocolMessages?: number;
+  readonly resolveBoundary: (
+    input: ResolveReplayTargetV2BoundaryInput,
+  ) => Promise<ReplayBoundaryExecutionResult>;
   readonly signal?: AbortSignal;
   readonly terminationGraceMs?: number;
 }
@@ -67,6 +95,17 @@ export interface ReplayTargetProcessResult {
   readonly stderr: ReplayTargetOutputEvidence;
   readonly stdout: ReplayTargetOutputEvidence;
 }
+
+export interface ReplayTargetProcessV2Result extends ReplayTargetProcessResult {
+  readonly boundaryResults: readonly ReplayBoundaryExecutionResult[];
+}
+
+type SuperviseReplayTargetProcessCoreOptions =
+  | SuperviseReplayTargetProcessOptions
+  | (SuperviseReplayTargetProcessV2Options & { readonly protocolVersion: "0.2" });
+
+type AnyPreparedTargetLaunch = PreparedTargetLaunch | PreparedTargetLaunchV2;
+type AnyWorkerToTargetMessage = ReplayWorkerToTargetMessage | ReplayWorkerToTargetV2Message;
 
 type Termination = {
   readonly failureCode: ReplayTargetSupervisorFailureCode;
@@ -113,13 +152,19 @@ function isolationEvidence(
 }
 
 function runtimeControls(
-  launch: PreparedTargetLaunch,
+  launch: AnyPreparedTargetLaunch,
 ): ReadonlyMap<string, RecordedBoundaryRuntimeControls> {
   return new Map(
-    launch.startMessage.boundaries.map((boundary) => [
-      boundary.boundaryId,
-      createRecordedBoundaryRuntimeControls(boundary.invocation.runtime),
-    ]),
+    launch.startMessage.boundaries.flatMap((boundary) =>
+      "invocation" in boundary
+        ? [
+            [
+              boundary.boundaryId,
+              createRecordedBoundaryRuntimeControls(boundary.invocation.runtime),
+            ] as const,
+          ]
+        : [],
+    ),
   );
 }
 
@@ -143,11 +188,12 @@ function emptyOutput(stream: "stderr" | "stdout", limitBytes: number): ReplayTar
 }
 
 function stoppedBeforeStart(
-  options: SuperviseReplayTargetProcessOptions,
+  options: SuperviseReplayTargetProcessCoreOptions,
   termination: Termination,
-): ReplayTargetProcessResult {
+): ReplayTargetProcessV2Result {
   const controls = runtimeControls(options.launch);
   return Object.freeze({
+    boundaryResults: Object.freeze([]),
     executionObservations: Object.freeze([]),
     exitCode: -1,
     failureCode: termination.failureCode,
@@ -174,7 +220,7 @@ function protocolStreams(child: ChildProcess): {
   };
 }
 
-function spawnTarget(launch: PreparedTargetLaunch): ChildProcess {
+function spawnTarget(launch: AnyPreparedTargetLaunch): ChildProcess {
   return spawn(launch.executablePath, launch.arguments, {
     cwd: launch.workspacePath,
     env: launch.environment,
@@ -184,9 +230,67 @@ function spawnTarget(launch: PreparedTargetLaunch): ChildProcess {
   });
 }
 
-export async function superviseReplayTargetProcess(
-  options: SuperviseReplayTargetProcessOptions,
-): Promise<ReplayTargetProcessResult> {
+function isV2Options(
+  options: SuperviseReplayTargetProcessCoreOptions,
+): options is SuperviseReplayTargetProcessV2Options & { readonly protocolVersion: "0.2" } {
+  return "protocolVersion" in options && options.protocolVersion === "0.2";
+}
+
+function encodeWorkerMessage(
+  message: AnyWorkerToTargetMessage,
+  maxFrameBytes: number,
+  v2: boolean,
+): Uint8Array {
+  return v2
+    ? encodeReplayWorkerV2Message(message, maxFrameBytes)
+    : encodeReplayWorkerMessage(message, maxFrameBytes);
+}
+
+function boundaryMode(
+  launch: AnyPreparedTargetLaunch,
+  boundaryId: string,
+): "live_provider" | "recorded_stub" | "simulation" {
+  const boundary = launch.startMessage.boundaries.find(
+    (candidate) => candidate.boundaryId === boundaryId,
+  );
+  /* v8 ignore next -- Both protocol sessions reject unknown boundaries before dispatch. */
+  if (!boundary) throw new ReplayTargetSupervisorError("protocol_failed");
+  return "mode" in boundary ? boundary.mode : "recorded_stub";
+}
+
+const executionOriginByMode = {
+  live_provider: "live",
+  recorded_stub: "recorded",
+  simulation: "simulated",
+} as const;
+
+function failureEffectCertainty(
+  mode: "live_provider" | "recorded_stub" | "simulation",
+  error: unknown,
+): "confirmed" | "may_have_occurred" | "none" {
+  if (mode !== "live_provider" || !(error instanceof ReplayLiveProviderBoundaryError)) {
+    return "none";
+  }
+  return error.effectCertainty;
+}
+
+async function resolveSelectedBoundary(
+  options: SuperviseReplayTargetProcessCoreOptions,
+  input: {
+    readonly boundaryId: string;
+    readonly request: RecordedBoundaryRequest | ReplayBoundaryExecutionRequest;
+  },
+): Promise<RecordedBoundaryResponse | ReplayBoundaryExecutionResult> {
+  if (isV2Options(options)) {
+    return await options.resolveBoundary(input as ResolveReplayTargetV2BoundaryInput);
+  }
+  return await options.resolveBoundary(input as ResolveReplayTargetBoundaryInput);
+}
+
+async function superviseReplayTargetProcessCore(
+  options: SuperviseReplayTargetProcessCoreOptions,
+): Promise<ReplayTargetProcessV2Result> {
+  const v2 = isV2Options(options);
   const graceMs = options.terminationGraceMs ?? DEFAULT_REPLAY_TARGET_TERMINATION_GRACE_MS;
   const maxFrameBytes = options.maxProtocolFrameBytes ?? MAX_REPLAY_TARGET_PROTOCOL_FRAME_BYTES;
   const maxMessages = options.maxProtocolMessages ?? MAX_REPLAY_TARGET_PROTOCOL_MESSAGES;
@@ -225,7 +329,9 @@ export async function superviseReplayTargetProcess(
     }
   }
 
-  const session = new ReplayTargetProcessSession(options.launch.startMessage);
+  const session = v2
+    ? new ReplayTargetProcessV2Session(options.launch.startMessage)
+    : new ReplayTargetProcessSession(options.launch.startMessage);
   const controls = runtimeControls(options.launch);
   const stdout = new BoundedReplayTargetOutput(
     "stdout",
@@ -264,15 +370,15 @@ export async function superviseReplayTargetProcess(
   let termTimer: NodeJS.Timeout | undefined;
   let killTimer: NodeJS.Timeout | undefined;
 
-  const writeMessage = (message: ReplayWorkerToTargetMessage): Promise<void> =>
+  const writeMessage = (message: AnyWorkerToTargetMessage): Promise<void> =>
     new Promise((resolve, reject) => {
-      const frame = encodeReplayWorkerMessage(message, maxFrameBytes);
+      const frame = encodeWorkerMessage(message, maxFrameBytes, v2);
       streams.input.write(frame, (error) => (error ? reject(error) : resolve()));
     });
 
-  const bestEffortMessage = (message: ReplayWorkerToTargetMessage): void => {
+  const bestEffortMessage = (message: AnyWorkerToTargetMessage): void => {
     try {
-      streams.input.write(encodeReplayWorkerMessage(message, maxFrameBytes), () => undefined);
+      streams.input.write(encodeWorkerMessage(message, maxFrameBytes, v2), () => undefined);
     } catch {
       // Termination still proceeds through signals when the protocol pipe is unavailable.
     }
@@ -280,7 +386,7 @@ export async function superviseReplayTargetProcess(
 
   const abortSession = (
     code: Parameters<ReplayTargetProcessSession["abort"]>[0],
-  ): ReplayWorkerToTargetMessage | undefined => {
+  ): AnyWorkerToTargetMessage | undefined => {
     try {
       return session.abort(code);
     } catch {
@@ -290,7 +396,7 @@ export async function superviseReplayTargetProcess(
 
   const stopSession = (
     reason: ReplayTargetProcessStopReason,
-  ): ReplayWorkerToTargetMessage | undefined => {
+  ): AnyWorkerToTargetMessage | undefined => {
     try {
       return session.stop(reason);
     } catch {
@@ -298,7 +404,7 @@ export async function superviseReplayTargetProcess(
     }
   };
 
-  const beginTermination = (next: Termination, message?: ReplayWorkerToTargetMessage): void => {
+  const beginTermination = (next: Termination, message?: AnyWorkerToTargetMessage): void => {
     if (termination) return;
     termination = next;
     if (message) bestEffortMessage(message);
@@ -309,7 +415,7 @@ export async function superviseReplayTargetProcess(
   };
 
   const failProtocol = (error: unknown): void => {
-    let abortMessage: ReplayWorkerToTargetMessage | undefined;
+    let abortMessage: AnyWorkerToTargetMessage | undefined;
     try {
       abortMessage =
         session.snapshot().status === "failed"
@@ -329,9 +435,12 @@ export async function superviseReplayTargetProcess(
     }
     const message = session.acceptTargetMessage(input);
     if (message.type === "boundary_request") {
+      const mode = boundaryMode(options.launch, message.boundaryId);
+      const executionOrigin = executionOriginByMode[mode];
       const boundaryEvidence = {
         boundaryId: message.boundaryId,
         boundaryKind: message.request.kind,
+        mode,
         requestSequence: message.requestSequence,
       } as const;
       recordExecutionObservation({
@@ -340,31 +449,33 @@ export async function superviseReplayTargetProcess(
         boundaryKind: message.request.kind,
         effectCertainty: "none",
         evidenceSha256: evidenceSha256({ ...boundaryEvidence, phase: "request_started" }),
-        executionOrigin: "recorded",
+        executionOrigin,
         kind: "boundary",
-        mode: "recorded_stub",
+        mode,
         phase: "request_started",
       });
-      let response: RecordedBoundaryResponse;
+      let response: RecordedBoundaryResponse | ReplayBoundaryExecutionResult;
       try {
-        response = await options.resolveBoundary({
+        response = await resolveSelectedBoundary(options, {
           boundaryId: message.boundaryId,
           request: message.request,
         });
       } catch (error) {
+        const effectCertainty = failureEffectCertainty(mode, error);
         recordExecutionObservation({
           afterCancellationRequest: afterCancellationRequest(),
           boundaryId: message.boundaryId,
           boundaryKind: message.request.kind,
-          effectCertainty: "none",
+          effectCertainty,
           evidenceSha256: evidenceSha256({
             ...boundaryEvidence,
+            effectCertainty,
             errorType: error instanceof Error ? error.name : typeof error,
             phase: "failed",
           }),
-          executionOrigin: "recorded",
+          executionOrigin,
           kind: "boundary",
-          mode: "recorded_stub",
+          mode,
           phase: "failed",
         });
         beginTermination(
@@ -374,22 +485,24 @@ export async function superviseReplayTargetProcess(
         void error;
         return;
       }
+      const responseMessage = session.respondToBoundary(response);
+      const result = v2 ? ReplayBoundaryExecutionResultSchema.parse(response) : undefined;
       recordExecutionObservation({
         afterCancellationRequest: afterCancellationRequest(),
         boundaryId: message.boundaryId,
         boundaryKind: message.request.kind,
-        effectCertainty: "none",
+        effectCertainty: result?.effectCertainty ?? "none",
         evidenceSha256: evidenceSha256({
           ...boundaryEvidence,
           phase: "response_observed",
-          response,
+          result: result ?? response,
         }),
-        executionOrigin: "recorded",
+        executionOrigin: result?.executionOrigin ?? executionOrigin,
         kind: "boundary",
-        mode: "recorded_stub",
+        mode: result?.mode ?? mode,
         phase: "response_observed",
       });
-      await writeMessage(session.respondToBoundary(response));
+      await writeMessage(responseMessage);
       return;
     }
     if (message.type === "clock_request") {
@@ -476,7 +589,7 @@ export async function superviseReplayTargetProcess(
     );
   }, options.deadlineAtMs - Date.now());
 
-  const resultPromise = new Promise<ReplayTargetProcessResult>((resolve) => {
+  const resultPromise = new Promise<ReplayTargetProcessV2Result>((resolve) => {
     child.once("spawn", () => {
       processSpawned = true;
       recordExecutionObservation({
@@ -520,6 +633,9 @@ export async function superviseReplayTargetProcess(
         }
         const outputLimitsVerified = !stdout.finish().truncated && !stderr.finish().truncated;
         const result = Object.freeze({
+          boundaryResults: Object.freeze(
+            session instanceof ReplayTargetProcessV2Session ? [...session.boundaryResults] : [],
+          ),
           executionObservations: Object.freeze([...executionObservations]),
           exitCode: code ?? -1,
           failureCode: termination?.failureCode ?? null,
@@ -545,4 +661,16 @@ export async function superviseReplayTargetProcess(
     failProtocol(error);
   }
   return await resultPromise;
+}
+
+export async function superviseReplayTargetProcess(
+  options: SuperviseReplayTargetProcessOptions,
+): Promise<ReplayTargetProcessResult> {
+  return await superviseReplayTargetProcessCore(options);
+}
+
+export async function superviseReplayTargetProcessV2(
+  options: SuperviseReplayTargetProcessV2Options,
+): Promise<ReplayTargetProcessV2Result> {
+  return await superviseReplayTargetProcessCore({ ...options, protocolVersion: "0.2" });
 }
