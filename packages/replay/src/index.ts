@@ -4,6 +4,7 @@ export * from "./create-replay-job.js";
 export * from "./publish-replay-definitions.js";
 export * from "./preflight.js";
 export * from "./read-replay-job.js";
+export * from "./recorded-boundary-resolver.js";
 export * from "./request-replay-cancellation.js";
 export * from "./replay-budget.js";
 export * from "./replay-definition.js";
