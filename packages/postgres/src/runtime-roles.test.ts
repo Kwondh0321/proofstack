@@ -191,6 +191,7 @@ describe("provisionRuntimeRoles", () => {
     ).toEqual([
       'GRANT USAGE ON SCHEMA public TO "proofstack_replay_worker"',
       'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_replay_worker"',
+      'GRANT SELECT ON TABLE public.proofstack_replay_targets, public.proofstack_target_releases, public.proofstack_replay_plan_resources, public.proofstack_replay_plans, public.proofstack_replay_plan_budgets, public.proofstack_replay_plan_boundaries TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_acknowledge_replay_cancellation(text, text, text, text, text, text, bigint, bigint, text, text) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_append_replay_execution_observation(text, text, text, text, text, text, bigint, bigint, text, jsonb) TO "proofstack_replay_worker"',
       'GRANT EXECUTE ON FUNCTION public.proofstack_append_replay_usage_observation(text, text, text, text, text, text, bigint, bigint, text, text, text, jsonb) TO "proofstack_replay_worker"',

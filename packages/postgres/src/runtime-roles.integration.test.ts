@@ -190,9 +190,13 @@ describe("runtime role provisioning", () => {
       readonly jobsUpdate: boolean;
       readonly migrationsSelect: boolean;
       readonly outboxInsert: boolean;
+      readonly plansInsert: boolean;
+      readonly plansSelect: boolean;
       readonly reconcileExecute: boolean;
       readonly replaySnapshotExecute: boolean;
       readonly reserveExecute: boolean;
+      readonly targetReleasesInsert: boolean;
+      readonly targetReleasesSelect: boolean;
     }>(`
       SELECT
         has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
@@ -209,6 +213,14 @@ describe("runtime role provisioning", () => {
           AS "attemptEventsSelect",
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT')
           AS "outboxInsert",
+        has_table_privilege(current_user, 'proofstack_replay_plans', 'SELECT')
+          AS "plansSelect",
+        has_table_privilege(current_user, 'proofstack_replay_plans', 'INSERT')
+          AS "plansInsert",
+        has_table_privilege(current_user, 'proofstack_target_releases', 'SELECT')
+          AS "targetReleasesSelect",
+        has_table_privilege(current_user, 'proofstack_target_releases', 'INSERT')
+          AS "targetReleasesInsert",
         has_function_privilege(
           current_user,
           'proofstack_acknowledge_replay_cancellation(text,text,text,text,text,text,bigint,bigint,text,text)',
@@ -270,9 +282,13 @@ describe("runtime role provisioning", () => {
         jobsUpdate: false,
         migrationsSelect: true,
         outboxInsert: false,
+        plansInsert: false,
+        plansSelect: true,
         reconcileExecute: true,
         replaySnapshotExecute: true,
         reserveExecute: true,
+        targetReleasesInsert: false,
+        targetReleasesSelect: true,
       },
     ]);
 
