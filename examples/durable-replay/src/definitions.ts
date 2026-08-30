@@ -6,6 +6,7 @@ import {
   type ReplayArtifactContentReference,
   type ReplayPlanDefinition,
   ReplayPlanDefinitionSchema,
+  type ReplayTargetAdapterReference,
   type TargetRelease,
   type TargetReleaseDefinition,
   TargetReleaseDefinitionSchema,
@@ -26,6 +27,15 @@ const REPOSITORY_URL = "https://github.com/Kwondh0321/proofstack" as const;
 const SOURCE_REVISION_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const SUFFIX_PATTERN = /^[0-9a-f]{12}$/;
 const encoder = new TextEncoder();
+
+export function recordedReplayTargetAdapter(
+  release: Pick<TargetReleaseDefinition, "targetAdapter">,
+): ReplayTargetAdapterReference {
+  return {
+    name: release.targetAdapter.name,
+    version: release.targetAdapter.version,
+  };
+}
 
 export interface DurableReplayDatasetReference {
   readonly datasetId: string;

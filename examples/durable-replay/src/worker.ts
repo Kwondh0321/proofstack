@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import {
+  createPostgresPool,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobWorkerRepository,
-  createPostgresPool,
   validatePostgresConnectionString,
 } from "@proofstack/postgres";
 import {
@@ -11,11 +11,11 @@ import {
   RecordedBoundaryResolver,
 } from "@proofstack/replay";
 import { runClaimedReplayAttemptV2 } from "@proofstack/replay-worker";
-import { resolveDurableReplayTarget } from "./definitions.js";
+import { recordedReplayTargetAdapter, resolveDurableReplayTarget } from "./definitions.js";
 import {
   createLocalReplayReportPublisher,
-  loadDurableReplayWorkerCommand,
   type DurableReplayWorkerCommand,
+  loadDurableReplayWorkerCommand,
 } from "./worker-input.js";
 
 function inputArgument(): string {
@@ -50,7 +50,7 @@ function exactInvocation(
   return prepareRecordedBoundaryReplay({
     contentExport: command.contentExport,
     invocation,
-    targetAdapter: plan.targetRelease.targetAdapter,
+    targetAdapter: recordedReplayTargetAdapter(plan.targetRelease),
   });
 }
 

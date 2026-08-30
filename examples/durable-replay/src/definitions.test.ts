@@ -1,11 +1,16 @@
 import {
   ReplayPlanDefinitionSchema,
+  ReplayTargetAdapterReferenceSchema,
   TargetReleaseDefinitionSchema,
   TargetReleaseSchema,
 } from "@proofstack/contracts";
 import { digestReplayPlanDefinition, digestTargetReleaseDefinition } from "@proofstack/replay";
 import { describe, expect, it } from "vitest";
-import { createDurableReplayDefinitions, resolveDurableReplayTarget } from "./definitions.js";
+import {
+  createDurableReplayDefinitions,
+  recordedReplayTargetAdapter,
+  resolveDurableReplayTarget,
+} from "./definitions.js";
 import { createProviderNeutralDurableTargetSource } from "./target-source.js";
 
 const scope = {
@@ -39,6 +44,19 @@ function definitions() {
 }
 
 describe("durable replay definitions", () => {
+  it("projects the worker adapter into the strict recorded-replay reference", () => {
+    const { targetReleaseDefinition } = definitions();
+    expect(targetReleaseDefinition.targetAdapter.protocolVersion).toBe("0.2");
+    expect(
+      ReplayTargetAdapterReferenceSchema.safeParse(targetReleaseDefinition.targetAdapter).success,
+    ).toBe(false);
+    const reference = recordedReplayTargetAdapter(targetReleaseDefinition);
+    expect(ReplayTargetAdapterReferenceSchema.parse(reference)).toEqual({
+      name: targetReleaseDefinition.targetAdapter.name,
+      version: targetReleaseDefinition.targetAdapter.version,
+    });
+  });
+
   it("binds the executable, provenance, fixture, release, plan, and runtime exactly", () => {
     const value = definitions();
     expect(TargetReleaseDefinitionSchema.parse(value.targetReleaseDefinition)).toEqual(
