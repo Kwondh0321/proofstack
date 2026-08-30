@@ -138,3 +138,19 @@ export class ReplayAttemptCancellationError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayAttemptCompletionErrorCode =
+  | "incomplete_accounting"
+  | "invalid_completion_context"
+  | "invalid_lease_policy"
+  | "missing_result";
+
+export class ReplayAttemptCompletionError extends Error {
+  readonly code: ReplayAttemptCompletionErrorCode;
+
+  constructor(code: ReplayAttemptCompletionErrorCode, options?: ErrorOptions) {
+    super(`Replay attempt completion failed: ${code}`, options);
+    this.name = "ReplayAttemptCompletionError";
+    this.code = code;
+  }
+}
