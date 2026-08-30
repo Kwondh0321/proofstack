@@ -33,6 +33,7 @@ export interface ResolveReplayTargetBoundaryInput {
 }
 
 export interface SuperviseReplayTargetProcessOptions {
+  readonly cancellationRequested?: () => boolean;
   readonly deadlineAtMs: number;
   readonly launch: PreparedTargetLaunch;
   readonly maxProtocolFrameBytes?: number;
@@ -53,6 +54,10 @@ export interface ReplayTargetRuntimeEvidence {
 }
 
 export interface ReplayTargetProcessResult {
+  readonly executionObservations: readonly Exclude<
+    ReplayExecutionObservationPayload,
+    { kind: "cancellation" | "isolation" }
+  >[];
   readonly exitCode: number;
   readonly failureCode: ReplayTargetSupervisorFailureCode | null;
   readonly isolation: readonly Extract<ReplayExecutionObservationPayload, { kind: "isolation" }>[];
@@ -143,6 +148,7 @@ function stoppedBeforeStart(
 ): ReplayTargetProcessResult {
   const controls = runtimeControls(options.launch);
   return Object.freeze({
+    executionObservations: Object.freeze([]),
     exitCode: -1,
     failureCode: termination.failureCode,
     isolation: isolationEvidence(false, false),
@@ -229,6 +235,16 @@ export async function superviseReplayTargetProcess(
     "stderr",
     options.launch.targetRelease.outputLimits.stderrBytes,
   );
+  const executionObservations: Exclude<
+    ReplayExecutionObservationPayload,
+    { kind: "cancellation" | "isolation" }
+  >[] = [];
+  const afterCancellationRequest = (): boolean => options.cancellationRequested?.() === true;
+  const recordExecutionObservation = (
+    payload: Exclude<ReplayExecutionObservationPayload, { kind: "cancellation" | "isolation" }>,
+  ): void => {
+    executionObservations.push(Object.freeze(payload));
+  };
   let child: ChildProcess;
   try {
     child = spawnTarget(options.launch);
@@ -243,6 +259,7 @@ export async function superviseReplayTargetProcess(
   let processing = Promise.resolve();
   let protocolEnded = false;
   let targetCompleted = false;
+  let processSpawned = false;
   let termination: Termination | undefined;
   let termTimer: NodeJS.Timeout | undefined;
   let killTimer: NodeJS.Timeout | undefined;
@@ -312,6 +329,22 @@ export async function superviseReplayTargetProcess(
     }
     const message = session.acceptTargetMessage(input);
     if (message.type === "boundary_request") {
+      const boundaryEvidence = {
+        boundaryId: message.boundaryId,
+        boundaryKind: message.request.kind,
+        requestSequence: message.requestSequence,
+      } as const;
+      recordExecutionObservation({
+        afterCancellationRequest: afterCancellationRequest(),
+        boundaryId: message.boundaryId,
+        boundaryKind: message.request.kind,
+        effectCertainty: "none",
+        evidenceSha256: evidenceSha256({ ...boundaryEvidence, phase: "request_started" }),
+        executionOrigin: "recorded",
+        kind: "boundary",
+        mode: "recorded_stub",
+        phase: "request_started",
+      });
       let response: RecordedBoundaryResponse;
       try {
         response = await options.resolveBoundary({
@@ -319,6 +352,21 @@ export async function superviseReplayTargetProcess(
           request: message.request,
         });
       } catch (error) {
+        recordExecutionObservation({
+          afterCancellationRequest: afterCancellationRequest(),
+          boundaryId: message.boundaryId,
+          boundaryKind: message.request.kind,
+          effectCertainty: "none",
+          evidenceSha256: evidenceSha256({
+            ...boundaryEvidence,
+            errorType: error instanceof Error ? error.name : typeof error,
+            phase: "failed",
+          }),
+          executionOrigin: "recorded",
+          kind: "boundary",
+          mode: "recorded_stub",
+          phase: "failed",
+        });
         beginTermination(
           { failureCode: "boundary_resolution_failed", status: "failed" },
           abortSession("boundary_contract_rejected"),
@@ -326,6 +374,21 @@ export async function superviseReplayTargetProcess(
         void error;
         return;
       }
+      recordExecutionObservation({
+        afterCancellationRequest: afterCancellationRequest(),
+        boundaryId: message.boundaryId,
+        boundaryKind: message.request.kind,
+        effectCertainty: "none",
+        evidenceSha256: evidenceSha256({
+          ...boundaryEvidence,
+          phase: "response_observed",
+          response,
+        }),
+        executionOrigin: "recorded",
+        kind: "boundary",
+        mode: "recorded_stub",
+        phase: "response_observed",
+      });
       await writeMessage(session.respondToBoundary(response));
       return;
     }
@@ -364,6 +427,12 @@ export async function superviseReplayTargetProcess(
   streams.input.on("error", failProtocol);
   streams.stdout.on("data", (chunk: Buffer) => {
     if (stdout.write(chunk)) {
+      recordExecutionObservation({
+        afterCancellationRequest: afterCancellationRequest(),
+        evidenceSha256: evidenceSha256(stdout.finish()),
+        event: "stdout_capped",
+        kind: "target",
+      });
       beginTermination(
         { failureCode: "output_limit_exceeded", status: "failed" },
         abortSession("worker_internal_error"),
@@ -372,6 +441,12 @@ export async function superviseReplayTargetProcess(
   });
   streams.stderr.on("data", (chunk: Buffer) => {
     if (stderr.write(chunk)) {
+      recordExecutionObservation({
+        afterCancellationRequest: afterCancellationRequest(),
+        evidenceSha256: evidenceSha256(stderr.finish()),
+        event: "stderr_capped",
+        kind: "target",
+      });
       beginTermination(
         { failureCode: "output_limit_exceeded", status: "failed" },
         abortSession("worker_internal_error"),
@@ -402,6 +477,18 @@ export async function superviseReplayTargetProcess(
   }, options.deadlineAtMs - Date.now());
 
   const resultPromise = new Promise<ReplayTargetProcessResult>((resolve) => {
+    child.once("spawn", () => {
+      processSpawned = true;
+      recordExecutionObservation({
+        afterCancellationRequest: afterCancellationRequest(),
+        evidenceSha256: evidenceSha256({
+          event: "started",
+          targetRelease: options.launch.startMessage.targetRelease,
+        }),
+        event: "started",
+        kind: "target",
+      });
+    });
     child.once("error", (error) => {
       beginTermination({ failureCode: "spawn_failed", status: "failed" });
       void error;
@@ -409,6 +496,15 @@ export async function superviseReplayTargetProcess(
     child.once("close", (code, signal) => {
       void (async () => {
         await processing;
+        if (processSpawned) {
+          recordExecutionObservation({
+            afterCancellationRequest: afterCancellationRequest(),
+            evidenceSha256: evidenceSha256({ code: code ?? -1, event: "exited", signal }),
+            event: "exited",
+            exitCode: code ?? -1,
+            kind: "target",
+          });
+        }
         clearTimeout(deadlineTimer);
         if (termTimer) clearTimeout(termTimer);
         if (killTimer) clearTimeout(killTimer);
@@ -424,9 +520,10 @@ export async function superviseReplayTargetProcess(
         }
         const outputLimitsVerified = !stdout.finish().truncated && !stderr.finish().truncated;
         const result = Object.freeze({
+          executionObservations: Object.freeze([...executionObservations]),
           exitCode: code ?? -1,
           failureCode: termination?.failureCode ?? null,
-          isolation: isolationEvidence(true, outputLimitsVerified),
+          isolation: isolationEvidence(processSpawned, outputLimitsVerified),
           runtime: runtimeEvidence(controls),
           signal,
           status: termination?.status ?? "completed",

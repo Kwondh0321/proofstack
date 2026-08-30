@@ -288,6 +288,25 @@ describe("superviseReplayTargetProcess", () => {
         violated: false,
       },
     ]);
+    expect(
+      result.executionObservations.map(({ kind, ...observation }) => [kind, observation]),
+    ).toEqual([
+      [
+        "target",
+        expect.objectContaining({
+          afterCancellationRequest: false,
+          event: "started",
+        }),
+      ],
+      [
+        "target",
+        expect.objectContaining({
+          afterCancellationRequest: false,
+          event: "exited",
+          exitCode: 0,
+        }),
+      ],
+    ]);
     expect(result.isolation.map(({ control, verdict }) => [control, verdict])).toEqual([
       ["environment_allowlist", "verified"],
       ["filesystem_mounts", "not_verified"],
@@ -315,18 +334,31 @@ describe("superviseReplayTargetProcess", () => {
     const boundaryResult = await superviseReplayTargetProcess(boundary.options);
     expect(boundaryResult.failureCode).toBeNull();
     expect(boundaryResult.status).toBe("completed");
+    expect(
+      boundaryResult.executionObservations.flatMap((observation) =>
+        observation.kind === "boundary" ? [observation.phase] : [],
+      ),
+    ).toEqual(["request_started", "response_observed"]);
   });
 
   it("fails closed when boundary resolution or the protocol is invalid", async () => {
-    const boundary = await fixture("boundary", {
-      resolveBoundary: async () => {
-        throw new Error("fixture unavailable");
-      },
-    });
-    await expect(superviseReplayTargetProcess(boundary.options)).resolves.toMatchObject({
-      failureCode: "boundary_resolution_failed",
-      status: "failed",
-    });
+    for (const failure of [new Error("fixture unavailable"), "fixture unavailable"] as const) {
+      const boundary = await fixture("boundary", {
+        resolveBoundary: async () => {
+          throw failure;
+        },
+      });
+      const result = await superviseReplayTargetProcess(boundary.options);
+      expect(result).toMatchObject({
+        failureCode: "boundary_resolution_failed",
+        status: "failed",
+      });
+      expect(
+        result.executionObservations.flatMap((observation) =>
+          observation.kind === "boundary" ? [observation.phase] : [],
+        ),
+      ).toEqual(["request_started", "failed"]);
+    }
     for (const mode of ["bad_message", "incomplete_frame"]) {
       const value = await fixture(mode);
       const result = await superviseReplayTargetProcess(value.options);
@@ -352,6 +384,9 @@ describe("superviseReplayTargetProcess", () => {
       });
       expect(result.isolation.find(({ control }) => control === "output_limits")?.verdict).toBe(
         "failed",
+      );
+      expect(result.executionObservations).toContainEqual(
+        expect.objectContaining({ event: `${stream}_capped`, kind: "target" }),
       );
     }
     for (const [mode, stream] of [
@@ -405,11 +440,20 @@ describe("superviseReplayTargetProcess", () => {
     });
 
     const activeController = new AbortController();
-    const active = await fixture("hang", { signal: activeController.signal });
+    const active = await fixture("hang", {
+      cancellationRequested: () => activeController.signal.aborted,
+      signal: activeController.signal,
+    });
     setTimeout(() => activeController.abort(), 30);
-    await expect(superviseReplayTargetProcess(active.options)).resolves.toMatchObject({
+    const activeResult = await superviseReplayTargetProcess(active.options);
+    expect(activeResult).toMatchObject({
       failureCode: "worker_cancelled",
       status: "cancelled",
+    });
+    expect(activeResult.executionObservations.at(-1)).toMatchObject({
+      afterCancellationRequest: true,
+      event: "exited",
+      kind: "target",
     });
 
     const completedController = new AbortController();
@@ -469,7 +513,14 @@ describe("superviseReplayTargetProcess", () => {
     };
     await expect(
       superviseReplayTargetProcess({ ...missing.options, launch: missingLaunch }),
-    ).resolves.toMatchObject({ failureCode: "spawn_failed", status: "failed" });
+    ).resolves.toMatchObject({
+      executionObservations: [],
+      failureCode: "spawn_failed",
+      isolation: expect.arrayContaining([
+        expect.objectContaining({ control: "process_boundary", verdict: "not_verified" }),
+      ]),
+      status: "failed",
+    });
 
     const invalidExecutable = await fixture("complete");
     const invalidLaunch = {
