@@ -106,6 +106,7 @@ describe("migration inspection", () => {
         "0018_replay_job_control_authority",
         "0019_replay_worker_lease_authority",
         "0020_audited_replay_attempt_transitions",
+        "0021_replay_worker_completion_authority",
       ],
     });
   });

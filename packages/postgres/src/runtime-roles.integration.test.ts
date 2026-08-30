@@ -180,6 +180,7 @@ describe("runtime role provisioning", () => {
       readonly attemptsSelect: boolean;
       readonly attemptEventsSelect: boolean;
       readonly claimExecute: boolean;
+      readonly completeExecute: boolean;
       readonly heartbeatExecute: boolean;
       readonly jobsInsert: boolean;
       readonly jobsSelect: boolean;
@@ -209,6 +210,11 @@ describe("runtime role provisioning", () => {
         ) AS "claimExecute",
         has_function_privilege(
           current_user,
+          'proofstack_complete_replay_job(text,text,text,text,text,text,bigint,bigint,text,text,jsonb,jsonb)',
+          'EXECUTE'
+        ) AS "completeExecute",
+        has_function_privilege(
+          current_user,
           'proofstack_heartbeat_replay_job(text,text,text,text,text,text,bigint,bigint,bigint)',
           'EXECUTE'
         ) AS "heartbeatExecute"
@@ -218,6 +224,7 @@ describe("runtime role provisioning", () => {
         attemptsSelect: false,
         attemptEventsSelect: false,
         claimExecute: true,
+        completeExecute: true,
         heartbeatExecute: true,
         jobsInsert: false,
         jobsSelect: false,

@@ -94,6 +94,7 @@ const PLATFORM_TABLES = [
 
 const PLATFORM_FUNCTIONS = [
   "public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint)",
+  "public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb)",
   "public.proofstack_consume_oidc_login_transaction(text)",
   "public.proofstack_create_api_key(text, text, text, text, text, text[], jsonb, text, integer, integer, integer, integer, text, text, timestamptz, text)",
   "public.proofstack_create_browser_session(text, text, text, text, integer, integer)",
@@ -208,6 +209,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
   replayWorker: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_claim_replay_job(text, text, text, text, text, text, text, text, text, bigint) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_complete_replay_job(text, text, text, text, text, text, bigint, bigint, text, text, jsonb, jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint) TO %ROLE%",
   ],
 };

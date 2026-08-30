@@ -1,5 +1,7 @@
 import {
   ReplayAttemptSchema,
+  ReplayCancellationAcknowledgementSchema,
+  ReplayCancellationRequestSchema,
   ReplayJobSchema,
   ReplayWorkerMutationFenceSchema,
   type WorkerProtocolReference,
@@ -29,6 +31,16 @@ const planVersionId = `plv_worker_${runKey}`;
 const planDefinitionSha256 = "1".repeat(64);
 const workerProtocol = { name: "proofstack.replay-worker", version: "1.0.0" } as const;
 const adminPool = new Pool({ connectionString: databaseUrl, max: 4 });
+
+function resultArtifact() {
+  return {
+    artifactId: `art_worker_result_${runKey}`,
+    classification: "confidential",
+    mediaType: "application/json",
+    sha256: "7".repeat(64),
+    sizeBytes: 18,
+  } as const;
+}
 
 const credentials = {
   api: {
@@ -234,6 +246,39 @@ async function seedExactPlan(): Promise<void> {
         JSON.stringify(plan),
       ],
     );
+    const result = resultArtifact();
+    await client.query(
+      `INSERT INTO public.proofstack_artifact_catalog (
+        tenant_id, project_id, environment_id, artifact_id, schema_version, state,
+        classification, media_type, content_sha256, content_size_bytes, redaction,
+        retention_mode, expires_at, created_at, available_at, created_by_principal_id,
+        object_key, encryption_version, content_nonce, wrapped_key_algorithm,
+        wrapped_key_id, wrapped_key_ciphertext, wrapped_key_nonce, wrapped_key_tag,
+        object_receipt_sha256, object_receipt_size_bytes
+      ) VALUES (
+        $1, $2, $3, $4, '0.1', 'available', $5, $6, $7, $8,
+        '{"status":"not_required"}'::jsonb, 'retain', NULL,
+        $9::timestamptz, $10::timestamptz, 'usr_worker_seed', $11,
+        'a256gcm-v1', 'AQEBAQEBAQEBAQEB', 'A256GCM', 'key_worker_result',
+        'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE', 'AgICAgICAgICAgIC',
+        'AwMDAwMDAwMDAwMDAwMDAw', $12, $13
+      )`,
+      [
+        tenantId,
+        projectId,
+        environmentId,
+        result.artifactId,
+        result.classification,
+        result.mediaType,
+        result.sha256,
+        result.sizeBytes,
+        plan.createdAt,
+        "2026-08-29T10:00:01.000Z",
+        `objects/v1/worker/${runKey}/result`,
+        "8".repeat(64),
+        result.sizeBytes + 20,
+      ],
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -316,6 +361,62 @@ async function heartbeatJob(
   );
 }
 
+async function requestCancellation(client: PoolClient, jobId: string, cancellationId: string) {
+  return client.query<{ readonly request: unknown }>(
+    `SELECT * FROM public.proofstack_request_replay_cancellation(
+      $1, $2, $3, $4, 'operator_request', $5, 'usr_worker_operator'
+    )`,
+    [
+      projectId,
+      environmentId,
+      jobId,
+      cancellationId,
+      "Stop the running replay before terminal completion.",
+    ],
+  );
+}
+
+async function completeJob(
+  client: PoolClient,
+  fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  options:
+    | {
+        readonly code: "completed";
+        readonly result: unknown;
+        readonly status: "succeeded";
+      }
+    | {
+        readonly code: "execution_failed";
+        readonly error: unknown;
+        readonly status: "failed";
+      }
+    | {
+        readonly code: "cancellation_committed";
+        readonly error: unknown;
+        readonly status: "cancelled";
+      },
+) {
+  return client.query<{ readonly attempt: unknown; readonly job: unknown }>(
+    `SELECT * FROM public.proofstack_complete_replay_job(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb
+    )`,
+    [
+      projectId,
+      environmentId,
+      fence.jobId,
+      fence.attemptId,
+      fence.leaseId,
+      fence.workerId,
+      fence.fencingToken,
+      fence.recoveryEpoch,
+      options.status,
+      options.code,
+      "error" in options ? JSON.stringify(options.error) : null,
+      "result" in options ? JSON.stringify(options.result) : null,
+    ],
+  );
+}
+
 beforeAll(async () => {
   await migrateDatabase(adminPool);
   await provisionRuntimeRoles(adminPool, credentials);
@@ -324,13 +425,29 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await Promise.all([apiPool.end(), workerPool.end()]);
-  await adminPool.query(`TRUNCATE TABLE
-    public.proofstack_replay_attempts,
-    public.proofstack_replay_jobs,
-    public.proofstack_replay_plans,
-    public.proofstack_target_releases,
-    public.proofstack_outbox
-    RESTART IDENTITY CASCADE`);
+  await withTenantTransaction(adminPool, tenantId, async (client) => {
+    await client.query("SET LOCAL session_replication_role = 'replica'");
+    for (const table of [
+      "proofstack_replay_usage_measurements",
+      "proofstack_replay_observations",
+      "proofstack_replay_budget_entry_dimensions",
+      "proofstack_replay_budget_entries",
+      "proofstack_replay_cancellation_acknowledgements",
+      "proofstack_replay_cancellation_requests",
+      "proofstack_replay_attempt_events",
+      "proofstack_replay_attempts",
+      "proofstack_replay_jobs",
+      "proofstack_replay_plan_boundaries",
+      "proofstack_replay_plan_budgets",
+      "proofstack_replay_plan_resources",
+      "proofstack_replay_plans",
+      "proofstack_target_releases",
+      "proofstack_outbox",
+      "proofstack_artifact_catalog",
+    ] as const) {
+      await client.query(`DELETE FROM public.${table} WHERE tenant_id = $1`, [tenantId]);
+    }
+  });
   for (const role of Object.values(credentials)) {
     const exists = await adminPool.query<{ readonly present: boolean }>(
       "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1) AS present",
@@ -631,6 +748,335 @@ describe("replay worker lease authority", () => {
         ),
       ),
     ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("atomically completes the current fence with one exact available result artifact", async () => {
+    const jobId = `job_worker_complete_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(client, jobId, `att_worker_complete_${runKey}`, `lease_worker_complete_${runKey}`),
+    );
+    const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    const completed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      completeJob(client, fence, {
+        code: "completed",
+        result: resultArtifact(),
+        status: "succeeded",
+      }),
+    );
+    const job = ReplayJobSchema.parse(completed.rows[0]?.job);
+    const attempt = ReplayAttemptSchema.parse(completed.rows[0]?.attempt);
+    expect(job).toMatchObject({
+      jobId,
+      stateVersion: 3,
+      status: "succeeded",
+      terminal: {
+        attemptId: fence.attemptId,
+        code: "completed",
+        status: "succeeded",
+      },
+    });
+    expect(job.currentLease).toBeUndefined();
+    expect(attempt).toMatchObject({
+      attemptId: fence.attemptId,
+      result: resultArtifact(),
+      retryDisposition: "not_retryable",
+      status: "succeeded",
+    });
+    expect(attempt.endedAt).toBe(job.terminal?.committedAt);
+
+    const durable = await adminPool.query<{
+      readonly event_types: string[];
+      readonly outbox_created_at: string;
+      readonly outbox_payload: unknown;
+    }>(
+      `SELECT
+         ARRAY_AGG(event.event_type ORDER BY event.transition_sequence) AS event_types,
+         to_char(intent.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+           AS outbox_created_at,
+         intent.payload AS outbox_payload
+       FROM public.proofstack_replay_attempt_events AS event
+       JOIN public.proofstack_outbox AS intent
+         ON intent.tenant_id = event.tenant_id
+        AND intent.aggregate_id = event.job_id
+        AND intent.event_type = 'replay.job.terminal'
+       WHERE event.tenant_id = $1 AND event.job_id = $2
+       GROUP BY intent.created_at, intent.payload`,
+      [tenantId, jobId],
+    );
+    expect(durable.rows).toEqual([
+      {
+        event_types: ["attempt_claimed", "attempt_closed"],
+        outbox_created_at: job.terminal?.committedAt,
+        outbox_payload: {
+          code: "completed",
+          environmentId,
+          jobId,
+          projectId,
+          stateVersion: 3,
+          status: "succeeded",
+        },
+      },
+    ]);
+
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "completed",
+          result: resultArtifact(),
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(apiPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "completed",
+          result: resultArtifact(),
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("makes acknowledged cancellation win the terminal commit", async () => {
+    const jobId = `job_worker_cancel_${runKey}`;
+    const cancellationId = `can_worker_cancel_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        `att_worker_cancel_${runKey}`,
+        `lease_worker_cancel_${runKey}`,
+        workerProtocol,
+        2_000,
+      ),
+    );
+    const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    const cancellation = await withTenantTransaction(apiPool, tenantId, (client) =>
+      requestCancellation(client, jobId, cancellationId),
+    );
+    const request = ReplayCancellationRequestSchema.parse(cancellation.rows[0]?.request);
+    const cancellationError = {
+      code: "cancelled",
+      effectCertainty: "none",
+      message: "Cancellation stopped the bounded worker.",
+    } as const;
+
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "execution_failed",
+          error: {
+            code: "worker_internal_error",
+            effectCertainty: "none",
+            message: "The worker tried to ignore the cancellation request.",
+          },
+          status: "failed",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "cancellation_committed",
+          error: cancellationError,
+          status: "cancelled",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+
+    const acknowledgedAt = new Date(
+      Math.max(Date.now(), Date.parse(request.requestedAt)) + 1,
+    ).toISOString();
+    const acknowledgement = ReplayCancellationAcknowledgementSchema.parse({
+      acknowledgedAt,
+      acknowledgementId: `ack_worker_cancel_${runKey}`,
+      action: "stopped_before_target_start",
+      cancellationId,
+      mutationFence: fence,
+      schemaVersion: "0.1",
+      scope: { environmentId, projectId, tenantId },
+    });
+    await withTenantTransaction(adminPool, tenantId, (client) =>
+      client.query(
+        `INSERT INTO public.proofstack_replay_cancellation_acknowledgements (
+          tenant_id, project_id, environment_id, job_id, cancellation_id,
+          acknowledgement_id, schema_version, action, attempt_id, lease_id, worker_id,
+          fencing_token, recovery_epoch, acknowledged_at, acknowledged_at_lexical,
+          acknowledgement
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, '0.1', $7, $8, $9, $10, $11, $12,
+          $13::timestamptz, $14, $15::jsonb
+        )`,
+        [
+          tenantId,
+          projectId,
+          environmentId,
+          jobId,
+          cancellationId,
+          acknowledgement.acknowledgementId,
+          acknowledgement.action,
+          fence.attemptId,
+          fence.leaseId,
+          fence.workerId,
+          fence.fencingToken,
+          fence.recoveryEpoch,
+          acknowledgedAt,
+          acknowledgedAt,
+          JSON.stringify(acknowledgement),
+        ],
+      ),
+    );
+    const completed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      completeJob(client, fence, {
+        code: "cancellation_committed",
+        error: cancellationError,
+        status: "cancelled",
+      }),
+    );
+    expect(ReplayJobSchema.parse(completed.rows[0]?.job).status).toBe("cancelled");
+    expect(ReplayAttemptSchema.parse(completed.rows[0]?.attempt).status).toBe("cancelled");
+  });
+
+  it("rejects untrusted completion payloads and preserves state when terminal intent conflicts", async () => {
+    const validationJobId = `job_worker_validate_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, validationJobId));
+    const validationClaim = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        validationJobId,
+        `att_worker_validate_${runKey}`,
+        `lease_worker_validate_${runKey}`,
+      ),
+    );
+    const validationFence = ReplayWorkerMutationFenceSchema.parse(
+      validationClaim.rows[0]?.worker_fence,
+    );
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, validationFence, {
+          code: "completed",
+          result: { ...resultArtifact(), sizeBytes: 17 },
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, validationFence, {
+          code: "execution_failed",
+          error: {
+            code: "worker_internal_error",
+            effectCertainty: "none",
+            forged: true,
+            message: "The isolated worker stopped before producing a result.",
+          },
+          status: "failed",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, validationFence, {
+          code: "execution_failed",
+          error: {
+            code: "worker_internal_error",
+            effectCertainty: "confirmed",
+            effectRetrySafety: {},
+            message: "The worker supplied incomplete retry-safety evidence.",
+          },
+          status: "failed",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(
+          client,
+          { ...validationFence, fencingToken: 2 },
+          {
+            code: "execution_failed",
+            error: {
+              code: "worker_internal_error",
+              effectCertainty: "none",
+              message: "The isolated worker stopped before producing a result.",
+            },
+            status: "failed",
+          },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    const failed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      completeJob(client, validationFence, {
+        code: "execution_failed",
+        error: {
+          code: "worker_internal_error",
+          effectCertainty: "none",
+          message: "The isolated worker stopped before producing a result.",
+        },
+        status: "failed",
+      }),
+    );
+    expect(ReplayJobSchema.parse(failed.rows[0]?.job).status).toBe("failed");
+    expect(ReplayAttemptSchema.parse(failed.rows[0]?.attempt).status).toBe("failed");
+
+    const conflictJobId = `job_worker_conflict_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, conflictJobId));
+    const conflictClaim = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        conflictJobId,
+        `att_worker_conflict_${runKey}`,
+        `lease_worker_conflict_${runKey}`,
+      ),
+    );
+    const conflictFence = ReplayWorkerMutationFenceSchema.parse(
+      conflictClaim.rows[0]?.worker_fence,
+    );
+    await withTenantTransaction(adminPool, tenantId, (client) =>
+      client.query(
+        `INSERT INTO public.proofstack_outbox (
+          tenant_id, event_type, aggregate_type, aggregate_id,
+          schema_version, payload, created_at
+        ) VALUES (
+          $1, 'replay.job.terminal', 'replay.job', $2,
+          '0.1', '{"conflict":true}'::jsonb, transaction_timestamp()
+        )`,
+        [tenantId, conflictJobId],
+      ),
+    );
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, conflictFence, {
+          code: "completed",
+          result: resultArtifact(),
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+    const rolledBack = await adminPool.query<{
+      readonly event_count: number;
+      readonly job_status: string;
+      readonly attempt_status: string;
+    }>(
+      `SELECT
+         job.status AS job_status,
+         attempt.status AS attempt_status,
+         count(event.transition_sequence)::integer AS event_count
+       FROM public.proofstack_replay_jobs AS job
+       JOIN public.proofstack_replay_attempts AS attempt
+         ON attempt.tenant_id = job.tenant_id AND attempt.job_id = job.job_id
+       LEFT JOIN public.proofstack_replay_attempt_events AS event
+         ON event.tenant_id = attempt.tenant_id AND event.attempt_id = attempt.attempt_id
+       WHERE job.tenant_id = $1 AND job.job_id = $2
+       GROUP BY job.status, attempt.status`,
+      [tenantId, conflictJobId],
+    );
+    expect(rolledBack.rows).toEqual([
+      { attempt_status: "running", event_count: 1, job_status: "running" },
+    ]);
   });
 
   it("keeps worker and API capabilities mutually exclusive", async () => {
