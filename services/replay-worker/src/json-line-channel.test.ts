@@ -1,13 +1,17 @@
 import {
   REPLAY_TARGET_PROCESS_MESSAGE_SCHEMA_VERSION,
+  REPLAY_TARGET_PROCESS_V2_MESSAGE_SCHEMA_VERSION,
   type ReplayWorkerStopTargetMessage,
+  type ReplayWorkerStopTargetV2Message,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import { ReplayTargetChannelError } from "./errors.js";
 import {
   encodeReplayWorkerMessage,
+  encodeReplayWorkerV2Message,
   MAX_REPLAY_TARGET_PROTOCOL_FRAME_BYTES,
   parseEncodedReplayWorkerMessage,
+  parseEncodedReplayWorkerV2Message,
   ReplayTargetJsonLineDecoder,
 } from "./json-line-channel.js";
 
@@ -15,6 +19,13 @@ const message: ReplayWorkerStopTargetMessage = {
   reason: "worker_shutdown",
   schemaVersion: REPLAY_TARGET_PROCESS_MESSAGE_SCHEMA_VERSION,
   sessionId: "rts_channel_001",
+  type: "stop",
+};
+
+const v2Message: ReplayWorkerStopTargetV2Message = {
+  reason: "worker_shutdown",
+  schemaVersion: REPLAY_TARGET_PROCESS_V2_MESSAGE_SCHEMA_VERSION,
+  sessionId: "rts_channel_002",
   type: "stop",
 };
 
@@ -107,5 +118,33 @@ describe("replay worker JSON-line encoding", () => {
       () => parseEncodedReplayWorkerMessage(Buffer.from('{"type":"ready"}\n'), 1_024),
       "invalid_worker_message",
     );
+  });
+
+  it("keeps v2 encoding strict and version-separated from recorded-only messages", () => {
+    const encoded = encodeReplayWorkerV2Message(v2Message, 1_024);
+    expect(Buffer.from(encoded).at(-1)).toBe(0x0a);
+    expect(parseEncodedReplayWorkerV2Message(encoded, 1_024)).toEqual(v2Message);
+    expectChannelCode(() => encodeReplayWorkerV2Message(message, 1_024), "invalid_worker_message");
+    expectChannelCode(() => encodeReplayWorkerMessage(v2Message, 1_024), "invalid_worker_message");
+    expectChannelCode(
+      () => encodeReplayWorkerV2Message({ ...v2Message, command: "forbidden" }, 1_024),
+      "invalid_worker_message",
+    );
+    expectChannelCode(() => encodeReplayWorkerV2Message(v2Message, 1), "frame_too_large");
+    expectChannelCode(
+      () =>
+        parseEncodedReplayWorkerV2Message(
+          Buffer.concat([Buffer.from(encoded), Buffer.from(encoded)]),
+          1_024,
+        ),
+      "invalid_worker_message",
+    );
+    expectChannelCode(
+      () => parseEncodedReplayWorkerV2Message(Buffer.from('{"type":"ready"}\n'), 1_024),
+      "invalid_worker_message",
+    );
+    expect(() =>
+      encodeReplayWorkerV2Message(v2Message, MAX_REPLAY_TARGET_PROTOCOL_FRAME_BYTES + 1),
+    ).toThrow(RangeError);
   });
 });

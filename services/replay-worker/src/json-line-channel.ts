@@ -2,6 +2,8 @@ import {
   MAX_ARTIFACT_CONTENT_BYTES,
   type ReplayWorkerToTargetMessage,
   ReplayWorkerToTargetMessageSchema,
+  type ReplayWorkerToTargetV2Message,
+  ReplayWorkerToTargetV2MessageSchema,
 } from "@proofstack/contracts";
 import { ReplayTargetChannelError, type ReplayTargetChannelErrorCode } from "./errors.js";
 
@@ -95,6 +97,17 @@ export function encodeReplayWorkerMessage(input: unknown, maxFrameBytes: number)
   return Buffer.concat([frame, Buffer.from("\n", "utf8")]);
 }
 
+export function encodeReplayWorkerV2Message(input: unknown, maxFrameBytes: number): Uint8Array {
+  assertFrameLimit(maxFrameBytes);
+  const parsed = ReplayWorkerToTargetV2MessageSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ReplayTargetChannelError("invalid_worker_message", { cause: parsed.error });
+  }
+  const frame = Buffer.from(JSON.stringify(parsed.data), "utf8");
+  if (frame.byteLength > maxFrameBytes) throw new ReplayTargetChannelError("frame_too_large");
+  return Buffer.concat([frame, Buffer.from("\n", "utf8")]);
+}
+
 export function parseEncodedReplayWorkerMessage(
   value: Uint8Array,
   maxFrameBytes: number,
@@ -104,6 +117,21 @@ export function parseEncodedReplayWorkerMessage(
   decoder.finish();
   if (messages.length !== 1) throw new ReplayTargetChannelError("invalid_worker_message");
   const parsed = ReplayWorkerToTargetMessageSchema.safeParse(messages[0]);
+  if (!parsed.success) {
+    throw new ReplayTargetChannelError("invalid_worker_message", { cause: parsed.error });
+  }
+  return parsed.data;
+}
+
+export function parseEncodedReplayWorkerV2Message(
+  value: Uint8Array,
+  maxFrameBytes: number,
+): ReplayWorkerToTargetV2Message {
+  const decoder = new ReplayTargetJsonLineDecoder(maxFrameBytes);
+  const messages = decoder.feed(value);
+  decoder.finish();
+  if (messages.length !== 1) throw new ReplayTargetChannelError("invalid_worker_message");
+  const parsed = ReplayWorkerToTargetV2MessageSchema.safeParse(messages[0]);
   if (!parsed.success) {
     throw new ReplayTargetChannelError("invalid_worker_message", { cause: parsed.error });
   }
