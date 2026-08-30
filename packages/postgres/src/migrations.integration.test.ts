@@ -143,6 +143,7 @@ describe("PostgreSQL evidence schema", () => {
       "0027_replay_worker_execution_observation_authority",
       "0028_replay_worker_usage_observation_authority",
       "0029_normalize_replay_retry_policy",
+      "0030_reconcile_expired_replay_leases",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
