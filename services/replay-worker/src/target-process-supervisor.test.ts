@@ -415,7 +415,7 @@ describe("superviseReplayTargetProcess", () => {
           ["ignore_kill", "SIGKILL"],
         ] as const
       ).map(async ([mode, expectedSignal]) => {
-        const value = await fixture(mode, { deadlineAtMs: Date.now() + 5_000 });
+        const value = await fixture(mode, { deadlineAtMs: Date.now() + 3_000 }, true);
         const result = await superviseReplayTargetProcess(value.options);
         return { expectedSignal, mode, result };
       }),
