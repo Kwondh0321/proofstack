@@ -28,10 +28,15 @@ import type {
   RecordedInteractionFixtureVersionDefinition,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
+  ReplayPlanDefinition,
+  TargetReleaseDefinition,
 } from "@proofstack/contracts";
 import {
   InteractionCaptureManifestSchema,
   RecordedInteractionFixtureVersionDefinitionSchema,
+  ReplayPlanSchema,
+  ReplayWorkerMutationFenceSchema,
+  TargetReleaseSchema,
 } from "@proofstack/contracts";
 import {
   buildRegressionDatasetVersionPublishedOutboxIntent,
@@ -63,7 +68,7 @@ import {
 } from "@proofstack/postgres";
 import { encodeRecoveryObjectInventory, verifyRecoverySet } from "@proofstack/recovery";
 import { createS3ArtifactObjectStore, createS3Client } from "@proofstack/s3";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NativePostgresCommandRunner, type PostgresCommand } from "./postgres-command.js";
 import {
@@ -108,7 +113,22 @@ const EXPECTED_TABLES = [
   "proofstack_regression_fixture_events",
   "proofstack_regression_fixture_versions",
   "proofstack_regression_fixtures",
+  "proofstack_replay_attempt_events",
+  "proofstack_replay_attempts",
+  "proofstack_replay_budget_entries",
+  "proofstack_replay_budget_entry_dimensions",
+  "proofstack_replay_cancellation_acknowledgements",
+  "proofstack_replay_cancellation_requests",
+  "proofstack_replay_jobs",
+  "proofstack_replay_observations",
+  "proofstack_replay_plan_boundaries",
+  "proofstack_replay_plan_budgets",
+  "proofstack_replay_plan_resources",
+  "proofstack_replay_plans",
+  "proofstack_replay_targets",
+  "proofstack_replay_usage_measurements",
   "proofstack_schema_migrations",
+  "proofstack_target_releases",
 ] as const;
 
 const runKey = `${Date.now().toString(36)}_${process.pid}`;
@@ -810,6 +830,557 @@ async function seedRecoverableRecordedFixtures(
     revokedVersion: revoked.version,
   };
 }
+
+async function withRecoveryTenantTransaction<Result>(
+  work: (client: PoolClient) => Promise<Result>,
+): Promise<Result> {
+  const client = await sourcePool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('proofstack.tenant_id', $1, true)", [scope.tenantId]);
+    const result = await work(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function seedRecoverableReplayState(): Promise<void> {
+  const dataset = requiredRegressionCatalogState().datasetRoot;
+  const workerProtocol = { name: "proofstack.replay-worker", version: "1.0.0" } as const;
+  const targetAdapter = {
+    name: "proofstack.recovery_target",
+    protocolVersion: "1.0.0",
+    version: "1.0.0",
+  } as const;
+  const targetDefinition = {
+    build: {
+      builderId: "proofstack.recovery_builder",
+      dependencySnapshotSha256: "1".repeat(64),
+      executableSha256: "2".repeat(64),
+      invocationSha256: "3".repeat(64),
+      provenance: {
+        artifactId: availableArtifactId,
+        classification: "internal",
+        mediaType: "application/json",
+        sha256: sha256(availableArtifactContent),
+        sizeBytes: availableArtifactContent.byteLength,
+      },
+    },
+    environmentVariableNames: [],
+    execution: {
+      implementationId: "impl_recovery_target",
+      implementationSha256: "4".repeat(64),
+      kind: "preinstalled",
+    },
+    mounts: [],
+    outputLimits: {
+      emittedArtifactBytes: 1_048_576,
+      stderrBytes: 65_536,
+      stdoutBytes: 65_536,
+    },
+    runtime: {
+      architecture: "x64",
+      entryPoint: "dist/recovery-target.js",
+      family: "node",
+      platform: "linux",
+      version: "24.13.1",
+    },
+    schemaVersion: "0.1",
+    scope,
+    source: {
+      repositoryUrl: "https://github.com/Kwondh0321/proofstack",
+      revision: proofstackRevision(),
+    },
+    subprocessPolicy: { mode: "denied" },
+    supportedBoundaryKinds: ["model"],
+    supportedBoundaryModes: ["live_provider"],
+    targetAdapter,
+    targetId: "target_recovery",
+    targetReleaseId: "trg_recovery_001",
+    workerProtocol,
+  } as const satisfies TargetReleaseDefinition;
+  const targetRelease = TargetReleaseSchema.parse({
+    ...targetDefinition,
+    createdAt: "2026-08-28T03:10:00.000Z",
+    createdByPrincipalId: "usr_recovery",
+    definitionSha256: "b".repeat(64),
+  });
+  const boundary = {
+    boundaryId: "bnd_recovery_model",
+    credential: {
+      credentialId: "cred_recovery_model",
+      credentialVersionId: "crv_recovery_model_001",
+    },
+    destination: {
+      hostname: "api.recovery.example",
+      port: 443,
+      scheme: "https",
+    },
+    endpointProfile: {
+      definitionSha256: "5".repeat(64),
+      endpointProfileId: "end_recovery_model",
+      endpointProfileVersion: "1.0.0",
+    },
+    kind: "model",
+    mode: "live_provider",
+    operation: "generate",
+    requestLimits: { requestBytes: 4_096, responseBytes: 65_536 },
+    sideEffect: { kind: "read_only" },
+    usageSource: "provider_reported",
+  } as const;
+  const planDefinition = {
+    boundaries: [boundary],
+    budget: {
+      concurrentInteractions: { limit: 1, measurement: "measured" },
+      elapsedMilliseconds: { limit: 60_000, measurement: "measured" },
+      emittedArtifactBytes: { limit: 1_048_576, measurement: "measured" },
+      inputTokens: { limit: 4_096, measurement: "provider_reported" },
+      jobAttempts: { limit: 1, measurement: "measured" },
+      modelRequests: { limit: 4, measurement: "measured" },
+      outputTokens: { limit: 4_096, measurement: "provider_reported" },
+      providerCostMicrounits: { limit: 1_000_000, measurement: "unavailable" },
+      retrievedBytes: { limit: 1_048_576, measurement: "measured" },
+      toolCalls: { limit: 4, measurement: "measured" },
+    },
+    dataset: {
+      datasetId: dataset.datasetId,
+      datasetVersionId: dataset.datasetVersionId,
+      definitionSha256: dataset.definitionSha256,
+    },
+    isolationProfile: {
+      definitionSha256: "6".repeat(64),
+      id: "iso_recovery_local",
+      kind: "local_child_process",
+      version: "1.0.0",
+    },
+    planId: "plan_recovery",
+    planVersionId: "plv_recovery_001",
+    retryPolicy: {
+      automatic: false,
+      backoff: { kind: "none" },
+      idempotencyRequirement: "read_only",
+      maxAttempts: 1,
+      perAttemptTimeoutMilliseconds: 30_000,
+      retryableErrors: [],
+      totalDeadlineMilliseconds: 60_000,
+    },
+    runtimeProfile: {
+      definitionSha256: "7".repeat(64),
+      family: "node",
+      id: "run_recovery_node",
+      version: "1.0.0",
+    },
+    schemaVersion: "0.1",
+    scope,
+    targetRelease: {
+      definitionSha256: targetRelease.definitionSha256,
+      targetAdapter,
+      targetId: targetRelease.targetId,
+      targetReleaseId: targetRelease.targetReleaseId,
+      workerProtocol,
+    },
+    workerProtocol,
+  } as const satisfies ReplayPlanDefinition;
+  const replayPlan = ReplayPlanSchema.parse({
+    ...planDefinition,
+    createdAt: "2026-08-28T03:11:00.000Z",
+    createdByPrincipalId: "usr_recovery",
+    definitionSha256: "c".repeat(64),
+  });
+
+  await withRecoveryTenantTransaction(async (client) => {
+    await client.query(
+      `INSERT INTO public.proofstack_replay_targets (
+        tenant_id, project_id, environment_id, target_id
+      ) VALUES ($1, $2, $3, $4)`,
+      [scope.tenantId, scope.projectId, scope.environmentId, targetRelease.targetId],
+    );
+    await client.query(
+      `INSERT INTO public.proofstack_target_releases (
+        tenant_id, project_id, environment_id, target_id, target_release_id,
+        schema_version, definition_sha256, target_adapter_name, target_adapter_version,
+        target_adapter_protocol_version, worker_protocol_name, worker_protocol_version,
+        execution_kind, provenance_artifact_id, execution_artifact_id,
+        emitted_artifact_bytes, stderr_bytes, stdout_bytes, created_at, created_at_lexical,
+        created_by_principal_id, release
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULL,
+        $15, $16, $17, $18::timestamptz, $19, $20, $21::jsonb
+      )`,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        targetRelease.targetId,
+        targetRelease.targetReleaseId,
+        targetRelease.schemaVersion,
+        targetRelease.definitionSha256,
+        targetRelease.targetAdapter.name,
+        targetRelease.targetAdapter.version,
+        targetRelease.targetAdapter.protocolVersion,
+        targetRelease.workerProtocol.name,
+        targetRelease.workerProtocol.version,
+        targetRelease.execution.kind,
+        targetRelease.build.provenance.artifactId,
+        targetRelease.outputLimits.emittedArtifactBytes,
+        targetRelease.outputLimits.stderrBytes,
+        targetRelease.outputLimits.stdoutBytes,
+        targetRelease.createdAt,
+        targetRelease.createdAt,
+        targetRelease.createdByPrincipalId,
+        JSON.stringify(targetRelease),
+      ],
+    );
+    await client.query(
+      `INSERT INTO public.proofstack_replay_plan_resources (
+        tenant_id, project_id, environment_id, plan_id
+      ) VALUES ($1, $2, $3, $4)`,
+      [scope.tenantId, scope.projectId, scope.environmentId, replayPlan.planId],
+    );
+    await client.query(
+      `INSERT INTO public.proofstack_replay_plans (
+        tenant_id, project_id, environment_id, plan_id, plan_version_id, schema_version,
+        definition_sha256, target_id, target_release_id, target_definition_sha256,
+        target_adapter_name, target_adapter_version, target_adapter_protocol_version,
+        worker_protocol_name, worker_protocol_version, dataset_id, dataset_version_id,
+        dataset_definition_sha256, runtime_profile_id, runtime_profile_version,
+        runtime_profile_definition_sha256, isolation_profile_id, isolation_profile_version,
+        isolation_profile_definition_sha256, boundary_count, retry_automatic,
+        retry_max_attempts, retry_per_attempt_timeout_milliseconds,
+        retry_total_deadline_milliseconds, created_at, created_at_lexical,
+        created_by_principal_id, plan
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+        $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29,
+        $30::timestamptz, $31, $32, $33::jsonb
+      )`,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        replayPlan.planId,
+        replayPlan.planVersionId,
+        replayPlan.schemaVersion,
+        replayPlan.definitionSha256,
+        replayPlan.targetRelease.targetId,
+        replayPlan.targetRelease.targetReleaseId,
+        replayPlan.targetRelease.definitionSha256,
+        replayPlan.targetRelease.targetAdapter.name,
+        replayPlan.targetRelease.targetAdapter.version,
+        replayPlan.targetRelease.targetAdapter.protocolVersion,
+        replayPlan.workerProtocol.name,
+        replayPlan.workerProtocol.version,
+        replayPlan.dataset.datasetId,
+        replayPlan.dataset.datasetVersionId,
+        replayPlan.dataset.definitionSha256,
+        replayPlan.runtimeProfile.id,
+        replayPlan.runtimeProfile.version,
+        replayPlan.runtimeProfile.definitionSha256,
+        replayPlan.isolationProfile.id,
+        replayPlan.isolationProfile.version,
+        replayPlan.isolationProfile.definitionSha256,
+        replayPlan.boundaries.length,
+        replayPlan.retryPolicy.automatic,
+        replayPlan.retryPolicy.maxAttempts,
+        replayPlan.retryPolicy.perAttemptTimeoutMilliseconds,
+        replayPlan.retryPolicy.totalDeadlineMilliseconds,
+        replayPlan.createdAt,
+        replayPlan.createdAt,
+        replayPlan.createdByPrincipalId,
+        JSON.stringify(replayPlan),
+      ],
+    );
+    await client.query(
+      `INSERT INTO public.proofstack_replay_plan_budgets (
+        tenant_id, project_id, environment_id, plan_id, plan_version_id,
+        dimension, limit_value, measurement
+      )
+      SELECT $1, $2, $3, $4, $5, budget.key,
+        (budget.value ->> 'limit')::bigint,
+        budget.value ->> 'measurement'
+      FROM jsonb_each($6::jsonb) AS budget(key, value)`,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        replayPlan.planId,
+        replayPlan.planVersionId,
+        JSON.stringify(replayPlan.budget),
+      ],
+    );
+    await client.query(
+      `INSERT INTO public.proofstack_replay_plan_boundaries (
+        tenant_id, project_id, environment_id, plan_id, plan_version_id,
+        boundary_position, boundary_id, boundary_kind, boundary_mode,
+        recorded_fixture_id, recorded_fixture_version_id, recorded_fixture_definition_sha256,
+        recorded_invocation_definition_sha256, simulator_target_id,
+        simulator_target_release_id, simulator_definition_sha256,
+        simulator_target_adapter_name, simulator_target_adapter_version,
+        simulator_target_adapter_protocol_version, simulator_worker_protocol_name,
+        simulator_worker_protocol_version, qualification_artifact_id, credential_id,
+        credential_version_id, endpoint_profile_id, endpoint_profile_version,
+        endpoint_profile_definition_sha256, destination_hostname, destination_port,
+        destination_scheme, operation, request_bytes, response_bytes, side_effect_kind,
+        risk_acceptance_artifact_id, declaration
+      ) VALUES (
+        $1, $2, $3, $4, $5, 0, $6, $7, $8,
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NULL, $21::jsonb
+      )`,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        replayPlan.planId,
+        replayPlan.planVersionId,
+        boundary.boundaryId,
+        boundary.kind,
+        boundary.mode,
+        boundary.credential.credentialId,
+        boundary.credential.credentialVersionId,
+        boundary.endpointProfile.endpointProfileId,
+        boundary.endpointProfile.endpointProfileVersion,
+        boundary.endpointProfile.definitionSha256,
+        boundary.destination.hostname,
+        boundary.destination.port,
+        boundary.destination.scheme,
+        boundary.operation,
+        boundary.requestLimits.requestBytes,
+        boundary.requestLimits.responseBytes,
+        boundary.sideEffect.kind,
+        JSON.stringify(boundary),
+      ],
+    );
+    const jobId = "job_recovery_001";
+    await client.query(
+      "SELECT * FROM public.proofstack_create_replay_job($1, $2, $3, $4, $5, $6, $7)",
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        replayPlan.planId,
+        replayPlan.planVersionId,
+        replayPlan.definitionSha256,
+        "usr_recovery",
+      ],
+    );
+    const claim = await client.query<{ readonly worker_fence: unknown }>(
+      `SELECT * FROM public.proofstack_claim_replay_job(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        "att_recovery_001",
+        "lease_recovery_001",
+        "worker_recovery_001",
+        workerProtocol.name,
+        workerProtocol.version,
+        "8".repeat(64),
+        30_000,
+      ],
+    );
+    const fence = ReplayWorkerMutationFenceSchema.parse(claim.rows[0]?.worker_fence);
+    const requested = {
+      concurrentInteractions: 0,
+      elapsedMilliseconds: 0,
+      emittedArtifactBytes: 0,
+      inputTokens: 12,
+      jobAttempts: 1,
+      modelRequests: 1,
+      outputTokens: 0,
+      providerCostMicrounits: 0,
+      retrievedBytes: 0,
+      toolCalls: 0,
+    };
+    await client.query(
+      `SELECT * FROM public.proofstack_reserve_replay_budget(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        fence.attemptId,
+        fence.leaseId,
+        fence.workerId,
+        fence.fencingToken,
+        fence.recoveryEpoch,
+        "res_recovery_001",
+        JSON.stringify({ kind: "attempt_start" }),
+        JSON.stringify(requested),
+      ],
+    );
+    const measured = (amount: number) => ({ amount, source: "measured", status: "observed" });
+    const usage = {
+      concurrentInteractions: measured(0),
+      elapsedMilliseconds: measured(0),
+      emittedArtifactBytes: measured(0),
+      inputTokens: { amount: 12, source: "provider_reported", status: "observed" },
+      jobAttempts: measured(1),
+      modelRequests: measured(1),
+      outputTokens: { amount: 0, source: "provider_reported", status: "observed" },
+      providerCostMicrounits: { reason: "source_unavailable", status: "unavailable" },
+      retrievedBytes: measured(0),
+      toolCalls: measured(0),
+    };
+    await client.query(
+      `SELECT * FROM public.proofstack_reconcile_replay_budget(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        fence.attemptId,
+        fence.leaseId,
+        fence.workerId,
+        fence.fencingToken,
+        fence.recoveryEpoch,
+        "rec_recovery_001",
+        "res_recovery_001",
+        JSON.stringify(usage),
+      ],
+    );
+    await client.query(
+      `SELECT * FROM public.proofstack_append_replay_execution_observation(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        fence.attemptId,
+        fence.leaseId,
+        fence.workerId,
+        fence.fencingToken,
+        fence.recoveryEpoch,
+        "obs_recovery_execution_001",
+        JSON.stringify({
+          control: "process_boundary",
+          evidenceSha256: "9".repeat(64),
+          kind: "isolation",
+          verdict: "verified",
+        }),
+      ],
+    );
+    const observationClock = await client.query<{ readonly observed_at: string }>(`
+      SELECT to_char(
+        transaction_timestamp() AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+      ) AS observed_at
+    `);
+    const observedAt = observationClock.rows[0]?.observed_at;
+    if (!observedAt) throw new Error("Recovery replay observation clock is unavailable");
+    const usageObservation = {
+      boundaryId: boundary.boundaryId,
+      measurements: [
+        {
+          dimension: "inputTokens",
+          usage: { amount: 12, source: "provider_reported", status: "observed" },
+        },
+      ],
+      mutationFence: fence,
+      observationId: "obs_recovery_usage_001",
+      observationSequence: 1,
+      observedAt,
+      schemaVersion: "0.1",
+      scope,
+      sourceEventSha256: "a".repeat(64),
+    };
+    await client.query(
+      `INSERT INTO public.proofstack_replay_observations (
+        tenant_id, project_id, environment_id, job_id, observation_id,
+        observation_sequence, schema_version, observation_kind, payload_kind,
+        boundary_id, source_event_sha256, attempt_id, lease_id, worker_id,
+        fencing_token, recovery_epoch, observed_at, observed_at_lexical, observation
+      ) VALUES (
+        $1, $2, $3, $4, $5, 1, '0.1', 'usage', NULL, $6, $7,
+        $8, $9, $10, $11, $12, $13::timestamptz, $13, $14::jsonb
+      )`,
+      [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        usageObservation.observationId,
+        boundary.boundaryId,
+        usageObservation.sourceEventSha256,
+        fence.attemptId,
+        fence.leaseId,
+        fence.workerId,
+        fence.fencingToken,
+        fence.recoveryEpoch,
+        observedAt,
+        JSON.stringify(usageObservation),
+      ],
+    );
+    await client.query(
+      `INSERT INTO public.proofstack_replay_usage_measurements (
+        tenant_id, observation_id, observation_kind, dimension,
+        usage_status, amount, source, unavailable_reason
+      ) VALUES ($1, $2, 'usage', 'inputTokens', 'observed', 12, 'provider_reported', NULL)`,
+      [scope.tenantId, usageObservation.observationId],
+    );
+    await client.query(
+      `SELECT * FROM public.proofstack_request_replay_cancellation(
+        $1, $2, $3, $4, 'operator_request', $5, $6
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        "can_recovery_001",
+        "Stop the representative replay after its recoverable evidence is durable.",
+        "usr_recovery",
+      ],
+    );
+    await client.query(
+      `SELECT * FROM public.proofstack_acknowledge_replay_cancellation(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, 'stopped_before_target_start'
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        fence.attemptId,
+        fence.leaseId,
+        fence.workerId,
+        fence.fencingToken,
+        fence.recoveryEpoch,
+        "ack_recovery_001",
+      ],
+    );
+    await client.query(
+      `SELECT * FROM public.proofstack_complete_replay_job(
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        'cancelled', 'cancellation_committed', $9::jsonb, NULL
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+        fence.attemptId,
+        fence.leaseId,
+        fence.workerId,
+        fence.fencingToken,
+        fence.recoveryEpoch,
+        JSON.stringify({
+          code: "cancelled",
+          effectCertainty: "none",
+          message: "Recovery rehearsal stopped the bounded replay.",
+        }),
+      ],
+    );
+  });
+}
+
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
@@ -818,6 +1389,7 @@ async function seedAuthoritativeState(): Promise<void> {
 
   await seedRecoverableRegressionCatalog();
   await seedRecoverableRecordedFixtures(interactionCaptures);
+  await seedRecoverableReplayState();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,
