@@ -15,3 +15,4 @@ export * from "./replay-boundary-execution.js";
 export * from "./replay-job.js";
 export * from "./replay-plan.js";
 export * from "./replay-worker-protocol.js";
+export * from "./replay-worker-protocol-v2.js";

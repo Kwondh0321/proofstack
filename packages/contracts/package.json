@@ -57,6 +57,10 @@
     "./replay-worker-protocol": {
       "types": "./dist/replay-worker-protocol.d.ts",
       "import": "./dist/replay-worker-protocol.js"
+    },
+    "./replay-worker-protocol-v2": {
+      "types": "./dist/replay-worker-protocol-v2.d.ts",
+      "import": "./dist/replay-worker-protocol-v2.js"
     }
   },
   "files": [
