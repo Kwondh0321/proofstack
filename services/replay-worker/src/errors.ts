@@ -82,3 +82,15 @@ export class ReplayAttemptPreflightError extends Error {
     this.code = code;
   }
 }
+
+export type ReplayLeaseHeartbeatErrorCode = "heartbeat_failed" | "invalid_heartbeat_policy";
+
+export class ReplayLeaseHeartbeatError extends Error {
+  readonly code: ReplayLeaseHeartbeatErrorCode;
+
+  constructor(code: ReplayLeaseHeartbeatErrorCode, options?: ErrorOptions) {
+    super(`Replay lease heartbeat failed: ${code}`, options);
+    this.name = "ReplayLeaseHeartbeatError";
+    this.code = code;
+  }
+}
