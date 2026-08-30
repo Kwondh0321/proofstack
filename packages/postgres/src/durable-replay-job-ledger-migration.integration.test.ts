@@ -126,6 +126,7 @@ describe("durable replay job ledger migration", () => {
           'proofstack_guard_replay_attempt_transition',
           'proofstack_guard_replay_job_root_mutation',
           'proofstack_record_replay_attempt_event',
+          'proofstack_reconcile_replay_budget',
           'proofstack_replay_job_intent_status',
           'proofstack_request_replay_cancellation',
           'proofstack_reserve_replay_budget',

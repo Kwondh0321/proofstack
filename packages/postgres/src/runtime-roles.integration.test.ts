@@ -188,6 +188,7 @@ describe("runtime role provisioning", () => {
       readonly jobsUpdate: boolean;
       readonly migrationsSelect: boolean;
       readonly outboxInsert: boolean;
+      readonly reconcileExecute: boolean;
       readonly reserveExecute: boolean;
     }>(`
       SELECT
@@ -227,6 +228,11 @@ describe("runtime role provisioning", () => {
         ) AS "heartbeatExecute",
         has_function_privilege(
           current_user,
+          'proofstack_reconcile_replay_budget(text,text,text,text,text,text,bigint,bigint,text,text,jsonb)',
+          'EXECUTE'
+        ) AS "reconcileExecute",
+        has_function_privilege(
+          current_user,
           'proofstack_reserve_replay_budget(text,text,text,text,text,text,bigint,bigint,text,jsonb,jsonb)',
           'EXECUTE'
         ) AS "reserveExecute"
@@ -244,6 +250,7 @@ describe("runtime role provisioning", () => {
         jobsUpdate: false,
         migrationsSelect: true,
         outboxInsert: false,
+        reconcileExecute: true,
         reserveExecute: true,
       },
     ]);

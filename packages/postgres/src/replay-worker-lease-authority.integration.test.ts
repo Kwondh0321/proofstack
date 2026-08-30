@@ -1,6 +1,7 @@
 import {
   REPLAY_BUDGET_DIMENSIONS,
   ReplayAttemptSchema,
+  ReplayBudgetReconciliationSchema,
   ReplayBudgetReservationSchema,
   ReplayCancellationAcknowledgementSchema,
   ReplayCancellationRequestSchema,
@@ -435,6 +436,15 @@ function requestedAmounts(overrides: Readonly<Record<string, number>> = {}) {
   );
 }
 
+function usageMeasurements(overrides: Readonly<Record<string, unknown>> = {}) {
+  return Object.fromEntries(
+    REPLAY_BUDGET_DIMENSIONS.map((dimension) => [
+      dimension,
+      overrides[dimension] ?? { amount: 0, source: "measured", status: "observed" },
+    ]),
+  );
+}
+
 async function reserveBudget(
   client: PoolClient,
   fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
@@ -462,6 +472,33 @@ async function reserveBudget(
   );
 }
 
+async function reconcileBudget(
+  client: PoolClient,
+  fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+  reconciliationId: string,
+  reservationId: string,
+  usage: Readonly<Record<string, unknown>>,
+) {
+  return client.query<{ readonly created: boolean; readonly reconciliation: unknown }>(
+    `SELECT * FROM public.proofstack_reconcile_replay_budget(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb
+    )`,
+    [
+      projectId,
+      environmentId,
+      fence.jobId,
+      fence.attemptId,
+      fence.leaseId,
+      fence.workerId,
+      fence.fencingToken,
+      fence.recoveryEpoch,
+      reconciliationId,
+      reservationId,
+      JSON.stringify(usage),
+    ],
+  );
+}
+
 async function completeJob(
   client: PoolClient,
   fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
@@ -480,6 +517,11 @@ async function completeJob(
         readonly code: "cancellation_committed";
         readonly error: unknown;
         readonly status: "cancelled";
+      }
+    | {
+        readonly code: "budget_limit_reached";
+        readonly error: unknown;
+        readonly status: "budget_exhausted";
       },
 ) {
   return client.query<{ readonly attempt: unknown; readonly job: unknown }>(
@@ -750,6 +792,170 @@ describe("replay worker lease authority", () => {
       [tenantId, jobId],
     );
     expect(normalized.rows).toEqual([{ dimension_count: 10, input_measurement: "estimated" }]);
+  });
+
+  it("reconciles settled, disputed, and overrun usage without trusting worker arithmetic", async () => {
+    const jobId = `job_worker_reconcile_${runKey}`;
+    const reservationId = `res_worker_reconcile_${runKey}`;
+    const reconciliationId = `rec_worker_reconcile_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    const claimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        `att_worker_reconcile_${runKey}`,
+        `lease_worker_reconcile_${runKey}`,
+        workerProtocol,
+        2_000,
+      ),
+    );
+    const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      reserveBudget(
+        client,
+        fence,
+        reservationId,
+        requestedAmounts({ inputTokens: 10, jobAttempts: 1, providerCostMicrounits: 100 }),
+      ),
+    );
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "completed",
+          result: resultArtifact(),
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+
+    const usage = usageMeasurements({
+      inputTokens: { amount: 4, source: "provider_reported", status: "observed" },
+      jobAttempts: { amount: 1, source: "measured", status: "observed" },
+      providerCostMicrounits: { reason: "provider_did_not_report", status: "unavailable" },
+    });
+    await expect(
+      withTenantTransaction(apiPool, tenantId, (client) =>
+        reconcileBudget(client, fence, reconciliationId, reservationId, usage),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reconcileBudget(
+          client,
+          { ...fence, fencingToken: 2 },
+          reconciliationId,
+          reservationId,
+          usage,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reconcileBudget(client, fence, reconciliationId, reservationId, {}),
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      heartbeatJob(client, fence, 2_000),
+    );
+
+    const reconciled = await withTenantTransaction(workerPool, tenantId, (client) =>
+      reconcileBudget(client, fence, reconciliationId, reservationId, usage),
+    );
+    const reconciliation = ReplayBudgetReconciliationSchema.parse(
+      reconciled.rows[0]?.reconciliation,
+    );
+    expect(reconciled.rows[0]?.created).toBe(true);
+    expect(reconciliation).toMatchObject({
+      ledgerSequence: 1,
+      mutationFence: fence,
+      reconciliationId,
+      reservationId,
+      scope: { environmentId, projectId, tenantId },
+    });
+    expect(reconciliation.dimensions.inputTokens).toEqual({
+      actualUsage: { amount: 4, source: "provider_reported", status: "observed" },
+      disposition: "settled",
+      overrunAmount: 0,
+      releasedAmount: 6,
+      reservedAmount: 10,
+    });
+    expect(reconciliation.dimensions.providerCostMicrounits).toEqual({
+      actualUsage: { reason: "provider_did_not_report", status: "unavailable" },
+      disposition: "disputed",
+      overrunAmount: 0,
+      releasedAmount: 0,
+      reservedAmount: 100,
+    });
+
+    const retried = await withTenantTransaction(workerPool, tenantId, (client) =>
+      reconcileBudget(client, fence, reconciliationId, reservationId, usage),
+    );
+    expect(retried.rows).toEqual([{ created: false, reconciliation }]);
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reconcileBudget(
+          client,
+          fence,
+          reconciliationId,
+          reservationId,
+          usageMeasurements({
+            ...usage,
+            inputTokens: { amount: 5, source: "provider_reported", status: "observed" },
+          }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        reconcileBudget(client, fence, `rec_worker_duplicate_${runKey}`, reservationId, usage),
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+
+    const overrunReservationId = `res_worker_overrun_${runKey}`;
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      heartbeatJob(client, fence, 2_000),
+    );
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      reserveBudget(client, fence, overrunReservationId, requestedAmounts({ toolCalls: 1 })),
+    );
+    const overrun = await withTenantTransaction(workerPool, tenantId, (client) =>
+      reconcileBudget(
+        client,
+        fence,
+        `rec_worker_overrun_${runKey}`,
+        overrunReservationId,
+        usageMeasurements({ toolCalls: { amount: 2, source: "measured", status: "observed" } }),
+      ),
+    );
+    expect(
+      ReplayBudgetReconciliationSchema.parse(overrun.rows[0]?.reconciliation).dimensions.toolCalls,
+    ).toMatchObject({
+      disposition: "overrun",
+      overrunAmount: 1,
+      releasedAmount: 0,
+      reservedAmount: 1,
+    });
+    await expect(
+      withTenantTransaction(workerPool, tenantId, (client) =>
+        completeJob(client, fence, {
+          code: "completed",
+          result: resultArtifact(),
+          status: "succeeded",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    const exhausted = await withTenantTransaction(workerPool, tenantId, (client) =>
+      completeJob(client, fence, {
+        code: "budget_limit_reached",
+        error: {
+          code: "budget_exhausted",
+          effectCertainty: "none",
+          message: "Observed usage exceeded its complete reservation.",
+        },
+        status: "budget_exhausted",
+      }),
+    );
+    expect(ReplayJobSchema.parse(exhausted.rows[0]?.job).status).toBe("budget_exhausted");
   });
 
   it("rejects caller-authored lineage, excessive leases, null input, and stale fences", async () => {
@@ -1091,6 +1297,10 @@ describe("replay worker lease authority", () => {
       ),
     );
     const fence = ReplayWorkerMutationFenceSchema.parse(claimed.rows[0]?.worker_fence);
+    const cancellationReservationId = `res_worker_cancel_existing_${runKey}`;
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      reserveBudget(client, fence, cancellationReservationId, requestedAmounts({ toolCalls: 1 })),
+    );
     const cancellation = await withTenantTransaction(apiPool, tenantId, (client) =>
       requestCancellation(client, jobId, cancellationId),
     );
@@ -1105,6 +1315,16 @@ describe("replay worker lease authority", () => {
         ),
       ),
     ).rejects.toMatchObject({ code: "55000" });
+    const cancellationReconciliation = await withTenantTransaction(workerPool, tenantId, (client) =>
+      reconcileBudget(
+        client,
+        fence,
+        `rec_worker_cancel_existing_${runKey}`,
+        cancellationReservationId,
+        usageMeasurements({ toolCalls: { amount: 1, source: "measured", status: "observed" } }),
+      ),
+    );
+    expect(cancellationReconciliation.rows[0]?.created).toBe(true);
     const cancellationError = {
       code: "cancelled",
       effectCertainty: "none",
