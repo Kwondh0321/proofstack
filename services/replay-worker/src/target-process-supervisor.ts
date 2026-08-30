@@ -31,6 +31,7 @@ import {
   MAX_REPLAY_TARGET_PROTOCOL_FRAME_BYTES,
   ReplayTargetJsonLineDecoder,
 } from "./json-line-channel.js";
+import { writeReplayTargetProtocolFrame } from "./protocol-write.js";
 import type { PreparedTargetLaunch, PreparedTargetLaunchV2 } from "./target-launch.js";
 
 export const DEFAULT_REPLAY_TARGET_TERMINATION_GRACE_MS = 1_000;
@@ -371,10 +372,7 @@ async function superviseReplayTargetProcessCore(
   let killTimer: NodeJS.Timeout | undefined;
 
   const writeMessage = (message: AnyWorkerToTargetMessage): Promise<void> =>
-    new Promise((resolve, reject) => {
-      const frame = encodeWorkerMessage(message, maxFrameBytes, v2);
-      streams.input.write(frame, (error) => (error ? reject(error) : resolve()));
-    });
+    writeReplayTargetProtocolFrame(streams.input, encodeWorkerMessage(message, maxFrameBytes, v2));
 
   const bestEffortMessage = (message: AnyWorkerToTargetMessage): void => {
     try {
