@@ -137,6 +137,16 @@ describe("durable replay retry decisions", () => {
     });
     expect(
       decision({
+        evaluatedAt: "2026-08-29T00:00:08.001Z",
+      }),
+    ).toEqual({ eligible: false, reason: "deadline_insufficient" });
+    expect(
+      decision({
+        evaluatedAt: "2026-08-29T00:00:01.999Z",
+      }),
+    ).toEqual({ eligible: false, reason: "deadline_insufficient" });
+    expect(
+      decision({
         failedAt: "9999-12-31T23:59:59.999Z",
         jobStartedAt: "0001-01-01T00:00:00.000Z",
         policy: policy({

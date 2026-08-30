@@ -27,6 +27,7 @@ export type ReplayRetryDecision =
 export interface DecideReplayRetryOptions {
   readonly attemptSequence: number;
   readonly error: ReplayAttemptError;
+  readonly evaluatedAt?: string;
   readonly failedAt: string;
   readonly jobStartedAt: string;
   readonly policy: ReplayRetryPolicy;
@@ -78,14 +79,18 @@ export function decideReplayRetry(options: DecideReplayRetryOptions): ReplayRetr
 
   const failedAt = timestamp(options.failedAt);
   const startedAt = timestamp(options.jobStartedAt);
+  const evaluatedAt = options.evaluatedAt === undefined ? failedAt : timestamp(options.evaluatedAt);
   const delayMilliseconds = retryDelay(policy, options.attemptSequence);
   const notBeforeValue = failedAt + delayMilliseconds;
   const deadlineValue = startedAt + policy.totalDeadlineMilliseconds;
-  const nextAttemptCompletesAt = notBeforeValue + policy.perAttemptTimeoutMilliseconds;
+  const nextAttemptStartsAt = Math.max(notBeforeValue, evaluatedAt);
+  const nextAttemptCompletesAt = nextAttemptStartsAt + policy.perAttemptTimeoutMilliseconds;
   if (
     failedAt < startedAt ||
+    evaluatedAt < failedAt ||
     !Number.isSafeInteger(notBeforeValue) ||
     !Number.isSafeInteger(deadlineValue) ||
+    !Number.isSafeInteger(nextAttemptStartsAt) ||
     !Number.isSafeInteger(nextAttemptCompletesAt) ||
     nextAttemptCompletesAt > deadlineValue
   ) {

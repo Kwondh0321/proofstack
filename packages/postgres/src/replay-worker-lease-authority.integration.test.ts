@@ -311,7 +311,7 @@ async function seedExactPlan(): Promise<void> {
       [tenantId, projectId, environmentId, planId, planVersionId, JSON.stringify(plan.budget)],
     );
     const boundary = plan.boundaries[0];
-    if (!boundary || boundary.mode !== "recorded_stub") {
+    if (boundary?.mode !== "recorded_stub") {
       throw new Error("Replay worker fixture requires one recorded boundary");
     }
     await client.query(
@@ -1548,7 +1548,7 @@ describe("replay worker lease authority", () => {
     const rejectedReclaim = reclaimOutcomes.find(({ status }) => status === "rejected");
     expect(rejectedReclaim).toMatchObject({ reason: { code: "55000" } });
     const successfulReclaim = reclaimOutcomes.find(({ status }) => status === "fulfilled");
-    if (!successfulReclaim || successfulReclaim.status !== "fulfilled") {
+    if (successfulReclaim?.status !== "fulfilled") {
       throw new Error("Concurrent replay reclaim produced no winner");
     }
     const reclaimed = successfulReclaim.value;
@@ -1603,6 +1603,76 @@ describe("replay worker lease authority", () => {
       claimJob(client, jobId, secondFence.attemptId, secondFence.leaseId, workerProtocol, 100),
     );
     expect(repeatedClaim.rows).toEqual(reclaimed.rows);
+  });
+
+  it("terminalizes a late reclaim when a full attempt no longer fits the total deadline", async () => {
+    const jobId = `job_worker_late_reclaim_${runKey}`;
+    const firstAttemptId = `att_worker_late_reclaim_a_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
+    await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        firstAttemptId,
+        `lease_worker_late_reclaim_a_${runKey}`,
+        workerProtocol,
+        100,
+      ),
+    );
+    await adminPool.query("SELECT pg_sleep(8.05)");
+
+    const terminal = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        jobId,
+        `att_worker_late_reclaim_b_${runKey}`,
+        `lease_worker_late_reclaim_b_${runKey}`,
+        workerProtocol,
+        100,
+      ),
+    );
+    const job = ReplayJobSchema.parse(terminal.rows[0]?.job);
+    const attempt = ReplayAttemptSchema.parse(terminal.rows[0]?.attempt);
+    expect(terminal.rows[0]).toMatchObject({
+      claimed: false,
+      reason: "terminalized",
+      worker_fence: null,
+    });
+    expect(job).toMatchObject({
+      jobId,
+      lastFencingToken: 1,
+      latestAttemptSequence: 0,
+      status: "timed_out",
+      terminal: {
+        attemptId: firstAttemptId,
+        code: "deadline_reached",
+        status: "timed_out",
+      },
+    });
+    expect(attempt).toMatchObject({
+      attemptId: firstAttemptId,
+      error: { code: "lease_expired", effectCertainty: "none" },
+      retryDisposition: "not_retryable",
+      status: "lease_expired",
+    });
+    const durable = await adminPool.query<{
+      readonly attempt_count: number;
+      readonly terminal_intent_count: number;
+    }>(
+      `SELECT
+         count(DISTINCT attempt.attempt_id)::integer AS attempt_count,
+         count(DISTINCT intent.outbox_id)::integer AS terminal_intent_count
+       FROM public.proofstack_replay_jobs AS job
+       LEFT JOIN public.proofstack_replay_attempts AS attempt
+         ON attempt.tenant_id = job.tenant_id AND attempt.job_id = job.job_id
+       LEFT JOIN public.proofstack_outbox AS intent
+         ON intent.tenant_id = job.tenant_id
+        AND intent.aggregate_id = job.job_id
+        AND intent.event_type = 'replay.job.terminal'
+       WHERE job.tenant_id = $1 AND job.job_id = $2`,
+      [tenantId, jobId],
+    );
+    expect(durable.rows).toEqual([{ attempt_count: 1, terminal_intent_count: 1 }]);
   });
 
   it("lets a cancellation request terminalize an expired lease without starting new work", async () => {

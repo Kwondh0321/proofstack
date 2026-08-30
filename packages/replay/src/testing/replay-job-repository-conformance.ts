@@ -1186,6 +1186,26 @@ export const replayJobRepositoryConformanceCases: readonly ReplayJobRepositoryCo
         equal(terminal.snapshot.job.status, "timed_out", "deadline status");
       });
 
+      await withHarness(factory, "job_late_reclaim", async (harness) => {
+        const replayPlan = await publishPlan(harness, "job_late_reclaim", {
+          automatic: true,
+          backoffMilliseconds: 1_000,
+          maxAttempts: 2,
+          totalDeadlineMilliseconds: 10_000,
+        });
+        const create = createCommand("job_late_reclaim", replayPlan);
+        await harness.repository.createJob(create);
+        await harness.repository.claimJob(claimCommand("job_late_reclaim", replayPlan));
+        harness.setNow("2026-08-29T12:00:09.001Z");
+        const terminal = await harness.repository.claimJob(
+          claimCommand("job_late_reclaim", replayPlan, create.jobId, 2),
+        );
+        assert(!terminal.claimed, "late reclaim terminal");
+        equal(terminal.reason, "terminalized", "late reclaim reason");
+        equal(terminal.snapshot.job.status, "timed_out", "late reclaim status");
+        equal(terminal.snapshot.attempts.length, 1, "late reclaim attempt count");
+      });
+
       await withHarness(factory, "job_effect", async (harness) => {
         const target = release("job_effect");
         await harness.definitions.publishTargetRelease(target);

@@ -373,6 +373,7 @@ export class MemoryReplayJobRepository implements ReplayJobRepository {
             ...expiredEffectValue,
             message: "The worker lease expired before a terminal attempt commit.",
           },
+          evaluatedAt: now,
           failedAt: lease.expiresAt,
           jobStartedAt: startedAt,
           policy: plan.retryPolicy,
