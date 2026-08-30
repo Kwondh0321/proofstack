@@ -5,6 +5,15 @@
   "description": "Provider-neutral classified interaction-capture ProofStack example",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    "./capture": {
+      "types": "./dist/capture.d.ts",
+      "default": "./dist/capture.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
