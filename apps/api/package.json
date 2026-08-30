@@ -5,6 +5,15 @@
   "description": "ProofStack control-plane and development ingestion API",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    "./composition": {
+      "types": "./dist/composition.d.ts",
+      "default": "./dist/composition.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
