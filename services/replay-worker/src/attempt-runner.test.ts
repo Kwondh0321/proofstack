@@ -6,6 +6,7 @@ import {
   type EvidenceScope,
   type RecordedBoundaryResponse,
   RecordedBoundaryResponseSchema,
+  type ReplayBoundaryDeclaration,
   type ReplayPlan,
   type ReplayPlanDefinition,
   ReplayPlanDefinitionSchema,
@@ -28,8 +29,16 @@ import {
   MemoryReplayJobRepository,
 } from "@proofstack/replay/testing";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { runClaimedReplayAttempt, type RunClaimedReplayAttemptOptions } from "./attempt-runner.js";
 import type { PublishReplayAttemptReportCommand } from "./attempt-report.js";
+import {
+  type ResolveClaimedReplayBoundaryInput,
+  type RunClaimedReplayAttemptOptions,
+  type RunClaimedReplayAttemptV2Options,
+  runClaimedReplayAttempt,
+  runClaimedReplayAttemptV2,
+} from "./attempt-runner.js";
+import type { ReplayBoundaryExecutorPorts } from "./boundary-dispatch.js";
+import type { ReplayLiveProviderInvocation } from "./live-provider-boundary.js";
 import type { ResolvedPreinstalledTarget } from "./target-launch.js";
 
 const sha = (digit: string): string => digit.repeat(64);
@@ -122,6 +131,71 @@ createInterface({ crlfDelay: Infinity, input }).on("line", (line) => {
     return;
   }
   if (message.type === "stop" || message.type === "abort") finish(0);
+});
+`;
+}
+
+function targetSourceV2(
+  boundary: Pick<ReplayBoundaryDeclaration, "boundaryId" | "kind"> | null,
+): string {
+  const processBoundary =
+    boundary === null ? null : { boundaryId: boundary.boundaryId, kind: boundary.kind };
+  return String.raw`
+import { createReadStream, createWriteStream } from "node:fs";
+import { createInterface } from "node:readline";
+
+const boundary = ${JSON.stringify(processBoundary)};
+const input = createReadStream("/dev/null", { autoClose: false, fd: Number(process.env.PROOFSTACK_WORKER_PROTOCOL_INPUT_FD) });
+const output = createWriteStream("/dev/null", { autoClose: false, fd: Number(process.env.PROOFSTACK_WORKER_PROTOCOL_OUTPUT_FD) });
+const hold = setInterval(() => undefined, 1_000);
+const send = (message) => output.write(JSON.stringify(message) + "\n");
+const finish = () => {
+  clearInterval(hold);
+  process.exitCode = 0;
+  input.destroy();
+  output.end();
+};
+
+createInterface({ crlfDelay: Infinity, input }).on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.type === "start") {
+    send({
+      schemaVersion: "0.2",
+      sessionId: message.sessionId,
+      targetAdapter: message.targetRelease.targetAdapter,
+      type: "ready",
+      workerProtocol: message.targetRelease.workerProtocol,
+    });
+    if (boundary === null) {
+      send({ requestCount: 0, schemaVersion: "0.2", sessionId: message.sessionId, type: "completed" });
+      finish();
+      return;
+    }
+    send({
+      boundaryId: boundary.boundaryId,
+      request: {
+        boundaryRequestId: "brr_runner_001",
+        kind: boundary.kind,
+        normalizedRequest: {
+          adapter: { name: "proofstack.reference.model", version: "1.0.0" },
+          bytes: "e30",
+          encoding: "base64url",
+        },
+        schemaVersion: "0.1",
+      },
+      requestSequence: 0,
+      schemaVersion: "0.2",
+      sessionId: message.sessionId,
+      type: "boundary_request",
+    });
+    return;
+  }
+  if (message.type === "boundary_result") {
+    send({ requestCount: 1, schemaVersion: "0.2", sessionId: message.sessionId, type: "completed" });
+    finish();
+    return;
+  }
+  if (message.type === "stop" || message.type === "abort") finish();
 });
 `;
 }
@@ -249,6 +323,131 @@ function publishedPlan(release: TargetRelease, emittedArtifactBytes = 1_048_576)
   });
 }
 
+function publishedReleaseV2(source: string, emittedArtifactBytes = 1_048_576): TargetRelease {
+  const definition = TargetReleaseDefinitionSchema.parse({
+    ...baseReleaseDefinition,
+    build: {
+      ...baseReleaseDefinition.build,
+      executableSha256: createHash("sha256").update(source).digest("hex"),
+    },
+    outputLimits: { ...baseReleaseDefinition.outputLimits, emittedArtifactBytes },
+    runtime: {
+      architecture: currentArchitecture(),
+      entryPoint: "target.mjs",
+      family: "node",
+      platform: currentPlatform(),
+      version: process.versions.node,
+    },
+    scope,
+    supportedBoundaryKinds: ["model", "retrieval", "tool"],
+    supportedBoundaryModes: ["live_provider", "recorded_stub", "simulation"],
+    workerProtocol: { name: "proofstack.replay-worker", version: "2.0.0" },
+  });
+  return TargetReleaseSchema.parse({
+    createdAt: "2026-08-30T00:00:00.000Z",
+    createdByPrincipalId: "usr_runner",
+    definitionSha256: digestTargetReleaseDefinition(definition),
+    ...definition,
+  });
+}
+
+function recordedBoundaryV2(): ReplayBoundaryDeclaration {
+  const boundary = basePlanDefinition.boundaries[0];
+  if (boundary?.mode !== "recorded_stub") throw new Error("Expected recorded vector boundary");
+  return boundary;
+}
+
+function simulationBoundaryV2(release: TargetRelease): ReplayBoundaryDeclaration {
+  return {
+    boundaryId: "bnd_simulation_model",
+    configurationSha256: sha("1"),
+    kind: "model",
+    mode: "simulation",
+    qualification: {
+      artifactId: "art_runner_simulation_qualification",
+      classification: "internal",
+      mediaType: "application/json",
+      sha256: sha("2"),
+      sizeBytes: 64,
+    },
+    seedHex: sha("3"),
+    simulatorRelease: releaseReference(release),
+  };
+}
+
+function liveBoundaryV2(): ReplayBoundaryDeclaration {
+  return {
+    boundaryId: "bnd_live_model",
+    credential: {
+      credentialId: "cred_runner_provider",
+      credentialVersionId: "crv_runner_provider_001",
+    },
+    destination: { hostname: "api.example.com", port: 443, scheme: "https" },
+    endpointProfile: {
+      definitionSha256: sha("4"),
+      endpointProfileId: "end_runner_provider",
+      endpointProfileVersion: "1.0.0",
+    },
+    kind: "model",
+    mode: "live_provider",
+    operation: "chat",
+    requestLimits: { requestBytes: 64, responseBytes: 64 },
+    sideEffect: { kind: "read_only" },
+    usageSource: "provider_reported",
+  };
+}
+
+function publishedPlanV2(
+  release: TargetRelease,
+  boundary: ReplayBoundaryDeclaration,
+  emittedArtifactBytes = 1_048_576,
+): ReplayPlan {
+  const providerMeasured = boundary.mode === "live_provider";
+  const definition = ReplayPlanDefinitionSchema.parse({
+    ...basePlanDefinition,
+    boundaries: [boundary],
+    budget: {
+      ...basePlanDefinition.budget,
+      elapsedMilliseconds: { limit: 10_000, measurement: "measured" },
+      emittedArtifactBytes: { limit: emittedArtifactBytes, measurement: "measured" },
+      inputTokens: {
+        ...basePlanDefinition.budget.inputTokens,
+        measurement: providerMeasured ? "provider_reported" : "measured",
+      },
+      outputTokens: {
+        ...basePlanDefinition.budget.outputTokens,
+        measurement: providerMeasured ? "provider_reported" : "measured",
+      },
+    },
+    retryPolicy: {
+      ...basePlanDefinition.retryPolicy,
+      perAttemptTimeoutMilliseconds: 1_000,
+      totalDeadlineMilliseconds: 5_000,
+    },
+    runtimeProfile: { ...basePlanDefinition.runtimeProfile, family: release.runtime.family },
+    scope,
+    targetRelease: releaseReference(release),
+    workerProtocol: release.workerProtocol,
+  });
+  return ReplayPlanSchema.parse({
+    createdAt: "2026-08-30T00:00:00.000Z",
+    createdByPrincipalId: "usr_runner",
+    definitionSha256: digestReplayPlanDefinition(definition),
+    ...definition,
+  });
+}
+
+function normalizedBoundaryResponse() {
+  const bytes = Buffer.from("provider response", "utf8");
+  return {
+    adapter: { name: "proofstack.reference.model", version: "1.0.0" },
+    bytes: bytes.toString("base64url"),
+    encoding: "base64url" as const,
+    normalizedResponseSha256: createHash("sha256").update(bytes).digest("hex"),
+    sizeBytes: bytes.byteLength,
+  };
+}
+
 function repositoryPort(
   repository: ReplayJobRepository,
   overrides: Partial<ReplayJobRepository> = {},
@@ -294,6 +493,18 @@ interface Fixture {
   readonly definitions: MemoryReplayDefinitionRepository;
   readonly jobRepository: MemoryReplayJobRepository;
   readonly options: RunClaimedReplayAttemptOptions;
+  readonly plan: ReplayPlan;
+  readonly publish: ReturnType<
+    typeof vi.fn<(command: PublishReplayAttemptReportCommand) => Promise<unknown>>
+  >;
+  readonly release: TargetRelease;
+}
+
+interface FixtureV2 {
+  readonly boundary: ReplayBoundaryDeclaration;
+  readonly definitions: MemoryReplayDefinitionRepository;
+  readonly jobRepository: MemoryReplayJobRepository;
+  readonly options: RunClaimedReplayAttemptV2Options;
   readonly plan: ReplayPlan;
   readonly publish: ReturnType<
     typeof vi.fn<(command: PublishReplayAttemptReportCommand) => Promise<unknown>>
@@ -385,6 +596,101 @@ async function fixture(
   };
 }
 
+async function fixtureV2(
+  mode: "live_provider" | "recorded_stub" | "simulation",
+  emittedArtifactBytes = 1_048_576,
+): Promise<FixtureV2> {
+  const root = await mkdtemp(join(tmpdir(), "proofstack-attempt-runner-v2-test-"));
+  temporaryDirectories.push(root);
+  const workspaceParent = join(root, "workspaces");
+  await mkdir(workspaceParent);
+
+  const provisionalBoundary =
+    mode === "recorded_stub"
+      ? recordedBoundaryV2()
+      : mode === "live_provider"
+        ? liveBoundaryV2()
+        : null;
+  const provisionalSource = targetSourceV2(
+    provisionalBoundary ?? { boundaryId: "bnd_simulation_model", kind: "model" },
+  );
+  const release = publishedReleaseV2(provisionalSource, emittedArtifactBytes);
+  const boundary =
+    mode === "simulation"
+      ? simulationBoundaryV2(release)
+      : (provisionalBoundary as ReplayBoundaryDeclaration);
+  const source = targetSourceV2(boundary);
+  if (source !== provisionalSource) throw new Error("V2 target source projection is unstable");
+  const targetPath = join(root, "target.mjs");
+  await writeFile(targetPath, source);
+  const plan = publishedPlanV2(release, boundary, emittedArtifactBytes);
+  const definitions = new MemoryReplayDefinitionRepository();
+  await definitions.publishTargetRelease(release);
+  await definitions.publishReplayPlan(plan);
+  const now = new Date().toISOString();
+  const jobRepository = new MemoryReplayJobRepository({ definitions, now: () => now });
+  const created = await jobRepository.createJob({
+    createdByPrincipalId: "usr_runner",
+    jobId: `job_runner_v2_${mode}`,
+    plan: {
+      definitionSha256: plan.definitionSha256,
+      planId: plan.planId,
+      planVersionId: plan.planVersionId,
+    },
+    scope,
+  });
+  const claimed = await jobRepository.claimJob({
+    attemptId: `att_runner_v2_${mode}`,
+    jobId: created.snapshot.job.jobId,
+    leaseDurationMilliseconds: 200,
+    leaseId: `lea_runner_v2_${mode}`,
+    scope,
+    workerBuildSha256: sha("d"),
+    workerId: "wrk_runner_v2_001",
+    workerProtocol: plan.workerProtocol,
+  });
+  if (!claimed.claimed) throw new Error("V2 runner fixture claim failed");
+  const resolved: ResolvedPreinstalledTarget = {
+    entryPointPath: targetPath,
+    executableSha256: release.build.executableSha256,
+    implementationId:
+      release.execution.kind === "preinstalled" ? release.execution.implementationId : "",
+    implementationSha256:
+      release.execution.kind === "preinstalled" ? release.execution.implementationSha256 : "",
+    invocationSha256: release.build.invocationSha256,
+    launcherArguments: [],
+    launcherPath: process.execPath,
+    releaseDefinitionSha256: release.definitionSha256,
+    runtime: release.runtime,
+  };
+  const publish = vi.fn(
+    async (command: PublishReplayAttemptReportCommand): Promise<unknown> =>
+      command.contentReference,
+  );
+  return {
+    boundary,
+    definitions,
+    jobRepository,
+    options: {
+      availableEnvironment: {},
+      definitions,
+      heartbeatIntervalMilliseconds: 20,
+      leaseDurationMilliseconds: 200,
+      registry: { resolve: async () => resolved },
+      reportPublisher: { publish },
+      repository: jobRepository,
+      scope,
+      snapshot: claimed.snapshot,
+      terminationGraceMilliseconds: 10,
+      workerFence: claimed.workerFence,
+      workspaceParent,
+    },
+    plan,
+    publish,
+    release,
+  };
+}
+
 beforeAll(async () => {
   const document = (await import("../../../packages/replay/vectors/replay-definition-v1.json", {
     with: { type: "json" },
@@ -426,7 +732,7 @@ describe("runClaimedReplayAttempt", () => {
 
   it("binds recorded boundary resolution to the exact fenced session", async () => {
     const value = await fixture("boundary");
-    const resolve = vi.fn(async () => boundaryResponse());
+    const resolve = vi.fn(async (_input: ResolveClaimedReplayBoundaryInput) => boundaryResponse());
     const parsedResponse = RecordedBoundaryResponseSchema.safeParse(boundaryResponse());
     if (!parsedResponse.success) throw parsedResponse.error;
     const { terminationGraceMilliseconds, ...withoutGrace } = value.options;
@@ -790,5 +1096,273 @@ describe("runClaimedReplayAttempt", () => {
       ).rejects.toMatchObject({ code: "invalid_runner_context" });
     }
     expect(heartbeat).not.toHaveBeenCalled();
+  });
+});
+
+describe("runClaimedReplayAttemptV2", () => {
+  it("runs one exact simulator and publishes only a source-bearing summary", async () => {
+    const value = await fixtureV2("simulation");
+    const resolve = vi.fn(
+      async (
+        query: Parameters<NonNullable<ReplayBoundaryExecutorPorts["simulation"]>["resolve"]>[0],
+      ) => ({
+        ...query,
+        simulate: async () => ({
+          response: normalizedBoundaryResponse(),
+          usage: [
+            {
+              dimension: "inputTokens" as const,
+              usage: { amount: 2, source: "measured" as const, status: "observed" as const },
+            },
+            {
+              dimension: "modelRequests" as const,
+              usage: { amount: 1, source: "measured" as const, status: "observed" as const },
+            },
+            {
+              dimension: "outputTokens" as const,
+              usage: { amount: 3, source: "measured" as const, status: "observed" as const },
+            },
+          ],
+        }),
+      }),
+    );
+    const { terminationGraceMilliseconds, ...withoutGrace } = value.options;
+    void terminationGraceMilliseconds;
+    const result = await runClaimedReplayAttemptV2({
+      ...withoutGrace,
+      boundaryPorts: { simulation: { resolve } },
+    });
+
+    expect(result.processResult).toMatchObject({
+      boundaryResults: [
+        {
+          boundaryId: "bnd_simulation_model",
+          executionOrigin: "simulated",
+          mode: "simulation",
+        },
+      ],
+      failureCode: null,
+      status: "completed",
+    });
+    expect(result.snapshot.job.status).toBe("succeeded");
+    expect(result.snapshot.budgetLedger.map(({ entryType }) => entryType)).toEqual([
+      "reservation",
+      "reconciliation",
+    ]);
+    expect(resolve).toHaveBeenCalledWith(
+      {
+        configurationSha256:
+          value.boundary.mode === "simulation" ? value.boundary.configurationSha256 : "",
+        qualification: value.boundary.mode === "simulation" ? value.boundary.qualification : {},
+        simulatorRelease:
+          value.boundary.mode === "simulation" ? value.boundary.simulatorRelease : {},
+      },
+      expect.any(AbortSignal),
+    );
+    const reportText = Buffer.from(value.publish.mock.calls[0]?.[0].content ?? []).toString("utf8");
+    expect(reportText).not.toContain(normalizedBoundaryResponse().bytes);
+    expect(JSON.parse(reportText)).toMatchObject({
+      boundaryResults: {
+        count: 1,
+        entries: [
+          {
+            boundaryId: "bnd_simulation_model",
+            executionOrigin: "simulated",
+            mode: "simulation",
+            usage: expect.arrayContaining([
+              {
+                dimension: "inputTokens",
+                usage: { amount: 2, source: "measured", status: "observed" },
+              },
+            ]),
+          },
+        ],
+      },
+      schemaVersion: "0.2",
+      session: {
+        boundaries: [{ boundaryId: "bnd_simulation_model", kind: "model", mode: "simulation" }],
+      },
+    });
+  });
+
+  it("binds the v2 recorded adapter to the exact plan, release, scope, session, and fence", async () => {
+    const value = await fixtureV2("recorded_stub");
+    const resolve = vi.fn(async (_input: ResolveClaimedReplayBoundaryInput) => boundaryResponse());
+    const result = await runClaimedReplayAttemptV2({
+      ...value.options,
+      boundaryResolver: { resolve },
+    });
+
+    expect(result.processResult).toMatchObject({
+      boundaryResults: [
+        {
+          boundaryId: "bnd_vector_model",
+          executionOrigin: "recorded",
+          mode: "recorded_stub",
+        },
+      ],
+      failureCode: null,
+      status: "completed",
+    });
+    expect(result.snapshot.job.status).toBe("succeeded");
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        boundaryId: "bnd_vector_model",
+        plan: value.plan,
+        scope,
+        sessionId: result.sessionId,
+        targetRelease: value.release,
+        workerFence: value.options.workerFence,
+      }),
+    );
+    expect(resolve.mock.calls[0]?.[0].request).toMatchObject({
+      boundaryRequestId: "brr_runner_001",
+      normalizedRequest: {
+        adapterName: "proofstack.reference.model",
+        adapterVersion: "1.0.0",
+      },
+    });
+  });
+
+  it("executes an allowlisted read-only live provider without exposing credential values", async () => {
+    const value = await fixtureV2("live_provider");
+    const execute = vi.fn(async (_input: ReplayLiveProviderInvocation) => ({
+      response: normalizedBoundaryResponse(),
+      usage: [
+        {
+          dimension: "inputTokens" as const,
+          usage: {
+            amount: 5,
+            source: "provider_reported" as const,
+            status: "observed" as const,
+          },
+        },
+        {
+          dimension: "modelRequests" as const,
+          usage: {
+            amount: 1,
+            source: "provider_reported" as const,
+            status: "observed" as const,
+          },
+        },
+        {
+          dimension: "outputTokens" as const,
+          usage: {
+            amount: 7,
+            source: "provider_reported" as const,
+            status: "observed" as const,
+          },
+        },
+      ],
+    }));
+    const registryResolve = vi.fn(
+      async (
+        query: Parameters<NonNullable<ReplayBoundaryExecutorPorts["liveProvider"]>["resolve"]>[0],
+      ) => ({ ...query, execute }),
+    );
+    const result = await runClaimedReplayAttemptV2({
+      ...value.options,
+      boundaryPorts: { liveProvider: { resolve: registryResolve } },
+    });
+
+    expect(result.processResult).toMatchObject({
+      boundaryResults: [
+        {
+          effectCertainty: "none",
+          executionOrigin: "live",
+          mode: "live_provider",
+        },
+      ],
+      failureCode: null,
+      status: "completed",
+    });
+    expect(result.snapshot.job.status).toBe("succeeded");
+    expect(registryResolve).toHaveBeenCalledWith(
+      {
+        destination: value.boundary.mode === "live_provider" ? value.boundary.destination : {},
+        endpointProfile:
+          value.boundary.mode === "live_provider" ? value.boundary.endpointProfile : {},
+        operation: value.boundary.mode === "live_provider" ? value.boundary.operation : "",
+        sideEffect: value.boundary.mode === "live_provider" ? value.boundary.sideEffect : {},
+      },
+      expect.any(AbortSignal),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credential: value.boundary.mode === "live_provider" ? value.boundary.credential : undefined,
+        scope,
+      }),
+    );
+    expect(execute.mock.calls[0]?.[0]).not.toHaveProperty("idempotencyKey");
+    const inputUsage = result.snapshot.usageObservations[0]?.measurements.find(
+      ({ dimension }) => dimension === "inputTokens",
+    );
+    expect(inputUsage?.usage).toEqual({
+      amount: 5,
+      source: "provider_reported",
+      status: "observed",
+    });
+  });
+
+  it("fails without changing mode when the selected executor is unavailable", async () => {
+    const value = await fixtureV2("simulation");
+    const liveResolve = vi.fn();
+    const recordedResolve = vi.fn(async () => boundaryResponse());
+    const result = await runClaimedReplayAttemptV2({
+      ...value.options,
+      boundaryPorts: { liveProvider: { resolve: liveResolve } },
+      boundaryResolver: { resolve: recordedResolve },
+    });
+
+    expect(result.processResult).toMatchObject({
+      boundaryResults: [],
+      failureCode: "boundary_resolution_failed",
+      status: "failed",
+    });
+    expect(result.snapshot.job.status).toBe("failed");
+    expect(result.snapshot.attempts[0]?.error?.code).toBe("fixture_unavailable");
+    expect(liveResolve).not.toHaveBeenCalled();
+    expect(recordedResolve).not.toHaveBeenCalled();
+    expect(value.publish).not.toHaveBeenCalled();
+    expect(result.snapshot.budgetLedger.map(({ entryType }) => entryType)).toEqual([
+      "reservation",
+      "reconciliation",
+    ]);
+  });
+
+  it("fails closed before reservation for invalid v2 definitions and reconciles launch failure", async () => {
+    const invalid = await fixtureV2("simulation");
+    const invalidResult = await runClaimedReplayAttemptV2({
+      ...invalid.options,
+      definitions: definitionPort(invalid.definitions, {
+        findTargetRelease: async () => ({
+          ...invalid.release,
+          supportedBoundaryModes: ["recorded_stub"],
+        }),
+      }),
+    });
+    expect(invalidResult.processResult).toMatchObject({
+      boundaryResults: [],
+      failureCode: "protocol_failed",
+      status: "failed",
+    });
+    expect(invalidResult.snapshot.budgetLedger).toEqual([]);
+    expect(invalid.publish).not.toHaveBeenCalled();
+
+    const unavailable = await fixtureV2("simulation");
+    const unavailableResult = await runClaimedReplayAttemptV2({
+      ...unavailable.options,
+      registry: { resolve: async () => null },
+    });
+    expect(unavailableResult.processResult).toMatchObject({
+      boundaryResults: [],
+      failureCode: "spawn_failed",
+      status: "failed",
+    });
+    expect(unavailableResult.snapshot.job.status).toBe("failed");
+    expect(unavailableResult.snapshot.budgetLedger.map(({ entryType }) => entryType)).toEqual([
+      "reservation",
+      "reconciliation",
+    ]);
   });
 });

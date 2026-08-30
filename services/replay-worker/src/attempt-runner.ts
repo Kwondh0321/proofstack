@@ -19,16 +19,20 @@ import type {
 import {
   measureRecordedStubAttemptUsage,
   reconcileReplayAttemptBudget,
+  reconcileReplayAttemptUsage,
   reserveReplayAttemptBudget,
 } from "./attempt-accounting.js";
 import { acknowledgeReplayAttemptCancellation } from "./attempt-cancellation.js";
 import { completeSupervisedReplayAttempt } from "./attempt-completion.js";
 import { recordSupervisedExecutionObservations } from "./attempt-observation-recorder.js";
 import { preflightReplayTargetSession } from "./attempt-preflight.js";
+import { preflightReplayTargetV2Session } from "./attempt-preflight-v2.js";
 import {
   publishSuccessfulReplayAttemptReport,
   type ReplayAttemptReportPublisher,
 } from "./attempt-report.js";
+import { measureReplayAttemptUsage } from "./attempt-usage.js";
+import { dispatchReplayBoundary, type ReplayBoundaryExecutorPorts } from "./boundary-dispatch.js";
 import { BoundedReplayTargetOutput } from "./bounded-output.js";
 import {
   ReplayAttemptReportError,
@@ -37,10 +41,17 @@ import {
   type ReplayTargetSupervisorFailureCode,
 } from "./errors.js";
 import { runUnderReplayLease } from "./lease-heartbeat.js";
-import { type PreinstalledTargetRegistry, prepareTargetLaunch } from "./target-launch.js";
+import { executeRecordedStubBoundary } from "./recorded-stub-boundary.js";
 import {
-  superviseReplayTargetProcess,
+  type PreinstalledTargetRegistry,
+  prepareTargetLaunch,
+  prepareTargetLaunchV2,
+} from "./target-launch.js";
+import {
   type ReplayTargetProcessResult,
+  type ReplayTargetProcessV2Result,
+  superviseReplayTargetProcess,
+  superviseReplayTargetProcessV2,
 } from "./target-process-supervisor.js";
 
 const RUNNER_NAMESPACE = "proofstack.claimed-replay-attempt-runner.v1";
@@ -70,9 +81,8 @@ export interface ClaimedReplayBoundaryResolver {
   resolve(input: ResolveClaimedReplayBoundaryInput): Promise<RecordedBoundaryResponse>;
 }
 
-export interface RunClaimedReplayAttemptOptions {
+interface RunClaimedReplayAttemptBaseOptions {
   readonly availableEnvironment: Readonly<Record<string, string | undefined>>;
-  readonly boundaryResolver: ClaimedReplayBoundaryResolver;
   readonly definitions: ReplayDefinitionRepository;
   readonly heartbeatIntervalMilliseconds: number;
   readonly leaseDurationMilliseconds: number;
@@ -87,8 +97,24 @@ export interface RunClaimedReplayAttemptOptions {
   readonly workspaceParent: string;
 }
 
+export interface RunClaimedReplayAttemptOptions extends RunClaimedReplayAttemptBaseOptions {
+  readonly boundaryResolver: ClaimedReplayBoundaryResolver;
+}
+
+export interface RunClaimedReplayAttemptV2Options extends RunClaimedReplayAttemptBaseOptions {
+  readonly boundaryPorts?: Pick<ReplayBoundaryExecutorPorts, "liveProvider" | "simulation">;
+  readonly boundaryResolver?: ClaimedReplayBoundaryResolver;
+}
+
 export interface RunClaimedReplayAttemptResult {
   readonly processResult: ReplayTargetProcessResult;
+  readonly reservationId?: string;
+  readonly sessionId: string;
+  readonly snapshot: ReplayJobSnapshot;
+}
+
+export interface RunClaimedReplayAttemptV2Result {
+  readonly processResult: ReplayTargetProcessV2Result;
   readonly reservationId?: string;
   readonly sessionId: string;
   readonly snapshot: ReplayJobSnapshot;
@@ -100,9 +126,9 @@ interface RunnerContext {
   readonly workerFence: ReplayWorkerMutationFence;
 }
 
-interface ExecutedAttempt {
+interface ExecutedAttempt<TProcessResult extends ReplayTargetProcessResult> {
   readonly emittedArtifactBytes: number;
-  readonly processResult: ReplayTargetProcessResult;
+  readonly processResult: TProcessResult;
   readonly result?: Awaited<
     ReturnType<typeof publishSuccessfulReplayAttemptReport>
   >["contentReference"];
@@ -125,7 +151,7 @@ function sessionId(workerFence: ReplayWorkerMutationFence): string {
   }).slice(0, 40)}`;
 }
 
-function validatePolicy(options: RunClaimedReplayAttemptOptions): void {
+function validatePolicy(options: RunClaimedReplayAttemptBaseOptions): void {
   const { heartbeatIntervalMilliseconds: interval, leaseDurationMilliseconds: duration } = options;
   const grace = options.terminationGraceMilliseconds;
   if (
@@ -140,7 +166,7 @@ function validatePolicy(options: RunClaimedReplayAttemptOptions): void {
   }
 }
 
-function validateContext(options: RunClaimedReplayAttemptOptions): RunnerContext {
+function validateContext(options: RunClaimedReplayAttemptBaseOptions): RunnerContext {
   try {
     const scope = EvidenceScopeSchema.parse(options.scope);
     const workerFence = ReplayWorkerMutationFenceSchema.parse(options.workerFence);
@@ -191,15 +217,25 @@ function failedProcessResult(
   });
 }
 
-function withFailure(
-  processResult: ReplayTargetProcessResult,
+function failedProcessResultV2(
   failureCode: ReplayTargetSupervisorFailureCode,
-): ReplayTargetProcessResult {
+  release?: TargetRelease,
+): ReplayTargetProcessV2Result {
+  return Object.freeze({
+    ...failedProcessResult(failureCode, release),
+    boundaryResults: Object.freeze([]),
+  });
+}
+
+function withFailure<TProcessResult extends ReplayTargetProcessResult>(
+  processResult: TProcessResult,
+  failureCode: ReplayTargetSupervisorFailureCode,
+): TProcessResult {
   return Object.freeze({
     ...processResult,
     failureCode,
     status: failureCode === "worker_cancelled" ? ("cancelled" as const) : ("failed" as const),
-  });
+  }) as TProcessResult;
 }
 
 function thrownProcessResult(error: unknown, release: TargetRelease): ReplayTargetProcessResult {
@@ -212,10 +248,18 @@ function thrownProcessResult(error: unknown, release: TargetRelease): ReplayTarg
   return failedProcessResult("invalid_supervisor_options", release);
 }
 
-function reportFailure(
-  processResult: ReplayTargetProcessResult,
+function thrownProcessResultV2(
   error: unknown,
-): ReplayTargetProcessResult {
+  release: TargetRelease,
+): ReplayTargetProcessV2Result {
+  const base = thrownProcessResult(error, release);
+  return Object.freeze({ ...base, boundaryResults: Object.freeze([]) });
+}
+
+function reportFailure<TProcessResult extends ReplayTargetProcessResult>(
+  processResult: TProcessResult,
+  error: unknown,
+): TProcessResult {
   /* v8 ignore next 3 -- The report boundary wraps every reachable validation and publisher failure. */
   if (!(error instanceof ReplayAttemptReportError)) {
     return withFailure(processResult, "invalid_supervisor_options");
@@ -296,7 +340,7 @@ async function completeWithCancellationRace(options: {
   readonly leaseDurationMilliseconds: number;
   readonly processResult: ReplayTargetProcessResult;
   readonly repository: ReplayJobWorkerRepository;
-  readonly result?: ExecutedAttempt["result"];
+  readonly result?: ExecutedAttempt<ReplayTargetProcessResult>["result"];
   readonly snapshot: ReplayJobSnapshot;
 }): Promise<ReplayJobSnapshot> {
   const complete = (snapshot: ReplayJobSnapshot) =>
@@ -334,14 +378,18 @@ async function completeWithCancellationRace(options: {
   }
 }
 
-async function finishWithoutReservation(options: {
+async function finishWithoutReservation<TProcessResult extends ReplayTargetProcessResult>(options: {
   readonly context: RunnerContext;
   readonly leaseDurationMilliseconds: number;
-  readonly processResult: ReplayTargetProcessResult;
+  readonly processResult: TProcessResult;
   readonly repository: ReplayJobWorkerRepository;
   readonly sessionId: string;
   readonly snapshot: ReplayJobSnapshot;
-}): Promise<RunClaimedReplayAttemptResult> {
+}): Promise<{
+  readonly processResult: TProcessResult;
+  readonly sessionId: string;
+  readonly snapshot: ReplayJobSnapshot;
+}> {
   let snapshot = await recordSupervisedExecutionObservations({
     leaseDurationMilliseconds: options.leaseDurationMilliseconds,
     processResult: options.processResult,
@@ -358,7 +406,59 @@ async function finishWithoutReservation(options: {
   });
 }
 
-async function executeReservedAttempt(options: {
+async function publishCompletedAttempt<TProcessResult extends ReplayTargetProcessResult>(options: {
+  readonly context: RunnerContext;
+  readonly input: RunClaimedReplayAttemptBaseOptions & { readonly signal: AbortSignal };
+  readonly processResult: TProcessResult;
+  readonly release: TargetRelease;
+  readonly reservationId: string;
+  readonly reservationMaximumArtifactBytes: number;
+  readonly startMessage: unknown;
+}): Promise<ExecutedAttempt<TProcessResult>> {
+  const processResult = options.processResult;
+  if (processResult.status !== "completed") {
+    return Object.freeze({ emittedArtifactBytes: 0, processResult });
+  }
+  const maximumReportBytes = Math.min(
+    options.release.outputLimits.emittedArtifactBytes,
+    options.reservationMaximumArtifactBytes,
+  );
+  try {
+    const published = await publishSuccessfulReplayAttemptReport({
+      maximumBytes: maximumReportBytes,
+      processResult,
+      publisher: options.input.reportPublisher,
+      reservationId: options.reservationId,
+      signal: options.input.signal,
+      scope: options.context.scope,
+      startMessage: options.startMessage,
+      workerFence: options.context.workerFence,
+    });
+    return Object.freeze({
+      emittedArtifactBytes: published.emittedArtifactBytes,
+      processResult,
+      result: published.contentReference,
+    });
+  } catch (error) {
+    const publicationMayHaveEmittedContent =
+      error instanceof ReplayAttemptReportError &&
+      ["publish_cancelled", "publish_failed", "publisher_mismatch"].includes(error.code);
+    return Object.freeze({
+      emittedArtifactBytes: publicationMayHaveEmittedContent ? maximumReportBytes : 0,
+      processResult: reportFailure(processResult, error),
+    });
+  }
+}
+
+function attemptDeadline(context: RunnerContext, plan: ReplayPlan): number {
+  return Math.min(
+    Date.now() + plan.retryPolicy.perAttemptTimeoutMilliseconds,
+    Date.parse(context.snapshot.job.startedAt as string) +
+      plan.retryPolicy.totalDeadlineMilliseconds,
+  );
+}
+
+async function executeReservedAttemptV1(options: {
   readonly context: RunnerContext;
   readonly input: RunClaimedReplayAttemptOptions & { readonly signal: AbortSignal };
   readonly plan: ReplayPlan;
@@ -367,7 +467,7 @@ async function executeReservedAttempt(options: {
   readonly reservationMaximumArtifactBytes: number;
   readonly sessionId: string;
   readonly startMessage: ReturnType<typeof preflightReplayTargetSession>["startMessage"];
-}): Promise<ExecutedAttempt> {
+}): Promise<ExecutedAttempt<ReplayTargetProcessResult>> {
   let processResult: ReplayTargetProcessResult;
   const signal = options.input.signal;
   try {
@@ -381,11 +481,7 @@ async function executeReservedAttempt(options: {
     });
     processResult = await superviseReplayTargetProcess({
       cancellationRequested: () => signal.aborted,
-      deadlineAtMs: Math.min(
-        Date.now() + options.plan.retryPolicy.perAttemptTimeoutMilliseconds,
-        Date.parse(options.context.snapshot.job.startedAt as string) +
-          options.plan.retryPolicy.totalDeadlineMilliseconds,
-      ),
+      deadlineAtMs: attemptDeadline(options.context, options.plan),
       launch,
       resolveBoundary: async ({ boundaryId, request }) =>
         await options.input.boundaryResolver.resolve({
@@ -409,44 +505,140 @@ async function executeReservedAttempt(options: {
       processResult: thrownProcessResult(error, options.release),
     });
   }
-
-  if (processResult.status !== "completed") {
-    return Object.freeze({ emittedArtifactBytes: 0, processResult });
-  }
-  const maximumReportBytes = Math.min(
-    options.release.outputLimits.emittedArtifactBytes,
-    options.reservationMaximumArtifactBytes,
-  );
-  try {
-    const published = await publishSuccessfulReplayAttemptReport({
-      maximumBytes: maximumReportBytes,
-      processResult,
-      publisher: options.input.reportPublisher,
-      reservationId: options.reservationId,
-      signal,
-      scope: options.context.scope,
-      startMessage: options.startMessage,
-      workerFence: options.context.workerFence,
-    });
-    return Object.freeze({
-      emittedArtifactBytes: published.emittedArtifactBytes,
-      processResult,
-      result: published.contentReference,
-    });
-  } catch (error) {
-    const publicationMayHaveEmittedContent =
-      error instanceof ReplayAttemptReportError &&
-      ["publish_cancelled", "publish_failed", "publisher_mismatch"].includes(error.code);
-    return Object.freeze({
-      emittedArtifactBytes: publicationMayHaveEmittedContent ? maximumReportBytes : 0,
-      processResult: reportFailure(processResult, error),
-    });
-  }
+  return await publishCompletedAttempt({ ...options, processResult });
 }
 
-export async function runClaimedReplayAttempt(
-  options: RunClaimedReplayAttemptOptions,
-): Promise<RunClaimedReplayAttemptResult> {
+async function executeReservedAttemptV2(options: {
+  readonly context: RunnerContext;
+  readonly input: RunClaimedReplayAttemptV2Options & { readonly signal: AbortSignal };
+  readonly plan: ReplayPlan;
+  readonly release: TargetRelease;
+  readonly reservationId: string;
+  readonly reservationMaximumArtifactBytes: number;
+  readonly sessionId: string;
+  readonly startMessage: ReturnType<typeof preflightReplayTargetV2Session>["startMessage"];
+}): Promise<ExecutedAttempt<ReplayTargetProcessV2Result>> {
+  let processResult: ReplayTargetProcessV2Result;
+  const signal = options.input.signal;
+  try {
+    const launch = await prepareTargetLaunchV2({
+      availableEnvironment: options.input.availableEnvironment,
+      registry: options.input.registry,
+      signal,
+      startMessage: options.startMessage,
+      targetRelease: options.release,
+      workspaceParent: options.input.workspaceParent,
+    });
+    const boundaryResolver = options.input.boundaryResolver;
+    const recordedStub = boundaryResolver
+      ? {
+          execute: async (
+            input: Parameters<
+              NonNullable<ReplayBoundaryExecutorPorts["recordedStub"]>["execute"]
+            >[0],
+          ) =>
+            await executeRecordedStubBoundary({
+              declaration: input.declaration,
+              request: input.request,
+              resolver: {
+                resolve: async ({ request, signal: resolverSignal }) =>
+                  await boundaryResolver.resolve({
+                    boundaryId: input.declaration.boundaryId,
+                    plan: options.plan,
+                    request,
+                    scope: options.context.scope,
+                    sessionId: options.sessionId,
+                    signal: resolverSignal,
+                    targetRelease: options.release,
+                    workerFence: options.context.workerFence,
+                  }),
+              },
+              signal: input.signal,
+            }),
+        }
+      : undefined;
+    processResult = await superviseReplayTargetProcessV2({
+      cancellationRequested: () => signal.aborted,
+      deadlineAtMs: attemptDeadline(options.context, options.plan),
+      launch,
+      resolveBoundary: async ({ boundaryId, request }) => {
+        const declaration = options.plan.boundaries.find(
+          (candidate) => candidate.boundaryId === boundaryId,
+        );
+        /* v8 ignore next -- The protocol session rejects undeclared boundary IDs first. */
+        if (!declaration) throw new ReplayAttemptRunnerError("invalid_runner_context");
+        return await dispatchReplayBoundary({
+          declaration,
+          ports: {
+            ...options.input.boundaryPorts,
+            ...(recordedStub === undefined ? {} : { recordedStub }),
+          },
+          request,
+          scope: options.context.scope,
+          signal,
+          workerFence: options.context.workerFence,
+        });
+      },
+      signal,
+      ...(options.input.terminationGraceMilliseconds === undefined
+        ? {}
+        : { terminationGraceMs: options.input.terminationGraceMilliseconds }),
+    });
+  } catch (error) {
+    return Object.freeze({
+      emittedArtifactBytes: 0,
+      processResult: thrownProcessResultV2(error, options.release),
+    });
+  }
+  return await publishCompletedAttempt({ ...options, processResult });
+}
+
+interface ReplayAttemptProtocol<
+  TProcessResult extends ReplayTargetProcessResult,
+  TPreflight extends { readonly plan: ReplayPlan; readonly targetRelease: TargetRelease },
+> {
+  readonly execute: (options: {
+    readonly context: RunnerContext;
+    readonly preflight: TPreflight;
+    readonly reservationId: string;
+    readonly reservationMaximumArtifactBytes: number;
+    readonly sessionId: string;
+    readonly signal: AbortSignal;
+  }) => Promise<ExecutedAttempt<TProcessResult>>;
+  readonly failedProcessResult: (
+    failureCode: ReplayTargetSupervisorFailureCode,
+    release?: TargetRelease,
+  ) => TProcessResult;
+  readonly measureUsage: (options: {
+    readonly elapsedMilliseconds: number;
+    readonly emittedArtifactBytes: number;
+    readonly processResult: TProcessResult;
+  }) => unknown;
+  readonly preflight: (options: {
+    readonly plan: ReplayPlan;
+    readonly sessionId: string;
+    readonly targetRelease: TargetRelease;
+  }) => TPreflight;
+  readonly reconcileUsage: (options: {
+    readonly context: RunnerContext;
+    readonly plan: ReplayPlan;
+    readonly reservationId: string;
+    readonly usage: unknown;
+  }) => Promise<ReplayJobSnapshot>;
+}
+
+async function runClaimedReplayAttemptCore<
+  TProcessResult extends ReplayTargetProcessResult,
+  TPreflight extends { readonly plan: ReplayPlan; readonly targetRelease: TargetRelease },
+>(
+  options: RunClaimedReplayAttemptBaseOptions,
+  protocol: ReplayAttemptProtocol<TProcessResult, TPreflight>,
+): Promise<{
+  readonly processResult: TProcessResult;
+  readonly reservationId?: string;
+  readonly sessionId: string;
+  readonly snapshot: ReplayJobSnapshot;
+}> {
   validatePolicy(options);
   const context = validateContext(options);
   const exactSessionId = sessionId(context.workerFence);
@@ -459,7 +651,7 @@ export async function runClaimedReplayAttempt(
     return await finishWithoutReservation({
       context,
       leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-      processResult: failedProcessResult("worker_cancelled"),
+      processResult: protocol.failedProcessResult("worker_cancelled"),
       repository: options.repository,
       sessionId: exactSessionId,
       snapshot,
@@ -474,7 +666,7 @@ export async function runClaimedReplayAttempt(
     return await finishWithoutReservation({
       context,
       leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-      processResult: failedProcessResult("protocol_failed"),
+      processResult: protocol.failedProcessResult("protocol_failed"),
       repository: options.repository,
       sessionId: exactSessionId,
       snapshot,
@@ -488,16 +680,16 @@ export async function runClaimedReplayAttempt(
     return await finishWithoutReservation({
       context,
       leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-      processResult: failedProcessResult("spawn_failed"),
+      processResult: protocol.failedProcessResult("spawn_failed"),
       repository: options.repository,
       sessionId: exactSessionId,
       snapshot,
     });
   }
 
-  let preflight: ReturnType<typeof preflightReplayTargetSession>;
+  let preflight: TPreflight;
   try {
-    preflight = preflightReplayTargetSession({
+    preflight = protocol.preflight({
       plan,
       sessionId: exactSessionId,
       targetRelease: release,
@@ -506,7 +698,7 @@ export async function runClaimedReplayAttempt(
     return await finishWithoutReservation({
       context,
       leaseDurationMilliseconds: options.leaseDurationMilliseconds,
-      processResult: failedProcessResult("protocol_failed", release),
+      processResult: protocol.failedProcessResult("protocol_failed", release),
       repository: options.repository,
       sessionId: exactSessionId,
       snapshot,
@@ -525,15 +717,13 @@ export async function runClaimedReplayAttempt(
   const startedAt = performance.now();
   const leased = await runUnderReplayLease({
     execute: async (signal) =>
-      await executeReservedAttempt({
+      await protocol.execute({
         context,
-        input: { ...options, signal },
-        plan: preflight.plan,
-        release: preflight.targetRelease,
+        preflight,
         reservationId: reserved.reservationId,
         reservationMaximumArtifactBytes: reserved.requested.emittedArtifactBytes,
         sessionId: exactSessionId,
-        startMessage: preflight.startMessage,
+        signal,
       }),
     heartbeat: async () => {
       const latest = await options.repository.heartbeatJob({
@@ -564,19 +754,16 @@ export async function runClaimedReplayAttempt(
     repository: options.repository,
     snapshot,
   });
-  const actual = measureRecordedStubAttemptUsage({
+  const usage = protocol.measureUsage({
     elapsedMilliseconds: Math.ceil(performance.now() - startedAt),
     emittedArtifactBytes: executed.emittedArtifactBytes,
-    executionObservations: executed.processResult.executionObservations,
+    processResult: executed.processResult,
   });
-  snapshot = await reconcileReplayAttemptBudget({
-    actual,
-    leaseDurationMilliseconds: options.leaseDurationMilliseconds,
+  snapshot = await protocol.reconcileUsage({
+    context,
     plan: preflight.plan,
-    repository: options.repository,
     reservationId: reserved.reservationId,
-    scope: context.scope,
-    workerFence: context.workerFence,
+    usage,
   });
   snapshot = await acknowledgeCancellationIfRequired({
     context,
@@ -598,5 +785,92 @@ export async function runClaimedReplayAttempt(
     reservationId: reserved.reservationId,
     sessionId: exactSessionId,
     snapshot,
+  });
+}
+
+export async function runClaimedReplayAttempt(
+  options: RunClaimedReplayAttemptOptions,
+): Promise<RunClaimedReplayAttemptResult> {
+  return await runClaimedReplayAttemptCore(options, {
+    execute: async ({
+      context,
+      preflight,
+      reservationId,
+      reservationMaximumArtifactBytes,
+      sessionId: exactSessionId,
+      signal,
+    }) =>
+      await executeReservedAttemptV1({
+        context,
+        input: { ...options, signal },
+        plan: preflight.plan,
+        release: preflight.targetRelease,
+        reservationId,
+        reservationMaximumArtifactBytes,
+        sessionId: exactSessionId,
+        startMessage: preflight.startMessage,
+      }),
+    failedProcessResult,
+    measureUsage: ({ elapsedMilliseconds, emittedArtifactBytes, processResult }) =>
+      measureRecordedStubAttemptUsage({
+        elapsedMilliseconds,
+        emittedArtifactBytes,
+        executionObservations: processResult.executionObservations,
+      }),
+    preflight: preflightReplayTargetSession,
+    reconcileUsage: async ({ context, plan, reservationId, usage }) =>
+      await reconcileReplayAttemptBudget({
+        actual: usage,
+        leaseDurationMilliseconds: options.leaseDurationMilliseconds,
+        plan,
+        repository: options.repository,
+        reservationId,
+        scope: context.scope,
+        workerFence: context.workerFence,
+      }),
+  });
+}
+
+export async function runClaimedReplayAttemptV2(
+  options: RunClaimedReplayAttemptV2Options,
+): Promise<RunClaimedReplayAttemptV2Result> {
+  return await runClaimedReplayAttemptCore(options, {
+    execute: async ({
+      context,
+      preflight,
+      reservationId,
+      reservationMaximumArtifactBytes,
+      sessionId: exactSessionId,
+      signal,
+    }) =>
+      await executeReservedAttemptV2({
+        context,
+        input: { ...options, signal },
+        plan: preflight.plan,
+        release: preflight.targetRelease,
+        reservationId,
+        reservationMaximumArtifactBytes,
+        sessionId: exactSessionId,
+        startMessage: preflight.startMessage,
+      }),
+    failedProcessResult: failedProcessResultV2,
+    measureUsage: ({ elapsedMilliseconds, emittedArtifactBytes, processResult }) =>
+      measureReplayAttemptUsage({
+        boundaryResults: processResult.boundaryResults,
+        elapsedMilliseconds,
+        emittedArtifactBytes,
+        executionObservations: processResult.executionObservations,
+      }),
+    preflight: preflightReplayTargetV2Session,
+    reconcileUsage: async ({ context, plan, reservationId, usage }) =>
+      await reconcileReplayAttemptUsage({
+        leaseDurationMilliseconds: options.leaseDurationMilliseconds,
+        plan,
+        repository: options.repository,
+        reservationId,
+        scope: context.scope,
+        usage,
+        workerFence: context.workerFence,
+      }),
   });
 }
