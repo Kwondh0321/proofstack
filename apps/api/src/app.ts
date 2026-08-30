@@ -63,6 +63,24 @@ import {
   InvalidOidcLoginError,
   OidcLoginGenerationError,
 } from "@proofstack/identity";
+import {
+  CreateDurableReplayJob,
+  InvalidReplayDefinitionInputError,
+  InvalidReplayJobInputError,
+  PublishReplayPlan,
+  PublishTargetRelease,
+  ReadReplayJob,
+  ReadReplayPlan,
+  ReadTargetRelease,
+  ReplayDefinitionConflictError,
+  ReplayDefinitionLineageError,
+  ReplayDefinitionNotFoundError,
+  type ReplayDefinitionRepository,
+  ReplayJobConflictError,
+  ReplayJobNotFoundError,
+  type ReplayJobControlRepository,
+  RequestDurableReplayCancellation,
+} from "@proofstack/replay";
 import { S3ArtifactObjectStoreError } from "@proofstack/s3";
 import Fastify, { type FastifyInstance, LogController } from "fastify";
 import { ZodError } from "zod";
@@ -91,6 +109,7 @@ import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerInteractionFixtureRoutes, registerRegressionRoutes } from "./regression-routes.js";
+import { registerReplayRoutes } from "./replay-routes.js";
 import { registerRoutes } from "./routes.js";
 import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
 
@@ -105,6 +124,8 @@ export interface AppDependencies {
   readonly oidcRuntime?: OidcRuntime;
   readonly regressionVersionRepository?: RegressionVersionRepository;
   readonly repository?: EvidenceRepository;
+  readonly replayDefinitionRepository?: ReplayDefinitionRepository;
+  readonly replayJobControlRepository?: ReplayJobControlRepository;
 }
 
 function clientErrorStatus(error: unknown): number | undefined {
@@ -145,7 +166,9 @@ export async function createApp(
     const storage =
       dependencies.repository ||
       dependencies.regressionVersionRepository ||
-      dependencies.artifactStorage
+      dependencies.artifactStorage ||
+      dependencies.replayDefinitionRepository ||
+      dependencies.replayJobControlRepository
         ? {
             ...defaultStorage,
             ...(dependencies.artifactStorage ? { artifacts: dependencies.artifactStorage } : {}),
@@ -157,6 +180,10 @@ export async function createApp(
                   regressionVersionRepository: dependencies.regressionVersionRepository,
                 }
               : {}),
+            replayDefinitionRepository:
+              dependencies.replayDefinitionRepository ?? defaultStorage.replayDefinitionRepository,
+            replayJobControlRepository:
+              dependencies.replayJobControlRepository ?? defaultStorage.replayJobControlRepository,
           }
         : defaultStorage;
     app.addHook("onClose", storage.close);
@@ -234,6 +261,22 @@ export async function createApp(
       }),
       readDatasetVersion: new ReadRegressionDatasetVersion(storage.regressionVersionRepository),
       readFixtureVersion: new ReadRegressionFixtureVersion(storage.regressionVersionRepository),
+    });
+    await registerReplayRoutes(app, {
+      authenticator,
+      createJob: new CreateDurableReplayJob(storage.replayJobControlRepository),
+      publishPlan: new PublishReplayPlan({
+        clock,
+        repository: storage.replayDefinitionRepository,
+      }),
+      publishTargetRelease: new PublishTargetRelease({
+        clock,
+        repository: storage.replayDefinitionRepository,
+      }),
+      readJob: new ReadReplayJob(storage.replayJobControlRepository),
+      readPlan: new ReadReplayPlan(storage.replayDefinitionRepository),
+      readTargetRelease: new ReadTargetRelease(storage.replayDefinitionRepository),
+      requestCancellation: new RequestDurableReplayCancellation(storage.replayJobControlRepository),
     });
     if (storage.artifacts) {
       await registerArtifactRoutes(app, {
@@ -514,6 +557,49 @@ export async function createApp(
           status: 400,
           title: "Invalid regression version request",
           type: "https://proofstack.dev/problems/regression-version-input-invalid",
+        });
+      }
+
+      if (
+        error instanceof InvalidReplayDefinitionInputError ||
+        error instanceof InvalidReplayJobInputError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The replay request does not match the required contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid replay request",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (
+        error instanceof ReplayDefinitionNotFoundError ||
+        error instanceof ReplayJobNotFoundError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Replay resource not found",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (
+        error instanceof ReplayDefinitionConflictError ||
+        error instanceof ReplayDefinitionLineageError ||
+        error instanceof ReplayJobConflictError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Replay control-plane conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
         });
       }
 
