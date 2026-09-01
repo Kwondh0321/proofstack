@@ -624,6 +624,7 @@ export type CriterionDefinition = z.infer<typeof CriterionDefinitionSchema>;
 export type CriterionSet = z.infer<typeof CriterionSetSchema>;
 export type CriterionSetDefinition = z.infer<typeof CriterionSetDefinitionSchema>;
 export type CriterionSetReference = z.infer<typeof CriterionSetReferenceSchema>;
+export type CriterionSetStatusDefinition = z.infer<typeof CriterionSetStatusDefinitionSchema>;
 export type CriterionSetStatusRecord = z.infer<typeof CriterionSetStatusRecordSchema>;
 export type EvaluatorReference = z.infer<typeof EvaluatorReferenceSchema>;
 export type OracleReference = z.infer<typeof OracleReferenceSchema>;

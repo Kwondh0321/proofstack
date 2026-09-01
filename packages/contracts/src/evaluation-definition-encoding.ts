@@ -1,5 +1,13 @@
 import { z } from "zod";
 import {
+  CRITERION_SET_SCHEMA_VERSION,
+  CRITERION_SET_STATUS_SCHEMA_VERSION,
+  type CriterionSetDefinition,
+  CriterionSetDefinitionSchema,
+  type CriterionSetStatusDefinition,
+  CriterionSetStatusDefinitionSchema,
+} from "./evaluation-criteria.js";
+import {
   DISCOVERY_RECORD_SCHEMA_VERSION,
   type DiscoveryRecordDefinition,
   DiscoveryRecordDefinitionSchema,
@@ -17,6 +25,8 @@ export const EVALUATION_DEFINITION_ENCODING_VERSION =
 export const DISCOVERY_RECORD_DEFINITION_DOMAIN = "proofstack.discovery-record.v1" as const;
 export const SOURCE_SNAPSHOT_DEFINITION_DOMAIN = "proofstack.source-snapshot.v1" as const;
 export const SOURCE_REVIEW_DEFINITION_DOMAIN = "proofstack.source-review.v1" as const;
+export const CRITERION_SET_DEFINITION_DOMAIN = "proofstack.criterion-set.v1" as const;
+export const CRITERION_SET_STATUS_DEFINITION_DOMAIN = "proofstack.criterion-set-status.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -188,6 +198,30 @@ export function encodeSourceReviewDefinition(
   return encodeDefinition(
     SOURCE_REVIEW_DEFINITION_DOMAIN,
     SOURCE_REVIEW_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeCriterionSetDefinition(
+  input: ScopedEvaluationDefinition<CriterionSetDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(CriterionSetDefinitionSchema).parse(input);
+  return encodeDefinition(
+    CRITERION_SET_DEFINITION_DOMAIN,
+    CRITERION_SET_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeCriterionSetStatusDefinition(
+  input: ScopedEvaluationDefinition<CriterionSetStatusDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(CriterionSetStatusDefinitionSchema).parse(input);
+  return encodeDefinition(
+    CRITERION_SET_STATUS_DEFINITION_DOMAIN,
+    CRITERION_SET_STATUS_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

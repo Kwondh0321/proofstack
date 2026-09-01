@@ -1,0 +1,191 @@
+{
+  "format": "proofstack.evaluation-criteria-definition.v1",
+  "vectors": [
+    {
+      "name": "bounded criterion set with safe applicability and exact authority lineage",
+      "kind": "criterion_set",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "applicabilityScope": {
+            "environments": { "mode": "include", "values": ["env_local"] },
+            "exclusions": ["consumer financial advice"],
+            "jurisdictions": { "mode": "include", "values": ["kr"] },
+            "locales": { "mode": "include", "values": ["en", "ko-kr"] },
+            "populations": { "mode": "include", "values": ["adult users"] },
+            "riskTiers": { "mode": "include", "values": ["high"] },
+            "taskKinds": { "mode": "include", "values": ["task_support"] }
+          },
+          "assumptions": ["The replay result contains the declared structured output"],
+          "changeRationale": "Initial bounded criterion set",
+          "criteria": [
+            {
+              "applicability": {
+                "operands": [
+                  { "field": "environment_id", "operator": "equals", "value": "env_local" },
+                  {
+                    "operands": [
+                      { "field": "locale", "operator": "equals", "value": "en" },
+                      { "field": "locale", "operator": "equals", "value": "ko-kr" }
+                    ],
+                    "operator": "anyOf"
+                  },
+                  {
+                    "field": "population_tags",
+                    "operator": "contains",
+                    "value": "adult users"
+                  }
+                ],
+                "operator": "allOf"
+              },
+              "assumptions": ["The exact schema represents the required response shape"],
+              "claim": "The replay result conforms to the approved structured response contract.",
+              "counterevidence": [
+                {
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "sourceSnapshotId": "src_counter"
+                }
+              ],
+              "counterexamples": ["A syntactically valid response can still be factually wrong"],
+              "criterionId": "crt_schema",
+              "disqualifyingConditions": ["The replay result artifact is unavailable"],
+              "evaluator": {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "evaluatorId": "evl_schema",
+                "evaluatorVersionId": "evv_schema_v1"
+              },
+              "independentQuorum": 1,
+              "knownAmbiguities": ["Optional extension fields are outside this criterion"],
+              "metric": {
+                "direction": "equal",
+                "kind": "numeric",
+                "metricName": "schema violation count",
+                "threshold": "0",
+                "unit": "violations"
+              },
+              "oracle": {
+                "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "oracleId": "orc_schema",
+                "oracleVersionId": "orv_schema_v1"
+              },
+              "qualificationFixtures": [
+                {
+                  "caseKind": "boundary",
+                  "expectedVerdict": "pass",
+                  "fixture": {
+                    "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                    "fixtureId": "fix_boundary",
+                    "fixtureVersionId": "fxv_boundary"
+                  },
+                  "fixtureCaseId": "case_boundary"
+                },
+                {
+                  "caseKind": "negative",
+                  "expectedVerdict": "fail",
+                  "fixture": {
+                    "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                    "fixtureId": "fix_negative",
+                    "fixtureVersionId": "fxv_negative"
+                  },
+                  "fixtureCaseId": "case_negative"
+                },
+                {
+                  "caseKind": "not_applicable",
+                  "expectedVerdict": "not_applicable",
+                  "fixture": {
+                    "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                    "fixtureId": "fix_not_applicable",
+                    "fixtureVersionId": "fxv_not_applicable"
+                  },
+                  "fixtureCaseId": "case_not_applicable"
+                },
+                {
+                  "caseKind": "positive",
+                  "expectedVerdict": "pass",
+                  "fixture": {
+                    "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                    "fixtureId": "fix_positive",
+                    "fixtureVersionId": "fxv_positive"
+                  },
+                  "fixtureCaseId": "case_positive"
+                }
+              ],
+              "requiredEvidenceClasses": [
+                "deterministic_oracle",
+                "replay_result",
+                "source_snapshot"
+              ],
+              "severity": "high",
+              "thresholdRationale": "Any schema violation contradicts the bounded contract claim."
+            }
+          ],
+          "criterionSetId": "crs_response",
+          "criterionSetVersionId": "csv_response_v1",
+          "exclusions": ["Factual correctness outside the structured schema"],
+          "intendedUse": "Evaluate exact replay outputs for the declared support task and environment.",
+          "issuer": "Example reliability authority",
+          "knownLimitations": ["Schema conformance does not establish factual correctness"],
+          "purpose": "Produce contestable non-model evidence for structured response reliability.",
+          "riskTier": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "sourceReviewId": "srv_authoritative"
+              },
+              "source": {
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "sourceSnapshotId": "src_authoritative"
+              }
+            },
+            {
+              "review": {
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "sourceReviewId": "srv_counter"
+              },
+              "source": {
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "sourceSnapshotId": "src_counter"
+              }
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 4325,
+      "sha256": "ad306f9702a128c1dfcc5062e1fbbb4a3c8db1c91487d437ba702b066f9b5b72"
+    },
+    {
+      "name": "append-only approved criterion lifecycle status",
+      "kind": "criterion_set_status",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "criterionSet": {
+            "criterionSetId": "crs_response",
+            "criterionSetVersionId": "csv_response_v1",
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "effectiveAt": "2026-09-01T13:00:00Z",
+          "expiresAt": "2026-12-31T23:59:59Z",
+          "previousStatus": {
+            "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "statusRecordId": "csr_qualified"
+          },
+          "rationale": "Qualified evidence and source reviews are current.",
+          "status": "approved",
+          "statusRecordId": "csr_approved"
+        }
+      },
+      "encodedByteLength": 743,
+      "sha256": "de621e64735dd410077dbb91f0c823faa13a2f11e2940514640c881f865503b4"
+    }
+  ]
+}
