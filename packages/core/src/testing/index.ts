@@ -16,3 +16,4 @@ export {
 export { FixedClock } from "./fixed-clock.js";
 export { MemoryEvaluationRepository } from "./memory-evaluation-repository.js";
 export { MemoryEvidenceRepository } from "./memory-evidence-repository.js";
+export { MemoryModelAssuranceRepository } from "./memory-model-assurance-repository.js";
