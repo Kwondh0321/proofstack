@@ -16,8 +16,10 @@ evaluating, governing, and safely releasing AI agents.
 > durable replay publishes exact releases and plans, persists bounded jobs, budgets, leases,
 > cancellation, usage, observations, and encrypted result artifacts, and launches separate worker
 > and target processes. Framework-independent non-model evaluation primitives now provide safe
-> applicability, digest-bound exact and JSON Schema oracles, and explicit reference aggregates.
-> They are not yet composed into persistent evaluation services or operator workflows. The local
+> applicability, digest-bound exact and JSON Schema oracles, explicit reference aggregates, and an
+> authorization-first immutable graph repository with bounded application use cases. The current
+> evaluation repository is memory-backed; it is not yet composed into a persistent evaluation
+> service or operator workflow. The local
 > reference is not an OS sandbox, continuously scheduled worker deployment, production key
 > provider, or production live-provider integration. Coordinated reference backup and isolated
 > restore do not constitute provider-specific production disaster recovery. Console sign-in
@@ -61,6 +63,7 @@ release when a declared policy regresses.
 | Recorded-boundary replay | Strict full-content preflight, ordered exact normalized-request matching, no live fallback, cooperative fixed runtime inputs, and bounded or unknown results |
 | Durable replay jobs | Immutable releases and plans, finite multidimensional budgets, fenced leases and restore epochs, cancellation, predeclared retry/effect rules, usage reconciliation, separate worker/target processes, and durable result artifacts |
 | Non-model evaluation primitives | Total tri-state applicability, digest-registered exact-byte and bounded JSON Schema oracles, exact five-verdict counts, and assumption-gated Wilson intervals |
+| Evaluation graph boundary | Sixteen immutable record kinds, exact-scope repositories, authorization-first server authorship, lineage, idempotency, and shared memory-adapter conformance |
 | TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression and replay clients with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
 | Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, and durable success/cancellation/stale-fence recovery flows through real service boundaries |
@@ -242,8 +245,11 @@ provider-specific disaster recovery, or production deployment artifacts. Immutab
 versions, fixture-owned classified interaction capture, recorded-boundary replay, and bounded
 durable replay jobs with separate local processes are implemented and tested, alongside workload
 API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile.
-Core-only non-model evaluation primitives are implemented and tested, but they do not yet publish,
-execute, persist, or expose a complete evaluation run through the API.
+Core-only non-model evaluation primitives and the authorization-first immutable graph boundary are
+implemented and tested. See the
+[evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
+The current adapter is process-local memory: ProofStack does not yet persist or expose a complete
+evaluation run through the API.
 Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
 built-in content inspector rejects structured credential fields and supports configured scanners,
 but no scanner proves arbitrary opaque bytes secret-free; scanner

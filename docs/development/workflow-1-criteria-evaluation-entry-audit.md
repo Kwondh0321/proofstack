@@ -304,6 +304,13 @@ path without tenant, conflict, failure, and recovery evidence does not complete 
 6. Add exact-version API, SDK, OpenAPI, operator documentation, and a service-backed reference flow.
 7. Run an independent acceptance audit and close findings before checking the roadmap item.
 
+Progress as of 2026-09-02:
+
+- Steps 1 through 4 are implemented and locally verified.
+- Step 4 includes all 16 immutable record kinds, exact-scope repository ports, a memory adapter,
+  one shared conformance suite, and authorization-first server-authored application use cases.
+- Steps 5 through 7 remain open. The checkpoint and Workflow 1 exit therefore remain unapproved.
+
 Each coherent change receives its own English commit and must leave its applicable local gates
 green before push. GitHub CI and Security remain authoritative for the external runner and service
 matrix.

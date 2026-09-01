@@ -299,6 +299,13 @@ schema-only placeholder, memory-only demo, 설명되지 않은 점수, model jud
 6. exact-version API, SDK, OpenAPI, operator 문서, service-backed reference flow를 추가합니다.
 7. independent acceptance audit를 수행하고 finding을 닫은 뒤 roadmap item을 체크합니다.
 
+2026-09-02 현재 진행 상황:
+
+- 1~4단계가 구현되고 로컬에서 검증되었습니다.
+- 4단계에는 불변 record 16종, 정확 scope repository port, memory adapter, 하나의 shared
+  conformance suite, 권한 우선 server-authored application use case가 포함됩니다.
+- 5~7단계는 아직 열려 있습니다. 따라서 checkpoint와 Workflow 1 종료는 승인되지 않았습니다.
+
 각 coherent change는 별도의 영어 commit을 받고 push 전에 해당 local gate를 green으로 유지해야
 합니다. GitHub CI와 Security가 외부 runner/service matrix의 최종 기준입니다.
 
