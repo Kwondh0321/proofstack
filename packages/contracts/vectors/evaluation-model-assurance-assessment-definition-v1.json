@@ -1,0 +1,117 @@
+{
+  "format": "proofstack.evaluation-model-assurance-assessment-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3012,
+      "input": {
+        "definition": {
+          "assessmentExtensionId": "maa_agent_safety_v1",
+          "baseAssessment": {
+            "assessmentId": "asm_agent_safety_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "blindedPlan": {
+            "blindedPlanId": "blp_safety",
+            "blindedPlanVersionId": "blv_safety_v1",
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          "calibrationReport": {
+            "calibrationReportId": "cal_model_safety_v1",
+            "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "counterevidence": [
+            {
+              "artifactId": "art_assurance_counterevidence",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+              "sizeBytes": 1024
+            }
+          ],
+          "critiques": [
+            {
+              "critiqueId": "crq_observation_safety_v1",
+              "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+            }
+          ],
+          "disagreementEvidence": [
+            {
+              "artifactId": "art_assurance_agreement_record",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+              "sizeBytes": 1024
+            }
+          ],
+          "eligibility": "eligible",
+          "evaluatedAt": "2026-09-02T06:00:00.000Z",
+          "humanReviewProtocol": {
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "protocolId": "hrp_agent_safety",
+            "protocolVersionId": "hrv_agent_safety_v1"
+          },
+          "humanReviews": [
+            {
+              "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "reviewId": "hrr_domain_reviewer"
+            },
+            {
+              "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+              "reviewId": "hrr_safety_reviewer"
+            }
+          ],
+          "independenceDeclarations": [
+            {
+              "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "independenceDeclarationId": "ind_critic_v1"
+            },
+            {
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "independenceDeclarationId": "ind_primary_v1"
+            }
+          ],
+          "knownLimitations": [
+            "Eligibility remains bounded to the exact evidence and validity window"
+          ],
+          "modelQualificationReport": {
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "reportId": "mqr_model_safety_v1"
+          },
+          "nonModelEvidence": {
+            "observations": [
+              {
+                "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "observationId": "obs_non_model_oracle_v1"
+              }
+            ],
+            "oracles": [
+              {
+                "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "oracleId": "orc_agent_policy",
+                "oracleVersionId": "orv_agent_policy_v1"
+              }
+            ]
+          },
+          "policy": {
+            "artifactId": "art_model_assurance_policy",
+            "classification": "restricted",
+            "mediaType": "text/plain",
+            "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sizeBytes": 1024
+          },
+          "reasons": [],
+          "riskTier": "high",
+          "validUntil": "2026-09-03T06:00:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "model_assurance_assessment",
+      "name": "high-risk model and human assurance assessment",
+      "sha256": "e51dec10615eb49520efddd350318cf793f3a2b3d5c3d57ee39b28d245b437e2"
+    }
+  ]
+}
