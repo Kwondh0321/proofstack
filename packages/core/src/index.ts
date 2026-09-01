@@ -9,6 +9,7 @@ export * from "./evaluation/evaluation-repository-errors.js";
 export * from "./evaluation/exact-oracle.js";
 export * from "./evaluation/model-assurance-independence.js";
 export * from "./evaluation/model-assurance-calibration.js";
+export * from "./evaluation/model-assurance-critique.js";
 export * from "./evaluation/model-assurance-blinded-result.js";
 export * from "./evaluation/model-assurance-human-review.js";
 export * from "./evaluation/model-assurance-qualification.js";
