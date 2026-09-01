@@ -26,6 +26,10 @@
       "types": "./dist/evaluation-spec.d.ts",
       "import": "./dist/evaluation-spec.js"
     },
+    "./evaluation-run": {
+      "types": "./dist/evaluation-run.d.ts",
+      "import": "./dist/evaluation-run.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"
