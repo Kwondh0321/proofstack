@@ -1,0 +1,98 @@
+{
+  "format": "proofstack.evaluation-blinded-result-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 2377,
+      "input": {
+        "definition": {
+          "attempts": [
+            {
+              "attemptId": "bat_01",
+              "observation": {
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "observationId": "obs_blind_ab"
+              },
+              "presentationId": "prs_ab",
+              "providerResponse": {
+                "artifactId": "art_blind_response_ab",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "sizeBytes": 1024
+              },
+              "rationale": {
+                "artifactId": "art_blind_rationale_ab",
+                "classification": "restricted",
+                "mediaType": "text/plain",
+                "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 1024
+              },
+              "seed": 11,
+              "status": "completed",
+              "verdict": "pass"
+            },
+            {
+              "attemptId": "bat_02",
+              "observation": {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "observationId": "obs_blind_ba"
+              },
+              "presentationId": "prs_ba",
+              "providerResponse": {
+                "artifactId": "art_blind_response_ba",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "sizeBytes": 1024
+              },
+              "rationale": {
+                "artifactId": "art_blind_rationale_ba",
+                "classification": "restricted",
+                "mediaType": "text/plain",
+                "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "sizeBytes": 1024
+              },
+              "seed": 22,
+              "status": "completed",
+              "verdict": "pass"
+            }
+          ],
+          "blindMapAccessEvidence": {
+            "artifactId": "art_blind_map_access",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sizeBytes": 1024
+          },
+          "blindMapRevealedAt": "2026-09-02T00:45:01.000Z",
+          "completedAt": "2026-09-02T00:45:00.000Z",
+          "disagreementEvidence": [],
+          "disagreementReasons": [],
+          "orderComparison": {
+            "artifactId": "art_blind_order_comparison",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "sizeBytes": 1024
+          },
+          "plan": {
+            "blindedPlanId": "blp_safety",
+            "blindedPlanVersionId": "blv_safety_v1",
+            "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999"
+          },
+          "resultId": "blr_safety_v1",
+          "startedAt": "2026-09-02T00:40:00.000Z",
+          "status": "consistent"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "blinded_evaluation_result",
+      "name": "complete two-order blinded evaluation result",
+      "sha256": "c5bc7350e190ef6ea24d6ce8caac1ec5316aa7eef6d382fea53900a48dc74788"
+    }
+  ]
+}

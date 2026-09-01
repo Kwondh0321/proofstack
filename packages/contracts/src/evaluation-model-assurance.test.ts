@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
+  BLINDED_EVALUATION_RESULT_SCHEMA_VERSION,
+  type BlindedEvaluationResult,
+  type BlindedEvaluationResultDefinition,
+  BlindedEvaluationResultDefinitionSchema,
+  BlindedEvaluationResultSchema,
   type BlindedEvaluationPlan,
   type BlindedEvaluationPlanDefinition,
   BlindedEvaluationPlanDefinitionSchema,
@@ -1104,6 +1109,160 @@ describe("blinded evaluation plan contracts", () => {
       expect(() =>
         BlindedEvaluationPlanDefinitionSchema.parse({
           ...blindedEvaluationPlanDefinition(),
+          ...forbidden,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+export function blindedEvaluationResultDefinition(): BlindedEvaluationResultDefinition {
+  return {
+    attempts: [
+      {
+        attemptId: "bat_01",
+        observation: { definitionSha256: sha("1"), observationId: "obs_blind_ab" },
+        presentationId: "prs_ab",
+        providerResponse: artifact("art_blind_response_ab", "2"),
+        rationale: artifact("art_blind_rationale_ab", "3", "text/plain"),
+        seed: 11,
+        status: "completed",
+        verdict: "pass",
+      },
+      {
+        attemptId: "bat_02",
+        observation: { definitionSha256: sha("4"), observationId: "obs_blind_ba" },
+        presentationId: "prs_ba",
+        providerResponse: artifact("art_blind_response_ba", "5"),
+        rationale: artifact("art_blind_rationale_ba", "6", "text/plain"),
+        seed: 22,
+        status: "completed",
+        verdict: "pass",
+      },
+    ],
+    blindMapAccessEvidence: artifact("art_blind_map_access", "7"),
+    blindMapRevealedAt: "2026-09-02T00:45:01.000Z",
+    completedAt: "2026-09-02T00:45:00.000Z",
+    disagreementEvidence: [],
+    disagreementReasons: [],
+    orderComparison: artifact("art_blind_order_comparison", "8"),
+    plan: {
+      blindedPlanId: "blp_safety",
+      blindedPlanVersionId: "blv_safety_v1",
+      definitionSha256: sha("9"),
+    },
+    resultId: "blr_safety_v1",
+    startedAt: "2026-09-02T00:40:00.000Z",
+    status: "consistent",
+  };
+}
+
+function blindedEvaluationResult(): BlindedEvaluationResult {
+  return {
+    ...blindedEvaluationResultDefinition(),
+    definitionSha256: sha("a"),
+    recordedAt: "2026-09-02T00:45:02.000Z",
+    recordedByPrincipalId: "wrk_blinded_evaluation",
+    schemaVersion: BLINDED_EVALUATION_RESULT_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("blinded evaluation result contracts", () => {
+  it("preserves every exact attempt and reveals the blind map only after completion", () => {
+    expect(
+      BlindedEvaluationResultDefinitionSchema.parse(blindedEvaluationResultDefinition()),
+    ).toEqual(blindedEvaluationResultDefinition());
+    expect(BlindedEvaluationResultSchema.parse(blindedEvaluationResult())).toEqual(
+      blindedEvaluationResult(),
+    );
+  });
+
+  it("requires unique ordered attempts and supports typed failed attempts", () => {
+    const duplicate = blindedEvaluationResultDefinition();
+    duplicate.attempts[1] = duplicate.attempts[0] as never;
+    expect(() => BlindedEvaluationResultDefinitionSchema.parse(duplicate)).toThrow(
+      "ordered by attemptId",
+    );
+
+    const failed = blindedEvaluationResultDefinition();
+    failed.attempts[1] = {
+      attemptId: "bat_02",
+      errorCode: "provider_refusal",
+      errorEvidence: [artifact("art_blind_refusal", "b")],
+      presentationId: "prs_ba",
+      seed: 22,
+      status: "failed",
+    };
+    failed.disagreementEvidence = [artifact("art_blind_refusal", "b")];
+    failed.disagreementReasons = ["attempt_missing"];
+    failed.status = "invalid";
+    expect(BlindedEvaluationResultDefinitionSchema.parse(failed)).toEqual(failed);
+  });
+
+  it("forbids early unblinding and impossible time order", () => {
+    const completion = blindedEvaluationResultDefinition();
+    completion.completedAt = "2026-09-02T00:39:59.000Z";
+    expect(() => BlindedEvaluationResultDefinitionSchema.parse(completion)).toThrow(
+      "cannot precede its start",
+    );
+
+    const unblind = blindedEvaluationResultDefinition();
+    unblind.blindMapRevealedAt = "2026-09-02T00:44:59.000Z";
+    expect(() => BlindedEvaluationResultDefinitionSchema.parse(unblind)).toThrow(
+      "cannot be revealed before",
+    );
+
+    const recorded = blindedEvaluationResult();
+    recorded.recordedAt = "2026-09-02T00:44:59.000Z";
+    expect(() => BlindedEvaluationResultSchema.parse(recorded)).toThrow(
+      "cannot be recorded before the blind map",
+    );
+  });
+
+  it("cannot declare a failed blind attempt consistent", () => {
+    const result = blindedEvaluationResultDefinition();
+    result.attempts[0] = {
+      attemptId: "bat_01",
+      errorCode: "provider_unavailable",
+      errorEvidence: [artifact("art_blind_provider_error", "f")],
+      presentationId: "prs_ab",
+      seed: 11,
+      status: "failed",
+    };
+    expect(() => BlindedEvaluationResultDefinitionSchema.parse(result)).toThrow(
+      "requires every attempt to complete",
+    );
+  });
+
+  it("requires exact evidence for disagreement and none for consistency", () => {
+    const contradictory = blindedEvaluationResultDefinition();
+    contradictory.disagreementReasons = ["order_verdict_variance"];
+    contradictory.disagreementEvidence = [artifact("art_blind_disagreement", "c")];
+    expect(() => BlindedEvaluationResultDefinitionSchema.parse(contradictory)).toThrow(
+      "cannot retain disagreement",
+    );
+
+    const disagreement = blindedEvaluationResultDefinition();
+    disagreement.status = "disagreement";
+    expect(() => BlindedEvaluationResultDefinitionSchema.parse(disagreement)).toThrow(
+      "requires reasons and exact evidence",
+    );
+    disagreement.disagreementReasons = ["order_verdict_variance"];
+    disagreement.disagreementEvidence = [artifact("art_blind_disagreement", "c")];
+    expect(BlindedEvaluationResultDefinitionSchema.parse(disagreement)).toEqual(disagreement);
+  });
+
+  it("rejects dropped attempts, early map access, averaging, and release authority fields", () => {
+    for (const forbidden of [
+      { dropUnfavorableAttempt: true },
+      { earlyBlindMapAccess: true },
+      { averageAwayReversal: true },
+      { releaseAuthority: "allow" },
+    ]) {
+      expect(() =>
+        BlindedEvaluationResultDefinitionSchema.parse({
+          ...blindedEvaluationResultDefinition(),
           ...forbidden,
         }),
       ).toThrow();

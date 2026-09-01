@@ -5,6 +5,7 @@ import { AssessmentReferenceSchema } from "./evaluation-assessment.js";
 import { EvaluationRiskTierSchema, OracleReferenceSchema } from "./evaluation-criteria.js";
 import {
   BlindedEvaluationPlanReferenceSchema,
+  BlindedEvaluationResultReferenceSchema,
   CalibrationReportReferenceSchema,
   HumanReviewProtocolReferenceSchema,
   HumanReviewRecordReferenceSchema,
@@ -71,6 +72,7 @@ const modelAssuranceAssessmentDefinitionShape = {
   assessmentExtensionId: OpaqueIdSchema,
   baseAssessment: AssessmentReferenceSchema,
   blindedPlan: BlindedEvaluationPlanReferenceSchema,
+  blindedResult: BlindedEvaluationResultReferenceSchema,
   calibrationReport: CalibrationReportReferenceSchema,
   counterevidence: exactArtifacts(0, 64, "Model assurance counterevidence"),
   critiques: z

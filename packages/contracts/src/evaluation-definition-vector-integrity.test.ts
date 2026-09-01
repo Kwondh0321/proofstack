@@ -4,12 +4,14 @@ import { describe, expect, it } from "vitest";
 import {
   ASSESSMENT_DEFINITION_DOMAIN,
   BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN,
+  BLINDED_EVALUATION_RESULT_DEFINITION_DOMAIN,
   CALIBRATION_REPORT_DEFINITION_DOMAIN,
   CRITERION_SET_DEFINITION_DOMAIN,
   CRITERION_SET_STATUS_DEFINITION_DOMAIN,
   DISCOVERY_RECORD_DEFINITION_DOMAIN,
   encodeAssessmentDefinition,
   encodeBlindedEvaluationPlanDefinition,
+  encodeBlindedEvaluationResultDefinition,
   encodeCalibrationReportDefinition,
   encodeCriterionSetDefinition,
   encodeCriterionSetStatusDefinition,
@@ -97,6 +99,7 @@ const vectorFiles = [
   "evaluation-calibration-definition-v1.json",
   "evaluation-model-assisted-spec-definition-v1.json",
   "evaluation-blinded-plan-definition-v1.json",
+  "evaluation-blinded-result-definition-v1.json",
   "evaluation-independent-critique-definition-v1.json",
   "evaluation-human-review-protocol-definition-v1.json",
   "evaluation-human-review-record-definition-v1.json",
@@ -125,6 +128,10 @@ const registry = {
   blinded_evaluation_plan: {
     domain: BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeBlindedEvaluationPlanDefinition(input as never),
+  },
+  blinded_evaluation_result: {
+    domain: BLINDED_EVALUATION_RESULT_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeBlindedEvaluationResultDefinition(input as never),
   },
   calibration_report: {
     domain: CALIBRATION_REPORT_DEFINITION_DOMAIN,

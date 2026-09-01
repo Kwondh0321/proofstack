@@ -33,6 +33,10 @@ export function modelAssuranceAssessmentDefinition(): ModelAssuranceAssessmentDe
       blindedPlanVersionId: "blv_safety_v1",
       definitionSha256: sha("2"),
     },
+    blindedResult: {
+      definitionSha256: sha("0"),
+      resultId: "blr_safety_v1",
+    },
     calibrationReport: {
       calibrationReportId: "cal_model_safety_v1",
       definitionSha256: sha("3"),

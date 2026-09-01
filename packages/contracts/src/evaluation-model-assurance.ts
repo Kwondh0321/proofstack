@@ -9,6 +9,7 @@ import {
 } from "./evaluation-criteria.js";
 import {
   EvaluationDatasetVersionReferenceSchema,
+  EvaluationVerdictSchema,
   RawObservationReferenceSchema,
 } from "./evaluation-run.js";
 import {
@@ -28,6 +29,7 @@ export const INDEPENDENT_CRITIQUE_SCHEMA_VERSION = "0.1" as const;
 export const HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION = "0.1" as const;
 export const HUMAN_REVIEW_RECORD_SCHEMA_VERSION = "0.1" as const;
 export const HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION = "0.1" as const;
+export const BLINDED_EVALUATION_RESULT_SCHEMA_VERSION = "0.1" as const;
 export const MAX_BLINDED_ATTEMPTS = 16;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
@@ -1116,6 +1118,176 @@ export const BlindedEvaluationPlanSchema = z
 export type BlindedEvaluationPlanReference = z.infer<typeof BlindedEvaluationPlanReferenceSchema>;
 export type BlindedEvaluationPlanDefinition = z.infer<typeof BlindedEvaluationPlanDefinitionSchema>;
 export type BlindedEvaluationPlan = z.infer<typeof BlindedEvaluationPlanSchema>;
+
+export const BlindedEvaluationResultReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    resultId: OpaqueIdSchema,
+  })
+  .strict();
+
+export const BlindedAttemptResultSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      attemptId: OpaqueIdSchema,
+      observation: RawObservationReferenceSchema,
+      presentationId: OpaqueIdSchema,
+      providerResponse: ArtifactContentReferenceSchema,
+      rationale: ArtifactContentReferenceSchema,
+      seed: z.number().int().nonnegative().max(4_294_967_295),
+      status: z.literal("completed"),
+      verdict: EvaluationVerdictSchema,
+    })
+    .strict(),
+  z
+    .object({
+      attemptId: OpaqueIdSchema,
+      errorCode: z.enum([
+        "budget_exhausted",
+        "deadline_exceeded",
+        "output_malformed",
+        "provider_refusal",
+        "provider_unavailable",
+      ]),
+      errorEvidence: exactArtifacts(16, "Blinded attempt error evidence").min(1),
+      presentationId: OpaqueIdSchema,
+      seed: z.number().int().nonnegative().max(4_294_967_295),
+      status: z.literal("failed"),
+    })
+    .strict(),
+]);
+
+export const BlindedDisagreementReasonSchema = z.enum([
+  "attempt_missing",
+  "label_leakage",
+  "order_rationale_variance",
+  "order_verdict_variance",
+  "unexpected_attempt",
+]);
+
+const blindedEvaluationResultDefinitionShape = {
+  attempts: z
+    .array(BlindedAttemptResultSchema)
+    .min(2)
+    .max(MAX_BLINDED_ATTEMPTS)
+    .refine((attempts) => isStrictlySortedUnique(attempts.map(({ attemptId }) => attemptId)), {
+      message: "Blinded result attempts must be unique and ordered by attemptId",
+    }),
+  blindMapAccessEvidence: ArtifactContentReferenceSchema,
+  blindMapRevealedAt: UtcMillisecondTimestampSchema,
+  completedAt: UtcMillisecondTimestampSchema,
+  disagreementEvidence: exactArtifacts(32, "Blinded disagreement evidence"),
+  disagreementReasons: z
+    .array(BlindedDisagreementReasonSchema)
+    .max(BlindedDisagreementReasonSchema.options.length)
+    .refine(isStrictlySortedUnique, {
+      message: "Blinded disagreement reasons must be unique and ordered",
+    }),
+  orderComparison: ArtifactContentReferenceSchema,
+  plan: BlindedEvaluationPlanReferenceSchema,
+  resultId: OpaqueIdSchema,
+  startedAt: UtcMillisecondTimestampSchema,
+  status: z.enum(["consistent", "disagreement", "invalid"]),
+};
+
+function refineBlindedEvaluationResult(
+  value: {
+    readonly attempts: readonly { readonly status: "completed" | "failed" }[];
+    readonly blindMapRevealedAt: string;
+    readonly completedAt: string;
+    readonly disagreementEvidence: readonly unknown[];
+    readonly disagreementReasons: readonly string[];
+    readonly recordedAt?: string;
+    readonly startedAt: string;
+    readonly status: "consistent" | "disagreement" | "invalid";
+  },
+  context: z.RefinementCtx,
+): void {
+  if (evidenceTimestampOrderKey(value.completedAt) < evidenceTimestampOrderKey(value.startedAt)) {
+    context.addIssue({
+      code: "custom",
+      message: "Blinded evaluation completion cannot precede its start",
+      path: ["completedAt"],
+    });
+  }
+  if (
+    evidenceTimestampOrderKey(value.blindMapRevealedAt) <
+    evidenceTimestampOrderKey(value.completedAt)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Blind map cannot be revealed before all evaluation attempts complete",
+      path: ["blindMapRevealedAt"],
+    });
+  }
+  if (
+    value.recordedAt !== undefined &&
+    evidenceTimestampOrderKey(value.recordedAt) <
+      evidenceTimestampOrderKey(value.blindMapRevealedAt)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A blinded result cannot be recorded before the blind map is revealed",
+      path: ["recordedAt"],
+    });
+  }
+  if (
+    value.status === "consistent" &&
+    value.attempts.some(({ status }) => status !== "completed")
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A consistent blinded result requires every attempt to complete",
+      path: ["attempts"],
+    });
+  }
+  if (
+    value.status === "consistent" &&
+    (value.disagreementReasons.length > 0 || value.disagreementEvidence.length > 0)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A consistent blinded result cannot retain disagreement",
+      path: ["status"],
+    });
+  }
+  if (
+    value.status !== "consistent" &&
+    (value.disagreementReasons.length === 0 || value.disagreementEvidence.length === 0)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A non-consistent blinded result requires reasons and exact evidence",
+      path: ["disagreementReasons"],
+    });
+  }
+}
+
+export const BlindedEvaluationResultDefinitionSchema = z
+  .object(blindedEvaluationResultDefinitionShape)
+  .strict()
+  .superRefine(refineBlindedEvaluationResult);
+
+export const BlindedEvaluationResultSchema = z
+  .object({
+    ...blindedEvaluationResultDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    recordedByPrincipalId: OpaqueIdSchema,
+    schemaVersion: z.literal(BLINDED_EVALUATION_RESULT_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineBlindedEvaluationResult);
+
+export type BlindedEvaluationResultReference = z.infer<
+  typeof BlindedEvaluationResultReferenceSchema
+>;
+export type BlindedAttemptResult = z.infer<typeof BlindedAttemptResultSchema>;
+export type BlindedEvaluationResultDefinition = z.infer<
+  typeof BlindedEvaluationResultDefinitionSchema
+>;
+export type BlindedEvaluationResult = z.infer<typeof BlindedEvaluationResultSchema>;
 
 export const IndependentCritiqueReferenceSchema = z
   .object({

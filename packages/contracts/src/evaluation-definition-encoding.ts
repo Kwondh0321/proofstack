@@ -59,6 +59,9 @@ import {
 } from "./evaluation-spec.js";
 import {
   CALIBRATION_REPORT_SCHEMA_VERSION,
+  BLINDED_EVALUATION_RESULT_SCHEMA_VERSION,
+  type BlindedEvaluationResultDefinition,
+  BlindedEvaluationResultDefinitionSchema,
   BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
   type BlindedEvaluationPlanDefinition,
   BlindedEvaluationPlanDefinitionSchema,
@@ -119,6 +122,8 @@ export const MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN =
   "proofstack.model-assisted-evaluator-spec.v1" as const;
 export const BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN =
   "proofstack.blinded-evaluation-plan.v1" as const;
+export const BLINDED_EVALUATION_RESULT_DEFINITION_DOMAIN =
+  "proofstack.blinded-evaluation-result.v1" as const;
 export const INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN = "proofstack.independent-critique.v1" as const;
 export const HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN =
   "proofstack.human-review-protocol.v1" as const;
@@ -423,6 +428,18 @@ export function encodeBlindedEvaluationPlanDefinition(
   return encodeDefinition(
     BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN,
     BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeBlindedEvaluationResultDefinition(
+  input: ScopedEvaluationDefinition<BlindedEvaluationResultDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(BlindedEvaluationResultDefinitionSchema).parse(input);
+  return encodeDefinition(
+    BLINDED_EVALUATION_RESULT_DEFINITION_DOMAIN,
+    BLINDED_EVALUATION_RESULT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );
