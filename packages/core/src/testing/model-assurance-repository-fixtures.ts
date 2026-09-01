@@ -34,12 +34,12 @@ import { publishEvaluationFixture } from "./evaluation-repository-conformance.js
 import { createEvaluationRepositoryTestHarness } from "./evaluation-repository-fixtures.js";
 import { MemoryModelAssuranceRepository } from "./memory-model-assurance-repository.js";
 
-export interface ModelAssuranceRepositoryFixtureRecord<
-  K extends ModelAssuranceRecordKind = ModelAssuranceRecordKind,
-> {
-  readonly kind: K;
-  readonly record: ModelAssuranceRecordByKind[K];
-}
+export type ModelAssuranceRepositoryFixtureRecord = {
+  readonly [K in ModelAssuranceRecordKind]: {
+    readonly kind: K;
+    readonly record: ModelAssuranceRecordByKind[K];
+  };
+}[ModelAssuranceRecordKind];
 
 export interface ModelAssuranceRepositoryTestHarness {
   readonly command: CreateModelAssuranceAssessmentCommand;

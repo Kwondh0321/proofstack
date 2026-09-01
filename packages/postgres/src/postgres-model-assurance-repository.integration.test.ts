@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   CreateModelAssuranceAssessment,
   type ModelAssuranceRecordKind,
+  ModelAssuranceRepositoryContractError,
   modelAssuranceRecordId,
 } from "@proofstack/core";
 import {
@@ -270,5 +271,40 @@ describe("PostgresModelAssuranceRepository", () => {
     );
     expect(persisted.rows).toEqual([{ count: "1" }]);
     expect(intents.rows).toEqual([{ count: "1" }]);
+  });
+
+  it("fails closed when stored semantics no longer match the retained digest", async () => {
+    const harness = await createModelAssuranceRepositoryTestHarness(
+      `pg_assurance_corrupt_${runKey}`,
+    );
+    const profile = harness.records.find(({ kind }) => kind === "model_evaluator_profile");
+    if (profile?.kind !== "model_evaluator_profile") {
+      throw new Error("Expected model profile corruption fixture");
+    }
+    const repository = new PostgresModelAssuranceRepository(apiPool);
+    await repository.publish(profile.kind, profile.record);
+    const recordId = modelAssuranceRecordId(profile.kind, profile.record);
+
+    const client = await adminPool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      await client.query(
+        `UPDATE public.proofstack_model_assurance_records
+         SET record = jsonb_set(record, '{knownLimitations}', '["tampered"]'::jsonb)
+         WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3`,
+        [harness.evaluation.scope.tenantId, profile.kind, recordId],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    await expect(
+      repository.find(harness.evaluation.scope, profile.kind, recordId),
+    ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
   });
 });
