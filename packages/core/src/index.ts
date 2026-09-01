@@ -4,6 +4,7 @@ export * from "./clock.js";
 export * from "./errors.js";
 export * from "./evaluation/applicability.js";
 export * from "./evaluation/exact-oracle.js";
+export * from "./evaluation/reference-aggregate.js";
 export * from "./evaluation/schema-oracle.js";
 export * from "./evidence/evidence-repository.js";
 export * from "./evidence/ingest-evidence.js";
