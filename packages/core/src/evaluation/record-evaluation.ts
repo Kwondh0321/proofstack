@@ -44,6 +44,7 @@ import { requireCapability, requireEnvironmentAccess } from "../auth/authorizati
 import type { Clock } from "../clock.js";
 import {
   EvaluationRecordConflictError,
+  EvaluationRecordNotFoundError,
   EvaluationRepositoryContractError,
   InvalidEvaluationRecordInputError,
   type EvaluationRecordKind,
@@ -121,6 +122,10 @@ export interface RecordEvaluationCommand<Kind extends EvaluationRecordKind>
   readonly kind: Kind;
 }
 
+export interface ReadEvaluationRecordCommand extends EvaluationRoute {
+  readonly kind: EvaluationRecordKind;
+}
+
 export interface RecordEvaluationDependencies {
   readonly clock: Clock;
   readonly repository: EvaluationRepository;
@@ -140,7 +145,7 @@ function invalidInput(message: string, cause?: unknown): InvalidEvaluationRecord
 
 function authorizedRoute(
   command: EvaluationRoute,
-  capability: "evaluation:manage" | "evaluation:run",
+  capability: "evaluation:manage" | "evaluation:read" | "evaluation:run",
 ): {
   readonly principal: PrincipalContext;
   readonly scope: EvidenceScope;
@@ -457,6 +462,24 @@ async function recordEvaluation<Kind extends EvaluationRecordKind>(
     created: result.created,
     record: structuredClone(result.record) as EvaluationRecordByKind[Kind],
   };
+}
+
+export class ReadEvaluationRecord {
+  constructor(private readonly repository: EvaluationRepository) {}
+
+  async execute(command: ReadEvaluationRecordCommand): Promise<EvaluationRecord> {
+    const { recordId, scope } = authorizedRoute(command, "evaluation:read");
+    const record = await findRecord(
+      this.repository,
+      command.kind,
+      structuredClone(scope),
+      recordId,
+    );
+    if (record === null) {
+      throw new EvaluationRecordNotFoundError(command.kind, recordId);
+    }
+    return structuredClone(validateRepositoryRecord(record, command.kind, scope, recordId));
+  }
 }
 
 export class PublishEvaluationDefinition {

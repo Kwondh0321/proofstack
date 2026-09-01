@@ -6,6 +6,7 @@ import { FixedClock } from "../testing/fixed-clock.js";
 import { MemoryEvaluationRepository } from "../testing/memory-evaluation-repository.js";
 import {
   EvaluationRecordConflictError,
+  EvaluationRecordNotFoundError,
   EvaluationRepositoryContractError,
   InvalidEvaluationRecordInputError,
   type EvaluationRecordKind,
@@ -16,6 +17,7 @@ import {
   CreateAssessment,
   CreateEvaluationAggregate,
   PublishEvaluationDefinition,
+  ReadEvaluationRecord,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
   RecordEvaluationRunResult,
@@ -50,7 +52,7 @@ const vectors = vectorFiles.flatMap(
 function principal(overrides: Partial<PrincipalContext> = {}): PrincipalContext {
   return {
     authentication: { authenticatedAt: "2026-09-02T00:00:00.000Z", method: "development" },
-    capabilities: ["evaluation:manage", "evaluation:run"],
+    capabilities: ["evaluation:manage", "evaluation:read", "evaluation:run"],
     principalId: "usr_evaluation",
     principalType: "user",
     requestId: "req_evaluation_test",
@@ -262,5 +264,52 @@ describe("evaluation recording use cases", () => {
         repository: malformed,
       }),
     ).rejects.toBeInstanceOf(EvaluationRepositoryContractError);
+  });
+
+  it("reads one exact authorized record and hides missing or out-of-scope records", async () => {
+    const vector = vectors.find(({ kind }) => kind === "discovery_record");
+    if (!vector) throw new Error("Expected discovery vector");
+    const repository = new MemoryEvaluationRepository();
+    const published = await executeVector(vector, {
+      clock: new FixedClock(timestamp),
+      repository,
+    });
+    const read = new ReadEvaluationRecord(repository);
+    const route = {
+      environmentId: "env_evaluation",
+      kind: vector.kind,
+      principal: principal(),
+      projectId: "prj_evaluation",
+      recordId: recordId(vector.kind, vector.input.definition),
+    } as const;
+
+    const result = await read.execute(route);
+    expect(result).toEqual(published.record);
+    expect(result).not.toBe(published.record);
+    await expect(
+      read.execute({ ...route, recordId: "dsc_missing" }),
+    ).rejects.toBeInstanceOf(EvaluationRecordNotFoundError);
+    await expect(
+      read.execute({ ...route, environmentId: "env_other" }),
+    ).rejects.toBeInstanceOf(EvaluationRecordNotFoundError);
+  });
+
+  it("authorizes evaluation reads before parsing route identifiers or touching storage", async () => {
+    let repositoryAccesses = 0;
+    const read = new ReadEvaluationRecord(
+      passThroughRepository(() => {
+        repositoryAccesses += 1;
+      }),
+    );
+    await expect(
+      read.execute({
+        environmentId: "env_forbidden",
+        kind: "discovery_record",
+        principal: principal({ capabilities: [] }),
+        projectId: "prj_forbidden",
+        recordId: "not valid",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(repositoryAccesses).toBe(0);
   });
 });
