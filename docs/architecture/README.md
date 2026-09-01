@@ -41,3 +41,4 @@ invalidate an ADR present in this directory.
 - [ADR-0016: Linearize regression version publication at one repository boundary](0016-linearize-regression-version-publication.md)
 - [ADR-0017: Own captured interaction content per immutable fixture version](0017-own-interaction-content-per-fixture.md)
 - [ADR-0018: Separate replay control-plane and worker persistence authority](0018-separate-replay-control-worker-authority.md)
+- [ADR-0019: Persist the contestable evaluation graph with separated authority](0019-persist-contestable-evaluation-graph.md)
