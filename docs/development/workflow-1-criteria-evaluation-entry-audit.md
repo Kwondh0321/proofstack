@@ -309,10 +309,15 @@ Progress as of 2026-09-02:
 - Steps 1 through 5 are implemented and verified locally and in GitHub CI at `98d1849`.
 - Step 4 includes all 16 immutable record kinds, exact-scope repository ports, a memory adapter,
   one shared conformance suite, and authorization-first server-authored application use cases.
-- Step 5 adds migrations `0037` and `0038`, normalized append-only PostgreSQL storage, forced tenant RLS,
+- Step 5 adds migrations `0037` through `0039`, normalized append-only PostgreSQL storage, forced tenant RLS,
   database-derived lineage and outbox intents, separated API/evaluation-worker authority, shared
   conformance, real concurrency and restart tests, and coordinated empty-target recovery.
-- Steps 6 and 7 remain open. The checkpoint and Workflow 1 exit therefore remain unapproved.
+- Step 6 is implemented locally: exact-version API and SDK surfaces, a dedicated
+  evaluation-worker storage boundary, operator documentation, and a service-backed reference flow
+  now cover 30 durable records, all five verdicts, conservative aggregation, exact read-back, and
+  API restart persistence.
+- Step 7 remains open pending the independent acceptance audit and authoritative remote CI and
+  Security results. The checkpoint and Workflow 1 exit therefore remain unapproved.
 
 Each coherent change receives its own English commit and must leave its applicable local gates
 green before push. GitHub CI and Security remain authoritative for the external runner and service

@@ -3,16 +3,17 @@
 [English](evaluation-repository-and-use-cases.md) |
 [한국어](evaluation-repository-and-use-cases.ko.md)
 
-- Status: experimental durable-persistence checkpoint
+- Status: experimental service-backed checkpoint
 - Production readiness: not approved
-- HTTP API, SDK, and worker service: not included yet
+- HTTP API, TypeScript SDK, dedicated worker boundary, and reference flow: implemented
 - PostgreSQL persistence, outbox, role separation, and recovery coverage: implemented
 - Release authority: not included
 
 ProofStack now has a framework-independent application boundary for publishing and recording the
-complete immutable evaluation graph. It does not yet expose that graph as a service. The boundary
-exists so a durable adapter and API can be added without moving authorization, ownership, digest,
-lineage, or idempotency decisions into transport or storage code.
+complete immutable evaluation graph. An exact-version HTTP API and fail-closed TypeScript SDK
+expose management, lifecycle, run-decision, assessment, and read operations. A separate worker
+boundary owns qualification, observation, terminal-result, and aggregate writes without moving
+authorization, ownership, digest, lineage, or idempotency decisions into transport code.
 
 The main entry points are exported from `@proofstack/core`. `PostgresEvaluationRepository` is
 exported from `@proofstack/postgres`; the in-memory adapter and reusable repository conformance
@@ -49,8 +50,8 @@ Every publish operation must:
 state only inside one process. It has no restart durability, cross-process concurrency guarantee,
 database-enforced row isolation, outbox, backup, or recovery claim.
 
-`PostgresEvaluationRepository` implements the same port over migrations `0037` and `0038`. A registry, five
-tenant-wide resource bindings, derived lineage edges, terminal uniqueness slots, and 16 typed
+`PostgresEvaluationRepository` implements the same port over migrations `0037` through `0039`. A
+registry, five tenant-wide resource bindings, derived lineage edges, terminal uniqueness slots, and 16 typed
 partitions remain append-only behind forced RLS. Each accepted record and its bounded outbox intent
 commit in one transaction. Canonical advisory-lock ordering serializes competing record, resource,
 lineage, and uniqueness keys; identical concurrent retries return one authoritative record.
@@ -134,8 +135,8 @@ The core exports typed errors so transports can map failures without parsing mes
 - `EvaluationRepositoryContractError`: an adapter returned the wrong scope, ID, digest, or
   substituted semantics.
 
-The current core does not assign HTTP status codes. Stable problem documents belong to the later
-API stage.
+The core does not assign HTTP status codes. The API maps typed failures to stable RFC 9457-style
+problem documents without leaking cross-tenant existence or storage details.
 
 ## Trust boundary and remaining work
 
@@ -145,7 +146,9 @@ correct, a sample is representative, an oracle measures the intended property, o
 should authorize a release. These remain contestable claims with explicit provenance,
 qualification, conflicts, limitations, and human review requirements.
 
-There is still no execute-from-text route, autonomous web search, model judge, evaluation worker
-service, HTTP API, SDK method, console flow, or release gate. Follow the dependency order and
-acceptance matrix in the
+There is still no execute-from-text route, autonomous web search, model judge, evaluator execution
+sandbox, console flow, or release gate. The dedicated worker service boundary records only
+server-authored execution evidence; it does not run arbitrary evaluator code. See the runnable
+[service-backed evaluation control flow](evaluation-control-flow.md), then follow the dependency
+order and acceptance matrix in the
 [criteria and non-model evaluation entry audit](../development/workflow-1-criteria-evaluation-entry-audit.md).

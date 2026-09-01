@@ -3,16 +3,17 @@
 [English](evaluation-repository-and-use-cases.md) |
 [한국어](evaluation-repository-and-use-cases.ko.md)
 
-- 상태: 실험적 영속 저장 체크포인트
+- 상태: 실험적 service-backed 체크포인트
 - 프로덕션 준비: 승인되지 않음
-- HTTP API, SDK, worker service: 아직 포함되지 않음
+- HTTP API, TypeScript SDK, 전용 worker 경계, 기준 흐름: 구현됨
 - PostgreSQL 영속성, outbox, role 분리, recovery coverage: 구현됨
 - 릴리스 권한: 포함되지 않음
 
 ProofStack에는 이제 전체 불변 evaluation graph를 게시하고 기록하는 프레임워크 독립적
-application boundary가 있습니다. 아직 이 graph를 service로 노출하지는 않습니다. 이 경계는
-나중에 영속 adapter와 API를 추가하더라도 authorization, ownership, digest, lineage,
-idempotency 결정을 transport나 storage 코드로 옮기지 않기 위해 존재합니다.
+application boundary가 있습니다. exact-version HTTP API와 fail-closed TypeScript SDK가 관리,
+lifecycle, run-decision, assessment, read 연산을 노출합니다. 별도 worker 경계는 authorization,
+ownership, digest, lineage, idempotency 결정을 transport로 옮기지 않으면서 qualification,
+observation, terminal-result, aggregate 쓰기를 소유합니다.
 
 주요 진입점은 `@proofstack/core`에서 내보냅니다. `PostgresEvaluationRepository`는
 `@proofstack/postgres`에서, 메모리 adapter와 재사용 가능한 repository conformance case는
@@ -49,7 +50,7 @@ discovery -> source snapshot -> source review
 상태를 소유합니다. restart 영속성, cross-process concurrency, DB 강제 row isolation, outbox,
 backup 또는 recovery를 보장하지 않습니다.
 
-`PostgresEvaluationRepository`는 migration `0037`, `0038` 위에서 같은 port를 구현합니다. registry,
+`PostgresEvaluationRepository`는 migration `0037`부터 `0039`까지 같은 port를 구현합니다. registry,
 tenant-wide resource binding 5종, DB가 유도한 lineage edge, terminal uniqueness slot, typed
 partition 16종은 forced RLS 뒤에서 append-only로 유지됩니다. 승인된 record와 제한된 outbox
 intent는 한 transaction에서 commit됩니다. canonical advisory-lock 순서가 record, resource,
@@ -134,8 +135,8 @@ transport가 message 문자열을 파싱하지 않고 failure를 변환할 수 �
 - `EvaluationRepositoryContractError`: adapter가 다른 scope·ID·digest를 반환하거나 semantic을
   바꿈
 
-현재 core는 HTTP status code를 정하지 않습니다. 안정적인 problem document는 이후 API
-단계의 책임입니다.
+core는 HTTP status code를 정하지 않습니다. API가 typed failure를 cross-tenant 존재 여부나
+storage detail을 누출하지 않는 안정적인 RFC 9457 형태 problem document로 변환합니다.
 
 ## 신뢰 경계와 남은 작업
 
@@ -145,7 +146,9 @@ transport가 message 문자열을 파싱하지 않고 failure를 변환할 수 �
 확립하지는 않습니다. 이는 명시적인 provenance, qualification, conflict, limitation, human
 review requirement를 가진 반박 가능한 claim으로 남습니다.
 
-아직 execute-from-text route, 자율 web search, model judge, evaluation worker service, HTTP API,
-SDK method, console flow, release gate는 없습니다. 의존 순서와 acceptance matrix는
+아직 execute-from-text route, 자율 web search, model judge, evaluator 실행 sandbox, console flow,
+release gate는 없습니다. 전용 worker service 경계는 server-authored 실행 증거만 기록하며 임의
+evaluator code를 실행하지 않습니다. 실행 가능한
+[서비스 기반 평가 제어 흐름](evaluation-control-flow.ko.md)을 확인한 뒤, 의존 순서와 acceptance matrix는
 [criteria·비모델 평가 진입 감사](../development/workflow-1-criteria-evaluation-entry-audit.ko.md)를
 따르세요.

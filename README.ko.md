@@ -17,8 +17,10 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > observation, 암호화된 결과 artifact를 영속화하며 별도 worker·target 프로세스를 실행합니다.
 > 프레임워크 독립적인 비모델 평가 primitive는 이제 안전한 applicability, digest에 결합된
 > exact·JSON Schema oracle, 명시적 reference aggregate, 권한 우선 불변 graph repository와
-> 제한된 application use case를 제공합니다. 현재 evaluation repository는 memory 기반이며 아직
-> 영속 evaluation service나 운영자 workflow로 결합되지는 않았습니다. 로컬 기준 구현은 OS sandbox, 상시
+> 제한된 application use case를 제공합니다. graph는 이제 PostgreSQL에 영속화되고 exact-version
+> API·TypeScript SDK로 노출되며 worker 소유 evidence write와 별도 database 권한으로 분리됩니다.
+> service-backed 기준 흐름은 의도적으로 ineligible인 논쟁 가능 assessment 하나를 기록하고 다시
+> 읽습니다. 로컬 기준 구현은 OS sandbox, 상시
 > scheduling worker 배포, 프로덕션 key provider 또는 프로덕션 live-provider 통합이 아닙니다.
 > 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 콘솔
 > 로그인 연동, 평가, 릴리스 게이트는 아직 완성된 기능으로 표시하지 않습니다.
@@ -49,7 +51,7 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | --- | --- |
 | 계약 | W3C 트레이스 식별자를 사용하는 엄격하고 버전이 명시된 공급자 중립 `EvidenceEnvelope` |
 | 코어 | 테넌트 범위 인가, 멱등 수집, 충돌 감지, 원자적 배치 처리 |
-| API | 상태 확인, 직접 JSON 수집, 트레이스 조회, 안정적인 문제 문서, OpenAPI 3.2 |
+| API | 상태 확인, 직접 JSON 수집, 트레이스·정확 evaluation record 조회, 제한된 evaluation mutation, 안정적인 문제 문서, OpenAPI 3.2 |
 | OTLP 상호운용성 | OTLP 1.11 트레이스 JSON/Protobuf, gzip, 부분 성공, 제한된 정규화, 인증된 범위 라우팅 |
 | 영속성 | 체크섬 검증 PostgreSQL 마이그레이션, 강제 RLS, 불변 증거, 원자적 아웃박스 |
 | 전달 상태 | 임대형 아웃박스 재시도, 독성 메시지 가시성, 단조 커서, 소비자 처리 기록 |
@@ -63,10 +65,11 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 기록 경계 replay | 엄격한 전체 content 사전 검사, 순서가 있는 정확 정규화 요청 일치, live fallback 부재, 협력적 고정 runtime input, bounded 또는 unknown 결과 |
 | 영속 replay job | 불변 release·plan, 유한 다차원 budget, fenced lease·restore epoch, cancellation, 사전 선언 retry·effect rule, usage 조정, 별도 worker·target 프로세스, 영속 결과 artifact |
 | 비모델 평가 primitive | total tri-state applicability, digest 등록 exact-byte·제한형 JSON Schema oracle, 정확한 다섯 verdict count, assumption이 확인된 Wilson interval |
-| 평가 graph 경계 | 불변 record 16종, 정확 scope repository, 권한 우선 server authorship, lineage, idempotency, shared memory-adapter conformance |
-| TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay 클라이언트 |
+| 평가 graph 경계 | 불변 record 16종, memory·PostgreSQL 정확 scope repository, 권한 우선 server authorship, RLS, lineage, idempotency, outbox, recovery |
+| 평가 service 진입 | exact-version API·fail-closed SDK, 별도 최소 권한 evaluation-worker storage 권한, 다섯 verdict 논쟁 흐름, restart read-back |
+| TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay·evaluation 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구 흐름 |
+| 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 evaluation 흐름 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -235,20 +238,25 @@ production-readiness 주장은 승인하지 않습니다.
 applicability·oracle·aggregate 경계와 아직 남은 service, 격리, qualification, persistence 작업을
 설명합니다.
 [평가 저장소·유스케이스 가이드](docs/guides/evaluation-repository-and-use-cases.ko.md)는 불변 graph
-port, 권한 우선 server authorship, memory adapter conformance와 영속 service 이전의 한계를
+port, 권한 우선 server authorship, memory·PostgreSQL adapter conformance와 service 경계를
 설명합니다.
+[서비스 기반 평가 제어 흐름 가이드](docs/guides/evaluation-control-flow.ko.md)는 stale source,
+counterevidence, disagreement, 낮은 coverage, ineligible 결론을 보존하면서 exact API, SDK,
+worker role, PostgreSQL, restart 경로를 실행합니다.
 
 ## 현재의 경계
 
 현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
 스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
-상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target worker, service 결합
+상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target worker, 격리된 evaluator 실행,
 evaluator, 정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
 evidence-only 회귀 버전, fixture 소유 분류 상호작용 캡처, 기록 경계 replay, 별도 로컬
 프로세스를 사용하는 bounded 영속 replay job은 workload API key·OIDC browser 인증,
-artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. Core 전용 비모델
-평가 primitive와 권한 우선 불변 graph 경계도 구현되고 검증되었습니다. 현재 adapter는
-process-local memory이므로 아직 완전한 evaluation run을 API로 영속화·노출하지는 않습니다.
+artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. 비모델 평가
+primitive, 권한 우선 불변 graph, 영속 PostgreSQL adapter, exact-version API·SDK,
+worker-owned storage 경계도 구현되고 검증되었습니다. 기준 흐름은 synthetic evidence를
+기록할 뿐, 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 release decision을
+내리지 않습니다.
 Replay 결과는
 OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content
 inspector는 구조화된 자격증명 필드를 거부하고

@@ -304,10 +304,14 @@ schema-only placeholder, memory-only demo, 설명되지 않은 점수, model jud
 - 1~5단계가 구현되었고 `98d1849`에서 로컬 및 GitHub CI 검증을 통과했습니다.
 - 4단계에는 불변 record 16종, 정확 scope repository port, memory adapter, 하나의 shared
   conformance suite, 권한 우선 server-authored application use case가 포함됩니다.
-- 5단계에는 migration `0037`, `0038`, normalized append-only PostgreSQL storage, forced tenant RLS,
+- 5단계에는 migration `0037`부터 `0039`까지, normalized append-only PostgreSQL storage, forced tenant RLS,
   database-derived lineage/outbox intent, 분리된 API/evaluation-worker 권한, shared conformance,
   실제 concurrency/restart test, coordinated empty-target recovery가 포함됩니다.
-- 6~7단계는 아직 열려 있습니다. 따라서 checkpoint와 Workflow 1 종료는 승인되지 않았습니다.
+- 6단계는 로컬 구현을 완료했습니다. exact-version API·SDK, 전용 evaluation-worker storage
+  경계, operator 문서, service-backed 기준 흐름이 30개 영속 record, 다섯 verdict 전체,
+  보수적 aggregate, 정확 read-back, API restart 영속성을 다룹니다.
+- 7단계는 independent acceptance audit와 권위 있는 remote CI·Security 결과를 기다리고
+  있습니다. 따라서 checkpoint와 Workflow 1 종료는 아직 승인되지 않았습니다.
 
 각 coherent change는 별도의 영어 commit을 받고 push 전에 해당 local gate를 green으로 유지해야
 합니다. GitHub CI와 Security가 외부 runner/service matrix의 최종 기준입니다.

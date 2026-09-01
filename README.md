@@ -17,9 +17,10 @@ evaluating, governing, and safely releasing AI agents.
 > cancellation, usage, observations, and encrypted result artifacts, and launches separate worker
 > and target processes. Framework-independent non-model evaluation primitives now provide safe
 > applicability, digest-bound exact and JSON Schema oracles, explicit reference aggregates, and an
-> authorization-first immutable graph repository with bounded application use cases. The current
-> evaluation repository is memory-backed; it is not yet composed into a persistent evaluation
-> service or operator workflow. The local
+> authorization-first immutable graph repository with bounded application use cases. The graph is
+> now persisted through PostgreSQL, exposed through an exact-version API and TypeScript SDK, and
+> split from worker-owned evidence writes by separate database authority. A service-backed
+> reference flow records and reads back one deliberately ineligible contested assessment. The local
 > reference is not an OS sandbox, continuously scheduled worker deployment, production key
 > provider, or production live-provider integration. Coordinated reference backup and isolated
 > restore do not constitute provider-specific production disaster recovery. Console sign-in
@@ -49,7 +50,7 @@ release when a declared policy regresses.
 | --- | --- |
 | Contract | Strict, versioned, provider-neutral `EvidenceEnvelope` with W3C trace identity |
 | Core | Tenant-scoped authorization, idempotent ingestion, conflict detection, atomic batches |
-| API | Health, direct JSON ingestion, trace reads, stable problem documents, OpenAPI 3.2 |
+| API | Health, direct JSON ingestion, trace and exact evaluation-record reads, bounded evaluation mutations, stable problem documents, OpenAPI 3.2 |
 | OTLP interoperability | OTLP 1.11 trace JSON/Protobuf, gzip, partial success, bounded normalization, and authenticated scope routing |
 | Persistence | Checksum-verified PostgreSQL migrations, forced RLS, append-only evidence, atomic outbox |
 | Delivery state | Leased outbox retries, poison-message visibility, monotonic cursors, consumer receipts |
@@ -63,10 +64,11 @@ release when a declared policy regresses.
 | Recorded-boundary replay | Strict full-content preflight, ordered exact normalized-request matching, no live fallback, cooperative fixed runtime inputs, and bounded or unknown results |
 | Durable replay jobs | Immutable releases and plans, finite multidimensional budgets, fenced leases and restore epochs, cancellation, predeclared retry/effect rules, usage reconciliation, separate worker/target processes, and durable result artifacts |
 | Non-model evaluation primitives | Total tri-state applicability, digest-registered exact-byte and bounded JSON Schema oracles, exact five-verdict counts, and assumption-gated Wilson intervals |
-| Evaluation graph boundary | Sixteen immutable record kinds, exact-scope repositories, authorization-first server authorship, lineage, idempotency, and shared memory-adapter conformance |
-| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression and replay clients with explicit authentication modes |
+| Evaluation graph boundary | Sixteen immutable record kinds, memory and PostgreSQL exact-scope repositories, authorization-first server authorship, RLS, lineage, idempotency, outbox, and recovery |
+| Evaluation service entry | Exact-version API and fail-closed SDK, separate least-privilege evaluation-worker storage authority, five-verdict contested reference flow, and restart read-back |
+| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, and evaluation clients with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, and durable success/cancellation/stale-fence recovery flows through real service boundaries |
+| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, and contested evaluation flows through real service boundaries |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -234,22 +236,26 @@ release, and production-readiness claims.
 The [non-model evaluation primitives guide](docs/guides/non-model-evaluation-primitives.md)
 documents the current core-only applicability, oracle, and aggregate boundary and the service,
 isolation, qualification, and persistence work that remains open.
+The [service-backed evaluation control-flow guide](docs/guides/evaluation-control-flow.md) runs the
+exact API, SDK, worker-role, PostgreSQL, and restart path while preserving stale sources,
+counterevidence, disagreement, low coverage, and an ineligible conclusion.
 
 ## Current boundaries
 
 The current build does not provide console-integrated OIDC sign-in, a production external artifact
 key provider, continuously scheduled artifact workers, OTLP/gRPC or non-trace signal ingestion, a
 deployed outbox publisher, a continuously scheduled production replay-worker deployment,
-OS/container-isolated target workers, service-composed evaluators, policy enforcement, continuous
+OS/container-isolated target workers, isolated evaluator execution, policy enforcement, continuous
 provider-specific disaster recovery, or production deployment artifacts. Immutable evidence-only regression
 versions, fixture-owned classified interaction capture, recorded-boundary replay, and bounded
 durable replay jobs with separate local processes are implemented and tested, alongside workload
 API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile.
-Core-only non-model evaluation primitives and the authorization-first immutable graph boundary are
-implemented and tested. See the
+Non-model evaluation primitives, the authorization-first immutable graph, durable PostgreSQL
+adapter, exact-version API and SDK, and worker-owned storage boundary are implemented and tested.
+See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
-The current adapter is process-local memory: ProofStack does not yet persist or expose a complete
-evaluation run through the API.
+The reference flow records synthetic evidence; ProofStack does not yet execute arbitrary
+evaluators, determine source authority automatically, or make a release decision.
 Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
 built-in content inspector rejects structured credential fields and supports configured scanners,
 but no scanner proves arbitrary opaque bytes secret-free; scanner
