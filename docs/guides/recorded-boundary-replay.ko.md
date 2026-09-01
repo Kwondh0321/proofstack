@@ -4,7 +4,8 @@
 
 상태: 실험적 Workflow 1 체크포인트, 프로덕션 준비 미완료
 
-영속 작업과 프로세스 격리: 포함되지 않음
+영속 작업과 프로세스 격리: 이 library 체크포인트에는 포함되지 않음. 후속
+[영속 replay 가이드](durable-replay.ko.md) 참고
 
 기록 경계 재현은 정확하고 불변인 모델·도구 기록을 대상으로 target adapter 코드를
 실행합니다. 대상이 동일한 정규화 경계 요청을 동일한 물리적 attempt 순서로 만드는지
@@ -171,10 +172,11 @@ mutable fixture alias, evaluator를 추가하지 마세요. 이들은 서로 다
 로드맵 모드입니다. 호환성을 주장하기 전에 지원하는 모든 프레임워크 버전에 고정 일치·거부
 벡터를 추가해야 합니다.
 
-## 다음 단계
+## 후속 체크포인트
 
-이 체크포인트에는 영속 replay job, DB 상태, lease, fencing token, cancellation, retry
-scheduler, 다차원 budget, target-release registry, dependency snapshot, worker isolation,
-simulation mode, live-provider mode가 없습니다. 이들은 [ADR-0013](../architecture/0013-bounded-replay-execution.md)에
-정의된 다음 로드맵 항목입니다. 평가, Criteria Pack, assessment, release policy는 그보다 뒤의
-서로 분리된 체크포인트입니다.
+이 동일 프로세스 library 체크포인트 자체에는 의도적으로 영속 replay job, DB 상태, lease,
+fencing token, cancellation, retry scheduler, 다차원 budget, target-release registry, dependency
+snapshot, worker isolation, simulation mode, live-provider mode가 없습니다. 후속
+[영속 replay 기준 구현](durable-replay.ko.md)은 이 resolver를 약화하거나 live fallback을
+추가하지 않으면서 job-system contract와 별도 프로세스를 더합니다. 평가, Criteria Pack,
+assessment, release policy는 그보다 뒤의 서로 분리된 체크포인트입니다.

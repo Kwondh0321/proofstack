@@ -4,7 +4,8 @@
 
 Status: experimental Workflow 1 checkpoint; not production-ready
 
-Durable jobs and process isolation: not included
+Durable jobs and process isolation: not included in this library checkpoint; see the follow-on
+[durable replay guide](durable-replay.md)
 
 Recorded-boundary replay runs target-adapter code against exact, immutable model and tool
 recordings. It is useful for checking whether a target still emits the same normalized boundary
@@ -171,10 +172,11 @@ fixture alias, or evaluator to the recorded resolver. Those are different author
 applicable, later roadmap modes. Add fixed matching and rejection vectors for every supported
 framework version before claiming compatibility.
 
-## What comes next
+## Follow-on checkpoint
 
-This checkpoint has no durable replay job, database state, lease, fencing token, cancellation,
-retry scheduler, multidimensional budget, target-release registry, dependency snapshot, worker
-isolation, simulation mode, or live-provider mode. Those belong to the next roadmap item under
-[ADR-0013](../architecture/0013-bounded-replay-execution.md). Evaluation, Criteria Packs,
-assessments, and release policy remain later and separate checkpoints.
+This same-process library checkpoint deliberately has no durable replay job, database state,
+lease, fencing token, cancellation, retry scheduler, multidimensional budget, target-release
+registry, dependency snapshot, worker isolation, simulation mode, or live-provider mode. The
+follow-on [durable replay reference](durable-replay.md) adds those job-system contracts and
+separate processes without weakening this resolver or adding live fallback. Evaluation, Criteria
+Packs, assessments, and release policy remain later and separate checkpoints.

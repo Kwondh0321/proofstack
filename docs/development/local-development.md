@@ -79,8 +79,10 @@ it cannot read identity base tables or evidence. The `proofstack_artifact_mainte
 inspect and advance artifact lifecycle rows but cannot create reservations or access evidence,
 identity, outbox, sequences, or schema administration. The API verifies the complete migration
 ledger at startup and readiness checks. The `proofstack_replay_worker` role can execute only the
-fixed claim and heartbeat functions; it cannot read or mutate replay tables directly, create jobs,
-request cancellation, or use API authority. Stop the local database without deleting evidence with:
+fixed claim, heartbeat, reservation, reconciliation, observation, cancellation-acknowledgement,
+and terminal-transition functions; it cannot read or mutate replay tables directly, publish
+definitions, create jobs, request cancellation, or use API authority. Stop the local database
+without deleting evidence with:
 
 ```bash
 pnpm dev:db:down
@@ -187,8 +189,10 @@ pnpm db:oidc:disable
 The optional object-storage profile runs the digest-pinned SeaweedFS version used by CI. It exposes
 only the S3 port on loopback, disables upstream telemetry and the administrative UI, uses a named
 volume, and has fixed credentials that are safe only for local testing. This harness verifies the
-adapter; it does not wire artifact routes or continuously scheduled maintenance workers into the
-API. Scoped one-shot maintenance commands are documented in the operations guide.
+adapter by itself; it does not wire artifact routes or continuously scheduled maintenance workers
+into the API. The additive profile and guarded bucket setup used to wire it into the durable replay
+reference are documented in the [durable replay guide](../guides/durable-replay.md). Scoped one-shot
+maintenance commands are documented in the operations guide.
 
 Start the service:
 
@@ -260,6 +264,15 @@ inspection, retry, interoperability, and revocation. The
 [recorded-boundary replay guide](../guides/recorded-boundary-replay.md) documents exact matching,
 denied fallback, cooperative runtime inputs, and same-process isolation limits.
 
+The durable replay example additionally requires PostgreSQL, the object-storage profile, the
+additive untracked `config/durable-replay.env.example` profile, and the dedicated replay-worker
+database role. It publishes immutable releases and plans, creates durable jobs, launches separate
+worker and target processes, and proves success, running cancellation, stale-fence rejection,
+lease recovery, budget reconciliation, and durable result artifacts. Follow the complete start,
+verification, stop, authority, and limitation procedure in the
+[durable replay guide](../guides/durable-replay.md); do not run it against the disposable memory
+profile.
+
 ### Verify OTLP/HTTP ingestion
 
 The API also accepts OTLP 1.11 trace requests at `POST /v1/traces`. The default loopback
@@ -283,6 +296,7 @@ redaction, and retry guidance in the
 | `PROOFSTACK_DATABASE_URL` | unset | API | Least-privilege runtime database URL in PostgreSQL mode |
 | `PROOFSTACK_IDENTITY_DATABASE_URL` | unset | API | Distinct least-privilege identity URL required outside development auth |
 | `PROOFSTACK_ARTIFACT_DATABASE_URL` | unset | artifact maintenance | Dedicated lifecycle-worker database URL |
+| `PROOFSTACK_REPLAY_WORKER_DATABASE_URL` | unset | replay example/worker | Dedicated least-privilege worker URL; never substitute the migration or API URL |
 | `PROOFSTACK_ARTIFACT_STORAGE_MODE` | `disabled` | API | Use `s3_local_keyring` with PostgreSQL for persistent classified content; memory mode always uses disposable in-process storage |
 | `PROOFSTACK_ARTIFACT_ACTIVE_KEY_ID` | unset | API | Exact active local artifact-key identifier in the experimental persistent profile |
 | `PROOFSTACK_ARTIFACT_KEYS` | unset | API | Strict JSON object of key IDs to canonical base64url 32-byte keys; experimental and forbidden in production |
@@ -331,6 +345,7 @@ redaction, and retry guidance in the
 | `PROOFSTACK_API_KEY` | unset | SDK example | Complete one-time-issued key; never used by the API server or browser console |
 | `PROOFSTACK_PROJECT_ID` | `prj_local` | Web/example | Local project scope |
 | `PROOFSTACK_ENVIRONMENT_ID` | `env_local` | Web/example | Local environment scope |
+| `PROOFSTACK_SOURCE_REVISION` | current Git `HEAD` | durable replay example | Optional exact 40- or 64-character lowercase source object ID |
 
 If `PROOFSTACK_POSTGRES_PORT` changes, update every database URL in `.env` to the same port. When
 rotating a runtime password, update its runtime URL and matching provisioning variable, then run
