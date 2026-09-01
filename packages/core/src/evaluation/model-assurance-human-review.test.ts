@@ -204,11 +204,7 @@ describe("accountable human review quorum", () => {
     if (!second) throw new Error("Expected second review");
     second.reviewer.principalId = duplicate[0]?.reviewer.principalId ?? "usr_missing";
     expect(evaluateHumanReviewQuorum(protocol, duplicate, declarations, evaluatedAt)).toEqual({
-      reasons: [
-        "duplicate_reviewer",
-        "independence_group_shortfall",
-        "independence_not_verified",
-      ],
+      reasons: ["duplicate_reviewer", "independence_group_shortfall", "independence_not_verified"],
       status: "unsatisfied",
     });
 
