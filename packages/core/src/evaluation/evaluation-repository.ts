@@ -25,8 +25,14 @@ export interface PublishEvaluationRecordResult<Record> {
 
 export interface EvaluationSourceRepository {
   findDiscoveryRecord(scope: EvidenceScope, discoveryId: string): Promise<DiscoveryRecord | null>;
-  findSourceReview(scope: EvidenceScope, sourceReviewId: string): Promise<SourceReviewRecord | null>;
-  findSourceSnapshot(scope: EvidenceScope, sourceSnapshotId: string): Promise<SourceSnapshot | null>;
+  findSourceReview(
+    scope: EvidenceScope,
+    sourceReviewId: string,
+  ): Promise<SourceReviewRecord | null>;
+  findSourceSnapshot(
+    scope: EvidenceScope,
+    sourceSnapshotId: string,
+  ): Promise<SourceSnapshot | null>;
   publishDiscoveryRecord(
     candidate: DiscoveryRecord,
   ): Promise<PublishEvaluationRecordResult<DiscoveryRecord>>;
@@ -51,7 +57,10 @@ export interface EvaluationDefinitionRepository {
     scope: EvidenceScope,
     statusRecordId: string,
   ): Promise<CriterionSetStatusRecord | null>;
-  findEvaluatorSpec(scope: EvidenceScope, evaluatorVersionId: string): Promise<EvaluatorSpec | null>;
+  findEvaluatorSpec(
+    scope: EvidenceScope,
+    evaluatorVersionId: string,
+  ): Promise<EvaluatorSpec | null>;
   findOracleSpec(scope: EvidenceScope, oracleVersionId: string): Promise<OracleSpec | null>;
   findQualificationFixtureSet(
     scope: EvidenceScope,
@@ -92,10 +101,7 @@ export interface EvaluationExecutionRepository {
     scope: EvidenceScope,
     resultId: string,
   ): Promise<EvaluationRunResult | null>;
-  findRawObservation(
-    scope: EvidenceScope,
-    observationId: string,
-  ): Promise<RawObservation | null>;
+  findRawObservation(scope: EvidenceScope, observationId: string): Promise<RawObservation | null>;
   publishEvaluationRun(
     candidate: EvaluationRun,
   ): Promise<PublishEvaluationRecordResult<EvaluationRun>>;

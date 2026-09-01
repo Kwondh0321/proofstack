@@ -5,6 +5,7 @@ import {
   EvaluationRecordNotFoundError,
   EvaluationRepositoryContractError,
   EvaluationResourceConflictError,
+  InvalidEvaluationRecordInputError,
 } from "./evaluation-repository-errors.js";
 
 describe("evaluation repository errors", () => {
@@ -37,6 +38,7 @@ describe("evaluation repository errors", () => {
     const contract = new EvaluationRepositoryContractError("Adapter violated atomicity", {
       cause,
     });
+    const invalid = new InvalidEvaluationRecordInputError("Digest mismatch", { cause });
     expect(binding.code).toBe("evaluation_resource_conflict");
     expect(lineage).toMatchObject({
       code: "evaluation_lineage_invalid",
@@ -47,6 +49,11 @@ describe("evaluation repository errors", () => {
       cause,
       code: "evaluation_repository_contract_violation",
       name: "EvaluationRepositoryContractError",
+    });
+    expect(invalid).toMatchObject({
+      cause,
+      code: "evaluation_record_input_invalid",
+      name: "InvalidEvaluationRecordInputError",
     });
   });
 });

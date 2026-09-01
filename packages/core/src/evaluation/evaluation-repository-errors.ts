@@ -75,6 +75,15 @@ export class EvaluationRecordNotFoundError extends Error {
   }
 }
 
+export class InvalidEvaluationRecordInputError extends TypeError {
+  readonly code = "evaluation_record_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidEvaluationRecordInputError";
+  }
+}
+
 export class EvaluationRepositoryContractError extends Error {
   readonly code = "evaluation_repository_contract_violation";
 
