@@ -36,6 +36,7 @@
     "example:interaction-capture": "pnpm build && pnpm --filter @proofstack/example-interaction-capture start",
     "example:durable-replay:prepare": "pnpm build && pnpm --filter @proofstack/example-durable-replay prepare:local",
     "example:durable-replay": "pnpm build && pnpm --filter @proofstack/example-durable-replay start",
+    "example:evaluation-control-flow": "pnpm build && pnpm --filter @proofstack/example-evaluation-control-flow start",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint . && turbo run lint",
