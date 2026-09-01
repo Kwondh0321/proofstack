@@ -12,11 +12,13 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > 선택형 PostgreSQL 영속 저장소, 범위 제한 워크로드 API 키, OIDC 브라우저 세션 백엔드,
 > 제한된 OTLP/HTTP 트레이스 수집과 보존 정책에 안전한 분류 모델·도구 상호작용 캡처를
 > 포함해 실제로 작동하고 검증됩니다. 캡처 경로는 API·SDK에서 사용할 수 있고 암호화된
-> artifact 소유권, revocation, export, 조정 복구까지 검증됩니다. 실험적 기록 경계 replay는
-> API 프로세스 밖에서 정확한 SDK export를 fail-closed 방식으로 소비하고 동일 프로세스
-> 제한을 정직하게 공개하지만 영속 job, worker 격리, 프로덕션 키 공급자는 없습니다.
+> artifact 소유권, revocation, export, 조정 복구까지 검증됩니다. 실험적 영속 replay는
+> 정확한 release·plan을 게시하고 제한된 job, budget, lease, cancellation, usage,
+> observation, 암호화된 결과 artifact를 영속화하며 별도 worker·target 프로세스를 실행합니다.
+> 로컬 기준 구현은 OS sandbox, 상시 scheduling worker 배포, 프로덕션 key provider 또는
+> 프로덕션 live-provider 통합이 아닙니다.
 > 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다.
-> 콘솔 로그인 연동, 영속 replay 실행, 평가, 릴리스 게이트는 아직 완성된 기능으로
+> 콘솔 로그인 연동, 평가, 릴리스 게이트는 아직 완성된 기능으로
 > 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
@@ -57,9 +59,10 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 회귀 카탈로그 | 메모리, PostgreSQL, API, OpenAPI, SDK, outbox, 복구 경계를 통과하는 불변 관측 트레이스 스냅샷과 순서가 있는 dataset 버전 |
 | 상호작용 캡처 | Fixture 소유 분류 모델·도구 attempt, 정확 artifact 계보, metadata/content export, revocation, purge, 복구 |
 | 기록 경계 replay | 엄격한 전체 content 사전 검사, 순서가 있는 정확 정규화 요청 일치, live fallback 부재, 협력적 고정 runtime input, bounded 또는 unknown 결과 |
-| TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀 클라이언트 |
+| 영속 replay job | 불변 release·plan, 유한 다차원 budget, fenced lease, cancellation, 사전 선언 retry·effect rule, usage 조정, 별도 worker·target 프로세스, 영속 결과 artifact |
+| TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 SDK와 API를 통과하는 trace, evidence-only 회귀, 공급자 중립 캡처-기록 replay 흐름 |
+| 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구 흐름 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -75,13 +78,16 @@ flowchart LR
     R --> M[(메모리 빠른 시작)]
     R --> P[(PostgreSQL)]
     P --> X[(트랜잭션 아웃박스)]
+    H --> Q[(Replay definition과 job)]
+    Q --> RW[최소 권한 replay worker]
+    RW --> TP[정확한 target 프로세스]
     W[운영자 콘솔] -->|검증된 응답| H
     H --> O[OpenAPI 계약]
 ```
 
 메모리 어댑터는 의존성 없는 빠른 시작을 제공합니다. PostgreSQL 어댑터는 영속 저장
 선택지이며, 마이그레이션 무결성, 데이터베이스 수준 테넌트 격리, 불변 증거,
-증거·아웃박스 원자적 기록, 서로 격리된 다섯 개의 최소 권한 런타임 역할을 실제 PostgreSQL
+증거·아웃박스 원자적 기록, 서로 격리된 여섯 개의 최소 권한 런타임 역할을 실제 PostgreSQL
 테스트로 검증합니다. 실험적 API 키 모드는 워크로드에 대해 엔드투엔드로 작동합니다.
 OIDC 브라우저 API도 서버 측 바인딩과 세션을 사용해 작동하지만, 실제 공급자 배포 검증과
 운영자 콘솔 로그인 연동은 아직 완료되지 않았습니다. Artifact lifecycle과
@@ -138,6 +144,12 @@ API 프로세스 밖에서 정확 기록 모델·도구 흐름 하나와 강제 
 [기록 경계 replay 가이드](docs/guides/recorded-boundary-replay.ko.md), 설정과 문제 해결은
 [로컬 개발 가이드](docs/development/local-development.md)를 참고하세요.
 
+영속 replay 기준 구현에는 PostgreSQL·S3 호환 profile이 필요하므로 별도 설정 절차가
+있습니다. 정확한 target release·plan을 게시하고, 별도 worker·target 프로세스를 통해 성공,
+취소, 만료 lease 복구 job을 실행하며, 성공 전에 각 terminal report를 영속화합니다.
+[영속 replay 가이드](docs/guides/durable-replay.ko.md)를 따르세요. 가이드의 로컬 credential과
+제한된 process profile을 프로덕션 설정 또는 격리로 간주하면 안 됩니다.
+
 ## 저장소 구성
 
 ```text
@@ -153,10 +165,12 @@ packages/recovery        조정된 복구 매니페스트, 객체 인벤토리, 
 packages/s3              불변 S3 호환 아티팩트 객체 어댑터
 services/artifact-maintenance  범위 제한 일회성 수명주기·키 안전 명령
 services/recovery        안전한 논리 DB 작업과 격리 복구 리허설
+services/replay-worker   Fenced 영속 attempt 실행, accounting, boundary supervision
 sdks/typescript          공급자 중립 텔레메트리·회귀 control-plane 클라이언트
 examples/basic-agent     검증된 SDK-API 트레이스 예제
 examples/incident-to-regression  실행 가능한 evidence-only 회귀 카탈로그 흐름
 examples/interaction-capture  공급자 중립 캡처, 기록 replay, mismatch, 폐기 흐름
+examples/durable-replay  영속 성공, 취소, stale-fence 복구, 결과 흐름
 docs/architecture        번호가 지정된 아키텍처 결정 기록
 docs/operations          배포 계약과 운영자 절차
 docs/product             제품 헌법과 의존 순서가 명시된 로드맵
@@ -208,18 +222,21 @@ scripts                  저장소 수준 아키텍처 경계 검사
 process 제한을 명시한 정확 기록 일치를 승인하지만 영속 job, 평가, release 권한은 승인하지
 않습니다.
 [영속 replay job 진입 감사 기록](docs/development/workflow-1-durable-replay-entry-audit.ko.md)은
-아직 열린 다음 체크포인트의 release, budget, fencing, cancellation, worker, persistence,
-recovery, 권한 게이트를 정의합니다. 문서가 존재한다고 체크포인트가 승인된 것은 아닙니다.
+현재 체크포인트의 release, budget, fencing, cancellation, worker, persistence, recovery, 권한
+게이트를 정의합니다. 구현과 운영 가이드는 존재하지만 별도의 승인 감사가 모든 행을 green
+service gate와 대조해 닫기 전까지 roadmap checkbox는 열려 있습니다.
 
 ## 현재의 경계
 
 현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
 스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
-영속 replay job, 격리 target worker, evaluator, 정책 집행, 지속적인 공급자별 재해 복구,
-프로덕션 배포 artifact를 제공하지 않습니다. 불변 evidence-only 회귀 버전, fixture 소유
-분류 상호작용 캡처, 협력적 기록 경계 replay, workload API key와 OIDC browser 인증,
-artifact lifecycle, OTLP/HTTP trace profile은 구현되고 검증되었습니다. Replay 결과는
-OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content inspector는 구조화된 자격증명 필드를 거부하고
+상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target worker, evaluator,
+정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
+evidence-only 회귀 버전, fixture 소유 분류 상호작용 캡처, 기록 경계 replay, 별도 로컬
+프로세스를 사용하는 bounded 영속 replay job은 workload API key·OIDC browser 인증,
+artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. Replay 결과는
+OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content
+inspector는 구조화된 자격증명 필드를 거부하고
 설정형 scanner를 지원하지만 임의 opaque byte에 비밀이 없음을 증명할 수는 없습니다.
 Scanner 적합성 검증, 분산 할당량, 프로덕션 exporter·collector matrix는 배포 책임입니다.
 Foundation 2의 조정 복구 기준은 고정된 CI 서비스에서 구현되고 검증되었지만 외부 키

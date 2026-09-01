@@ -13,11 +13,12 @@ evaluating, governing, and safely releasing AI agents.
 > browser-session backend, bounded OTLP/HTTP trace ingestion, and retention-safe classified model
 > and tool interaction capture. The capture path is API- and SDK-accessible and tested through
 > encrypted artifact ownership, revocation, export, and coordinated recovery. Experimental
-> recorded-boundary replay consumes exact SDK exports outside the API process with fail-closed
-> matching and honest same-process limitations, but it has no durable jobs, worker isolation, or
-> production key provider. Coordinated reference
+> durable replay publishes exact releases and plans, persists bounded jobs, budgets, leases,
+> cancellation, usage, observations, and encrypted result artifacts, and launches separate worker
+> and target processes. The local reference is not an OS sandbox, continuously scheduled worker
+> deployment, production key provider, or production live-provider integration. Coordinated reference
 > backup and isolated restore do not constitute provider-specific production disaster recovery.
-> Console sign-in integration, durable replay execution, evaluation, and release gates are
+> Console sign-in integration, evaluation, and release gates are
 > intentionally not represented as complete.
 
 ## Why ProofStack
@@ -56,9 +57,10 @@ release when a declared policy regresses.
 | Regression catalog | Immutable observed trace snapshots and ordered dataset versions through memory, PostgreSQL, API, OpenAPI, SDK, outbox, and recovery boundaries |
 | Interaction capture | Fixture-owned classified model and tool attempts, exact artifact lineage, metadata/content export, revocation, purge, and recovery |
 | Recorded-boundary replay | Strict full-content preflight, ordered exact normalized-request matching, no live fallback, cooperative fixed runtime inputs, and bounded or unknown results |
-| TypeScript SDK | Generated IDs, bounded telemetry delivery, and a fail-closed exact-version regression client with explicit authentication modes |
+| Durable replay jobs | Immutable releases and plans, finite multidimensional budgets, fenced leases, cancellation, predeclared retry/effect rules, usage reconciliation, separate worker/target processes, and durable result artifacts |
+| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression and replay clients with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable trace, evidence-only regression, and provider-neutral capture-to-recorded-replay flows through the real SDK and API |
+| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, and durable success/cancellation/stale-fence recovery flows through real service boundaries |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -74,13 +76,16 @@ flowchart LR
     R --> M[(Memory quickstart)]
     R --> P[(PostgreSQL)]
     P --> X[(Transactional outbox)]
+    H --> Q[(Replay definitions and jobs)]
+    Q --> RW[Least-privilege replay worker]
+    RW --> TP[Exact target process]
     W[Operator console] -->|validated response| H
     H --> O[OpenAPI contract]
 ```
 
 The memory adapter keeps the quickstart dependency-free. The PostgreSQL adapter is the durable
 option: migration integrity, database-enforced tenant isolation, immutable evidence, atomic
-evidence/outbox writes, and five isolated least-privilege runtime roles are covered by real
+evidence/outbox writes, and six isolated least-privilege runtime roles are covered by real
 PostgreSQL tests. The experimental API-key mode is end-to-end functional for workloads. The OIDC
 browser API is functional with server-side bindings and sessions; provider deployment validation
 and operator console sign-in integration remain unfinished. Artifact lifecycle and
@@ -138,6 +143,13 @@ then tombstones and purges the complete owned set. See the
 [local development guide](docs/development/local-development.md) for authority, failure behavior,
 configuration, and troubleshooting.
 
+The durable replay reference needs the PostgreSQL and S3-compatible profiles and therefore has a
+separate setup procedure. It publishes an exact target release and plan, runs success,
+cancellation, and expired-lease recovery jobs through separate worker and target processes, and
+persists each terminal report before success. Follow the
+[durable replay guide](docs/guides/durable-replay.md); its local credentials and bounded process
+profile must not be treated as production configuration or isolation.
+
 ## Repository map
 
 ```text
@@ -153,10 +165,12 @@ packages/recovery        Coordinated recovery manifests, object inventories, and
 packages/s3              Immutable S3-compatible artifact object adapter
 services/artifact-maintenance  Scoped one-shot lifecycle and key-safety commands
 services/recovery        Safe logical database operations and isolated recovery rehearsal
+services/replay-worker   Fenced durable-attempt execution, accounting, and boundary supervision
 sdks/typescript          Provider-neutral telemetry and regression control-plane clients
 examples/basic-agent     Verified SDK-to-API trace example
 examples/incident-to-regression  Executable evidence-only regression catalog flow
 examples/interaction-capture  Provider-neutral capture, recorded replay, mismatch, and revocation flow
+examples/durable-replay  Durable success, cancellation, stale-fence recovery, and result flow
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
 docs/operations          Deployment contracts and operator procedures
@@ -206,21 +220,24 @@ defines the checkpoint's entry gates. The completed
 recorded matching with explicit same-process limits while withholding durable-job, evaluation, and
 release authority.
 The [durable replay-job entry audit](docs/development/workflow-1-durable-replay-entry-audit.md)
-defines the still-open next checkpoint's release, budget, fencing, cancellation, worker,
-persistence, recovery, and authority gates. Its presence does not constitute checkpoint
-acceptance.
+defines the current checkpoint's release, budget, fencing, cancellation, worker, persistence,
+recovery, and authority gates. The implementation and operator guide are present, but the roadmap
+checkbox remains open until a separate acceptance audit closes every row against green service
+gates.
 
 ## Current boundaries
 
 The current build does not provide console-integrated OIDC sign-in, a production external artifact
 key provider, continuously scheduled artifact workers, OTLP/gRPC or non-trace signal ingestion, a
-deployed outbox publisher, durable replay jobs, isolated target workers, evaluators, policy enforcement, continuous
-provider-specific disaster recovery, or production deployment artifacts. Immutable evidence-only
-regression versions, fixture-owned classified interaction capture, cooperative recorded-boundary
-replay, workload API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP
-trace profile are implemented and tested. Replay does not claim OS-enforced network, filesystem,
-process, or dependency isolation. The built-in content inspector rejects structured credential fields and supports
-configured scanners, but no scanner proves arbitrary opaque bytes secret-free; scanner
+deployed outbox publisher, a continuously scheduled production replay-worker deployment,
+OS/container-isolated target workers, evaluators, policy enforcement, continuous provider-specific
+disaster recovery, or production deployment artifacts. Immutable evidence-only regression
+versions, fixture-owned classified interaction capture, recorded-boundary replay, and bounded
+durable replay jobs with separate local processes are implemented and tested, alongside workload
+API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile.
+Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
+built-in content inspector rejects structured credential fields and supports configured scanners,
+but no scanner proves arbitrary opaque bytes secret-free; scanner
 qualification, distributed quotas, and a production exporter/collector matrix remain
 deployment-owned. Foundation 2's coordinated recovery reference is implemented and tested against
 pinned CI services, but external key recovery, immutable provider backups, measured RPO/RTO,
