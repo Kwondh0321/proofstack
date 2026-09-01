@@ -24,6 +24,7 @@ import {
   encodeIndependentCritiqueDefinition,
   encodeHumanReviewProtocolDefinition,
   encodeHumanReviewRecordDefinition,
+  encodeHumanReviewerIndependenceDefinition,
   encodeModelEvaluatorProfileDefinition,
   encodeModelQualificationSuiteDefinition,
   encodeModelQualificationReportDefinition,
@@ -46,6 +47,7 @@ import {
   INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN,
   HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN,
   HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN,
+  HUMAN_REVIEWER_INDEPENDENCE_DEFINITION_DOMAIN,
   MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
   MODEL_QUALIFICATION_SUITE_DEFINITION_DOMAIN,
   MODEL_QUALIFICATION_REPORT_DEFINITION_DOMAIN,
@@ -98,6 +100,7 @@ const vectorFiles = [
   "evaluation-independent-critique-definition-v1.json",
   "evaluation-human-review-protocol-definition-v1.json",
   "evaluation-human-review-record-definition-v1.json",
+  "evaluation-human-reviewer-independence-definition-v1.json",
   "evaluation-model-qualification-suite-definition-v1.json",
   "evaluation-model-qualification-report-definition-v1.json",
   "evaluation-model-assurance-assessment-definition-v1.json",
@@ -174,6 +177,10 @@ const registry = {
   human_review_record: {
     domain: HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeHumanReviewRecordDefinition(input as never),
+  },
+  human_reviewer_independence: {
+    domain: HUMAN_REVIEWER_INDEPENDENCE_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeHumanReviewerIndependenceDefinition(input as never),
   },
   model_evaluator_profile: {
     domain: MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,

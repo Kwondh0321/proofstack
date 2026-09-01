@@ -26,6 +26,11 @@ import {
   type HumanReviewRecordDefinition,
   HumanReviewRecordDefinitionSchema,
   HumanReviewRecordSchema,
+  HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION,
+  type HumanReviewerIndependence,
+  type HumanReviewerIndependenceDefinition,
+  HumanReviewerIndependenceDefinitionSchema,
+  HumanReviewerIndependenceSchema,
   type IndependenceDeclaration,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
@@ -1473,6 +1478,87 @@ describe("human review protocol contracts", () => {
   });
 });
 
+export function humanReviewerIndependenceDefinition(): HumanReviewerIndependenceDefinition {
+  return {
+    affiliations: ["org:independent-safety-lab"],
+    conflicts: [],
+    declarationId: "hri_reviewer_v1",
+    independenceGroupIds: ["hig_independent_safety_lab"],
+    relationships: ["reviewer:external-contractor"],
+    reviewBasis: [artifact("art_human_independence_review", "1")],
+    reviewedAt: "2026-09-02T02:30:00.000Z",
+    reviewedByPrincipalId: "usr_independence_reviewer",
+    reviewerPrincipalId: "usr_independent_reviewer",
+    status: "verified",
+    statusReasons: [],
+    validFrom: "2026-09-02T02:30:00.000Z",
+    validUntil: "2026-10-02T02:30:00.000Z",
+  };
+}
+
+function humanReviewerIndependence(): HumanReviewerIndependence {
+  return {
+    ...humanReviewerIndependenceDefinition(),
+    definitionSha256: sha("2"),
+    recordedAt: "2026-09-02T02:30:01.000Z",
+    schemaVersion: HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("human reviewer independence contracts", () => {
+  it("binds one reviewer to reviewed affiliations, relationships, and material groups", () => {
+    expect(
+      HumanReviewerIndependenceDefinitionSchema.parse(humanReviewerIndependenceDefinition()),
+    ).toEqual(humanReviewerIndependenceDefinition());
+    expect(HumanReviewerIndependenceSchema.parse(humanReviewerIndependence())).toEqual(
+      humanReviewerIndependence(),
+    );
+  });
+
+  it("fails verified status closed on conflict or status reason", () => {
+    const conflict = humanReviewerIndependenceDefinition();
+    conflict.conflicts = ["Reviewer authored the evaluated criterion"];
+    expect(() => HumanReviewerIndependenceDefinitionSchema.parse(conflict)).toThrow(
+      "cannot retain conflicts",
+    );
+
+    const reason = humanReviewerIndependenceDefinition();
+    reason.statusReasons = ["Employment relationship could not be verified"];
+    expect(() => HumanReviewerIndependenceDefinitionSchema.parse(reason)).toThrow(
+      "cannot retain conflicts",
+    );
+  });
+
+  it("requires reasons for unverifiable or rejected status", () => {
+    const unverifiable = humanReviewerIndependenceDefinition();
+    unverifiable.status = "unverifiable";
+    expect(() => HumanReviewerIndependenceDefinitionSchema.parse(unverifiable)).toThrow(
+      "requires at least one status reason",
+    );
+    unverifiable.statusReasons = ["Affiliation evidence is incomplete"];
+    expect(HumanReviewerIndependenceDefinitionSchema.parse(unverifiable)).toEqual(unverifiable);
+  });
+
+  it("requires reviewed chronological validity and append-only predecessor history", () => {
+    const early = humanReviewerIndependenceDefinition();
+    early.validFrom = "2026-09-02T02:29:59.000Z";
+    expect(() => HumanReviewerIndependenceDefinitionSchema.parse(early)).toThrow(
+      "cannot begin before review",
+    );
+
+    const window = humanReviewerIndependenceDefinition();
+    window.validUntil = window.validFrom;
+    expect(() => HumanReviewerIndependenceDefinitionSchema.parse(window)).toThrow(
+      "positive interval",
+    );
+
+    const self = humanReviewerIndependenceDefinition();
+    self.predecessor = { declarationId: self.declarationId, definitionSha256: sha("3") };
+    expect(() => HumanReviewerIndependenceDefinitionSchema.parse(self)).toThrow("name itself");
+  });
+});
+
 export function humanReviewRecordDefinition(): HumanReviewRecordDefinition {
   return {
     action: "support",
@@ -1494,8 +1580,8 @@ export function humanReviewRecordDefinition(): HumanReviewRecordDefinition {
     expertiseEvidence: [artifact("art_reviewer_expertise", "6")],
     expiresAt: "2026-09-03T03:20:00.000Z",
     independenceDeclaration: {
+      declarationId: "hri_reviewer_v1",
       definitionSha256: sha("7"),
-      independenceDeclarationId: "ind_human_reviewer_v1",
     },
     observations: [
       {

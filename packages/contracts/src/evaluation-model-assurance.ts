@@ -27,6 +27,7 @@ export const BLINDED_EVALUATION_PLAN_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENT_CRITIQUE_SCHEMA_VERSION = "0.1" as const;
 export const HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION = "0.1" as const;
 export const HUMAN_REVIEW_RECORD_SCHEMA_VERSION = "0.1" as const;
+export const HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION = "0.1" as const;
 export const MAX_BLINDED_ATTEMPTS = 16;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
@@ -1499,6 +1500,109 @@ export type HumanReviewProtocolReference = z.infer<typeof HumanReviewProtocolRef
 export type HumanReviewProtocolDefinition = z.infer<typeof HumanReviewProtocolDefinitionSchema>;
 export type HumanReviewProtocol = z.infer<typeof HumanReviewProtocolSchema>;
 
+export const HumanReviewerIndependenceReferenceSchema = z
+  .object({
+    declarationId: OpaqueIdSchema,
+    definitionSha256: Sha256Schema,
+  })
+  .strict();
+
+const humanReviewerIndependenceDefinitionShape = {
+  affiliations: sortedUniqueText(32, "Human reviewer affiliations").min(1),
+  conflicts: sortedUniqueText(32, "Human reviewer independence conflicts"),
+  declarationId: OpaqueIdSchema,
+  independenceGroupIds: z.array(OpaqueIdSchema).min(1).max(32).refine(isStrictlySortedUnique, {
+    message: "Human reviewer independence groups must be unique and ordered",
+  }),
+  predecessor: HumanReviewerIndependenceReferenceSchema.optional(),
+  relationships: sortedUniqueText(32, "Human reviewer independence relationships"),
+  reviewBasis: exactArtifacts(16, "Human reviewer independence basis").min(1),
+  reviewedAt: UtcMillisecondTimestampSchema,
+  reviewedByPrincipalId: OpaqueIdSchema,
+  reviewerPrincipalId: OpaqueIdSchema,
+  status: z.enum(["rejected", "unverifiable", "verified"]),
+  statusReasons: sortedUniqueText(32, "Human reviewer independence reasons"),
+  validFrom: UtcMillisecondTimestampSchema,
+  validUntil: UtcMillisecondTimestampSchema,
+};
+
+function refineHumanReviewerIndependence(
+  value: {
+    readonly conflicts: readonly string[];
+    readonly declarationId: string;
+    readonly predecessor?: { readonly declarationId: string } | undefined;
+    readonly reviewedAt: string;
+    readonly status: "rejected" | "unverifiable" | "verified";
+    readonly statusReasons: readonly string[];
+    readonly validFrom: string;
+    readonly validUntil: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (
+    value.status === "verified" &&
+    (value.conflicts.length > 0 || value.statusReasons.length > 0)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Verified human reviewer independence cannot retain conflicts or status reasons",
+      path: ["status"],
+    });
+  }
+  if (value.status !== "verified" && value.statusReasons.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Unverified human reviewer independence requires at least one status reason",
+      path: ["statusReasons"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validFrom) < evidenceTimestampOrderKey(value.reviewedAt)) {
+    context.addIssue({
+      code: "custom",
+      message: "Human reviewer independence validity cannot begin before review",
+      path: ["validFrom"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validUntil) <= evidenceTimestampOrderKey(value.validFrom)) {
+    context.addIssue({
+      code: "custom",
+      message: "Human reviewer independence validity must have a positive interval",
+      path: ["validUntil"],
+    });
+  }
+  if (value.predecessor?.declarationId === value.declarationId) {
+    context.addIssue({
+      code: "custom",
+      message: "A human reviewer independence declaration cannot name itself as predecessor",
+      path: ["predecessor", "declarationId"],
+    });
+  }
+}
+
+export const HumanReviewerIndependenceDefinitionSchema = z
+  .object(humanReviewerIndependenceDefinitionShape)
+  .strict()
+  .superRefine(refineHumanReviewerIndependence);
+
+export const HumanReviewerIndependenceSchema = z
+  .object({
+    ...humanReviewerIndependenceDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    schemaVersion: z.literal(HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineHumanReviewerIndependence);
+
+export type HumanReviewerIndependenceReference = z.infer<
+  typeof HumanReviewerIndependenceReferenceSchema
+>;
+export type HumanReviewerIndependenceDefinition = z.infer<
+  typeof HumanReviewerIndependenceDefinitionSchema
+>;
+export type HumanReviewerIndependence = z.infer<typeof HumanReviewerIndependenceSchema>;
+
 export const HumanReviewRecordReferenceSchema = z
   .object({
     definitionSha256: Sha256Schema,
@@ -1539,7 +1643,7 @@ const humanReviewRecordDefinitionShape = {
   evidenceAccessManifest: ArtifactContentReferenceSchema,
   expertiseEvidence: exactArtifacts(16, "Human reviewer expertise evidence").min(1),
   expiresAt: UtcMillisecondTimestampSchema,
-  independenceDeclaration: IndependenceDeclarationReferenceSchema,
+  independenceDeclaration: HumanReviewerIndependenceReferenceSchema,
   observations: z
     .array(RawObservationReferenceSchema)
     .min(1)

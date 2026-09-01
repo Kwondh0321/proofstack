@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-human-review-record-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3723,
+      "encodedByteLength": 3705,
       "input": {
         "definition": {
           "action": "support",
@@ -54,8 +54,8 @@
           ],
           "expiresAt": "2026-09-03T03:20:00.000Z",
           "independenceDeclaration": {
-            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
-            "independenceDeclarationId": "ind_human_reviewer_v1"
+            "declarationId": "hri_reviewer_v1",
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
           },
           "observations": [
             {
@@ -139,7 +139,7 @@
       },
       "kind": "human_review_record",
       "name": "authenticated independent human review",
-      "sha256": "cdf7d4ab7b889ac4427e0c437b9bb75f431966aff652c1eb13a5eec9f96be838"
+      "sha256": "f1d6344cdc95be9ba3ce712baecbd47b749205c776c01226bb2b3e6ddb809568"
     }
   ]
 }

@@ -1,0 +1,41 @@
+{
+  "format": "proofstack.evaluation-human-reviewer-independence-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 932,
+      "input": {
+        "definition": {
+          "affiliations": ["org:independent-safety-lab"],
+          "conflicts": [],
+          "declarationId": "hri_reviewer_v1",
+          "independenceGroupIds": ["hig_independent_safety_lab"],
+          "relationships": ["reviewer:external-contractor"],
+          "reviewBasis": [
+            {
+              "artifactId": "art_human_independence_review",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "sizeBytes": 1024
+            }
+          ],
+          "reviewedAt": "2026-09-02T02:30:00.000Z",
+          "reviewedByPrincipalId": "usr_independence_reviewer",
+          "reviewerPrincipalId": "usr_independent_reviewer",
+          "status": "verified",
+          "statusReasons": [],
+          "validFrom": "2026-09-02T02:30:00.000Z",
+          "validUntil": "2026-10-02T02:30:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "human_reviewer_independence",
+      "name": "verified independent human reviewer declaration",
+      "sha256": "e534fa6342fa3bc110ea9f89b037cc973746335fa5e9589e9481ecc04a838a45"
+    }
+  ]
+}

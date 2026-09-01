@@ -74,6 +74,9 @@ import {
   HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
   type HumanReviewRecordDefinition,
   HumanReviewRecordDefinitionSchema,
+  HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION,
+  type HumanReviewerIndependenceDefinition,
+  HumanReviewerIndependenceDefinitionSchema,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
   MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
@@ -120,6 +123,8 @@ export const INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN = "proofstack.independent-cr
 export const HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN =
   "proofstack.human-review-protocol.v1" as const;
 export const HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN = "proofstack.human-review-record.v1" as const;
+export const HUMAN_REVIEWER_INDEPENDENCE_DEFINITION_DOMAIN =
+  "proofstack.human-reviewer-independence.v1" as const;
 export const MODEL_QUALIFICATION_SUITE_DEFINITION_DOMAIN =
   "proofstack.model-qualification-suite.v1" as const;
 export const MODEL_QUALIFICATION_REPORT_DEFINITION_DOMAIN =
@@ -454,6 +459,18 @@ export function encodeHumanReviewRecordDefinition(
   return encodeDefinition(
     HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN,
     HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeHumanReviewerIndependenceDefinition(
+  input: ScopedEvaluationDefinition<HumanReviewerIndependenceDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(HumanReviewerIndependenceDefinitionSchema).parse(input);
+  return encodeDefinition(
+    HUMAN_REVIEWER_INDEPENDENCE_DEFINITION_DOMAIN,
+    HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );
