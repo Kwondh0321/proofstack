@@ -123,6 +123,7 @@ describe("migration inspection", () => {
         "0035_invalidate_restored_replay_leases",
         "0036_evaluation_management_capability",
         "0037_evaluation_graph_registry",
+        "0038_align_evaluation_execution_authority",
       ],
     });
   });

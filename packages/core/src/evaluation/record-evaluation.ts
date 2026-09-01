@@ -508,6 +508,14 @@ export class RecordRawObservation {
   }
 }
 
+export class RecordQualificationReport {
+  constructor(private readonly dependencies: RecordEvaluationDependencies) {}
+
+  execute(command: RecordEvaluationCommand<"qualification_report">) {
+    return recordEvaluation(this.dependencies, command, "evaluation:run");
+  }
+}
+
 export class RecordEvaluationRunResult {
   constructor(private readonly dependencies: RecordEvaluationDependencies) {}
 

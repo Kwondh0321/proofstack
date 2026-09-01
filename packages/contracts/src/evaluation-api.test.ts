@@ -11,6 +11,7 @@ import {
   RecordCriterionSetStatusRequestSchema,
   RecordEvaluationRunDecisionRequestSchema,
   RecordEvaluationRunResultRequestSchema,
+  RecordQualificationReportRequestSchema,
   RecordRawObservationRequestSchema,
 } from "./evaluation-api.js";
 
@@ -47,7 +48,6 @@ function requestSchema(kind: EvaluationRecordKind) {
     case "evaluator_spec":
     case "oracle_spec":
     case "qualification_fixture_set":
-    case "qualification_report":
     case "source_review":
     case "source_snapshot":
       return PublishEvaluationDefinitionRequestSchema;
@@ -58,6 +58,8 @@ function requestSchema(kind: EvaluationRecordKind) {
       return RecordEvaluationRunDecisionRequestSchema;
     case "raw_observation":
       return RecordRawObservationRequestSchema;
+    case "qualification_report":
+      return RecordQualificationReportRequestSchema;
     case "evaluation_run_result":
       return RecordEvaluationRunResultRequestSchema;
     case "evaluation_aggregate":

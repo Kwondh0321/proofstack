@@ -261,6 +261,7 @@ const resultKinds = new Set<EvaluationRecordKind>([
   "raw_observation",
   "evaluation_run_result",
 ]);
+const executionKinds = new Set<EvaluationRecordKind>(["evaluation_aggregate", ...resultKinds]);
 
 function outboxEventType(kind: EvaluationRecordKind): string {
   if (definitionKinds.has(kind)) return "evaluation.definition.published";
@@ -525,7 +526,7 @@ export class PostgresEvaluationRepository implements EvaluationRepository {
           verdict: projected.verdict,
         };
         const commandJson = JSON.stringify(persistenceCommand);
-        if (resultKinds.has(kind)) {
+        if (executionKinds.has(kind)) {
           await client.query(
             "SELECT public.proofstack_publish_evaluation_execution_record($1::jsonb)",
             [commandJson],

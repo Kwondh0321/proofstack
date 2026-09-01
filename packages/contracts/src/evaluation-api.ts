@@ -69,7 +69,6 @@ export const EvaluationDefinitionPublicationKindSchema = z.enum([
   "evaluator_spec",
   "oracle_spec",
   "qualification_fixture_set",
-  "qualification_report",
   "source_review",
   "source_snapshot",
 ]);
@@ -102,6 +101,11 @@ export const RecordEvaluationRunDecisionRequestSchema = z.discriminatedUnion("ki
   mutationRequest("evaluation_run", EvaluationRunDefinitionSchema),
   mutationRequest("evaluation_run_rejection", EvaluationRunRejectionDefinitionSchema),
 ]);
+
+export const RecordQualificationReportRequestSchema = mutationRequest(
+  "qualification_report",
+  QualificationReportDefinitionSchema,
+);
 
 export const RecordRawObservationRequestSchema = mutationRequest(
   "raw_observation",
@@ -186,3 +190,6 @@ export type RecordEvaluationRunResultRequest = z.infer<
   typeof RecordEvaluationRunResultRequestSchema
 >;
 export type RecordRawObservationRequest = z.infer<typeof RecordRawObservationRequestSchema>;
+export type RecordQualificationReportRequest = z.infer<
+  typeof RecordQualificationReportRequestSchema
+>;

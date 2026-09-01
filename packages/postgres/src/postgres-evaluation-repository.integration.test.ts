@@ -161,11 +161,15 @@ describe("PostgresEvaluationRepository contract", () => {
     const observationConflict = fixture.uniquenessConflicts.find(
       ({ kind }) => kind === "raw_observation",
     );
+    const aggregateFixture = fixture.records.find(({ kind }) => kind === "evaluation_aggregate");
     if (observationConflict?.kind !== "raw_observation") {
       throw new Error("Missing raw-observation authority fixture");
     }
     if (fixture.resourceConflict.kind !== "aggregation_policy") {
       throw new Error("Missing aggregation-policy authority fixture");
+    }
+    if (aggregateFixture?.kind !== "evaluation_aggregate") {
+      throw new Error("Missing evaluation-aggregate authority fixture");
     }
     const controlCandidate = structuredClone(fixture.resourceConflict.record);
     controlCandidate.policyId = "agp_authority_split_new";
@@ -191,6 +195,23 @@ describe("PostgresEvaluationRepository contract", () => {
       policyId: "agp_authority_split_denied",
       policyVersionId: "agv_authority_split_denied",
     };
+    const aggregateCandidate = structuredClone(aggregateFixture.record);
+    aggregateCandidate.aggregateId = "eva_authority_split_worker";
+    const aggregateDefinition = structuredClone(aggregateCandidate) as Record<string, unknown>;
+    for (const key of [
+      "createdAt",
+      "createdByPrincipalId",
+      "definitionSha256",
+      "schemaVersion",
+      "scope",
+    ]) {
+      delete aggregateDefinition[key];
+    }
+    aggregateCandidate.definitionSha256 = digestEvaluationRecordDefinition(
+      "evaluation_aggregate",
+      fixture.scope,
+      aggregateDefinition,
+    );
 
     await expect(
       controlRepository.publishAggregationPolicy(controlCandidate),
@@ -212,5 +233,11 @@ describe("PostgresEvaluationRepository contract", () => {
     await expect(
       controlRepository.publishRawObservation(observationConflict.record),
     ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      controlRepository.publishEvaluationAggregate(aggregateCandidate),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      executionRepository.publishEvaluationAggregate(aggregateCandidate),
+    ).resolves.toMatchObject({ created: true });
   });
 });

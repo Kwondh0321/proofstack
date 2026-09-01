@@ -21,6 +21,7 @@ import {
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
   RecordEvaluationRunResult,
+  RecordQualificationReport,
   RecordRawObservation,
   type RecordEvaluationCommand,
   type RecordEvaluationDependencies,
@@ -134,7 +135,6 @@ async function executeVector(vector: StoredVector, dependencies: RecordEvaluatio
     case "evaluator_spec":
     case "oracle_spec":
     case "qualification_fixture_set":
-    case "qualification_report":
     case "source_review":
     case "source_snapshot":
       return new PublishEvaluationDefinition(dependencies).execute(input as never);
@@ -145,6 +145,8 @@ async function executeVector(vector: StoredVector, dependencies: RecordEvaluatio
       return new RecordEvaluationRunDecision(dependencies).execute(input as never);
     case "raw_observation":
       return new RecordRawObservation(dependencies).execute(input as never);
+    case "qualification_report":
+      return new RecordQualificationReport(dependencies).execute(input as never);
     case "evaluation_run_result":
       return new RecordEvaluationRunResult(dependencies).execute(input as never);
     case "evaluation_aggregate":
