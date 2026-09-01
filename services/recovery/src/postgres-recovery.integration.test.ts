@@ -39,8 +39,10 @@ import {
   ReplayWorkerMutationFenceSchema,
   TargetReleaseSchema,
 } from "@proofstack/contracts";
+import { CreateModelAssuranceAssessment } from "@proofstack/core";
 import {
-  createEvaluationRepositoryTestHarness,
+  createModelAssuranceRepositoryTestHarness,
+  FixedClock,
   publishEvaluationFixture,
 } from "@proofstack/core/testing";
 import {
@@ -66,6 +68,7 @@ import {
   PostgresConsumerReceiptRepository,
   PostgresEvaluationRepository,
   PostgresEvidenceRepository,
+  PostgresModelAssuranceRepository,
   PostgresOidcIdentityRepository,
   PostgresProjectionCursorRepository,
   PostgresRegressionVersionRepository,
@@ -1494,9 +1497,21 @@ async function seedRecoverableReplayState(): Promise<void> {
 }
 
 async function seedRecoverableEvaluationGraph(): Promise<void> {
-  const harness = createEvaluationRepositoryTestHarness("recovery");
-  const repository = new PostgresEvaluationRepository(sourcePool);
-  for (const fixture of harness.records) await publishEvaluationFixture(repository, fixture);
+  const harness = await createModelAssuranceRepositoryTestHarness("recovery");
+  const evaluationRepository = new PostgresEvaluationRepository(sourcePool);
+  for (const fixture of harness.evaluation.records) {
+    await publishEvaluationFixture(evaluationRepository, fixture);
+  }
+  const modelAssuranceRepository = new PostgresModelAssuranceRepository(sourcePool);
+  for (const fixture of harness.records) {
+    await modelAssuranceRepository.publish(fixture.kind, fixture.record as never);
+  }
+  const assessment = await new CreateModelAssuranceAssessment({
+    clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+    evaluationRepository,
+    modelAssuranceRepository,
+  }).execute(harness.command);
+  expect(assessment.record).toMatchObject({ eligibility: "eligible", reasons: [] });
 }
 
 async function seedAuthoritativeState(): Promise<void> {
