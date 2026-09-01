@@ -94,6 +94,7 @@ const modules = [
     ]),
     directory: "services/recovery/src",
     packageName: "@proofstack/recovery-operations",
+    testAllowed: new Set(["@proofstack/core"]),
   },
   {
     allowed: new Set([
@@ -219,7 +220,13 @@ for (const module of modules) {
     for (const specifier of importedSpecifiers(file)) {
       const importedPackage = packageNameFor(specifier);
       if (importedPackage && internalPackages.has(importedPackage)) {
-        if (importedPackage === module.packageName || module.allowed.has(importedPackage)) continue;
+        if (
+          importedPackage === module.packageName ||
+          module.allowed.has(importedPackage) ||
+          (isTestSource(file) && module.testAllowed?.has(importedPackage))
+        ) {
+          continue;
+        }
         violations.push(
           `${relative(repositoryRoot, file)}: ${module.packageName} cannot import ${specifier}`,
         );

@@ -567,6 +567,9 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@proofstack/datasets':
         specifier: workspace:*
         version: link:../../packages/datasets

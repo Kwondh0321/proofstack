@@ -40,6 +40,10 @@ import {
   TargetReleaseSchema,
 } from "@proofstack/contracts";
 import {
+  createEvaluationRepositoryTestHarness,
+  publishEvaluationFixture,
+} from "@proofstack/core/testing";
+import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
   buildRegressionDatasetVersionPublishedOutboxIntent,
   buildRegressionFixtureVersionPublishedOutboxIntent,
@@ -60,6 +64,7 @@ import {
   migrateDatabase,
   PostgresArtifactCatalogRepository,
   PostgresConsumerReceiptRepository,
+  PostgresEvaluationRepository,
   PostgresEvidenceRepository,
   PostgresOidcIdentityRepository,
   PostgresProjectionCursorRepository,
@@ -100,6 +105,27 @@ const EXPECTED_TABLES = [
   "proofstack_browser_sessions",
   "proofstack_consumer_receipts",
   "proofstack_evidence_events",
+  "proofstack_evaluation_aggregates",
+  "proofstack_evaluation_aggregation_policies",
+  "proofstack_evaluation_assessments",
+  "proofstack_evaluation_criterion_set_statuses",
+  "proofstack_evaluation_criterion_sets",
+  "proofstack_evaluation_discovery_records",
+  "proofstack_evaluation_evaluator_specs",
+  "proofstack_evaluation_lineage",
+  "proofstack_evaluation_oracle_specs",
+  "proofstack_evaluation_qualification_fixture_sets",
+  "proofstack_evaluation_qualification_reports",
+  "proofstack_evaluation_raw_observations",
+  "proofstack_evaluation_record_registry",
+  "proofstack_evaluation_records",
+  "proofstack_evaluation_resource_bindings",
+  "proofstack_evaluation_run_rejections",
+  "proofstack_evaluation_run_results",
+  "proofstack_evaluation_runs",
+  "proofstack_evaluation_source_reviews",
+  "proofstack_evaluation_source_snapshots",
+  "proofstack_evaluation_unique_bindings",
   "proofstack_identity_audit_events",
   "proofstack_interaction_fixture_artifact_ownerships",
   "proofstack_interaction_fixture_content_revocations",
@@ -1453,6 +1479,12 @@ async function seedRecoverableReplayState(): Promise<void> {
   });
 }
 
+async function seedRecoverableEvaluationGraph(): Promise<void> {
+  const harness = createEvaluationRepositoryTestHarness("recovery");
+  const repository = new PostgresEvaluationRepository(sourcePool);
+  for (const fixture of harness.records) await publishEvaluationFixture(repository, fixture);
+}
+
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
@@ -1462,6 +1494,7 @@ async function seedAuthoritativeState(): Promise<void> {
   await seedRecoverableRegressionCatalog();
   await seedRecoverableRecordedFixtures(interactionCaptures);
   await seedRecoverableReplayState();
+  await seedRecoverableEvaluationGraph();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,
@@ -1675,6 +1708,10 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
     api: { name: role("api"), password: `recovery-api-${runKey}` },
     artifact: { name: role("artifact"), password: `recovery-artifact-${runKey}` },
     consumer: { name: role("consumer"), password: `recovery-consumer-${runKey}` },
+    evaluationWorker: {
+      name: role("evaluation"),
+      password: `recovery-evaluation-${runKey}`,
+    },
     identity: { name: role("identity"), password: `recovery-identity-${runKey}` },
     publisher: { name: role("publisher"), password: `recovery-publisher-${runKey}` },
     replayWorker: { name: role("worker"), password: `recovery-replay-worker-${runKey}` },
