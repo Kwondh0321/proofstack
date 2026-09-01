@@ -3,17 +3,21 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   EVALUATION_RUN_RESULT_SCHEMA_VERSION,
+  EVALUATION_RUN_REJECTION_SCHEMA_VERSION,
   EVALUATION_RUN_SCHEMA_VERSION,
   type EvaluationRunDefinition,
+  type EvaluationRunRejectionDefinition,
   type EvaluationRunResultDefinition,
   RAW_OBSERVATION_SCHEMA_VERSION,
   type RawObservationDefinition,
 } from "./evaluation-run.js";
 import {
   encodeEvaluationRunDefinition,
+  encodeEvaluationRunRejectionDefinition,
   encodeEvaluationRunResultDefinition,
   encodeRawObservationDefinition,
   EVALUATION_RUN_DEFINITION_DOMAIN,
+  EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN,
   EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,
   RAW_OBSERVATION_DEFINITION_DOMAIN,
   type ScopedEvaluationDefinition,
@@ -35,12 +39,17 @@ interface ObservationVector extends StaticVectorBase {
   readonly kind: "raw_observation";
 }
 
+interface RejectionVector extends StaticVectorBase {
+  readonly input: ScopedEvaluationDefinition<EvaluationRunRejectionDefinition>;
+  readonly kind: "evaluation_run_rejection";
+}
+
 interface ResultVector extends StaticVectorBase {
   readonly input: ScopedEvaluationDefinition<EvaluationRunResultDefinition>;
   readonly kind: "evaluation_run_result";
 }
 
-type StaticVector = RunVector | ObservationVector | ResultVector;
+type StaticVector = RunVector | RejectionVector | ObservationVector | ResultVector;
 
 const vectorsDocument = JSON.parse(
   readFileSync(new URL("../vectors/evaluation-run-definition-v1.json", import.meta.url), "utf8"),
@@ -53,6 +62,8 @@ function encode(vector: StaticVector): Uint8Array {
   switch (vector.kind) {
     case "evaluation_run":
       return encodeEvaluationRunDefinition(vector.input);
+    case "evaluation_run_rejection":
+      return encodeEvaluationRunRejectionDefinition(vector.input);
     case "raw_observation":
       return encodeRawObservationDefinition(vector.input);
     case "evaluation_run_result":
@@ -75,6 +86,7 @@ describe("canonical evaluation run definition encoding", () => {
     expect(vectorsDocument.format).toBe("proofstack.evaluation-run-definition.v1");
     expect(vectorsDocument.vectors.map(({ kind }) => kind)).toEqual([
       "evaluation_run",
+      "evaluation_run_rejection",
       "raw_observation",
       "evaluation_run_result",
     ]);
@@ -85,14 +97,19 @@ describe("canonical evaluation run definition encoding", () => {
     }
   });
 
-  it("separates run, observation, and result domains with explicit schema lineage", () => {
+  it("separates run, rejection, observation, and result domains with explicit schema lineage", () => {
     const runText = Buffer.from(encode(requireVector("evaluation_run"))).toString("utf8");
+    const rejectionText = Buffer.from(encode(requireVector("evaluation_run_rejection"))).toString(
+      "utf8",
+    );
     const observationText = Buffer.from(encode(requireVector("raw_observation"))).toString("utf8");
     const resultText = Buffer.from(encode(requireVector("evaluation_run_result"))).toString("utf8");
     expect(runText).toContain(EVALUATION_RUN_DEFINITION_DOMAIN);
+    expect(rejectionText).toContain(EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN);
     expect(observationText).toContain(RAW_OBSERVATION_DEFINITION_DOMAIN);
     expect(resultText).toContain(EVALUATION_RUN_RESULT_DEFINITION_DOMAIN);
     expect(runText).toContain(`"schemaVersion":"${EVALUATION_RUN_SCHEMA_VERSION}"`);
+    expect(rejectionText).toContain(`"schemaVersion":"${EVALUATION_RUN_REJECTION_SCHEMA_VERSION}"`);
     expect(observationText).toContain(`"schemaVersion":"${RAW_OBSERVATION_SCHEMA_VERSION}"`);
     expect(resultText).toContain(`"schemaVersion":"${EVALUATION_RUN_RESULT_SCHEMA_VERSION}"`);
   });
@@ -111,6 +128,11 @@ describe("canonical evaluation run definition encoding", () => {
     const replayChanged = structuredClone(run);
     replayChanged.input.definition.replay.result.sha256 = "f".repeat(64);
     expect(encode(replayChanged)).not.toEqual(originalRun);
+
+    const rejection = requireVector("evaluation_run_rejection");
+    const reasonChanged = structuredClone(rejection);
+    reasonChanged.input.definition.reasons[0] = "Authenticated jurisdiction remains unavailable";
+    expect(encode(reasonChanged)).not.toEqual(encode(rejection));
 
     const observation = requireVector("raw_observation");
     const outputChanged = structuredClone(observation);
@@ -138,6 +160,14 @@ describe("canonical evaluation run definition encoding", () => {
     });
     expect(() => encodeEvaluationRunDefinition(hiddenAttempt)).toThrow();
     expect(() => encodeEvaluationRunDefinition({ ...run, createdAt: "hidden" } as never)).toThrow();
+
+    const rejection = requireVector("evaluation_run_rejection").input;
+    expect(() =>
+      encodeEvaluationRunRejectionDefinition({
+        ...rejection,
+        requestedByPrincipalId: "hidden",
+      } as never),
+    ).toThrow();
 
     const observation = requireVector("raw_observation").input;
     const forgedObservation = structuredClone(observation);

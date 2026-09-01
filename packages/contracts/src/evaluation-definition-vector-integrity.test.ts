@@ -13,6 +13,7 @@ import {
   encodeEvaluationAggregateDefinition,
   encodeEvaluationAggregationPolicyDefinition,
   encodeEvaluationRunDefinition,
+  encodeEvaluationRunRejectionDefinition,
   encodeEvaluationRunResultDefinition,
   encodeEvaluatorSpecDefinition,
   encodeOracleSpecDefinition,
@@ -25,6 +26,7 @@ import {
   EVALUATION_AGGREGATION_POLICY_DEFINITION_DOMAIN,
   EVALUATION_DEFINITION_ENCODING_VERSION,
   EVALUATION_RUN_DEFINITION_DOMAIN,
+  EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN,
   EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,
   EVALUATOR_SPEC_DEFINITION_DOMAIN,
   ORACLE_SPEC_DEFINITION_DOMAIN,
@@ -103,6 +105,10 @@ const registry = {
   evaluation_run: {
     domain: EVALUATION_RUN_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeEvaluationRunDefinition(input as never),
+  },
+  evaluation_run_rejection: {
+    domain: EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeEvaluationRunRejectionDefinition(input as never),
   },
   evaluation_run_result: {
     domain: EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,

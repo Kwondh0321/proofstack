@@ -165,6 +165,76 @@
       "sha256": "6347561dd97a9dee2d584546dd1c0ff0d2a7d0fc06c6cb0b3d3d95e300ba3f51"
     },
     {
+      "name": "undetermined applicability rejection with exact criterion lineage",
+      "kind": "evaluation_run_rejection",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "applicability": {
+            "context": {
+              "environmentId": "env_local",
+              "locale": "en",
+              "populationTags": [],
+              "riskTier": "moderate",
+              "taskKind": "tsk_support"
+            },
+            "contextSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "evaluatedAt": "2026-09-01T00:00:00Z",
+            "interpreter": {
+              "dependencySnapshotSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "entryPointId": "ent_applicability_v1",
+              "implementationId": "imp_applicability",
+              "implementationSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+              "implementationVersionId": "imv_applicability_v1",
+              "runtime": {
+                "architecture": "arm64",
+                "family": "node",
+                "platform": "darwin",
+                "version": "24.0.0"
+              },
+              "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "result": "undetermined",
+            "runtimePolicy": {
+              "clock": { "mode": "not_available" },
+              "dataEgress": "denied",
+              "locale": "en",
+              "network": "denied",
+              "seed": { "mode": "not_used" },
+              "sideEffects": "denied"
+            }
+          },
+          "criterion": {
+            "criterionId": "crt_schema",
+            "criterionSet": {
+              "criterionSetId": "crs_response",
+              "criterionSetVersionId": "csv_response_v1",
+              "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+            }
+          },
+          "criterionStatus": {
+            "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "statusRecordId": "csr_approved"
+          },
+          "reasons": ["Authenticated jurisdiction is absent from the applicability context"],
+          "rejectionId": "evj_schema",
+          "resolution": "require_approval",
+          "sourceReviews": [
+            {
+              "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "sourceReviewId": "srv_primary"
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 1792,
+      "sha256": "aa60171c1029206c000f82de2d2f943d59c76dfedd6d146a29b4fe8f0b63fba7"
+    },
+    {
       "name": "immutable raw pass observation with exact evidence and usage",
       "kind": "raw_observation",
       "input": {

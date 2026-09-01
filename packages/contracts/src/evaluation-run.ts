@@ -293,22 +293,30 @@ export const EvaluationRunSchema = z
     }
   });
 
+const evaluationRunRejectionDefinitionShape = {
+  applicability: EvaluationUndeterminedApplicabilitySchema,
+  criterion: CriterionReferenceSchema,
+  criterionStatus: CriterionSetStatusReferenceSchema,
+  reasons: z.array(AssuranceSummarySchema).min(1).max(32).refine(isStrictlySortedUnique, {
+    message: "Evaluation rejection reasons must be unique and ordered",
+  }),
+  rejectionId: OpaqueIdSchema,
+  resolution: z.enum(["require_approval", "unverifiable"]),
+  sourceReviews: exactSourceReviews("Evaluation rejection source reviews"),
+};
+
+export const EvaluationRunRejectionDefinitionSchema = z
+  .object(evaluationRunRejectionDefinitionShape)
+  .strict();
+
 export const EvaluationRunRejectionSchema = z
   .object({
-    applicability: EvaluationUndeterminedApplicabilitySchema,
-    criterion: CriterionReferenceSchema,
-    criterionStatus: CriterionSetStatusReferenceSchema,
+    ...evaluationRunRejectionDefinitionShape,
     definitionSha256: Sha256Schema,
-    reasons: z.array(AssuranceSummarySchema).min(1).max(32).refine(isStrictlySortedUnique, {
-      message: "Evaluation rejection reasons must be unique and ordered",
-    }),
     recordedAt: UtcMillisecondTimestampSchema,
-    rejectionId: OpaqueIdSchema,
     requestedByPrincipalId: OpaqueIdSchema,
-    resolution: z.enum(["require_approval", "unverifiable"]),
     schemaVersion: z.literal(EVALUATION_RUN_REJECTION_SCHEMA_VERSION),
     scope: EvidenceScopeSchema,
-    sourceReviews: exactSourceReviews("Evaluation rejection source reviews"),
   })
   .strict()
   .superRefine((value, context) => {
@@ -796,6 +804,9 @@ export const EvaluationRunSnapshotSchema = z
 export type EvaluationRun = z.infer<typeof EvaluationRunSchema>;
 export type EvaluationRunDefinition = z.infer<typeof EvaluationRunDefinitionSchema>;
 export type EvaluationRunRejection = z.infer<typeof EvaluationRunRejectionSchema>;
+export type EvaluationRunRejectionDefinition = z.infer<
+  typeof EvaluationRunRejectionDefinitionSchema
+>;
 export type EvaluationRunResult = z.infer<typeof EvaluationRunResultSchema>;
 export type EvaluationRunResultDefinition = z.infer<typeof EvaluationRunResultDefinitionSchema>;
 export type EvaluationVerdict = z.infer<typeof EvaluationVerdictSchema>;

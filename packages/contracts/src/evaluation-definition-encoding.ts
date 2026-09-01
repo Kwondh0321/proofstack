@@ -20,9 +20,12 @@ import {
 } from "./evaluation-criteria.js";
 import {
   EVALUATION_RUN_RESULT_SCHEMA_VERSION,
+  EVALUATION_RUN_REJECTION_SCHEMA_VERSION,
   EVALUATION_RUN_SCHEMA_VERSION,
   type EvaluationRunDefinition,
   EvaluationRunDefinitionSchema,
+  type EvaluationRunRejectionDefinition,
+  EvaluationRunRejectionDefinitionSchema,
   type EvaluationRunResultDefinition,
   EvaluationRunResultDefinitionSchema,
   RAW_OBSERVATION_SCHEMA_VERSION,
@@ -69,6 +72,8 @@ export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
 export const EVALUATION_RUN_DEFINITION_DOMAIN = "proofstack.evaluation-run.v1" as const;
+export const EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN =
+  "proofstack.evaluation-run-rejection.v1" as const;
 export const RAW_OBSERVATION_DEFINITION_DOMAIN = "proofstack.raw-observation.v1" as const;
 export const EVALUATION_RUN_RESULT_DEFINITION_DOMAIN =
   "proofstack.evaluation-run-result.v1" as const;
@@ -331,6 +336,18 @@ export function encodeEvaluationRunDefinition(
   return encodeDefinition(
     EVALUATION_RUN_DEFINITION_DOMAIN,
     EVALUATION_RUN_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeEvaluationRunRejectionDefinition(
+  input: ScopedEvaluationDefinition<EvaluationRunRejectionDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(EvaluationRunRejectionDefinitionSchema).parse(input);
+  return encodeDefinition(
+    EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN,
+    EVALUATION_RUN_REJECTION_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );
