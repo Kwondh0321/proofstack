@@ -3,6 +3,7 @@ export * from "./auth/workload-delegation.js";
 export * from "./clock.js";
 export * from "./errors.js";
 export * from "./evaluation/applicability.js";
+export * from "./evaluation/exact-oracle.js";
 export * from "./evidence/evidence-repository.js";
 export * from "./evidence/ingest-evidence.js";
 export * from "./evidence/list-trace-evidence.js";
