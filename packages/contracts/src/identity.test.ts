@@ -142,6 +142,7 @@ describe("WorkloadCapabilitySchema", () => {
     "artifact:delete",
     "dataset:manage",
     "replay:manage",
+    "evaluation:manage",
     "identity:manage",
     "approval:decide",
     "project:manage",

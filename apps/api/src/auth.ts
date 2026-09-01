@@ -74,6 +74,7 @@ const DEVELOPMENT_CAPABILITIES = [
   "replay:manage",
   "evaluation:read",
   "evaluation:run",
+  "evaluation:manage",
   "release:read",
   "release:manage",
   "policy:evaluate",

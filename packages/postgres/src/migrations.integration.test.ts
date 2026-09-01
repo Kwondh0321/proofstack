@@ -1,4 +1,9 @@
-import { EVIDENCE_SCHEMA_VERSION, type EvidenceRecord } from "@proofstack/contracts";
+import {
+  CapabilitySchema,
+  EVIDENCE_SCHEMA_VERSION,
+  type EvidenceRecord,
+  WORKLOAD_DELEGABLE_CAPABILITIES,
+} from "@proofstack/contracts";
 import type { PoolClient, QueryResult, QueryResultRow } from "pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -149,6 +154,7 @@ describe("PostgreSQL evidence schema", () => {
       "0033_prioritize_replay_cancellation_over_budget",
       "0034_replay_job_snapshot_authority",
       "0035_invalidate_restored_replay_leases",
+      "0036_evaluation_management_capability",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -303,6 +309,33 @@ describe("PostgreSQL evidence schema", () => {
       restrictedWorkload: false,
       userLifecycle: true,
       workloadTransfer: true,
+    });
+
+    const capabilityParity = await pool.query<{
+      readonly allUserCapabilities: boolean;
+      readonly allWorkloadCapabilities: boolean;
+      readonly evaluationManagementWorkload: boolean;
+      readonly replayManagementWorkload: boolean;
+    }>(
+      `
+        SELECT
+          public.proofstack_valid_user_capabilities($1::text[]) AS "allUserCapabilities",
+          public.proofstack_valid_workload_capabilities($2::text[])
+            AS "allWorkloadCapabilities",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['evaluation:manage']::text[]
+          ) AS "evaluationManagementWorkload",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['replay:manage']::text[]
+          ) AS "replayManagementWorkload"
+      `,
+      [CapabilitySchema.options, WORKLOAD_DELEGABLE_CAPABILITIES],
+    );
+    expect(capabilityParity.rows[0]).toEqual({
+      allUserCapabilities: true,
+      allWorkloadCapabilities: true,
+      evaluationManagementWorkload: false,
+      replayManagementWorkload: false,
     });
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);

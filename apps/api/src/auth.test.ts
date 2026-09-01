@@ -327,6 +327,7 @@ describe("createAuthenticator", () => {
         "replay:run",
         "replay:cancel",
         "replay:manage",
+        "evaluation:manage",
       ]),
       principalId: "usr_local",
       tenantId: "ten_local",
