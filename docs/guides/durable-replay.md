@@ -267,8 +267,9 @@ pnpm test:integration:postgres
 
 This test creates and removes random test roles, scopes, and buckets. Never point it at production
 or a shared database/object-store account. The fixed acceptance matrix is recorded in the
-[durable replay entry audit](../development/workflow-1-durable-replay-entry-audit.md); checkpoint
-acceptance requires a separate completed audit after every gate is green.
+[durable replay entry audit](../development/workflow-1-durable-replay-entry-audit.md). The completed
+[durable replay audit](../development/workflow-1-durable-replay-audit.md) closes that matrix against
+the green local and service gates and records the accepted limits.
 
 ## What comes next
 

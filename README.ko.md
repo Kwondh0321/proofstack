@@ -222,9 +222,11 @@ scripts                  저장소 수준 아키텍처 경계 검사
 process 제한을 명시한 정확 기록 일치를 승인하지만 영속 job, 평가, release 권한은 승인하지
 않습니다.
 [영속 replay job 진입 감사 기록](docs/development/workflow-1-durable-replay-entry-audit.ko.md)은
-현재 체크포인트의 release, budget, fencing, cancellation, worker, persistence, recovery, 권한
-게이트를 정의합니다. 구현과 운영 가이드는 존재하지만 별도의 승인 감사가 모든 행을 green
-service gate와 대조해 닫기 전까지 roadmap checkbox는 열려 있습니다.
+체크포인트의 release, budget, fencing, cancellation, worker, persistence, recovery, 권한 게이트를
+정의합니다. 완료된
+[영속 replay job 감사 기록](docs/development/workflow-1-durable-replay-audit.ko.md)은 green 로컬·
+service gate를 근거로 bounded 실행 경계를 승인하지만 evaluation, approval, release,
+production-readiness 주장은 승인하지 않습니다.
 
 ## 현재의 경계
 

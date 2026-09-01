@@ -1,7 +1,7 @@
 # Capability roadmap
 
 Status: working sequence  
-Last reviewed: 2026-08-29
+Last reviewed: 2026-09-01
 
 This roadmap is ordered by dependency and risk, not calendar promises. A later capability must not
 pull an earlier one into production before its acceptance gates pass.
@@ -77,7 +77,7 @@ Goal: turn a failed production trace into repeatable evidence.
   tool-contract, request, response, and artifact lineage.
 - [x] Exact recorded-boundary replay with request matching, network-denied fallback, controlled
   runtime inputs, and honest reproducibility classification.
-- [ ] Durable replay jobs with multidimensional budgets, cancellation, fenced leases,
+- [x] Durable replay jobs with multidimensional budgets, cancellation, fenced leases,
   predeclared retries, side-effect controls, usage reconciliation, and declared simulation or
   live-provider modes.
 - [ ] Versioned sources, criteria, deterministic oracles, statistical evaluators, raw
@@ -111,6 +111,9 @@ and remaining durable-job boundary are recorded in the
 The durable-job checkpoint's exact releases, budgets, fencing, cancellation, retry, worker,
 authority, persistence, recovery, and acceptance gates are fixed by the
 [durable replay-job entry audit](../development/workflow-1-durable-replay-entry-audit.md).
+The completed [durable replay-job audit](../development/workflow-1-durable-replay-audit.md) records
+the accepted bounded execution boundary, service-backed evidence, restore-epoch fencing, closed
+cross-check findings, and the evaluator and production limits that remain open.
 
 ## Workflow 2: reliability release gate
 

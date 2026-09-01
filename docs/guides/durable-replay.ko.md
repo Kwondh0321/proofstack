@@ -267,8 +267,9 @@ pnpm test:integration:postgres
 이 테스트는 무작위 test role, scope, bucket을 만들고 삭제합니다. 프로덕션 또는 공유 DB·object
 store 계정을 가리키지 마세요. 고정된 승인 matrix는
 [영속 replay 진입 감사 기록](../development/workflow-1-durable-replay-entry-audit.ko.md)에
-정리되어 있습니다. 모든 gate가 통과한 뒤 별도의 완료 감사가 있어야 체크포인트를 승인할 수
-있습니다.
+정리되어 있습니다. 완료된
+[영속 replay 감사 기록](../development/workflow-1-durable-replay-audit.ko.md)은 green 로컬·service
+gate와 대조해 해당 matrix를 닫고 승인된 제한사항을 기록합니다.
 
 ## 다음 단계
 

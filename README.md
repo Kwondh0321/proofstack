@@ -220,10 +220,11 @@ defines the checkpoint's entry gates. The completed
 recorded matching with explicit same-process limits while withholding durable-job, evaluation, and
 release authority.
 The [durable replay-job entry audit](docs/development/workflow-1-durable-replay-entry-audit.md)
-defines the current checkpoint's release, budget, fencing, cancellation, worker, persistence,
-recovery, and authority gates. The implementation and operator guide are present, but the roadmap
-checkbox remains open until a separate acceptance audit closes every row against green service
-gates.
+defines the checkpoint's release, budget, fencing, cancellation, worker, persistence, recovery,
+and authority gates. The completed
+[durable replay-job audit](docs/development/workflow-1-durable-replay-audit.md) accepts the bounded
+execution boundary against green local and service gates while withholding evaluation, approval,
+release, and production-readiness claims.
 
 ## Current boundaries
 
