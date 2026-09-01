@@ -149,6 +149,22 @@ describe("model assurance assessment contracts", () => {
     );
   });
 
+  it("retains explicit ineligible records when required assurance evidence is absent", () => {
+    const incomplete = modelAssuranceAssessmentDefinition();
+    incomplete.critiques = [];
+    incomplete.eligibility = "ineligible";
+    incomplete.humanReviews = [];
+    incomplete.independenceDeclarations = [];
+    incomplete.nonModelEvidence = { observations: [], oracles: [] };
+    incomplete.reasons = [
+      "human_review_missing",
+      "independence_unverified",
+      "non_model_evidence_missing",
+      "unresolved_disagreement",
+    ];
+    expect(ModelAssuranceAssessmentDefinitionSchema.parse(incomplete)).toEqual(incomplete);
+  });
+
   it("requires exact ordered lineage and a positive validity interval", () => {
     const reviews = modelAssuranceAssessmentDefinition();
     reviews.humanReviews = [...reviews.humanReviews].reverse();

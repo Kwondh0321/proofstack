@@ -92,7 +92,6 @@ const modelAssuranceAssessmentDefinitionShape = {
   counterevidence: exactArtifacts(0, 64, "Model assurance counterevidence"),
   critiques: z
     .array(IndependentCritiqueReferenceSchema)
-    .min(1)
     .max(32)
     .refine(
       (references) =>
@@ -117,7 +116,6 @@ const modelAssuranceAssessmentDefinitionShape = {
     ),
   independenceDeclarations: z
     .array(IndependenceDeclarationReferenceSchema)
-    .min(2)
     .max(64)
     .refine(
       (references) =>
@@ -137,7 +135,6 @@ const modelAssuranceAssessmentDefinitionShape = {
     .object({
       observations: z
         .array(RawObservationReferenceSchema)
-        .min(1)
         .max(64)
         .refine(
           (references) =>
@@ -150,7 +147,6 @@ const modelAssuranceAssessmentDefinitionShape = {
         ),
       oracles: z
         .array(OracleReferenceSchema)
-        .min(1)
         .max(32)
         .refine(
           (references) =>
@@ -175,8 +171,14 @@ const modelAssuranceAssessmentDefinitionShape = {
 function refineModelAssuranceAssessment(
   value: {
     readonly eligibility: "eligible" | "ineligible";
+    readonly critiques: readonly unknown[];
     readonly evaluatedAt: string;
     readonly humanReviews: readonly unknown[];
+    readonly independenceDeclarations: readonly unknown[];
+    readonly nonModelEvidence: {
+      readonly observations: readonly unknown[];
+      readonly oracles: readonly unknown[];
+    };
     readonly reasons: readonly string[];
     readonly riskTier: "critical" | "high" | "low" | "moderate";
     readonly validUntil: string;
@@ -197,7 +199,33 @@ function refineModelAssuranceAssessment(
       path: ["reasons"],
     });
   }
+  if (value.eligibility === "eligible" && value.critiques.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Eligible model assurance requires at least one independent critique",
+      path: ["critiques"],
+    });
+  }
+  if (value.eligibility === "eligible" && value.independenceDeclarations.length < 2) {
+    context.addIssue({
+      code: "custom",
+      message: "Eligible model assurance requires at least two independence declarations",
+      path: ["independenceDeclarations"],
+    });
+  }
   if (
+    value.eligibility === "eligible" &&
+    (value.nonModelEvidence.observations.length === 0 ||
+      value.nonModelEvidence.oracles.length === 0)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Eligible model assurance requires non-model observations and oracles",
+      path: ["nonModelEvidence"],
+    });
+  }
+  if (
+    value.eligibility === "eligible" &&
     (value.riskTier === "high" || value.riskTier === "critical") &&
     value.humanReviews.length === 0
   ) {
