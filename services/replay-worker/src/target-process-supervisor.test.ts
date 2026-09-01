@@ -19,6 +19,16 @@ const normalizedSha256 = createHash("sha256")
   .update(Buffer.from(normalizedBytes, "base64url"))
   .digest("hex");
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, reject, resolve };
+}
+
 const targetAdapter = {
   name: "proofstack.supervised_target",
   protocolVersion: "0.1",
@@ -469,6 +479,29 @@ describe("superviseReplayTargetProcess", () => {
       exitCode: -1,
       failureCode: "deadline_reached",
       status: "deadline_reached",
+    });
+  });
+
+  it("preserves cancellation when pending boundary resolution later fails", async () => {
+    const controller = new AbortController();
+    const resolutionStarted = deferred<void>();
+    const resolution = deferred<RecordedBoundaryResponse>();
+    const pending = await fixture("boundary", {
+      resolveBoundary: async () => {
+        resolutionStarted.resolve();
+        return await resolution.promise;
+      },
+      signal: controller.signal,
+    });
+
+    const supervised = superviseReplayTargetProcess(pending.options);
+    await resolutionStarted.promise;
+    controller.abort();
+    resolution.reject(new Error("fixture failed after cancellation"));
+
+    await expect(supervised).resolves.toMatchObject({
+      failureCode: "worker_cancelled",
+      status: "cancelled",
     });
   });
 
