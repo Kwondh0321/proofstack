@@ -57,6 +57,11 @@ import {
   type QualificationReportDefinition,
   QualificationReportDefinitionSchema,
 } from "./evaluation-spec.js";
+import {
+  MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
+  type ModelEvaluatorProfileDefinition,
+  ModelEvaluatorProfileDefinitionSchema,
+} from "./evaluation-model-assurance.js";
 import { type EvidenceScope, EvidenceScopeSchema } from "./evidence.js";
 
 export const EVALUATION_DEFINITION_ENCODING_VERSION =
@@ -68,6 +73,8 @@ export const CRITERION_SET_DEFINITION_DOMAIN = "proofstack.criterion-set.v1" as 
 export const CRITERION_SET_STATUS_DEFINITION_DOMAIN = "proofstack.criterion-set-status.v1" as const;
 export const ORACLE_SPEC_DEFINITION_DOMAIN = "proofstack.oracle-spec.v1" as const;
 export const EVALUATOR_SPEC_DEFINITION_DOMAIN = "proofstack.evaluator-spec.v1" as const;
+export const MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN =
+  "proofstack.model-evaluator-profile.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -300,6 +307,18 @@ export function encodeEvaluatorSpecDefinition(
   return encodeDefinition(
     EVALUATOR_SPEC_DEFINITION_DOMAIN,
     EVALUATOR_SPEC_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeModelEvaluatorProfileDefinition(
+  input: ScopedEvaluationDefinition<ModelEvaluatorProfileDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(ModelEvaluatorProfileDefinitionSchema).parse(input);
+  return encodeDefinition(
+    MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
+    MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

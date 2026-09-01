@@ -1,0 +1,153 @@
+{
+  "format": "proofstack.evaluation-model-assurance-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3491,
+      "input": {
+        "definition": {
+          "budgets": {
+            "elapsedMilliseconds": 30000,
+            "inputBytes": 1048576,
+            "inputTokens": 32000,
+            "maximumCostMicrousd": 25000,
+            "outputBytes": 262144,
+            "outputTokens": 4096,
+            "requests": 4
+          },
+          "changeRationale": "Initial bounded provider-neutral model evaluator profile",
+          "dataPolicy": {
+            "artifactPlaintext": "selected_evidence_only",
+            "dataEgress": "selected_evidence",
+            "geographicRegions": ["kr", "us"],
+            "logging": "provider_declared_metadata_only",
+            "network": "registered_provider_only",
+            "providerRetention": {
+              "maximumDays": 30,
+              "mode": "declared_bounded"
+            },
+            "redirects": "denied",
+            "toolRequests": "record_only"
+          },
+          "evaluator": {
+            "evaluatorId": "evl_model_safety",
+            "evaluatorVersionId": "evv_model_safety_v1"
+          },
+          "knownLimitations": [
+            "Provider model revision availability depends on provider metadata",
+            "Synthetic qualification does not prove production fitness"
+          ],
+          "locale": "en",
+          "malformedOutputPolicy": "error",
+          "modelProfileId": "mep_safety",
+          "modelProfileVersionId": "mpv_safety_v1",
+          "outputSchema": {
+            "artifactId": "art_model_output_schema",
+            "classification": "restricted",
+            "mediaType": "application/schema+json",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "sizeBytes": 1024
+          },
+          "prompts": [
+            {
+              "purpose": "counteranalysis",
+              "template": {
+                "artifactId": "art_prompt_counteranalysis",
+                "classification": "restricted",
+                "mediaType": "text/plain",
+                "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "sizeBytes": 1024
+              }
+            },
+            {
+              "purpose": "rubric",
+              "template": {
+                "artifactId": "art_prompt_rubric",
+                "classification": "restricted",
+                "mediaType": "text/plain",
+                "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 1024
+              }
+            },
+            {
+              "purpose": "system",
+              "template": {
+                "artifactId": "art_prompt_system",
+                "classification": "restricted",
+                "mediaType": "text/plain",
+                "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "sizeBytes": 1024
+              }
+            },
+            {
+              "purpose": "task",
+              "template": {
+                "artifactId": "art_prompt_task",
+                "classification": "restricted",
+                "mediaType": "text/plain",
+                "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "sizeBytes": 1024
+              }
+            }
+          ],
+          "provider": {
+            "adapterId": "mad_local_http",
+            "adapterVersionId": "mav_local_http_v1",
+            "baseModelFamily": "reference-model-family",
+            "fineTuneLineage": ["base:reference-model-family", "tune:none"],
+            "modelResolution": {
+              "resolutionEvidence": {
+                "artifactId": "art_model_resolution",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "sizeBytes": 1024
+              },
+              "resolvedModelVersion": "reference-model-2026-09-01",
+              "status": "exact"
+            },
+            "providerId": "mdp_reference",
+            "providerModelId": "reference-model",
+            "trainingDataRelationship": "unknown"
+          },
+          "reproducibility": "bounded",
+          "riskTiers": ["high", "low", "medium"],
+          "sampling": {
+            "maximumOutputTokens": 4096,
+            "seed": {
+              "status": "fixed",
+              "value": 42
+            },
+            "temperatureMilli": 0,
+            "topPBasisPoints": 10000
+          },
+          "supportedCriteria": [
+            {
+              "criterionId": "crt_no_unsafe_tool_request",
+              "criterionSetId": "crs_agent_safety",
+              "criterionSetVersionId": "csv_agent_safety_v1"
+            }
+          ],
+          "toolContracts": [
+            {
+              "artifactId": "art_tool_contract",
+              "classification": "restricted",
+              "mediaType": "application/schema+json",
+              "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+              "sizeBytes": 1024
+            }
+          ],
+          "validFrom": "2026-09-02T00:00:00.000Z",
+          "validUntil": "2026-12-01T00:00:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "model_evaluator_profile",
+      "name": "bounded provider-neutral model evaluator profile",
+      "sha256": "bcdeebf27f14c95083e3de42d99c1db03cc6160aafda819774123d91db9ff6c5"
+    }
+  ]
+}

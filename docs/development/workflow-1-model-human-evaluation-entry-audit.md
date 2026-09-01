@@ -64,9 +64,12 @@ or server times as substitutes.
 
 ### Publish an exact model evaluator profile
 
-A `ModelEvaluatorProfile` is an immutable exact version. It binds:
+A `ModelEvaluatorProfile` is an immutable exact version. To avoid an unsatisfiable digest cycle,
+it selects one evaluator logical ID and version without its digest; the evaluator definition is
+published afterward and binds the exact profile digest. Every execution binds both exact digests.
+The profile also binds:
 
-- one existing evaluator definition and its semantic digest;
+- one immutable evaluator logical ID and version selector;
 - provider and adapter identifiers and versions;
 - provider model identifier, resolved model version when the provider exposes one, base-model
   family, fine-tune or derivative lineage, and declared training-data relationship;

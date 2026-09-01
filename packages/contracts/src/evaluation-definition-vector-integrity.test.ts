@@ -16,6 +16,7 @@ import {
   encodeEvaluationRunRejectionDefinition,
   encodeEvaluationRunResultDefinition,
   encodeEvaluatorSpecDefinition,
+  encodeModelEvaluatorProfileDefinition,
   encodeOracleSpecDefinition,
   encodeQualificationFixtureSetDefinition,
   encodeQualificationReportDefinition,
@@ -29,6 +30,7 @@ import {
   EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN,
   EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,
   EVALUATOR_SPEC_DEFINITION_DOMAIN,
+  MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
   ORACLE_SPEC_DEFINITION_DOMAIN,
   QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN,
   QUALIFICATION_REPORT_DEFINITION_DOMAIN,
@@ -68,6 +70,7 @@ const vectorFiles = [
   "evaluation-qualification-definition-v1.json",
   "evaluation-run-definition-v1.json",
   "evaluation-assessment-definition-v1.json",
+  "evaluation-model-assurance-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -117,6 +120,10 @@ const registry = {
   evaluator_spec: {
     domain: EVALUATOR_SPEC_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeEvaluatorSpecDefinition(input as never),
+  },
+  model_evaluator_profile: {
+    domain: MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeModelEvaluatorProfileDefinition(input as never),
   },
   oracle_spec: {
     domain: ORACLE_SPEC_DEFINITION_DOMAIN,

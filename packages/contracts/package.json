@@ -38,6 +38,10 @@
       "types": "./dist/evaluation-definition-encoding.d.ts",
       "import": "./dist/evaluation-definition-encoding.js"
     },
+    "./evaluation-model-assurance": {
+      "types": "./dist/evaluation-model-assurance.d.ts",
+      "import": "./dist/evaluation-model-assurance.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"

@@ -41,11 +41,13 @@ observation입니다. Rationale은 보존된 trace, artifact, oracle 또는 검�
 
 ### 정확한 모델 평가 profile
 
-불변 `ModelEvaluatorProfile`은 기존 evaluator digest, provider·adapter 버전, provider model ID,
-가능한 resolved revision, base-model family, fine-tune lineage, prompt-template·tool-contract·output
-schema digest, sampling·seed·clock, 입력·출력·시간·token·비용 budget, finite attempt, network·egress·
-retention 정책, 지원 criterion·scope·risk·언어, OOD 규칙, limitation, reproducibility, validity,
-publisher와 server time을 결합합니다.
+불변 `ModelEvaluatorProfile`은 해결 불가능한 digest cycle을 피하기 위해 evaluator의 logical ID·version을
+digest 없이 먼저 선택합니다. 이후 발행되는 evaluator 정의가 exact profile digest를 결합하고 모든
+실행은 두 exact digest를 함께 사용합니다. Profile은 provider·adapter 버전, provider model ID, 가능한
+resolved revision, base-model family, fine-tune lineage, prompt-template·tool-contract·output schema digest,
+sampling·seed·clock, 입력·출력·시간·token·비용 budget, finite attempt, network·egress·retention 정책,
+지원 criterion·scope·risk·언어, OOD 규칙, limitation, reproducibility, validity, publisher와 server time도
+결합합니다.
 
 Prompt byte와 tool schema는 classified artifact로 보존합니다. Profile에는 credential, criterion이
 지정한 임의 destination, executable code, release policy, agent capability 또는 별도 resolution 없이
