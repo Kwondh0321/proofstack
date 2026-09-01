@@ -60,9 +60,7 @@ describe("canonical blinded evaluation plan encoding", () => {
         candidate.definition.blindMap.sha256 = "f".repeat(64);
       },
       (candidate) => {
-        const attempt = candidate.definition.attempts[0];
-        if (!attempt) throw new Error("Expected a blinded attempt");
-        attempt.seed += 1;
+        for (const attempt of candidate.definition.attempts) attempt.seed += 1;
       },
       (candidate) => {
         const check = candidate.definition.leakageChecks[0];

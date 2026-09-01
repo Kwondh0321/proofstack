@@ -2,12 +2,22 @@
   "format": "proofstack.evaluation-blinded-plan-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3415,
+      "encodedByteLength": 3471,
       "input": {
         "definition": {
           "attempts": [
-            { "attemptId": "bat_01", "presentationId": "prs_ab", "seed": 11 },
-            { "attemptId": "bat_02", "presentationId": "prs_ba", "seed": 22 }
+            {
+              "attemptId": "bat_01",
+              "comparisonPairId": "bcp_01",
+              "presentationId": "prs_ab",
+              "seed": 11
+            },
+            {
+              "attemptId": "bat_02",
+              "comparisonPairId": "bcp_01",
+              "presentationId": "prs_ba",
+              "seed": 11
+            }
           ],
           "attemptsPerOrder": 1,
           "blindMap": {
@@ -127,7 +137,7 @@
       },
       "kind": "blinded_evaluation_plan",
       "name": "two-order blinded model evaluation plan",
-      "sha256": "b953995c89a2289c1363236cf6d1dd6399470e6af37402e238b32c137aa3ff04"
+      "sha256": "b3ecef64661b838a46e28eed5b48921caacb87b02b60071d3802d2068b9cc941"
     }
   ]
 }

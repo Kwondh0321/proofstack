@@ -52,7 +52,7 @@
                 "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
                 "sizeBytes": 1024
               },
-              "seed": 22,
+              "seed": 11,
               "status": "completed",
               "verdict": "pass"
             }
@@ -78,7 +78,7 @@
           "plan": {
             "blindedPlanId": "blp_safety",
             "blindedPlanVersionId": "blv_safety_v1",
-            "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999"
+            "definitionSha256": "b3ecef64661b838a46e28eed5b48921caacb87b02b60071d3802d2068b9cc941"
           },
           "resultId": "blr_safety_v1",
           "startedAt": "2026-09-02T00:40:00.000Z",
@@ -92,7 +92,7 @@
       },
       "kind": "blinded_evaluation_result",
       "name": "complete two-order blinded evaluation result",
-      "sha256": "c5bc7350e190ef6ea24d6ce8caac1ec5316aa7eef6d382fea53900a48dc74788"
+      "sha256": "1d32141e7a91bfc4c1ee3e9b051c859f187ec5c572f3cda0eed84f2ee03d3fad"
     }
   ]
 }

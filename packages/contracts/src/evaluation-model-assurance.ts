@@ -910,6 +910,7 @@ const blindedEvaluationPlanDefinitionShape = {
       z
         .object({
           attemptId: OpaqueIdSchema,
+          comparisonPairId: OpaqueIdSchema,
           presentationId: OpaqueIdSchema,
           seed: z.number().int().nonnegative().max(4_294_967_295),
         })
@@ -966,7 +967,9 @@ function refineBlindedEvaluationPlan(
   value: {
     readonly attempts: readonly {
       readonly attemptId: string;
+      readonly comparisonPairId: string;
       readonly presentationId: string;
+      readonly seed: number;
     }[];
     readonly attemptsPerOrder: number;
     readonly blindMap: { readonly classification: string };
@@ -1047,6 +1050,31 @@ function refineBlindedEvaluationPlan(
     context.addIssue({
       code: "custom",
       message: "A blinded attempt must reference a declared presentation",
+      path: ["attempts"],
+    });
+  }
+  const attemptsByPair = new Map<
+    string,
+    { readonly presentationId: string; readonly seed: number }[]
+  >();
+  for (const attempt of value.attempts) {
+    const pair = attemptsByPair.get(attempt.comparisonPairId) ?? [];
+    pair.push(attempt);
+    attemptsByPair.set(attempt.comparisonPairId, pair);
+  }
+  if (
+    attemptsByPair.size !== value.attemptsPerOrder ||
+    [...attemptsByPair.values()].some(
+      (pair) =>
+        pair.length !== value.presentations.length ||
+        new Set(pair.map(({ presentationId }) => presentationId)).size !==
+          value.presentations.length ||
+        pair.some(({ seed }) => seed !== pair[0]?.seed),
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Each comparison pair must run both presentation orders with one identical seed",
       path: ["attempts"],
     });
   }

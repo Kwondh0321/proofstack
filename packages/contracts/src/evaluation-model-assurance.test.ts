@@ -901,8 +901,18 @@ describe("calibration report contracts", () => {
 function blindedEvaluationPlanDefinition(): BlindedEvaluationPlanDefinition {
   return {
     attempts: [
-      { attemptId: "bat_01", presentationId: "prs_ab", seed: 11 },
-      { attemptId: "bat_02", presentationId: "prs_ba", seed: 22 },
+      {
+        attemptId: "bat_01",
+        comparisonPairId: "bcp_01",
+        presentationId: "prs_ab",
+        seed: 11,
+      },
+      {
+        attemptId: "bat_02",
+        comparisonPairId: "bcp_01",
+        presentationId: "prs_ba",
+        seed: 11,
+      },
     ],
     attemptsPerOrder: 1,
     blindMap: artifact("art_blind_map", "7"),
@@ -1022,6 +1032,7 @@ describe("blinded evaluation plan contracts", () => {
       missing.attempts[0] as never,
       {
         attemptId: "bat_02",
+        comparisonPairId: "bcp_02",
         presentationId: "prs_ab",
         seed: 22,
       },
@@ -1033,8 +1044,9 @@ describe("blinded evaluation plan contracts", () => {
     const undeclared = blindedEvaluationPlanDefinition();
     undeclared.attempts[1] = {
       attemptId: "bat_02",
+      comparisonPairId: "bcp_01",
       presentationId: "prs_other",
-      seed: 22,
+      seed: 11,
     };
     expect(() => BlindedEvaluationPlanDefinitionSchema.parse(undeclared)).toThrow(
       "declared presentation",
@@ -1044,6 +1056,24 @@ describe("blinded evaluation plan contracts", () => {
     unordered.attempts = [...unordered.attempts].reverse();
     expect(() => BlindedEvaluationPlanDefinitionSchema.parse(unordered)).toThrow(
       "ordered by attemptId",
+    );
+  });
+
+  it("pairs both orders under an identical seed", () => {
+    const unpaired = blindedEvaluationPlanDefinition();
+    const second = unpaired.attempts[1];
+    if (!second) throw new Error("Expected a second blind attempt");
+    second.comparisonPairId = "bcp_02";
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(unpaired)).toThrow(
+      "Each comparison pair must run both presentation orders",
+    );
+
+    const confounded = blindedEvaluationPlanDefinition();
+    const secondOrder = confounded.attempts[1];
+    if (!secondOrder) throw new Error("Expected a second blind attempt");
+    secondOrder.seed = 22;
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(confounded)).toThrow(
+      "with one identical seed",
     );
   });
 
