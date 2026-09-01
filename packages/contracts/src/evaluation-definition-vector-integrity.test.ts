@@ -3,11 +3,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   ASSESSMENT_DEFINITION_DOMAIN,
+  BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN,
   CALIBRATION_REPORT_DEFINITION_DOMAIN,
   CRITERION_SET_DEFINITION_DOMAIN,
   CRITERION_SET_STATUS_DEFINITION_DOMAIN,
   DISCOVERY_RECORD_DEFINITION_DOMAIN,
   encodeAssessmentDefinition,
+  encodeBlindedEvaluationPlanDefinition,
   encodeCalibrationReportDefinition,
   encodeCriterionSetDefinition,
   encodeCriterionSetStatusDefinition,
@@ -80,6 +82,7 @@ const vectorFiles = [
   "evaluation-independence-definition-v1.json",
   "evaluation-calibration-definition-v1.json",
   "evaluation-model-assisted-spec-definition-v1.json",
+  "evaluation-blinded-plan-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -97,6 +100,10 @@ const registry = {
   assessment: {
     domain: ASSESSMENT_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeAssessmentDefinition(input as never),
+  },
+  blinded_evaluation_plan: {
+    domain: BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeBlindedEvaluationPlanDefinition(input as never),
   },
   calibration_report: {
     domain: CALIBRATION_REPORT_DEFINITION_DOMAIN,

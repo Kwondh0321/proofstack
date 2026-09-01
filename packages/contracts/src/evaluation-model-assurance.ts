@@ -19,6 +19,8 @@ export const MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENCE_DECLARATION_SCHEMA_VERSION = "0.1" as const;
 export const CALIBRATION_REPORT_SCHEMA_VERSION = "0.1" as const;
 export const MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION = "0.1" as const;
+export const BLINDED_EVALUATION_PLAN_SCHEMA_VERSION = "0.1" as const;
+export const MAX_BLINDED_ATTEMPTS = 16;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
 export const MAX_MODEL_PROFILE_PROMPTS = 5;
@@ -862,3 +864,247 @@ export const CalibrationReportSchema = z
 export type CalibrationReportReference = z.infer<typeof CalibrationReportReferenceSchema>;
 export type CalibrationReportDefinition = z.infer<typeof CalibrationReportDefinitionSchema>;
 export type CalibrationReport = z.infer<typeof CalibrationReportSchema>;
+
+export const BlindedEvaluationPlanReferenceSchema = z
+  .object({
+    blindedPlanId: OpaqueIdSchema,
+    blindedPlanVersionId: OpaqueIdSchema,
+    definitionSha256: Sha256Schema,
+  })
+  .strict();
+
+const NonRevealingLabelSchema = AssuranceSummarySchema.refine(
+  (value) => !/(?:baseline|candidate|control|treatment|new|old|left|right)/iu.test(value),
+  { message: "Blind labels cannot reveal subject identity or position" },
+);
+
+export const BlindedPresentationSchema = z
+  .object({
+    labels: z.array(NonRevealingLabelSchema).length(2),
+    presentationId: OpaqueIdSchema,
+  })
+  .strict();
+
+export const BlindLeakageCheckSchema = z
+  .object({
+    checkId: OpaqueIdSchema,
+    evidence: ArtifactContentReferenceSchema,
+    kind: z.enum(["content", "identifier", "metadata"]),
+    status: z.enum(["failed", "passed"]),
+  })
+  .strict();
+
+const blindedEvaluationPlanDefinitionShape = {
+  attempts: z
+    .array(
+      z
+        .object({
+          attemptId: OpaqueIdSchema,
+          presentationId: OpaqueIdSchema,
+          seed: z.number().int().nonnegative().max(4_294_967_295),
+        })
+        .strict(),
+    )
+    .min(2)
+    .max(MAX_BLINDED_ATTEMPTS),
+  attemptsPerOrder: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_BLINDED_ATTEMPTS / 2),
+  blindMap: ArtifactContentReferenceSchema,
+  blindedPlanId: OpaqueIdSchema,
+  blindedPlanVersionId: OpaqueIdSchema,
+  calibrationReport: CalibrationReportReferenceSchema,
+  criteria: z
+    .array(CriterionReferenceSchema)
+    .min(1)
+    .max(100)
+    .refine(
+      (references) =>
+        isStrictlySortedUnique(
+          references.map(
+            ({ criterionId, criterionSet }) =>
+              `${criterionSet.criterionSetId}:${criterionSet.criterionSetVersionId}:${criterionId}`,
+          ),
+        ),
+      { message: "Blinded evaluation criteria must be unique and ordered" },
+    ),
+  evaluator: z
+    .object({
+      definitionSha256: Sha256Schema,
+      evaluatorId: OpaqueIdSchema,
+      evaluatorVersionId: OpaqueIdSchema,
+    })
+    .strict(),
+  independenceDeclaration: IndependenceDeclarationReferenceSchema,
+  leakageChecks: z.array(BlindLeakageCheckSchema).min(3).max(32),
+  maskingMethod: AssuranceRationaleSchema,
+  modelProfile: ModelEvaluatorProfileReferenceSchema,
+  opaqueLabels: z.array(NonRevealingLabelSchema).length(2),
+  planStatus: z.enum(["invalid", "valid"]),
+  presentations: z.array(BlindedPresentationSchema).length(2),
+  predecessor: BlindedEvaluationPlanReferenceSchema.optional(),
+  redactionReport: ArtifactContentReferenceSchema,
+  statusReasons: sortedUniqueText(32, "Blinded-plan status reasons"),
+  subjectArtifacts: exactArtifacts(2, "Blinded subject artifacts").length(2),
+  validFrom: UtcMillisecondTimestampSchema,
+  validUntil: UtcMillisecondTimestampSchema,
+};
+
+function refineBlindedEvaluationPlan(
+  value: {
+    readonly attempts: readonly {
+      readonly attemptId: string;
+      readonly presentationId: string;
+    }[];
+    readonly attemptsPerOrder: number;
+    readonly blindMap: { readonly classification: string };
+    readonly blindedPlanId: string;
+    readonly blindedPlanVersionId: string;
+    readonly leakageChecks: readonly {
+      readonly checkId: string;
+      readonly kind: "content" | "identifier" | "metadata";
+      readonly status: "failed" | "passed";
+    }[];
+    readonly opaqueLabels: readonly string[];
+    readonly planStatus: "invalid" | "valid";
+    readonly presentations: readonly {
+      readonly labels: readonly string[];
+      readonly presentationId: string;
+    }[];
+    readonly predecessor?:
+      | { readonly blindedPlanId: string; readonly blindedPlanVersionId: string }
+      | undefined;
+    readonly statusReasons: readonly string[];
+    readonly validFrom: string;
+    readonly validUntil: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (!isStrictlySortedUnique(value.opaqueLabels)) {
+    context.addIssue({
+      code: "custom",
+      message: "Opaque labels must be unique and ordered",
+      path: ["opaqueLabels"],
+    });
+  }
+  const [firstLabel, secondLabel] = value.opaqueLabels;
+  const [firstPresentation, secondPresentation] = value.presentations;
+  if (
+    !firstLabel ||
+    !secondLabel ||
+    !firstPresentation ||
+    !secondPresentation ||
+    firstPresentation.labels[0] !== firstLabel ||
+    firstPresentation.labels[1] !== secondLabel ||
+    secondPresentation.labels[0] !== secondLabel ||
+    secondPresentation.labels[1] !== firstLabel ||
+    firstPresentation.presentationId >= secondPresentation.presentationId
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Blinded presentations must be ordered exact reversals of two opaque labels",
+      path: ["presentations"],
+    });
+  }
+  const attemptIds = value.attempts.map(({ attemptId }) => attemptId);
+  if (!isStrictlySortedUnique(attemptIds)) {
+    context.addIssue({
+      code: "custom",
+      message: "Blinded attempts must be unique and ordered by attemptId",
+      path: ["attempts"],
+    });
+  }
+  for (const presentation of value.presentations) {
+    if (
+      value.attempts.filter(({ presentationId }) => presentationId === presentation.presentationId)
+        .length !== value.attemptsPerOrder
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Every blinded order requires the predeclared number of attempts",
+        path: ["attempts"],
+      });
+    }
+  }
+  if (
+    value.attempts.some(
+      ({ presentationId }) =>
+        !value.presentations.some((presentation) => presentation.presentationId === presentationId),
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A blinded attempt must reference a declared presentation",
+      path: ["attempts"],
+    });
+  }
+  const checkIds = value.leakageChecks.map(({ checkId }) => checkId);
+  const checkKinds = new Set(value.leakageChecks.map(({ kind }) => kind));
+  if (
+    !isStrictlySortedUnique(checkIds) ||
+    !["content", "identifier", "metadata"].every((kind) => checkKinds.has(kind as never))
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Leakage checks must be ordered and cover content, identifier, and metadata",
+      path: ["leakageChecks"],
+    });
+  }
+  const valid =
+    value.blindMap.classification === "restricted" &&
+    value.leakageChecks.every(({ status }) => status === "passed");
+  if (value.planStatus === "valid" && (!valid || value.statusReasons.length !== 0)) {
+    context.addIssue({
+      code: "custom",
+      message: "A valid blinded plan requires a restricted map, passed checks, and no reasons",
+      path: ["planStatus"],
+    });
+  }
+  if (value.planStatus === "invalid" && value.statusReasons.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "An invalid blinded plan requires at least one status reason",
+      path: ["statusReasons"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validUntil) <= evidenceTimestampOrderKey(value.validFrom)) {
+    context.addIssue({
+      code: "custom",
+      message: "Blinded-plan validity must have a positive interval",
+      path: ["validUntil"],
+    });
+  }
+  if (
+    value.predecessor?.blindedPlanId === value.blindedPlanId &&
+    value.predecessor.blindedPlanVersionId === value.blindedPlanVersionId
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A blinded plan cannot name itself as predecessor",
+      path: ["predecessor", "blindedPlanVersionId"],
+    });
+  }
+}
+
+export const BlindedEvaluationPlanDefinitionSchema = z
+  .object(blindedEvaluationPlanDefinitionShape)
+  .strict()
+  .superRefine(refineBlindedEvaluationPlan);
+
+export const BlindedEvaluationPlanSchema = z
+  .object({
+    ...blindedEvaluationPlanDefinitionShape,
+    definitionSha256: Sha256Schema,
+    publishedAt: UtcMillisecondTimestampSchema,
+    publishedByPrincipalId: OpaqueIdSchema,
+    schemaVersion: z.literal(BLINDED_EVALUATION_PLAN_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineBlindedEvaluationPlan);
+
+export type BlindedEvaluationPlanReference = z.infer<typeof BlindedEvaluationPlanReferenceSchema>;
+export type BlindedEvaluationPlanDefinition = z.infer<typeof BlindedEvaluationPlanDefinitionSchema>;
+export type BlindedEvaluationPlan = z.infer<typeof BlindedEvaluationPlanSchema>;

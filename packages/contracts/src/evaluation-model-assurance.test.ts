@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
+  type BlindedEvaluationPlan,
+  type BlindedEvaluationPlanDefinition,
+  BlindedEvaluationPlanDefinitionSchema,
+  BlindedEvaluationPlanSchema,
   CALIBRATION_REPORT_SCHEMA_VERSION,
   type CalibrationReport,
   type CalibrationReportDefinition,
@@ -861,6 +866,224 @@ describe("calibration report contracts", () => {
       expect(() =>
         CalibrationReportDefinitionSchema.parse({
           ...calibrationReportDefinition(),
+          ...forbidden,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+function blindedEvaluationPlanDefinition(): BlindedEvaluationPlanDefinition {
+  return {
+    attempts: [
+      { attemptId: "bat_01", presentationId: "prs_ab", seed: 11 },
+      { attemptId: "bat_02", presentationId: "prs_ba", seed: 22 },
+    ],
+    attemptsPerOrder: 1,
+    blindMap: artifact("art_blind_map", "7"),
+    blindedPlanId: "blp_safety",
+    blindedPlanVersionId: "blv_safety_v1",
+    calibrationReport: {
+      calibrationReportId: "cal_model_safety_v1",
+      definitionSha256: sha("6"),
+    },
+    criteria: [
+      {
+        criterionId: "crt_no_unsafe_tool_request",
+        criterionSet: {
+          criterionSetId: "crs_agent_safety",
+          criterionSetVersionId: "csv_agent_safety_v1",
+          definitionSha256: sha("e"),
+        },
+      },
+    ],
+    evaluator: {
+      definitionSha256: sha("b"),
+      evaluatorId: "evl_model_safety",
+      evaluatorVersionId: "evv_model_safety_v1",
+    },
+    independenceDeclaration: {
+      definitionSha256: sha("c"),
+      independenceDeclarationId: "ind_model_safety_v1",
+    },
+    leakageChecks: [
+      {
+        checkId: "chk_content",
+        evidence: artifact("art_leak_content", "8"),
+        kind: "content",
+        status: "passed",
+      },
+      {
+        checkId: "chk_identifier",
+        evidence: artifact("art_leak_identifier", "9"),
+        kind: "identifier",
+        status: "passed",
+      },
+      {
+        checkId: "chk_metadata",
+        evidence: artifact("art_leak_metadata", "a"),
+        kind: "metadata",
+        status: "passed",
+      },
+    ],
+    maskingMethod:
+      "Replace subject identity, origin metadata, and order markers before evaluator access.",
+    modelProfile: {
+      definitionSha256: sha("8"),
+      modelProfileId: "mep_safety",
+      modelProfileVersionId: "mpv_safety_v1",
+    },
+    opaqueLabels: ["sample_alpha", "sample_beta"],
+    planStatus: "valid",
+    presentations: [
+      { labels: ["sample_alpha", "sample_beta"], presentationId: "prs_ab" },
+      { labels: ["sample_beta", "sample_alpha"], presentationId: "prs_ba" },
+    ],
+    redactionReport: artifact("art_blind_redaction", "b"),
+    statusReasons: [],
+    subjectArtifacts: [artifact("art_subject_one", "c"), artifact("art_subject_two", "d")],
+    validFrom: "2026-09-02T00:30:00.000Z",
+    validUntil: "2026-09-03T00:30:00.000Z",
+  };
+}
+
+function blindedEvaluationPlan(): BlindedEvaluationPlan {
+  return {
+    ...blindedEvaluationPlanDefinition(),
+    definitionSha256: sha("e"),
+    publishedAt: "2026-09-02T00:30:00.000Z",
+    publishedByPrincipalId: "usr_blind_plan_publisher",
+    schemaVersion: BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("blinded evaluation plan contracts", () => {
+  it("freezes two exact subject artifacts and both opaque presentation orders", () => {
+    expect(BlindedEvaluationPlanDefinitionSchema.parse(blindedEvaluationPlanDefinition())).toEqual(
+      blindedEvaluationPlanDefinition(),
+    );
+    expect(BlindedEvaluationPlanSchema.parse(blindedEvaluationPlan())).toEqual(
+      blindedEvaluationPlan(),
+    );
+  });
+
+  it("rejects revealing, duplicate, unordered, or non-reversed labels", () => {
+    const revealing = blindedEvaluationPlanDefinition();
+    revealing.opaqueLabels = ["baseline", "sample_beta"];
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(revealing)).toThrow(
+      "cannot reveal subject identity",
+    );
+
+    const duplicate = blindedEvaluationPlanDefinition();
+    duplicate.opaqueLabels = ["sample_alpha", "sample_alpha"];
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(duplicate)).toThrow(
+      "must be unique and ordered",
+    );
+
+    const reversal = blindedEvaluationPlanDefinition();
+    reversal.presentations[1] = {
+      labels: ["sample_alpha", "sample_beta"],
+      presentationId: "prs_ba",
+    };
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(reversal)).toThrow(
+      "ordered exact reversals",
+    );
+  });
+
+  it("requires a finite predeclared attempt set for every order", () => {
+    const missing = blindedEvaluationPlanDefinition();
+    missing.attempts = [
+      missing.attempts[0] as never,
+      {
+        attemptId: "bat_02",
+        presentationId: "prs_ab",
+        seed: 22,
+      },
+    ];
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(missing)).toThrow(
+      "predeclared number of attempts",
+    );
+
+    const undeclared = blindedEvaluationPlanDefinition();
+    undeclared.attempts[1] = {
+      attemptId: "bat_02",
+      presentationId: "prs_other",
+      seed: 22,
+    };
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(undeclared)).toThrow(
+      "declared presentation",
+    );
+
+    const unordered = blindedEvaluationPlanDefinition();
+    unordered.attempts = [...unordered.attempts].reverse();
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(unordered)).toThrow(
+      "ordered by attemptId",
+    );
+  });
+
+  it("requires all three leakage classes and a restricted blind map for a valid plan", () => {
+    const missingKind = blindedEvaluationPlanDefinition();
+    const third = missingKind.leakageChecks[2];
+    if (!third) throw new Error("Expected a third leakage check");
+    third.kind = "content";
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(missingKind)).toThrow(
+      "cover content, identifier, and metadata",
+    );
+
+    const failed = blindedEvaluationPlanDefinition();
+    const first = failed.leakageChecks[0];
+    if (!first) throw new Error("Expected a leakage check");
+    first.status = "failed";
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(failed)).toThrow(
+      "requires a restricted map, passed checks",
+    );
+
+    const map = blindedEvaluationPlanDefinition();
+    map.blindMap.classification = "confidential";
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(map)).toThrow(
+      "requires a restricted map, passed checks",
+    );
+  });
+
+  it("accepts invalid plans only with reasons and preserves predecessor history", () => {
+    const invalid = blindedEvaluationPlanDefinition();
+    invalid.planStatus = "invalid";
+    invalid.statusReasons = ["A content leakage check failed"];
+    const check = invalid.leakageChecks[0];
+    if (!check) throw new Error("Expected a leakage check");
+    check.status = "failed";
+    expect(BlindedEvaluationPlanDefinitionSchema.parse(invalid)).toEqual(invalid);
+
+    invalid.statusReasons = [];
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(invalid)).toThrow(
+      "requires at least one status reason",
+    );
+
+    const self = blindedEvaluationPlanDefinition();
+    self.predecessor = {
+      blindedPlanId: self.blindedPlanId,
+      blindedPlanVersionId: self.blindedPlanVersionId,
+      definitionSha256: sha("f"),
+    };
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(self)).toThrow("name itself");
+  });
+
+  it("requires positive validity and rejects unblinding, dropped orders, and release authority", () => {
+    const validity = blindedEvaluationPlanDefinition();
+    validity.validUntil = validity.validFrom;
+    expect(() => BlindedEvaluationPlanDefinitionSchema.parse(validity)).toThrow(
+      "positive interval",
+    );
+
+    for (const forbidden of [
+      { dropUnfavorableOrder: true },
+      { releaseAuthority: "allow" },
+      { unblindBeforeEvaluation: true },
+    ]) {
+      expect(() =>
+        BlindedEvaluationPlanDefinitionSchema.parse({
+          ...blindedEvaluationPlanDefinition(),
           ...forbidden,
         }),
       ).toThrow();

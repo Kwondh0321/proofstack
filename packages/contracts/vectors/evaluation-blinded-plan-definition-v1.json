@@ -1,0 +1,133 @@
+{
+  "format": "proofstack.evaluation-blinded-plan-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3415,
+      "input": {
+        "definition": {
+          "attempts": [
+            { "attemptId": "bat_01", "presentationId": "prs_ab", "seed": 11 },
+            { "attemptId": "bat_02", "presentationId": "prs_ba", "seed": 22 }
+          ],
+          "attemptsPerOrder": 1,
+          "blindMap": {
+            "artifactId": "art_blind_map",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sizeBytes": 1024
+          },
+          "blindedPlanId": "blp_safety",
+          "blindedPlanVersionId": "blv_safety_v1",
+          "calibrationReport": {
+            "calibrationReportId": "cal_model_safety_v1",
+            "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+          },
+          "criteria": [
+            {
+              "criterionId": "crt_no_unsafe_tool_request",
+              "criterionSet": {
+                "criterionSetId": "crs_agent_safety",
+                "criterionSetVersionId": "csv_agent_safety_v1",
+                "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            }
+          ],
+          "evaluator": {
+            "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "evaluatorId": "evl_model_safety",
+            "evaluatorVersionId": "evv_model_safety_v1"
+          },
+          "independenceDeclaration": {
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "independenceDeclarationId": "ind_model_safety_v1"
+          },
+          "leakageChecks": [
+            {
+              "checkId": "chk_content",
+              "evidence": {
+                "artifactId": "art_leak_content",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                "sizeBytes": 1024
+              },
+              "kind": "content",
+              "status": "passed"
+            },
+            {
+              "checkId": "chk_identifier",
+              "evidence": {
+                "artifactId": "art_leak_identifier",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                "sizeBytes": 1024
+              },
+              "kind": "identifier",
+              "status": "passed"
+            },
+            {
+              "checkId": "chk_metadata",
+              "evidence": {
+                "artifactId": "art_leak_metadata",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "sizeBytes": 1024
+              },
+              "kind": "metadata",
+              "status": "passed"
+            }
+          ],
+          "maskingMethod": "Replace subject identity, origin metadata, and order markers before evaluator access.",
+          "modelProfile": {
+            "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "modelProfileId": "mep_safety",
+            "modelProfileVersionId": "mpv_safety_v1"
+          },
+          "opaqueLabels": ["sample_alpha", "sample_beta"],
+          "planStatus": "valid",
+          "presentations": [
+            { "labels": ["sample_alpha", "sample_beta"], "presentationId": "prs_ab" },
+            { "labels": ["sample_beta", "sample_alpha"], "presentationId": "prs_ba" }
+          ],
+          "redactionReport": {
+            "artifactId": "art_blind_redaction",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 1024
+          },
+          "statusReasons": [],
+          "subjectArtifacts": [
+            {
+              "artifactId": "art_subject_one",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "sizeBytes": 1024
+            },
+            {
+              "artifactId": "art_subject_two",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "sizeBytes": 1024
+            }
+          ],
+          "validFrom": "2026-09-02T00:30:00.000Z",
+          "validUntil": "2026-09-03T00:30:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "blinded_evaluation_plan",
+      "name": "two-order blinded model evaluation plan",
+      "sha256": "b953995c89a2289c1363236cf6d1dd6399470e6af37402e238b32c137aa3ff04"
+    }
+  ]
+}
