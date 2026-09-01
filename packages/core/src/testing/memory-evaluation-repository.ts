@@ -171,9 +171,6 @@ function oracleReferences(record: OracleSpec): readonly EvaluationRecordReferenc
       record.qualificationFixtureSet.fixtureSetVersionId,
       record.qualificationFixtureSet.definitionSha256,
     ),
-    ...record.supportedCriteria.map(({ criterionSet }) =>
-      exact("criterion_set", criterionSet.criterionSetVersionId, criterionSet.definitionSha256),
-    ),
     ...(record.predecessor
       ? [
           exact(
@@ -195,9 +192,6 @@ function evaluatorReferences(record: EvaluatorSpec): readonly EvaluationRecordRe
     ),
     ...record.oracles.map(({ definitionSha256, oracleVersionId }) =>
       exact("oracle_spec", oracleVersionId, definitionSha256),
-    ),
-    ...record.supportedCriteria.map(({ criterionSet }) =>
-      exact("criterion_set", criterionSet.criterionSetVersionId, criterionSet.definitionSha256),
     ),
     ...(record.predecessor
       ? [

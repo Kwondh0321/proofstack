@@ -43,6 +43,12 @@ const criterion = {
   },
 } as const;
 
+const criterionSelector = {
+  criterionId: criterion.criterionId,
+  criterionSetId: criterion.criterionSet.criterionSetId,
+  criterionSetVersionId: criterion.criterionSet.criterionSetVersionId,
+} as const;
+
 const fixtureSetReference = {
   definitionSha256: sha("2"),
   fixtureSetId: "qfs_schema",
@@ -94,7 +100,7 @@ function oracleDefinition() {
     qualificationFixtureSet: fixtureSetReference,
     resultSemantics: "Emit an exact schema violation count and paths without assessment.",
     runtimePolicy,
-    supportedCriteria: [criterion],
+    supportedCriteria: [criterionSelector],
   };
 }
 
@@ -125,7 +131,7 @@ function evaluatorDefinition() {
     qualificationFixtureSet: fixtureSetReference,
     reproducibility: "exact" as const,
     runtimePolicy,
-    supportedCriteria: [criterion],
+    supportedCriteria: [criterionSelector],
   };
 }
 
@@ -152,7 +158,7 @@ function qualificationFixtureSet(): QualificationFixtureSet {
     cases: caseDefinitions.map(([caseId, caseKind, expectedOutcome], index) => ({
       caseId,
       caseKind,
-      criterion,
+      criterion: criterionSelector,
       expectedOutcome,
       fixture: {
         definitionSha256: sha(String((index + 1) % 10)),
@@ -262,7 +268,7 @@ describe("oracle specification contracts", () => {
     expect(
       OracleSpecDefinitionSchema.safeParse({
         ...oracleDefinition(),
-        supportedCriteria: [criterion, criterion],
+        supportedCriteria: [criterionSelector, criterionSelector],
       }).success,
     ).toBe(false);
     expect(
@@ -271,6 +277,18 @@ describe("oracle specification contracts", () => {
         knownLimitations: ["zeta", "alpha"],
       }).success,
     ).toBe(false);
+  });
+
+  it("uses immutable version selectors instead of cyclic criterion digest references", () => {
+    expect(
+      OracleSpecDefinitionSchema.safeParse({
+        ...oracleDefinition(),
+        supportedCriteria: [criterion],
+      }).success,
+    ).toBe(false);
+    const fixtureSet = qualificationFixtureSet();
+    fixtureSet.cases[0] = { ...fixtureSet.cases[0], criterion } as never;
+    expect(QualificationFixtureSetSchema.safeParse(fixtureSet).success).toBe(false);
   });
 });
 
@@ -414,7 +432,7 @@ describe("qualification fixture contracts", () => {
       QualificationCaseSchema.safeParse({
         caseId: `case_${caseKind}`,
         caseKind,
-        criterion,
+        criterion: criterionSelector,
         expectedOutcome,
         fixture: {
           definitionSha256: sha("1"),

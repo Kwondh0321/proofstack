@@ -3,7 +3,7 @@ import { ArtifactContentReferenceSchema } from "./artifact.js";
 import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import {
-  CriterionReferenceSchema,
+  CriterionVersionSelectorSchema,
   EvaluatorReferenceSchema,
   OracleReferenceSchema,
 } from "./evaluation-criteria.js";
@@ -40,20 +40,20 @@ function exactArtifactReferences(minimum: number, maximum: number, label: string
     );
 }
 
-function exactCriterionReferences(label: string) {
+function criterionVersionSelectors(label: string) {
   return z
-    .array(CriterionReferenceSchema)
+    .array(CriterionVersionSelectorSchema)
     .min(1)
     .max(100)
     .refine(
       (references) =>
         isStrictlySortedUnique(
           references.map(
-            ({ criterionId, criterionSet }) =>
-              `${criterionSet.criterionSetId}:${criterionSet.criterionSetVersionId}:${criterionId}`,
+            ({ criterionId, criterionSetId, criterionSetVersionId }) =>
+              `${criterionSetId}:${criterionSetVersionId}:${criterionId}`,
           ),
         ),
-      { message: `${label} must be unique and ordered by exact criterion reference` },
+      { message: `${label} must be unique and ordered by immutable criterion selector` },
     );
 }
 
@@ -155,7 +155,7 @@ const oracleSpecDefinitionShape = {
   qualificationFixtureSet: QualificationFixtureSetReferenceSchema,
   resultSemantics: AssuranceRationaleSchema,
   runtimePolicy: EvaluationRuntimePolicySchema,
-  supportedCriteria: exactCriterionReferences("Oracle criteria"),
+  supportedCriteria: criterionVersionSelectors("Oracle criteria"),
 };
 
 function refineOracleSpec(
@@ -289,7 +289,7 @@ const evaluatorSpecDefinitionShape = {
   qualificationFixtureSet: QualificationFixtureSetReferenceSchema,
   reproducibility: z.enum(["best_effort", "bounded", "exact"]),
   runtimePolicy: EvaluationRuntimePolicySchema,
-  supportedCriteria: exactCriterionReferences("Evaluator criteria"),
+  supportedCriteria: criterionVersionSelectors("Evaluator criteria"),
 };
 
 function refineEvaluatorSpec(
@@ -383,7 +383,7 @@ export const QualificationCaseSchema = z
   .object({
     caseId: OpaqueIdSchema,
     caseKind: QualificationCaseKindSchema,
-    criterion: CriterionReferenceSchema,
+    criterion: CriterionVersionSelectorSchema,
     expectedOutcome: QualificationExpectedOutcomeSchema,
     fixture: RegressionFixtureVersionReferenceSchema,
   })

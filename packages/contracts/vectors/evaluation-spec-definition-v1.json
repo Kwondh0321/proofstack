@@ -67,17 +67,14 @@
           "supportedCriteria": [
             {
               "criterionId": "crt_schema",
-              "criterionSet": {
-                "criterionSetId": "crs_response",
-                "criterionSetVersionId": "csv_response_v1",
-                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-              }
+              "criterionSetId": "crs_response",
+              "criterionSetVersionId": "csv_response_v1"
             }
           ]
         }
       },
-      "encodedByteLength": 2128,
-      "sha256": "64a96ebb054d608283a84d9595e12ce98f0f663ca0d9048dc871f03a6c656c55"
+      "encodedByteLength": 2025,
+      "sha256": "ad7f000f298cced5216e18a8b19d2f97ca673a914fab5742e4fcd77cdbd6ac90"
     },
     {
       "name": "deterministic evaluator with explicit independence and oracle lineage",
@@ -158,17 +155,14 @@
           "supportedCriteria": [
             {
               "criterionId": "crt_schema",
-              "criterionSet": {
-                "criterionSetId": "crs_response",
-                "criterionSetVersionId": "csv_response_v1",
-                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-              }
+              "criterionSetId": "crs_response",
+              "criterionSetVersionId": "csv_response_v1"
             }
           ]
         }
       },
-      "encodedByteLength": 2417,
-      "sha256": "647b019068b708eec555b4d3f25c1ae03ce1a90d9eb2b5167ea98899a95d233a"
+      "encodedByteLength": 2314,
+      "sha256": "28b9d3fd0105b369093d358a0f3eb15ec297608ebbe02dbd09eaf4388c1ab388"
     }
   ]
 }

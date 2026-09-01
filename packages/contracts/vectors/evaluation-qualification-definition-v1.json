@@ -17,11 +17,8 @@
               "caseKind": "abstention",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "abstain",
               "fixture": {
@@ -35,11 +32,8 @@
               "caseKind": "boundary",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "pass",
               "fixture": {
@@ -53,11 +47,8 @@
               "caseKind": "budget",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "error",
               "fixture": {
@@ -71,11 +62,8 @@
               "caseKind": "error",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "error",
               "fixture": {
@@ -89,11 +77,8 @@
               "caseKind": "malformed",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "error",
               "fixture": {
@@ -107,11 +92,8 @@
               "caseKind": "negative",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "fail",
               "fixture": {
@@ -125,11 +107,8 @@
               "caseKind": "not_applicable",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "not_applicable",
               "fixture": {
@@ -143,11 +122,8 @@
               "caseKind": "positive",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "pass",
               "fixture": {
@@ -161,11 +137,8 @@
               "caseKind": "timeout",
               "criterion": {
                 "criterionId": "crt_schema",
-                "criterionSet": {
-                  "criterionSetId": "crs_response",
-                  "criterionSetVersionId": "csv_response_v1",
-                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
-                }
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1"
               },
               "expectedOutcome": "error",
               "fixture": {
@@ -180,8 +153,8 @@
           "fixtureSetVersionId": "qfv_schema_v1"
         }
       },
-      "encodedByteLength": 4479,
-      "sha256": "34d5f6e80e2baff41daf0df08ec4ac0814199bf48319f03f84ae2c3262277f9e"
+      "encodedByteLength": 3552,
+      "sha256": "bcb6ca49f00876139069badd424454c4b7edeb08969c3046c6770b65da0dbe8a"
     },
     {
       "name": "qualified evaluator report preserving every case and raw result",

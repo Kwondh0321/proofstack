@@ -121,11 +121,8 @@ function definition(
     supportedCriteria: [
       {
         criterionId: "crt_structured_response",
-        criterionSet: {
-          criterionSetId: "crs_response",
-          criterionSetVersionId: "csv_response_v1",
-          definitionSha256: repeatedSha("6"),
-        },
+        criterionSetId: "crs_response",
+        criterionSetVersionId: "csv_response_v1",
       },
     ],
     ...override,

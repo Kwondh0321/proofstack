@@ -376,6 +376,22 @@ export const CriterionSetReferenceSchema = z
   })
   .strict();
 
+/**
+ * Selects an immutable criterion version before its digest exists.
+ *
+ * Oracle, evaluator, and qualification-fixture definitions use this selector so they can be
+ * published before a criterion selects their exact definition digests. The version identifier is
+ * tenant-unique and immutably bound by the evaluation repository. Runtime evidence must use the
+ * digest-bearing `CriterionReferenceSchema` instead.
+ */
+export const CriterionVersionSelectorSchema = z
+  .object({
+    criterionId: OpaqueIdSchema,
+    criterionSetId: OpaqueIdSchema,
+    criterionSetVersionId: OpaqueIdSchema,
+  })
+  .strict();
+
 export const CriterionReferenceSchema = z
   .object({
     criterionId: OpaqueIdSchema,
@@ -621,10 +637,12 @@ export const CriterionSetStatusRecordSchema = z
 export type ApplicabilityContext = z.infer<typeof ApplicabilityContextSchema>;
 export type ApplicabilityResult = z.infer<typeof ApplicabilityResultSchema>;
 export type CriterionDefinition = z.infer<typeof CriterionDefinitionSchema>;
+export type CriterionReference = z.infer<typeof CriterionReferenceSchema>;
 export type CriterionSet = z.infer<typeof CriterionSetSchema>;
 export type CriterionSetDefinition = z.infer<typeof CriterionSetDefinitionSchema>;
 export type CriterionSetReference = z.infer<typeof CriterionSetReferenceSchema>;
 export type CriterionSetStatusDefinition = z.infer<typeof CriterionSetStatusDefinitionSchema>;
 export type CriterionSetStatusRecord = z.infer<typeof CriterionSetStatusRecordSchema>;
+export type CriterionVersionSelector = z.infer<typeof CriterionVersionSelectorSchema>;
 export type EvaluatorReference = z.infer<typeof EvaluatorReferenceSchema>;
 export type OracleReference = z.infer<typeof OracleReferenceSchema>;

@@ -31,6 +31,7 @@ interface MutableObject {
   definitionSha256?: unknown;
   discovery?: unknown;
   discoveryId?: unknown;
+  evaluator?: unknown;
   evaluatorQualification?: unknown;
   evaluationRunId?: unknown;
   expiresAt?: unknown;
@@ -38,6 +39,7 @@ interface MutableObject {
   measurement?: unknown;
   observationId?: unknown;
   observations?: unknown;
+  oracle?: unknown;
   oracleQualification?: unknown;
   oracles?: unknown;
   predecessor?: unknown;
@@ -268,28 +270,6 @@ export function createEvaluationRepositoryTestHarness(
   for (const criterion of array(criterionBody.criteria, "criteria")) {
     object(criterion, "criterion").counterevidence = [];
   }
-  const criterion = add("criterion_set", criterionBody);
-
-  const draftStatusBody = template("criterion_set_status");
-  draftStatusBody.status = "draft";
-  draftStatusBody.statusRecordId = "csr_draft";
-  draftStatusBody.criterionSet = exactReference(criterion, "criterionSetVersionId");
-  object(draftStatusBody.criterionSet, "criterion set reference").criterionSetId = recordString(
-    criterion,
-    "criterionSetId",
-  );
-  delete draftStatusBody.previousStatus;
-  delete draftStatusBody.expiresAt;
-  const draftStatus = add("criterion_set_status", draftStatusBody);
-
-  const statusBody = template("criterion_set_status");
-  statusBody.criterionSet = exactReference(criterion, "criterionSetVersionId");
-  object(statusBody.criterionSet, "criterion set reference").criterionSetId = recordString(
-    criterion,
-    "criterionSetId",
-  );
-  statusBody.previousStatus = exactReference(draftStatus, "statusRecordId");
-  const status = add("criterion_set_status", statusBody);
 
   const fixtureSetBody = template("qualification_fixture_set");
   delete fixtureSetBody.predecessor;
@@ -314,6 +294,40 @@ export function createEvaluationRepositoryTestHarness(
     },
   ];
   const evaluator = add("evaluator_spec", evaluatorBody);
+
+  for (const criterionInput of array(criterionBody.criteria, "criteria")) {
+    const criterionDefinition = object(criterionInput, "criterion");
+    criterionDefinition.evaluator = {
+      evaluatorId: recordString(evaluator, "evaluatorId"),
+      ...exactReference(evaluator, "evaluatorVersionId"),
+    };
+    criterionDefinition.oracle = {
+      oracleId: recordString(oracle, "oracleId"),
+      ...exactReference(oracle, "oracleVersionId"),
+    };
+  }
+  const criterion = add("criterion_set", criterionBody);
+
+  const draftStatusBody = template("criterion_set_status");
+  draftStatusBody.status = "draft";
+  draftStatusBody.statusRecordId = "csr_draft";
+  draftStatusBody.criterionSet = exactReference(criterion, "criterionSetVersionId");
+  object(draftStatusBody.criterionSet, "criterion set reference").criterionSetId = recordString(
+    criterion,
+    "criterionSetId",
+  );
+  delete draftStatusBody.previousStatus;
+  delete draftStatusBody.expiresAt;
+  const draftStatus = add("criterion_set_status", draftStatusBody);
+
+  const statusBody = template("criterion_set_status");
+  statusBody.criterionSet = exactReference(criterion, "criterionSetVersionId");
+  object(statusBody.criterionSet, "criterion set reference").criterionSetId = recordString(
+    criterion,
+    "criterionSetId",
+  );
+  statusBody.previousStatus = exactReference(draftStatus, "statusRecordId");
+  const status = add("criterion_set_status", statusBody);
 
   const policy = add("aggregation_policy", template("aggregation_policy"));
 

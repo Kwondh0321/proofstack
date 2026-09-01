@@ -48,6 +48,13 @@ adapter는 read마다 public schema를 재파싱하고 digest를 다시 계산�
 모든 registry, subtype, resource, edge, child table은 `tenant_id`를 가집니다. scope-preserving
 composite foreign key는 child row가 project·environment 경계를 넘지 못하게 합니다.
 
+Oracle, evaluator, qualification fixture definition은 지원 criterion을 tenant-unique logical set
+ID, immutable set-version ID, criterion ID로 선언하되 criterion definition digest는 포함하지
+않습니다. 이는 의도적인 구성 경계입니다. 이 실행 definition들을 먼저 publish한 뒤 criterion이
+그 exact definition digest를 선택합니다. 양쪽이 서로의 digest를 포함하도록 요구하면 충족할 수
+없는 암호학적 순환이 생깁니다. Runtime run, observation, aggregate, assessment는 계속 digest-bearing
+exact reference를 사용합니다.
+
 ### 모든 evaluation row는 immutable, 모든 lifecycle 변화는 append-only
 
 published definition, source review, criterion status, run decision, observation, result,

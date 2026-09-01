@@ -104,11 +104,8 @@ function definition(override: Partial<OracleSpecDefinition> = {}): OracleSpecDef
     supportedCriteria: [
       {
         criterionId: "crt_exact_response",
-        criterionSet: {
-          criterionSetId: "crs_response",
-          criterionSetVersionId: "csv_response_v1",
-          definitionSha256: repeatedSha("6"),
-        },
+        criterionSetId: "crs_response",
+        criterionSetVersionId: "csv_response_v1",
       },
     ],
     ...override,

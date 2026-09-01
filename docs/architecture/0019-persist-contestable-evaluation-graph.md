@@ -52,6 +52,13 @@ Common tables additionally normalize:
 Every registry, subtype, resource, edge, and child table carries `tenant_id`. Scope-preserving
 composite foreign keys prevent a child row from crossing project or environment boundaries.
 
+Oracle, evaluator, and qualification-fixture definitions declare supported criteria with the
+tenant-unique logical set ID, immutable set-version ID, and criterion ID, but not the criterion
+definition digest. This is an intentional construction boundary: those executable definitions are
+published first, then the criterion selects their exact definition digests. Requiring both sides
+to contain each other's digest would create an unsatisfiable cryptographic cycle. Runtime runs,
+observations, aggregates, and assessments still use digest-bearing exact references.
+
 ### Make all evaluation rows immutable and all lifecycle changes append-only
 
 Published definitions, source reviews, criterion statuses, run decisions, observations, results,
