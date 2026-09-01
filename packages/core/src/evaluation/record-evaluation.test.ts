@@ -286,12 +286,12 @@ describe("evaluation recording use cases", () => {
     const result = await read.execute(route);
     expect(result).toEqual(published.record);
     expect(result).not.toBe(published.record);
-    await expect(
-      read.execute({ ...route, recordId: "dsc_missing" }),
-    ).rejects.toBeInstanceOf(EvaluationRecordNotFoundError);
-    await expect(
-      read.execute({ ...route, environmentId: "env_other" }),
-    ).rejects.toBeInstanceOf(EvaluationRecordNotFoundError);
+    await expect(read.execute({ ...route, recordId: "dsc_missing" })).rejects.toBeInstanceOf(
+      EvaluationRecordNotFoundError,
+    );
+    await expect(read.execute({ ...route, environmentId: "env_other" })).rejects.toBeInstanceOf(
+      EvaluationRecordNotFoundError,
+    );
   });
 
   it("authorizes evaluation reads before parsing route identifiers or touching storage", async () => {

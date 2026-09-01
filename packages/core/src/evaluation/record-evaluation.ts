@@ -11,6 +11,7 @@ import type {
   EvaluationAggregateDefinition,
   EvaluationAggregationPolicy,
   EvaluationAggregationPolicyDefinition,
+  EvaluationDefinitionPublicationKind,
   EvaluationRun,
   EvaluationRunDefinition,
   EvaluationRunRejection,
@@ -97,17 +98,6 @@ export interface EvaluationRecordByKind {
   readonly source_review: SourceReviewRecord;
   readonly source_snapshot: SourceSnapshot;
 }
-
-export type EvaluationDefinitionPublicationKind =
-  | "aggregation_policy"
-  | "criterion_set"
-  | "discovery_record"
-  | "evaluator_spec"
-  | "oracle_spec"
-  | "qualification_fixture_set"
-  | "qualification_report"
-  | "source_review"
-  | "source_snapshot";
 
 interface EvaluationRoute {
   readonly environmentId: string;

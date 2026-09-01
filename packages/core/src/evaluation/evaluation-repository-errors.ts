@@ -1,20 +1,6 @@
-export type EvaluationRecordKind =
-  | "aggregation_policy"
-  | "assessment"
-  | "criterion_set"
-  | "criterion_set_status"
-  | "discovery_record"
-  | "evaluation_aggregate"
-  | "evaluation_run"
-  | "evaluation_run_rejection"
-  | "evaluation_run_result"
-  | "evaluator_spec"
-  | "oracle_spec"
-  | "qualification_fixture_set"
-  | "qualification_report"
-  | "raw_observation"
-  | "source_review"
-  | "source_snapshot";
+import type { EvaluationRecordKind } from "@proofstack/contracts";
+
+export type { EvaluationRecordKind } from "@proofstack/contracts";
 
 export type EvaluationResourceKind =
   | "aggregation_policy"
