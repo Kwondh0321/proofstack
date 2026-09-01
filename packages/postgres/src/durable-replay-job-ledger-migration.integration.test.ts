@@ -96,6 +96,7 @@ describe("durable replay job ledger migration", () => {
     );
     expect(triggers.rows.map(({ tgname }) => tgname)).toEqual([
       "proofstack_replay_attempt_events_append_only",
+      "proofstack_replay_attempts_apply_recovery_epoch",
       "proofstack_replay_attempts_history",
       "proofstack_replay_attempts_transition_guard",
       "proofstack_replay_budget_entries_append_only",
@@ -103,6 +104,7 @@ describe("durable replay job ledger migration", () => {
       "proofstack_replay_budget_entry_dimensions_append_only",
       "proofstack_replay_cancellation_acknowledgements_append_only",
       "proofstack_replay_cancellation_requests_append_only",
+      "proofstack_replay_jobs_a_apply_recovery_epoch",
       "proofstack_replay_jobs_root_guard",
       "proofstack_replay_observations_append_only",
       "proofstack_replay_observations_measurements_complete",

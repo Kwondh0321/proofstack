@@ -148,6 +148,7 @@ describe("PostgreSQL evidence schema", () => {
       "0032_record_replay_subprocess_isolation",
       "0033_prioritize_replay_cancellation_over_budget",
       "0034_replay_job_snapshot_authority",
+      "0035_invalidate_restored_replay_leases",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

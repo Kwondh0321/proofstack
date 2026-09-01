@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import {
-  EvidenceScopeSchema,
   type EvidenceScope,
+  EvidenceScopeSchema,
   OpaqueIdSchema,
   ReplayCancellationRequestSchema,
   ReplayJobSchema,
@@ -9,15 +9,15 @@ import {
   RequestReplayCancellationSchema,
 } from "@proofstack/contracts";
 import {
+  type CreateReplayJobCommand,
+  type CreateReplayJobResult,
   DurableReplayStateError,
   ReplayDefinitionLineageError,
   ReplayJobConflictError,
-  ReplayJobNotFoundError,
-  ReplayRepositoryContractError,
-  type CreateReplayJobCommand,
-  type CreateReplayJobResult,
   type ReplayJobControlRepository,
+  ReplayJobNotFoundError,
   type ReplayJobSnapshot,
+  ReplayRepositoryContractError,
   type RequestDurableReplayCancellationCommand,
   type RequestDurableReplayCancellationResult,
 } from "@proofstack/replay";
@@ -111,7 +111,6 @@ function isInitialSnapshot(snapshot: ReplayJobSnapshot): boolean {
   return (
     snapshot.job.status === "queued" &&
     snapshot.job.stateVersion === 1 &&
-    snapshot.job.recoveryEpoch === 0 &&
     snapshot.job.lastFencingToken === 0 &&
     snapshot.job.latestAttemptSequence === undefined &&
     snapshot.job.currentLease === undefined &&

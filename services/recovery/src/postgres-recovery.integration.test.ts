@@ -34,20 +34,21 @@ import type {
 import {
   InteractionCaptureManifestSchema,
   RecordedInteractionFixtureVersionDefinitionSchema,
+  ReplayJobSchema,
   ReplayPlanSchema,
   ReplayWorkerMutationFenceSchema,
   TargetReleaseSchema,
 } from "@proofstack/contracts";
 import {
+  buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
   buildRegressionDatasetVersionPublishedOutboxIntent,
   buildRegressionFixtureVersionPublishedOutboxIntent,
-  buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
   PublishRecordedInteractionFixtureVersion,
   PublishRegressionDatasetVersion,
   PublishRegressionFixtureVersion,
+  type RegressionVersionPublishedOutboxIntent,
   RevokeRecordedInteractionFixtureContent,
   SecureInteractionFixtureRevocationIdentityGenerator,
-  type RegressionVersionPublishedOutboxIntent,
 } from "@proofstack/datasets";
 import {
   assertMigrationsCurrent,
@@ -107,6 +108,7 @@ const EXPECTED_TABLES = [
   "proofstack_outbox",
   "proofstack_projection_cursors",
   "proofstack_recorded_interaction_fixture_versions",
+  "proofstack_recovery_state",
   "proofstack_regression_dataset_members",
   "proofstack_regression_dataset_versions",
   "proofstack_regression_datasets",
@@ -125,6 +127,7 @@ const EXPECTED_TABLES = [
   "proofstack_replay_plan_budgets",
   "proofstack_replay_plan_resources",
   "proofstack_replay_plans",
+  "proofstack_replay_recovery_events",
   "proofstack_replay_targets",
   "proofstack_replay_usage_measurements",
   "proofstack_schema_migrations",
@@ -199,6 +202,14 @@ let recordedRecoveryState:
       readonly availableContent: ReadonlyMap<string, Uint8Array>;
       readonly availableVersion: RecordedInteractionFixtureVersion;
       readonly revokedVersion: RecordedInteractionFixtureVersion;
+    }
+  | undefined;
+let replayRecoveryState:
+  | {
+      readonly queuedJobId: string;
+      readonly runningJobId: string;
+      readonly sourceFence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>;
+      readonly sourceJob: ReturnType<typeof ReplayJobSchema.parse>;
     }
   | undefined;
 
@@ -831,10 +842,11 @@ async function seedRecoverableRecordedFixtures(
   };
 }
 
-async function withRecoveryTenantTransaction<Result>(
+async function withRecoveryTenantTransactionOn<Result>(
+  database: Pool,
   work: (client: PoolClient) => Promise<Result>,
 ): Promise<Result> {
-  const client = await sourcePool.connect();
+  const client = await database.connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('proofstack.tenant_id', $1, true)", [scope.tenantId]);
@@ -847,6 +859,12 @@ async function withRecoveryTenantTransaction<Result>(
   } finally {
     client.release();
   }
+}
+
+async function withRecoveryTenantTransaction<Result>(
+  work: (client: PoolClient) => Promise<Result>,
+): Promise<Result> {
+  return withRecoveryTenantTransactionOn(sourcePool, work);
 }
 
 async function seedRecoverableReplayState(): Promise<void> {
@@ -937,10 +955,10 @@ async function seedRecoverableReplayState(): Promise<void> {
     boundaries: [boundary],
     budget: {
       concurrentInteractions: { limit: 1, measurement: "measured" },
-      elapsedMilliseconds: { limit: 60_000, measurement: "measured" },
+      elapsedMilliseconds: { limit: 1_200_000, measurement: "measured" },
       emittedArtifactBytes: { limit: 1_048_576, measurement: "measured" },
       inputTokens: { limit: 4_096, measurement: "provider_reported" },
-      jobAttempts: { limit: 1, measurement: "measured" },
+      jobAttempts: { limit: 2, measurement: "measured" },
       modelRequests: { limit: 4, measurement: "measured" },
       outputTokens: { limit: 4_096, measurement: "provider_reported" },
       providerCostMicrounits: { limit: 1_000_000, measurement: "unavailable" },
@@ -961,13 +979,13 @@ async function seedRecoverableReplayState(): Promise<void> {
     planId: "plan_recovery",
     planVersionId: "plv_recovery_001",
     retryPolicy: {
-      automatic: false,
+      automatic: true,
       backoff: { kind: "none" },
       idempotencyRequirement: "read_only",
-      maxAttempts: 1,
-      perAttemptTimeoutMilliseconds: 30_000,
-      retryableErrors: [],
-      totalDeadlineMilliseconds: 60_000,
+      maxAttempts: 2,
+      perAttemptTimeoutMilliseconds: 600_000,
+      retryableErrors: ["target_process_interrupted"],
+      totalDeadlineMilliseconds: 1_200_000,
     },
     runtimeProfile: {
       definitionSha256: "7".repeat(64),
@@ -1379,6 +1397,59 @@ async function seedRecoverableReplayState(): Promise<void> {
         }),
       ],
     );
+
+    const runningJobId = "job_recovery_active";
+    const queuedJobId = "job_recovery_queued";
+    await client.query(
+      "SELECT * FROM public.proofstack_create_replay_job($1, $2, $3, $4, $5, $6, $7)",
+      [
+        scope.projectId,
+        scope.environmentId,
+        runningJobId,
+        replayPlan.planId,
+        replayPlan.planVersionId,
+        replayPlan.definitionSha256,
+        "usr_recovery",
+      ],
+    );
+    const activeClaim = await client.query<{
+      readonly job: unknown;
+      readonly worker_fence: unknown;
+    }>(
+      `SELECT * FROM public.proofstack_claim_replay_job(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+      )`,
+      [
+        scope.projectId,
+        scope.environmentId,
+        runningJobId,
+        "att_recovery_active_source",
+        "lease_recovery_active_source",
+        "worker_recovery_source",
+        workerProtocol.name,
+        workerProtocol.version,
+        "d".repeat(64),
+        600_000,
+      ],
+    );
+    await client.query(
+      "SELECT * FROM public.proofstack_create_replay_job($1, $2, $3, $4, $5, $6, $7)",
+      [
+        scope.projectId,
+        scope.environmentId,
+        queuedJobId,
+        replayPlan.planId,
+        replayPlan.planVersionId,
+        replayPlan.definitionSha256,
+        "usr_recovery",
+      ],
+    );
+    replayRecoveryState = {
+      queuedJobId,
+      runningJobId,
+      sourceFence: ReplayWorkerMutationFenceSchema.parse(activeClaim.rows[0]?.worker_fence),
+      sourceJob: ReplayJobSchema.parse(activeClaim.rows[0]?.job),
+    };
   });
 }
 
@@ -1458,6 +1529,11 @@ interface SequenceSnapshotRow {
   readonly sequencename: string;
 }
 
+interface AuthoritativeSnapshot {
+  readonly sequences: readonly SequenceSnapshotRow[];
+  readonly tables: Readonly<Record<string, readonly unknown[]>>;
+}
+
 interface StoredRegressionIntentRow {
   readonly aggregate_id: string;
   readonly aggregate_type: string;
@@ -1476,6 +1552,11 @@ function requiredRegressionCatalogState(): NonNullable<typeof regressionCatalogS
 function requiredRecordedRecoveryState(): NonNullable<typeof recordedRecoveryState> {
   if (!recordedRecoveryState) throw new Error("Recorded recovery fixtures were not seeded");
   return recordedRecoveryState;
+}
+
+function requiredReplayRecoveryState(): NonNullable<typeof replayRecoveryState> {
+  if (!replayRecoveryState) throw new Error("Replay recovery authority was not seeded");
+  return replayRecoveryState;
 }
 
 function intentOrderKey(intent: RegressionVersionPublishedOutboxIntent): Buffer {
@@ -1532,10 +1613,7 @@ async function regressionPublicationIntents(
     .sort((left, right) => Buffer.compare(intentOrderKey(left), intentOrderKey(right)));
 }
 
-async function authoritativeSnapshot(pool: Pool): Promise<{
-  readonly sequences: readonly SequenceSnapshotRow[];
-  readonly tables: Readonly<Record<string, readonly unknown[]>>;
-}> {
+async function authoritativeSnapshot(pool: Pool): Promise<AuthoritativeSnapshot> {
   const tables = await pool.query<TableNamesRow>(`
     SELECT table_name
     FROM information_schema.tables
@@ -1552,9 +1630,12 @@ async function authoritativeSnapshot(pool: Pool): Promise<{
       FROM public.${quotedIdentifier(tableName)} AS row_data
     `);
     const rows = result.rows[0]?.rows ?? [];
-    expect(rows.length, `${tableName} must contain representative recovery state`).toBeGreaterThan(
-      0,
-    );
+    if (tableName !== "proofstack_replay_recovery_events") {
+      expect(
+        rows.length,
+        `${tableName} must contain representative recovery state`,
+      ).toBeGreaterThan(0);
+    }
     contents[tableName] = rows;
   }
   const sequences = await pool.query<SequenceSnapshotRow>(`
@@ -1565,6 +1646,27 @@ async function authoritativeSnapshot(pool: Pool): Promise<{
   `);
   expect(sequences.rows.length).toBeGreaterThan(0);
   return { sequences: sequences.rows, tables: contents };
+}
+
+function snapshotWithoutRecoveryTransitions(
+  snapshot: AuthoritativeSnapshot,
+): AuthoritativeSnapshot {
+  const recovery = requiredReplayRecoveryState();
+  const transitionalJobIds = new Set([recovery.queuedJobId, recovery.runningJobId]);
+  const tables: Record<string, readonly unknown[]> & {
+    proofstack_recovery_state?: readonly unknown[];
+    proofstack_replay_jobs?: readonly unknown[];
+    proofstack_replay_recovery_events?: readonly unknown[];
+  } = { ...snapshot.tables };
+  delete tables.proofstack_recovery_state;
+  delete tables.proofstack_replay_recovery_events;
+  tables.proofstack_replay_jobs = (tables.proofstack_replay_jobs ?? []).filter((row) => {
+    if (typeof row !== "object" || row === null || Array.isArray(row) || !("job_id" in row)) {
+      return true;
+    }
+    return !transitionalJobIds.has(String(row.job_id));
+  });
+  return { sequences: snapshot.sequences, tables };
 }
 
 function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
@@ -1819,7 +1921,127 @@ describe("coordinated recovery rehearsal", () => {
         valid: true,
       },
     ]);
-    await expect(authoritativeSnapshot(restoredPool)).resolves.toEqual(sourceSnapshot);
+    const restoredSnapshot = await authoritativeSnapshot(restoredPool);
+    expect(snapshotWithoutRecoveryTransitions(restoredSnapshot)).toEqual(
+      snapshotWithoutRecoveryTransitions(sourceSnapshot),
+    );
+    const replayRecovery = requiredReplayRecoveryState();
+    const restoredRecoveryEpoch = await restoredPool.query<{
+      readonly advanced_at_lexical: string;
+      readonly recovery_epoch: string;
+    }>(`
+      SELECT recovery_epoch::text, advanced_at_lexical
+      FROM public.proofstack_recovery_state
+      WHERE singleton = true
+    `);
+    expect(restoredRecoveryEpoch.rows).toEqual([
+      {
+        advanced_at_lexical: expect.stringMatching(/Z$/u),
+        recovery_epoch: String(replayRecovery.sourceFence.recoveryEpoch + 1),
+      },
+    ]);
+    const restoredRecoveryEvents = await restoredPool.query<{
+      readonly event: unknown;
+      readonly invalidated_at_lexical: string;
+      readonly job_id: string;
+      readonly previous_lease: unknown;
+      readonly previous_recovery_epoch: string;
+      readonly previous_state_version: string;
+      readonly previous_status: string;
+      readonly recovery_epoch: string;
+    }>(
+      `SELECT job_id, recovery_epoch::text, previous_recovery_epoch::text,
+         previous_state_version::text, previous_status, previous_lease,
+         invalidated_at_lexical, event
+       FROM public.proofstack_replay_recovery_events
+       WHERE tenant_id = $1 AND job_id = ANY($2::text[])
+       ORDER BY job_id COLLATE "C"`,
+      [scope.tenantId, [replayRecovery.runningJobId, replayRecovery.queuedJobId]],
+    );
+    expect(restoredRecoveryEvents.rows).toHaveLength(2);
+    const runningRecoveryEvent = restoredRecoveryEvents.rows.find(
+      ({ job_id: jobId }) => jobId === replayRecovery.runningJobId,
+    );
+    const queuedRecoveryEvent = restoredRecoveryEvents.rows.find(
+      ({ job_id: jobId }) => jobId === replayRecovery.queuedJobId,
+    );
+    expect(runningRecoveryEvent).toMatchObject({
+      job_id: replayRecovery.runningJobId,
+      previous_lease: replayRecovery.sourceJob.currentLease,
+      previous_recovery_epoch: String(replayRecovery.sourceFence.recoveryEpoch),
+      previous_state_version: String(replayRecovery.sourceJob.stateVersion),
+      previous_status: "running",
+      recovery_epoch: String(replayRecovery.sourceFence.recoveryEpoch + 1),
+    });
+    expect(queuedRecoveryEvent).toMatchObject({
+      job_id: replayRecovery.queuedJobId,
+      previous_lease: null,
+      previous_recovery_epoch: String(replayRecovery.sourceFence.recoveryEpoch),
+      previous_state_version: "1",
+      previous_status: "queued",
+      recovery_epoch: String(replayRecovery.sourceFence.recoveryEpoch + 1),
+    });
+    const sourceLease = replayRecovery.sourceJob.currentLease;
+    if (!sourceLease || !runningRecoveryEvent) {
+      throw new Error("Restored replay recovery event is incomplete");
+    }
+    expect(Date.parse(sourceLease.expiresAt)).toBeGreaterThan(
+      Date.parse(runningRecoveryEvent.invalidated_at_lexical),
+    );
+    expect(runningRecoveryEvent.event).toMatchObject({
+      invalidatedAt: runningRecoveryEvent.invalidated_at_lexical,
+      jobId: replayRecovery.runningJobId,
+      previousLease: sourceLease,
+      previousRecoveryEpoch: replayRecovery.sourceFence.recoveryEpoch,
+      previousStateVersion: replayRecovery.sourceJob.stateVersion,
+      previousStatus: "running",
+      recoveryEpoch: replayRecovery.sourceFence.recoveryEpoch + 1,
+      scope,
+    });
+    const restoredRecoveryJobs = await restoredPool.query<{ readonly job: unknown }>(
+      `SELECT job
+       FROM public.proofstack_replay_jobs
+       WHERE tenant_id = $1 AND job_id = ANY($2::text[])
+       ORDER BY job_id COLLATE "C"`,
+      [scope.tenantId, [replayRecovery.runningJobId, replayRecovery.queuedJobId]],
+    );
+    const restoredRunningJob = ReplayJobSchema.parse(restoredRecoveryJobs.rows[0]?.job);
+    const restoredQueuedJob = ReplayJobSchema.parse(restoredRecoveryJobs.rows[1]?.job);
+    expect(restoredRunningJob).toMatchObject({
+      jobId: replayRecovery.runningJobId,
+      recoveryEpoch: replayRecovery.sourceFence.recoveryEpoch,
+      stateVersion: replayRecovery.sourceJob.stateVersion + 1,
+      status: "running",
+    });
+    expect(restoredRunningJob.currentLease?.expiresAt).toBe(
+      runningRecoveryEvent.invalidated_at_lexical,
+    );
+    expect(restoredQueuedJob).toMatchObject({
+      jobId: replayRecovery.queuedJobId,
+      recoveryEpoch: replayRecovery.sourceFence.recoveryEpoch + 1,
+      stateVersion: 2,
+      status: "queued",
+    });
+    await expect(
+      withRecoveryTenantTransactionOn(restoredPool, (client) =>
+        client.query(
+          `SELECT public.proofstack_heartbeat_replay_job(
+            $1, $2, $3, $4, $5, $6, $7, $8, $9
+          )`,
+          [
+            scope.projectId,
+            scope.environmentId,
+            replayRecovery.sourceFence.jobId,
+            replayRecovery.sourceFence.attemptId,
+            replayRecovery.sourceFence.leaseId,
+            replayRecovery.sourceFence.workerId,
+            replayRecovery.sourceFence.fencingToken,
+            replayRecovery.sourceFence.recoveryEpoch,
+            1_000,
+          ],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
     await expect(regressionPublicationIntents(restoredPool)).resolves.toEqual(
       expectedRegressionPublicationIntents(),
     );
@@ -1899,6 +2121,95 @@ describe("coordinated recovery rehearsal", () => {
           Buffer.compare(Buffer.from(left.role_name, "utf8"), Buffer.from(right.role_name, "utf8")),
         ),
     );
+    const replayWorkerUrl = new URL(restoredDatabaseUrl);
+    replayWorkerUrl.username = roles.replayWorker.name;
+    replayWorkerUrl.password = roles.replayWorker.password;
+    const replayWorkerPool = new Pool({ connectionString: replayWorkerUrl.toString(), max: 2 });
+    runtimePools.push(replayWorkerPool);
+    const reclaimedReplay = await withRecoveryTenantTransactionOn(replayWorkerPool, (client) =>
+      client.query<{
+        readonly attempt: unknown;
+        readonly claimed: boolean;
+        readonly job: unknown;
+        readonly reason: string | null;
+        readonly worker_fence: unknown;
+      }>(
+        `SELECT * FROM public.proofstack_claim_replay_job(
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+          )`,
+        [
+          scope.projectId,
+          scope.environmentId,
+          replayRecovery.runningJobId,
+          "att_recovery_active_restored",
+          "lease_recovery_active_restored",
+          "worker_recovery_restored",
+          "proofstack.replay-worker",
+          "1.0.0",
+          "e".repeat(64),
+          1_000,
+        ],
+      ),
+    );
+    expect(reclaimedReplay.rows[0]).toMatchObject({ claimed: true, reason: null });
+    const reclaimedReplayJob = ReplayJobSchema.parse(reclaimedReplay.rows[0]?.job);
+    const reclaimedReplayFence = ReplayWorkerMutationFenceSchema.parse(
+      reclaimedReplay.rows[0]?.worker_fence,
+    );
+    expect(reclaimedReplayJob).toMatchObject({
+      jobId: replayRecovery.runningJobId,
+      lastFencingToken: replayRecovery.sourceFence.fencingToken + 1,
+      recoveryEpoch: replayRecovery.sourceFence.recoveryEpoch + 1,
+      stateVersion: replayRecovery.sourceJob.stateVersion + 2,
+      status: "running",
+    });
+    expect(reclaimedReplayFence).toMatchObject({
+      fencingToken: replayRecovery.sourceFence.fencingToken + 1,
+      recoveryEpoch: replayRecovery.sourceFence.recoveryEpoch + 1,
+    });
+    await expect(
+      withRecoveryTenantTransactionOn(replayWorkerPool, (client) =>
+        client.query(
+          `SELECT public.proofstack_heartbeat_replay_job(
+            $1, $2, $3, $4, $5, $6, $7, $8, $9
+          )`,
+          [
+            scope.projectId,
+            scope.environmentId,
+            replayRecovery.sourceFence.jobId,
+            replayRecovery.sourceFence.attemptId,
+            replayRecovery.sourceFence.leaseId,
+            replayRecovery.sourceFence.workerId,
+            replayRecovery.sourceFence.fencingToken,
+            replayRecovery.sourceFence.recoveryEpoch,
+            1_000,
+          ],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "55000" });
+    const expiredSourceAttempt = await restoredPool.query<{
+      readonly attempt: unknown;
+      readonly event_types: string[];
+    }>(
+      `SELECT attempt.attempt,
+         array_agg(event.event_type ORDER BY event.transition_sequence) AS event_types
+       FROM public.proofstack_replay_attempts AS attempt
+       JOIN public.proofstack_replay_attempt_events AS event
+         ON event.tenant_id = attempt.tenant_id AND event.attempt_id = attempt.attempt_id
+       WHERE attempt.tenant_id = $1 AND attempt.attempt_id = $2
+       GROUP BY attempt.attempt`,
+      [scope.tenantId, replayRecovery.sourceFence.attemptId],
+    );
+    expect(expiredSourceAttempt.rows).toEqual([
+      {
+        attempt: expect.objectContaining({
+          error: expect.objectContaining({ code: "lease_expired" }),
+          retryDisposition: "retry_scheduled",
+          status: "lease_expired",
+        }),
+        event_types: ["attempt_claimed", "attempt_closed"],
+      },
+    ]);
     const runtimeUrl = new URL(restoredDatabaseUrl);
     runtimeUrl.username = roles.api.name;
     runtimeUrl.password = roles.api.password;

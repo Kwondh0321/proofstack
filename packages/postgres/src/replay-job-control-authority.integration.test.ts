@@ -260,6 +260,9 @@ afterAll(async () => {
 describe("replay job control-plane authority", () => {
   it("creates and cancels an exact-plan job with server-owned state and intents", async () => {
     const jobId = `job_control_happy_${runKey}`;
+    const recoveryEpoch = await adminPool.query<{ readonly recovery_epoch: string }>(
+      "SELECT recovery_epoch::text FROM public.proofstack_recovery_state WHERE singleton = true",
+    );
     const first = await withTenantTransaction(apiPool, tenantId, (client) =>
       createJob(client, jobId),
     );
@@ -268,7 +271,7 @@ describe("replay job control-plane authority", () => {
     expect(createdJob).toMatchObject({
       jobId,
       lastFencingToken: 0,
-      recoveryEpoch: 0,
+      recoveryEpoch: Number(recoveryEpoch.rows[0]?.recovery_epoch),
       stateVersion: 1,
       status: "queued",
     });

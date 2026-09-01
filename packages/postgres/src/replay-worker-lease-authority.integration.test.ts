@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   REPLAY_BUDGET_DIMENSIONS,
   ReplayAttemptSchema,
@@ -13,7 +14,6 @@ import {
   type WorkerProtocolReference,
 } from "@proofstack/contracts";
 import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "@proofstack/replay";
-import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
@@ -690,6 +690,7 @@ afterAll(async () => {
   await withTenantTransaction(adminPool, tenantId, async (client) => {
     await client.query("SET LOCAL session_replication_role = 'replica'");
     for (const table of [
+      "proofstack_replay_recovery_events",
       "proofstack_replay_usage_measurements",
       "proofstack_replay_observations",
       "proofstack_replay_budget_entry_dimensions",
@@ -1483,6 +1484,232 @@ describe("replay worker lease authority", () => {
     await expect(
       withTenantTransaction(workerPool, tenantId, (client) => heartbeatJob(client, fence, 2_001)),
     ).rejects.toMatchObject({ code: "22023" });
+  });
+
+  it("invalidates every restored lease in an audited recovery epoch before fenced reclaim", async () => {
+    const runningJobId = `job_worker_recovery_running_${runKey}`;
+    const queuedJobId = `job_worker_recovery_queued_${runKey}`;
+    const firstAttemptId = `att_worker_recovery_a_${runKey}`;
+    const firstLeaseId = `lease_worker_recovery_a_${runKey}`;
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, runningJobId));
+    await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, queuedJobId));
+
+    const firstClaim = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(client, runningJobId, firstAttemptId, firstLeaseId, workerProtocol, 2_000),
+    );
+    const firstJob = ReplayJobSchema.parse(firstClaim.rows[0]?.job);
+    const firstFence = ReplayWorkerMutationFenceSchema.parse(firstClaim.rows[0]?.worker_fence);
+    const recovery = await adminPool.query<{
+      readonly next_recovery_epoch: string;
+      readonly queued_job_count: string;
+      readonly running_job_count: string;
+      readonly source_recovery_epoch: string;
+    }>("SELECT * FROM public.proofstack_begin_replay_recovery()");
+    const recoveryRow = recovery.rows[0];
+    if (!recoveryRow) throw new Error("Replay recovery did not return its epoch receipt");
+    const sourceRecoveryEpoch = Number(recoveryRow.source_recovery_epoch);
+    const nextRecoveryEpoch = Number(recoveryRow.next_recovery_epoch);
+    expect(sourceRecoveryEpoch).toBe(firstFence.recoveryEpoch);
+    expect(nextRecoveryEpoch).toBe(sourceRecoveryEpoch + 1);
+    expect(Number(recoveryRow.queued_job_count)).toBeGreaterThanOrEqual(1);
+    expect(Number(recoveryRow.running_job_count)).toBeGreaterThanOrEqual(1);
+
+    const eventResult = await adminPool.query<{
+      readonly event: unknown;
+      readonly invalidated_at_lexical: string;
+      readonly previous_lease: unknown;
+      readonly previous_recovery_epoch: string;
+      readonly previous_state_version: string;
+      readonly recovery_epoch: string;
+    }>(
+      `SELECT recovery_epoch::text, previous_recovery_epoch::text,
+         previous_state_version::text, previous_lease, invalidated_at_lexical, event
+       FROM public.proofstack_replay_recovery_events
+       WHERE tenant_id = $1 AND job_id = $2`,
+      [tenantId, runningJobId],
+    );
+    expect(eventResult.rows).toHaveLength(1);
+    const recoveryEvent = eventResult.rows[0];
+    expect(recoveryEvent).toMatchObject({
+      previous_lease: firstJob.currentLease,
+      previous_recovery_epoch: String(sourceRecoveryEpoch),
+      previous_state_version: String(firstJob.stateVersion),
+      recovery_epoch: String(nextRecoveryEpoch),
+    });
+    expect(recoveryEvent?.event).toEqual({
+      invalidatedAt: recoveryEvent?.invalidated_at_lexical,
+      jobId: runningJobId,
+      previousLease: firstJob.currentLease,
+      previousRecoveryEpoch: sourceRecoveryEpoch,
+      previousStateVersion: firstJob.stateVersion,
+      previousStatus: "running",
+      recoveryEpoch: nextRecoveryEpoch,
+      scope: { environmentId, projectId, tenantId },
+    });
+
+    const invalidatedSnapshotResult = await withTenantTransaction(workerPool, tenantId, (client) =>
+      readJobSnapshot(client, runningJobId),
+    );
+    const invalidatedSnapshot = invalidatedSnapshotResult.rows[0]?.snapshot as
+      | { readonly job?: unknown }
+      | undefined;
+    const invalidatedJob = ReplayJobSchema.parse(invalidatedSnapshot?.job);
+    expect(invalidatedJob).toMatchObject({
+      jobId: runningJobId,
+      recoveryEpoch: sourceRecoveryEpoch,
+      stateVersion: firstJob.stateVersion + 1,
+      status: "running",
+    });
+    expect(invalidatedJob.currentLease?.expiresAt).toBe(recoveryEvent?.invalidated_at_lexical);
+    expect(Date.parse(firstJob.currentLease?.expiresAt ?? "")).toBeGreaterThan(
+      Date.parse(recoveryEvent?.invalidated_at_lexical ?? ""),
+    );
+
+    const queuedSnapshotResult = await withTenantTransaction(workerPool, tenantId, (client) =>
+      readJobSnapshot(client, queuedJobId),
+    );
+    const queuedSnapshot = queuedSnapshotResult.rows[0]?.snapshot as
+      | { readonly job?: unknown }
+      | undefined;
+    expect(ReplayJobSchema.parse(queuedSnapshot?.job)).toMatchObject({
+      jobId: queuedJobId,
+      recoveryEpoch: nextRecoveryEpoch,
+      stateVersion: 2,
+      status: "queued",
+    });
+
+    const staleMutations = [
+      () => heartbeatJobForFence(firstFence),
+      () =>
+        withTenantTransaction(workerPool, tenantId, (client) =>
+          acknowledgeCancellation(client, firstFence, `ack_worker_recovery_${runKey}`),
+        ),
+      () =>
+        withTenantTransaction(workerPool, tenantId, (client) =>
+          reserveBudget(
+            client,
+            firstFence,
+            `res_worker_recovery_${runKey}`,
+            requestedAmounts({ jobAttempts: 1 }),
+          ),
+        ),
+      () =>
+        withTenantTransaction(workerPool, tenantId, (client) =>
+          reconcileBudget(
+            client,
+            firstFence,
+            `rec_worker_recovery_${runKey}`,
+            `res_worker_recovery_missing_${runKey}`,
+            usageMeasurements(),
+          ),
+        ),
+      () =>
+        withTenantTransaction(workerPool, tenantId, (client) =>
+          appendExecutionObservation(client, firstFence, `obs_worker_recovery_exec_${runKey}`, {
+            afterCancellationRequest: false,
+            evidenceSha256: "d".repeat(64),
+            event: "started",
+            kind: "target",
+          }),
+        ),
+      () =>
+        withTenantTransaction(workerPool, tenantId, (client) =>
+          appendUsageObservation(
+            client,
+            firstFence,
+            `obs_worker_recovery_usage_${runKey}`,
+            "e".repeat(64),
+            [],
+          ),
+        ),
+      () =>
+        withTenantTransaction(workerPool, tenantId, (client) =>
+          completeJob(client, firstFence, {
+            code: "completed",
+            result: resultArtifact(),
+            status: "succeeded",
+          }),
+        ),
+    ];
+    for (const mutation of staleMutations) {
+      await expect(mutation()).rejects.toMatchObject({ code: "55000" });
+    }
+
+    await expect(
+      workerPool.query("SELECT * FROM public.proofstack_begin_replay_recovery()"),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    const waiting = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        runningJobId,
+        `att_worker_recovery_b_${runKey}`,
+        `lease_worker_recovery_b_${runKey}`,
+        workerProtocol,
+        100,
+      ),
+    );
+    expect(waiting.rows[0]).toMatchObject({ claimed: false, reason: "retry_not_ready" });
+    await adminPool.query("SELECT pg_sleep(2.05)");
+
+    const reclaimed = await withTenantTransaction(workerPool, tenantId, (client) =>
+      claimJob(
+        client,
+        runningJobId,
+        `att_worker_recovery_b_${runKey}`,
+        `lease_worker_recovery_b_${runKey}`,
+        workerProtocol,
+        100,
+      ),
+    );
+    const reclaimedJob = ReplayJobSchema.parse(reclaimed.rows[0]?.job);
+    const reclaimedAttempt = ReplayAttemptSchema.parse(reclaimed.rows[0]?.attempt);
+    const reclaimedFence = ReplayWorkerMutationFenceSchema.parse(reclaimed.rows[0]?.worker_fence);
+    expect(reclaimed.rows[0]).toMatchObject({ claimed: true, reason: null });
+    expect(reclaimedJob).toMatchObject({
+      lastFencingToken: firstFence.fencingToken + 1,
+      recoveryEpoch: nextRecoveryEpoch,
+      stateVersion: firstJob.stateVersion + 2,
+      status: "running",
+    });
+    expect(reclaimedAttempt).toMatchObject({
+      attemptSequence: 1,
+      mutationFence: reclaimedFence,
+      status: "running",
+    });
+    expect(reclaimedFence).toMatchObject({
+      fencingToken: firstFence.fencingToken + 1,
+      recoveryEpoch: nextRecoveryEpoch,
+    });
+    await expect(heartbeatJobForFence(firstFence)).rejects.toMatchObject({ code: "55000" });
+
+    const expiredAttemptResult = await adminPool.query<{ readonly attempt: unknown }>(
+      `SELECT attempt
+       FROM public.proofstack_replay_attempts
+       WHERE tenant_id = $1 AND attempt_id = $2`,
+      [tenantId, firstAttemptId],
+    );
+    expect(ReplayAttemptSchema.parse(expiredAttemptResult.rows[0]?.attempt)).toMatchObject({
+      error: { code: "lease_expired", effectCertainty: "none" },
+      retryDisposition: "retry_scheduled",
+      status: "lease_expired",
+    });
+
+    const postRecoveryJobId = `job_worker_recovery_new_${runKey}`;
+    const createdAfterRecovery = await withTenantTransaction(apiPool, tenantId, (client) =>
+      createJob(client, postRecoveryJobId),
+    );
+    expect(ReplayJobSchema.parse(createdAfterRecovery.rows[0]?.job)).toMatchObject({
+      jobId: postRecoveryJobId,
+      recoveryEpoch: nextRecoveryEpoch,
+      stateVersion: 1,
+    });
+
+    async function heartbeatJobForFence(
+      fence: ReturnType<typeof ReplayWorkerMutationFenceSchema.parse>,
+    ) {
+      return withTenantTransaction(workerPool, tenantId, (client) => heartbeatJob(client, fence));
+    }
   });
 
   it("serializes concurrent claims so exactly one worker receives the first fence", async () => {

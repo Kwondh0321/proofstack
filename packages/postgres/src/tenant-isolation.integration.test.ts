@@ -86,6 +86,7 @@ const TENANT_TABLES = [
   "proofstack_replay_plan_budgets",
   "proofstack_replay_plan_resources",
   "proofstack_replay_plans",
+  "proofstack_replay_recovery_events",
   "proofstack_replay_targets",
   "proofstack_replay_usage_measurements",
   "proofstack_target_releases",

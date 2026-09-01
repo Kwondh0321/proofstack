@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Pool, QueryResultRow } from "pg";
@@ -47,9 +47,11 @@ class FakeRunner implements PostgresCommandRunner {
 }
 
 interface FakeDatabaseOptions {
+  readonly failRecovery?: unknown;
   readonly hasUserObjects?: boolean;
   readonly omitEmptyTargetRow?: boolean;
   readonly omitServerVersion?: boolean;
+  readonly recoveryRows?: readonly Readonly<Record<string, unknown>>[];
   readonly serverVersion?: string;
 }
 
@@ -66,6 +68,19 @@ function fakeDatabase(options: FakeDatabaseOptions = {}): {
           rows: options.omitServerVersion
             ? []
             : [{ server_version: options.serverVersion ?? "16.15" }],
+        };
+      }
+      if (text === "SELECT * FROM public.proofstack_begin_replay_recovery()") {
+        if (options.failRecovery !== undefined) throw options.failRecovery;
+        return {
+          rows: options.recoveryRows ?? [
+            {
+              next_recovery_epoch: "1",
+              queued_job_count: "0",
+              running_job_count: "0",
+              source_recovery_epoch: "0",
+            },
+          ],
         };
       }
       return {
@@ -403,7 +418,82 @@ describe("PostgreSQL logical restore", () => {
     });
     expect(queries.some((query) => query.includes("pg_extension"))).toBe(true);
     expect(queries.some((query) => query.includes("pg_type"))).toBe(true);
+    expect(queries.at(-1)).toBe("SELECT * FROM public.proofstack_begin_replay_recovery()");
   });
+
+  it.each([
+    ["no receipt", { recoveryRows: [] }],
+    [
+      "more than one receipt",
+      {
+        recoveryRows: [
+          {
+            next_recovery_epoch: "1",
+            queued_job_count: "0",
+            running_job_count: "0",
+            source_recovery_epoch: "0",
+          },
+          {
+            next_recovery_epoch: "2",
+            queued_job_count: "0",
+            running_job_count: "0",
+            source_recovery_epoch: "1",
+          },
+        ],
+      },
+    ],
+    [
+      "noncanonical counter",
+      {
+        recoveryRows: [
+          {
+            next_recovery_epoch: 1,
+            queued_job_count: "0",
+            running_job_count: "0",
+            source_recovery_epoch: "0",
+          },
+        ],
+      },
+    ],
+    [
+      "skipped epoch",
+      {
+        recoveryRows: [
+          {
+            next_recovery_epoch: "2",
+            queued_job_count: "0",
+            running_job_count: "0",
+            source_recovery_epoch: "0",
+          },
+        ],
+      },
+    ],
+    ["database failure", { failRecovery: new Error("private database failure") }],
+  ])(
+    "fails closed after restore when replay lease invalidation returns %s",
+    async (_label, options) => {
+      const dumpPath = await dumpFile();
+      const runner = new FakeRunner();
+      runner.toolVersion = "pg_restore (PostgreSQL) 16.15";
+      const { database } = fakeDatabase(options);
+
+      await expect(
+        restorePostgresLogicalBackup({
+          allowPlaintextLoopback: true,
+          connectionString: CONNECTION_STRING,
+          database,
+          dumpPath,
+          runner,
+        }),
+      ).rejects.toEqual(
+        expect.objectContaining({
+          operation: "database-restore",
+          reason: "replay lease invalidation did not complete",
+        }),
+      );
+      expect(runner.calls.at(-1)?.arguments).toContain(dumpPath);
+    },
+  );
 
   it.each([
     ["relative path", async () => "database.dump", "dump path must be an absolute"],

@@ -291,6 +291,43 @@ describe("runtime role provisioning", () => {
         targetReleasesSelect: true,
       },
     ]);
+    const replayRecoveryPrivileges = await replayWorkerPool.query<{
+      readonly beginRecoveryExecute: boolean;
+      readonly currentEpochExecute: boolean;
+      readonly legacyClaimExecute: boolean;
+      readonly recoveryEventsSelect: boolean;
+      readonly recoveryStateSelect: boolean;
+    }>(`
+      SELECT
+        has_table_privilege(current_user, 'proofstack_recovery_state', 'SELECT')
+          AS "recoveryStateSelect",
+        has_table_privilege(current_user, 'proofstack_replay_recovery_events', 'SELECT')
+          AS "recoveryEventsSelect",
+        has_function_privilege(
+          current_user,
+          'proofstack_begin_replay_recovery()',
+          'EXECUTE'
+        ) AS "beginRecoveryExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_current_replay_recovery_epoch()',
+          'EXECUTE'
+        ) AS "currentEpochExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_claim_replay_job_before_recovery_epoch(text,text,text,text,text,text,text,text,text,bigint)',
+          'EXECUTE'
+        ) AS "legacyClaimExecute"
+    `);
+    expect(replayRecoveryPrivileges.rows).toEqual([
+      {
+        beginRecoveryExecute: false,
+        currentEpochExecute: false,
+        legacyClaimExecute: false,
+        recoveryEventsSelect: false,
+        recoveryStateSelect: false,
+      },
+    ]);
 
     const apiPool = poolFor(initial.api);
     const apiPrivileges = await apiPool.query<{

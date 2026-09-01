@@ -31,6 +31,13 @@ interface UserObjectRow {
   readonly has_user_objects: boolean;
 }
 
+interface ReplayRecoveryEpochRow {
+  readonly next_recovery_epoch: unknown;
+  readonly queued_job_count: unknown;
+  readonly running_job_count: unknown;
+  readonly source_recovery_epoch: unknown;
+}
+
 export interface PostgresLogicalBackupOptions {
   readonly allowPlaintextLoopback: boolean;
   readonly connectionString: string;
@@ -333,6 +340,37 @@ async function assertEmptyTarget(database: Pick<Pool, "query">): Promise<void> {
   }
 }
 
+function recoveryCounter(value: unknown): number | undefined {
+  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]{0,15})$/u.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+async function invalidateRestoredReplayLeases(database: Pick<Pool, "query">): Promise<void> {
+  try {
+    const result = await database.query<ReplayRecoveryEpochRow>(
+      "SELECT * FROM public.proofstack_begin_replay_recovery()",
+    );
+    const row = result.rows[0];
+    const sourceRecoveryEpoch = recoveryCounter(row?.source_recovery_epoch);
+    const nextRecoveryEpoch = recoveryCounter(row?.next_recovery_epoch);
+    const queuedJobCount = recoveryCounter(row?.queued_job_count);
+    const runningJobCount = recoveryCounter(row?.running_job_count);
+    if (
+      result.rows.length !== 1 ||
+      sourceRecoveryEpoch === undefined ||
+      nextRecoveryEpoch === undefined ||
+      nextRecoveryEpoch !== sourceRecoveryEpoch + 1 ||
+      queuedJobCount === undefined ||
+      runningJobCount === undefined
+    ) {
+      throw new Error("PostgreSQL returned an invalid replay recovery receipt");
+    }
+  } catch (error) {
+    throw operationError("database-restore", "replay lease invalidation did not complete", error);
+  }
+}
+
 export async function restorePostgresLogicalBackup(
   options: PostgresLogicalRestoreOptions,
 ): Promise<PostgresLogicalBackupReceipt> {
@@ -379,6 +417,7 @@ export async function restorePostgresLogicalBackup(
     if (error instanceof RecoveryOperationError) throw error;
     throw operationError("database-restore", "logical restore did not complete", error);
   }
+  await invalidateRestoredReplayLeases(options.database);
   const receipt = await digestFile(options.dumpPath, "database-restore");
   return { engineVersion: server, ...receipt };
 }
