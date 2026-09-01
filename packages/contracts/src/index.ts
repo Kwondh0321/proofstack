@@ -5,6 +5,7 @@ export * from "./dataset.js";
 export * from "./evidence.js";
 export * from "./evaluation-assessment.js";
 export * from "./evaluation-criteria.js";
+export * from "./evaluation-definition-encoding.js";
 export * from "./evaluation-run.js";
 export * from "./evaluation-source.js";
 export * from "./evaluation-spec.js";

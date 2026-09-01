@@ -1,0 +1,222 @@
+{
+  "format": "proofstack.evaluation-source-definition.v1",
+  "vectors": [
+    {
+      "name": "bounded discovery with retained selection decisions",
+      "kind": "discovery_record",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "candidates": [
+            {
+              "canonicalUri": "https://standards.example.test/v1",
+              "displayedPublisher": "Example Standards Body",
+              "displayedTitle": "Example primary standard",
+              "rank": 1,
+              "selection": {
+                "decision": "selected",
+                "reason": "Exact primary document"
+              }
+            },
+            {
+              "canonicalUri": "https://commentary.example.test/standard",
+              "displayedTitle": "Secondary commentary",
+              "rank": 2,
+              "selection": {
+                "decision": "excluded",
+                "reason": "Not a primary source"
+              }
+            }
+          ],
+          "discoveryId": "dsc_standard",
+          "filters": {
+            "domain": "example.test",
+            "primaryOnly": true
+          },
+          "locale": "en-us",
+          "providerName": "Example Search",
+          "query": "example primary standard v1",
+          "resultLimit": 2,
+          "toolVersion": "search-1.0.0"
+        }
+      },
+      "encodedByteLength": 865,
+      "sha256": "36fdf7caa50cdc4b1981d331cd82aa376f7542f1cfa9658d4d4eb3125d25c378"
+    },
+    {
+      "name": "qualified primary source with explicit conflict lineage",
+      "kind": "source_snapshot",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "applicabilityScope": {
+            "environments": {
+              "mode": "include",
+              "values": ["env_local"]
+            },
+            "exclusions": [],
+            "jurisdictions": {
+              "mode": "include",
+              "values": ["kr"]
+            },
+            "locales": {
+              "mode": "include",
+              "values": ["en", "ko-kr"]
+            },
+            "populations": {
+              "mode": "include",
+              "values": ["adult users"]
+            },
+            "riskTiers": {
+              "mode": "include",
+              "values": ["high"]
+            },
+            "taskKinds": {
+              "mode": "include",
+              "values": ["task_support"]
+            }
+          },
+          "canonicalUri": "https://standards.example.test/v1",
+          "conflictsWith": [
+            {
+              "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "sourceSnapshotId": "src_conflict"
+            }
+          ],
+          "content": {
+            "artifactId": "art_source",
+            "classification": "internal",
+            "mediaType": "application/pdf",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "sizeBytes": 1024
+          },
+          "discovery": {
+            "candidateRank": 1,
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "discoveryId": "dsc_standard"
+          },
+          "documentVersion": "1.0",
+          "effectiveAt": "2026-02-01T00:00:00Z",
+          "expiresAt": "2027-01-01T00:00:00Z",
+          "identityVerification": {
+            "evidence": [
+              {
+                "artifactId": "art_identity",
+                "classification": "internal",
+                "mediaType": "application/pdf",
+                "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 1024
+              }
+            ],
+            "method": "digital_signature",
+            "status": "verified",
+            "verifiedAt": "2026-01-04T00:00:00Z",
+            "verifierPrincipalId": "usr_reviewer"
+          },
+          "knownLimitations": ["Does not define organization-specific risk tolerance"],
+          "license": {
+            "expression": "CC-BY-4.0",
+            "status": "declared",
+            "termsUri": "https://standards.example.test/license"
+          },
+          "publishedAt": "2026-01-01T00:00:00Z",
+          "publisher": {
+            "canonicalName": "Example Standards Body",
+            "identifier": "https://standards.example.test/"
+          },
+          "retrievedAt": "2026-01-03T00:00:00Z",
+          "sourceKind": "standard",
+          "sourceSnapshotId": "src_standard",
+          "supersedes": [
+            {
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sourceSnapshotId": "src_previous"
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 2118,
+      "sha256": "d8590cb5257bf3787167f81ca1ae9eef3e41565763fe63ecfa9ff3675abcf2b9"
+    },
+    {
+      "name": "bounded source review with explicit authority and freshness conclusions",
+      "kind": "source_review",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "applicabilityConclusion": "approved",
+          "approvedScope": {
+            "environments": {
+              "mode": "include",
+              "values": ["env_local"]
+            },
+            "exclusions": [],
+            "jurisdictions": {
+              "mode": "include",
+              "values": ["kr"]
+            },
+            "locales": {
+              "mode": "include",
+              "values": ["en", "ko-kr"]
+            },
+            "populations": {
+              "mode": "include",
+              "values": ["adult users"]
+            },
+            "riskTiers": {
+              "mode": "include",
+              "values": ["high"]
+            },
+            "taskKinds": {
+              "mode": "include",
+              "values": ["task_support"]
+            }
+          },
+          "authorityConclusion": "accepted",
+          "criticalConflictStatus": "resolved",
+          "declaredRelationships": ["member of adopting organization"],
+          "freshnessConclusion": "current",
+          "licensingConclusion": "usable",
+          "outcome": "approved",
+          "rationale": "The primary publisher and exact version apply to the declared bounded scope.",
+          "reviewBasis": [
+            {
+              "artifactId": "art_review_basis",
+              "classification": "internal",
+              "mediaType": "application/pdf",
+              "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+              "sizeBytes": 1024
+            }
+          ],
+          "reviewedConflicts": [
+            {
+              "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "sourceSnapshotId": "src_conflict"
+            }
+          ],
+          "source": {
+            "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "sourceSnapshotId": "src_standard"
+          },
+          "sourceReviewId": "srv_standard",
+          "validFrom": "2026-01-05T00:00:00Z",
+          "validUntil": "2026-12-31T00:00:00Z"
+        }
+      },
+      "encodedByteLength": 1511,
+      "sha256": "699ed05334ee38e0190ac97f2c70b5e8866fc90a0f6aaf633881282a60b1196a"
+    }
+  ]
+}

@@ -34,6 +34,10 @@
       "types": "./dist/evaluation-assessment.d.ts",
       "import": "./dist/evaluation-assessment.js"
     },
+    "./evaluation-definition-encoding": {
+      "types": "./dist/evaluation-definition-encoding.d.ts",
+      "import": "./dist/evaluation-definition-encoding.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"
