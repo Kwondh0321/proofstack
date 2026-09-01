@@ -122,6 +122,10 @@ The completed
 [criteria and non-model evaluation audit](../development/workflow-1-criteria-evaluation-audit.md)
 records the accepted immutable evaluation evidence and eligibility boundary, closed cross-check
 findings, and the model-assisted, comparison, policy, and release limits that remain open.
+The model lineage, qualification, calibration, independence, blinding, injection, critique, human
+review, authority, persistence, recovery, and acceptance gates for the open sixth checkpoint are
+fixed by the
+[model-assisted and human evaluation entry audit](../development/workflow-1-model-human-evaluation-entry-audit.md).
 
 ## Workflow 2: reliability release gate
 
