@@ -11,6 +11,11 @@ import {
   IndependenceDeclarationDefinitionSchema,
   IndependenceDeclarationSchema,
   MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
+  MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
+  type ModelAssistedEvaluatorSpec,
+  type ModelAssistedEvaluatorSpecDefinition,
+  ModelAssistedEvaluatorSpecDefinitionSchema,
+  ModelAssistedEvaluatorSpecSchema,
   type ModelEvaluatorProfile,
   type ModelEvaluatorProfileDefinition,
   ModelEvaluatorProfileDefinitionSchema,
@@ -277,6 +282,113 @@ describe("model evaluator profile contracts", () => {
       expect(
         () => ModelEvaluatorProfileDefinitionSchema.parse(input),
         `${section}.${field}`,
+      ).toThrow();
+    }
+  });
+});
+
+function modelAssistedEvaluatorSpecDefinition(): ModelAssistedEvaluatorSpecDefinition {
+  return {
+    changeRationale: "Initial qualified model-assisted safety evaluator",
+    configurationSha256: sha("9"),
+    evaluatorId: "evl_model_safety",
+    evaluatorVersionId: "evv_model_safety_v1",
+    inputSchema: artifact("art_model_input_schema", "a", "application/schema+json"),
+    kind: "model_assisted",
+    knownLimitations: ["A model judgment remains contestable evidence"],
+    modelProfile: {
+      definitionSha256: sha("8"),
+      modelProfileId: "mep_safety",
+      modelProfileVersionId: "mpv_safety_v1",
+    },
+    outputSchema: artifact("art_model_output_schema", "1", "application/schema+json"),
+    qualificationFixtureSet: {
+      definitionSha256: sha("2"),
+      fixtureSetId: "qfs_model_safety",
+      fixtureSetVersionId: "qfv_model_safety_v1",
+    },
+    resultSemantics:
+      "Return a five-state observation with exact evidence references and no release decision.",
+    supportedCriteria: [
+      {
+        criterionId: "crt_no_unsafe_tool_request",
+        criterionSetId: "crs_agent_safety",
+        criterionSetVersionId: "csv_agent_safety_v1",
+      },
+    ],
+  };
+}
+
+function modelAssistedEvaluatorSpec(): ModelAssistedEvaluatorSpec {
+  return {
+    ...modelAssistedEvaluatorSpecDefinition(),
+    definitionSha256: sha("b"),
+    publishedAt: "2026-09-02T00:05:00.000Z",
+    publishedByPrincipalId: "usr_model_evaluator_publisher",
+    schemaVersion: MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("model-assisted evaluator specification contracts", () => {
+  it("binds one exact model profile and qualification corpus without provider authority", () => {
+    expect(
+      ModelAssistedEvaluatorSpecDefinitionSchema.parse(modelAssistedEvaluatorSpecDefinition()),
+    ).toEqual(modelAssistedEvaluatorSpecDefinition());
+    expect(ModelAssistedEvaluatorSpecSchema.parse(modelAssistedEvaluatorSpec())).toEqual(
+      modelAssistedEvaluatorSpec(),
+    );
+  });
+
+  it("keeps semantic changes versioned through stable predecessor identity", () => {
+    const wrongId = modelAssistedEvaluatorSpecDefinition();
+    wrongId.predecessor = {
+      definitionSha256: sha("c"),
+      evaluatorId: "evl_other",
+      evaluatorVersionId: "evv_model_safety_v0",
+    };
+    expect(() => ModelAssistedEvaluatorSpecDefinitionSchema.parse(wrongId)).toThrow(
+      "retain the logical evaluatorId",
+    );
+
+    const self = modelAssistedEvaluatorSpecDefinition();
+    self.predecessor = {
+      definitionSha256: sha("c"),
+      evaluatorId: self.evaluatorId,
+      evaluatorVersionId: self.evaluatorVersionId,
+    };
+    expect(() => ModelAssistedEvaluatorSpecDefinitionSchema.parse(self)).toThrow("name itself");
+
+    const successor = modelAssistedEvaluatorSpecDefinition();
+    successor.predecessor = {
+      definitionSha256: sha("c"),
+      evaluatorId: successor.evaluatorId,
+      evaluatorVersionId: "evv_model_safety_v0",
+    };
+    expect(ModelAssistedEvaluatorSpecDefinitionSchema.parse(successor)).toEqual(successor);
+  });
+
+  it("rejects duplicate criteria, embedded credentials, destinations, prompts, and release policy", () => {
+    const duplicate = modelAssistedEvaluatorSpecDefinition();
+    duplicate.supportedCriteria = [
+      duplicate.supportedCriteria[0] as never,
+      duplicate.supportedCriteria[0] as never,
+    ];
+    expect(() => ModelAssistedEvaluatorSpecDefinitionSchema.parse(duplicate)).toThrow(
+      "criteria must be unique",
+    );
+
+    for (const forbidden of [
+      { apiKey: "secret" },
+      { endpoint: "https://example.invalid" },
+      { prompt: "hidden mutable prompt" },
+      { releaseAuthority: "allow" },
+    ]) {
+      expect(() =>
+        ModelAssistedEvaluatorSpecDefinitionSchema.parse({
+          ...modelAssistedEvaluatorSpecDefinition(),
+          ...forbidden,
+        }),
       ).toThrow();
     }
   });

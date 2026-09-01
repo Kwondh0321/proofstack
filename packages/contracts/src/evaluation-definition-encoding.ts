@@ -64,6 +64,9 @@ import {
   INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
+  MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
+  type ModelAssistedEvaluatorSpecDefinition,
+  ModelAssistedEvaluatorSpecDefinitionSchema,
   MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
   type ModelEvaluatorProfileDefinition,
   ModelEvaluatorProfileDefinitionSchema,
@@ -84,6 +87,8 @@ export const MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN =
 export const INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN =
   "proofstack.independence-declaration.v1" as const;
 export const CALIBRATION_REPORT_DEFINITION_DOMAIN = "proofstack.calibration-report.v1" as const;
+export const MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN =
+  "proofstack.model-assisted-evaluator-spec.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -352,6 +357,18 @@ export function encodeCalibrationReportDefinition(
   return encodeDefinition(
     CALIBRATION_REPORT_DEFINITION_DOMAIN,
     CALIBRATION_REPORT_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeModelAssistedEvaluatorSpecDefinition(
+  input: ScopedEvaluationDefinition<ModelAssistedEvaluatorSpecDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(ModelAssistedEvaluatorSpecDefinitionSchema).parse(input);
+  return encodeDefinition(
+    MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN,
+    MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

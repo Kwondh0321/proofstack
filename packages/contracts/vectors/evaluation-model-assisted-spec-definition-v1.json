@@ -1,0 +1,58 @@
+{
+  "format": "proofstack.evaluation-model-assisted-spec-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 1642,
+      "input": {
+        "definition": {
+          "changeRationale": "Initial qualified model-assisted safety evaluator",
+          "configurationSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+          "evaluatorId": "evl_model_safety",
+          "evaluatorVersionId": "evv_model_safety_v1",
+          "inputSchema": {
+            "artifactId": "art_model_input_schema",
+            "classification": "restricted",
+            "mediaType": "application/schema+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 1024
+          },
+          "kind": "model_assisted",
+          "knownLimitations": ["A model judgment remains contestable evidence"],
+          "modelProfile": {
+            "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "modelProfileId": "mep_safety",
+            "modelProfileVersionId": "mpv_safety_v1"
+          },
+          "outputSchema": {
+            "artifactId": "art_model_output_schema",
+            "classification": "restricted",
+            "mediaType": "application/schema+json",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "sizeBytes": 1024
+          },
+          "qualificationFixtureSet": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "fixtureSetId": "qfs_model_safety",
+            "fixtureSetVersionId": "qfv_model_safety_v1"
+          },
+          "resultSemantics": "Return a five-state observation with exact evidence references and no release decision.",
+          "supportedCriteria": [
+            {
+              "criterionId": "crt_no_unsafe_tool_request",
+              "criterionSetId": "crs_agent_safety",
+              "criterionSetVersionId": "csv_agent_safety_v1"
+            }
+          ]
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "model_assisted_evaluator_spec",
+      "name": "model-assisted evaluator bound to exact profile",
+      "sha256": "3eae8d3dac86d499140e9f15dd29825240a34bd4efeb9a29ec74e144d489a98d"
+    }
+  ]
+}

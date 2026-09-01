@@ -3,10 +3,14 @@ import { ArtifactContentReferenceSchema } from "./artifact.js";
 import {
   CriterionReferenceSchema,
   CriterionVersionSelectorSchema,
+  EvaluatorReferenceSchema,
   EvaluationRiskTierSchema,
 } from "./evaluation-criteria.js";
 import { EvaluationDatasetVersionReferenceSchema } from "./evaluation-run.js";
-import { QualificationReportReferenceSchema } from "./evaluation-spec.js";
+import {
+  QualificationFixtureSetReferenceSchema,
+  QualificationReportReferenceSchema,
+} from "./evaluation-spec.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-source.js";
@@ -14,6 +18,7 @@ import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-s
 export const MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENCE_DECLARATION_SCHEMA_VERSION = "0.1" as const;
 export const CALIBRATION_REPORT_SCHEMA_VERSION = "0.1" as const;
+export const MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION = "0.1" as const;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
 export const MAX_MODEL_PROFILE_PROMPTS = 5;
@@ -289,6 +294,84 @@ export type ModelEvaluatorSelector = z.infer<typeof ModelEvaluatorSelectorSchema
 export type ModelEvaluatorProfileReference = z.infer<typeof ModelEvaluatorProfileReferenceSchema>;
 export type ModelEvaluatorProfileDefinition = z.infer<typeof ModelEvaluatorProfileDefinitionSchema>;
 export type ModelEvaluatorProfile = z.infer<typeof ModelEvaluatorProfileSchema>;
+
+const modelAssistedEvaluatorSpecDefinitionShape = {
+  changeRationale: AssuranceRationaleSchema,
+  configurationSha256: Sha256Schema,
+  evaluatorId: OpaqueIdSchema,
+  evaluatorVersionId: OpaqueIdSchema,
+  inputSchema: ArtifactContentReferenceSchema,
+  kind: z.literal("model_assisted"),
+  knownLimitations: sortedUniqueText(64, "Model-assisted evaluator limitations"),
+  modelProfile: ModelEvaluatorProfileReferenceSchema,
+  outputSchema: ArtifactContentReferenceSchema,
+  predecessor: EvaluatorReferenceSchema.optional(),
+  qualificationFixtureSet: QualificationFixtureSetReferenceSchema,
+  resultSemantics: AssuranceRationaleSchema,
+  supportedCriteria: z
+    .array(CriterionVersionSelectorSchema)
+    .min(1)
+    .max(100)
+    .refine(
+      (selectors) =>
+        isStrictlySortedUnique(
+          selectors.map(
+            ({ criterionId, criterionSetId, criterionSetVersionId }) =>
+              `${criterionSetId}:${criterionSetVersionId}:${criterionId}`,
+          ),
+        ),
+      { message: "Model-assisted evaluator criteria must be unique and ordered" },
+    ),
+};
+
+function refineModelAssistedEvaluatorSpec(
+  value: {
+    readonly evaluatorId: string;
+    readonly evaluatorVersionId: string;
+    readonly predecessor?:
+      | { readonly evaluatorId: string; readonly evaluatorVersionId: string }
+      | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (!value.predecessor) return;
+  if (value.predecessor.evaluatorId !== value.evaluatorId) {
+    context.addIssue({
+      code: "custom",
+      message: "A model-assisted evaluator predecessor must retain the logical evaluatorId",
+      path: ["predecessor", "evaluatorId"],
+    });
+  }
+  if (value.predecessor.evaluatorVersionId === value.evaluatorVersionId) {
+    context.addIssue({
+      code: "custom",
+      message: "A model-assisted evaluator cannot name itself as predecessor",
+      path: ["predecessor", "evaluatorVersionId"],
+    });
+  }
+}
+
+export const ModelAssistedEvaluatorSpecDefinitionSchema = z
+  .object(modelAssistedEvaluatorSpecDefinitionShape)
+  .strict()
+  .superRefine(refineModelAssistedEvaluatorSpec);
+
+export const ModelAssistedEvaluatorSpecSchema = z
+  .object({
+    ...modelAssistedEvaluatorSpecDefinitionShape,
+    definitionSha256: Sha256Schema,
+    publishedAt: UtcMillisecondTimestampSchema,
+    publishedByPrincipalId: OpaqueIdSchema,
+    schemaVersion: z.literal(MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineModelAssistedEvaluatorSpec);
+
+export type ModelAssistedEvaluatorSpecDefinition = z.infer<
+  typeof ModelAssistedEvaluatorSpecDefinitionSchema
+>;
+export type ModelAssistedEvaluatorSpec = z.infer<typeof ModelAssistedEvaluatorSpecSchema>;
 
 export const IndependenceDeclarationReferenceSchema = z
   .object({
