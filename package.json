@@ -43,7 +43,7 @@
     "recovery:database:restore": "pnpm --filter @proofstack/recovery-operations recovery:database:restore",
     "test": "turbo run test",
     "test:integration:artifacts": "turbo run test:integration --concurrency=1 --filter=@proofstack/artifact-maintenance",
-    "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api --filter=@proofstack/example-durable-replay",
+    "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api --filter=@proofstack/example-durable-replay --filter=@proofstack/example-evaluation-control-flow",
     "test:integration:recovery": "turbo run test:integration --concurrency=1 --filter=@proofstack/recovery-operations",
     "test:integration:s3": "turbo run test:integration --concurrency=1 --filter=@proofstack/s3",
     "typecheck": "turbo run typecheck"
