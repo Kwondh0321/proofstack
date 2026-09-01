@@ -29,6 +29,7 @@ import {
 import {
   type Clock,
   CreateAssessment,
+  CreateModelAssuranceAssessment,
   EvaluationLineageError,
   EvaluationRecordConflictError,
   EvaluationRecordNotFoundError,
@@ -40,12 +41,23 @@ import {
   ForbiddenError,
   IngestEvidence,
   InvalidEvaluationRecordInputError,
+  InvalidModelAssuranceRecordInputError,
   InvalidTraceCursorError,
   ListTraceEvidence,
+  ModelAssuranceDependencyError,
+  ModelAssuranceLineageError,
+  ModelAssuranceRecordConflictError,
+  ModelAssuranceRecordNotFoundError,
+  type ModelAssuranceRepository,
+  ModelAssuranceRepositoryContractError,
   PublishEvaluationDefinition,
+  PublishModelAssuranceDefinition,
   ReadEvaluationRecord,
+  ReadModelAssuranceRecord,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
+  RecordHumanReview,
+  RecordModelAssuranceExecution,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
@@ -117,6 +129,7 @@ import {
   InteractionContentExportTooLargeError,
   InteractionExportStateChangedError,
 } from "./interaction-export.js";
+import { registerModelAssuranceRoutes } from "./model-assurance-routes.js";
 import { registerOidcRoutes } from "./oidc-routes.js";
 import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
@@ -135,6 +148,7 @@ export interface AppDependencies {
   readonly clock?: Clock;
   readonly evaluationRepository?: EvaluationRepository;
   readonly identityStorage?: IdentityStorage;
+  readonly modelAssuranceRepository?: ModelAssuranceRepository;
   readonly oidcRuntime?: OidcRuntime;
   readonly regressionVersionRepository?: RegressionVersionRepository;
   readonly repository?: EvidenceRepository;
@@ -180,6 +194,7 @@ export async function createApp(
     const storage =
       dependencies.repository ||
       dependencies.evaluationRepository ||
+      dependencies.modelAssuranceRepository ||
       dependencies.regressionVersionRepository ||
       dependencies.artifactStorage ||
       dependencies.replayDefinitionRepository ||
@@ -190,6 +205,8 @@ export async function createApp(
             checkReadiness: dependencies.checkReadiness ?? defaultStorage.checkReadiness,
             evaluationRepository:
               dependencies.evaluationRepository ?? defaultStorage.evaluationRepository,
+            modelAssuranceRepository:
+              dependencies.modelAssuranceRepository ?? defaultStorage.modelAssuranceRepository,
             evidenceRepository: dependencies.repository ?? defaultStorage.evidenceRepository,
             ...(dependencies.regressionVersionRepository
               ? {
@@ -297,6 +314,27 @@ export async function createApp(
       recordRunDecision: new RecordEvaluationRunDecision({
         clock,
         repository: storage.evaluationRepository,
+      }),
+    });
+    await registerModelAssuranceRoutes(app, {
+      authenticator,
+      createAssessment: new CreateModelAssuranceAssessment({
+        clock,
+        evaluationRepository: storage.evaluationRepository,
+        modelAssuranceRepository: storage.modelAssuranceRepository,
+      }),
+      publishDefinition: new PublishModelAssuranceDefinition({
+        clock,
+        repository: storage.modelAssuranceRepository,
+      }),
+      readRecord: new ReadModelAssuranceRecord(storage.modelAssuranceRepository),
+      recordExecution: new RecordModelAssuranceExecution({
+        clock,
+        repository: storage.modelAssuranceRepository,
+      }),
+      recordHumanReview: new RecordHumanReview({
+        clock,
+        repository: storage.modelAssuranceRepository,
       }),
     });
     await registerReplayRoutes(app, {
@@ -530,6 +568,54 @@ export async function createApp(
           status: 503,
           title: "Evaluation storage unavailable",
           type: "https://proofstack.dev/problems/evaluation-storage-unavailable",
+        });
+      }
+
+      if (error instanceof InvalidModelAssuranceRecordInputError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The model-assurance request does not match the required immutable contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid model-assurance request",
+          type: "https://proofstack.dev/problems/model-assurance-record-input-invalid",
+        });
+      }
+
+      if (error instanceof ModelAssuranceRecordNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Model-assurance record not found",
+          type: "https://proofstack.dev/problems/model-assurance-record-not-found",
+        });
+      }
+
+      if (
+        error instanceof ModelAssuranceDependencyError ||
+        error instanceof ModelAssuranceLineageError ||
+        error instanceof ModelAssuranceRecordConflictError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Model-assurance graph conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (error instanceof ModelAssuranceRepositoryContractError) {
+        return sendProblem(reply, {
+          code: "model_assurance_storage_unavailable",
+          detail: "Model-assurance storage is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Model-assurance storage unavailable",
+          type: "https://proofstack.dev/problems/model-assurance-storage-unavailable",
         });
       }
 

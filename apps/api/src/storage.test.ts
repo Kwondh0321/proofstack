@@ -1,13 +1,18 @@
-import { MemoryEvaluationRepository, MemoryEvidenceRepository } from "@proofstack/core";
+import {
+  MemoryEvaluationRepository,
+  MemoryEvidenceRepository,
+  MemoryModelAssuranceRepository,
+} from "@proofstack/core";
 import {
   type createPostgresPool,
   MigrationRequiredError,
   PostgresArtifactCatalogRepository,
   PostgresEvaluationRepository,
   PostgresEvidenceRepository,
+  PostgresModelAssuranceRepository,
+  PostgresRegressionVersionRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
-  PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
 import {
   MemoryReplayDefinitionRepository,
@@ -65,6 +70,7 @@ describe("createApiStorage", () => {
 
     expect(storage.evaluationRepository).toBeInstanceOf(MemoryEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
+    expect(storage.modelAssuranceRepository).toBeInstanceOf(MemoryModelAssuranceRepository);
     expect(storage.interactionFixtureVersionRepository).toBe(storage.regressionVersionRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(MemoryReplayDefinitionRepository);
     expect(storage.replayJobControlRepository).toBeInstanceOf(MemoryReplayJobRepository);
@@ -86,6 +92,7 @@ describe("createApiStorage", () => {
 
     expect(storage.evaluationRepository).toBeInstanceOf(PostgresEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(PostgresEvidenceRepository);
+    expect(storage.modelAssuranceRepository).toBeInstanceOf(PostgresModelAssuranceRepository);
     expect(storage.regressionVersionRepository).toBeInstanceOf(PostgresRegressionVersionRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(PostgresReplayDefinitionRepository);
     expect(storage.replayJobControlRepository).toBeInstanceOf(PostgresReplayJobControlRepository);

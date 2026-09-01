@@ -8,14 +8,14 @@ export * from "./evaluation/evaluation-record-validation.js";
 export * from "./evaluation/evaluation-repository.js";
 export * from "./evaluation/evaluation-repository-errors.js";
 export * from "./evaluation/exact-oracle.js";
-export * from "./evaluation/model-assurance-independence.js";
+export * from "./evaluation/model-assurance-blinded-result.js";
 export * from "./evaluation/model-assurance-calibration.js";
 export * from "./evaluation/model-assurance-critique.js";
-export * from "./evaluation/model-assurance-blinded-result.js";
 export * from "./evaluation/model-assurance-human-review.js";
+export * from "./evaluation/model-assurance-independence.js";
 export * from "./evaluation/model-assurance-qualification.js";
-export * from "./evaluation/model-assurance-record-validation.js";
 export * from "./evaluation/model-assurance-record-lineage.js";
+export * from "./evaluation/model-assurance-record-validation.js";
 export * from "./evaluation/model-assurance-repository.js";
 export * from "./evaluation/record-evaluation.js";
 export * from "./evaluation/record-model-assurance.js";
@@ -36,3 +36,4 @@ export {
   MemoryEvaluationRepository,
 } from "./testing/memory-evaluation-repository.js";
 export * from "./testing/memory-evidence-repository.js";
+export { MemoryModelAssuranceRepository } from "./testing/memory-model-assurance-repository.js";

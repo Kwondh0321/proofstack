@@ -12,6 +12,8 @@ import {
   type EvidenceRepository,
   MemoryEvaluationRepository,
   MemoryEvidenceRepository,
+  MemoryModelAssuranceRepository,
+  type ModelAssuranceRepository,
 } from "@proofstack/core";
 import type {
   InteractionFixtureVersionRepository,
@@ -23,9 +25,10 @@ import {
   PostgresArtifactCatalogRepository,
   PostgresEvaluationRepository,
   PostgresEvidenceRepository,
+  PostgresModelAssuranceRepository,
+  PostgresRegressionVersionRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
-  PostgresRegressionVersionRepository,
 } from "@proofstack/postgres";
 import type { ReplayDefinitionRepository, ReplayJobControlRepository } from "@proofstack/replay";
 import {
@@ -51,6 +54,7 @@ export interface ApiStorage {
   readonly evidenceRepository: EvidenceRepository;
   readonly interactionFixtureVersionRepository?: InteractionFixtureVersionRepository;
   readonly regressionVersionRepository: RegressionVersionRepository;
+  readonly modelAssuranceRepository: ModelAssuranceRepository;
   readonly replayDefinitionRepository: ReplayDefinitionRepository;
   readonly replayJobControlRepository: ReplayJobControlRepository;
 }
@@ -104,6 +108,7 @@ export async function createApiStorage(
       evidenceRepository: new MemoryEvidenceRepository(),
       interactionFixtureVersionRepository: interactionStorage.regressionVersionRepository,
       regressionVersionRepository: interactionStorage.regressionVersionRepository,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       replayDefinitionRepository,
       replayJobControlRepository: replayJobRepository,
     };
@@ -164,6 +169,7 @@ export async function createApiStorage(
     evidenceRepository: new PostgresEvidenceRepository(pool),
     interactionFixtureVersionRepository: regressionVersionRepository,
     regressionVersionRepository,
+    modelAssuranceRepository: new PostgresModelAssuranceRepository(pool),
     replayDefinitionRepository: new PostgresReplayDefinitionRepository(pool),
     replayJobControlRepository: new PostgresReplayJobControlRepository(pool),
   };
