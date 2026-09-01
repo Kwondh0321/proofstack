@@ -209,6 +209,19 @@ describe("CreateDurableReplayJob repository boundary", () => {
     });
   });
 
+  it("accepts a newly created job in the repository recovery epoch", async () => {
+    const value = harness();
+    value.createJob.mockResolvedValue({
+      created: true,
+      snapshot: snapshot({ recoveryEpoch: 7 }),
+    });
+
+    await expect(value.service.execute(command())).resolves.toEqual({
+      created: true,
+      snapshot: snapshot({ recoveryEpoch: 7 }),
+    });
+  });
+
   it.each([
     null,
     {},
@@ -256,7 +269,6 @@ describe("CreateDurableReplayJob repository boundary", () => {
       snapshot({ plan: { ...REQUEST.plan, definitionSha256: "b".repeat(64) } }),
     ],
     ["invalid initial state version", snapshot({ stateVersion: 2 })],
-    ["invalid initial recovery epoch", snapshot({ recoveryEpoch: 1 })],
   ])("rejects a repository %s", async (_label, repositorySnapshot) => {
     const value = harness();
     value.createJob.mockResolvedValue({ created: true, snapshot: repositorySnapshot });

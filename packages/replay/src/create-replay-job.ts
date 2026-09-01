@@ -103,9 +103,7 @@ export class CreateDurableReplayJob {
       result.snapshot.job.createdByPrincipalId !== principal.principalId ||
       !plansEqual(result.snapshot.job.plan, request.plan) ||
       (result.created &&
-        (result.snapshot.job.status !== "queued" ||
-          result.snapshot.job.stateVersion !== 1 ||
-          result.snapshot.job.recoveryEpoch !== 0))
+        (result.snapshot.job.status !== "queued" || result.snapshot.job.stateVersion !== 1))
     ) {
       throw new ReplayRepositoryContractError(
         "Replay job creation result violates the repository contract",
