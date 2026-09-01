@@ -328,6 +328,8 @@ describe("createAuthenticator", () => {
         "replay:cancel",
         "replay:manage",
         "evaluation:manage",
+        "evaluation:model:run",
+        "evaluation:human:review",
       ]),
       principalId: "usr_local",
       tenantId: "ten_local",

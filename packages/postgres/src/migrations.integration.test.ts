@@ -158,6 +158,7 @@ describe("PostgreSQL evidence schema", () => {
       "0037_evaluation_graph_registry",
       "0038_align_evaluation_execution_authority",
       "0039_ignore_evaluation_selectors_in_lineage",
+      "0040_model_assurance_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -378,7 +379,9 @@ describe("PostgreSQL evidence schema", () => {
     const capabilityParity = await pool.query<{
       readonly allUserCapabilities: boolean;
       readonly allWorkloadCapabilities: boolean;
+      readonly evaluationHumanReviewWorkload: boolean;
       readonly evaluationManagementWorkload: boolean;
+      readonly evaluationModelRunWorkload: boolean;
       readonly replayManagementWorkload: boolean;
     }>(
       `
@@ -390,6 +393,12 @@ describe("PostgreSQL evidence schema", () => {
             ARRAY['evaluation:manage']::text[]
           ) AS "evaluationManagementWorkload",
           public.proofstack_valid_workload_capabilities(
+            ARRAY['evaluation:model:run']::text[]
+          ) AS "evaluationModelRunWorkload",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['evaluation:human:review']::text[]
+          ) AS "evaluationHumanReviewWorkload",
+          public.proofstack_valid_workload_capabilities(
             ARRAY['replay:manage']::text[]
           ) AS "replayManagementWorkload"
       `,
@@ -398,7 +407,9 @@ describe("PostgreSQL evidence schema", () => {
     expect(capabilityParity.rows[0]).toEqual({
       allUserCapabilities: true,
       allWorkloadCapabilities: true,
+      evaluationHumanReviewWorkload: false,
       evaluationManagementWorkload: false,
+      evaluationModelRunWorkload: true,
       replayManagementWorkload: false,
     });
 

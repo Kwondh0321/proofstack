@@ -132,6 +132,7 @@ describe("WorkloadCapabilitySchema", () => {
     "replay:run",
     "replay:cancel",
     "evaluation:run",
+    "evaluation:model:run",
     "policy:evaluate",
   ])("accepts delegable capability %s", (capability) => {
     expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(true);
@@ -143,6 +144,7 @@ describe("WorkloadCapabilitySchema", () => {
     "dataset:manage",
     "replay:manage",
     "evaluation:manage",
+    "evaluation:human:review",
     "identity:manage",
     "approval:decide",
     "project:manage",

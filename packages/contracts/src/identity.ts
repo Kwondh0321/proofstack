@@ -29,6 +29,8 @@ export const CapabilitySchema = z.enum([
   "replay:manage",
   "evaluation:read",
   "evaluation:run",
+  "evaluation:model:run",
+  "evaluation:human:review",
   "evaluation:manage",
   "release:read",
   "release:manage",
@@ -52,6 +54,7 @@ export const WORKLOAD_DELEGABLE_CAPABILITIES = [
   "replay:cancel",
   "evaluation:read",
   "evaluation:run",
+  "evaluation:model:run",
   "release:read",
   "policy:evaluate",
 ] as const satisfies readonly z.infer<typeof CapabilitySchema>[];
