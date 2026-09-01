@@ -599,6 +599,14 @@ export const EvaluationRunResultSchema = z
     }
   });
 
+export const EvaluationRunResultReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    evaluationRunId: OpaqueIdSchema,
+    resultId: OpaqueIdSchema,
+  })
+  .strict();
+
 function scopesEqual(
   left: z.infer<typeof EvidenceScopeSchema>,
   right: z.infer<typeof EvidenceScopeSchema>,

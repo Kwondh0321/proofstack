@@ -30,6 +30,10 @@
       "types": "./dist/evaluation-run.d.ts",
       "import": "./dist/evaluation-run.js"
     },
+    "./evaluation-assessment": {
+      "types": "./dist/evaluation-assessment.d.ts",
+      "import": "./dist/evaluation-assessment.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"
