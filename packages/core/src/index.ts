@@ -7,6 +7,7 @@ export * from "./evaluation/evaluation-repository.js";
 export * from "./evaluation/evaluation-repository-errors.js";
 export * from "./evaluation/exact-oracle.js";
 export * from "./evaluation/reference-aggregate.js";
+export * from "./evaluation/record-evaluation.js";
 export * from "./evaluation/schema-oracle.js";
 export * from "./evidence/evidence-repository.js";
 export * from "./evidence/ingest-evidence.js";
