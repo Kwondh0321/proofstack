@@ -278,13 +278,18 @@ async function publishEvaluationFixture(
   );
   const recordId = evaluationRecordId(fixture.kind, fixture.record);
   if (evaluationWorkerKinds.has(fixture.kind)) {
+    const recordedExecutor = (
+      fixture.record as unknown as { readonly executedByPrincipalId?: unknown }
+    ).executedByPrincipalId;
+    const workerPrincipalId =
+      typeof recordedExecutor === "string" ? recordedExecutor : "usr_repository_conformance";
     const command = evaluationWorkerCommand(
       fixture as EvaluationRepositoryFixtureRecord & { readonly kind: EvaluationWorkerKind },
       servicePrincipal(
         scope.tenantId,
         scope.projectId,
         scope.environmentId,
-        "usr_repository_conformance",
+        workerPrincipalId,
         `req_${options.namespace}_evaluation_worker_${recordId}`,
       ),
     );
