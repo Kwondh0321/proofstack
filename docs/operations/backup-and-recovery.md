@@ -42,7 +42,7 @@ Before capture:
 1. Select an exact 40-character ProofStack revision whose required CI and security checks passed.
 2. Assign a unique recovery-set ID and an immutable destination for every component.
 3. Prepare dedicated recovery database credentials. They are privileged operator credentials,
-   never one of the five runtime roles. Inject them from a secret manager through
+   never one of the seven runtime roles. Inject them from a secret manager through
    `PROOFSTACK_RECOVERY_DATABASE_URL`; do not paste the URL into shell history.
 4. Install `pg_dump` and `pg_restore` with the same major version as the server. The supported
    wrapper refuses a mismatched or pre-16 client/server pair.

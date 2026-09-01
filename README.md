@@ -91,7 +91,7 @@ flowchart LR
 
 The memory adapter keeps the quickstart dependency-free. The PostgreSQL adapter is the durable
 option: migration integrity, database-enforced tenant isolation, immutable evidence, atomic
-evidence/outbox writes, and six isolated least-privilege runtime roles are covered by real
+evidence/outbox writes, and seven isolated least-privilege runtime roles are covered by real
 PostgreSQL tests. The experimental API-key mode is end-to-end functional for workloads. The OIDC
 browser API is functional with server-side bindings and sessions; provider deployment validation
 and operator console sign-in integration remain unfinished. Artifact lifecycle and

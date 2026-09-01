@@ -81,7 +81,11 @@ identity, outbox, sequences, or schema administration. The API verifies the comp
 ledger at startup and readiness checks. The `proofstack_replay_worker` role can execute only the
 fixed claim, heartbeat, reservation, reconciliation, observation, cancellation-acknowledgement,
 and terminal-transition functions; it cannot read or mutate replay tables directly, publish
-definitions, create jobs, request cancellation, or use API authority. Stop the local database
+definitions, create jobs, request cancellation, or use API authority.
+The `proofstack_evaluation_worker` role can read the immutable evaluation graph and execute only
+the narrow result-persistence authority; it cannot publish criteria, sources, evaluator/oracle
+specifications, runs, or assessments, and it has no direct table or outbox write privilege.
+Stop the local database
 without deleting evidence with:
 
 ```bash
@@ -326,12 +330,14 @@ redaction, and retry guidance in the
 | `PROOFSTACK_IDENTITY_DATABASE_ROLE` | `proofstack_identity` | database CLI | Managed identity role name |
 | `PROOFSTACK_PUBLISHER_DATABASE_ROLE` | `proofstack_publisher` | database CLI | Managed outbox publisher role name |
 | `PROOFSTACK_CONSUMER_DATABASE_ROLE` | `proofstack_consumer` | database CLI | Managed consumer role name |
+| `PROOFSTACK_EVALUATION_WORKER_DATABASE_ROLE` | `proofstack_evaluation_worker` | database CLI | Managed evaluation result worker role name |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE` | `proofstack_replay_worker` | database CLI | Managed replay worker role name |
 | `PROOFSTACK_API_DATABASE_PASSWORD` | unset | database CLI | API role password used only during provisioning |
 | `PROOFSTACK_ARTIFACT_DATABASE_PASSWORD` | unset | database CLI | Artifact lifecycle role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_DATABASE_PASSWORD` | unset | database CLI | Identity role password used only during provisioning |
 | `PROOFSTACK_PUBLISHER_DATABASE_PASSWORD` | unset | database CLI | Publisher role password used only during provisioning |
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
+| `PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD` | unset | database CLI | Evaluation worker role password used only during provisioning |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD` | unset | database CLI | Replay worker role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_TENANT_ID` | unset | identity CLI | Explicit tenant for bootstrap and aggregate status |
 | `PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID` | unset | identity CLI | Audited local operator identifier for bootstrap |

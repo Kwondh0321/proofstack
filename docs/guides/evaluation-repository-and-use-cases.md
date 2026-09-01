@@ -3,9 +3,10 @@
 [English](evaluation-repository-and-use-cases.md) |
 [한국어](evaluation-repository-and-use-cases.ko.md)
 
-- Status: experimental core-library checkpoint; memory-backed only
+- Status: experimental durable-persistence checkpoint
 - Production readiness: not approved
-- HTTP API, SDK, worker, and PostgreSQL persistence: not included yet
+- HTTP API, SDK, and worker service: not included yet
+- PostgreSQL persistence, outbox, role separation, and recovery coverage: implemented
 - Release authority: not included
 
 ProofStack now has a framework-independent application boundary for publishing and recording the
@@ -13,8 +14,9 @@ complete immutable evaluation graph. It does not yet expose that graph as a serv
 exists so a durable adapter and API can be added without moving authorization, ownership, digest,
 lineage, or idempotency decisions into transport or storage code.
 
-The main entry points are exported from `@proofstack/core`. The in-memory adapter and reusable
-repository conformance cases are exported from `@proofstack/core/testing`.
+The main entry points are exported from `@proofstack/core`. `PostgresEvaluationRepository` is
+exported from `@proofstack/postgres`; the in-memory adapter and reusable repository conformance
+cases are exported from `@proofstack/core/testing`.
 
 ## What is implemented
 
@@ -46,6 +48,18 @@ Every publish operation must:
 `MemoryEvaluationRepository` implements that contract for tests and local composition. It owns its
 state only inside one process. It has no restart durability, cross-process concurrency guarantee,
 database-enforced row isolation, outbox, backup, or recovery claim.
+
+`PostgresEvaluationRepository` implements the same port over migration `0037`. A registry, five
+tenant-wide resource bindings, derived lineage edges, terminal uniqueness slots, and 16 typed
+partitions remain append-only behind forced RLS. Each accepted record and its bounded outbox intent
+commit in one transaction. Canonical advisory-lock ordering serializes competing record, resource,
+lineage, and uniqueness keys; identical concurrent retries return one authoritative record.
+
+The API role can execute only the control-record function. The separate
+`proofstack_evaluation_worker` role can execute only the qualification, observation, and terminal
+result function. Neither role receives direct insert privilege on evaluation tables. Database
+functions derive resource bindings, lineage, uniqueness, and outbox values from the stored record
+rather than accepting those authority fields from callers.
 
 ## Authorization-first application boundary
 
@@ -101,10 +115,11 @@ complete 16-kind graph and verify:
 3. invalid-digest and missing-lineage rejection without partial visibility; and
 4. semantic, tenant-resource, observation-attempt, and terminal-result uniqueness conflicts.
 
-Passing this suite is necessary, not sufficient, for a PostgreSQL adapter. The durable adapter must
-add forced row-level security, least-privilege roles and functions, transactionally atomic outbox
-intents, lock-order and concurrency tests, migration evolution, and coordinated empty-target
-recovery. Those are the next implementation stage.
+The PostgreSQL implementation runs the same suite and adds real-database tests for forced RLS,
+least-privilege function separation, database-derived lineage, transactionally atomic outbox
+intents, canonical lock ordering, concurrent retry collapse, pool restart durability, migration
+integrity, and coordinated empty-target recovery. Passing these tests remains an engineering claim,
+not approval for production deployment.
 
 ## Error meaning
 
@@ -129,7 +144,7 @@ correct, a sample is representative, an oracle measures the intended property, o
 should authorize a release. These remain contestable claims with explicit provenance,
 qualification, conflicts, limitations, and human review requirements.
 
-There is still no execute-from-text route, autonomous web search, model judge, evaluation worker,
-PostgreSQL evaluation schema, outbox integration, recovery coverage, HTTP API, SDK method, console
-flow, or release gate. Follow the dependency order and acceptance matrix in the
+There is still no execute-from-text route, autonomous web search, model judge, evaluation worker
+service, HTTP API, SDK method, console flow, or release gate. Follow the dependency order and
+acceptance matrix in the
 [criteria and non-model evaluation entry audit](../development/workflow-1-criteria-evaluation-entry-audit.md).

@@ -3,9 +3,10 @@
 [English](evaluation-repository-and-use-cases.md) |
 [한국어](evaluation-repository-and-use-cases.ko.md)
 
-- 상태: 실험적 core-library 체크포인트, 현재는 memory adapter만 제공
+- 상태: 실험적 영속 저장 체크포인트
 - 프로덕션 준비: 승인되지 않음
-- HTTP API, SDK, worker, PostgreSQL 영속성: 아직 포함되지 않음
+- HTTP API, SDK, worker service: 아직 포함되지 않음
+- PostgreSQL 영속성, outbox, role 분리, recovery coverage: 구현됨
 - 릴리스 권한: 포함되지 않음
 
 ProofStack에는 이제 전체 불변 evaluation graph를 게시하고 기록하는 프레임워크 독립적
@@ -13,8 +14,9 @@ application boundary가 있습니다. 아직 이 graph를 service로 노출하�
 나중에 영속 adapter와 API를 추가하더라도 authorization, ownership, digest, lineage,
 idempotency 결정을 transport나 storage 코드로 옮기지 않기 위해 존재합니다.
 
-주요 진입점은 `@proofstack/core`에서 내보냅니다. 메모리 adapter와 재사용 가능한 repository
-conformance case는 `@proofstack/core/testing`에서 내보냅니다.
+주요 진입점은 `@proofstack/core`에서 내보냅니다. `PostgresEvaluationRepository`는
+`@proofstack/postgres`에서, 메모리 adapter와 재사용 가능한 repository conformance case는
+`@proofstack/core/testing`에서 내보냅니다.
 
 ## 구현된 범위
 
@@ -46,6 +48,18 @@ discovery -> source snapshot -> source review
 `MemoryEvaluationRepository`는 테스트와 로컬 조합을 위한 구현입니다. 한 프로세스 안에서만
 상태를 소유합니다. restart 영속성, cross-process concurrency, DB 강제 row isolation, outbox,
 backup 또는 recovery를 보장하지 않습니다.
+
+`PostgresEvaluationRepository`는 migration `0037` 위에서 같은 port를 구현합니다. registry,
+tenant-wide resource binding 5종, DB가 유도한 lineage edge, terminal uniqueness slot, typed
+partition 16종은 forced RLS 뒤에서 append-only로 유지됩니다. 승인된 record와 제한된 outbox
+intent는 한 transaction에서 commit됩니다. canonical advisory-lock 순서가 record, resource,
+lineage, uniqueness key 경쟁을 직렬화하며 동일 concurrent retry는 권위 있는 record 하나로
+수렴합니다.
+
+API role은 control-record 함수만 실행할 수 있습니다. 별도 `proofstack_evaluation_worker` role은
+qualification, observation, terminal result 함수만 실행할 수 있습니다. 두 role 모두 evaluation
+table에 직접 INSERT 권한이 없습니다. DB 함수는 resource binding, lineage, uniqueness, outbox
+값을 caller 입력으로 신뢰하지 않고 저장할 record에서 유도합니다.
 
 ## 권한을 먼저 확인하는 application boundary
 
@@ -101,10 +115,10 @@ application은 신뢰하지 않는 텍스트의 source·reviewer 주장을 그�
 3. 부분 가시성 없는 invalid-digest·missing-lineage 거부
 4. semantic, tenant-resource, observation-attempt, terminal-result uniqueness 충돌
 
-이 suite 통과는 PostgreSQL adapter의 필요조건이지 충분조건은 아닙니다. 영속 adapter에는 강제
-RLS, 최소 권한 role·function, transactionally atomic outbox intent, lock-order·concurrency test,
-migration evolution, 조정된 empty-target recovery가 추가되어야 합니다. 이것이 다음 구현
-단계입니다.
+PostgreSQL 구현은 같은 suite를 실행하고 forced RLS, 최소 권한 function 분리, DB 유도 lineage,
+transactionally atomic outbox intent, canonical lock ordering, concurrent retry 수렴, pool restart
+영속성, migration integrity, 조정된 empty-target recovery를 실제 DB test로 추가 검증합니다.
+이 test 통과는 engineering claim이며 production 배포 승인을 뜻하지 않습니다.
 
 ## 오류 의미
 
@@ -130,8 +144,7 @@ transport가 message 문자열을 파싱하지 않고 failure를 변환할 수 �
 확립하지는 않습니다. 이는 명시적인 provenance, qualification, conflict, limitation, human
 review requirement를 가진 반박 가능한 claim으로 남습니다.
 
-아직 execute-from-text route, 자율 web search, model judge, evaluation worker, PostgreSQL
-evaluation schema, outbox integration, recovery coverage, HTTP API, SDK method, console flow,
-release gate는 없습니다. 의존 순서와 acceptance matrix는
+아직 execute-from-text route, 자율 web search, model judge, evaluation worker service, HTTP API,
+SDK method, console flow, release gate는 없습니다. 의존 순서와 acceptance matrix는
 [criteria·비모델 평가 진입 감사](../development/workflow-1-criteria-evaluation-entry-audit.ko.md)를
 따르세요.
