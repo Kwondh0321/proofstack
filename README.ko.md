@@ -243,6 +243,10 @@ port, 권한 우선 server authorship, memory·PostgreSQL adapter conformance와
 [서비스 기반 평가 제어 흐름 가이드](docs/guides/evaluation-control-flow.ko.md)는 stale source,
 counterevidence, disagreement, 낮은 coverage, ineligible 결론을 보존하면서 exact API, SDK,
 worker role, PostgreSQL, restart 경로를 실행합니다.
+완료된
+[기준·비모델 평가 감사 기록](docs/development/workflow-1-criteria-evaluation-audit.ko.md)은 이
+불변 evidence·eligibility 경계를 승인하지만 model-assisted evaluation, comparison, policy,
+approval, release, production-readiness 주장은 승인하지 않습니다.
 
 ## 현재의 경계
 

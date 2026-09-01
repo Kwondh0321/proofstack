@@ -312,12 +312,14 @@ Progress as of 2026-09-02:
 - Step 5 adds migrations `0037` through `0039`, normalized append-only PostgreSQL storage, forced tenant RLS,
   database-derived lineage and outbox intents, separated API/evaluation-worker authority, shared
   conformance, real concurrency and restart tests, and coordinated empty-target recovery.
-- Step 6 is implemented locally: exact-version API and SDK surfaces, a dedicated
+- Step 6 is implemented and verified: exact-version API and SDK surfaces, a dedicated
   evaluation-worker storage boundary, operator documentation, and a service-backed reference flow
   now cover 30 durable records, all five verdicts, conservative aggregation, exact read-back, and
   API restart persistence.
-- Step 7 remains open pending the independent acceptance audit and authoritative remote CI and
-  Security results. The checkpoint and Workflow 1 exit therefore remain unapproved.
+- Step 7 is complete. The independent
+  [acceptance audit](workflow-1-criteria-evaluation-audit.md) closes the service-backed checkpoint
+  against authoritative local and remote gates. Workflow 1 exit remains unapproved because
+  model-assisted evaluation, exact comparison, and the final end-to-end audit remain open.
 
 Each coherent change receives its own English commit and must leave its applicable local gates
 green before push. GitHub CI and Security remain authoritative for the external runner and service

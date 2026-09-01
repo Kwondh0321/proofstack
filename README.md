@@ -239,6 +239,10 @@ isolation, qualification, and persistence work that remains open.
 The [service-backed evaluation control-flow guide](docs/guides/evaluation-control-flow.md) runs the
 exact API, SDK, worker-role, PostgreSQL, and restart path while preserving stale sources,
 counterevidence, disagreement, low coverage, and an ineligible conclusion.
+The completed
+[criteria and non-model evaluation audit](docs/development/workflow-1-criteria-evaluation-audit.md)
+accepts that immutable evidence and eligibility boundary while withholding model-assisted
+evaluation, comparison, policy, approval, release, and production-readiness claims.
 
 ## Current boundaries
 

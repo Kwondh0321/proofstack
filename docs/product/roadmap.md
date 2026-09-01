@@ -80,7 +80,7 @@ Goal: turn a failed production trace into repeatable evidence.
 - [x] Durable replay jobs with multidimensional budgets, cancellation, fenced leases,
   predeclared retries, side-effect controls, usage reconciliation, and declared simulation or
   live-provider modes.
-- [ ] Versioned sources, criteria, deterministic oracles, statistical evaluators, raw
+- [x] Versioned sources, criteria, deterministic oracles, statistical evaluators, raw
   observations, qualification, intervals, abstention, errors, coverage, and assessments.
 - [ ] Qualified model-assisted evaluators with exact model and prompt lineage, calibration,
   independence groups, blinded order swaps, injection tests, counterevidence, disagreement, and
@@ -115,9 +115,13 @@ The completed [durable replay-job audit](../development/workflow-1-durable-repla
 the accepted bounded execution boundary, service-backed evidence, restore-epoch fencing, closed
 cross-check findings, and the evaluator and production limits that remain open.
 The source-authority, criteria, safe-applicability, deterministic-oracle, statistical-evaluation,
-qualification, observation, assessment, persistence, and acceptance gates for the open fifth
+qualification, observation, assessment, persistence, and acceptance gates for the fifth
 checkpoint are fixed by the
 [criteria and non-model evaluation entry audit](../development/workflow-1-criteria-evaluation-entry-audit.md).
+The completed
+[criteria and non-model evaluation audit](../development/workflow-1-criteria-evaluation-audit.md)
+records the accepted immutable evaluation evidence and eligibility boundary, closed cross-check
+findings, and the model-assisted, comparison, policy, and release limits that remain open.
 
 ## Workflow 2: reliability release gate
 
