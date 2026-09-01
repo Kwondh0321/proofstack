@@ -6,7 +6,10 @@ import {
   EvaluatorReferenceSchema,
   EvaluationRiskTierSchema,
 } from "./evaluation-criteria.js";
-import { EvaluationDatasetVersionReferenceSchema } from "./evaluation-run.js";
+import {
+  EvaluationDatasetVersionReferenceSchema,
+  RawObservationReferenceSchema,
+} from "./evaluation-run.js";
 import {
   QualificationFixtureSetReferenceSchema,
   QualificationReportReferenceSchema,
@@ -20,6 +23,7 @@ export const INDEPENDENCE_DECLARATION_SCHEMA_VERSION = "0.1" as const;
 export const CALIBRATION_REPORT_SCHEMA_VERSION = "0.1" as const;
 export const MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION = "0.1" as const;
 export const BLINDED_EVALUATION_PLAN_SCHEMA_VERSION = "0.1" as const;
+export const INDEPENDENT_CRITIQUE_SCHEMA_VERSION = "0.1" as const;
 export const MAX_BLINDED_ATTEMPTS = 16;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
@@ -1108,3 +1112,152 @@ export const BlindedEvaluationPlanSchema = z
 export type BlindedEvaluationPlanReference = z.infer<typeof BlindedEvaluationPlanReferenceSchema>;
 export type BlindedEvaluationPlanDefinition = z.infer<typeof BlindedEvaluationPlanDefinitionSchema>;
 export type BlindedEvaluationPlan = z.infer<typeof BlindedEvaluationPlanSchema>;
+
+export const IndependentCritiqueReferenceSchema = z
+  .object({
+    critiqueId: OpaqueIdSchema,
+    definitionSha256: Sha256Schema,
+  })
+  .strict();
+
+export const CritiqueFindingSchema = z
+  .object({
+    evidence: exactArtifacts(16, "Critique finding evidence").min(1),
+    findingId: OpaqueIdSchema,
+    impact: z.enum(["opposes", "supports", "uncertain"]),
+    kind: z.enum([
+      "alternative_interpretation",
+      "counterexample",
+      "injection_signal",
+      "missing_evidence",
+      "scope_error",
+    ]),
+    summary: AssuranceRationaleSchema,
+  })
+  .strict();
+
+export const IndependentCritiqueOutcomeSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      findings: z
+        .array(CritiqueFindingSchema)
+        .min(1)
+        .max(64)
+        .refine((findings) => isStrictlySortedUnique(findings.map(({ findingId }) => findingId)), {
+          message: "Critique findings must be unique and ordered by findingId",
+        }),
+      output: ArtifactContentReferenceSchema,
+      status: z.literal("produced"),
+    })
+    .strict(),
+  z
+    .object({
+      evidence: exactArtifacts(16, "Critique abstention evidence").min(1),
+      reasons: sortedUniqueText(16, "Critique abstention reasons").min(1),
+      status: z.literal("abstained"),
+    })
+    .strict(),
+  z
+    .object({
+      code: z.enum([
+        "budget_exhausted",
+        "deadline_exceeded",
+        "input_unavailable",
+        "output_malformed",
+        "provider_unavailable",
+      ]),
+      evidence: exactArtifacts(16, "Critique error evidence"),
+      reason: AssuranceRationaleSchema,
+      status: z.literal("error"),
+    })
+    .strict(),
+]);
+
+const independentCritiqueDefinitionShape = {
+  accessAttestation: z
+    .object({
+      attestedAt: UtcMillisecondTimestampSchema,
+      evidence: ArtifactContentReferenceSchema,
+      status: z.literal("original_judgment_withheld"),
+    })
+    .strict(),
+  allowedEvidence: exactArtifacts(64, "Critique allowed evidence").min(1),
+  calibrationReport: CalibrationReportReferenceSchema,
+  completedAt: UtcMillisecondTimestampSchema,
+  criterion: CriterionReferenceSchema,
+  critiqueId: OpaqueIdSchema,
+  evaluator: z
+    .object({
+      definitionSha256: Sha256Schema,
+      evaluatorId: OpaqueIdSchema,
+      evaluatorVersionId: OpaqueIdSchema,
+    })
+    .strict(),
+  evidenceAccessManifest: ArtifactContentReferenceSchema,
+  independenceDeclaration: IndependenceDeclarationReferenceSchema,
+  modelProfile: ModelEvaluatorProfileReferenceSchema,
+  observation: RawObservationReferenceSchema,
+  outcome: IndependentCritiqueOutcomeSchema,
+  qualificationReport: QualificationReportReferenceSchema,
+  question: ArtifactContentReferenceSchema,
+  rationaleAccess: z.literal("withheld_until_critique_recorded"),
+  selectedAt: UtcMillisecondTimestampSchema,
+  startedAt: UtcMillisecondTimestampSchema,
+};
+
+function refineIndependentCritique(
+  value: {
+    readonly accessAttestation: { readonly attestedAt: string };
+    readonly completedAt: string;
+    readonly selectedAt: string;
+    readonly startedAt: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  const selected = evidenceTimestampOrderKey(value.selectedAt);
+  const attested = evidenceTimestampOrderKey(value.accessAttestation.attestedAt);
+  const started = evidenceTimestampOrderKey(value.startedAt);
+  const completed = evidenceTimestampOrderKey(value.completedAt);
+  if (attested < selected) {
+    context.addIssue({
+      code: "custom",
+      message: "Critique withholding attestation cannot precede critic selection",
+      path: ["accessAttestation", "attestedAt"],
+    });
+  }
+  if (started < attested) {
+    context.addIssue({
+      code: "custom",
+      message: "Critique execution cannot begin before withholding is attested",
+      path: ["startedAt"],
+    });
+  }
+  if (completed < started) {
+    context.addIssue({
+      code: "custom",
+      message: "Critique completion cannot precede execution start",
+      path: ["completedAt"],
+    });
+  }
+}
+
+export const IndependentCritiqueDefinitionSchema = z
+  .object(independentCritiqueDefinitionShape)
+  .strict()
+  .superRefine(refineIndependentCritique);
+
+export const IndependentCritiqueSchema = z
+  .object({
+    ...independentCritiqueDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    recordedByPrincipalId: OpaqueIdSchema,
+    schemaVersion: z.literal(INDEPENDENT_CRITIQUE_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineIndependentCritique);
+
+export type IndependentCritiqueReference = z.infer<typeof IndependentCritiqueReferenceSchema>;
+export type IndependentCritiqueDefinition = z.infer<typeof IndependentCritiqueDefinitionSchema>;
+export type IndependentCritique = z.infer<typeof IndependentCritiqueSchema>;

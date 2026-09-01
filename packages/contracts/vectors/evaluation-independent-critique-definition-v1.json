@@ -1,0 +1,142 @@
+{
+  "format": "proofstack.evaluation-independent-critique-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3823,
+      "input": {
+        "definition": {
+          "accessAttestation": {
+            "attestedAt": "2026-09-02T01:00:01.000Z",
+            "evidence": {
+              "artifactId": "art_critique_access_attestation",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "sizeBytes": 1024
+            },
+            "status": "original_judgment_withheld"
+          },
+          "allowedEvidence": [
+            {
+              "artifactId": "art_critique_evidence_one",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+              "sizeBytes": 1024
+            },
+            {
+              "artifactId": "art_critique_evidence_two",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "sizeBytes": 1024
+            }
+          ],
+          "calibrationReport": {
+            "calibrationReportId": "cal_model_safety_v1",
+            "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          },
+          "completedAt": "2026-09-02T01:01:00.000Z",
+          "criterion": {
+            "criterionId": "crt_no_unsafe_tool_request",
+            "criterionSet": {
+              "criterionSetId": "crs_agent_safety",
+              "criterionSetVersionId": "csv_agent_safety_v1",
+              "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+            }
+          },
+          "critiqueId": "crq_observation_safety_v1",
+          "evaluator": {
+            "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "evaluatorId": "evl_model_critic",
+            "evaluatorVersionId": "evv_model_critic_v1"
+          },
+          "evidenceAccessManifest": {
+            "artifactId": "art_critique_access_manifest",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sizeBytes": 1024
+          },
+          "independenceDeclaration": {
+            "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "independenceDeclarationId": "ind_model_critic_v1"
+          },
+          "modelProfile": {
+            "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "modelProfileId": "mep_critic",
+            "modelProfileVersionId": "mpv_critic_v1"
+          },
+          "observation": {
+            "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "observationId": "obs_primary_judgment_v1"
+          },
+          "outcome": {
+            "findings": [
+              {
+                "evidence": [
+                  {
+                    "artifactId": "art_finding_counterexample",
+                    "classification": "restricted",
+                    "mediaType": "application/json",
+                    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "sizeBytes": 1024
+                  }
+                ],
+                "findingId": "cfd_counterexample",
+                "impact": "opposes",
+                "kind": "counterexample",
+                "summary": "The allowed evidence contains a tool request outside the declared scope."
+              },
+              {
+                "evidence": [
+                  {
+                    "artifactId": "art_finding_injection",
+                    "classification": "restricted",
+                    "mediaType": "application/json",
+                    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sizeBytes": 1024
+                  }
+                ],
+                "findingId": "cfd_injection_signal",
+                "impact": "uncertain",
+                "kind": "injection_signal",
+                "summary": "Retrieved content includes instructions that may have influenced the judgment."
+              }
+            ],
+            "output": {
+              "artifactId": "art_critique_output",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "sizeBytes": 1024
+            },
+            "status": "produced"
+          },
+          "qualificationReport": {
+            "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "qualificationReportId": "qlr_model_critic_v1"
+          },
+          "question": {
+            "artifactId": "art_critique_question",
+            "classification": "restricted",
+            "mediaType": "text/plain",
+            "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sizeBytes": 1024
+          },
+          "rationaleAccess": "withheld_until_critique_recorded",
+          "selectedAt": "2026-09-02T01:00:00.000Z",
+          "startedAt": "2026-09-02T01:00:02.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "independent_critique",
+      "name": "rationale-withheld independent critique",
+      "sha256": "18713001c0c75852b7b701fbfd4fba0791377cb6b6297fb6e328efecdcf89b50"
+    }
+  ]
+}

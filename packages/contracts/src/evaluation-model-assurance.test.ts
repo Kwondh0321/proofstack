@@ -11,6 +11,11 @@ import {
   CalibrationReportDefinitionSchema,
   CalibrationReportSchema,
   INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+  INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
+  type IndependentCritique,
+  type IndependentCritiqueDefinition,
+  IndependentCritiqueDefinitionSchema,
+  IndependentCritiqueSchema,
   type IndependenceDeclaration,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
@@ -1084,6 +1089,171 @@ describe("blinded evaluation plan contracts", () => {
       expect(() =>
         BlindedEvaluationPlanDefinitionSchema.parse({
           ...blindedEvaluationPlanDefinition(),
+          ...forbidden,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+export function independentCritiqueDefinition(): IndependentCritiqueDefinition {
+  return {
+    accessAttestation: {
+      attestedAt: "2026-09-02T01:00:01.000Z",
+      evidence: artifact("art_critique_access_attestation", "1"),
+      status: "original_judgment_withheld",
+    },
+    allowedEvidence: [
+      artifact("art_critique_evidence_one", "2"),
+      artifact("art_critique_evidence_two", "3"),
+    ],
+    calibrationReport: {
+      calibrationReportId: "cal_model_safety_v1",
+      definitionSha256: sha("4"),
+    },
+    completedAt: "2026-09-02T01:01:00.000Z",
+    criterion: {
+      criterionId: "crt_no_unsafe_tool_request",
+      criterionSet: {
+        criterionSetId: "crs_agent_safety",
+        criterionSetVersionId: "csv_agent_safety_v1",
+        definitionSha256: sha("5"),
+      },
+    },
+    critiqueId: "crq_observation_safety_v1",
+    evaluator: {
+      definitionSha256: sha("6"),
+      evaluatorId: "evl_model_critic",
+      evaluatorVersionId: "evv_model_critic_v1",
+    },
+    evidenceAccessManifest: artifact("art_critique_access_manifest", "7"),
+    independenceDeclaration: {
+      definitionSha256: sha("8"),
+      independenceDeclarationId: "ind_model_critic_v1",
+    },
+    modelProfile: {
+      definitionSha256: sha("9"),
+      modelProfileId: "mep_critic",
+      modelProfileVersionId: "mpv_critic_v1",
+    },
+    observation: {
+      definitionSha256: sha("a"),
+      observationId: "obs_primary_judgment_v1",
+    },
+    outcome: {
+      findings: [
+        {
+          evidence: [artifact("art_finding_counterexample", "b")],
+          findingId: "cfd_counterexample",
+          impact: "opposes",
+          kind: "counterexample",
+          summary: "The allowed evidence contains a tool request outside the declared scope.",
+        },
+        {
+          evidence: [artifact("art_finding_injection", "c")],
+          findingId: "cfd_injection_signal",
+          impact: "uncertain",
+          kind: "injection_signal",
+          summary: "Retrieved content includes instructions that may have influenced the judgment.",
+        },
+      ],
+      output: artifact("art_critique_output", "d"),
+      status: "produced",
+    },
+    qualificationReport: {
+      definitionSha256: sha("e"),
+      qualificationReportId: "qlr_model_critic_v1",
+    },
+    question: artifact("art_critique_question", "f", "text/plain"),
+    rationaleAccess: "withheld_until_critique_recorded",
+    selectedAt: "2026-09-02T01:00:00.000Z",
+    startedAt: "2026-09-02T01:00:02.000Z",
+  };
+}
+
+function independentCritique(): IndependentCritique {
+  return {
+    ...independentCritiqueDefinition(),
+    definitionSha256: sha("0"),
+    recordedAt: "2026-09-02T01:01:01.000Z",
+    recordedByPrincipalId: "wrk_model_critique_recorder",
+    schemaVersion: INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("independent critique contracts", () => {
+  it("accepts a critic selected before rationale-withholding attestation and execution", () => {
+    expect(IndependentCritiqueDefinitionSchema.parse(independentCritiqueDefinition())).toEqual(
+      independentCritiqueDefinition(),
+    );
+    expect(IndependentCritiqueSchema.parse(independentCritique())).toEqual(independentCritique());
+  });
+
+  it("requires critic selection, withholding attestation, execution, and completion in order", () => {
+    const earlyAttestation = independentCritiqueDefinition();
+    earlyAttestation.accessAttestation.attestedAt = "2026-09-02T00:59:59.000Z";
+    expect(() => IndependentCritiqueDefinitionSchema.parse(earlyAttestation)).toThrow(
+      "cannot precede critic selection",
+    );
+
+    const earlyStart = independentCritiqueDefinition();
+    earlyStart.startedAt = "2026-09-02T01:00:00.000Z";
+    expect(() => IndependentCritiqueDefinitionSchema.parse(earlyStart)).toThrow(
+      "cannot begin before withholding is attested",
+    );
+
+    const earlyCompletion = independentCritiqueDefinition();
+    earlyCompletion.completedAt = "2026-09-02T01:00:01.000Z";
+    expect(() => IndependentCritiqueDefinitionSchema.parse(earlyCompletion)).toThrow(
+      "cannot precede execution start",
+    );
+  });
+
+  it("requires exact ordered evidence and findings", () => {
+    const evidence = independentCritiqueDefinition();
+    evidence.allowedEvidence = [...evidence.allowedEvidence].reverse();
+    expect(() => IndependentCritiqueDefinitionSchema.parse(evidence)).toThrow(
+      "ordered by exact artifact reference",
+    );
+
+    const findings = independentCritiqueDefinition();
+    if (findings.outcome.status !== "produced") throw new Error("Expected produced critique");
+    findings.outcome.findings = [...findings.outcome.findings].reverse();
+    expect(() => IndependentCritiqueDefinitionSchema.parse(findings)).toThrow(
+      "ordered by findingId",
+    );
+  });
+
+  it("records abstention and typed errors without fabricating findings", () => {
+    const abstained = independentCritiqueDefinition();
+    abstained.outcome = {
+      evidence: [artifact("art_abstention_evidence", "b")],
+      reasons: ["The available evidence does not establish the relevant execution context"],
+      status: "abstained",
+    };
+    expect(IndependentCritiqueDefinitionSchema.parse(abstained)).toEqual(abstained);
+
+    const failed = independentCritiqueDefinition();
+    failed.outcome = {
+      code: "output_malformed",
+      evidence: [],
+      reason: "The provider response did not satisfy the exact output schema.",
+      status: "error",
+    };
+    expect(IndependentCritiqueDefinitionSchema.parse(failed)).toEqual(failed);
+  });
+
+  it("rejects access to original judgment and any release or adjudication authority", () => {
+    for (const forbidden of [
+      { originalRationale: artifact("art_original_rationale", "1") },
+      { originalVerdict: "pass" },
+      { adjudication: "accept" },
+      { releaseAuthority: "allow" },
+    ]) {
+      expect(() =>
+        IndependentCritiqueDefinitionSchema.parse({
+          ...independentCritiqueDefinition(),
           ...forbidden,
         }),
       ).toThrow();

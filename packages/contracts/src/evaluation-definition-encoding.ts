@@ -65,6 +65,9 @@ import {
   type CalibrationReportDefinition,
   CalibrationReportDefinitionSchema,
   INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+  INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
+  type IndependentCritiqueDefinition,
+  IndependentCritiqueDefinitionSchema,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
   MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
@@ -94,6 +97,7 @@ export const MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN =
   "proofstack.model-assisted-evaluator-spec.v1" as const;
 export const BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN =
   "proofstack.blinded-evaluation-plan.v1" as const;
+export const INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN = "proofstack.independent-critique.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -386,6 +390,18 @@ export function encodeBlindedEvaluationPlanDefinition(
   return encodeDefinition(
     BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN,
     BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeIndependentCritiqueDefinition(
+  input: ScopedEvaluationDefinition<IndependentCritiqueDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(IndependentCritiqueDefinitionSchema).parse(input);
+  return encodeDefinition(
+    INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN,
+    INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );
