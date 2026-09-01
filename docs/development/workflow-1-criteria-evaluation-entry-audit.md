@@ -306,10 +306,13 @@ path without tenant, conflict, failure, and recovery evidence does not complete 
 
 Progress as of 2026-09-02:
 
-- Steps 1 through 4 are implemented and locally verified.
+- Steps 1 through 5 are implemented and verified locally and in GitHub CI at `98d1849`.
 - Step 4 includes all 16 immutable record kinds, exact-scope repository ports, a memory adapter,
   one shared conformance suite, and authorization-first server-authored application use cases.
-- Steps 5 through 7 remain open. The checkpoint and Workflow 1 exit therefore remain unapproved.
+- Step 5 adds migration `0037`, normalized append-only PostgreSQL storage, forced tenant RLS,
+  database-derived lineage and outbox intents, separated API/evaluation-worker authority, shared
+  conformance, real concurrency and restart tests, and coordinated empty-target recovery.
+- Steps 6 and 7 remain open. The checkpoint and Workflow 1 exit therefore remain unapproved.
 
 Each coherent change receives its own English commit and must leave its applicable local gates
 green before push. GitHub CI and Security remain authoritative for the external runner and service
