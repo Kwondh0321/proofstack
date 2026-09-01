@@ -20,7 +20,7 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.7.0-workflow-1" },
+      info: { version: "0.8.0-workflow-1" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -35,6 +35,16 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/identity/api-keys/{credentialId}/revoke": {},
         "/v1/identity/api-keys/{credentialId}/rotate": {},
         "/v1/projects/{projectId}/environments/{environmentId}/evidence": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/evaluations/assessments/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/evaluations/criterion-set-statuses/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/evaluations/definitions/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/evaluations/records/{kind}/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/evaluations/run-decisions/{recordId}":
+          {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/content": {},
@@ -67,6 +77,93 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
     });
+  });
+
+  it("documents exact evaluation control without worker mutation or latest aliases", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+        post?: {
+          parameters: Array<{ name: string }>;
+          requestBody: {
+            content: { "application/json": { schema: { $ref: string } } };
+          };
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const prefix = "/v1/projects/{projectId}/environments/{environmentId}/evaluations";
+    const definition = paths[`${prefix}/definitions/{recordId}`]?.post;
+    const criterionStatus = paths[`${prefix}/criterion-set-statuses/{recordId}`]?.post;
+    const runDecision = paths[`${prefix}/run-decisions/{recordId}`]?.post;
+    const assessment = paths[`${prefix}/assessments/{recordId}`]?.post;
+    const read = paths[`${prefix}/records/{kind}/{recordId}`]?.get;
+
+    for (const operation of [definition, criterionStatus, assessment]) {
+      expect(operation?.security).toEqual([{ browserSession: [] }]);
+    }
+    expect(runDecision?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(read?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+
+    expect(definition?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/PublishEvaluationDefinitionRequest",
+    );
+    expect(criterionStatus?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/RecordCriterionSetStatusRequest",
+    );
+    expect(runDecision?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/RecordEvaluationRunDecisionRequest",
+    );
+    expect(assessment?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/CreateAssessmentRequest",
+    );
+    expect(read?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "kind",
+      "recordId",
+    ]);
+
+    for (const operation of [definition, criterionStatus, runDecision, assessment]) {
+      expect(operation?.responses).toHaveProperty("200");
+      expect(operation?.responses).toHaveProperty("201");
+      expect(operation?.responses).toHaveProperty("409");
+      expect(operation?.responses).toHaveProperty("503");
+      expect(operation?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+      expect(operation?.responses["201"]?.headers).toHaveProperty("Cache-Control");
+      expect(operation?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    }
+    expect(read?.responses).toHaveProperty("404");
+    expect(read?.responses).toHaveProperty("503");
+    expect(read?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+
+    for (const schema of [
+      "EvaluationRecordKind",
+      "PublishEvaluationDefinitionRequest",
+      "RecordCriterionSetStatusRequest",
+      "RecordEvaluationRunDecisionRequest",
+      "CreateAssessmentRequest",
+      "PublishEvaluationRecordResponse",
+      "ReadEvaluationRecordResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
+    const evaluationPaths = Object.keys(paths).filter((path) => path.includes("/evaluations/"));
+    expect(evaluationPaths).toHaveLength(5);
+    expect(
+      evaluationPaths.some((path) =>
+        /latest|execute|raw-observations|qualification-reports/.test(path),
+      ),
+    ).toBe(false);
   });
 
   it("documents exact replay control without latest or synchronous execution routes", () => {

@@ -13,27 +13,27 @@ import {
   MAX_TRACE_PAGE_SIZE,
   OidcStateSchema,
   ProblemDocumentSchema,
-  PublishReplayPlanResponseSchema,
-  PublishTargetReleaseResponseSchema,
   PublishRecordedInteractionFixtureVersionResponseSchema,
   PublishRegressionDatasetVersionResponseSchema,
   PublishRegressionFixtureVersionResponseSchema,
+  PublishReplayPlanResponseSchema,
+  PublishTargetReleaseResponseSchema,
   PurgeArtifactResponseSchema,
   ReadArtifactMetadataResponseSchema,
+  ReadinessResponseSchema,
   ReadRecordedInteractionFixtureMetadataResponseSchema,
   ReadRegressionDatasetVersionResponseSchema,
   ReadRegressionFixtureVersionResponseSchema,
-  ReadinessResponseSchema,
   ReadReplayJobResponseSchema,
   ReadReplayPlanResponseSchema,
   ReadTargetReleaseResponseSchema,
+  RequestReplayCancellationResponseSchema,
   ReserveArtifactResponseSchema,
   RevokeRecordedInteractionFixtureContentResponseSchema,
   TombstoneArtifactResponseSchema,
   TracePageCursorSchema,
   TraceResponseSchema,
   UploadArtifactResponseSchema,
-  RequestReplayCancellationResponseSchema,
 } from "./api.js";
 import {
   IssueApiKeyRequestSchema,
@@ -50,6 +50,15 @@ import {
   PublishRegressionFixtureVersionRequestSchema,
   RevokeInteractionFixtureContentRequestSchema,
 } from "./dataset.js";
+import {
+  CreateAssessmentRequestSchema,
+  EvaluationRecordKindSchema,
+  PublishEvaluationDefinitionRequestSchema,
+  PublishEvaluationRecordResponseSchema,
+  ReadEvaluationRecordResponseSchema,
+  RecordCriterionSetStatusRequestSchema,
+  RecordEvaluationRunDecisionRequestSchema,
+} from "./evaluation-api.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
 import { ExportRecordedInteractionFixtureContentRequestSchema } from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
@@ -57,7 +66,7 @@ import { CreateReplayJobRequestSchema, RequestReplayCancellationSchema } from ".
 import { ReplayPlanDefinitionSchema, TargetReleaseDefinitionSchema } from "./replay-plan.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.7.0-workflow-1" as const;
+export const PROOFSTACK_API_VERSION = "0.8.0-workflow-1" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -226,6 +235,22 @@ const replayCancellationParameter = {
   name: "cancellationId",
   required: true,
   schema: schemaReference("OpaqueId"),
+} as const;
+
+const evaluationRecordParameter = {
+  description: "Exact immutable evaluation record identifier",
+  in: "path",
+  name: "recordId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const evaluationRecordKindParameter = {
+  description: "Exact evaluation record kind; aliases such as latest are not accepted",
+  in: "path",
+  name: "kind",
+  required: true,
+  schema: schemaReference("EvaluationRecordKind"),
 } as const;
 
 const bearerSecurity = [{ bearerAuth: [] }] as const;
@@ -399,6 +424,22 @@ const replayConflictResponse = {
     "The immutable replay identifier conflicts, required lineage is unavailable, or the job mutation is incompatible",
 } as const;
 
+const evaluationNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "The exact evaluation record does not exist in the authorized scope",
+} as const;
+
+const evaluationConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable record conflicts with existing semantics, tenant resources, or required lineage",
+} as const;
+
+const evaluationStorageUnavailableResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "Evaluation storage is unavailable or violated its public repository contract",
+} as const;
+
 function replayJsonResponse(schemaName: string, description: string): Record<string, unknown> {
   return {
     content: { "application/json": { schema: schemaReference(schemaName) } },
@@ -406,6 +447,19 @@ function replayJsonResponse(schemaName: string, description: string): Record<str
     headers: {
       "Cache-Control": {
         description: "Replay control-plane responses are never cacheable",
+        schema: { const: "no-store", type: "string" },
+      },
+    },
+  };
+}
+
+function evaluationJsonResponse(schemaName: string, description: string): Record<string, unknown> {
+  return {
+    content: { "application/json": { schema: schemaReference(schemaName) } },
+    description,
+    headers: {
+      "Cache-Control": {
+        description: "Evaluation control-plane responses are never cacheable",
         schema: { const: "no-store", type: "string" },
       },
     },
@@ -420,6 +474,29 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     ...componentsFor("IngestEvidenceResponse", IngestEvidenceResponseSchema, "output"),
     ...componentsFor("TraceResponse", TraceResponseSchema, "output"),
     ...componentsFor("TracePageCursor", TracePageCursorSchema, "input"),
+    ...componentsFor("EvaluationRecordKind", EvaluationRecordKindSchema, "input"),
+    ...componentsFor(
+      "PublishEvaluationDefinitionRequest",
+      PublishEvaluationDefinitionRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "RecordCriterionSetStatusRequest",
+      RecordCriterionSetStatusRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "RecordEvaluationRunDecisionRequest",
+      RecordEvaluationRunDecisionRequestSchema,
+      "input",
+    ),
+    ...componentsFor("CreateAssessmentRequest", CreateAssessmentRequestSchema, "input"),
+    ...componentsFor(
+      "PublishEvaluationRecordResponse",
+      PublishEvaluationRecordResponseSchema,
+      "output",
+    ),
+    ...componentsFor("ReadEvaluationRecordResponse", ReadEvaluationRecordResponseSchema, "output"),
     ...componentsFor(
       "PublishRegressionFixtureVersionRequest",
       PublishRegressionFixtureVersionRequestSchema,
@@ -549,7 +626,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, durable bounded replay control, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, exact immutable evaluation control, durable bounded replay control, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -1430,6 +1507,180 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             tags: ["Regression"],
           },
         },
+      "/v1/projects/{projectId}/environments/{environmentId}/evaluations/definitions/{recordId}": {
+        post: {
+          description:
+            "Publishes one exact immutable discovery, source, criterion, fixture, oracle, evaluator, or aggregation-policy definition. Server identity, time, scope, schema version, and canonical digest are authoritative. Qualification and execution results are worker-owned and are not accepted here. Requires non-delegable evaluation:manage authority.",
+          operationId: "publishEvaluationDefinition",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            evaluationRecordParameter,
+            ...browserMutationParameters,
+          ],
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: schemaReference("PublishEvaluationDefinitionRequest"),
+              },
+            },
+            required: true,
+          },
+          responses: {
+            "200": evaluationJsonResponse(
+              "PublishEvaluationRecordResponse",
+              "An identical retry returned the existing immutable definition",
+            ),
+            "201": evaluationJsonResponse(
+              "PublishEvaluationRecordResponse",
+              "A new immutable evaluation definition was published",
+            ),
+            ...problemResponses,
+            "409": evaluationConflictResponse,
+            "503": evaluationStorageUnavailableResponse,
+          },
+          security: browserSecurity,
+          summary: "Publish an exact evaluation definition",
+          tags: ["Evaluation"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/evaluations/criterion-set-statuses/{recordId}":
+        {
+          post: {
+            description:
+              "Appends one immutable lifecycle status for an exact criterion-set version. Prior status records remain unchanged. Requires non-delegable evaluation:manage authority.",
+            operationId: "recordCriterionSetStatus",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              evaluationRecordParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("RecordCriterionSetStatusRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": evaluationJsonResponse(
+                "PublishEvaluationRecordResponse",
+                "An identical retry returned the existing immutable status record",
+              ),
+              "201": evaluationJsonResponse(
+                "PublishEvaluationRecordResponse",
+                "A new immutable criterion-set status was recorded",
+              ),
+              ...problemResponses,
+              "409": evaluationConflictResponse,
+              "503": evaluationStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Record an exact criterion-set status",
+            tags: ["Evaluation"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/evaluations/run-decisions/{recordId}":
+        {
+          post: {
+            description:
+              "Records one exact accepted evaluation run or explicit rejection after application authorization and immutable lineage validation. This endpoint does not execute the run. Requires evaluation:run authority and supports explicitly delegated workloads.",
+            operationId: "recordEvaluationRunDecision",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              evaluationRecordParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("RecordEvaluationRunDecisionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": evaluationJsonResponse(
+                "PublishEvaluationRecordResponse",
+                "An identical retry returned the existing immutable run decision",
+              ),
+              "201": evaluationJsonResponse(
+                "PublishEvaluationRecordResponse",
+                "A new immutable evaluation run decision was recorded",
+              ),
+              ...problemResponses,
+              "409": evaluationConflictResponse,
+              "503": evaluationStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Record an exact evaluation run decision",
+            tags: ["Evaluation"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/evaluations/assessments/{recordId}": {
+        post: {
+          description:
+            "Creates one exact immutable assessment over explicit evidence, eligibility, conflicts, and limitations. It does not grant release authority. Requires non-delegable evaluation:manage authority.",
+          operationId: "createEvaluationAssessment",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            evaluationRecordParameter,
+            ...browserMutationParameters,
+          ],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("CreateAssessmentRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "200": evaluationJsonResponse(
+              "PublishEvaluationRecordResponse",
+              "An identical retry returned the existing immutable assessment",
+            ),
+            "201": evaluationJsonResponse(
+              "PublishEvaluationRecordResponse",
+              "A new immutable evaluation assessment was created",
+            ),
+            ...problemResponses,
+            "409": evaluationConflictResponse,
+            "503": evaluationStorageUnavailableResponse,
+          },
+          security: browserSecurity,
+          summary: "Create an exact evaluation assessment",
+          tags: ["Evaluation"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/evaluations/records/{kind}/{recordId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable evaluation record by its strict kind and identifier. Cross-scope records and absent records share the same not-found response. There is no latest alias.",
+            operationId: "getEvaluationRecord",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              evaluationRecordKindParameter,
+              evaluationRecordParameter,
+            ],
+            responses: {
+              "200": evaluationJsonResponse(
+                "ReadEvaluationRecordResponse",
+                "The exact immutable evaluation record",
+              ),
+              ...problemResponses,
+              "404": evaluationNotFoundResponse,
+              "503": evaluationStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact evaluation record",
+            tags: ["Evaluation"],
+          },
+        },
       "/v1/projects/{projectId}/environments/{environmentId}/replay-targets/{targetId}/releases/{targetReleaseId}":
         {
           post: {
@@ -1761,6 +2012,11 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         description:
           "Exact immutable replay definitions and durable bounded job control without synchronous execution",
         name: "Replay",
+      },
+      {
+        description:
+          "Exact immutable evaluation definitions, lifecycle decisions, assessments, and graph reads",
+        name: "Evaluation",
       },
       { description: "OpenTelemetry-compatible ingestion", name: "Telemetry" },
     ],

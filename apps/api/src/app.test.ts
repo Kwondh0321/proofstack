@@ -11,8 +11,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import {
-  type Authenticator,
   AuthenticationRequiredError,
+  type Authenticator,
   BrowserSessionRequestAuthenticator,
 } from "./auth.js";
 import { loadConfig } from "./config.js";
@@ -134,7 +134,7 @@ describe("health routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.json()).toMatchObject({
-      info: { title: "ProofStack API", version: "0.7.0-workflow-1" },
+      info: { title: "ProofStack API", version: "0.8.0-workflow-1" },
       openapi: "3.2.0",
     });
   });
