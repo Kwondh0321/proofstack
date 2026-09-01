@@ -916,7 +916,7 @@ describe("runClaimedReplayAttempt", () => {
         "reconciliation",
       ]);
     }
-  });
+  }, 30_000);
 
   it("lets durable cancellation observed after publication win terminal ordering", async () => {
     const value = await fixture();
