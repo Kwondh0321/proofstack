@@ -159,6 +159,7 @@ describe("PostgreSQL evidence schema", () => {
       "0038_align_evaluation_execution_authority",
       "0039_ignore_evaluation_selectors_in_lineage",
       "0040_model_assurance_capabilities",
+      "0041_model_assurance_graph",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -228,6 +229,77 @@ describe("PostgreSQL evidence schema", () => {
         parent_record_kind: "raw_observation",
       },
     ]);
+
+    const assuranceLineage = await pool.query<{
+      readonly parent_definition_sha256: string;
+      readonly parent_record_id: string;
+      readonly parent_record_kind: string;
+    }>(`
+      SELECT parent_record_kind, parent_record_id, parent_definition_sha256
+      FROM public.proofstack_model_assurance_record_references(
+        'model_assurance_assessment',
+        'maa_reference',
+        jsonb_build_object(
+          'assessmentExtensionId', 'maa_reference',
+          'baseAssessment', jsonb_build_object(
+            'assessmentId', 'asm_reference',
+            'definitionSha256', repeat('c', 64)
+          ),
+          'blindedPlan', jsonb_build_object(
+            'blindedPlanVersionId', 'bpv_reference',
+            'definitionSha256', repeat('d', 64)
+          ),
+          'nonModelEvidence', jsonb_build_object(
+            'oracles', jsonb_build_array(jsonb_build_object(
+              'oracleVersionId', 'orv_reference',
+              'definitionSha256', repeat('e', 64)
+            ))
+          )
+        )
+      )
+    `);
+    expect(assuranceLineage.rows).toEqual([
+      {
+        parent_definition_sha256: "c".repeat(64),
+        parent_record_id: "asm_reference",
+        parent_record_kind: "assessment",
+      },
+      {
+        parent_definition_sha256: "d".repeat(64),
+        parent_record_id: "bpv_reference",
+        parent_record_kind: "blinded_evaluation_plan",
+      },
+      {
+        parent_definition_sha256: "e".repeat(64),
+        parent_record_id: "orv_reference",
+        parent_record_kind: "oracle_spec",
+      },
+    ]);
+
+    const assurancePartitions = await pool.query<{
+      readonly partition_count: number;
+      readonly protected_count: number;
+    }>(`
+      SELECT
+        count(*)::integer AS partition_count,
+        count(*) FILTER (WHERE child.relrowsecurity AND child.relforcerowsecurity)::integer
+          AS protected_count
+      FROM pg_inherits
+      JOIN pg_class AS parent ON parent.oid = pg_inherits.inhparent
+      JOIN pg_class AS child ON child.oid = pg_inherits.inhrelid
+      WHERE parent.relname = 'proofstack_model_assurance_records'
+    `);
+    expect(assurancePartitions.rows).toEqual([{ partition_count: 13, protected_count: 13 }]);
+    const assuranceFunctions = await pool.query<{ readonly present: boolean }>(`
+      SELECT every(to_regprocedure(signature) IS NOT NULL) AS present
+      FROM unnest(ARRAY[
+        'public.proofstack_insert_model_assurance_record(jsonb)',
+        'public.proofstack_publish_model_assurance_control_record(jsonb)',
+        'public.proofstack_publish_model_assurance_execution_record(jsonb)',
+        'public.proofstack_publish_model_assurance_human_review_record(jsonb)'
+      ]) AS required(signature)
+    `);
+    expect(assuranceFunctions.rows).toEqual([{ present: true }]);
 
     const normalizedRetryColumns = await pool.query<{
       readonly column_name: string;

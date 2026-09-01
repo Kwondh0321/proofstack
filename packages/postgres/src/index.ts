@@ -47,6 +47,7 @@ export {
   PostgresConsumerReceiptRepository,
 } from "./postgres-consumer-receipt-repository.js";
 export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
+export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
 export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,

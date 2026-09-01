@@ -8,6 +8,7 @@ export default defineConfig({
       // required real-PostgreSQL conformance suites rather than mocked-client unit tests.
       exclude: [
         "src/postgres-evaluation-repository.ts",
+        "src/postgres-model-assurance-repository.ts",
         "src/postgres-replay-definition-repository.ts",
       ],
       include: ["src/**/*.ts"],

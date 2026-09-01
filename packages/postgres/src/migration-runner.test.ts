@@ -126,6 +126,7 @@ describe("migration inspection", () => {
         "0038_align_evaluation_execution_authority",
         "0039_ignore_evaluation_selectors_in_lineage",
         "0040_model_assurance_capabilities",
+        "0041_model_assurance_graph",
       ],
     });
   });
