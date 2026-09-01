@@ -136,21 +136,28 @@ describe("computeWilsonScoreInterval", () => {
   );
 
   it("keeps every bounded count combination finite, ordered, and symmetric", () => {
+    const violations: string[] = [];
     for (let trials = 1; trials <= 100; trials += 1) {
       for (let successes = 0; successes <= trials; successes += 1) {
         const [lower, upper] = numericBounds(computeWilsonScoreInterval(successes, trials, 9_500));
         const [mirrorLower, mirrorUpper] = numericBounds(
           computeWilsonScoreInterval(trials - successes, trials, 9_500),
         );
-        expect(Number.isFinite(lower)).toBe(true);
-        expect(Number.isFinite(upper)).toBe(true);
-        expect(lower).toBeGreaterThanOrEqual(0);
-        expect(upper).toBeLessThanOrEqual(1);
-        expect(lower).toBeLessThanOrEqual(upper);
-        expect(lower).toBeCloseTo(1 - mirrorUpper, 12);
-        expect(upper).toBeCloseTo(1 - mirrorLower, 12);
+        const finiteAndOrdered =
+          Number.isFinite(lower) &&
+          Number.isFinite(upper) &&
+          lower >= 0 &&
+          upper <= 1 &&
+          lower <= upper;
+        const symmetric =
+          Math.abs(lower - (1 - mirrorUpper)) < 5e-13 &&
+          Math.abs(upper - (1 - mirrorLower)) < 5e-13;
+        if (!finiteAndOrdered || !symmetric) {
+          violations.push(`${successes}/${trials}: [${lower}, ${upper}]`);
+        }
       }
     }
+    expect(violations).toEqual([]);
   });
 
   it("widens monotonically as the predeclared confidence increases", () => {
