@@ -1,0 +1,31 @@
+{
+  "name": "@proofstack/example-model-assurance-control-flow",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Service-backed model and human assurance reference flow",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf coverage dist",
+    "lint": "biome lint src",
+    "test": "vitest run --coverage",
+    "test:integration": "pnpm build && vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/core": "workspace:*",
+    "@proofstack/evaluation-worker": "workspace:*",
+    "@proofstack/model-evaluation-worker": "workspace:*",
+    "@proofstack/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@proofstack/api": "workspace:*",
+    "@proofstack/postgres": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
