@@ -148,7 +148,7 @@ function principal(
   overrides: Partial<PrincipalContext> = {},
 ): PrincipalContext {
   const definition = publicVector(vector.filename).input.definition;
-  const reviewer = definition.reviewer as
+  const reviewer = definition["reviewer"] as
     | {
         readonly authenticatedAt: string;
         readonly authenticationMethod: "api_key" | "development" | "oidc" | "service_token";
