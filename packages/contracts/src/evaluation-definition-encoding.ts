@@ -71,6 +71,9 @@ import {
   HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION,
   type HumanReviewProtocolDefinition,
   HumanReviewProtocolDefinitionSchema,
+  HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
+  type HumanReviewRecordDefinition,
+  HumanReviewRecordDefinitionSchema,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
   MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
@@ -103,6 +106,7 @@ export const BLINDED_EVALUATION_PLAN_DEFINITION_DOMAIN =
 export const INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN = "proofstack.independent-critique.v1" as const;
 export const HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN =
   "proofstack.human-review-protocol.v1" as const;
+export const HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN = "proofstack.human-review-record.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -419,6 +423,18 @@ export function encodeHumanReviewProtocolDefinition(
   return encodeDefinition(
     HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN,
     HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeHumanReviewRecordDefinition(
+  input: ScopedEvaluationDefinition<HumanReviewRecordDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(HumanReviewRecordDefinitionSchema).parse(input);
+  return encodeDefinition(
+    HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN,
+    HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

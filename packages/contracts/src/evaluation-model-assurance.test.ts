@@ -21,6 +21,11 @@ import {
   type HumanReviewProtocolDefinition,
   HumanReviewProtocolDefinitionSchema,
   HumanReviewProtocolSchema,
+  HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
+  type HumanReviewRecord,
+  type HumanReviewRecordDefinition,
+  HumanReviewRecordDefinitionSchema,
+  HumanReviewRecordSchema,
   type IndependenceDeclaration,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
@@ -1461,6 +1466,168 @@ describe("human review protocol contracts", () => {
       expect(() =>
         HumanReviewProtocolDefinitionSchema.parse({
           ...humanReviewProtocolDefinition(),
+          ...forbidden,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+export function humanReviewRecordDefinition(): HumanReviewRecordDefinition {
+  return {
+    action: "support",
+    assessment: {
+      assessmentId: "asm_agent_safety_v1",
+      definitionSha256: sha("1"),
+    },
+    completedAt: "2026-09-02T03:20:00.000Z",
+    conflicts: [],
+    counterevidence: [artifact("art_review_counterevidence", "2")],
+    credentialEvidence: [artifact("art_reviewer_credential", "3")],
+    critiques: [
+      {
+        critiqueId: "crq_observation_safety_v1",
+        definitionSha256: sha("4"),
+      },
+    ],
+    evidenceAccessManifest: artifact("art_human_access_manifest", "5"),
+    expertiseEvidence: [artifact("art_reviewer_expertise", "6")],
+    expiresAt: "2026-09-03T03:20:00.000Z",
+    independenceDeclaration: {
+      definitionSha256: sha("7"),
+      independenceDeclarationId: "ind_human_reviewer_v1",
+    },
+    observations: [
+      {
+        definitionSha256: sha("8"),
+        observationId: "obs_primary_judgment_v1",
+      },
+    ],
+    protocol: {
+      definitionSha256: sha("9"),
+      protocolId: "hrp_agent_safety",
+      protocolVersionId: "hrv_agent_safety_v1",
+    },
+    rationale: artifact("art_human_review_rationale", "a", "text/plain"),
+    relationships: [],
+    reviewId: "hrr_agent_safety_reviewer_one",
+    reviewedArtifacts: [
+      artifact("art_reviewed_assessment", "b"),
+      artifact("art_reviewed_trace", "c"),
+    ],
+    reviewer: {
+      authenticatedAt: "2026-09-02T03:00:00.000Z",
+      authenticationMethod: "oidc",
+      credentialId: "oidc_reviewer_credential",
+      principalId: "usr_independent_reviewer",
+      principalType: "user",
+      requestId: "req_human_review_0001",
+      sessionEvidence: artifact("art_reviewer_session", "d"),
+      sessionId: "ses_human_review_0001",
+    },
+    reviewerRoleId: "role_domain_reviewer",
+    sourceCitations: [artifact("art_review_source_citation", "e")],
+    startedAt: "2026-09-02T03:00:01.000Z",
+    structuredReasons: ["exact_evidence_supports_criterion"],
+    trainingEvidence: [artifact("art_reviewer_training", "f")],
+  };
+}
+
+function humanReviewRecord(): HumanReviewRecord {
+  return {
+    ...humanReviewRecordDefinition(),
+    definitionSha256: sha("0"),
+    recordedAt: "2026-09-02T03:20:01.000Z",
+    schemaVersion: HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("human review record contracts", () => {
+  it("binds one authenticated user to exact protocol, evidence, review, and rationale lineage", () => {
+    expect(HumanReviewRecordDefinitionSchema.parse(humanReviewRecordDefinition())).toEqual(
+      humanReviewRecordDefinition(),
+    );
+    expect(HumanReviewRecordSchema.parse(humanReviewRecord())).toEqual(humanReviewRecord());
+  });
+
+  it("requires authentication, review, completion, and expiry in order", () => {
+    const earlyStart = humanReviewRecordDefinition();
+    earlyStart.startedAt = "2026-09-02T02:59:59.000Z";
+    expect(() => HumanReviewRecordDefinitionSchema.parse(earlyStart)).toThrow(
+      "cannot begin before reviewer authentication",
+    );
+
+    const earlyCompletion = humanReviewRecordDefinition();
+    earlyCompletion.completedAt = "2026-09-02T03:00:00.000Z";
+    expect(() => HumanReviewRecordDefinitionSchema.parse(earlyCompletion)).toThrow(
+      "cannot precede its start",
+    );
+
+    const expired = humanReviewRecordDefinition();
+    expired.expiresAt = expired.completedAt;
+    expect(() => HumanReviewRecordDefinitionSchema.parse(expired)).toThrow(
+      "expiry must follow completion",
+    );
+  });
+
+  it("forces disclosed conflicts to produce recusal and requires a reason for recusal", () => {
+    const conflicted = humanReviewRecordDefinition();
+    conflicted.conflicts = ["Reviewer operates the evaluated agent"];
+    expect(() => HumanReviewRecordDefinitionSchema.parse(conflicted)).toThrow("must recuse");
+
+    conflicted.action = "recuse";
+    expect(HumanReviewRecordDefinitionSchema.parse(conflicted)).toEqual(conflicted);
+
+    const unexplained = humanReviewRecordDefinition();
+    unexplained.action = "recuse";
+    expect(() => HumanReviewRecordDefinitionSchema.parse(unexplained)).toThrow(
+      "requires at least one disclosed conflict",
+    );
+  });
+
+  it("requires exact ordered observation, critique, artifact, and citation references", () => {
+    const observations = humanReviewRecordDefinition();
+    observations.observations = [
+      observations.observations[0] as never,
+      observations.observations[0] as never,
+    ];
+    expect(() => HumanReviewRecordDefinitionSchema.parse(observations)).toThrow(
+      "ordered by exact reference",
+    );
+
+    const artifacts = humanReviewRecordDefinition();
+    artifacts.reviewedArtifacts = [...artifacts.reviewedArtifacts].reverse();
+    expect(() => HumanReviewRecordDefinitionSchema.parse(artifacts)).toThrow(
+      "ordered by exact artifact reference",
+    );
+
+    const missingCitation = humanReviewRecordDefinition();
+    missingCitation.sourceCitations = [];
+    expect(() => HumanReviewRecordDefinitionSchema.parse(missingCitation)).toThrow();
+  });
+
+  it("appends corrections without self-supersession or decision authority", () => {
+    const correction = humanReviewRecordDefinition();
+    correction.reviewId = "hrr_agent_safety_reviewer_one_correction";
+    correction.supersedes = {
+      definitionSha256: sha("1"),
+      reviewId: "hrr_agent_safety_reviewer_one",
+    };
+    expect(HumanReviewRecordDefinitionSchema.parse(correction)).toEqual(correction);
+
+    correction.supersedes.reviewId = correction.reviewId;
+    expect(() => HumanReviewRecordDefinitionSchema.parse(correction)).toThrow("supersede itself");
+
+    for (const forbidden of [
+      { criterionMutation: true },
+      { evidenceMutation: true },
+      { releaseAuthority: "allow" },
+      { verdictOverride: "pass" },
+    ]) {
+      expect(() =>
+        HumanReviewRecordDefinitionSchema.parse({
+          ...humanReviewRecordDefinition(),
           ...forbidden,
         }),
       ).toThrow();

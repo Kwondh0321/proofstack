@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ArtifactContentReferenceSchema } from "./artifact.js";
+import { AssessmentReferenceSchema } from "./evaluation-assessment.js";
 import {
   CriterionReferenceSchema,
   CriterionVersionSelectorSchema,
@@ -25,6 +26,7 @@ export const MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION = "0.1" as const;
 export const BLINDED_EVALUATION_PLAN_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENT_CRITIQUE_SCHEMA_VERSION = "0.1" as const;
 export const HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION = "0.1" as const;
+export const HUMAN_REVIEW_RECORD_SCHEMA_VERSION = "0.1" as const;
 export const MAX_BLINDED_ATTEMPTS = 16;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
@@ -1496,3 +1498,152 @@ export const HumanReviewProtocolSchema = z
 export type HumanReviewProtocolReference = z.infer<typeof HumanReviewProtocolReferenceSchema>;
 export type HumanReviewProtocolDefinition = z.infer<typeof HumanReviewProtocolDefinitionSchema>;
 export type HumanReviewProtocol = z.infer<typeof HumanReviewProtocolSchema>;
+
+export const HumanReviewRecordReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    reviewId: OpaqueIdSchema,
+  })
+  .strict();
+
+export const HumanReviewerSessionSchema = z
+  .object({
+    authenticatedAt: UtcMillisecondTimestampSchema,
+    authenticationMethod: z.literal("oidc"),
+    credentialId: OpaqueIdSchema,
+    principalId: OpaqueIdSchema,
+    principalType: z.literal("user"),
+    requestId: z.string().min(8).max(128),
+    sessionEvidence: ArtifactContentReferenceSchema,
+    sessionId: OpaqueIdSchema,
+  })
+  .strict();
+
+const humanReviewRecordDefinitionShape = {
+  action: HumanReviewActionSchema,
+  assessment: AssessmentReferenceSchema,
+  completedAt: UtcMillisecondTimestampSchema,
+  conflicts: sortedUniqueText(32, "Human reviewer conflicts"),
+  counterevidence: exactArtifacts(64, "Human-review counterevidence"),
+  credentialEvidence: exactArtifacts(16, "Human reviewer credential evidence"),
+  critiques: z
+    .array(IndependentCritiqueReferenceSchema)
+    .max(32)
+    .refine(
+      (references) =>
+        isStrictlySortedUnique(
+          references.map(({ critiqueId, definitionSha256 }) => `${critiqueId}:${definitionSha256}`),
+        ),
+      { message: "Human-review critiques must be unique and ordered by exact reference" },
+    ),
+  evidenceAccessManifest: ArtifactContentReferenceSchema,
+  expertiseEvidence: exactArtifacts(16, "Human reviewer expertise evidence").min(1),
+  expiresAt: UtcMillisecondTimestampSchema,
+  independenceDeclaration: IndependenceDeclarationReferenceSchema,
+  observations: z
+    .array(RawObservationReferenceSchema)
+    .min(1)
+    .max(64)
+    .refine(
+      (references) =>
+        isStrictlySortedUnique(
+          references.map(
+            ({ observationId, definitionSha256 }) => `${observationId}:${definitionSha256}`,
+          ),
+        ),
+      { message: "Human-review observations must be unique and ordered by exact reference" },
+    ),
+  protocol: HumanReviewProtocolReferenceSchema,
+  rationale: ArtifactContentReferenceSchema,
+  relationships: sortedUniqueText(32, "Human reviewer relationships"),
+  reviewId: OpaqueIdSchema,
+  reviewedArtifacts: exactArtifacts(64, "Human-reviewed artifacts").min(1),
+  reviewer: HumanReviewerSessionSchema,
+  reviewerRoleId: OpaqueIdSchema,
+  sourceCitations: exactArtifacts(32, "Human-review source citations").min(1),
+  startedAt: UtcMillisecondTimestampSchema,
+  structuredReasons: sortedUniqueText(32, "Human-review structured reasons").min(1),
+  supersedes: HumanReviewRecordReferenceSchema.optional(),
+  trainingEvidence: exactArtifacts(16, "Human reviewer training evidence"),
+};
+
+function refineHumanReviewRecord(
+  value: {
+    readonly action: z.infer<typeof HumanReviewActionSchema>;
+    readonly completedAt: string;
+    readonly conflicts: readonly string[];
+    readonly expiresAt: string;
+    readonly reviewId: string;
+    readonly reviewer: { readonly authenticatedAt: string };
+    readonly startedAt: string;
+    readonly supersedes?: { readonly reviewId: string } | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  const authenticated = evidenceTimestampOrderKey(value.reviewer.authenticatedAt);
+  const started = evidenceTimestampOrderKey(value.startedAt);
+  const completed = evidenceTimestampOrderKey(value.completedAt);
+  const expires = evidenceTimestampOrderKey(value.expiresAt);
+  if (started < authenticated) {
+    context.addIssue({
+      code: "custom",
+      message: "Human review cannot begin before reviewer authentication",
+      path: ["startedAt"],
+    });
+  }
+  if (completed < started) {
+    context.addIssue({
+      code: "custom",
+      message: "Human review completion cannot precede its start",
+      path: ["completedAt"],
+    });
+  }
+  if (expires <= completed) {
+    context.addIssue({
+      code: "custom",
+      message: "Human review expiry must follow completion",
+      path: ["expiresAt"],
+    });
+  }
+  if (value.action === "recuse" && value.conflicts.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "A recused human review requires at least one disclosed conflict",
+      path: ["conflicts"],
+    });
+  }
+  if (value.action !== "recuse" && value.conflicts.length > 0) {
+    context.addIssue({
+      code: "custom",
+      message: "A human reviewer with a disclosed conflict must recuse",
+      path: ["action"],
+    });
+  }
+  if (value.supersedes?.reviewId === value.reviewId) {
+    context.addIssue({
+      code: "custom",
+      message: "A human review cannot supersede itself",
+      path: ["supersedes", "reviewId"],
+    });
+  }
+}
+
+export const HumanReviewRecordDefinitionSchema = z
+  .object(humanReviewRecordDefinitionShape)
+  .strict()
+  .superRefine(refineHumanReviewRecord);
+
+export const HumanReviewRecordSchema = z
+  .object({
+    ...humanReviewRecordDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    schemaVersion: z.literal(HUMAN_REVIEW_RECORD_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineHumanReviewRecord);
+
+export type HumanReviewRecordReference = z.infer<typeof HumanReviewRecordReferenceSchema>;
+export type HumanReviewRecordDefinition = z.infer<typeof HumanReviewRecordDefinitionSchema>;
+export type HumanReviewRecord = z.infer<typeof HumanReviewRecordSchema>;

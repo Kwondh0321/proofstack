@@ -1,0 +1,145 @@
+{
+  "format": "proofstack.evaluation-human-review-record-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3723,
+      "input": {
+        "definition": {
+          "action": "support",
+          "assessment": {
+            "assessmentId": "asm_agent_safety_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "completedAt": "2026-09-02T03:20:00.000Z",
+          "conflicts": [],
+          "counterevidence": [
+            {
+              "artifactId": "art_review_counterevidence",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+              "sizeBytes": 1024
+            }
+          ],
+          "credentialEvidence": [
+            {
+              "artifactId": "art_reviewer_credential",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "sizeBytes": 1024
+            }
+          ],
+          "critiques": [
+            {
+              "critiqueId": "crq_observation_safety_v1",
+              "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+            }
+          ],
+          "evidenceAccessManifest": {
+            "artifactId": "art_human_access_manifest",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "sizeBytes": 1024
+          },
+          "expertiseEvidence": [
+            {
+              "artifactId": "art_reviewer_expertise",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+              "sizeBytes": 1024
+            }
+          ],
+          "expiresAt": "2026-09-03T03:20:00.000Z",
+          "independenceDeclaration": {
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "independenceDeclarationId": "ind_human_reviewer_v1"
+          },
+          "observations": [
+            {
+              "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "observationId": "obs_primary_judgment_v1"
+            }
+          ],
+          "protocol": {
+            "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "protocolId": "hrp_agent_safety",
+            "protocolVersionId": "hrv_agent_safety_v1"
+          },
+          "rationale": {
+            "artifactId": "art_human_review_rationale",
+            "classification": "restricted",
+            "mediaType": "text/plain",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 1024
+          },
+          "relationships": [],
+          "reviewId": "hrr_agent_safety_reviewer_one",
+          "reviewedArtifacts": [
+            {
+              "artifactId": "art_reviewed_assessment",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "sizeBytes": 1024
+            },
+            {
+              "artifactId": "art_reviewed_trace",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "sizeBytes": 1024
+            }
+          ],
+          "reviewer": {
+            "authenticatedAt": "2026-09-02T03:00:00.000Z",
+            "authenticationMethod": "oidc",
+            "credentialId": "oidc_reviewer_credential",
+            "principalId": "usr_independent_reviewer",
+            "principalType": "user",
+            "requestId": "req_human_review_0001",
+            "sessionEvidence": {
+              "artifactId": "art_reviewer_session",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "sizeBytes": 1024
+            },
+            "sessionId": "ses_human_review_0001"
+          },
+          "reviewerRoleId": "role_domain_reviewer",
+          "sourceCitations": [
+            {
+              "artifactId": "art_review_source_citation",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "sizeBytes": 1024
+            }
+          ],
+          "startedAt": "2026-09-02T03:00:01.000Z",
+          "structuredReasons": ["exact_evidence_supports_criterion"],
+          "trainingEvidence": [
+            {
+              "artifactId": "art_reviewer_training",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "sizeBytes": 1024
+            }
+          ]
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "human_review_record",
+      "name": "authenticated independent human review",
+      "sha256": "cdf7d4ab7b889ac4427e0c437b9bb75f431966aff652c1eb13a5eec9f96be838"
+    }
+  ]
+}
