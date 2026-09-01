@@ -54,9 +54,17 @@ const credentials = {
     name: `proofstack_regression_eval_${runKey}`,
     password: `proofstack-regression-evaluation-${runKey}-password`,
   },
+  humanReviewer: {
+    name: `proofstack_regression_human_${runKey}`,
+    password: `proofstack-regression-human-${runKey}-password`,
+  },
   identity: {
     name: `proofstack_regression_id_${runKey}`,
     password: `proofstack-regression-identity-${runKey}-password`,
+  },
+  modelEvaluationWorker: {
+    name: `proofstack_regression_model_${runKey}`,
+    password: `proofstack-regression-model-${runKey}-password`,
   },
   publisher: {
     name: `proofstack_regression_pub_${runKey}`,

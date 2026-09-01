@@ -52,7 +52,12 @@ const roleOptions: RuntimeRoleProvisioningOptions = {
     name: `ps_it_evaluation_${runKey}`,
     password: `proofstack-evaluation-${runKey}`,
   },
+  humanReviewer: { name: `ps_it_human_${runKey}`, password: `proofstack-human-${runKey}` },
   identity: { name: `ps_it_identity_${runKey}`, password: `proofstack-identity-${runKey}` },
+  modelEvaluationWorker: {
+    name: `ps_it_model_${runKey}`,
+    password: `proofstack-model-${runKey}`,
+  },
   publisher: { name: `ps_it_publisher_${runKey}`, password: `proofstack-publisher-${runKey}` },
   replayWorker: {
     name: `ps_it_worker_${runKey}`,

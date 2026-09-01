@@ -41,9 +41,17 @@ const credentials = {
     name: `ps_ctrl_eval_${runKey}`,
     password: `proofstack-control-evaluation-${runKey}`,
   },
+  humanReviewer: {
+    name: `ps_ctrl_human_${runKey}`,
+    password: `proofstack-control-human-${runKey}`,
+  },
   identity: {
     name: `ps_ctrl_id_${runKey}`,
     password: `proofstack-control-identity-${runKey}`,
+  },
+  modelEvaluationWorker: {
+    name: `ps_ctrl_model_${runKey}`,
+    password: `proofstack-control-model-${runKey}`,
   },
   publisher: {
     name: `ps_ctrl_pub_${runKey}`,

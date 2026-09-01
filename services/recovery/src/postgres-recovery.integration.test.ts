@@ -1726,7 +1726,12 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
       name: role("evaluation"),
       password: `recovery-evaluation-${runKey}`,
     },
+    humanReviewer: { name: role("human"), password: `recovery-human-${runKey}` },
     identity: { name: role("identity"), password: `recovery-identity-${runKey}` },
+    modelEvaluationWorker: {
+      name: role("model"),
+      password: `recovery-model-${runKey}`,
+    },
     publisher: { name: role("publisher"), password: `recovery-publisher-${runKey}` },
     replayWorker: { name: role("worker"), password: `recovery-replay-worker-${runKey}` },
   } satisfies RuntimeRoleProvisioningOptions;

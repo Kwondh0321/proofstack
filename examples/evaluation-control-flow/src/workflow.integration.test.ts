@@ -38,7 +38,9 @@ const runtimeRoles: RuntimeRoleProvisioningOptions = {
   artifact: credentials("artifact"),
   consumer: credentials("consumer"),
   evaluationWorker: credentials("evaluation"),
+  humanReviewer: credentials("human"),
   identity: credentials("identity"),
+  modelEvaluationWorker: credentials("model"),
   publisher: credentials("publisher"),
   replayWorker: credentials("replay"),
 };

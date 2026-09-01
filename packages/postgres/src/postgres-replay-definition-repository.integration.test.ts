@@ -47,9 +47,17 @@ const credentials = {
     name: `proofstack_replay_eval_${runKey}`,
     password: `proofstack-replay-evaluation-${runKey}-password`,
   },
+  humanReviewer: {
+    name: `proofstack_replay_human_${runKey}`,
+    password: `proofstack-replay-human-${runKey}-password`,
+  },
   identity: {
     name: `proofstack_replay_id_${runKey}`,
     password: `proofstack-replay-identity-${runKey}-password`,
+  },
+  modelEvaluationWorker: {
+    name: `proofstack_replay_model_${runKey}`,
+    password: `proofstack-replay-model-${runKey}-password`,
   },
   publisher: {
     name: `proofstack_replay_pub_${runKey}`,

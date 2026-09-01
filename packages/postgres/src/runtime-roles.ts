@@ -7,7 +7,9 @@ export const DEFAULT_RUNTIME_ROLE_NAMES = {
   artifact: "proofstack_artifact_maintenance",
   consumer: "proofstack_consumer",
   evaluationWorker: "proofstack_evaluation_worker",
+  humanReviewer: "proofstack_human_reviewer",
   identity: "proofstack_identity",
+  modelEvaluationWorker: "proofstack_model_evaluation_worker",
   publisher: "proofstack_publisher",
   replayWorker: "proofstack_replay_worker",
 } as const;
@@ -30,7 +32,9 @@ export interface RuntimeRoleProvisioningOptions {
   readonly artifact: RuntimeRoleCredentials;
   readonly consumer: RuntimeRoleCredentials;
   readonly evaluationWorker: RuntimeRoleCredentials;
+  readonly humanReviewer: RuntimeRoleCredentials;
   readonly identity: RuntimeRoleCredentials;
+  readonly modelEvaluationWorker: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
   readonly replayWorker: RuntimeRoleCredentials;
 }
@@ -86,6 +90,20 @@ const PLATFORM_TABLES = [
   "proofstack_identity_audit_events",
   "proofstack_interaction_fixture_artifact_ownerships",
   "proofstack_interaction_fixture_content_revocations",
+  "proofstack_model_assurance_assessments",
+  "proofstack_model_assurance_blinded_plans",
+  "proofstack_model_assurance_blinded_results",
+  "proofstack_model_assurance_calibration_reports",
+  "proofstack_model_assurance_human_review_protocols",
+  "proofstack_model_assurance_human_review_records",
+  "proofstack_model_assurance_human_reviewer_independence",
+  "proofstack_model_assurance_independence_declarations",
+  "proofstack_model_assurance_independent_critiques",
+  "proofstack_model_assurance_model_evaluators",
+  "proofstack_model_assurance_model_profiles",
+  "proofstack_model_assurance_qualification_reports",
+  "proofstack_model_assurance_qualification_suites",
+  "proofstack_model_assurance_records",
   "proofstack_oidc_bindings",
   "proofstack_oidc_login_transactions",
   "proofstack_outbox",
@@ -166,10 +184,15 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_heartbeat_replay_job(text, text, text, text, text, text, bigint, bigint, bigint)",
   "public.proofstack_heartbeat_replay_job_before_recovery_epoch(text, text, text, text, text, text, bigint, bigint, bigint)",
   "public.proofstack_insert_evaluation_record(jsonb)",
+  "public.proofstack_insert_model_assurance_record(jsonb)",
+  "public.proofstack_model_assurance_record_references(text, text, jsonb)",
   "public.proofstack_purge_browser_sessions()",
   "public.proofstack_purge_oidc_login_transactions()",
   "public.proofstack_publish_evaluation_control_record(jsonb)",
   "public.proofstack_publish_evaluation_execution_record(jsonb)",
+  "public.proofstack_publish_model_assurance_control_record(jsonb)",
+  "public.proofstack_publish_model_assurance_execution_record(jsonb)",
+  "public.proofstack_publish_model_assurance_human_review_record(jsonb)",
   "public.proofstack_record_api_key_use(text, text, text)",
   "public.proofstack_record_replay_attempt_event()",
   "public.proofstack_read_replay_job_snapshot(text, text, text)",
@@ -214,7 +237,9 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT SELECT, INSERT ON TABLE public.proofstack_evidence_events TO %ROLE%",
     "GRANT INSERT ON TABLE public.proofstack_outbox TO %ROLE%",
     "GRANT SELECT ON TABLE public.proofstack_evaluation_record_registry, public.proofstack_evaluation_resource_bindings, public.proofstack_evaluation_lineage, public.proofstack_evaluation_unique_bindings, public.proofstack_evaluation_records TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_model_assurance_records TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_publish_evaluation_control_record(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_model_assurance_control_record(jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO %ROLE%",
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.proofstack_artifact_catalog TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_artifact_tombstones TO %ROLE%",
@@ -248,6 +273,13 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_publish_evaluation_execution_record(jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO %ROLE%",
   ],
+  humanReviewer: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_evaluation_record_registry, public.proofstack_evaluation_resource_bindings, public.proofstack_evaluation_lineage, public.proofstack_evaluation_unique_bindings, public.proofstack_evaluation_records TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_model_assurance_records TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_model_assurance_human_review_record(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO %ROLE%",
+  ],
   identity: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_find_active_api_key(text) TO %ROLE%",
@@ -267,6 +299,13 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_find_and_touch_active_browser_session(text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_revoke_browser_session(text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_purge_browser_sessions() TO %ROLE%",
+  ],
+  modelEvaluationWorker: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_evaluation_record_registry, public.proofstack_evaluation_resource_bindings, public.proofstack_evaluation_lineage, public.proofstack_evaluation_unique_bindings, public.proofstack_evaluation_records TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_model_assurance_records TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_model_assurance_execution_record(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO %ROLE%",
   ],
   publisher: ["GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO %ROLE%"],
   replayWorker: [
@@ -318,7 +357,12 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
     artifact: validateCredentials("artifact", options.artifact),
     consumer: validateCredentials("consumer", options.consumer),
     evaluationWorker: validateCredentials("evaluationWorker", options.evaluationWorker),
+    humanReviewer: validateCredentials("humanReviewer", options.humanReviewer),
     identity: validateCredentials("identity", options.identity),
+    modelEvaluationWorker: validateCredentials(
+      "modelEvaluationWorker",
+      options.modelEvaluationWorker,
+    ),
     publisher: validateCredentials("publisher", options.publisher),
     replayWorker: validateCredentials("replayWorker", options.replayWorker),
   };
@@ -482,6 +526,7 @@ async function assertSchemaCurrent(client: PoolClient): Promise<void> {
       'public.proofstack_identity_audit_events',
       'public.proofstack_interaction_fixture_artifact_ownerships',
       'public.proofstack_interaction_fixture_content_revocations',
+      'public.proofstack_model_assurance_records',
       'public.proofstack_oidc_bindings',
       'public.proofstack_oidc_login_transactions',
       'public.proofstack_outbox',
@@ -547,6 +592,8 @@ export async function provisionRuntimeRoles(
         "api",
         "identity",
         "evaluationWorker",
+        "modelEvaluationWorker",
+        "humanReviewer",
         "replayWorker",
         "artifact",
         "publisher",

@@ -19,7 +19,9 @@ const roleNames = {
   artifact: `proofstack_it_artifact_${runKey}`,
   consumer: `proofstack_it_consumer_${runKey}`,
   evaluationWorker: `proofstack_it_evaluation_${runKey}`,
+  humanReviewer: `proofstack_it_human_${runKey}`,
   identity: `proofstack_it_identity_role_${runKey}`,
+  modelEvaluationWorker: `proofstack_it_model_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
   replayWorker: `proofstack_it_replay_worker_${runKey}`,
 };
@@ -36,7 +38,15 @@ function provisioningOptions(suffix: string): RuntimeRoleProvisioningOptions {
       name: roleNames.evaluationWorker,
       password: `proofstack-evaluation-${suffix}-password`,
     },
+    humanReviewer: {
+      name: roleNames.humanReviewer,
+      password: `proofstack-human-${suffix}-password`,
+    },
     identity: { name: roleNames.identity, password: `proofstack-identity-${suffix}-password` },
+    modelEvaluationWorker: {
+      name: roleNames.modelEvaluationWorker,
+      password: `proofstack-model-${suffix}-password`,
+    },
     publisher: { name: roleNames.publisher, password: `proofstack-publisher-${suffix}-password` },
     replayWorker: {
       name: roleNames.replayWorker,
@@ -91,6 +101,8 @@ describe("runtime role provisioning", () => {
         roleNames.api,
         roleNames.identity,
         roleNames.evaluationWorker,
+        roleNames.modelEvaluationWorker,
+        roleNames.humanReviewer,
         roleNames.replayWorker,
         roleNames.artifact,
         roleNames.publisher,
@@ -151,7 +163,7 @@ describe("runtime role provisioning", () => {
       `,
       [Object.values(roleNames)],
     );
-    expect(roleState.rows).toHaveLength(7);
+    expect(roleState.rows).toHaveLength(9);
     expect(
       roleState.rows.every(
         ({
@@ -177,7 +189,9 @@ describe("runtime role provisioning", () => {
       "proofstack-managed-runtime-role:v1:artifact",
       "proofstack-managed-runtime-role:v1:consumer",
       "proofstack-managed-runtime-role:v1:evaluationWorker",
+      "proofstack-managed-runtime-role:v1:humanReviewer",
       "proofstack-managed-runtime-role:v1:identity",
+      "proofstack-managed-runtime-role:v1:modelEvaluationWorker",
       "proofstack-managed-runtime-role:v1:publisher",
       "proofstack-managed-runtime-role:v1:replayWorker",
     ]);
@@ -219,6 +233,84 @@ describe("runtime role provisioning", () => {
         outboxSelect: false,
         recordsInsert: false,
         recordsSelect: true,
+      },
+    ]);
+
+    const modelWorkerPool = poolFor(initial.modelEvaluationWorker);
+    const modelWorkerPrivileges = await modelWorkerPool.query<{
+      readonly controlExecute: boolean;
+      readonly executionExecute: boolean;
+      readonly humanExecute: boolean;
+      readonly modelRecordsInsert: boolean;
+      readonly modelRecordsSelect: boolean;
+    }>(`
+      SELECT
+        has_table_privilege(current_user, 'proofstack_model_assurance_records', 'SELECT')
+          AS "modelRecordsSelect",
+        has_table_privilege(current_user, 'proofstack_model_assurance_records', 'INSERT')
+          AS "modelRecordsInsert",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_model_assurance_control_record(jsonb)',
+          'EXECUTE'
+        ) AS "controlExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_model_assurance_execution_record(jsonb)',
+          'EXECUTE'
+        ) AS "executionExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_model_assurance_human_review_record(jsonb)',
+          'EXECUTE'
+        ) AS "humanExecute"
+    `);
+    expect(modelWorkerPrivileges.rows).toEqual([
+      {
+        controlExecute: false,
+        executionExecute: true,
+        humanExecute: false,
+        modelRecordsInsert: false,
+        modelRecordsSelect: true,
+      },
+    ]);
+
+    const humanReviewerPool = poolFor(initial.humanReviewer);
+    const humanReviewerPrivileges = await humanReviewerPool.query<{
+      readonly controlExecute: boolean;
+      readonly executionExecute: boolean;
+      readonly humanExecute: boolean;
+      readonly modelRecordsInsert: boolean;
+      readonly modelRecordsSelect: boolean;
+    }>(`
+      SELECT
+        has_table_privilege(current_user, 'proofstack_model_assurance_records', 'SELECT')
+          AS "modelRecordsSelect",
+        has_table_privilege(current_user, 'proofstack_model_assurance_records', 'INSERT')
+          AS "modelRecordsInsert",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_model_assurance_control_record(jsonb)',
+          'EXECUTE'
+        ) AS "controlExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_model_assurance_execution_record(jsonb)',
+          'EXECUTE'
+        ) AS "executionExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_model_assurance_human_review_record(jsonb)',
+          'EXECUTE'
+        ) AS "humanExecute"
+    `);
+    expect(humanReviewerPrivileges.rows).toEqual([
+      {
+        controlExecute: false,
+        executionExecute: false,
+        humanExecute: true,
+        modelRecordsInsert: false,
+        modelRecordsSelect: true,
       },
     ]);
 
@@ -1110,6 +1202,8 @@ describe("runtime role provisioning", () => {
         roleNames.api,
         roleNames.identity,
         roleNames.evaluationWorker,
+        roleNames.modelEvaluationWorker,
+        roleNames.humanReviewer,
         roleNames.replayWorker,
         roleNames.artifact,
         roleNames.publisher,

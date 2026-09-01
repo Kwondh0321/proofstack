@@ -68,9 +68,17 @@ const credentials = {
     name: `ps_worker_eval_${runKey}`,
     password: `proofstack-worker-evaluation-${runKey}`,
   },
+  humanReviewer: {
+    name: `ps_worker_human_${runKey}`,
+    password: `proofstack-worker-human-${runKey}`,
+  },
   identity: {
     name: `ps_worker_id_${runKey}`,
     password: `proofstack-worker-identity-${runKey}`,
+  },
+  modelEvaluationWorker: {
+    name: `ps_worker_model_${runKey}`,
+    password: `proofstack-worker-model-${runKey}`,
   },
   publisher: {
     name: `ps_worker_pub_${runKey}`,

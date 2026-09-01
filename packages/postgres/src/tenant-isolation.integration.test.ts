@@ -43,9 +43,17 @@ const roles = {
     name: `ps_matrix_evaluation_${runKey}`,
     password: `proofstack-matrix-evaluation-${runKey}`,
   },
+  humanReviewer: {
+    name: `ps_matrix_human_${runKey}`,
+    password: `proofstack-matrix-human-${runKey}`,
+  },
   identity: {
     name: `ps_matrix_identity_${runKey}`,
     password: `proofstack-matrix-identity-${runKey}`,
+  },
+  modelEvaluationWorker: {
+    name: `ps_matrix_model_${runKey}`,
+    password: `proofstack-matrix-model-${runKey}`,
   },
   publisher: {
     name: `ps_matrix_publisher_${runKey}`,

@@ -84,9 +84,17 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
       name: DEFAULT_RUNTIME_ROLE_NAMES.evaluationWorker,
       password: "local-evaluation-worker-password",
     },
+    humanReviewer: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.humanReviewer,
+      password: "local-human-reviewer-password",
+    },
     identity: {
       name: DEFAULT_RUNTIME_ROLE_NAMES.identity,
       password: "local-identity-password",
+    },
+    modelEvaluationWorker: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.modelEvaluationWorker,
+      password: "local-model-evaluation-worker-password",
     },
     publisher: {
       name: DEFAULT_RUNTIME_ROLE_NAMES.publisher,
@@ -106,7 +114,9 @@ function managedRole(
     | "artifact"
     | "consumer"
     | "evaluationWorker"
+    | "humanReviewer"
     | "identity"
+    | "modelEvaluationWorker"
     | "publisher"
     | "replayWorker",
   overrides: Partial<RoleRow> = {},
@@ -132,6 +142,8 @@ describe("provisionRuntimeRoles", () => {
         "proofstack_api",
         "proofstack_identity",
         "proofstack_evaluation_worker",
+        "proofstack_model_evaluation_worker",
+        "proofstack_human_reviewer",
         "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
@@ -198,6 +210,28 @@ describe("provisionRuntimeRoles", () => {
     expect(statements).toContain(
       'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_replay_worker"',
     );
+    expect(
+      statements.filter((statement) =>
+        statement.endsWith('TO "proofstack_model_evaluation_worker"'),
+      ),
+    ).toEqual([
+      'GRANT USAGE ON SCHEMA public TO "proofstack_model_evaluation_worker"',
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_model_evaluation_worker"',
+      'GRANT SELECT ON TABLE public.proofstack_evaluation_record_registry, public.proofstack_evaluation_resource_bindings, public.proofstack_evaluation_lineage, public.proofstack_evaluation_unique_bindings, public.proofstack_evaluation_records TO "proofstack_model_evaluation_worker"',
+      'GRANT SELECT ON TABLE public.proofstack_model_assurance_records TO "proofstack_model_evaluation_worker"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_publish_model_assurance_execution_record(jsonb) TO "proofstack_model_evaluation_worker"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO "proofstack_model_evaluation_worker"',
+    ]);
+    expect(
+      statements.filter((statement) => statement.endsWith('TO "proofstack_human_reviewer"')),
+    ).toEqual([
+      'GRANT USAGE ON SCHEMA public TO "proofstack_human_reviewer"',
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_human_reviewer"',
+      'GRANT SELECT ON TABLE public.proofstack_evaluation_record_registry, public.proofstack_evaluation_resource_bindings, public.proofstack_evaluation_lineage, public.proofstack_evaluation_unique_bindings, public.proofstack_evaluation_records TO "proofstack_human_reviewer"',
+      'GRANT SELECT ON TABLE public.proofstack_model_assurance_records TO "proofstack_human_reviewer"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_publish_model_assurance_human_review_record(jsonb) TO "proofstack_human_reviewer"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO "proofstack_human_reviewer"',
+    ]);
     expect(
       statements.filter((statement) => statement.endsWith('TO "proofstack_replay_worker"')),
     ).toEqual([
@@ -286,6 +320,8 @@ describe("provisionRuntimeRoles", () => {
     client.roles.set("proofstack_publisher", managedRole("publisher"));
     client.roles.set("proofstack_consumer", managedRole("consumer"));
     client.roles.set("proofstack_evaluation_worker", managedRole("evaluationWorker"));
+    client.roles.set("proofstack_human_reviewer", managedRole("humanReviewer"));
+    client.roles.set("proofstack_model_evaluation_worker", managedRole("modelEvaluationWorker"));
     client.roles.set("proofstack_replay_worker", managedRole("replayWorker"));
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).resolves.toEqual({
@@ -294,13 +330,15 @@ describe("provisionRuntimeRoles", () => {
         "proofstack_api",
         "proofstack_identity",
         "proofstack_evaluation_worker",
+        "proofstack_model_evaluation_worker",
+        "proofstack_human_reviewer",
         "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
       ],
     });
-    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(7);
+    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(9);
     expect(client.queries.some(({ text }) => text.startsWith("COMMENT ON ROLE"))).toBe(false);
   });
 

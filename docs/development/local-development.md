@@ -331,6 +331,8 @@ redaction, and retry guidance in the
 | `PROOFSTACK_PUBLISHER_DATABASE_ROLE` | `proofstack_publisher` | database CLI | Managed outbox publisher role name |
 | `PROOFSTACK_CONSUMER_DATABASE_ROLE` | `proofstack_consumer` | database CLI | Managed consumer role name |
 | `PROOFSTACK_EVALUATION_WORKER_DATABASE_ROLE` | `proofstack_evaluation_worker` | database CLI | Managed evaluation result worker role name |
+| `PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_ROLE` | `proofstack_model_evaluation_worker` | database CLI | Managed model-evaluation result worker role name |
+| `PROOFSTACK_HUMAN_REVIEWER_DATABASE_ROLE` | `proofstack_human_reviewer` | database CLI | Managed human-review record writer role name |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE` | `proofstack_replay_worker` | database CLI | Managed replay worker role name |
 | `PROOFSTACK_API_DATABASE_PASSWORD` | unset | database CLI | API role password used only during provisioning |
 | `PROOFSTACK_ARTIFACT_DATABASE_PASSWORD` | unset | database CLI | Artifact lifecycle role password used only during provisioning |
@@ -338,6 +340,8 @@ redaction, and retry guidance in the
 | `PROOFSTACK_PUBLISHER_DATABASE_PASSWORD` | unset | database CLI | Publisher role password used only during provisioning |
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
 | `PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD` | unset | database CLI | Evaluation worker role password used only during provisioning |
+| `PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD` | unset | database CLI | Model-evaluation worker role password used only during provisioning |
+| `PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD` | unset | database CLI | Human reviewer role password used only during provisioning |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD` | unset | database CLI | Replay worker role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_TENANT_ID` | unset | identity CLI | Explicit tenant for bootstrap and aggregate status |
 | `PROOFSTACK_BOOTSTRAP_ACTOR_PRINCIPAL_ID` | unset | identity CLI | Audited local operator identifier for bootstrap |
