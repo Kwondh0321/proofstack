@@ -203,6 +203,11 @@ export function modelAssuranceRecordReferences(
           value.calibrationReport.calibrationReportId,
           value.calibrationReport.definitionSha256,
         ),
+        exact(
+          "model_qualification_report",
+          value.modelQualificationReport.reportId,
+          value.modelQualificationReport.definitionSha256,
+        ),
       ];
     }
     case "model_assisted_evaluator": {

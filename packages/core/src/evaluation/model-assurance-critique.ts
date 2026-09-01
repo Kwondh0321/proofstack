@@ -11,7 +11,6 @@ import {
 import { compareEvaluatorIndependence } from "./model-assurance-independence.js";
 
 export type IndependentCritiqueIntegrityReason =
-  | "calibration_mismatch"
   | "criterion_mismatch"
   | "critique_correlated"
   | "critique_duplicate"
@@ -178,13 +177,6 @@ export function evaluateIndependentCritiqueIntegrity(
   const planCriteria = new Set(plan.criteria.map(criterionKey));
   for (const critique of critiques) {
     if (!sameScope(plan, critique)) reasons.add("scope_mismatch");
-    if (
-      critique.calibrationReport.calibrationReportId !==
-        plan.calibrationReport.calibrationReportId ||
-      critique.calibrationReport.definitionSha256 !== plan.calibrationReport.definitionSha256
-    ) {
-      reasons.add("calibration_mismatch");
-    }
     if (!planCriteria.has(criterionKey(critique.criterion))) reasons.add("criterion_mismatch");
     if (
       Date.parse(critique.completedAt) > Date.parse(at) ||

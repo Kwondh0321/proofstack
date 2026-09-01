@@ -22,7 +22,7 @@ describe("model-assurance repository fixtures", () => {
         "model_qualification_suite",
       ]),
     );
-    expect(harness.records).toHaveLength(17);
+    expect(harness.records).toHaveLength(20);
 
     const critique = harness.records.find(({ kind }) => kind === "independent_critique");
     const baseQualification = harness.evaluation.records.find(
@@ -32,6 +32,9 @@ describe("model-assurance repository fixtures", () => {
       throw new Error("Expected a base qualification fixture");
     }
     expect(critique?.record).toMatchObject({
+      modelQualificationReport: {
+        reportId: expect.stringContaining("critic"),
+      },
       qualificationReport: {
         definitionSha256: baseQualification.record.definitionSha256,
         qualificationReportId: baseQualification.record.qualificationReportId,

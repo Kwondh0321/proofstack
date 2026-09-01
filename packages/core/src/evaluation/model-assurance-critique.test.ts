@@ -213,7 +213,7 @@ describe("independent critique integrity", () => {
     });
   });
 
-  it("checks plan scope, criterion, calibration, and completion time", () => {
+  it("checks plan scope, criterion, and completion time without requiring the primary calibration", () => {
     const scope = fixture();
     scope.critique.scope.environmentId = "env_other";
     expect(evaluate(scope)).toEqual({ reasons: ["scope_mismatch"], status: "unsatisfied" });
@@ -221,8 +221,8 @@ describe("independent critique integrity", () => {
     const calibration = fixture();
     calibration.critique.calibrationReport.definitionSha256 = "0".repeat(64);
     expect(evaluate(calibration)).toEqual({
-      reasons: ["calibration_mismatch"],
-      status: "unsatisfied",
+      critiqueIds: [calibration.critique.critiqueId],
+      status: "satisfied",
     });
 
     const criterion = fixture();

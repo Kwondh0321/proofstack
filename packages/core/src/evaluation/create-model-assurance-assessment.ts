@@ -20,6 +20,8 @@ import {
 } from "@proofstack/contracts";
 import { requireCapability, requireEnvironmentAccess } from "../auth/authorization.js";
 import type { Clock } from "../clock.js";
+import { validateEvaluationRecord } from "./evaluation-record-validation.js";
+import type { EvaluationRepository } from "./evaluation-repository.js";
 import { evaluateBlindedResultIntegrity } from "./model-assurance-blinded-result.js";
 import { evaluateCalibrationCompatibility } from "./model-assurance-calibration.js";
 import { evaluateIndependentCritiqueIntegrity } from "./model-assurance-critique.js";
@@ -37,8 +39,6 @@ import {
   type ModelAssuranceRepository,
   ModelAssuranceRepositoryContractError,
 } from "./model-assurance-repository.js";
-import type { EvaluationRepository } from "./evaluation-repository.js";
-import { validateEvaluationRecord } from "./evaluation-record-validation.js";
 
 export type ModelAssuranceAssessmentInput = Omit<
   ModelAssuranceAssessmentDefinition,
@@ -279,6 +279,30 @@ function criterionKey(value: {
   return `${value.criterionSet.criterionSetId}:${value.criterionSet.criterionSetVersionId}:${value.criterionId}:${value.criterionSet.definitionSha256}`;
 }
 
+function evaluatorKey(value: {
+  readonly definitionSha256: string;
+  readonly evaluatorId: string;
+  readonly evaluatorVersionId: string;
+}): string {
+  return `${value.evaluatorId}:${value.evaluatorVersionId}:${value.definitionSha256}`;
+}
+
+function modelProfileKey(value: {
+  readonly definitionSha256: string;
+  readonly modelProfileId: string;
+  readonly modelProfileVersionId: string;
+}): string {
+  return `${value.modelProfileId}:${value.modelProfileVersionId}:${value.definitionSha256}`;
+}
+
+function exactRecordReference(
+  left: { readonly definitionSha256: string; readonly [key: string]: unknown },
+  right: { readonly definitionSha256: string; readonly [key: string]: unknown },
+  id: string,
+): boolean {
+  return left.definitionSha256 === right.definitionSha256 && left[id] === right[id];
+}
+
 function exactReferenceSet(
   values: readonly { readonly definitionSha256: string; readonly [key: string]: unknown }[],
   id: string,
@@ -482,6 +506,77 @@ export class CreateModelAssuranceAssessment {
         ),
       ),
     );
+    const criticQualificationGraphs = await Promise.all(
+      critiques.map(async (critique) => {
+        const report = await assuranceRecord(
+          repository,
+          scope,
+          "model_qualification_report",
+          critique.modelQualificationReport.reportId,
+          critique.modelQualificationReport.definitionSha256,
+        );
+        const criticSuite = await assuranceRecord(
+          repository,
+          scope,
+          "model_qualification_suite",
+          report.suite.suiteVersionId,
+          report.suite.definitionSha256,
+        );
+        const criticProfile = await assuranceRecord(
+          repository,
+          scope,
+          "model_evaluator_profile",
+          report.modelProfile.modelProfileVersionId,
+          report.modelProfile.definitionSha256,
+        );
+        const criticIndependence = await assuranceRecord(
+          repository,
+          scope,
+          "independence_declaration",
+          report.independenceDeclaration.independenceDeclarationId,
+          report.independenceDeclaration.definitionSha256,
+        );
+        const criticCalibration = await assuranceRecord(
+          repository,
+          scope,
+          "calibration_report",
+          report.calibrationReport.calibrationReportId,
+          report.calibrationReport.definitionSha256,
+        );
+        const criticPlan = await assuranceRecord(
+          repository,
+          scope,
+          "blinded_evaluation_plan",
+          criticSuite.blindedPlan.blindedPlanVersionId,
+          criticSuite.blindedPlan.definitionSha256,
+        );
+        const baseReport = await this.dependencies.evaluationRepository.findQualificationReport(
+          scope,
+          report.baseQualificationReport.qualificationReportId,
+        );
+        if (baseReport === null) {
+          throw new ModelAssuranceDependencyError(
+            `critic_base_qualification_report:${critique.critiqueId}`,
+          );
+        }
+        exactEvaluationRecord(
+          baseReport,
+          "qualification_report",
+          scope,
+          report.baseQualificationReport.definitionSha256,
+          `critic_base_qualification_report:${critique.critiqueId}`,
+        );
+        return {
+          calibration: criticCalibration,
+          critique,
+          independence: criticIndependence,
+          plan: criticPlan,
+          profile: criticProfile,
+          report,
+          suite: criticSuite,
+        };
+      }),
+    );
     const declarations = await Promise.all(
       definition.independenceDeclarations.map((reference) =>
         assuranceRecord(
@@ -555,6 +650,52 @@ export class CreateModelAssuranceAssessment {
     );
     if (qualificationResult.status === "inapplicable") {
       addQualificationReasons(reasons, qualificationResult.reasons);
+    }
+    for (const graph of criticQualificationGraphs) {
+      const result = evaluateModelQualificationApplicability(
+        graph.suite,
+        graph.report,
+        graph.profile,
+        graph.independence,
+        graph.calibration,
+        graph.plan,
+        evaluatedAt,
+      );
+      if (result.status === "inapplicable") {
+        addQualificationReasons(reasons, result.reasons);
+      }
+      const criticCalibration = evaluateCalibrationCompatibility(graph.profile, graph.calibration, {
+        at: evaluatedAt,
+        criteria: [graph.critique.criterion],
+        dataset: base.policy.dataset,
+        evaluator: graph.critique.evaluator,
+        locale: definition.calibrationContext.locale,
+        populationTags: definition.calibrationContext.populationTags,
+        qualificationReport: graph.calibration.qualificationReport,
+        riskTier: definition.riskTier,
+        scope,
+        taskKindId: definition.calibrationContext.taskKindId,
+      });
+      if (criticCalibration.status === "incompatible") {
+        addCalibrationReasons(reasons, criticCalibration.reasons);
+      }
+      if (
+        evaluatorKey(graph.report.evaluator) !== evaluatorKey(graph.critique.evaluator) ||
+        modelProfileKey(graph.report.modelProfile) !==
+          modelProfileKey(graph.critique.modelProfile) ||
+        !exactRecordReference(
+          graph.report.independenceDeclaration,
+          graph.critique.independenceDeclaration,
+          "independenceDeclarationId",
+        ) ||
+        !exactRecordReference(
+          graph.report.calibrationReport,
+          graph.critique.calibrationReport,
+          "calibrationReportId",
+        )
+      ) {
+        reasons.add("model_qualification_invalid");
+      }
     }
     const calibrationResult = evaluateCalibrationCompatibility(profile, calibration, {
       at: evaluatedAt,
@@ -647,6 +788,14 @@ export class CreateModelAssuranceAssessment {
             suite.validUntil,
             ...humanDeclarations.map((value) => value.validUntil),
             ...reviews.map((value: HumanReviewRecord) => value.expiresAt),
+            ...criticQualificationGraphs.flatMap((value) => [
+              value.calibration.validUntil,
+              value.independence.validUntil,
+              value.plan.validUntil,
+              value.profile.validUntil,
+              value.report.validUntil,
+              value.suite.validUntil,
+            ]),
           ])
         : definition.validUntil;
     const derivedDefinition: ModelAssuranceAssessmentDefinition = {

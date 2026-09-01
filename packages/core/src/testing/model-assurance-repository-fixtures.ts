@@ -353,6 +353,10 @@ export async function createModelAssuranceRepositoryTestHarness(
   );
   criticProfileDefinition.modelProfileId = `mep_${namespace}_critic`;
   criticProfileDefinition.modelProfileVersionId = `mpv_${namespace}_critic_v1`;
+  criticProfileDefinition.evaluator = {
+    evaluatorId: `evl_${namespace}_critic`,
+    evaluatorVersionId: `evv_${namespace}_critic_v1`,
+  };
   criticProfileDefinition.supportedCriteria = structuredClone(profile.supportedCriteria);
   const criticProfile = await add(
     "model_evaluator_profile",
@@ -375,6 +379,33 @@ export async function createModelAssuranceRepositoryTestHarness(
       publishedByPrincipalId: "usr_assurance_publisher",
     }),
   );
+  const criticCalibrationDefinition = vector<CalibrationReportDefinition>(
+    "evaluation-calibration-definition-v1.json",
+  );
+  criticCalibrationDefinition.calibrationReportId = `cal_${namespace}_critic_v1`;
+  criticCalibrationDefinition.criteria = [structuredClone(base.criterion)];
+  criticCalibrationDefinition.dataset = structuredClone(policy.dataset);
+  criticCalibrationDefinition.evaluator = {
+    definitionSha256: criticEvaluator.definitionSha256,
+    evaluatorId: criticEvaluator.evaluatorId,
+    evaluatorVersionId: criticEvaluator.evaluatorVersionId,
+  };
+  criticCalibrationDefinition.modelProfile = {
+    definitionSha256: criticProfile.definitionSha256,
+    modelProfileId: criticProfile.modelProfileId,
+    modelProfileVersionId: criticProfile.modelProfileVersionId,
+  };
+  criticCalibrationDefinition.population.riskTier = base.riskTier;
+  criticCalibrationDefinition.qualificationReport = {
+    definitionSha256: baseQualification.definitionSha256,
+    qualificationReportId: baseQualification.qualificationReportId,
+  };
+  const criticCalibration = await add(
+    "calibration_report",
+    materialize("calibration_report", scope, criticCalibrationDefinition, {
+      recordedAt: "2026-09-02T00:20:01.000Z",
+    }),
+  );
   critiqueDefinition.evaluator = {
     definitionSha256: criticEvaluator.definitionSha256,
     evaluatorId: criticEvaluator.evaluatorId,
@@ -385,7 +416,10 @@ export async function createModelAssuranceRepositoryTestHarness(
     modelProfileId: criticProfile.modelProfileId,
     modelProfileVersionId: criticProfile.modelProfileVersionId,
   };
-  critiqueDefinition.calibrationReport = structuredClone(plan.calibrationReport);
+  critiqueDefinition.calibrationReport = {
+    calibrationReportId: criticCalibration.calibrationReportId,
+    definitionSha256: criticCalibration.definitionSha256,
+  };
   critiqueDefinition.criterion = structuredClone(critiqueCriterion);
   critiqueDefinition.observation = {
     definitionSha256: observation.definitionSha256,
@@ -418,9 +452,69 @@ export async function createModelAssuranceRepositoryTestHarness(
       recordedAt: "2026-09-02T00:55:01.000Z",
     }),
   );
+  const criticSuiteDefinition = vector<ModelQualificationSuiteDefinition>(
+    "evaluation-model-qualification-suite-definition-v1.json",
+  );
+  criticSuiteDefinition.suiteId = `mqs_${namespace}_critic`;
+  criticSuiteDefinition.suiteVersionId = `mqv_${namespace}_critic_v1`;
+  criticSuiteDefinition.blindedPlan = {
+    blindedPlanId: plan.blindedPlanId,
+    blindedPlanVersionId: plan.blindedPlanVersionId,
+    definitionSha256: plan.definitionSha256,
+  };
+  criticSuiteDefinition.criteria = [
+    {
+      criterionId: base.criterion.criterionId,
+      criterionSetId: base.criterion.criterionSet.criterionSetId,
+      criterionSetVersionId: base.criterion.criterionSet.criterionSetVersionId,
+    },
+  ];
+  criticSuiteDefinition.dataset = structuredClone(criticCalibration.dataset);
+  criticSuiteDefinition.evaluator = structuredClone(critiqueDefinition.evaluator);
+  criticSuiteDefinition.modelProfile = structuredClone(critiqueDefinition.modelProfile);
+  const criticSuite = await add(
+    "model_qualification_suite",
+    materialize("model_qualification_suite", scope, criticSuiteDefinition, {
+      publishedAt: "2026-09-02T03:59:59.000Z",
+      publishedByPrincipalId: "usr_assurance_publisher",
+    }),
+  );
+  const criticQualificationDefinition = vector<ModelQualificationReportDefinition>(
+    "evaluation-model-qualification-report-definition-v1.json",
+  );
+  criticQualificationDefinition.reportId = `mqr_${namespace}_critic_v1`;
+  criticQualificationDefinition.baseQualificationReport = {
+    definitionSha256: baseQualification.definitionSha256,
+    qualificationReportId: baseQualification.qualificationReportId,
+  };
+  criticQualificationDefinition.calibrationReport = {
+    calibrationReportId: criticCalibration.calibrationReportId,
+    definitionSha256: criticCalibration.definitionSha256,
+  };
+  criticQualificationDefinition.evaluator = structuredClone(critiqueDefinition.evaluator);
+  criticQualificationDefinition.independenceDeclaration = {
+    definitionSha256: criticIndependence.definitionSha256,
+    independenceDeclarationId: criticIndependence.independenceDeclarationId,
+  };
+  criticQualificationDefinition.modelProfile = structuredClone(critiqueDefinition.modelProfile);
+  criticQualificationDefinition.suite = {
+    definitionSha256: criticSuite.definitionSha256,
+    suiteId: criticSuite.suiteId,
+    suiteVersionId: criticSuite.suiteVersionId,
+  };
+  const criticQualification = await add(
+    "model_qualification_report",
+    materialize("model_qualification_report", scope, criticQualificationDefinition, {
+      recordedAt: "2026-09-02T05:30:01.000Z",
+    }),
+  );
   critiqueDefinition.independenceDeclaration = {
     definitionSha256: criticIndependence.definitionSha256,
     independenceDeclarationId: criticIndependence.independenceDeclarationId,
+  };
+  critiqueDefinition.modelQualificationReport = {
+    definitionSha256: criticQualification.definitionSha256,
+    reportId: criticQualification.reportId,
   };
   const critique = await add(
     "independent_critique",

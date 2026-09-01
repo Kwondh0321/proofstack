@@ -14,11 +14,11 @@ import type {
   ModelQualificationReport,
   ModelQualificationSuite,
 } from "@proofstack/contracts";
+import { modelAssuranceRecordReferences } from "../evaluation/model-assurance-record-lineage.js";
 import {
   modelAssuranceRecordId,
   validateModelAssuranceRecord,
 } from "../evaluation/model-assurance-record-validation.js";
-import { modelAssuranceRecordReferences } from "../evaluation/model-assurance-record-lineage.js";
 import {
   ModelAssuranceLineageError,
   type ModelAssuranceRecord,
@@ -213,6 +213,11 @@ function references(
           "calibration_report",
           value.calibrationReport.calibrationReportId,
           value.calibrationReport.definitionSha256,
+        ),
+        exact(
+          "model_qualification_report",
+          value.modelQualificationReport.reportId,
+          value.modelQualificationReport.definitionSha256,
         ),
       ];
     }
