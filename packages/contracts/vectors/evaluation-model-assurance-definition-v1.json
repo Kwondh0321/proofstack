@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-model-assurance-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3491,
+      "encodedByteLength": 3504,
       "input": {
         "definition": {
           "budgets": {
@@ -110,7 +110,7 @@
             "trainingDataRelationship": "unknown"
           },
           "reproducibility": "bounded",
-          "riskTiers": ["high", "low", "medium"],
+          "riskTiers": ["critical", "high", "low", "moderate"],
           "sampling": {
             "maximumOutputTokens": 4096,
             "seed": {
@@ -147,7 +147,7 @@
       },
       "kind": "model_evaluator_profile",
       "name": "bounded provider-neutral model evaluator profile",
-      "sha256": "bcdeebf27f14c95083e3de42d99c1db03cc6160aafda819774123d91db9ff6c5"
+      "sha256": "7906cebee469dfaeb0402a4d96800f2222513016fbc80bf9a0f4c60e76044965"
     }
   ]
 }

@@ -206,9 +206,9 @@ const modelEvaluatorProfileDefinitionShape = {
   provider: ModelProviderDeclarationSchema,
   reproducibility: z.enum(["best_effort", "bounded"]),
   riskTiers: z
-    .array(z.enum(["high", "low", "medium"]))
+    .array(EvaluationRiskTierSchema)
     .min(1)
-    .max(3)
+    .max(EvaluationRiskTierSchema.options.length)
     .refine(isStrictlySortedUnique, {
       message: "Model evaluator risk tiers must be unique and ordered",
     }),

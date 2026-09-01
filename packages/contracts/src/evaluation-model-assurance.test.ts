@@ -126,7 +126,7 @@ export function modelEvaluatorProfileDefinition(): ModelEvaluatorProfileDefiniti
       trainingDataRelationship: "unknown" as const,
     },
     reproducibility: "bounded" as const,
-    riskTiers: ["high", "low", "medium"],
+    riskTiers: ["critical", "high", "low", "moderate"],
     sampling: {
       maximumOutputTokens: 4_096,
       seed: { status: "fixed" as const, value: 42 },
