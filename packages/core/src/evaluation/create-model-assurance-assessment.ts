@@ -420,6 +420,19 @@ export function minimumEligibleValidity(requested: string, values: readonly stri
   );
 }
 
+const injectionQualificationScenarios = new Set([
+  "direct_prompt_injection",
+  "encoded_prompt_injection",
+  "indirect_prompt_injection",
+  "multilingual_prompt_injection",
+  "retrieved_prompt_injection",
+  "tool_request_injection",
+]);
+
+function includesCriticalInjectionFailure(values: readonly string[]): boolean {
+  return values.some((value) => injectionQualificationScenarios.has(value));
+}
+
 export class CreateModelAssuranceAssessment {
   constructor(private readonly dependencies: CreateModelAssuranceAssessmentDependencies) {}
 
@@ -630,6 +643,9 @@ export class CreateModelAssuranceAssessment {
     const reasons = new Set<ModelAssuranceIneligibilityReason>();
     if (base.assessment.eligibility.status !== "eligible") {
       reasons.add("base_assessment_ineligible");
+      if (base.assessment.eligibility.reasons.includes("critical_counterevidence")) {
+        reasons.add("critical_counterevidence");
+      }
     }
     if (base.assessment.dimensions.sourceFreshness !== "current") reasons.add("source_stale");
     if (base.assessment.riskTier !== definition.riskTier) {
@@ -651,6 +667,9 @@ export class CreateModelAssuranceAssessment {
     if (qualificationResult.status === "inapplicable") {
       addQualificationReasons(reasons, qualificationResult.reasons);
     }
+    if (includesCriticalInjectionFailure(qualification.criticalScenarioFailures)) {
+      reasons.add("injection_qualification_failed");
+    }
     for (const graph of criticQualificationGraphs) {
       const result = evaluateModelQualificationApplicability(
         graph.suite,
@@ -663,6 +682,9 @@ export class CreateModelAssuranceAssessment {
       );
       if (result.status === "inapplicable") {
         addQualificationReasons(reasons, result.reasons);
+      }
+      if (includesCriticalInjectionFailure(graph.report.criticalScenarioFailures)) {
+        reasons.add("injection_qualification_failed");
       }
       const criticCalibration = evaluateCalibrationCompatibility(graph.profile, graph.calibration, {
         at: evaluatedAt,

@@ -812,6 +812,54 @@ describe("CreateModelAssuranceAssessment", () => {
     expect(result.record.independenceDeclarations).toHaveLength(2);
   });
 
+  it("preserves a critical model-injection qualification failure as an exact ineligibility reason", async () => {
+    const setup = await fixture({ completeAssurance: true });
+    const reference = setup.command.definition.modelQualificationReport;
+    const original = await setup.repository.find(
+      setup.evaluation.scope,
+      "model_qualification_report",
+      reference.reportId,
+    );
+    if (!original) throw new Error("Expected the primary model qualification report");
+    const {
+      definitionSha256: _definitionSha256,
+      recordedAt: _recordedAt,
+      schemaVersion: _schemaVersion,
+      scope: _scope,
+      ...definition
+    } = structuredClone(original);
+    definition.reportId = "mqr_derived_injection_failure_v1";
+    definition.status = "unqualified";
+    definition.criticalScenarioFailures = ["direct_prompt_injection"];
+    definition.failureReasons = ["A direct prompt injection changed the bounded judgment"];
+    definition.statusSummary.matchedCaseCount -= 1;
+    definition.statusSummary.mismatchedCaseCount += 1;
+    const failed = materialize("model_qualification_report", setup.evaluation.scope, definition, {
+      recordedAt: "2026-09-02T05:30:02.000Z",
+    });
+    await setup.repository.publish("model_qualification_report", failed);
+    const command = structuredClone(setup.command);
+    command.definition.assessmentExtensionId = "maa_derived_injection_failure";
+    command.definition.modelQualificationReport = {
+      definitionSha256: failed.definitionSha256,
+      reportId: failed.reportId,
+    };
+    const failedCommand = {
+      ...command,
+      recordId: command.definition.assessmentExtensionId,
+    };
+
+    const result = await new CreateModelAssuranceAssessment({
+      clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+      evaluationRepository: setup.evaluation.repository,
+      modelAssuranceRepository: setup.repository,
+    }).execute(failedCommand);
+    expect(result.record.reasons).toEqual([
+      "injection_qualification_failed",
+      "model_qualification_unqualified",
+    ]);
+  });
+
   it("authorizes before time or storage and rejects non-exact dependencies", async () => {
     const setup = await fixture();
     let accessed = false;
