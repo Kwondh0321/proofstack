@@ -1,8 +1,9 @@
-import { MemoryEvidenceRepository } from "@proofstack/core";
+import { MemoryEvaluationRepository, MemoryEvidenceRepository } from "@proofstack/core";
 import {
   type createPostgresPool,
   MigrationRequiredError,
   PostgresArtifactCatalogRepository,
+  PostgresEvaluationRepository,
   PostgresEvidenceRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
@@ -62,6 +63,7 @@ describe("createApiStorage", () => {
   it("keeps dependency-free memory adapters as the development default", async () => {
     const storage = await createApiStorage({ mode: "memory" }, vi.fn());
 
+    expect(storage.evaluationRepository).toBeInstanceOf(MemoryEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
     expect(storage.interactionFixtureVersionRepository).toBe(storage.regressionVersionRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(MemoryReplayDefinitionRepository);
@@ -82,6 +84,7 @@ describe("createApiStorage", () => {
 
     const storage = await createApiStorage(postgresConfig(), onIdleError, adapters);
 
+    expect(storage.evaluationRepository).toBeInstanceOf(PostgresEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(PostgresEvidenceRepository);
     expect(storage.regressionVersionRepository).toBeInstanceOf(PostgresRegressionVersionRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(PostgresReplayDefinitionRepository);

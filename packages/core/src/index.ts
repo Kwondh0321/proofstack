@@ -22,5 +22,6 @@ export {
   type EvaluationRecordReference,
   evaluationRecordReferences,
   evaluationRecordUniqueBinding,
+  MemoryEvaluationRepository,
 } from "./testing/memory-evaluation-repository.js";
 export * from "./testing/memory-evidence-repository.js";

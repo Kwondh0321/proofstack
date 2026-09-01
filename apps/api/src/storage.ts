@@ -7,7 +7,12 @@ import {
   SecureArtifactIdentityGenerator,
 } from "@proofstack/artifacts";
 import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
-import { type EvidenceRepository, MemoryEvidenceRepository } from "@proofstack/core";
+import {
+  type EvaluationRepository,
+  type EvidenceRepository,
+  MemoryEvaluationRepository,
+  MemoryEvidenceRepository,
+} from "@proofstack/core";
 import type {
   InteractionFixtureVersionRepository,
   RegressionVersionRepository,
@@ -16,6 +21,7 @@ import {
   assertMigrationsCurrent,
   createPostgresPool,
   PostgresArtifactCatalogRepository,
+  PostgresEvaluationRepository,
   PostgresEvidenceRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
@@ -41,6 +47,7 @@ export interface ApiStorage {
   readonly artifacts?: ApiArtifactStorage;
   readonly checkReadiness: () => Promise<void>;
   readonly close: () => Promise<void>;
+  readonly evaluationRepository: EvaluationRepository;
   readonly evidenceRepository: EvidenceRepository;
   readonly interactionFixtureVersionRepository?: InteractionFixtureVersionRepository;
   readonly regressionVersionRepository: RegressionVersionRepository;
@@ -93,6 +100,7 @@ export async function createApiStorage(
       },
       checkReadiness: async () => undefined,
       close: async () => undefined,
+      evaluationRepository: new MemoryEvaluationRepository(),
       evidenceRepository: new MemoryEvidenceRepository(),
       interactionFixtureVersionRepository: interactionStorage.regressionVersionRepository,
       regressionVersionRepository: interactionStorage.regressionVersionRepository,
@@ -152,6 +160,7 @@ export async function createApiStorage(
       persistentObjects?.destroy();
       await pool.end();
     },
+    evaluationRepository: new PostgresEvaluationRepository(pool),
     evidenceRepository: new PostgresEvidenceRepository(pool),
     interactionFixtureVersionRepository: regressionVersionRepository,
     regressionVersionRepository,
