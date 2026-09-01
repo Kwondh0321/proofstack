@@ -7,7 +7,10 @@ import type {
   EvaluationAggregationPolicy,
   EvaluationRun,
   HumanReviewProtocolDefinition,
+  HumanReviewerIndependenceDefinition,
+  HumanReviewRecordDefinition,
   IndependenceDeclarationDefinition,
+  IndependentCritiqueDefinition,
   ModelAssistedEvaluatorSpecDefinition,
   ModelEvaluatorProfileDefinition,
   ModelQualificationReportDefinition,
@@ -104,7 +107,7 @@ function principal(
   };
 }
 
-async function fixture() {
+async function fixture(options: { readonly completeAssurance?: boolean } = {}) {
   const evaluation = createEvaluationRepositoryTestHarness("assurance_assessment");
   for (const value of evaluation.records) {
     await publishEvaluationFixture(evaluation.repository, value);
@@ -389,6 +392,190 @@ async function fixture() {
   commandDefinition.riskTier = base.riskTier;
   commandDefinition.validUntil = "2026-09-03T00:00:00.000Z";
 
+  if (options.completeAssurance) {
+    const critiqueDefinition = vector<IndependentCritiqueDefinition>(
+      "evaluation-independent-critique-definition-v1.json",
+    );
+    const critiqueCriterion = plan.criteria[0];
+    if (!critiqueCriterion) throw new Error("Expected a blind-plan criterion");
+    const criticProfileDefinition = vector<ModelEvaluatorProfileDefinition>(
+      "evaluation-model-assurance-definition-v1.json",
+    );
+    criticProfileDefinition.modelProfileId = "mep_derived_critic";
+    criticProfileDefinition.modelProfileVersionId = "mpv_derived_critic_v1";
+    criticProfileDefinition.supportedCriteria = [
+      {
+        criterionId: base.criterion.criterionId,
+        criterionSetId: base.criterion.criterionSet.criterionSetId,
+        criterionSetVersionId: base.criterion.criterionSet.criterionSetVersionId,
+      },
+    ];
+    const criticProfile = materialize(
+      "model_evaluator_profile",
+      scope,
+      criticProfileDefinition,
+      publishedBy,
+    );
+    await repository.publish("model_evaluator_profile", criticProfile);
+    const criticEvaluatorDefinition = vector<ModelAssistedEvaluatorSpecDefinition>(
+      "evaluation-model-assisted-spec-definition-v1.json",
+    );
+    criticEvaluatorDefinition.evaluatorId = "evl_derived_critic";
+    criticEvaluatorDefinition.evaluatorVersionId = "evv_derived_critic_v1";
+    criticEvaluatorDefinition.modelProfile = {
+      definitionSha256: criticProfile.definitionSha256,
+      modelProfileId: criticProfile.modelProfileId,
+      modelProfileVersionId: criticProfile.modelProfileVersionId,
+    };
+    const criticEvaluator = materialize(
+      "model_assisted_evaluator",
+      scope,
+      criticEvaluatorDefinition,
+      {
+        publishedAt: "2026-09-02T00:49:59.000Z",
+        publishedByPrincipalId: "usr_assurance_publisher",
+      },
+    );
+    await repository.publish("model_assisted_evaluator", criticEvaluator);
+    critiqueDefinition.evaluator = {
+      definitionSha256: criticEvaluator.definitionSha256,
+      evaluatorId: criticEvaluator.evaluatorId,
+      evaluatorVersionId: criticEvaluator.evaluatorVersionId,
+    };
+    critiqueDefinition.modelProfile = {
+      definitionSha256: criticProfile.definitionSha256,
+      modelProfileId: criticProfile.modelProfileId,
+      modelProfileVersionId: criticProfile.modelProfileVersionId,
+    };
+    critiqueDefinition.calibrationReport = structuredClone(plan.calibrationReport);
+    critiqueDefinition.criterion = structuredClone(critiqueCriterion);
+    critiqueDefinition.observation = {
+      definitionSha256: observation.definitionSha256,
+      observationId: observation.observationId,
+    };
+    if (critiqueDefinition.outcome.status !== "produced") {
+      throw new Error("Expected a produced critique vector");
+    }
+    for (const finding of critiqueDefinition.outcome.findings) finding.impact = "supports";
+
+    const criticIndependenceDefinition = vector<IndependenceDeclarationDefinition>(
+      "evaluation-independence-definition-v1.json",
+    );
+    criticIndependenceDefinition.independenceDeclarationId = "ind_derived_critic_v1";
+    criticIndependenceDefinition.subject = {
+      evaluator: structuredClone(critiqueDefinition.evaluator),
+      modelProfile: structuredClone(critiqueDefinition.modelProfile),
+    };
+    for (const [dimension, lineage] of Object.entries(criticIndependenceDefinition.dimensions)) {
+      if (lineage.status !== "declared") throw new Error("Expected declared critic lineage");
+      lineage.identifiers = [`critic:${dimension}`];
+    }
+    const criticIndependence = materialize(
+      "independence_declaration",
+      scope,
+      criticIndependenceDefinition,
+      { recordedAt: "2026-09-02T00:55:01.000Z" },
+    );
+    await repository.publish("independence_declaration", criticIndependence);
+    critiqueDefinition.independenceDeclaration = {
+      definitionSha256: criticIndependence.definitionSha256,
+      independenceDeclarationId: criticIndependence.independenceDeclarationId,
+    };
+    const critique = materialize("independent_critique", scope, critiqueDefinition, {
+      recordedAt: "2026-09-02T01:01:01.000Z",
+      recordedByPrincipalId: "wrk_independent_critic",
+    });
+    await repository.publish("independent_critique", critique);
+
+    const reviews: ModelAssuranceRecordByKind["human_review_record"][] = [];
+    for (const [index, reviewer] of [
+      {
+        groupId: "hig_domain_lab",
+        principalId: "usr_domain_reviewer",
+        roleId: "role_domain_reviewer",
+      },
+      {
+        groupId: "hig_safety_lab",
+        principalId: "usr_safety_reviewer",
+        roleId: "role_safety_reviewer",
+      },
+    ].entries()) {
+      const declarationDefinition = vector<HumanReviewerIndependenceDefinition>(
+        "evaluation-human-reviewer-independence-definition-v1.json",
+      );
+      declarationDefinition.affiliations = [`org:independent-review-lab-${index + 1}`];
+      declarationDefinition.declarationId = `hri_derived_reviewer_${index + 1}`;
+      declarationDefinition.independenceGroupIds = [reviewer.groupId];
+      declarationDefinition.reviewerPrincipalId = reviewer.principalId;
+      const reviewerIndependence = materialize(
+        "human_reviewer_independence",
+        scope,
+        declarationDefinition,
+        { recordedAt: `2026-09-02T02:30:0${index + 1}.000Z` },
+      );
+      await repository.publish("human_reviewer_independence", reviewerIndependence);
+
+      const reviewDefinition = vector<HumanReviewRecordDefinition>(
+        "evaluation-human-review-record-definition-v1.json",
+      );
+      reviewDefinition.assessment = {
+        assessmentId: base.assessmentId,
+        definitionSha256: base.definitionSha256,
+      };
+      reviewDefinition.critiques = [
+        { critiqueId: critique.critiqueId, definitionSha256: critique.definitionSha256 },
+      ];
+      reviewDefinition.independenceDeclaration = {
+        declarationId: reviewerIndependence.declarationId,
+        definitionSha256: reviewerIndependence.definitionSha256,
+      };
+      reviewDefinition.observations = [
+        {
+          definitionSha256: observation.definitionSha256,
+          observationId: observation.observationId,
+        },
+      ];
+      reviewDefinition.protocol = {
+        definitionSha256: protocol.definitionSha256,
+        protocolId: protocol.protocolId,
+        protocolVersionId: protocol.protocolVersionId,
+      };
+      reviewDefinition.reviewedArtifacts = structuredClone(protocol.claim.evidenceBundle);
+      reviewDefinition.reviewId = `hrr_derived_reviewer_${index + 1}`;
+      reviewDefinition.reviewer.principalId = reviewer.principalId;
+      reviewDefinition.reviewer.requestId = `req_derived_review_${index + 1}`;
+      reviewDefinition.reviewer.sessionId = `ses_derived_review_${index + 1}`;
+      reviewDefinition.reviewerRoleId = reviewer.roleId;
+      const review = materialize("human_review_record", scope, reviewDefinition, {
+        recordedAt: `2026-09-02T03:20:0${index + 1}.000Z`,
+      });
+      await repository.publish("human_review_record", review);
+      reviews.push(review);
+    }
+
+    commandDefinition.assessmentExtensionId = "maa_derived_eligible";
+    commandDefinition.critiques = [
+      { critiqueId: critique.critiqueId, definitionSha256: critique.definitionSha256 },
+    ];
+    commandDefinition.humanReviews = reviews.map((review) => ({
+      definitionSha256: review.definitionSha256,
+      reviewId: review.reviewId,
+    }));
+    commandDefinition.independenceDeclarations = [
+      {
+        definitionSha256: independence.definitionSha256,
+        independenceDeclarationId: independence.independenceDeclarationId,
+      },
+      {
+        definitionSha256: criticIndependence.definitionSha256,
+        independenceDeclarationId: criticIndependence.independenceDeclarationId,
+      },
+    ].sort((left, right) =>
+      left.independenceDeclarationId.localeCompare(right.independenceDeclarationId),
+    );
+    commandDefinition.validUntil = "2026-09-04T00:00:00.000Z";
+  }
+
   const command: CreateModelAssuranceAssessmentCommand = {
     definition: commandDefinition,
     environmentId: scope.environmentId,
@@ -510,6 +697,27 @@ describe("CreateModelAssuranceAssessment", () => {
     });
   });
 
+  it("derives eligibility only from a complete independent and accountable evidence graph", async () => {
+    const setup = await fixture({ completeAssurance: true });
+    const result = await new CreateModelAssuranceAssessment({
+      clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+      evaluationRepository: setup.evaluation.repository,
+      modelAssuranceRepository: setup.repository,
+    }).execute(setup.command);
+    expect(result).toMatchObject({
+      created: true,
+      record: {
+        eligibility: "eligible",
+        evaluatedAt: "2026-09-02T06:00:00.000Z",
+        reasons: [],
+        validUntil: "2026-09-03T00:30:00.000Z",
+      },
+    });
+    expect(result.record.critiques).toHaveLength(1);
+    expect(result.record.humanReviews).toHaveLength(2);
+    expect(result.record.independenceDeclarations).toHaveLength(2);
+  });
+
   it("authorizes before time or storage and rejects non-exact dependencies", async () => {
     const setup = await fixture();
     let accessed = false;
@@ -620,7 +828,7 @@ describe("CreateModelAssuranceAssessment", () => {
     );
 
     const retryViolation = new Proxy(setup.repository, {
-      get(target, property, receiver) {
+      get(target, property) {
         if (property === "publish") {
           return async () => ({ created: true, record: first.record });
         }
@@ -643,7 +851,7 @@ describe("CreateModelAssuranceAssessment", () => {
       recordId: substitutedDefinition.assessmentExtensionId,
     };
     const substitution = new Proxy(setup.repository, {
-      get(target, property, receiver) {
+      get(target, property) {
         if (property === "find") {
           return async (scope: Assessment["scope"], kind: ModelAssuranceRecordKind, id: string) =>
             kind === "model_assurance_assessment" ? null : target.find(scope, kind, id);
