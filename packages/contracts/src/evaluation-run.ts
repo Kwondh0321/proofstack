@@ -484,7 +484,7 @@ function refineRawObservation(
     readonly measurement?: unknown;
     readonly outOfDistribution: "in_distribution" | "not_assessed" | "out_of_distribution";
     readonly output: { readonly produced: boolean };
-    readonly recordedAt: string;
+    readonly recordedAt?: string;
     readonly startedAt: string;
     readonly verdict: "abstain" | "error" | "fail" | "pass";
   },
@@ -497,7 +497,10 @@ function refineRawObservation(
       path: ["completedAt"],
     });
   }
-  if (evidenceTimestampOrderKey(value.recordedAt) < evidenceTimestampOrderKey(value.completedAt)) {
+  if (
+    value.recordedAt !== undefined &&
+    evidenceTimestampOrderKey(value.recordedAt) < evidenceTimestampOrderKey(value.completedAt)
+  ) {
     context.addIssue({
       code: "custom",
       message: "Observation recording cannot precede completion",
@@ -545,6 +548,11 @@ function refineRawObservation(
   }
 }
 
+export const RawObservationDefinitionSchema = z
+  .object(rawObservationShape)
+  .strict()
+  .superRefine(refineRawObservation);
+
 export const RawObservationSchema = z
   .object({
     ...rawObservationShape,
@@ -576,6 +584,8 @@ const evaluationRunResultShape = {
   ]),
   verdict: EvaluationVerdictSchema,
 };
+
+export const EvaluationRunResultDefinitionSchema = z.object(evaluationRunResultShape).strict();
 
 export const EvaluationRunResultSchema = z
   .object({
@@ -787,5 +797,7 @@ export type EvaluationRun = z.infer<typeof EvaluationRunSchema>;
 export type EvaluationRunDefinition = z.infer<typeof EvaluationRunDefinitionSchema>;
 export type EvaluationRunRejection = z.infer<typeof EvaluationRunRejectionSchema>;
 export type EvaluationRunResult = z.infer<typeof EvaluationRunResultSchema>;
+export type EvaluationRunResultDefinition = z.infer<typeof EvaluationRunResultDefinitionSchema>;
 export type EvaluationVerdict = z.infer<typeof EvaluationVerdictSchema>;
 export type RawObservation = z.infer<typeof RawObservationSchema>;
+export type RawObservationDefinition = z.infer<typeof RawObservationDefinitionSchema>;

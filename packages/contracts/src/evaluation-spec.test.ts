@@ -14,6 +14,7 @@ import {
   QualificationFixtureSetDefinitionSchema,
   QualificationFixtureSetSchema,
   type QualificationReport,
+  QualificationReportDefinitionSchema,
   QualificationReportSchema,
 } from "./evaluation-spec.js";
 
@@ -456,6 +457,23 @@ describe("qualification fixture contracts", () => {
 });
 
 describe("qualification report contracts", () => {
+  it("separates immutable report meaning from server-owned recording metadata", () => {
+    const report = qualificationReport();
+    const definition = structuredClone(report) as Record<string, unknown>;
+    for (const key of [
+      "definitionSha256",
+      "executedByPrincipalId",
+      "recordedAt",
+      "schemaVersion",
+      "scope",
+    ]) {
+      delete definition[key];
+    }
+
+    expect(QualificationReportDefinitionSchema.parse(definition)).toEqual(definition);
+    expect(QualificationReportDefinitionSchema.safeParse(report).success).toBe(false);
+  });
+
   it("binds every exact case result, raw observation, environment, policy, and validity window", () => {
     const report = qualificationReport();
     expect(QualificationReportSchema.parse(report)).toEqual(report);

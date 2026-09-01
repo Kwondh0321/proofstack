@@ -674,6 +674,11 @@ function refineQualificationReport(
   }
 }
 
+export const QualificationReportDefinitionSchema = z
+  .object(qualificationReportShape)
+  .strict()
+  .superRefine(refineQualificationReport);
+
 export const QualificationReportSchema = z
   .object({
     ...qualificationReportShape,
@@ -691,5 +696,6 @@ export type EvaluatorSpecDefinition = z.infer<typeof EvaluatorSpecDefinitionSche
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 export type OracleSpecDefinition = z.infer<typeof OracleSpecDefinitionSchema>;
 export type QualificationFixtureSet = z.infer<typeof QualificationFixtureSetSchema>;
+export type QualificationReportDefinition = z.infer<typeof QualificationReportDefinitionSchema>;
 export type QualificationReport = z.infer<typeof QualificationReportSchema>;
 export type QualificationReportReference = z.infer<typeof QualificationReportReferenceSchema>;

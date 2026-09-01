@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   ASSESSMENT_SCHEMA_VERSION,
   type Assessment,
+  AssessmentDefinitionSchema,
   AssessmentSchema,
   AssessmentSnapshotSchema,
   EVALUATION_AGGREGATE_SCHEMA_VERSION,
   EVALUATION_AGGREGATION_POLICY_SCHEMA_VERSION,
   type EvaluationAggregate,
+  EvaluationAggregateDefinitionSchema,
   EvaluationAggregateCountsSchema,
   EvaluationAggregateSnapshotSchema,
   type EvaluationAggregationPolicy,
@@ -514,6 +516,23 @@ describe("aggregation policy and count contracts", () => {
 });
 
 describe("aggregate evidence contracts", () => {
+  it("separates immutable aggregate meaning from publication metadata", () => {
+    const record = aggregate();
+    const definition = clone(record) as unknown as Record<string, unknown>;
+    for (const key of [
+      "createdAt",
+      "createdByPrincipalId",
+      "definitionSha256",
+      "schemaVersion",
+      "scope",
+    ]) {
+      delete definition[key];
+    }
+
+    expect(EvaluationAggregateDefinitionSchema.parse(definition)).toEqual(definition);
+    expect(EvaluationAggregateDefinitionSchema.safeParse(record).success).toBe(false);
+  });
+
   it("reconstructs counts, denominators, policy, runs, results, and Wilson evidence", () => {
     const snapshot = aggregateSnapshot();
     expect(EvaluationAggregateSnapshotSchema.parse(snapshot)).toEqual(snapshot);
@@ -676,6 +695,23 @@ describe("aggregate evidence contracts", () => {
 });
 
 describe("assessment contracts", () => {
+  it("separates immutable assessment meaning from publication metadata", () => {
+    const record = assessment();
+    const definition = clone(record) as unknown as Record<string, unknown>;
+    for (const key of [
+      "createdAt",
+      "createdByPrincipalId",
+      "definitionSha256",
+      "schemaVersion",
+      "scope",
+    ]) {
+      delete definition[key];
+    }
+
+    expect(AssessmentDefinitionSchema.parse(definition)).toEqual(definition);
+    expect(AssessmentDefinitionSchema.safeParse(record).success).toBe(false);
+  });
+
   it("keeps support, evidence eligibility, and release authority separate", () => {
     const value = assessment();
     expect(AssessmentSchema.parse(value)).toEqual(value);

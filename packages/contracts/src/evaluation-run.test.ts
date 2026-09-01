@@ -7,11 +7,13 @@ import {
   EvaluationRunDefinitionSchema,
   EvaluationRunRejectionSchema,
   type EvaluationRunResult,
+  EvaluationRunResultDefinitionSchema,
   EvaluationRunResultSchema,
   EvaluationRunSchema,
   EvaluationRunSnapshotSchema,
   RAW_OBSERVATION_SCHEMA_VERSION,
   type RawObservation,
+  RawObservationDefinitionSchema,
   RawObservationSchema,
 } from "./evaluation-run.js";
 
@@ -376,6 +378,17 @@ describe("evaluation run contracts", () => {
 });
 
 describe("raw observation contracts", () => {
+  it("separates immutable observation meaning from its storage receipt", () => {
+    const record = observation(0);
+    const definition = clone(record) as unknown as Record<string, unknown>;
+    for (const key of ["definitionSha256", "recordedAt", "schemaVersion", "scope"]) {
+      delete definition[key];
+    }
+
+    expect(RawObservationDefinitionSchema.parse(definition)).toEqual(definition);
+    expect(RawObservationDefinitionSchema.safeParse(record).success).toBe(false);
+  });
+
   it("preserves a decided measurement and a typed retryable error as different outcomes", () => {
     expect(RawObservationSchema.parse(observation(0, "pass"))).toEqual(observation(0, "pass"));
     expect(RawObservationSchema.parse(observation(0, "error"))).toEqual(observation(0, "error"));
@@ -479,6 +492,23 @@ describe("raw observation contracts", () => {
 });
 
 describe("evaluation run history contracts", () => {
+  it("separates immutable terminal meaning from server-owned recording metadata", () => {
+    const record = runResult([observation(0)]);
+    const definition = clone(record) as unknown as Record<string, unknown>;
+    for (const key of [
+      "definitionSha256",
+      "recordedAt",
+      "recordedByPrincipalId",
+      "schemaVersion",
+      "scope",
+    ]) {
+      delete definition[key];
+    }
+
+    expect(EvaluationRunResultDefinitionSchema.parse(definition)).toEqual(definition);
+    expect(EvaluationRunResultDefinitionSchema.safeParse(record).success).toBe(false);
+  });
+
   it("allows one predeclared retryable error followed by one terminal decision", () => {
     const observations = [observation(0, "error"), observation(1, "pass")];
     const snapshot = {

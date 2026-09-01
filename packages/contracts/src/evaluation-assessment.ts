@@ -399,6 +399,11 @@ function refineEvaluationAggregate(
   }
 }
 
+export const EvaluationAggregateDefinitionSchema = z
+  .object(evaluationAggregateShape)
+  .strict()
+  .superRefine(refineEvaluationAggregate);
+
 export const EvaluationAggregateSchema = z
   .object({
     ...evaluationAggregateShape,
@@ -841,6 +846,11 @@ function refineAssessment(
   }
 }
 
+export const AssessmentDefinitionSchema = z
+  .object(assessmentShape)
+  .strict()
+  .superRefine(refineAssessment);
+
 export const AssessmentSchema = z
   .object({
     ...assessmentShape,
@@ -1069,5 +1079,7 @@ export const AssessmentSnapshotSchema = z
   });
 
 export type Assessment = z.infer<typeof AssessmentSchema>;
+export type AssessmentDefinition = z.infer<typeof AssessmentDefinitionSchema>;
 export type EvaluationAggregate = z.infer<typeof EvaluationAggregateSchema>;
+export type EvaluationAggregateDefinition = z.infer<typeof EvaluationAggregateDefinitionSchema>;
 export type EvaluationAggregationPolicy = z.infer<typeof EvaluationAggregationPolicySchema>;
