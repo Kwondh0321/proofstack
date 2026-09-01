@@ -131,7 +131,10 @@ describe("evaluation API contracts", () => {
   it("rejects mismatched kinds, unknown fields, and cross-family mutations", () => {
     const discovery = vectors.find(({ kind }) => kind === "discovery_record");
     const observation = vectors.find(({ kind }) => kind === "raw_observation");
-    if (!discovery || !observation) throw new Error("Evaluation API vectors are incomplete");
+    const qualification = vectors.find(({ kind }) => kind === "qualification_report");
+    if (!discovery || !observation || !qualification) {
+      throw new Error("Evaluation API vectors are incomplete");
+    }
 
     expect(
       PublishEvaluationDefinitionRequestSchema.safeParse({
@@ -150,6 +153,12 @@ describe("evaluation API contracts", () => {
       PublishEvaluationDefinitionRequestSchema.safeParse({
         definition: observation.input.definition,
         kind: observation.kind,
+      }).success,
+    ).toBe(false);
+    expect(
+      PublishEvaluationDefinitionRequestSchema.safeParse({
+        definition: qualification.input.definition,
+        kind: qualification.kind,
       }).success,
     ).toBe(false);
   });

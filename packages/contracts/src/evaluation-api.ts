@@ -87,7 +87,6 @@ export const PublishEvaluationDefinitionRequestSchema = z.discriminatedUnion("ki
   mutationRequest("evaluator_spec", EvaluatorSpecDefinitionSchema),
   mutationRequest("oracle_spec", OracleSpecDefinitionSchema),
   mutationRequest("qualification_fixture_set", QualificationFixtureSetDefinitionSchema),
-  mutationRequest("qualification_report", QualificationReportDefinitionSchema),
   mutationRequest("source_review", SourceReviewDefinitionSchema),
   mutationRequest("source_snapshot", SourceSnapshotDefinitionSchema),
 ]);
