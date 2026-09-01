@@ -5,6 +5,7 @@ export * from "./dataset.js";
 export * from "./evidence.js";
 export * from "./evaluation-criteria.js";
 export * from "./evaluation-source.js";
+export * from "./evaluation-spec.js";
 export * from "./identity.js";
 export * from "./interaction.js";
 export * from "./interaction-export.js";

@@ -22,6 +22,10 @@
       "types": "./dist/evaluation-criteria.d.ts",
       "import": "./dist/evaluation-criteria.js"
     },
+    "./evaluation-spec": {
+      "types": "./dist/evaluation-spec.d.ts",
+      "import": "./dist/evaluation-spec.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"

@@ -376,6 +376,13 @@ export const CriterionSetReferenceSchema = z
   })
   .strict();
 
+export const CriterionReferenceSchema = z
+  .object({
+    criterionId: OpaqueIdSchema,
+    criterionSet: CriterionSetReferenceSchema,
+  })
+  .strict();
+
 const criterionSetDefinitionShape = {
   applicabilityScope: SourceApplicabilityScopeSchema,
   assumptions: sortedUnique(AssuranceSummarySchema, 64, "Criterion set assumption"),
