@@ -150,6 +150,18 @@ const modules = [
     directory: "examples/durable-replay/src",
     packageName: "@proofstack/example-durable-replay",
   },
+  {
+    allowed: new Set([
+      "@proofstack/api",
+      "@proofstack/contracts",
+      "@proofstack/core",
+      "@proofstack/evaluation-worker",
+      "@proofstack/postgres",
+      "@proofstack/sdk",
+    ]),
+    directory: "examples/evaluation-control-flow/src",
+    packageName: "@proofstack/example-evaluation-control-flow",
+  },
 ];
 
 const internalPackages = new Set(modules.map((module) => module.packageName));
