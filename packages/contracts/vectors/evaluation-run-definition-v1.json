@@ -1,0 +1,246 @@
+{
+  "format": "proofstack.evaluation-run-definition.v1",
+  "vectors": [
+    {
+      "name": "applicable evaluation run with one predeclared bounded attempt",
+      "kind": "evaluation_run",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "aggregationPolicy": {
+            "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "policyId": "agp_boolean",
+            "policyVersionId": "agv_boolean_v1"
+          },
+          "applicability": {
+            "context": {
+              "environmentId": "env_local",
+              "locale": "en",
+              "populationTags": [],
+              "riskTier": "moderate",
+              "taskKind": "tsk_support"
+            },
+            "contextSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "evaluatedAt": "2026-09-01T00:00:00Z",
+            "interpreter": {
+              "dependencySnapshotSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "entryPointId": "ent_applicability_v1",
+              "implementationId": "imp_applicability",
+              "implementationSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+              "implementationVersionId": "imv_applicability_v1",
+              "runtime": {
+                "architecture": "arm64",
+                "family": "node",
+                "platform": "darwin",
+                "version": "24.0.0"
+              },
+              "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "result": "applicable",
+            "runtimePolicy": {
+              "clock": { "mode": "not_available" },
+              "dataEgress": "denied",
+              "locale": "en",
+              "network": "denied",
+              "seed": { "mode": "not_used" },
+              "sideEffects": "denied"
+            }
+          },
+          "attempts": [
+            {
+              "attemptId": "att_0",
+              "attemptSequence": 0,
+              "budgets": {
+                "elapsedMilliseconds": 5000,
+                "inputBytes": 1048576,
+                "memoryBytes": 268435456,
+                "outputBytes": 1048576
+              },
+              "seed": { "mode": "fixed", "value": 41 }
+            }
+          ],
+          "criterion": {
+            "criterionId": "crt_schema",
+            "criterionSet": {
+              "criterionSetId": "crs_response",
+              "criterionSetVersionId": "csv_response_v1",
+              "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+            }
+          },
+          "criterionStatus": {
+            "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "statusRecordId": "csr_approved"
+          },
+          "dataset": {
+            "datasetId": "dts_regression",
+            "datasetVersionId": "dtv_regression_v1",
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+          },
+          "environmentEvidence": [
+            {
+              "artifactId": "art_environment",
+              "classification": "internal",
+              "mediaType": "application/json",
+              "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+              "sizeBytes": 1024
+            }
+          ],
+          "evaluationRunId": "evr_schema",
+          "evaluator": {
+            "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "evaluatorId": "evl_schema",
+            "evaluatorVersionId": "evv_schema_v1"
+          },
+          "evaluatorQualification": {
+            "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "qualificationReportId": "qlr_evaluator"
+          },
+          "fixture": {
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "fixtureId": "fix_schema",
+            "fixtureVersionId": "fxv_schema_v1"
+          },
+          "inputEvidence": [
+            {
+              "artifactId": "art_input",
+              "classification": "internal",
+              "mediaType": "application/json",
+              "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "sizeBytes": 1024
+            }
+          ],
+          "oracle": {
+            "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "oracleId": "orc_schema",
+            "oracleVersionId": "orv_schema_v1"
+          },
+          "oracleQualification": {
+            "definitionSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "qualificationReportId": "qlr_oracle"
+          },
+          "replay": {
+            "attemptId": "rat_success",
+            "completedAt": "2026-09-01T00:00:00Z",
+            "jobId": "rjb_schema",
+            "plan": {
+              "definitionSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "planId": "rpl_schema",
+              "planVersionId": "rpv_schema_v1"
+            },
+            "result": {
+              "artifactId": "art_replay_result",
+              "classification": "internal",
+              "mediaType": "application/json",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "sizeBytes": 1024
+            },
+            "targetRelease": {
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+              "targetAdapter": {
+                "name": "proofstack.node",
+                "protocolVersion": "2.0.0",
+                "version": "1.0.0"
+              },
+              "targetId": "tgt_agent",
+              "targetReleaseId": "trl_agent_v1",
+              "workerProtocol": { "name": "proofstack.worker", "version": "2.0.0" }
+            },
+            "terminalCode": "completed",
+            "terminalStatus": "succeeded"
+          },
+          "retryableErrors": ["evaluator_temporarily_unavailable", "executor_interrupted"],
+          "sourceReviews": [
+            {
+              "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "sourceReviewId": "srv_primary"
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 4269,
+      "sha256": "6347561dd97a9dee2d584546dd1c0ff0d2a7d0fc06c6cb0b3d3d95e300ba3f51"
+    },
+    {
+      "name": "immutable raw pass observation with exact evidence and usage",
+      "kind": "raw_observation",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "attemptId": "att_0",
+          "attemptSequence": 0,
+          "budgetUsage": {
+            "elapsedMilliseconds": 1000,
+            "inputBytes": 1024,
+            "outputBytes": 128,
+            "peakMemoryBytes": 33554432
+          },
+          "completedAt": "2026-09-01T00:00:03Z",
+          "counterevidence": [],
+          "evidence": [
+            {
+              "artifact": {
+                "artifactId": "art_observation_0",
+                "classification": "internal",
+                "mediaType": "application/json",
+                "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "sizeBytes": 1024
+              },
+              "kind": "artifact"
+            }
+          ],
+          "executedByPrincipalId": "svc_evaluator",
+          "inputSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+          "measurement": { "kind": "boolean", "metricName": "schema_valid", "value": true },
+          "observationId": "obs_0",
+          "outOfDistribution": "not_assessed",
+          "output": {
+            "produced": true,
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+          },
+          "run": {
+            "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "evaluationRunId": "evr_schema"
+          },
+          "startedAt": "2026-09-01T00:00:02Z",
+          "verdict": "pass"
+        }
+      },
+      "encodedByteLength": 1203,
+      "sha256": "3b5f433f2dae86a5bae932d71602b22edb93339fc6690b0ddba76c46497b4e92"
+    },
+    {
+      "name": "terminal run result preserving exact observation lineage",
+      "kind": "evaluation_run_result",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "completedAt": "2026-09-01T00:00:06Z",
+          "evaluationRunId": "evr_schema",
+          "observations": [
+            {
+              "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+              "observationId": "obs_0"
+            }
+          ],
+          "resultId": "evs_schema",
+          "terminalReason": "completed",
+          "verdict": "pass"
+        }
+      },
+      "encodedByteLength": 507,
+      "sha256": "11c5ee8c1ac9e647211c4ee5ad1906ed0fb37455de4cbc770a6c648b53e49508"
+    }
+  ]
+}

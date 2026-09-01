@@ -8,6 +8,17 @@ import {
   CriterionSetStatusDefinitionSchema,
 } from "./evaluation-criteria.js";
 import {
+  EVALUATION_RUN_RESULT_SCHEMA_VERSION,
+  EVALUATION_RUN_SCHEMA_VERSION,
+  type EvaluationRunDefinition,
+  EvaluationRunDefinitionSchema,
+  type EvaluationRunResultDefinition,
+  EvaluationRunResultDefinitionSchema,
+  RAW_OBSERVATION_SCHEMA_VERSION,
+  type RawObservationDefinition,
+  RawObservationDefinitionSchema,
+} from "./evaluation-run.js";
+import {
   DISCOVERY_RECORD_SCHEMA_VERSION,
   type DiscoveryRecordDefinition,
   DiscoveryRecordDefinitionSchema,
@@ -46,6 +57,10 @@ export const EVALUATOR_SPEC_DEFINITION_DOMAIN = "proofstack.evaluator-spec.v1" a
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
+export const EVALUATION_RUN_DEFINITION_DOMAIN = "proofstack.evaluation-run.v1" as const;
+export const RAW_OBSERVATION_DEFINITION_DOMAIN = "proofstack.raw-observation.v1" as const;
+export const EVALUATION_RUN_RESULT_DEFINITION_DOMAIN =
+  "proofstack.evaluation-run-result.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -289,6 +304,42 @@ export function encodeQualificationReportDefinition(
   return encodeDefinition(
     QUALIFICATION_REPORT_DEFINITION_DOMAIN,
     QUALIFICATION_REPORT_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeEvaluationRunDefinition(
+  input: ScopedEvaluationDefinition<EvaluationRunDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(EvaluationRunDefinitionSchema).parse(input);
+  return encodeDefinition(
+    EVALUATION_RUN_DEFINITION_DOMAIN,
+    EVALUATION_RUN_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeRawObservationDefinition(
+  input: ScopedEvaluationDefinition<RawObservationDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(RawObservationDefinitionSchema).parse(input);
+  return encodeDefinition(
+    RAW_OBSERVATION_DEFINITION_DOMAIN,
+    RAW_OBSERVATION_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeEvaluationRunResultDefinition(
+  input: ScopedEvaluationDefinition<EvaluationRunResultDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(EvaluationRunResultDefinitionSchema).parse(input);
+  return encodeDefinition(
+    EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,
+    EVALUATION_RUN_RESULT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );
