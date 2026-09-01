@@ -8,6 +8,7 @@ export * from "./evaluation/evaluation-repository.js";
 export * from "./evaluation/evaluation-repository-errors.js";
 export * from "./evaluation/exact-oracle.js";
 export * from "./evaluation/model-assurance-independence.js";
+export * from "./evaluation/model-assurance-calibration.js";
 export * from "./evaluation/record-evaluation.js";
 export * from "./evaluation/reference-aggregate.js";
 export * from "./evaluation/schema-oracle.js";
