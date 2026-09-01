@@ -166,6 +166,23 @@ time expires the lease, a new worker reclaims the job with a greater fencing tok
 heartbeat is explicitly rejected, the first attempt remains `lease_expired`, and the new attempt
 finishes. Recovery does not erase or reinterpret the abandoned attempt.
 
+### Restore-time recovery epoch
+
+Ordinary lease expiry is not enough after a database restore: a source worker may still hold a
+lease whose timestamp has not expired. The supported logical-restore command therefore advances an
+administrator-owned global recovery epoch before the restored target can be accepted. It records
+the exact previous lease, expires the restored running lease, advances queued jobs, and rejects
+heartbeat, cancellation acknowledgement, budget, observation, and completion mutations carrying
+the source epoch. A fresh worker must claim with a new attempt identity, higher fencing token, and
+the new epoch; the source attempt remains immutable `lease_expired` history.
+
+The recovery transition is deliberately absent from the API and worker roles. It neither resumes
+work nor proves the target is ready for traffic. Operators must keep the restored installation
+isolated, provision fresh runtime credentials, verify every recovery event, and perform a fenced
+reclaim under the [backup and recovery runbook](../operations/backup-and-recovery.md). If the epoch
+transition fails after `pg_restore`, discard or investigate that target and start again with a new
+empty database.
+
 ## Authority and process boundaries
 
 | Component | Receives | Does not receive or control |

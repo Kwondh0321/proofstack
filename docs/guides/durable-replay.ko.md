@@ -166,6 +166,23 @@ attempt, cancellation request, acknowledgement, usage, observation은 계속 읽
 명시적으로 거부되고 첫 attempt는 `lease_expired`로 남으며 새 attempt가 완료됩니다. 복구는
 버려진 attempt를 지우거나 다른 의미로 바꾸지 않습니다.
 
+### Restore 시 recovery epoch
+
+DB restore 뒤에는 일반 lease 만료만으로 충분하지 않습니다. Source worker가 아직 만료되지
+않은 lease를 들고 있을 수 있기 때문입니다. 지원되는 logical restore 명령은 restored target을
+승인하기 전에 관리자 소유의 전역 recovery epoch를 증가시킵니다. 정확한 이전 lease를 기록하고,
+복구된 running lease를 만료시키고, queued job의 epoch를 전진시키며, source epoch를 담은
+heartbeat·cancellation acknowledgement·budget·observation·completion mutation을 거부합니다. 새
+worker는 새 attempt identity, 더 큰 fencing token, 새 epoch로 claim해야 하며 source attempt는
+불변 `lease_expired` 이력으로 남습니다.
+
+Recovery transition은 의도적으로 API·worker role에 제공되지 않습니다. 이 transition은 작업을
+재개하지도, target의 트래픽 준비 완료를 입증하지도 않습니다. 운영자는 restored installation을
+격리한 채 새 runtime credential을 provision하고 모든 recovery event를 검증한 다음
+[백업·복구 runbook](../operations/backup-and-recovery.md)에 따라 fenced reclaim을 수행해야 합니다.
+`pg_restore` 뒤 epoch transition이 실패하면 해당 target을 조사용으로 보존하거나 폐기하고 새
+빈 DB에서 다시 시작합니다.
+
 ## 권한과 프로세스 경계
 
 | 구성 요소 | 받는 것 | 받거나 통제하지 않는 것 |

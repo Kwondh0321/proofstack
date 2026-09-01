@@ -72,7 +72,7 @@ tools, change policy, or approve a release.
 | Search or generated summaries treated as authority | Search records discovery provenance only; the underlying primary source must be snapshotted and verified | Source licensing, conflict, supersession, and applicability operations |
 | Model-judge bias, correlation, or prompt injection | Evaluators are untrusted, versioned, qualified, calibrated, grouped by lineage, and allowed to abstain | Blinded order swaps, injection corpus, slice metrics, disagreement, and non-model evidence |
 | Replay retry amplification or real-world side effects | Modes, finite budgets, retries, cancellation, and effect classes are fixed before execution; fenced reservation and usage reconciliation are durable | Sandboxed deployment profiles, real-provider reconciliation, and destination idempotency qualification |
-| Stale replay worker commits or releases another worker's budget | Every worker mutation requires the current lease ID, positive fencing token, running state, and database-authoritative expiry | Multi-region database topology and deployment-level partition tests |
+| Stale replay worker commits or releases another worker's budget | Every worker mutation requires the current lease ID, positive fencing token, running state, database-authoritative expiry, and installation recovery epoch; restore advances the epoch and audits invalidated leases | Multi-region database topology and deployment-level partition tests |
 | Local report reference is committed before durable content exists | The worker requests publication without storage credentials; the parent validates private exact bytes and acknowledges only an API-available artifact before terminal success | External key provider, production object-store compatibility, and cross-process sandboxing |
 | SSRF through content references | Ingestion stores descriptors and does not fetch supplied URLs | Allowlisted object access broker with egress controls |
 | Resource exhaustion | Batch, field, body, and request-rate bounds | Tenant quotas, backpressure, load tests, and capacity alerts |
@@ -109,8 +109,10 @@ tools, change policy, or approve a release.
 ## Current limitations
 
 - The coordinated reference backup and isolated restore are implemented and rehearsed against
-  pinned CI services. Production provider immutability, external-key recovery, off-site retention,
-  measured RPO/RTO, and repeated deployment rehearsals are not proven by repository CI.
+  pinned CI services. The restore wrapper advances an audited replay recovery epoch and requires
+  fresh fenced reclaim instead of resuming source leases. Production provider immutability,
+  external-key recovery, off-site retention, measured RPO/RTO, and repeated deployment rehearsals
+  are not proven by repository CI.
 - Capability-scoped workload API keys and OIDC browser identity are implemented with bootstrap,
   explicit bindings, authoritative verification, rotation or revocation, and sanitized lifecycle
   audit. A real-provider deployment matrix, console sign-in integration, and production TLS proxy

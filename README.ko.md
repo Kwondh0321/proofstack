@@ -55,11 +55,11 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 사용자 아이덴티티 | OIDC Authorization Code + PKCE, 명시적 발급자/주체 바인딩, 암호화된 일회성 트랜잭션, 권위 있는 폐기 가능 세션, CSRF 방어 |
 | 아티팩트 수명주기 | 선택형 분류 메타데이터, 봉투 암호화, 불변 S3 호환 객체, PostgreSQL 툼스톤과 삭제 영수증 |
 | 아티팩트 운영 | 범위 제한 복구, 보존 기간 처리, 중단 업로드 정리, 삭제 재시도, 참조 키 점검 |
-| 복구 | Fail-closed PostgreSQL 덤프, 정규 복구 매니페스트·인벤토리, 빈 대상 조정 복원, 신규 역할, 테넌트 적대적 검증 |
+| 복구 | Fail-closed PostgreSQL 덤프, 정규 복구 매니페스트·인벤토리, 빈 대상 조정 복원, 감사 가능한 replay epoch fencing, 신규 역할, 테넌트 적대적 검증 |
 | 회귀 카탈로그 | 메모리, PostgreSQL, API, OpenAPI, SDK, outbox, 복구 경계를 통과하는 불변 관측 트레이스 스냅샷과 순서가 있는 dataset 버전 |
 | 상호작용 캡처 | Fixture 소유 분류 모델·도구 attempt, 정확 artifact 계보, metadata/content export, revocation, purge, 복구 |
 | 기록 경계 replay | 엄격한 전체 content 사전 검사, 순서가 있는 정확 정규화 요청 일치, live fallback 부재, 협력적 고정 runtime input, bounded 또는 unknown 결과 |
-| 영속 replay job | 불변 release·plan, 유한 다차원 budget, fenced lease, cancellation, 사전 선언 retry·effect rule, usage 조정, 별도 worker·target 프로세스, 영속 결과 artifact |
+| 영속 replay job | 불변 release·plan, 유한 다차원 budget, fenced lease·restore epoch, cancellation, 사전 선언 retry·effect rule, usage 조정, 별도 worker·target 프로세스, 영속 결과 artifact |
 | TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
 | 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구 흐름 |

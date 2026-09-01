@@ -153,9 +153,20 @@ PROOFSTACK_ENV=production node services/recovery/dist/cli-entrypoint.js \
 ```
 
 The wrapper proves that the target has no user objects, executes `pg_restore` with
-`--exit-on-error --single-transaction --no-owner --no-privileges`, and then verifies that the
-restored migration IDs and checksums are current for the selected revision. It does not migrate or
-repair the target silently.
+`--exit-on-error --single-transaction --no-owner --no-privileges`, and then invokes the restored,
+administrator-only `proofstack_begin_replay_recovery()` function. That transaction advances the
+singleton replay recovery epoch by exactly one, records every queued or running job in the
+append-only recovery-event table, advances queued jobs immediately, and expires each running lease
+while preserving its exact source lease in the event. Every worker mutation carrying the source
+epoch is rejected after this point; only a new claim can close the abandoned attempt and obtain a
+higher fencing token in the new epoch. The wrapper accepts exactly one bounded epoch receipt and
+otherwise reports restore failure. It does not start a worker, migrate the schema, or repair an
+incompatible target silently.
+
+`pg_restore` and epoch advancement are separate transactions, so the target must remain externally
+isolated throughout both operations. If epoch advancement fails after `pg_restore`, the target is
+not safe to serve and is no longer empty: preserve it only for investigation or dispose of it
+through the audited process, then restore into another empty target. Never retry over that target.
 
 6. Copy each inventoried ciphertext object under the exact same key into the empty restore
    namespace. Recompute every size and SHA-256. Refuse an overwrite, missing object, or extra object.
@@ -169,6 +180,9 @@ repair the target silently.
    and unreadable, and compare exact content—not only counts. Regression fixtures and datasets must
    retain their exact logical and version identifiers, predecessor digests, canonically ordered
    event and fixture memberships, original provenance, and one canonical publication outbox intent.
+   Verify the recovery-state row, every queued/running recovery event, immediate rejection of a
+   source worker fence, queued-job epoch advancement, and fresh-worker reclaim with a higher epoch
+   and fencing token. The prior attempt must remain as immutable `lease_expired` history.
 10. Run the cross-tenant matrix with the fresh runtime roles: absent context, forged tenant values,
     guessed identifiers, cross-tenant reads, and pooled-connection reuse must all fail.
 11. Start an isolated API, ingest and read new evidence, and prove this changes only the restored
@@ -242,6 +256,15 @@ pre-existing artifact tombstone trigger column for the versioned `fixture_revoca
 then run the complete publication, revocation, and recovery rehearsal before releasing the fence.
 A defect after 0015 requires a new 0016-or-later migration.
 
+Migration `0035_invalidate_restored_replay_leases` adds the singleton recovery epoch, append-only
+tenant-scoped recovery events, and recovery-aware wrappers around every worker mutation. During an
+upgrade it transfers each explicit runtime-role grant to the corresponding wrapper and revokes all
+execution of the renamed pre-epoch functions; a later `pnpm db:provision` repeats that least-
+privilege cleanup. Apply it only under the installation mutation fence. A logical restore invokes
+its administrator-only epoch transition before recovery can be reported successful. Do not grant
+the recovery state, recovery events, transition function, epoch helper, or renamed functions to an
+API or replay-worker role.
+
 ## What the repository proves
 
 The dedicated recovery CI job:
@@ -255,6 +278,8 @@ The dedicated recovery CI job:
 - restores the matching test key version and decrypts content through the normal artifact read;
 - reprovisions fresh runtime roles and proves evidence, artifact, recorded-fixture, and regression
   tenant isolation;
+- restores an unexpired running replay lease and a queued job, advances the recovery epoch, rejects
+  the source fence, and permits only a fresh runtime worker to reclaim with a higher fence;
 - proves purged content remains absent and new restored evidence and regression publications do not
   affect the source; and
 - proves an older migration set rejects the newer ledger.
