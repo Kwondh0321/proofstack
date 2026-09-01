@@ -150,6 +150,12 @@ export async function createModelAssuranceRepositoryTestHarness(
   const profileDefinition = vector<ModelEvaluatorProfileDefinition>(
     "evaluation-model-assurance-definition-v1.json",
   );
+  profileDefinition.modelProfileId = `mep_${namespace}_primary`;
+  profileDefinition.modelProfileVersionId = `mpv_${namespace}_primary_v1`;
+  profileDefinition.evaluator = {
+    evaluatorId: `evl_${namespace}_primary`,
+    evaluatorVersionId: `evv_${namespace}_primary_v1`,
+  };
   profileDefinition.supportedCriteria = [
     {
       criterionId: base.criterion.criterionId,
@@ -165,6 +171,8 @@ export async function createModelAssuranceRepositoryTestHarness(
   const evaluatorDefinition = vector<ModelAssistedEvaluatorSpecDefinition>(
     "evaluation-model-assisted-spec-definition-v1.json",
   );
+  evaluatorDefinition.evaluatorId = `evl_${namespace}_primary`;
+  evaluatorDefinition.evaluatorVersionId = `evv_${namespace}_primary_v1`;
   evaluatorDefinition.modelProfile = {
     definitionSha256: profile.definitionSha256,
     modelProfileId: profile.modelProfileId,
@@ -181,6 +189,7 @@ export async function createModelAssuranceRepositoryTestHarness(
   const independenceDefinition = vector<IndependenceDeclarationDefinition>(
     "evaluation-independence-definition-v1.json",
   );
+  independenceDefinition.independenceDeclarationId = `ind_${namespace}_primary_v1`;
   independenceDefinition.subject = {
     evaluator: {
       definitionSha256: evaluator.definitionSha256,
@@ -203,6 +212,7 @@ export async function createModelAssuranceRepositoryTestHarness(
   const calibrationDefinition = vector<CalibrationReportDefinition>(
     "evaluation-calibration-definition-v1.json",
   );
+  calibrationDefinition.calibrationReportId = `cal_${namespace}_primary_v1`;
   calibrationDefinition.criteria = [structuredClone(base.criterion)];
   calibrationDefinition.dataset = structuredClone(policy.dataset);
   calibrationDefinition.evaluator = {
@@ -230,6 +240,8 @@ export async function createModelAssuranceRepositoryTestHarness(
   const planDefinition = vector<BlindedEvaluationPlanDefinition>(
     "evaluation-blinded-plan-definition-v1.json",
   );
+  planDefinition.blindedPlanId = `blp_${namespace}_primary`;
+  planDefinition.blindedPlanVersionId = `blv_${namespace}_primary_v1`;
   planDefinition.calibrationReport = exact(
     calibration,
     "calibrationReportId",
@@ -261,6 +273,7 @@ export async function createModelAssuranceRepositoryTestHarness(
   const resultDefinition = vector<BlindedEvaluationResultDefinition>(
     "evaluation-blinded-result-definition-v1.json",
   );
+  resultDefinition.resultId = `blr_${namespace}_primary_v1`;
   resultDefinition.plan = {
     blindedPlanId: plan.blindedPlanId,
     blindedPlanVersionId: plan.blindedPlanVersionId,
@@ -277,6 +290,8 @@ export async function createModelAssuranceRepositoryTestHarness(
   const suiteDefinition = vector<ModelQualificationSuiteDefinition>(
     "evaluation-model-qualification-suite-definition-v1.json",
   );
+  suiteDefinition.suiteId = `mqs_${namespace}_primary`;
+  suiteDefinition.suiteVersionId = `mqv_${namespace}_primary_v1`;
   suiteDefinition.blindedPlan = {
     blindedPlanId: plan.blindedPlanId,
     blindedPlanVersionId: plan.blindedPlanVersionId,
@@ -303,6 +318,7 @@ export async function createModelAssuranceRepositoryTestHarness(
   const qualificationDefinition = vector<ModelQualificationReportDefinition>(
     "evaluation-model-qualification-report-definition-v1.json",
   );
+  qualificationDefinition.reportId = `mqr_${namespace}_primary_v1`;
   qualificationDefinition.baseQualificationReport = {
     definitionSha256: baseQualification.definitionSha256,
     qualificationReportId: baseQualification.qualificationReportId,
@@ -333,6 +349,8 @@ export async function createModelAssuranceRepositoryTestHarness(
   const protocolDefinition = vector<HumanReviewProtocolDefinition>(
     "evaluation-human-review-protocol-definition-v1.json",
   );
+  protocolDefinition.protocolId = `hrp_${namespace}_primary`;
+  protocolDefinition.protocolVersionId = `hrv_${namespace}_primary_v1`;
   protocolDefinition.claim.criteria = [structuredClone(base.criterion)];
   protocolDefinition.claim.riskTier = base.riskTier;
   const protocol = await add(
