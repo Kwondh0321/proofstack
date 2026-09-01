@@ -42,6 +42,10 @@
       "types": "./dist/evaluation-model-assurance.d.ts",
       "import": "./dist/evaluation-model-assurance.js"
     },
+    "./evaluation-model-qualification": {
+      "types": "./dist/evaluation-model-qualification.d.ts",
+      "import": "./dist/evaluation-model-qualification.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"

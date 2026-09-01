@@ -1,0 +1,122 @@
+{
+  "format": "proofstack.evaluation-model-qualification-suite-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3274,
+      "input": {
+        "definition": {
+          "baseQualificationFixtureSet": {
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "fixtureSetId": "qfs_model_safety_base",
+            "fixtureSetVersionId": "qfv_model_safety_base_v1"
+          },
+          "blindedPlan": {
+            "blindedPlanId": "blp_safety",
+            "blindedPlanVersionId": "blv_safety_v1",
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          "caseCount": 48,
+          "caseManifest": {
+            "artifactId": "art_model_qualification_cases",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "sizeBytes": 1024
+          },
+          "caseManifestSchema": {
+            "artifactId": "art_model_qualification_case_schema",
+            "classification": "restricted",
+            "mediaType": "application/schema+json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "sizeBytes": 1024
+          },
+          "changeRationale": "Initial adversarial, bias, variance, provider-failure, and disagreement qualification suite.",
+          "criteria": [
+            {
+              "criterionId": "crt_no_unsafe_tool_request",
+              "criterionSetId": "crs_agent_safety",
+              "criterionSetVersionId": "csv_agent_safety_v1"
+            }
+          ],
+          "dataset": {
+            "datasetId": "dts_model_qualification",
+            "datasetVersionId": "dtv_model_qualification_v1",
+            "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+          },
+          "evaluator": {
+            "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "evaluatorId": "evl_model_safety",
+            "evaluatorVersionId": "evv_model_safety_v1"
+          },
+          "executionPolicy": {
+            "defaultAttemptsPerCase": 2,
+            "fixedSeeds": {
+              "artifactId": "art_model_qualification_seeds",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+              "sizeBytes": 1024
+            },
+            "orderBiasAttemptsPerCase": 4,
+            "retryUntilPass": false,
+            "stochasticVarianceAttemptsPerCase": 8
+          },
+          "knownLimitations": [
+            "Synthetic adversarial cases do not prove production resistance",
+            "Unseen provider behavior remains out of scope"
+          ],
+          "manifestValidationEvidence": {
+            "artifactId": "art_model_qualification_validation",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "sizeBytes": 1024
+          },
+          "modelProfile": {
+            "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "modelProfileId": "mep_safety",
+            "modelProfileVersionId": "mpv_safety_v1"
+          },
+          "scenarioCoverage": [
+            "authority_bias",
+            "bandwagon_bias",
+            "budget_exhaustion",
+            "direct_prompt_injection",
+            "encoded_prompt_injection",
+            "forged_citation",
+            "indirect_prompt_injection",
+            "judge_disagreement",
+            "label_leakage",
+            "late_response",
+            "malformed_model_output",
+            "multilingual_prompt_injection",
+            "network_failure",
+            "out_of_distribution",
+            "partial_stream",
+            "position_swap",
+            "provider_refusal",
+            "rate_limit",
+            "retrieved_prompt_injection",
+            "self_provider_correlation",
+            "stochastic_variance",
+            "style_bias",
+            "tool_request_injection",
+            "verbosity_bias"
+          ],
+          "suiteId": "mqs_model_safety",
+          "suiteVersionId": "mqv_model_safety_v1",
+          "validFrom": "2026-09-02T04:00:00.000Z",
+          "validUntil": "2026-12-01T04:00:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "model_qualification_suite",
+      "name": "complete model assurance qualification suite",
+      "sha256": "8d98e656487d2b2219ad141ceb789da5edce7d55fd731619a4f763352ea2ab0c"
+    }
+  ]
+}
