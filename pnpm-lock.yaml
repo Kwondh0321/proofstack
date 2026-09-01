@@ -179,6 +179,9 @@ importers:
 
   examples/durable-replay:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1119.0
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -194,6 +197,9 @@ importers:
       '@proofstack/replay-worker':
         specifier: workspace:*
         version: link:../../services/replay-worker
+      '@proofstack/s3':
+        specifier: workspace:*
+        version: link:../../packages/s3
       '@proofstack/sdk':
         specifier: workspace:*
         version: link:../../sdks/typescript
@@ -201,15 +207,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@aws-sdk/client-s3':
-        specifier: 'catalog:'
-        version: 3.1119.0
       '@proofstack/api':
         specifier: workspace:*
         version: link:../../apps/api
-      '@proofstack/s3':
-        specifier: workspace:*
-        version: link:../../packages/s3
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3

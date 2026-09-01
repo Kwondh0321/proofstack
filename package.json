@@ -34,6 +34,7 @@
     "example:basic-agent": "pnpm build && pnpm --filter @proofstack/example-basic-agent start",
     "example:incident-to-regression": "pnpm build && pnpm --filter @proofstack/example-incident-to-regression start",
     "example:interaction-capture": "pnpm build && pnpm --filter @proofstack/example-interaction-capture start",
+    "example:durable-replay:prepare": "pnpm build && pnpm --filter @proofstack/example-durable-replay prepare:local",
     "example:durable-replay": "pnpm build && pnpm --filter @proofstack/example-durable-replay start",
     "format": "biome format --write .",
     "format:check": "biome format .",

@@ -7,6 +7,7 @@ export default defineConfig({
       exclude: ["src/**/*.test.ts"],
       include: [
         "src/definitions.ts",
+        "src/local-storage.ts",
         "src/report-publication.ts",
         "src/target-source.ts",
         "src/worker-input.ts",
