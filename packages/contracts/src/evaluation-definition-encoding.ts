@@ -25,6 +25,12 @@ import {
   ORACLE_SPEC_SCHEMA_VERSION,
   type OracleSpecDefinition,
   OracleSpecDefinitionSchema,
+  QUALIFICATION_FIXTURE_SET_SCHEMA_VERSION,
+  type QualificationFixtureSetDefinition,
+  QualificationFixtureSetDefinitionSchema,
+  QUALIFICATION_REPORT_SCHEMA_VERSION,
+  type QualificationReportDefinition,
+  QualificationReportDefinitionSchema,
 } from "./evaluation-spec.js";
 import { type EvidenceScope, EvidenceScopeSchema } from "./evidence.js";
 
@@ -37,6 +43,9 @@ export const CRITERION_SET_DEFINITION_DOMAIN = "proofstack.criterion-set.v1" as 
 export const CRITERION_SET_STATUS_DEFINITION_DOMAIN = "proofstack.criterion-set-status.v1" as const;
 export const ORACLE_SPEC_DEFINITION_DOMAIN = "proofstack.oracle-spec.v1" as const;
 export const EVALUATOR_SPEC_DEFINITION_DOMAIN = "proofstack.evaluator-spec.v1" as const;
+export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
+  "proofstack.qualification-fixture-set.v1" as const;
+export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -256,6 +265,30 @@ export function encodeEvaluatorSpecDefinition(
   return encodeDefinition(
     EVALUATOR_SPEC_DEFINITION_DOMAIN,
     EVALUATOR_SPEC_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeQualificationFixtureSetDefinition(
+  input: ScopedEvaluationDefinition<QualificationFixtureSetDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(QualificationFixtureSetDefinitionSchema).parse(input);
+  return encodeDefinition(
+    QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN,
+    QUALIFICATION_FIXTURE_SET_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeQualificationReportDefinition(
+  input: ScopedEvaluationDefinition<QualificationReportDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(QualificationReportDefinitionSchema).parse(input);
+  return encodeDefinition(
+    QUALIFICATION_REPORT_DEFINITION_DOMAIN,
+    QUALIFICATION_REPORT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

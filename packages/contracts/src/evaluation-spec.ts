@@ -696,6 +696,9 @@ export type EvaluatorSpecDefinition = z.infer<typeof EvaluatorSpecDefinitionSche
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 export type OracleSpecDefinition = z.infer<typeof OracleSpecDefinitionSchema>;
 export type QualificationFixtureSet = z.infer<typeof QualificationFixtureSetSchema>;
+export type QualificationFixtureSetDefinition = z.infer<
+  typeof QualificationFixtureSetDefinitionSchema
+>;
 export type QualificationReportDefinition = z.infer<typeof QualificationReportDefinitionSchema>;
 export type QualificationReport = z.infer<typeof QualificationReportSchema>;
 export type QualificationReportReference = z.infer<typeof QualificationReportReferenceSchema>;

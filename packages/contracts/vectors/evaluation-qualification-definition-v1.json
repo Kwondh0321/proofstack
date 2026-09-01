@@ -1,0 +1,390 @@
+{
+  "format": "proofstack.evaluation-qualification-definition.v1",
+  "vectors": [
+    {
+      "name": "nine-class adversarial qualification fixture set",
+      "kind": "qualification_fixture_set",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "cases": [
+            {
+              "caseId": "case_abstention",
+              "caseKind": "abstention",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "abstain",
+              "fixture": {
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "fixtureId": "fix_abstention",
+                "fixtureVersionId": "fxv_abstention"
+              }
+            },
+            {
+              "caseId": "case_boundary",
+              "caseKind": "boundary",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "pass",
+              "fixture": {
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "fixtureId": "fix_boundary",
+                "fixtureVersionId": "fxv_boundary"
+              }
+            },
+            {
+              "caseId": "case_budget",
+              "caseKind": "budget",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "error",
+              "fixture": {
+                "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "fixtureId": "fix_budget",
+                "fixtureVersionId": "fxv_budget"
+              }
+            },
+            {
+              "caseId": "case_error",
+              "caseKind": "error",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "error",
+              "fixture": {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "fixtureId": "fix_error",
+                "fixtureVersionId": "fxv_error"
+              }
+            },
+            {
+              "caseId": "case_malformed",
+              "caseKind": "malformed",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "error",
+              "fixture": {
+                "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "fixtureId": "fix_malformed",
+                "fixtureVersionId": "fxv_malformed"
+              }
+            },
+            {
+              "caseId": "case_negative",
+              "caseKind": "negative",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "fail",
+              "fixture": {
+                "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "fixtureId": "fix_negative",
+                "fixtureVersionId": "fxv_negative"
+              }
+            },
+            {
+              "caseId": "case_not_applicable",
+              "caseKind": "not_applicable",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "not_applicable",
+              "fixture": {
+                "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                "fixtureId": "fix_not_applicable",
+                "fixtureVersionId": "fxv_not_applicable"
+              }
+            },
+            {
+              "caseId": "case_positive",
+              "caseKind": "positive",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "pass",
+              "fixture": {
+                "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                "fixtureId": "fix_positive",
+                "fixtureVersionId": "fxv_positive"
+              }
+            },
+            {
+              "caseId": "case_timeout",
+              "caseKind": "timeout",
+              "criterion": {
+                "criterionId": "crt_schema",
+                "criterionSet": {
+                  "criterionSetId": "crs_response",
+                  "criterionSetVersionId": "csv_response_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "expectedOutcome": "error",
+              "fixture": {
+                "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                "fixtureId": "fix_timeout",
+                "fixtureVersionId": "fxv_timeout"
+              }
+            }
+          ],
+          "changeRationale": "Initial adversarial non-model qualification corpus",
+          "fixtureSetId": "qfs_schema",
+          "fixtureSetVersionId": "qfv_schema_v1"
+        }
+      },
+      "encodedByteLength": 4479,
+      "sha256": "34d5f6e80e2baff41daf0df08ec4ac0814199bf48319f03f84ae2c3262277f9e"
+    },
+    {
+      "name": "qualified evaluator report preserving every case and raw result",
+      "kind": "qualification_report",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "caseResults": [
+            {
+              "actualOutcome": "abstain",
+              "caseId": "case_abstention",
+              "caseKind": "abstention",
+              "expectedOutcome": "abstain",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_abstention",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "pass",
+              "caseId": "case_boundary",
+              "caseKind": "boundary",
+              "expectedOutcome": "pass",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_boundary",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "error",
+              "caseId": "case_budget",
+              "caseKind": "budget",
+              "expectedOutcome": "error",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_budget",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "error",
+              "caseId": "case_error",
+              "caseKind": "error",
+              "expectedOutcome": "error",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_error",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "error",
+              "caseId": "case_malformed",
+              "caseKind": "malformed",
+              "expectedOutcome": "error",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_malformed",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "fail",
+              "caseId": "case_negative",
+              "caseKind": "negative",
+              "expectedOutcome": "fail",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_negative",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "not_applicable",
+              "caseId": "case_not_applicable",
+              "caseKind": "not_applicable",
+              "expectedOutcome": "not_applicable",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_not_applicable",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "pass",
+              "caseId": "case_positive",
+              "caseKind": "positive",
+              "expectedOutcome": "pass",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_positive",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "actualOutcome": "error",
+              "caseId": "case_timeout",
+              "caseKind": "timeout",
+              "expectedOutcome": "error",
+              "matched": true,
+              "rawEvidence": [
+                {
+                  "artifactId": "art_result_timeout",
+                  "classification": "internal",
+                  "mediaType": "application/schema+json",
+                  "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                  "sizeBytes": 1024
+                }
+              ]
+            }
+          ],
+          "completedAt": "2026-09-01T00:01:00Z",
+          "environmentEvidence": [
+            {
+              "artifactId": "art_environment",
+              "classification": "internal",
+              "mediaType": "application/schema+json",
+              "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "sizeBytes": 1024
+            }
+          ],
+          "fixtureSet": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "fixtureSetId": "qfs_schema",
+            "fixtureSetVersionId": "qfv_schema_v1"
+          },
+          "knownLimitations": [
+            "Qualification covers only the declared fixture set and environment"
+          ],
+          "policy": {
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "policyId": "qlp_strict",
+            "policyVersionId": "qlv_strict_v1"
+          },
+          "qualificationReportId": "qlr_schema",
+          "startedAt": "2026-09-01T00:00:00Z",
+          "status": "qualified",
+          "subject": {
+            "evaluator": {
+              "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "evaluatorId": "evl_schema",
+              "evaluatorVersionId": "evv_schema_v1"
+            },
+            "kind": "evaluator"
+          },
+          "summary": {
+            "matchedCount": 9,
+            "mismatchedCount": 0,
+            "totalCount": 9,
+            "unexpectedErrorCount": 0
+          },
+          "validFrom": "2026-09-01T00:01:00Z",
+          "validUntil": "2026-12-01T00:00:00Z"
+        }
+      },
+      "encodedByteLength": 4327,
+      "sha256": "5b996d3fb8d3bb743acc96fbd4c74ce99da04a82934caab7d4a02315354d446b"
+    }
+  ]
+}
