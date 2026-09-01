@@ -88,6 +88,18 @@ export class ModelAssuranceLineageError extends Error {
   }
 }
 
+export class ModelAssuranceRecordNotFoundError extends Error {
+  readonly code = "model_assurance_record_not_found";
+
+  constructor(
+    readonly recordKind: ModelAssuranceRecordKind,
+    readonly recordId: string,
+  ) {
+    super(`${recordKind} record ${recordId} was not found`);
+    this.name = "ModelAssuranceRecordNotFoundError";
+  }
+}
+
 export class InvalidModelAssuranceRecordInputError extends TypeError {
   readonly code = "model_assurance_record_input_invalid";
 
