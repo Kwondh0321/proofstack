@@ -24,6 +24,20 @@ describe("model-assurance repository fixtures", () => {
     );
     expect(harness.records).toHaveLength(17);
 
+    const critique = harness.records.find(({ kind }) => kind === "independent_critique");
+    const baseQualification = harness.evaluation.records.find(
+      ({ kind }) => kind === "qualification_report",
+    );
+    if (!baseQualification || baseQualification.kind !== "qualification_report") {
+      throw new Error("Expected a base qualification fixture");
+    }
+    expect(critique?.record).toMatchObject({
+      qualificationReport: {
+        definitionSha256: baseQualification.record.definitionSha256,
+        qualificationReportId: baseQualification.record.qualificationReportId,
+      },
+    });
+
     const assessment = await new CreateModelAssuranceAssessment({
       clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
       evaluationRepository: harness.evaluation.repository,

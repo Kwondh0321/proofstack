@@ -391,6 +391,10 @@ export async function createModelAssuranceRepositoryTestHarness(
     definitionSha256: observation.definitionSha256,
     observationId: observation.observationId,
   };
+  critiqueDefinition.qualificationReport = {
+    definitionSha256: baseQualification.definitionSha256,
+    qualificationReportId: baseQualification.qualificationReportId,
+  };
   if (critiqueDefinition.outcome.status !== "produced") {
     throw new Error("Expected a produced critique vector");
   }
