@@ -1,0 +1,175 @@
+{
+  "format": "proofstack.evaluation-human-review-protocol-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 4115,
+      "input": {
+        "definition": {
+          "accessibility": {
+            "accommodationProcess": {
+              "artifactId": "art_accommodation_process",
+              "classification": "restricted",
+              "mediaType": "text/plain",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "sizeBytes": 1024
+            },
+            "requiredLocales": ["en", "ko"]
+          },
+          "allowedActions": [
+            "abstain",
+            "oppose",
+            "recuse",
+            "request_changes",
+            "require_escalation",
+            "support"
+          ],
+          "claim": {
+            "criteria": [
+              {
+                "criterionId": "crt_no_unsafe_tool_request",
+                "criterionSet": {
+                  "criterionSetId": "crs_agent_safety",
+                  "criterionSetVersionId": "csv_agent_safety_v1",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                }
+              }
+            ],
+            "description": "Review whether the exact recorded agent action satisfies the no-unsafe-tool-request criterion.",
+            "evidenceBundle": [
+              {
+                "artifactId": "art_review_agent_trace",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 1024
+              },
+              {
+                "artifactId": "art_review_counterevidence",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "sizeBytes": 1024
+              }
+            ],
+            "riskTier": "high"
+          },
+          "conflictPolicy": {
+            "disclosureRequired": true,
+            "forbiddenRelationships": ["criterion author", "evaluated agent operator"],
+            "recusalRequiredOnConflict": true,
+            "unverifiableIndependenceAction": "require_escalation"
+          },
+          "dissentPolicy": {
+            "adjudicationRules": {
+              "artifactId": "art_review_adjudication_rules",
+              "classification": "restricted",
+              "mediaType": "text/plain",
+              "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+              "sizeBytes": 1024
+            },
+            "dissentPreservation": "append_only",
+            "minorityRationaleRequired": true,
+            "unresolvedDissentAction": "require_escalation"
+          },
+          "escalationTriggers": [
+            "critical_counterevidence",
+            "material_conflict",
+            "protocol_expired",
+            "quorum_shortfall",
+            "unresolved_dissent",
+            "unverifiable_independence"
+          ],
+          "independenceRequirements": {
+            "declarationRequired": true,
+            "minimumIndependentGroups": 2,
+            "modelOnlyQuorumPermitted": false,
+            "sameOrganizationPermitted": false
+          },
+          "knownLimitations": [
+            "Credential evidence does not prove current expertise",
+            "Reviewer declarations do not prove honesty"
+          ],
+          "protocolId": "hrp_agent_safety",
+          "protocolVersionId": "hrv_agent_safety_v1",
+          "quorum": {
+            "abstentionsCountTowardQuorum": false,
+            "minimumCompletedReviews": 2,
+            "recusalsCountTowardQuorum": false
+          },
+          "rationalePolicy": {
+            "freeTextArtifactRequired": true,
+            "minimumStructuredReasons": 1,
+            "sourceCitationsRequired": true
+          },
+          "reviewerRoles": [
+            {
+              "credentialRequirements": [
+                {
+                  "artifactId": "art_domain_credential_rules",
+                  "classification": "restricted",
+                  "mediaType": "application/json",
+                  "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                  "sizeBytes": 1024
+                }
+              ],
+              "expertiseAreas": ["agent tool semantics", "task domain"],
+              "minimumReviewers": 1,
+              "roleId": "role_domain_reviewer",
+              "trainingRequirements": [
+                {
+                  "artifactId": "art_domain_training_rules",
+                  "classification": "restricted",
+                  "mediaType": "application/json",
+                  "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                  "sizeBytes": 1024
+                }
+              ]
+            },
+            {
+              "credentialRequirements": [
+                {
+                  "artifactId": "art_safety_credential_rules",
+                  "classification": "restricted",
+                  "mediaType": "application/json",
+                  "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                  "sizeBytes": 1024
+                }
+              ],
+              "expertiseAreas": ["agent safety", "evidence review"],
+              "minimumReviewers": 1,
+              "roleId": "role_safety_reviewer",
+              "trainingRequirements": [
+                {
+                  "artifactId": "art_safety_training_rules",
+                  "classification": "restricted",
+                  "mediaType": "application/json",
+                  "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                  "sizeBytes": 1024
+                }
+              ]
+            }
+          ],
+          "supersessionPolicy": {
+            "correctionMode": "append_superseding_record",
+            "originalVisibility": "retained",
+            "protocolPinning": "exact_version"
+          },
+          "timePolicy": {
+            "maximumReviewMilliseconds": 3600000,
+            "reviewExpiryMilliseconds": 86400000
+          },
+          "validFrom": "2026-09-02T02:00:00.000Z",
+          "validUntil": "2026-12-01T02:00:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "human_review_protocol",
+      "name": "high-risk independent human-review protocol",
+      "sha256": "7f02d78e147818465ef2f02a6348203d17dfb710c5727a035226c9e1b5800963"
+    }
+  ]
+}

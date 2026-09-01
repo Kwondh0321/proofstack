@@ -22,6 +22,7 @@ import {
   encodeEvaluatorSpecDefinition,
   encodeIndependenceDeclarationDefinition,
   encodeIndependentCritiqueDefinition,
+  encodeHumanReviewProtocolDefinition,
   encodeModelEvaluatorProfileDefinition,
   encodeModelAssistedEvaluatorSpecDefinition,
   encodeOracleSpecDefinition,
@@ -39,6 +40,7 @@ import {
   EVALUATOR_SPEC_DEFINITION_DOMAIN,
   INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN,
   INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN,
+  HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN,
   MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
   MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN,
   ORACLE_SPEC_DEFINITION_DOMAIN,
@@ -86,6 +88,7 @@ const vectorFiles = [
   "evaluation-model-assisted-spec-definition-v1.json",
   "evaluation-blinded-plan-definition-v1.json",
   "evaluation-independent-critique-definition-v1.json",
+  "evaluation-human-review-protocol-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -151,6 +154,10 @@ const registry = {
   independent_critique: {
     domain: INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeIndependentCritiqueDefinition(input as never),
+  },
+  human_review_protocol: {
+    domain: HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeHumanReviewProtocolDefinition(input as never),
   },
   model_evaluator_profile: {
     domain: MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,

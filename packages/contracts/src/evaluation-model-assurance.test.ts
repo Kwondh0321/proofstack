@@ -16,6 +16,11 @@ import {
   type IndependentCritiqueDefinition,
   IndependentCritiqueDefinitionSchema,
   IndependentCritiqueSchema,
+  HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION,
+  type HumanReviewProtocol,
+  type HumanReviewProtocolDefinition,
+  HumanReviewProtocolDefinitionSchema,
+  HumanReviewProtocolSchema,
   type IndependenceDeclaration,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
@@ -1254,6 +1259,208 @@ describe("independent critique contracts", () => {
       expect(() =>
         IndependentCritiqueDefinitionSchema.parse({
           ...independentCritiqueDefinition(),
+          ...forbidden,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+export function humanReviewProtocolDefinition(): HumanReviewProtocolDefinition {
+  return {
+    accessibility: {
+      accommodationProcess: artifact("art_accommodation_process", "1", "text/plain"),
+      requiredLocales: ["en", "ko"],
+    },
+    allowedActions: [
+      "abstain",
+      "oppose",
+      "recuse",
+      "request_changes",
+      "require_escalation",
+      "support",
+    ],
+    claim: {
+      criteria: [
+        {
+          criterionId: "crt_no_unsafe_tool_request",
+          criterionSet: {
+            criterionSetId: "crs_agent_safety",
+            criterionSetVersionId: "csv_agent_safety_v1",
+            definitionSha256: sha("2"),
+          },
+        },
+      ],
+      description:
+        "Review whether the exact recorded agent action satisfies the no-unsafe-tool-request criterion.",
+      evidenceBundle: [
+        artifact("art_review_agent_trace", "3"),
+        artifact("art_review_counterevidence", "4"),
+      ],
+      riskTier: "high",
+    },
+    conflictPolicy: {
+      disclosureRequired: true,
+      forbiddenRelationships: ["criterion author", "evaluated agent operator"],
+      recusalRequiredOnConflict: true,
+      unverifiableIndependenceAction: "require_escalation",
+    },
+    dissentPolicy: {
+      adjudicationRules: artifact("art_review_adjudication_rules", "5", "text/plain"),
+      dissentPreservation: "append_only",
+      minorityRationaleRequired: true,
+      unresolvedDissentAction: "require_escalation",
+    },
+    escalationTriggers: [
+      "critical_counterevidence",
+      "material_conflict",
+      "protocol_expired",
+      "quorum_shortfall",
+      "unresolved_dissent",
+      "unverifiable_independence",
+    ],
+    independenceRequirements: {
+      declarationRequired: true,
+      minimumIndependentGroups: 2,
+      modelOnlyQuorumPermitted: false,
+      sameOrganizationPermitted: false,
+    },
+    knownLimitations: [
+      "Credential evidence does not prove current expertise",
+      "Reviewer declarations do not prove honesty",
+    ],
+    protocolId: "hrp_agent_safety",
+    protocolVersionId: "hrv_agent_safety_v1",
+    quorum: {
+      abstentionsCountTowardQuorum: false,
+      minimumCompletedReviews: 2,
+      recusalsCountTowardQuorum: false,
+    },
+    rationalePolicy: {
+      freeTextArtifactRequired: true,
+      minimumStructuredReasons: 1,
+      sourceCitationsRequired: true,
+    },
+    reviewerRoles: [
+      {
+        credentialRequirements: [artifact("art_domain_credential_rules", "6")],
+        expertiseAreas: ["agent tool semantics", "task domain"],
+        minimumReviewers: 1,
+        roleId: "role_domain_reviewer",
+        trainingRequirements: [artifact("art_domain_training_rules", "7")],
+      },
+      {
+        credentialRequirements: [artifact("art_safety_credential_rules", "8")],
+        expertiseAreas: ["agent safety", "evidence review"],
+        minimumReviewers: 1,
+        roleId: "role_safety_reviewer",
+        trainingRequirements: [artifact("art_safety_training_rules", "9")],
+      },
+    ],
+    supersessionPolicy: {
+      correctionMode: "append_superseding_record",
+      originalVisibility: "retained",
+      protocolPinning: "exact_version",
+    },
+    timePolicy: {
+      maximumReviewMilliseconds: 3_600_000,
+      reviewExpiryMilliseconds: 86_400_000,
+    },
+    validFrom: "2026-09-02T02:00:00.000Z",
+    validUntil: "2026-12-01T02:00:00.000Z",
+  };
+}
+
+function humanReviewProtocol(): HumanReviewProtocol {
+  return {
+    ...humanReviewProtocolDefinition(),
+    definitionSha256: sha("a"),
+    publishedAt: "2026-09-02T02:00:00.000Z",
+    publishedByPrincipalId: "usr_review_protocol_publisher",
+    schemaVersion: HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("human review protocol contracts", () => {
+  it("accepts an exact accountable protocol with independent role and quorum requirements", () => {
+    expect(HumanReviewProtocolDefinitionSchema.parse(humanReviewProtocolDefinition())).toEqual(
+      humanReviewProtocolDefinition(),
+    );
+    expect(HumanReviewProtocolSchema.parse(humanReviewProtocol())).toEqual(humanReviewProtocol());
+  });
+
+  it("requires abstention, recusal, and escalation safeguards", () => {
+    for (const action of ["abstain", "recuse", "require_escalation"] as const) {
+      const input = humanReviewProtocolDefinition();
+      input.allowedActions = input.allowedActions.filter((candidate) => candidate !== action);
+      expect(() => HumanReviewProtocolDefinitionSchema.parse(input), action).toThrow(
+        `requires the ${action} safeguard action`,
+      );
+    }
+  });
+
+  it("rejects a quorum below role counts or independence requirements", () => {
+    const roles = humanReviewProtocolDefinition();
+    roles.quorum.minimumCompletedReviews = 1;
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(roles)).toThrow(
+      "cannot be smaller than the required role counts",
+    );
+
+    const groups = humanReviewProtocolDefinition();
+    groups.independenceRequirements.minimumIndependentGroups = 3;
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(groups)).toThrow(
+      "cannot exceed the completed-review quorum",
+    );
+  });
+
+  it("requires ordered identity, evidence, locale, conflict, and escalation fields", () => {
+    const roles = humanReviewProtocolDefinition();
+    roles.reviewerRoles = [...roles.reviewerRoles].reverse();
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(roles)).toThrow("ordered by roleId");
+
+    const evidence = humanReviewProtocolDefinition();
+    evidence.claim.evidenceBundle = [...evidence.claim.evidenceBundle].reverse();
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(evidence)).toThrow(
+      "ordered by exact artifact reference",
+    );
+
+    const locales = humanReviewProtocolDefinition();
+    locales.accessibility.requiredLocales = ["ko", "en"];
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(locales)).toThrow(
+      "locales must be unique and ordered",
+    );
+
+    const triggers = humanReviewProtocolDefinition();
+    triggers.escalationTriggers = [...triggers.escalationTriggers].reverse();
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(triggers)).toThrow(
+      "must be complete, unique, and ordered",
+    );
+  });
+
+  it("preserves version history and rejects release, capability, and evidence mutation fields", () => {
+    const self = humanReviewProtocolDefinition();
+    self.predecessor = {
+      definitionSha256: sha("b"),
+      protocolId: self.protocolId,
+      protocolVersionId: self.protocolVersionId,
+    };
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(self)).toThrow("name itself");
+
+    const invalidWindow = humanReviewProtocolDefinition();
+    invalidWindow.validUntil = invalidWindow.validFrom;
+    expect(() => HumanReviewProtocolDefinitionSchema.parse(invalidWindow)).toThrow(
+      "positive interval",
+    );
+
+    for (const forbidden of [
+      { capabilityGrant: "release:manage" },
+      { evidenceMutationPermitted: true },
+      { releaseAuthority: "allow" },
+    ]) {
+      expect(() =>
+        HumanReviewProtocolDefinitionSchema.parse({
+          ...humanReviewProtocolDefinition(),
           ...forbidden,
         }),
       ).toThrow();

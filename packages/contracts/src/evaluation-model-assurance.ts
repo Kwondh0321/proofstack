@@ -24,6 +24,7 @@ export const CALIBRATION_REPORT_SCHEMA_VERSION = "0.1" as const;
 export const MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION = "0.1" as const;
 export const BLINDED_EVALUATION_PLAN_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENT_CRITIQUE_SCHEMA_VERSION = "0.1" as const;
+export const HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION = "0.1" as const;
 export const MAX_BLINDED_ATTEMPTS = 16;
 export const MAX_CALIBRATION_BINS = 100;
 export const MAX_SELECTIVE_RISK_POINTS = 100;
@@ -1261,3 +1262,237 @@ export const IndependentCritiqueSchema = z
 export type IndependentCritiqueReference = z.infer<typeof IndependentCritiqueReferenceSchema>;
 export type IndependentCritiqueDefinition = z.infer<typeof IndependentCritiqueDefinitionSchema>;
 export type IndependentCritique = z.infer<typeof IndependentCritiqueSchema>;
+
+export const HumanReviewActionSchema = z.enum([
+  "abstain",
+  "oppose",
+  "recuse",
+  "request_changes",
+  "require_escalation",
+  "support",
+]);
+
+export const HumanReviewProtocolReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    protocolId: OpaqueIdSchema,
+    protocolVersionId: OpaqueIdSchema,
+  })
+  .strict();
+
+export const HumanReviewerRoleRequirementSchema = z
+  .object({
+    credentialRequirements: exactArtifacts(16, "Reviewer credential requirements"),
+    expertiseAreas: sortedUniqueText(32, "Reviewer expertise areas").min(1),
+    minimumReviewers: z.number().int().positive().max(64),
+    roleId: OpaqueIdSchema,
+    trainingRequirements: exactArtifacts(16, "Reviewer training requirements"),
+  })
+  .strict();
+
+const humanReviewProtocolDefinitionShape = {
+  accessibility: z
+    .object({
+      accommodationProcess: ArtifactContentReferenceSchema,
+      requiredLocales: z
+        .array(z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/))
+        .min(1)
+        .max(32)
+        .refine(isStrictlySortedUnique, {
+          message: "Human-review locales must be unique and ordered",
+        }),
+    })
+    .strict(),
+  allowedActions: z
+    .array(HumanReviewActionSchema)
+    .min(3)
+    .max(HumanReviewActionSchema.options.length)
+    .refine(isStrictlySortedUnique, {
+      message: "Human-review actions must be unique and ordered",
+    }),
+  claim: z
+    .object({
+      criteria: z
+        .array(CriterionReferenceSchema)
+        .min(1)
+        .max(100)
+        .refine(
+          (references) =>
+            isStrictlySortedUnique(
+              references.map(
+                ({ criterionId, criterionSet }) =>
+                  `${criterionSet.criterionSetId}:${criterionSet.criterionSetVersionId}:${criterionId}`,
+              ),
+            ),
+          { message: "Human-review criteria must be unique and ordered" },
+        ),
+      description: AssuranceRationaleSchema,
+      evidenceBundle: exactArtifacts(64, "Human-review evidence bundle").min(1),
+      riskTier: EvaluationRiskTierSchema,
+    })
+    .strict(),
+  conflictPolicy: z
+    .object({
+      disclosureRequired: z.literal(true),
+      forbiddenRelationships: sortedUniqueText(32, "Forbidden reviewer relationships").min(1),
+      recusalRequiredOnConflict: z.literal(true),
+      unverifiableIndependenceAction: z.literal("require_escalation"),
+    })
+    .strict(),
+  dissentPolicy: z
+    .object({
+      adjudicationRules: ArtifactContentReferenceSchema,
+      dissentPreservation: z.literal("append_only"),
+      minorityRationaleRequired: z.literal(true),
+      unresolvedDissentAction: z.literal("require_escalation"),
+    })
+    .strict(),
+  escalationTriggers: z
+    .array(
+      z.enum([
+        "critical_counterevidence",
+        "material_conflict",
+        "protocol_expired",
+        "quorum_shortfall",
+        "unresolved_dissent",
+        "unverifiable_independence",
+      ]),
+    )
+    .length(6)
+    .refine(isStrictlySortedUnique, {
+      message: "Human-review escalation triggers must be complete, unique, and ordered",
+    }),
+  independenceRequirements: z
+    .object({
+      declarationRequired: z.literal(true),
+      minimumIndependentGroups: z.number().int().positive().max(64),
+      modelOnlyQuorumPermitted: z.literal(false),
+      sameOrganizationPermitted: z.boolean(),
+    })
+    .strict(),
+  knownLimitations: sortedUniqueText(64, "Human-review protocol limitations"),
+  predecessor: HumanReviewProtocolReferenceSchema.optional(),
+  protocolId: OpaqueIdSchema,
+  protocolVersionId: OpaqueIdSchema,
+  quorum: z
+    .object({
+      abstentionsCountTowardQuorum: z.literal(false),
+      minimumCompletedReviews: z.number().int().positive().max(64),
+      recusalsCountTowardQuorum: z.literal(false),
+    })
+    .strict(),
+  rationalePolicy: z
+    .object({
+      freeTextArtifactRequired: z.literal(true),
+      minimumStructuredReasons: z.number().int().positive().max(32),
+      sourceCitationsRequired: z.literal(true),
+    })
+    .strict(),
+  reviewerRoles: z
+    .array(HumanReviewerRoleRequirementSchema)
+    .min(1)
+    .max(32)
+    .refine((roles) => isStrictlySortedUnique(roles.map(({ roleId }) => roleId)), {
+      message: "Human-review roles must be unique and ordered by roleId",
+    }),
+  supersessionPolicy: z
+    .object({
+      correctionMode: z.literal("append_superseding_record"),
+      originalVisibility: z.literal("retained"),
+      protocolPinning: z.literal("exact_version"),
+    })
+    .strict(),
+  timePolicy: z
+    .object({
+      maximumReviewMilliseconds: z.number().int().positive().max(604_800_000),
+      reviewExpiryMilliseconds: z.number().int().positive().max(31_536_000_000),
+    })
+    .strict(),
+  validFrom: UtcMillisecondTimestampSchema,
+  validUntil: UtcMillisecondTimestampSchema,
+};
+
+function refineHumanReviewProtocol(
+  value: {
+    readonly allowedActions: readonly z.infer<typeof HumanReviewActionSchema>[];
+    readonly independenceRequirements: { readonly minimumIndependentGroups: number };
+    readonly predecessor?:
+      | { readonly protocolId: string; readonly protocolVersionId: string }
+      | undefined;
+    readonly protocolId: string;
+    readonly protocolVersionId: string;
+    readonly quorum: { readonly minimumCompletedReviews: number };
+    readonly reviewerRoles: readonly { readonly minimumReviewers: number }[];
+    readonly validFrom: string;
+    readonly validUntil: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  for (const required of ["abstain", "recuse", "require_escalation"] as const) {
+    if (!value.allowedActions.includes(required)) {
+      context.addIssue({
+        code: "custom",
+        message: `Human-review protocol requires the ${required} safeguard action`,
+        path: ["allowedActions"],
+      });
+    }
+  }
+  const requiredReviewers = value.reviewerRoles.reduce(
+    (total, role) => total + role.minimumReviewers,
+    0,
+  );
+  if (value.quorum.minimumCompletedReviews < requiredReviewers) {
+    context.addIssue({
+      code: "custom",
+      message: "Human-review quorum cannot be smaller than the required role counts",
+      path: ["quorum", "minimumCompletedReviews"],
+    });
+  }
+  if (
+    value.independenceRequirements.minimumIndependentGroups > value.quorum.minimumCompletedReviews
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Independent-group requirement cannot exceed the completed-review quorum",
+      path: ["independenceRequirements", "minimumIndependentGroups"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validUntil) <= evidenceTimestampOrderKey(value.validFrom)) {
+    context.addIssue({
+      code: "custom",
+      message: "Human-review protocol validity must have a positive interval",
+      path: ["validUntil"],
+    });
+  }
+  if (
+    value.predecessor?.protocolId === value.protocolId &&
+    value.predecessor.protocolVersionId === value.protocolVersionId
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A human-review protocol cannot name itself as predecessor",
+      path: ["predecessor", "protocolVersionId"],
+    });
+  }
+}
+
+export const HumanReviewProtocolDefinitionSchema = z
+  .object(humanReviewProtocolDefinitionShape)
+  .strict()
+  .superRefine(refineHumanReviewProtocol);
+
+export const HumanReviewProtocolSchema = z
+  .object({
+    ...humanReviewProtocolDefinitionShape,
+    definitionSha256: Sha256Schema,
+    publishedAt: UtcMillisecondTimestampSchema,
+    publishedByPrincipalId: OpaqueIdSchema,
+    schemaVersion: z.literal(HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineHumanReviewProtocol);
+
+export type HumanReviewProtocolReference = z.infer<typeof HumanReviewProtocolReferenceSchema>;
+export type HumanReviewProtocolDefinition = z.infer<typeof HumanReviewProtocolDefinitionSchema>;
+export type HumanReviewProtocol = z.infer<typeof HumanReviewProtocolSchema>;
