@@ -10,8 +10,8 @@ import {
   HumanReviewRecordReferenceSchema,
   IndependenceDeclarationReferenceSchema,
   IndependentCritiqueReferenceSchema,
+  ModelQualificationReportReferenceSchema,
 } from "./evaluation-model-assurance.js";
-import { ModelQualificationReportReferenceSchema } from "./evaluation-model-qualification.js";
 import { RawObservationReferenceSchema } from "./evaluation-run.js";
 import { AssuranceSummarySchema } from "./evaluation-source.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";

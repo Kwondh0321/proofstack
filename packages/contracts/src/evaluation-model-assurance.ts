@@ -4,21 +4,21 @@ import { AssessmentReferenceSchema } from "./evaluation-assessment.js";
 import {
   CriterionReferenceSchema,
   CriterionVersionSelectorSchema,
-  EvaluatorReferenceSchema,
   EvaluationRiskTierSchema,
+  EvaluatorReferenceSchema,
 } from "./evaluation-criteria.js";
 import {
   EvaluationDatasetVersionReferenceSchema,
   EvaluationVerdictSchema,
   RawObservationReferenceSchema,
 } from "./evaluation-run.js";
+import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-source.js";
 import {
   QualificationFixtureSetReferenceSchema,
   QualificationReportReferenceSchema,
 } from "./evaluation-spec.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
-import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-source.js";
 
 export const MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENCE_DECLARATION_SCHEMA_VERSION = "0.1" as const;
@@ -1324,6 +1324,13 @@ export const IndependentCritiqueReferenceSchema = z
   })
   .strict();
 
+export const ModelQualificationReportReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    reportId: OpaqueIdSchema,
+  })
+  .strict();
+
 export const CritiqueFindingSchema = z
   .object({
     evidence: exactArtifacts(16, "Critique finding evidence").min(1),
@@ -1400,6 +1407,7 @@ const independentCritiqueDefinitionShape = {
   evidenceAccessManifest: ArtifactContentReferenceSchema,
   independenceDeclaration: IndependenceDeclarationReferenceSchema,
   modelProfile: ModelEvaluatorProfileReferenceSchema,
+  modelQualificationReport: ModelQualificationReportReferenceSchema,
   observation: RawObservationReferenceSchema,
   outcome: IndependentCritiqueOutcomeSchema,
   qualificationReport: QualificationReportReferenceSchema,

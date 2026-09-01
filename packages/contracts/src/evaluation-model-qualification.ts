@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { ArtifactContentReferenceSchema } from "./artifact.js";
-import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { CriterionVersionSelectorSchema } from "./evaluation-criteria.js";
 import {
   BlindedEvaluationPlanReferenceSchema,
   CalibrationReportReferenceSchema,
   IndependenceDeclarationReferenceSchema,
   ModelEvaluatorProfileReferenceSchema,
+  ModelQualificationReportReferenceSchema,
 } from "./evaluation-model-assurance.js";
 import { EvaluationDatasetVersionReferenceSchema } from "./evaluation-run.js";
 import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-source.js";
@@ -14,6 +14,7 @@ import {
   QualificationFixtureSetReferenceSchema,
   QualificationReportReferenceSchema,
 } from "./evaluation-spec.js";
+import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
 export const MODEL_QUALIFICATION_SUITE_SCHEMA_VERSION = "0.1" as const;
@@ -201,13 +202,6 @@ export type ModelQualificationSuiteDefinition = z.infer<
   typeof ModelQualificationSuiteDefinitionSchema
 >;
 export type ModelQualificationSuite = z.infer<typeof ModelQualificationSuiteSchema>;
-
-export const ModelQualificationReportReferenceSchema = z
-  .object({
-    definitionSha256: Sha256Schema,
-    reportId: OpaqueIdSchema,
-  })
-  .strict();
 
 const ModelQualificationCountSchema = z.number().int().nonnegative().max(100_000_000);
 

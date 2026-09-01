@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
-  type IndependentCritiqueDefinition,
-} from "./evaluation-model-assurance.js";
-import {
   encodeIndependentCritiqueDefinition,
   INDEPENDENT_CRITIQUE_DEFINITION_DOMAIN,
   type ScopedEvaluationDefinition,
 } from "./evaluation-definition-encoding.js";
+import {
+  INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
+  type IndependentCritiqueDefinition,
+} from "./evaluation-model-assurance.js";
 
 interface CritiqueVector {
   readonly encodedByteLength: number;
@@ -64,6 +64,9 @@ describe("canonical independent critique encoding", () => {
       },
       (candidate) => {
         candidate.definition.observation.definitionSha256 = "f".repeat(64);
+      },
+      (candidate) => {
+        candidate.definition.modelQualificationReport.definitionSha256 = "a".repeat(64);
       },
       (candidate) => {
         const evidence = candidate.definition.allowedEvidence[0];

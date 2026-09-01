@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-independent-critique-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3823,
+      "encodedByteLength": 3971,
       "input": {
         "definition": {
           "accessAttestation": {
@@ -66,6 +66,10 @@
             "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
             "modelProfileId": "mep_critic",
             "modelProfileVersionId": "mpv_critic_v1"
+          },
+          "modelQualificationReport": {
+            "definitionSha256": "abababababababababababababababababababababababababababababababab",
+            "reportId": "mqr_model_critic_v1"
           },
           "observation": {
             "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -136,7 +140,7 @@
       },
       "kind": "independent_critique",
       "name": "rationale-withheld independent critique",
-      "sha256": "18713001c0c75852b7b701fbfd4fba0791377cb6b6297fb6e328efecdcf89b50"
+      "sha256": "261fbc68eb0d86acf593b4b199babfc675107e60cb65a0c805a1557b9435bb8d"
     }
   ]
 }
