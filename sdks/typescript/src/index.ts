@@ -2,6 +2,7 @@ export * from "./client.js";
 export * from "./evaluation-client.js";
 export * from "./evaluation-definition-digest.js";
 export * from "./ids.js";
+export * from "./model-assurance-client.js";
 export * from "./model-assurance-definition-digest.js";
 export * from "./regression-client.js";
 export * from "./replay-client.js";
