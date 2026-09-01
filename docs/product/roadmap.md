@@ -114,6 +114,10 @@ authority, persistence, recovery, and acceptance gates are fixed by the
 The completed [durable replay-job audit](../development/workflow-1-durable-replay-audit.md) records
 the accepted bounded execution boundary, service-backed evidence, restore-epoch fencing, closed
 cross-check findings, and the evaluator and production limits that remain open.
+The source-authority, criteria, safe-applicability, deterministic-oracle, statistical-evaluation,
+qualification, observation, assessment, persistence, and acceptance gates for the open fifth
+checkpoint are fixed by the
+[criteria and non-model evaluation entry audit](../development/workflow-1-criteria-evaluation-entry-audit.md).
 
 ## Workflow 2: reliability release gate
 
