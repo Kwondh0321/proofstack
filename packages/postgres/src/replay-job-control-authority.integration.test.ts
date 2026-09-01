@@ -37,6 +37,10 @@ const credentials = {
     name: `ps_ctrl_con_${runKey}`,
     password: `proofstack-control-consumer-${runKey}`,
   },
+  evaluationWorker: {
+    name: `ps_ctrl_eval_${runKey}`,
+    password: `proofstack-control-evaluation-${runKey}`,
+  },
   identity: {
     name: `ps_ctrl_id_${runKey}`,
     password: `proofstack-control-identity-${runKey}`,

@@ -234,6 +234,7 @@ describe("runDatabaseCli", () => {
         createdRoles: [
           "proofstack_api",
           "proofstack_identity",
+          "proofstack_evaluation_worker",
           "proofstack_replay_worker",
           "proofstack_artifact_maintenance",
           "proofstack_publisher",
@@ -250,6 +251,7 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_ARTIFACT_DATABASE_PASSWORD: "local-artifact-password",
         PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD: "local-evaluation-password",
         PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
         PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD: "local-replay-worker-password",
@@ -263,6 +265,7 @@ describe("runDatabaseCli", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_evaluation_worker",
         "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
@@ -281,6 +284,10 @@ describe("runDatabaseCli", () => {
           password: "local-artifact-password",
         },
         identity: { name: "proofstack_identity", password: "local-identity-password" },
+        evaluationWorker: {
+          name: "proofstack_evaluation_worker",
+          password: "local-evaluation-password",
+        },
         replayWorker: {
           name: "proofstack_replay_worker",
           password: "local-replay-worker-password",
@@ -566,6 +573,8 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "local-consumer-password",
         PROOFSTACK_CONSUMER_DATABASE_ROLE: "custom_consumer",
         PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+        PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD: "local-evaluation-password",
+        PROOFSTACK_EVALUATION_WORKER_DATABASE_ROLE: "custom_evaluation_worker",
         PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
         PROOFSTACK_IDENTITY_DATABASE_ROLE: "custom_identity",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
@@ -581,6 +590,10 @@ describe("runDatabaseCli", () => {
       api: { name: "custom_api", password: "local-api-password" },
       artifact: { name: "custom_artifact", password: "local-artifact-password" },
       consumer: { name: "custom_consumer", password: "local-consumer-password" },
+      evaluationWorker: {
+        name: "custom_evaluation_worker",
+        password: "local-evaluation-password",
+      },
       identity: { name: "custom_identity", password: "local-identity-password" },
       publisher: { name: "custom_publisher", password: "local-publisher-password" },
       replayWorker: {

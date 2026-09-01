@@ -122,6 +122,7 @@ describe("migration inspection", () => {
         "0034_replay_job_snapshot_authority",
         "0035_invalidate_restored_replay_leases",
         "0036_evaluation_management_capability",
+        "0037_evaluation_graph_registry",
       ],
     });
   });

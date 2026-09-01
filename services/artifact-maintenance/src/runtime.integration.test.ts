@@ -10,9 +10,9 @@ import {
 } from "@proofstack/artifacts";
 import type { PrincipalContext, ReserveArtifactRequest } from "@proofstack/contracts";
 import {
-  PostgresArtifactCatalogRepository,
   createPostgresPool,
   migrateDatabase,
+  PostgresArtifactCatalogRepository,
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
@@ -48,6 +48,10 @@ const roleOptions: RuntimeRoleProvisioningOptions = {
     password: `proofstack-artifact-${runKey}`,
   },
   consumer: { name: `ps_it_consumer_${runKey}`, password: `proofstack-consumer-${runKey}` },
+  evaluationWorker: {
+    name: `ps_it_evaluation_${runKey}`,
+    password: `proofstack-evaluation-${runKey}`,
+  },
   identity: { name: `ps_it_identity_${runKey}`, password: `proofstack-identity-${runKey}` },
   publisher: { name: `ps_it_publisher_${runKey}`, password: `proofstack-publisher-${runKey}` },
   replayWorker: {

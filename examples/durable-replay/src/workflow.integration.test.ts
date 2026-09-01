@@ -60,6 +60,7 @@ const runtimeRoles: RuntimeRoleProvisioningOptions = {
   api: credentials("api"),
   artifact: credentials("artifact"),
   consumer: credentials("consumer"),
+  evaluationWorker: credentials("evaluation"),
   identity: credentials("identity"),
   publisher: credentials("publisher"),
   replayWorker: credentials("worker"),

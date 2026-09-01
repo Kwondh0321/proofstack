@@ -4,9 +4,12 @@ export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, "src/**/*.integration.test.ts"],
     coverage: {
-      // This adapter's SQL, RLS, deferred constraints, and rollback semantics are exercised by
-      // the required real-PostgreSQL conformance suite rather than mocked-client unit tests.
-      exclude: ["src/postgres-replay-definition-repository.ts"],
+      // These adapters' SQL, RLS, deferred constraints, and rollback semantics are exercised by
+      // required real-PostgreSQL conformance suites rather than mocked-client unit tests.
+      exclude: [
+        "src/postgres-evaluation-repository.ts",
+        "src/postgres-replay-definition-repository.ts",
+      ],
       include: ["src/**/*.ts"],
       provider: "v8",
       reporter: ["text", "json-summary"],

@@ -16,15 +16,15 @@ import type { Pool } from "pg";
 import { validatePostgresConnectionString } from "./connection-string.js";
 import { createPostgresPool } from "./database.js";
 import {
-  bootstrapApiKey,
-  createOidcBinding,
-  type CreateOidcBindingOptions,
-  disableOidcBinding,
-  type DisableOidcBindingOptions,
-  inspectIdentityCredentials,
   type BootstrapApiKeyOptions,
-  updateOidcBinding,
+  bootstrapApiKey,
+  type CreateOidcBindingOptions,
+  createOidcBinding,
+  type DisableOidcBindingOptions,
+  disableOidcBinding,
+  inspectIdentityCredentials,
   type UpdateOidcBindingOptions,
+  updateOidcBinding,
 } from "./identity-administration.js";
 import { inspectMigrations, migrateDatabase } from "./migration-runner.js";
 import {
@@ -42,6 +42,8 @@ interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_CONSUMER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_DATABASE_URL?: string;
   readonly PROOFSTACK_ENV?: string;
+  readonly PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_EVALUATION_WORKER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_IDENTITY_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_IDENTITY_DATABASE_ROLE?: string;
   readonly PROOFSTACK_IDENTITY_TENANT_ID?: string;
@@ -289,17 +291,19 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
   const publisherPassword = environment.PROOFSTACK_PUBLISHER_DATABASE_PASSWORD;
   const consumerPassword = environment.PROOFSTACK_CONSUMER_DATABASE_PASSWORD;
   const identityPassword = environment.PROOFSTACK_IDENTITY_DATABASE_PASSWORD;
+  const evaluationWorkerPassword = environment.PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD;
   const replayWorkerPassword = environment.PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD;
   if (
     !apiPassword ||
     !artifactPassword ||
     !publisherPassword ||
     !consumerPassword ||
+    !evaluationWorkerPassword ||
     !identityPassword ||
     !replayWorkerPassword
   ) {
     throw new DatabaseCliUsageError(
-      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
+      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD, PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
     );
   }
   return {
@@ -314,6 +318,12 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
     consumer: {
       name: environment.PROOFSTACK_CONSUMER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.consumer,
       password: consumerPassword,
+    },
+    evaluationWorker: {
+      name:
+        environment.PROOFSTACK_EVALUATION_WORKER_DATABASE_ROLE ??
+        DEFAULT_RUNTIME_ROLE_NAMES.evaluationWorker,
+      password: evaluationWorkerPassword,
     },
     identity: {
       name: environment.PROOFSTACK_IDENTITY_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.identity,

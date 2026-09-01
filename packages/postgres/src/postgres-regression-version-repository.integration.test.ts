@@ -18,8 +18,8 @@ import {
 } from "@proofstack/datasets";
 import {
   interactionFixtureVersionRepositoryConformanceCases,
-  regressionVersionRepositoryConformanceCases,
   type RegressionVersionPublicationKind,
+  regressionVersionRepositoryConformanceCases,
 } from "@proofstack/datasets/testing";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -49,6 +49,10 @@ const credentials = {
   consumer: {
     name: `proofstack_regression_con_${runKey}`,
     password: `proofstack-regression-consumer-${runKey}-password`,
+  },
+  evaluationWorker: {
+    name: `proofstack_regression_eval_${runKey}`,
+    password: `proofstack-regression-evaluation-${runKey}-password`,
   },
   identity: {
     name: `proofstack_regression_id_${runKey}`,

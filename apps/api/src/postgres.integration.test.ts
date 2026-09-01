@@ -175,6 +175,10 @@ const runtimeRoles = {
     name: "proofstack_test_consumer_runtime",
     password: "proofstack-test-consumer-runtime",
   },
+  evaluationWorker: {
+    name: "proofstack_test_evaluation_runtime",
+    password: "proofstack-test-evaluation-runtime",
+  },
   identity: {
     name: "proofstack_test_identity_runtime",
     password: "proofstack-test-identity-runtime",

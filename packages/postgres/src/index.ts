@@ -21,8 +21,8 @@ export {
   assertMigrationsCurrent,
   inspectMigrations,
   inspectVerifiedMigrationLedger,
-  type MigrationLedgerEntry,
   MigrationIntegrityError,
+  type MigrationLedgerEntry,
   MigrationRequiredError,
   migrateDatabase,
 } from "./migration-runner.js";
@@ -46,15 +46,12 @@ export {
   MAX_CONSUMER_RECEIPT_RETRY_DELAY_MS,
   PostgresConsumerReceiptRepository,
 } from "./postgres-consumer-receipt-repository.js";
+export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
 } from "./postgres-evidence-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
-export { PostgresReplayDefinitionRepository } from "./postgres-replay-definition-repository.js";
-export { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
-export { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-repository.js";
-export { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
 export {
   MAX_OUTBOX_CLAIM_SIZE,
   MAX_OUTBOX_ERROR_LENGTH,
@@ -67,6 +64,10 @@ export {
   MAX_PROJECTION_CURSOR_GENERATION,
   PostgresProjectionCursorRepository,
 } from "./postgres-projection-cursor-repository.js";
+export { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
+export { PostgresReplayDefinitionRepository } from "./postgres-replay-definition-repository.js";
+export { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
+export { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-repository.js";
 export {
   DEFAULT_RUNTIME_ROLE_NAMES,
   provisionRuntimeRoles,

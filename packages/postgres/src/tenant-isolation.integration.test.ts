@@ -39,6 +39,10 @@ const roles = {
     name: `ps_matrix_consumer_${runKey}`,
     password: `proofstack-matrix-consumer-${runKey}`,
   },
+  evaluationWorker: {
+    name: `ps_matrix_evaluation_${runKey}`,
+    password: `proofstack-matrix-evaluation-${runKey}`,
+  },
   identity: {
     name: `ps_matrix_identity_${runKey}`,
     password: `proofstack-matrix-identity-${runKey}`,
@@ -60,6 +64,27 @@ const TENANT_TABLES = [
   "proofstack_artifact_tombstones",
   "proofstack_browser_sessions",
   "proofstack_consumer_receipts",
+  "proofstack_evaluation_aggregates",
+  "proofstack_evaluation_aggregation_policies",
+  "proofstack_evaluation_assessments",
+  "proofstack_evaluation_criterion_set_statuses",
+  "proofstack_evaluation_criterion_sets",
+  "proofstack_evaluation_discovery_records",
+  "proofstack_evaluation_evaluator_specs",
+  "proofstack_evaluation_lineage",
+  "proofstack_evaluation_oracle_specs",
+  "proofstack_evaluation_qualification_fixture_sets",
+  "proofstack_evaluation_qualification_reports",
+  "proofstack_evaluation_raw_observations",
+  "proofstack_evaluation_record_registry",
+  "proofstack_evaluation_records",
+  "proofstack_evaluation_resource_bindings",
+  "proofstack_evaluation_run_rejections",
+  "proofstack_evaluation_run_results",
+  "proofstack_evaluation_runs",
+  "proofstack_evaluation_source_reviews",
+  "proofstack_evaluation_source_snapshots",
+  "proofstack_evaluation_unique_bindings",
   "proofstack_evidence_events",
   "proofstack_identity_audit_events",
   "proofstack_interaction_fixture_artifact_ownerships",
@@ -176,7 +201,7 @@ describe("tenant isolation acceptance matrix", () => {
       FROM pg_class AS relation
       JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
       WHERE namespace.nspname = 'public'
-        AND relation.relkind = 'r'
+        AND relation.relkind IN ('p', 'r')
         AND EXISTS (
           SELECT 1
           FROM pg_attribute AS attribute

@@ -80,6 +80,10 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
       name: DEFAULT_RUNTIME_ROLE_NAMES.consumer,
       password: "local-consumer-password",
     },
+    evaluationWorker: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.evaluationWorker,
+      password: "local-evaluation-worker-password",
+    },
     identity: {
       name: DEFAULT_RUNTIME_ROLE_NAMES.identity,
       password: "local-identity-password",
@@ -97,7 +101,14 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
 }
 
 function managedRole(
-  kind: "api" | "artifact" | "consumer" | "identity" | "publisher" | "replayWorker",
+  kind:
+    | "api"
+    | "artifact"
+    | "consumer"
+    | "evaluationWorker"
+    | "identity"
+    | "publisher"
+    | "replayWorker",
   overrides: Partial<RoleRow> = {},
 ): RoleRow {
   return {
@@ -120,6 +131,7 @@ describe("provisionRuntimeRoles", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_evaluation_worker",
         "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
@@ -273,6 +285,7 @@ describe("provisionRuntimeRoles", () => {
     client.roles.set("proofstack_identity", managedRole("identity"));
     client.roles.set("proofstack_publisher", managedRole("publisher"));
     client.roles.set("proofstack_consumer", managedRole("consumer"));
+    client.roles.set("proofstack_evaluation_worker", managedRole("evaluationWorker"));
     client.roles.set("proofstack_replay_worker", managedRole("replayWorker"));
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).resolves.toEqual({
@@ -280,13 +293,14 @@ describe("provisionRuntimeRoles", () => {
       updatedRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_evaluation_worker",
         "proofstack_replay_worker",
         "proofstack_artifact_maintenance",
         "proofstack_publisher",
         "proofstack_consumer",
       ],
     });
-    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(6);
+    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(7);
     expect(client.queries.some(({ text }) => text.startsWith("COMMENT ON ROLE"))).toBe(false);
   });
 

@@ -64,6 +64,10 @@ const credentials = {
     name: `ps_worker_con_${runKey}`,
     password: `proofstack-worker-consumer-${runKey}`,
   },
+  evaluationWorker: {
+    name: `ps_worker_eval_${runKey}`,
+    password: `proofstack-worker-evaluation-${runKey}`,
+  },
   identity: {
     name: `ps_worker_id_${runKey}`,
     password: `proofstack-worker-identity-${runKey}`,

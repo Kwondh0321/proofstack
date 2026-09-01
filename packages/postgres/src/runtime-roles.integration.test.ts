@@ -18,6 +18,7 @@ const roleNames = {
   api: `proofstack_it_api_${runKey}`,
   artifact: `proofstack_it_artifact_${runKey}`,
   consumer: `proofstack_it_consumer_${runKey}`,
+  evaluationWorker: `proofstack_it_evaluation_${runKey}`,
   identity: `proofstack_it_identity_role_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
   replayWorker: `proofstack_it_replay_worker_${runKey}`,
@@ -31,6 +32,10 @@ function provisioningOptions(suffix: string): RuntimeRoleProvisioningOptions {
     api: { name: roleNames.api, password: `proofstack-api-${suffix}-password` },
     artifact: { name: roleNames.artifact, password: `proofstack-artifact-${suffix}-password` },
     consumer: { name: roleNames.consumer, password: `proofstack-consumer-${suffix}-password` },
+    evaluationWorker: {
+      name: roleNames.evaluationWorker,
+      password: `proofstack-evaluation-${suffix}-password`,
+    },
     identity: { name: roleNames.identity, password: `proofstack-identity-${suffix}-password` },
     publisher: { name: roleNames.publisher, password: `proofstack-publisher-${suffix}-password` },
     replayWorker: {
@@ -85,6 +90,7 @@ describe("runtime role provisioning", () => {
       createdRoles: [
         roleNames.api,
         roleNames.identity,
+        roleNames.evaluationWorker,
         roleNames.replayWorker,
         roleNames.artifact,
         roleNames.publisher,
@@ -145,7 +151,7 @@ describe("runtime role provisioning", () => {
       `,
       [Object.values(roleNames)],
     );
-    expect(roleState.rows).toHaveLength(6);
+    expect(roleState.rows).toHaveLength(7);
     expect(
       roleState.rows.every(
         ({
@@ -170,9 +176,50 @@ describe("runtime role provisioning", () => {
       "proofstack-managed-runtime-role:v1:api",
       "proofstack-managed-runtime-role:v1:artifact",
       "proofstack-managed-runtime-role:v1:consumer",
+      "proofstack-managed-runtime-role:v1:evaluationWorker",
       "proofstack-managed-runtime-role:v1:identity",
       "proofstack-managed-runtime-role:v1:publisher",
       "proofstack-managed-runtime-role:v1:replayWorker",
+    ]);
+
+    const evaluationWorkerPool = poolFor(initial.evaluationWorker);
+    const evaluationWorkerPrivileges = await evaluationWorkerPool.query<{
+      readonly controlExecute: boolean;
+      readonly executionExecute: boolean;
+      readonly outboxInsert: boolean;
+      readonly outboxSelect: boolean;
+      readonly recordsInsert: boolean;
+      readonly recordsSelect: boolean;
+    }>(`
+      SELECT
+        has_table_privilege(current_user, 'proofstack_evaluation_records', 'SELECT')
+          AS "recordsSelect",
+        has_table_privilege(current_user, 'proofstack_evaluation_records', 'INSERT')
+          AS "recordsInsert",
+        has_table_privilege(current_user, 'proofstack_outbox', 'SELECT')
+          AS "outboxSelect",
+        has_table_privilege(current_user, 'proofstack_outbox', 'INSERT')
+          AS "outboxInsert",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_evaluation_control_record(jsonb)',
+          'EXECUTE'
+        ) AS "controlExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_evaluation_execution_record(jsonb)',
+          'EXECUTE'
+        ) AS "executionExecute"
+    `);
+    expect(evaluationWorkerPrivileges.rows).toEqual([
+      {
+        controlExecute: false,
+        executionExecute: true,
+        outboxInsert: false,
+        outboxSelect: false,
+        recordsInsert: false,
+        recordsSelect: true,
+      },
     ]);
 
     const replayWorkerPool = poolFor(initial.replayWorker);
@@ -1062,6 +1109,7 @@ describe("runtime role provisioning", () => {
       updatedRoles: [
         roleNames.api,
         roleNames.identity,
+        roleNames.evaluationWorker,
         roleNames.replayWorker,
         roleNames.artifact,
         roleNames.publisher,

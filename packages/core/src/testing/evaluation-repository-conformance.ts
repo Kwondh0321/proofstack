@@ -18,17 +18,17 @@ import type {
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
-import {
-  EvaluationLineageError,
-  EvaluationRecordConflictError,
-  EvaluationResourceConflictError,
-  InvalidEvaluationRecordInputError,
-  type EvaluationRecordKind,
-} from "../evaluation/evaluation-repository-errors.js";
 import type {
   EvaluationRepository,
   PublishEvaluationRecordResult,
 } from "../evaluation/evaluation-repository.js";
+import {
+  EvaluationLineageError,
+  EvaluationRecordConflictError,
+  type EvaluationRecordKind,
+  EvaluationResourceConflictError,
+  InvalidEvaluationRecordInputError,
+} from "../evaluation/evaluation-repository-errors.js";
 
 interface RecordByKind {
   readonly aggregation_policy: EvaluationAggregationPolicy;
@@ -96,7 +96,7 @@ const allKinds: readonly EvaluationRecordKind[] = [
   "source_snapshot",
 ];
 
-async function publishFixture(
+export async function publishEvaluationFixture(
   repository: EvaluationRepository,
   fixture: EvaluationRepositoryFixtureRecord,
 ): Promise<PublishEvaluationRecordResult<RecordByKind[EvaluationRecordKind]>> {
@@ -230,7 +230,7 @@ async function withHarness(
 
 async function publishGraph(harness: EvaluationRepositoryTestHarness): Promise<void> {
   for (const fixture of harness.records) {
-    const result = await publishFixture(harness.repository, fixture);
+    const result = await publishEvaluationFixture(harness.repository, fixture);
     assert.equal(result.created, true, `${fixture.kind} must be created once`);
     assert.deepEqual(result.record, fixture.record, `${fixture.kind} must return its stored value`);
   }
@@ -264,7 +264,10 @@ export const evaluationRepositoryConformanceCases: readonly EvaluationRepository
         await withHarness(factory, "retry_and_isolation", async (harness) => {
           await publishGraph(harness);
           for (const fixture of harness.records) {
-            const retry = await publishFixture(harness.repository, structuredClone(fixture));
+            const retry = await publishEvaluationFixture(
+              harness.repository,
+              structuredClone(fixture),
+            );
             assert.equal(retry.created, false, `${fixture.kind} retry must be idempotent`);
             assert.deepEqual(retry.record, fixture.record);
             retry.record.definitionSha256 = "0".repeat(64);
@@ -285,13 +288,13 @@ export const evaluationRepositoryConformanceCases: readonly EvaluationRepository
           assert.ok(first, "fixture graph must not be empty");
           first.record.definitionSha256 = "0".repeat(64);
           await assert.rejects(
-            publishFixture(harness.repository, first),
+            publishEvaluationFixture(harness.repository, first),
             InvalidEvaluationRecordInputError,
           );
           assert.equal(await findFixture(harness.repository, harness.scope, first), null);
 
           await assert.rejects(
-            publishFixture(harness.repository, harness.lineageProbe),
+            publishEvaluationFixture(harness.repository, harness.lineageProbe),
             EvaluationLineageError,
           );
           assert.equal(
@@ -307,11 +310,11 @@ export const evaluationRepositoryConformanceCases: readonly EvaluationRepository
         await withHarness(factory, "conflict_bindings", async (harness) => {
           await publishGraph(harness);
           await assert.rejects(
-            publishFixture(harness.repository, harness.recordConflict),
+            publishEvaluationFixture(harness.repository, harness.recordConflict),
             EvaluationRecordConflictError,
           );
           await assert.rejects(
-            publishFixture(harness.repository, harness.resourceConflict),
+            publishEvaluationFixture(harness.repository, harness.resourceConflict),
             EvaluationResourceConflictError,
           );
           assert.equal(
@@ -324,7 +327,7 @@ export const evaluationRepositoryConformanceCases: readonly EvaluationRepository
           );
           for (const conflict of harness.uniquenessConflicts) {
             await assert.rejects(
-              publishFixture(harness.repository, conflict),
+              publishEvaluationFixture(harness.repository, conflict),
               EvaluationRecordConflictError,
             );
             assert.equal(await findFixture(harness.repository, harness.scope, conflict), null);

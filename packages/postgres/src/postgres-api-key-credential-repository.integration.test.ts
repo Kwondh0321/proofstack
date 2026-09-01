@@ -23,6 +23,7 @@ const roleNames = {
   api: `proofstack_adapter_api_${runKey}`,
   artifact: `proofstack_adapter_artifact_${runKey}`,
   consumer: `proofstack_adapter_consumer_${runKey}`,
+  evaluationWorker: `proofstack_adapter_evaluation_${runKey}`,
   identity: `proofstack_adapter_identity_${runKey}`,
   publisher: `proofstack_adapter_publisher_${runKey}`,
   replayWorker: `proofstack_adapter_replay_worker_${runKey}`,
@@ -40,6 +41,10 @@ function options(): RuntimeRoleProvisioningOptions {
     consumer: {
       name: roleNames.consumer,
       password: `proofstack-adapter-consumer-${runKey}`,
+    },
+    evaluationWorker: {
+      name: roleNames.evaluationWorker,
+      password: `proofstack-adapter-evaluation-${runKey}`,
     },
     identity: {
       name: roleNames.identity,

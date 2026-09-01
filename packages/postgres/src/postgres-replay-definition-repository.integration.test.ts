@@ -1,11 +1,11 @@
 import type { EvidenceScope, JsonObject, ReplayPlan, TargetRelease } from "@proofstack/contracts";
 import { JsonValueSchema, OpaqueIdSchema, TimestampSchema } from "@proofstack/contracts";
 import {
+  type PublishedReplayDefinitionOutboxIntent,
+  type PublishReplayDefinitionResult,
   REPLAY_DEFINITION_OUTBOX_SCHEMA_VERSION,
   REPLAY_PLAN_AGGREGATE_TYPE,
   REPLAY_PLAN_PUBLISHED_EVENT_TYPE,
-  type PublishedReplayDefinitionOutboxIntent,
-  type PublishReplayDefinitionResult,
   type ReplayDefinitionRepository,
   TARGET_RELEASE_AGGREGATE_TYPE,
   TARGET_RELEASE_PUBLISHED_EVENT_TYPE,
@@ -42,6 +42,10 @@ const credentials = {
   consumer: {
     name: `proofstack_replay_con_${runKey}`,
     password: `proofstack-replay-consumer-${runKey}-password`,
+  },
+  evaluationWorker: {
+    name: `proofstack_replay_eval_${runKey}`,
+    password: `proofstack-replay-evaluation-${runKey}-password`,
   },
   identity: {
     name: `proofstack_replay_id_${runKey}`,
