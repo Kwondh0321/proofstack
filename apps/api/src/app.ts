@@ -4,8 +4,8 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
   ArtifactConflictError,
-  type ArtifactContentInspector,
   ArtifactContentInspectionUnavailableError,
+  type ArtifactContentInspector,
   ArtifactContentMismatchError,
   ArtifactContentRejectedError,
   ArtifactIdentifierGenerationError,
@@ -22,18 +22,30 @@ import {
   ReadArtifact,
   ReadArtifactMetadata,
   ReserveArtifact,
-  TombstoneArtifact,
   StrictArtifactContentInspector,
+  TombstoneArtifact,
   UploadArtifact,
 } from "@proofstack/artifacts";
 import {
   type Clock,
+  CreateAssessment,
+  EvaluationLineageError,
+  EvaluationRecordConflictError,
+  EvaluationRecordNotFoundError,
+  type EvaluationRepository,
+  EvaluationRepositoryContractError,
+  EvaluationResourceConflictError,
   EvidenceConflictError,
   type EvidenceRepository,
   ForbiddenError,
   IngestEvidence,
+  InvalidEvaluationRecordInputError,
   InvalidTraceCursorError,
   ListTraceEvidence,
+  PublishEvaluationDefinition,
+  ReadEvaluationRecord,
+  RecordCriterionSetStatus,
+  RecordEvaluationRunDecision,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
@@ -77,8 +89,8 @@ import {
   ReplayDefinitionNotFoundError,
   type ReplayDefinitionRepository,
   ReplayJobConflictError,
-  ReplayJobNotFoundError,
   type ReplayJobControlRepository,
+  ReplayJobNotFoundError,
   RequestDurableReplayCancellation,
 } from "@proofstack/replay";
 import { S3ArtifactObjectStoreError } from "@proofstack/s3";
@@ -92,18 +104,19 @@ import {
   createAuthenticator,
 } from "./auth.js";
 import type { ApiConfig } from "./config.js";
-import {
-  ExportRecordedInteractionFixtureContent,
-  ExportRecordedInteractionFixtureMetadata,
-  InteractionContentExportTooLargeError,
-  InteractionExportStateChangedError,
-} from "./interaction-export.js";
+import { registerEvaluationRoutes } from "./evaluation-routes.js";
 import {
   type ApiKeyLifecycleService,
   IdentityManagementUnavailableError,
   registerIdentityRoutes,
 } from "./identity-routes.js";
 import { createIdentityStorage, type IdentityStorage } from "./identity-storage.js";
+import {
+  ExportRecordedInteractionFixtureContent,
+  ExportRecordedInteractionFixtureMetadata,
+  InteractionContentExportTooLargeError,
+  InteractionExportStateChangedError,
+} from "./interaction-export.js";
 import { registerOidcRoutes } from "./oidc-routes.js";
 import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
@@ -120,6 +133,7 @@ export interface AppDependencies {
   readonly authenticator?: Authenticator;
   readonly checkReadiness?: () => Promise<void>;
   readonly clock?: Clock;
+  readonly evaluationRepository?: EvaluationRepository;
   readonly identityStorage?: IdentityStorage;
   readonly oidcRuntime?: OidcRuntime;
   readonly regressionVersionRepository?: RegressionVersionRepository;
@@ -165,6 +179,7 @@ export async function createApp(
     });
     const storage =
       dependencies.repository ||
+      dependencies.evaluationRepository ||
       dependencies.regressionVersionRepository ||
       dependencies.artifactStorage ||
       dependencies.replayDefinitionRepository ||
@@ -173,6 +188,8 @@ export async function createApp(
             ...defaultStorage,
             ...(dependencies.artifactStorage ? { artifacts: dependencies.artifactStorage } : {}),
             checkReadiness: dependencies.checkReadiness ?? defaultStorage.checkReadiness,
+            evaluationRepository:
+              dependencies.evaluationRepository ?? defaultStorage.evaluationRepository,
             evidenceRepository: dependencies.repository ?? defaultStorage.evidenceRepository,
             ...(dependencies.regressionVersionRepository
               ? {
@@ -261,6 +278,26 @@ export async function createApp(
       }),
       readDatasetVersion: new ReadRegressionDatasetVersion(storage.regressionVersionRepository),
       readFixtureVersion: new ReadRegressionFixtureVersion(storage.regressionVersionRepository),
+    });
+    await registerEvaluationRoutes(app, {
+      authenticator,
+      createAssessment: new CreateAssessment({
+        clock,
+        repository: storage.evaluationRepository,
+      }),
+      publishDefinition: new PublishEvaluationDefinition({
+        clock,
+        repository: storage.evaluationRepository,
+      }),
+      readRecord: new ReadEvaluationRecord(storage.evaluationRepository),
+      recordCriterionSetStatus: new RecordCriterionSetStatus({
+        clock,
+        repository: storage.evaluationRepository,
+      }),
+      recordRunDecision: new RecordEvaluationRunDecision({
+        clock,
+        repository: storage.evaluationRepository,
+      }),
     });
     await registerReplayRoutes(app, {
       authenticator,
@@ -445,6 +482,54 @@ export async function createApp(
           status: 409,
           title: "Evidence conflict",
           type: "https://proofstack.dev/problems/evidence-conflict",
+        });
+      }
+
+      if (error instanceof InvalidEvaluationRecordInputError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The evaluation request does not match the required immutable contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid evaluation request",
+          type: "https://proofstack.dev/problems/evaluation-record-input-invalid",
+        });
+      }
+
+      if (error instanceof EvaluationRecordNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Evaluation record not found",
+          type: "https://proofstack.dev/problems/evaluation-record-not-found",
+        });
+      }
+
+      if (
+        error instanceof EvaluationLineageError ||
+        error instanceof EvaluationRecordConflictError ||
+        error instanceof EvaluationResourceConflictError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Evaluation graph conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (error instanceof EvaluationRepositoryContractError) {
+        return sendProblem(reply, {
+          code: "evaluation_storage_unavailable",
+          detail: "Evaluation storage is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Evaluation storage unavailable",
+          type: "https://proofstack.dev/problems/evaluation-storage-unavailable",
         });
       }
 
