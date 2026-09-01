@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { ArtifactContentReferenceSchema } from "./artifact.js";
-import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { AssessmentReferenceSchema } from "./evaluation-assessment.js";
 import { EvaluationRiskTierSchema, OracleReferenceSchema } from "./evaluation-criteria.js";
 import {
@@ -15,6 +14,7 @@ import {
 import { ModelQualificationReportReferenceSchema } from "./evaluation-model-qualification.js";
 import { RawObservationReferenceSchema } from "./evaluation-run.js";
 import { AssuranceSummarySchema } from "./evaluation-source.js";
+import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
 export const MODEL_ASSURANCE_ASSESSMENT_SCHEMA_VERSION = "0.1" as const;
@@ -249,6 +249,11 @@ export const ModelAssuranceAssessmentDefinitionSchema = z
   .strict()
   .superRefine(refineModelAssuranceAssessment);
 
+export const ModelAssuranceAssessmentInputSchema = z
+  .object(modelAssuranceAssessmentDefinitionShape)
+  .omit({ eligibility: true, evaluatedAt: true, reasons: true })
+  .strict();
+
 export const ModelAssuranceAssessmentSchema = z
   .object({
     ...modelAssuranceAssessmentDefinitionShape,
@@ -269,4 +274,5 @@ export type ModelAssuranceAssessmentReference = z.infer<
 export type ModelAssuranceAssessmentDefinition = z.infer<
   typeof ModelAssuranceAssessmentDefinitionSchema
 >;
+export type ModelAssuranceAssessmentInput = z.infer<typeof ModelAssuranceAssessmentInputSchema>;
 export type ModelAssuranceAssessment = z.infer<typeof ModelAssuranceAssessmentSchema>;
