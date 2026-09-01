@@ -1,0 +1,129 @@
+{
+  "format": "proofstack.evaluation-model-qualification-report-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3384,
+      "input": {
+        "definition": {
+          "baseQualificationReport": {
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "qualificationReportId": "qlr_model_safety_base_v1"
+          },
+          "calibrationReport": {
+            "calibrationReportId": "cal_model_safety_v1",
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          "completedAt": "2026-09-02T05:30:00.000Z",
+          "criticalScenarioFailures": [],
+          "environmentEvidence": [
+            {
+              "artifactId": "art_model_qualification_environment",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "sizeBytes": 1024
+            }
+          ],
+          "evaluator": {
+            "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "evaluatorId": "evl_model_safety",
+            "evaluatorVersionId": "evv_model_safety_v1"
+          },
+          "executedByPrincipalId": "wrk_model_qualification_runner",
+          "failureReasons": [],
+          "independenceDeclaration": {
+            "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "independenceDeclarationId": "ind_model_safety_v1"
+          },
+          "knownLimitations": [
+            "Qualification evidence is bounded to the declared suite and provider revision"
+          ],
+          "modelProfile": {
+            "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "modelProfileId": "mep_safety",
+            "modelProfileVersionId": "mpv_safety_v1"
+          },
+          "reportId": "mqr_model_safety_v1",
+          "resultManifest": {
+            "artifactId": "art_model_qualification_results",
+            "classification": "restricted",
+            "mediaType": "application/json",
+            "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sizeBytes": 1024
+          },
+          "resultManifestSchema": {
+            "artifactId": "art_model_qualification_result_schema",
+            "classification": "restricted",
+            "mediaType": "application/schema+json",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "sizeBytes": 1024
+          },
+          "scenarioCoverage": [
+            "authority_bias",
+            "bandwagon_bias",
+            "budget_exhaustion",
+            "direct_prompt_injection",
+            "encoded_prompt_injection",
+            "forged_citation",
+            "indirect_prompt_injection",
+            "judge_disagreement",
+            "label_leakage",
+            "late_response",
+            "malformed_model_output",
+            "multilingual_prompt_injection",
+            "network_failure",
+            "out_of_distribution",
+            "partial_stream",
+            "position_swap",
+            "provider_refusal",
+            "rate_limit",
+            "retrieved_prompt_injection",
+            "self_provider_correlation",
+            "stochastic_variance",
+            "style_bias",
+            "tool_request_injection",
+            "verbosity_bias"
+          ],
+          "startedAt": "2026-09-02T05:00:00.000Z",
+          "status": "qualified",
+          "statusSummary": {
+            "abstentionAttemptCount": 2,
+            "attemptCount": 96,
+            "caseCount": 48,
+            "disagreementAttemptCount": 4,
+            "errorAttemptCount": 10,
+            "matchedCaseCount": 48,
+            "mismatchedCaseCount": 0,
+            "refusalAttemptCount": 2,
+            "timeoutAttemptCount": 2,
+            "unresolvedDisagreementAttemptCount": 0
+          },
+          "suite": {
+            "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "suiteId": "mqs_model_safety",
+            "suiteVersionId": "mqv_model_safety_v1"
+          },
+          "validationEvidence": [
+            {
+              "artifactId": "art_model_qualification_result_validation",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sizeBytes": 1024
+            }
+          ],
+          "validFrom": "2026-09-02T05:30:00.000Z",
+          "validUntil": "2026-10-02T05:30:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "model_qualification_report",
+      "name": "complete model assurance qualification result",
+      "sha256": "7508749444017888d5c41ee9912349ad9800d360792112322bcb7d46cb52e6a2"
+    }
+  ]
+}

@@ -85,6 +85,9 @@ import {
 } from "./evaluation-model-assurance.js";
 import { type EvidenceScope, EvidenceScopeSchema } from "./evidence.js";
 import {
+  MODEL_QUALIFICATION_REPORT_SCHEMA_VERSION,
+  type ModelQualificationReportDefinition,
+  ModelQualificationReportDefinitionSchema,
   MODEL_QUALIFICATION_SUITE_SCHEMA_VERSION,
   type ModelQualificationSuiteDefinition,
   ModelQualificationSuiteDefinitionSchema,
@@ -114,6 +117,8 @@ export const HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN =
 export const HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN = "proofstack.human-review-record.v1" as const;
 export const MODEL_QUALIFICATION_SUITE_DEFINITION_DOMAIN =
   "proofstack.model-qualification-suite.v1" as const;
+export const MODEL_QUALIFICATION_REPORT_DEFINITION_DOMAIN =
+  "proofstack.model-qualification-report.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -454,6 +459,18 @@ export function encodeModelQualificationSuiteDefinition(
   return encodeDefinition(
     MODEL_QUALIFICATION_SUITE_DEFINITION_DOMAIN,
     MODEL_QUALIFICATION_SUITE_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeModelQualificationReportDefinition(
+  input: ScopedEvaluationDefinition<ModelQualificationReportDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(ModelQualificationReportDefinitionSchema).parse(input);
+  return encodeDefinition(
+    MODEL_QUALIFICATION_REPORT_DEFINITION_DOMAIN,
+    MODEL_QUALIFICATION_REPORT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

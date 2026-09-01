@@ -26,6 +26,7 @@ import {
   encodeHumanReviewRecordDefinition,
   encodeModelEvaluatorProfileDefinition,
   encodeModelQualificationSuiteDefinition,
+  encodeModelQualificationReportDefinition,
   encodeModelAssistedEvaluatorSpecDefinition,
   encodeOracleSpecDefinition,
   encodeQualificationFixtureSetDefinition,
@@ -46,6 +47,7 @@ import {
   HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN,
   MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
   MODEL_QUALIFICATION_SUITE_DEFINITION_DOMAIN,
+  MODEL_QUALIFICATION_REPORT_DEFINITION_DOMAIN,
   MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN,
   ORACLE_SPEC_DEFINITION_DOMAIN,
   QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN,
@@ -95,6 +97,7 @@ const vectorFiles = [
   "evaluation-human-review-protocol-definition-v1.json",
   "evaluation-human-review-record-definition-v1.json",
   "evaluation-model-qualification-suite-definition-v1.json",
+  "evaluation-model-qualification-report-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -176,6 +179,10 @@ const registry = {
   model_qualification_suite: {
     domain: MODEL_QUALIFICATION_SUITE_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeModelQualificationSuiteDefinition(input as never),
+  },
+  model_qualification_report: {
+    domain: MODEL_QUALIFICATION_REPORT_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeModelQualificationReportDefinition(input as never),
   },
   model_assisted_evaluator_spec: {
     domain: MODEL_ASSISTED_EVALUATOR_SPEC_DEFINITION_DOMAIN,
