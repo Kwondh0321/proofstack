@@ -26,7 +26,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@proofstack/contracts": "workspace:*"
+    "@proofstack/contracts": "workspace:*",
+    "ajv": "8.20.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
