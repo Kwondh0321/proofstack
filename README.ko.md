@@ -15,11 +15,12 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > artifact 소유권, revocation, export, 조정 복구까지 검증됩니다. 실험적 영속 replay는
 > 정확한 release·plan을 게시하고 제한된 job, budget, lease, cancellation, usage,
 > observation, 암호화된 결과 artifact를 영속화하며 별도 worker·target 프로세스를 실행합니다.
-> 로컬 기준 구현은 OS sandbox, 상시 scheduling worker 배포, 프로덕션 key provider 또는
-> 프로덕션 live-provider 통합이 아닙니다.
-> 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다.
-> 콘솔 로그인 연동, 평가, 릴리스 게이트는 아직 완성된 기능으로
-> 표시하지 않습니다.
+> 프레임워크 독립적인 비모델 평가 primitive는 이제 안전한 applicability, digest에 결합된
+> exact·JSON Schema oracle, 명시적 reference aggregate를 제공합니다. 아직 영속 evaluation
+> service나 운영자 workflow로 결합되지는 않았습니다. 로컬 기준 구현은 OS sandbox, 상시
+> scheduling worker 배포, 프로덕션 key provider 또는 프로덕션 live-provider 통합이 아닙니다.
+> 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 콘솔
+> 로그인 연동, 평가, 릴리스 게이트는 아직 완성된 기능으로 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -60,6 +61,7 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 상호작용 캡처 | Fixture 소유 분류 모델·도구 attempt, 정확 artifact 계보, metadata/content export, revocation, purge, 복구 |
 | 기록 경계 replay | 엄격한 전체 content 사전 검사, 순서가 있는 정확 정규화 요청 일치, live fallback 부재, 협력적 고정 runtime input, bounded 또는 unknown 결과 |
 | 영속 replay job | 불변 release·plan, 유한 다차원 budget, fenced lease·restore epoch, cancellation, 사전 선언 retry·effect rule, usage 조정, 별도 worker·target 프로세스, 영속 결과 artifact |
+| 비모델 평가 primitive | total tri-state applicability, digest 등록 exact-byte·제한형 JSON Schema oracle, 정확한 다섯 verdict count, assumption이 확인된 Wilson interval |
 | TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
 | 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구 흐름 |
@@ -227,16 +229,21 @@ process 제한을 명시한 정확 기록 일치를 승인하지만 영속 job, 
 [영속 replay job 감사 기록](docs/development/workflow-1-durable-replay-audit.ko.md)은 green 로컬·
 service gate를 근거로 bounded 실행 경계를 승인하지만 evaluation, approval, release,
 production-readiness 주장은 승인하지 않습니다.
+[비모델 평가 primitive 가이드](docs/guides/non-model-evaluation-primitives.ko.md)는 현재 core 전용
+applicability·oracle·aggregate 경계와 아직 남은 service, 격리, qualification, persistence 작업을
+설명합니다.
 
 ## 현재의 경계
 
 현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
 스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
-상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target worker, evaluator,
-정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
+상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target worker, service 결합
+evaluator, 정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
 evidence-only 회귀 버전, fixture 소유 분류 상호작용 캡처, 기록 경계 replay, 별도 로컬
 프로세스를 사용하는 bounded 영속 replay job은 workload API key·OIDC browser 인증,
-artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. Replay 결과는
+artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. Core 전용 비모델
+평가 primitive도 구현되고 검증되었지만, 아직 완전한 evaluation run을 API로
+게시·실행·영속화·노출하지는 않습니다. Replay 결과는
 OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content
 inspector는 구조화된 자격증명 필드를 거부하고
 설정형 scanner를 지원하지만 임의 opaque byte에 비밀이 없음을 증명할 수는 없습니다.
