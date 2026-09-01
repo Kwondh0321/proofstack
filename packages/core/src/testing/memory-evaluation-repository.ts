@@ -18,23 +18,23 @@ import type {
   SourceSnapshot,
 } from "@proofstack/contracts";
 import {
-  EvaluationLineageError,
-  EvaluationRecordConflictError,
-  EvaluationResourceConflictError,
-  type EvaluationRecordKind,
-} from "../evaluation/evaluation-repository-errors.js";
+  type EvaluationStoredRecord,
+  evaluationRecordId,
+  evaluationResource,
+  validateEvaluationRecord,
+} from "../evaluation/evaluation-record-validation.js";
 import type {
   EvaluationRepository,
   PublishEvaluationRecordResult,
 } from "../evaluation/evaluation-repository.js";
 import {
-  evaluationRecordId,
-  evaluationResource,
-  type EvaluationStoredRecord,
-  validateEvaluationRecord,
-} from "../evaluation/evaluation-record-validation.js";
+  EvaluationLineageError,
+  EvaluationRecordConflictError,
+  type EvaluationRecordKind,
+  EvaluationResourceConflictError,
+} from "../evaluation/evaluation-repository-errors.js";
 
-interface ExactReference {
+export interface EvaluationRecordReference {
   readonly definitionSha256?: string;
   readonly recordId: string;
   readonly recordKind: EvaluationRecordKind;
@@ -78,13 +78,13 @@ function exact(
   recordKind: EvaluationRecordKind,
   recordId: string,
   definitionSha256?: string,
-): ExactReference {
+): EvaluationRecordReference {
   return definitionSha256 === undefined
     ? { recordId, recordKind }
     : { definitionSha256, recordId, recordKind };
 }
 
-function sourceSnapshotReferences(record: SourceSnapshot): readonly ExactReference[] {
+function sourceSnapshotReferences(record: SourceSnapshot): readonly EvaluationRecordReference[] {
   return [
     ...(record.discovery
       ? [exact("discovery_record", record.discovery.discoveryId, record.discovery.definitionSha256)]
@@ -98,7 +98,7 @@ function sourceSnapshotReferences(record: SourceSnapshot): readonly ExactReferen
   ];
 }
 
-function sourceReviewReferences(record: SourceReviewRecord): readonly ExactReference[] {
+function sourceReviewReferences(record: SourceReviewRecord): readonly EvaluationRecordReference[] {
   return [
     exact("source_snapshot", record.source.sourceSnapshotId, record.source.definitionSha256),
     ...record.reviewedConflicts.map(({ definitionSha256, sourceSnapshotId }) =>
@@ -116,7 +116,7 @@ function sourceReviewReferences(record: SourceReviewRecord): readonly ExactRefer
   ];
 }
 
-function criterionSetReferences(record: CriterionSet): readonly ExactReference[] {
+function criterionSetReferences(record: CriterionSet): readonly EvaluationRecordReference[] {
   return [
     ...(record.predecessor
       ? [
@@ -134,7 +134,9 @@ function criterionSetReferences(record: CriterionSet): readonly ExactReference[]
   ];
 }
 
-function criterionStatusReferences(record: CriterionSetStatusRecord): readonly ExactReference[] {
+function criterionStatusReferences(
+  record: CriterionSetStatusRecord,
+): readonly EvaluationRecordReference[] {
   return [
     exact(
       "criterion_set",
@@ -162,7 +164,7 @@ function criterionStatusReferences(record: CriterionSetStatusRecord): readonly E
   ];
 }
 
-function oracleReferences(record: OracleSpec): readonly ExactReference[] {
+function oracleReferences(record: OracleSpec): readonly EvaluationRecordReference[] {
   return [
     exact(
       "qualification_fixture_set",
@@ -184,7 +186,7 @@ function oracleReferences(record: OracleSpec): readonly ExactReference[] {
   ];
 }
 
-function evaluatorReferences(record: EvaluatorSpec): readonly ExactReference[] {
+function evaluatorReferences(record: EvaluatorSpec): readonly EvaluationRecordReference[] {
   return [
     exact(
       "qualification_fixture_set",
@@ -216,7 +218,7 @@ function evaluatorReferences(record: EvaluatorSpec): readonly ExactReference[] {
 
 function qualificationFixtureSetReferences(
   record: QualificationFixtureSet,
-): readonly ExactReference[] {
+): readonly EvaluationRecordReference[] {
   return record.predecessor
     ? [
         exact(
@@ -228,7 +230,9 @@ function qualificationFixtureSetReferences(
     : [];
 }
 
-function qualificationReportReferences(record: QualificationReport): readonly ExactReference[] {
+function qualificationReportReferences(
+  record: QualificationReport,
+): readonly EvaluationRecordReference[] {
   return [
     exact(
       "qualification_fixture_set",
@@ -249,7 +253,7 @@ function qualificationReportReferences(record: QualificationReport): readonly Ex
   ];
 }
 
-function runReferences(record: EvaluationRun): readonly ExactReference[] {
+function runReferences(record: EvaluationRun): readonly EvaluationRecordReference[] {
   return [
     exact(
       "aggregation_policy",
@@ -284,7 +288,7 @@ function runReferences(record: EvaluationRun): readonly ExactReference[] {
   ];
 }
 
-function rejectionReferences(record: EvaluationRunRejection): readonly ExactReference[] {
+function rejectionReferences(record: EvaluationRunRejection): readonly EvaluationRecordReference[] {
   return [
     exact(
       "criterion_set",
@@ -302,7 +306,7 @@ function rejectionReferences(record: EvaluationRunRejection): readonly ExactRefe
   ];
 }
 
-function aggregateReferences(record: EvaluationAggregate): readonly ExactReference[] {
+function aggregateReferences(record: EvaluationAggregate): readonly EvaluationRecordReference[] {
   return [
     exact(
       "aggregation_policy",
@@ -321,7 +325,7 @@ function aggregateReferences(record: EvaluationAggregate): readonly ExactReferen
   ];
 }
 
-function assessmentReferences(record: Assessment): readonly ExactReference[] {
+function assessmentReferences(record: Assessment): readonly EvaluationRecordReference[] {
   return [
     exact("evaluation_aggregate", record.aggregate.aggregateId, record.aggregate.definitionSha256),
     exact(
@@ -365,10 +369,10 @@ function assessmentReferences(record: Assessment): readonly ExactReference[] {
   ];
 }
 
-function recordReferences(
+export function evaluationRecordReferences(
   kind: EvaluationRecordKind,
   record: EvaluationStoredRecord,
-): readonly ExactReference[] {
+): readonly EvaluationRecordReference[] {
   switch (kind) {
     case "aggregation_policy":
     case "discovery_record":
@@ -415,7 +419,7 @@ function recordReferences(
   }
 }
 
-function uniqueBinding(
+export function evaluationRecordUniqueBinding(
   kind: EvaluationRecordKind,
   record: EvaluationStoredRecord,
 ): { readonly key: string; readonly value: string } | null {
@@ -471,7 +475,7 @@ export class MemoryEvaluationRepository implements EvaluationRepository {
       }
     }
 
-    for (const reference of recordReferences(kind, validated)) {
+    for (const reference of evaluationRecordReferences(kind, validated)) {
       const stored = current.records.get(recordKey(reference.recordKind, reference.recordId));
       if (
         !stored ||
@@ -483,7 +487,7 @@ export class MemoryEvaluationRepository implements EvaluationRepository {
       }
     }
 
-    const binding = uniqueBinding(kind, validated);
+    const binding = evaluationRecordUniqueBinding(kind, validated);
     if (binding) {
       const existingId = current.uniqueBindings.get(binding.key);
       if (existingId !== undefined && existingId !== binding.value) {

@@ -6,8 +6,8 @@ export * from "./evaluation/applicability.js";
 export * from "./evaluation/evaluation-repository.js";
 export * from "./evaluation/evaluation-repository-errors.js";
 export * from "./evaluation/exact-oracle.js";
-export * from "./evaluation/reference-aggregate.js";
 export * from "./evaluation/record-evaluation.js";
+export * from "./evaluation/reference-aggregate.js";
 export * from "./evaluation/schema-oracle.js";
 export * from "./evidence/evidence-repository.js";
 export * from "./evidence/ingest-evidence.js";
@@ -17,4 +17,9 @@ export * from "./outbox/consumer-receipt-repository.js";
 export * from "./outbox/outbox-repository.js";
 export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
+export {
+  type EvaluationRecordReference,
+  evaluationRecordReferences,
+  evaluationRecordUniqueBinding,
+} from "./testing/memory-evaluation-repository.js";
 export * from "./testing/memory-evidence-repository.js";
