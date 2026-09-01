@@ -231,8 +231,9 @@ describe("PostgresModelAssuranceRepository", () => {
        WHERE tenant_id = $1 AND aggregate_type LIKE 'model_assurance_%'`,
       [harness.evaluation.scope.tenantId],
     );
-    expect(persisted.rows).toEqual([{ count: "18" }]);
-    expect(intents.rows).toEqual([{ count: "18" }]);
+    const expectedRecordCount = String(harness.records.length + 1);
+    expect(persisted.rows).toEqual([{ count: expectedRecordCount }]);
+    expect(intents.rows).toEqual([{ count: expectedRecordCount }]);
     await expect(
       modelWorkerPool.query(
         "INSERT INTO public.proofstack_model_assurance_records (tenant_id) VALUES ($1)",
