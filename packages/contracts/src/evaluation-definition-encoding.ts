@@ -18,6 +18,14 @@ import {
   type SourceSnapshotDefinition,
   SourceSnapshotDefinitionSchema,
 } from "./evaluation-source.js";
+import {
+  EVALUATOR_SPEC_SCHEMA_VERSION,
+  type EvaluatorSpecDefinition,
+  EvaluatorSpecDefinitionSchema,
+  ORACLE_SPEC_SCHEMA_VERSION,
+  type OracleSpecDefinition,
+  OracleSpecDefinitionSchema,
+} from "./evaluation-spec.js";
 import { type EvidenceScope, EvidenceScopeSchema } from "./evidence.js";
 
 export const EVALUATION_DEFINITION_ENCODING_VERSION =
@@ -27,6 +35,8 @@ export const SOURCE_SNAPSHOT_DEFINITION_DOMAIN = "proofstack.source-snapshot.v1"
 export const SOURCE_REVIEW_DEFINITION_DOMAIN = "proofstack.source-review.v1" as const;
 export const CRITERION_SET_DEFINITION_DOMAIN = "proofstack.criterion-set.v1" as const;
 export const CRITERION_SET_STATUS_DEFINITION_DOMAIN = "proofstack.criterion-set-status.v1" as const;
+export const ORACLE_SPEC_DEFINITION_DOMAIN = "proofstack.oracle-spec.v1" as const;
+export const EVALUATOR_SPEC_DEFINITION_DOMAIN = "proofstack.evaluator-spec.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -222,6 +232,30 @@ export function encodeCriterionSetStatusDefinition(
   return encodeDefinition(
     CRITERION_SET_STATUS_DEFINITION_DOMAIN,
     CRITERION_SET_STATUS_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeOracleSpecDefinition(
+  input: ScopedEvaluationDefinition<OracleSpecDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(OracleSpecDefinitionSchema).parse(input);
+  return encodeDefinition(
+    ORACLE_SPEC_DEFINITION_DOMAIN,
+    ORACLE_SPEC_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeEvaluatorSpecDefinition(
+  input: ScopedEvaluationDefinition<EvaluatorSpecDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(EvaluatorSpecDefinitionSchema).parse(input);
+  return encodeDefinition(
+    EVALUATOR_SPEC_DEFINITION_DOMAIN,
+    EVALUATOR_SPEC_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

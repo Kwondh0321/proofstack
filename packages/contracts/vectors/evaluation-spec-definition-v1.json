@@ -1,0 +1,174 @@
+{
+  "format": "proofstack.evaluation-spec-definition.v1",
+  "vectors": [
+    {
+      "name": "registered schema oracle with denied ambient authority",
+      "kind": "oracle_spec",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "budgets": {
+            "elapsedMilliseconds": 5000,
+            "inputBytes": 1048576,
+            "memoryBytes": 268435456,
+            "outputBytes": 1048576
+          },
+          "configurationSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+          "implementation": {
+            "dependencySnapshotSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "entryPointId": "ent_schema",
+            "implementationId": "imp_schema",
+            "implementationSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "implementationVersionId": "imv_schema_v1",
+            "runtime": {
+              "architecture": "arm64",
+              "family": "node",
+              "platform": "darwin",
+              "version": "24.0.0"
+            },
+            "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "inputSchema": {
+            "artifactId": "art_oracle_input",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "sizeBytes": 1024
+          },
+          "kind": "schema",
+          "knownLimitations": ["Valid structure does not imply factual correctness"],
+          "oracleId": "orc_schema",
+          "oracleVersionId": "orv_schema_v1",
+          "outputSchema": {
+            "artifactId": "art_oracle_output",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sizeBytes": 1024
+          },
+          "qualificationFixtureSet": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "fixtureSetId": "qfs_schema",
+            "fixtureSetVersionId": "qfv_schema_v1"
+          },
+          "resultSemantics": "Emit an exact schema violation count and paths without assessment.",
+          "runtimePolicy": {
+            "clock": { "instant": "2026-09-01T00:00:00Z", "mode": "fixed" },
+            "dataEgress": "denied",
+            "locale": "en",
+            "network": "denied",
+            "seed": { "mode": "fixed", "value": 42 },
+            "sideEffects": "denied"
+          },
+          "supportedCriteria": [
+            {
+              "criterionId": "crt_schema",
+              "criterionSet": {
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 2128,
+      "sha256": "64a96ebb054d608283a84d9595e12ce98f0f663ca0d9048dc871f03a6c656c55"
+    },
+    {
+      "name": "deterministic evaluator with explicit independence and oracle lineage",
+      "kind": "evaluator_spec",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "budgets": {
+            "elapsedMilliseconds": 5000,
+            "inputBytes": 1048576,
+            "memoryBytes": 268435456,
+            "outputBytes": 1048576
+          },
+          "configurationSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+          "evaluatorId": "evl_schema",
+          "evaluatorVersionId": "evv_schema_v1",
+          "implementation": {
+            "dependencySnapshotSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "entryPointId": "ent_schema",
+            "implementationId": "imp_schema",
+            "implementationSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "implementationVersionId": "imv_schema_v1",
+            "runtime": {
+              "architecture": "arm64",
+              "family": "node",
+              "platform": "darwin",
+              "version": "24.0.0"
+            },
+            "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "independenceGroup": {
+            "groupId": "ind_schema",
+            "implementationAuthors": ["ProofStack maintainers"],
+            "labelSourceIds": ["lbl_schema"],
+            "organization": "ProofStack"
+          },
+          "inputSchema": {
+            "artifactId": "art_evaluator_input",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 1024
+          },
+          "kindDeclaration": { "kind": "deterministic" },
+          "knownLimitations": ["Evaluates only the declared schema criterion"],
+          "oracles": [
+            {
+              "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "oracleId": "orc_schema",
+              "oracleVersionId": "orv_schema_v1"
+            }
+          ],
+          "outputSchema": {
+            "artifactId": "art_evaluator_output",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 1024
+          },
+          "qualificationFixtureSet": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "fixtureSetId": "qfs_schema",
+            "fixtureSetVersionId": "qfv_schema_v1"
+          },
+          "reproducibility": "exact",
+          "runtimePolicy": {
+            "clock": { "instant": "2026-09-01T00:00:00Z", "mode": "fixed" },
+            "dataEgress": "denied",
+            "locale": "en",
+            "network": "denied",
+            "seed": { "mode": "fixed", "value": 42 },
+            "sideEffects": "denied"
+          },
+          "supportedCriteria": [
+            {
+              "criterionId": "crt_schema",
+              "criterionSet": {
+                "criterionSetId": "crs_response",
+                "criterionSetVersionId": "csv_response_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 2417,
+      "sha256": "647b019068b708eec555b4d3f25c1ae03ce1a90d9eb2b5167ea98899a95d233a"
+    }
+  ]
+}
