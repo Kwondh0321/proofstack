@@ -158,12 +158,16 @@ describe("discovery source contracts", () => {
 
   it("rejects incomplete ranks, duplicate URIs, and candidates beyond the declared bound", () => {
     const incomplete = discoveryDefinition();
-    incomplete.candidates[1] = { ...incomplete.candidates[1]!, rank: 3 };
+    const incompleteSecond = incomplete.candidates[1];
+    if (!incompleteSecond) throw new Error("Expected the second discovery candidate");
+    incomplete.candidates[1] = { ...incompleteSecond, rank: 3 };
     expect(DiscoveryRecordDefinitionSchema.safeParse(incomplete).success).toBe(false);
 
     const duplicate = discoveryDefinition();
+    const duplicateSecond = duplicate.candidates[1];
+    if (!duplicateSecond) throw new Error("Expected the second discovery candidate");
     duplicate.candidates[1] = {
-      ...duplicate.candidates[1]!,
+      ...duplicateSecond,
       canonicalUri: duplicate.candidates[0]?.canonicalUri ?? "",
     };
     expect(DiscoveryRecordDefinitionSchema.safeParse(duplicate).success).toBe(false);
@@ -191,8 +195,10 @@ describe("discovery source contracts", () => {
     expect(DiscoveryRecordDefinitionSchema.parse(value).candidates).toEqual([]);
 
     const pending = discoveryDefinition();
+    const pendingFirst = pending.candidates[0];
+    if (!pendingFirst) throw new Error("Expected the first discovery candidate");
     pending.candidates[0] = {
-      ...pending.candidates[0]!,
+      ...pendingFirst,
       selection: { decision: "pending" },
     };
     expect(DiscoveryRecordDefinitionSchema.safeParse(pending).success).toBe(true);
