@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-model-assurance-assessment-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3143,
+      "encodedByteLength": 3265,
       "input": {
         "definition": {
           "assessmentExtensionId": "maa_agent_safety_v1",
@@ -22,6 +22,11 @@
           "calibrationReport": {
             "calibrationReportId": "cal_model_safety_v1",
             "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "calibrationContext": {
+            "locale": "en",
+            "populationTags": ["agent:tool-using", "deployment:test"],
+            "taskKindId": "task_tool_use"
           },
           "counterevidence": [
             {
@@ -115,7 +120,7 @@
       },
       "kind": "model_assurance_assessment",
       "name": "high-risk model and human assurance assessment",
-      "sha256": "43ef3cb0ac726ceca5ed6de5eed275bedd8c5d75032a87883c080dae9883aef4"
+      "sha256": "2d26ab0d2bf04d19689d8c6e74e7a96e3cd9f1fbfbeee1c776f0b1daf7035c67"
     }
   ]
 }

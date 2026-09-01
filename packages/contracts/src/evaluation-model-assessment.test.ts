@@ -41,6 +41,11 @@ export function modelAssuranceAssessmentDefinition(): ModelAssuranceAssessmentDe
       calibrationReportId: "cal_model_safety_v1",
       definitionSha256: sha("3"),
     },
+    calibrationContext: {
+      locale: "en",
+      populationTags: ["agent:tool-using", "deployment:test"],
+      taskKindId: "task_tool_use",
+    },
     counterevidence: [artifact("art_assurance_counterevidence", "4")],
     critiques: [
       {
@@ -155,6 +160,12 @@ describe("model assurance assessment contracts", () => {
     declarations.independenceDeclarations = [...declarations.independenceDeclarations].reverse();
     expect(() => ModelAssuranceAssessmentDefinitionSchema.parse(declarations)).toThrow(
       "ordered by exact reference",
+    );
+
+    const population = modelAssuranceAssessmentDefinition();
+    population.calibrationContext.populationTags = ["deployment:test", "agent:tool-using"];
+    expect(() => ModelAssuranceAssessmentDefinitionSchema.parse(population)).toThrow(
+      "population tags must be unique and ordered",
     );
 
     const expired = modelAssuranceAssessmentDefinition();

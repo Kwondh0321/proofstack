@@ -39,23 +39,29 @@ function exactArtifacts(minimum: number, maximum: number, label: string) {
 
 export const ModelAssuranceIneligibilityReasonSchema = z.enum([
   "base_assessment_ineligible",
+  "assurance_lineage_mismatch",
+  "assurance_scope_mismatch",
   "blind_incomplete",
   "blind_invalid",
   "calibration_incompatible",
   "calibration_stale",
   "calibration_unavailable",
   "critical_counterevidence",
+  "critique_invalid",
   "human_review_conflicted",
   "human_review_expired",
   "human_review_missing",
   "human_review_protocol_mismatch",
   "human_review_quorum_shortfall",
+  "human_review_invalid",
   "independence_correlated",
   "independence_unverified",
   "injection_qualification_failed",
   "model_qualification_stale",
   "model_qualification_unqualified",
+  "model_qualification_invalid",
   "non_model_evidence_missing",
+  "non_model_evidence_invalid",
   "order_sensitive_result",
   "source_stale",
   "unresolved_disagreement",
@@ -74,6 +80,15 @@ const modelAssuranceAssessmentDefinitionShape = {
   blindedPlan: BlindedEvaluationPlanReferenceSchema,
   blindedResult: BlindedEvaluationResultReferenceSchema,
   calibrationReport: CalibrationReportReferenceSchema,
+  calibrationContext: z
+    .object({
+      locale: z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/),
+      populationTags: z.array(AssuranceSummarySchema).max(64).refine(isStrictlySortedUnique, {
+        message: "Model assurance population tags must be unique and ordered",
+      }),
+      taskKindId: OpaqueIdSchema,
+    })
+    .strict(),
   counterevidence: exactArtifacts(0, 64, "Model assurance counterevidence"),
   critiques: z
     .array(IndependentCritiqueReferenceSchema)

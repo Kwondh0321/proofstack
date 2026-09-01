@@ -69,6 +69,9 @@ describe("canonical model assurance assessment encoding", () => {
         candidate.definition.calibrationReport.definitionSha256 = "1".repeat(64);
       },
       (candidate) => {
+        candidate.definition.calibrationContext.taskKindId = "task_other";
+      },
+      (candidate) => {
         const review = candidate.definition.humanReviews[0];
         if (!review) throw new Error("Expected human review");
         review.definitionSha256 = "2".repeat(64);
