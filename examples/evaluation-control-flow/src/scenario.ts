@@ -1,6 +1,6 @@
+// biome-ignore-all lint/complexity/useLiteralKeys: Contract vectors are intentionally mutated through unknown-key objects before strict reparsing.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-// biome-ignore-all lint/complexity/useLiteralKeys: Contract vectors are intentionally mutated through unknown-key objects before strict reparsing.
 import {
   AssessmentDefinitionSchema,
   CriterionSetDefinitionSchema,
