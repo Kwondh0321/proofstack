@@ -2,7 +2,6 @@ import type {
   BlindedEvaluationPlan,
   BlindedEvaluationResult,
   CalibrationReport,
-  EvidenceScope,
   HumanReviewerIndependence,
   HumanReviewProtocol,
   HumanReviewRecord,
@@ -14,39 +13,29 @@ import type {
   ModelQualificationReport,
   ModelQualificationSuite,
 } from "@proofstack/contracts";
-import {
-  modelAssuranceRecordId,
-  validateModelAssuranceRecord,
-} from "../evaluation/model-assurance-record-validation.js";
-import { modelAssuranceRecordReferences } from "../evaluation/model-assurance-record-lineage.js";
-import {
-  ModelAssuranceLineageError,
-  type ModelAssuranceRecord,
-  type ModelAssuranceRecordByKind,
-  ModelAssuranceRecordConflictError,
-  type ModelAssuranceRecordKind,
-  type ModelAssuranceRepository,
-  type PublishModelAssuranceRecordResult,
-} from "../evaluation/model-assurance-repository.js";
+import type {
+  ModelAssuranceRecord,
+  ModelAssuranceRecordKind,
+} from "./model-assurance-repository.js";
 
-interface ExactReference {
+export interface ModelAssuranceRecordReference {
   readonly definitionSha256: string;
-  readonly kind: ModelAssuranceRecordKind;
   readonly recordId: string;
+  readonly recordKind: ModelAssuranceRecordKind;
 }
 
 function exact(
-  kind: ModelAssuranceRecordKind,
+  recordKind: ModelAssuranceRecordKind,
   recordId: string,
   definitionSha256: string,
-): ExactReference {
-  return { definitionSha256, kind, recordId };
+): ModelAssuranceRecordReference {
+  return { definitionSha256, recordId, recordKind };
 }
 
-function references(
+export function modelAssuranceRecordReferences(
   kind: ModelAssuranceRecordKind,
   record: ModelAssuranceRecord,
-): ExactReference[] {
+): readonly ModelAssuranceRecordReference[] {
   switch (kind) {
     case "blinded_evaluation_plan": {
       const value = record as BlindedEvaluationPlan;
@@ -358,84 +347,5 @@ function references(
           : []),
       ];
     }
-  }
-}
-
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
-
-function sameScope(left: EvidenceScope, right: EvidenceScope): boolean {
-  return (
-    left.tenantId === right.tenantId &&
-    left.projectId === right.projectId &&
-    left.environmentId === right.environmentId
-  );
-}
-
-function key(tenantId: string, kind: ModelAssuranceRecordKind, recordId: string): string {
-  return `${tenantId}:${kind}:${recordId}`;
-}
-
-/** In-memory conformance reference; production code must use a durable transactional adapter. */
-export class MemoryModelAssuranceRepository implements ModelAssuranceRepository {
-  readonly #records = new Map<string, ModelAssuranceRecord>();
-
-  async find<K extends ModelAssuranceRecordKind>(
-    scope: EvidenceScope,
-    kind: K,
-    recordId: string,
-  ): Promise<ModelAssuranceRecordByKind[K] | null> {
-    const record = this.#records.get(key(scope.tenantId, kind, recordId));
-    if (!record || !sameScope(record.scope, scope)) return null;
-    return clone(record) as ModelAssuranceRecordByKind[K];
-  }
-
-  async publish<K extends ModelAssuranceRecordKind>(
-    kind: K,
-    candidate: ModelAssuranceRecordByKind[K],
-  ): Promise<PublishModelAssuranceRecordResult<ModelAssuranceRecordByKind[K]>> {
-    const parsed = validateModelAssuranceRecord(kind, candidate);
-    const recordId = modelAssuranceRecordId(kind, parsed);
-    const recordKey = key(parsed.scope.tenantId, kind, recordId);
-    const existing = this.#records.get(recordKey);
-    if (existing) {
-      if (
-        existing.definitionSha256 !== parsed.definitionSha256 ||
-        !sameScope(existing.scope, parsed.scope)
-      ) {
-        throw new ModelAssuranceRecordConflictError(kind, recordId);
-      }
-      return { created: false, record: clone(existing) as ModelAssuranceRecordByKind[K] };
-    }
-    const canonicalReferences = modelAssuranceRecordReferences(kind, parsed);
-    const referenceParity = references(kind, parsed).map((reference) => ({
-      definitionSha256: reference.definitionSha256,
-      recordId: reference.recordId,
-      recordKind: reference.kind,
-    }));
-    if (JSON.stringify(canonicalReferences) !== JSON.stringify(referenceParity)) {
-      throw new Error("Model-assurance reference extractors disagree");
-    }
-    for (const reference of canonicalReferences) {
-      const target = this.#records.get(
-        key(parsed.scope.tenantId, reference.recordKind, reference.recordId),
-      );
-      if (
-        !target ||
-        !sameScope(target.scope, parsed.scope) ||
-        target.definitionSha256 !== reference.definitionSha256
-      ) {
-        throw new ModelAssuranceLineageError(
-          kind,
-          recordId,
-          reference.recordKind,
-          reference.recordId,
-        );
-      }
-    }
-    const owned = clone(parsed);
-    this.#records.set(recordKey, owned);
-    return { created: true, record: clone(owned) as ModelAssuranceRecordByKind[K] };
   }
 }

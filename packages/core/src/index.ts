@@ -15,6 +15,7 @@ export * from "./evaluation/model-assurance-blinded-result.js";
 export * from "./evaluation/model-assurance-human-review.js";
 export * from "./evaluation/model-assurance-qualification.js";
 export * from "./evaluation/model-assurance-record-validation.js";
+export * from "./evaluation/model-assurance-record-lineage.js";
 export * from "./evaluation/model-assurance-repository.js";
 export * from "./evaluation/record-evaluation.js";
 export * from "./evaluation/record-model-assurance.js";
