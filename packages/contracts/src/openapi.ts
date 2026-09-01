@@ -59,6 +59,15 @@ import {
   RecordCriterionSetStatusRequestSchema,
   RecordEvaluationRunDecisionRequestSchema,
 } from "./evaluation-api.js";
+import {
+  CreateModelAssuranceAssessmentRequestSchema,
+  ModelAssuranceRecordKindSchema,
+  PublishModelAssuranceDefinitionRequestSchema,
+  PublishModelAssuranceRecordResponseSchema,
+  ReadModelAssuranceRecordResponseSchema,
+  RecordHumanReviewRequestSchema,
+  RecordModelAssuranceExecutionRequestSchema,
+} from "./evaluation-model-assurance-api.js";
 import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence.js";
 import { ExportRecordedInteractionFixtureContentRequestSchema } from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
@@ -253,6 +262,22 @@ const evaluationRecordKindParameter = {
   schema: schemaReference("EvaluationRecordKind"),
 } as const;
 
+const modelAssuranceRecordParameter = {
+  description: "Exact immutable model-assurance record identifier",
+  in: "path",
+  name: "recordId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const modelAssuranceRecordKindParameter = {
+  description: "Exact model-assurance record kind; mutable aliases are not accepted",
+  in: "path",
+  name: "kind",
+  required: true,
+  schema: schemaReference("ModelAssuranceRecordKind"),
+} as const;
+
 const bearerSecurity = [{ bearerAuth: [] }] as const;
 const browserSecurity = [{ browserSession: [] }] as const;
 const userOrWorkloadSecurity = [...bearerSecurity, ...browserSecurity] as const;
@@ -440,6 +465,22 @@ const evaluationStorageUnavailableResponse = {
   description: "Evaluation storage is unavailable or violated its public repository contract",
 } as const;
 
+const modelAssuranceNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "The exact model-assurance record does not exist in the authorized scope",
+} as const;
+
+const modelAssuranceConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable model-assurance record conflicts with existing semantics or exact lineage",
+} as const;
+
+const modelAssuranceStorageUnavailableResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "Model-assurance storage is unavailable or violated its repository contract",
+} as const;
+
 function replayJsonResponse(schemaName: string, description: string): Record<string, unknown> {
   return {
     content: { "application/json": { schema: schemaReference(schemaName) } },
@@ -460,6 +501,22 @@ function evaluationJsonResponse(schemaName: string, description: string): Record
     headers: {
       "Cache-Control": {
         description: "Evaluation control-plane responses are never cacheable",
+        schema: { const: "no-store", type: "string" },
+      },
+    },
+  };
+}
+
+function modelAssuranceJsonResponse(
+  schemaName: string,
+  description: string,
+): Record<string, unknown> {
+  return {
+    content: { "application/json": { schema: schemaReference(schemaName) } },
+    description,
+    headers: {
+      "Cache-Control": {
+        description: "Model-assurance responses are never cacheable",
         schema: { const: "no-store", type: "string" },
       },
     },
@@ -497,6 +554,33 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "output",
     ),
     ...componentsFor("ReadEvaluationRecordResponse", ReadEvaluationRecordResponseSchema, "output"),
+    ...componentsFor("ModelAssuranceRecordKind", ModelAssuranceRecordKindSchema, "input"),
+    ...componentsFor(
+      "PublishModelAssuranceDefinitionRequest",
+      PublishModelAssuranceDefinitionRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "RecordModelAssuranceExecutionRequest",
+      RecordModelAssuranceExecutionRequestSchema,
+      "input",
+    ),
+    ...componentsFor("RecordHumanReviewRequest", RecordHumanReviewRequestSchema, "input"),
+    ...componentsFor(
+      "CreateModelAssuranceAssessmentRequest",
+      CreateModelAssuranceAssessmentRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "PublishModelAssuranceRecordResponse",
+      PublishModelAssuranceRecordResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadModelAssuranceRecordResponse",
+      ReadModelAssuranceRecordResponseSchema,
+      "output",
+    ),
     ...componentsFor(
       "PublishRegressionFixtureVersionRequest",
       PublishRegressionFixtureVersionRequestSchema,
@@ -1681,6 +1765,177 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             tags: ["Evaluation"],
           },
         },
+      "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/definitions/{recordId}":
+        {
+          post: {
+            description:
+              "Publishes one exact immutable model profile, evaluator, independence declaration, calibration report, blind plan, qualification suite, human-review protocol, or reviewer-independence declaration. Execution and human-review records are rejected here. Requires non-delegable evaluation:manage authority.",
+            operationId: "publishModelAssuranceDefinition",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              modelAssuranceRecordParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishModelAssuranceDefinitionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "An identical retry returned the existing immutable definition",
+              ),
+              "201": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "A new immutable model-assurance definition was published",
+              ),
+              ...problemResponses,
+              "409": modelAssuranceConflictResponse,
+              "503": modelAssuranceStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish an exact model-assurance definition",
+            tags: ["Model assurance"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/executions/{recordId}":
+        {
+          post: {
+            description:
+              "Records one exact preauthorized blinded result, independent critique, or model-qualification report. The route accepts strict artifact references rather than arbitrary prompts or destinations and requires evaluation:model:run workload authority.",
+            operationId: "recordModelAssuranceExecution",
+            parameters: [projectParameter, environmentParameter, modelAssuranceRecordParameter],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("RecordModelAssuranceExecutionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "An identical retry returned the existing immutable execution record",
+              ),
+              "201": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "A new immutable model-assurance execution record was appended",
+              ),
+              ...problemResponses,
+              "409": modelAssuranceConflictResponse,
+              "503": modelAssuranceStorageUnavailableResponse,
+            },
+            security: bearerSecurity,
+            summary: "Record bounded model-assurance execution evidence",
+            tags: ["Model assurance"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/human-reviews/{recordId}":
+        {
+          post: {
+            description:
+              "Appends one authenticated human review under an exact protocol and reviewer session. Reviews remain evidence, cannot overwrite dissent, and cannot grant release authority. Requires user-only evaluation:human:review authority.",
+            operationId: "recordModelAssuranceHumanReview",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              modelAssuranceRecordParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": { schema: schemaReference("RecordHumanReviewRequest") },
+              },
+              required: true,
+            },
+            responses: {
+              "200": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "An identical retry returned the existing immutable human review",
+              ),
+              "201": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "A new immutable human review was appended",
+              ),
+              ...problemResponses,
+              "409": modelAssuranceConflictResponse,
+              "503": modelAssuranceStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Append an accountable human review",
+            tags: ["Model assurance"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/assessments/{recordId}":
+        {
+          post: {
+            description:
+              "Creates one conservative model-assurance assessment from exact retained evidence. Eligibility, reasons, and evaluation time are derived by the server and do not grant policy, approval, deployment, or release authority. Requires evaluation:manage.",
+            operationId: "createModelAssuranceAssessment",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              modelAssuranceRecordParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("CreateModelAssuranceAssessmentRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "An identical retry returned the existing immutable assessment",
+              ),
+              "201": modelAssuranceJsonResponse(
+                "PublishModelAssuranceRecordResponse",
+                "A new immutable model-assurance assessment was created",
+              ),
+              ...problemResponses,
+              "409": modelAssuranceConflictResponse,
+              "503": modelAssuranceStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Create a conservative model-assurance assessment",
+            tags: ["Model assurance"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/records/{kind}/{recordId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable model-assurance record by strict kind and identifier. Cross-scope records and absent records share the not-found response. There is no latest alias.",
+            operationId: "getModelAssuranceRecord",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              modelAssuranceRecordKindParameter,
+              modelAssuranceRecordParameter,
+            ],
+            responses: {
+              "200": modelAssuranceJsonResponse(
+                "ReadModelAssuranceRecordResponse",
+                "The exact immutable model-assurance record",
+              ),
+              ...problemResponses,
+              "404": modelAssuranceNotFoundResponse,
+              "503": modelAssuranceStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact model-assurance record",
+            tags: ["Model assurance"],
+          },
+        },
       "/v1/projects/{projectId}/environments/{environmentId}/replay-targets/{targetId}/releases/{targetReleaseId}":
         {
           post: {
@@ -2017,6 +2272,11 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         description:
           "Exact immutable evaluation definitions, lifecycle decisions, assessments, and graph reads",
         name: "Evaluation",
+      },
+      {
+        description:
+          "Exact model and human evaluation evidence with separated management, workload, and reviewer authority",
+        name: "Model assurance",
       },
       { description: "OpenTelemetry-compatible ingestion", name: "Telemetry" },
     ],

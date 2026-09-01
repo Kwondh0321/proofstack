@@ -45,6 +45,16 @@ describe("ProofStack OpenAPI document", () => {
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/evaluations/run-decisions/{recordId}":
           {},
+        "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/assessments/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/definitions/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/executions/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/human-reviews/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/records/{kind}/{recordId}":
+          {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/content": {},
@@ -77,6 +87,86 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
     });
+  });
+
+  it("documents separated exact model-assurance authority and no mutable aliases", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, unknown>;
+          security: unknown;
+        };
+        post?: {
+          parameters: Array<{ name: string }>;
+          requestBody: { content: { "application/json": { schema: { $ref: string } } } };
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const prefix = "/v1/projects/{projectId}/environments/{environmentId}/model-assurance";
+    const definition = paths[`${prefix}/definitions/{recordId}`]?.post;
+    const execution = paths[`${prefix}/executions/{recordId}`]?.post;
+    const review = paths[`${prefix}/human-reviews/{recordId}`]?.post;
+    const assessment = paths[`${prefix}/assessments/{recordId}`]?.post;
+    const read = paths[`${prefix}/records/{kind}/{recordId}`]?.get;
+
+    expect(definition?.security).toEqual([{ browserSession: [] }]);
+    expect(execution?.security).toEqual([{ bearerAuth: [] }]);
+    expect(review?.security).toEqual([{ browserSession: [] }]);
+    expect(assessment?.security).toEqual([{ browserSession: [] }]);
+    expect(read?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(definition?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/PublishModelAssuranceDefinitionRequest",
+    );
+    expect(execution?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/RecordModelAssuranceExecutionRequest",
+    );
+    expect(review?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/RecordHumanReviewRequest",
+    );
+    expect(assessment?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/CreateModelAssuranceAssessmentRequest",
+    );
+    expect(execution?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "recordId",
+    ]);
+    expect(read?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "kind",
+      "recordId",
+    ]);
+    for (const operation of [definition, execution, review, assessment]) {
+      expect(operation?.responses).toHaveProperty("200");
+      expect(operation?.responses).toHaveProperty("201");
+      expect(operation?.responses).toHaveProperty("409");
+      expect(operation?.responses).toHaveProperty("503");
+      expect(operation?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    }
+    expect(read?.responses).toHaveProperty("404");
+    expect(read?.responses).toHaveProperty("503");
+    for (const schema of [
+      "ModelAssuranceRecordKind",
+      "PublishModelAssuranceDefinitionRequest",
+      "RecordModelAssuranceExecutionRequest",
+      "RecordHumanReviewRequest",
+      "CreateModelAssuranceAssessmentRequest",
+      "PublishModelAssuranceRecordResponse",
+      "ReadModelAssuranceRecordResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
+    const assurancePaths = Object.keys(paths).filter((path) => path.includes("/model-assurance/"));
+    expect(assurancePaths).toHaveLength(5);
+    expect(assurancePaths.some((path) => /latest|arbitrary-prompt|release/.test(path))).toBe(false);
   });
 
   it("documents exact evaluation control without worker mutation or latest aliases", () => {
