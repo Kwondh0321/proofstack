@@ -1083,3 +1083,6 @@ export type AssessmentDefinition = z.infer<typeof AssessmentDefinitionSchema>;
 export type EvaluationAggregate = z.infer<typeof EvaluationAggregateSchema>;
 export type EvaluationAggregateDefinition = z.infer<typeof EvaluationAggregateDefinitionSchema>;
 export type EvaluationAggregationPolicy = z.infer<typeof EvaluationAggregationPolicySchema>;
+export type EvaluationAggregationPolicyDefinition = z.infer<
+  typeof EvaluationAggregationPolicyDefinitionSchema
+>;

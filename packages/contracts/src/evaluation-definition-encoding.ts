@@ -1,5 +1,16 @@
 import { z } from "zod";
 import {
+  ASSESSMENT_SCHEMA_VERSION,
+  type AssessmentDefinition,
+  AssessmentDefinitionSchema,
+  EVALUATION_AGGREGATE_SCHEMA_VERSION,
+  EVALUATION_AGGREGATION_POLICY_SCHEMA_VERSION,
+  type EvaluationAggregateDefinition,
+  EvaluationAggregateDefinitionSchema,
+  type EvaluationAggregationPolicyDefinition,
+  EvaluationAggregationPolicyDefinitionSchema,
+} from "./evaluation-assessment.js";
+import {
   CRITERION_SET_SCHEMA_VERSION,
   CRITERION_SET_STATUS_SCHEMA_VERSION,
   type CriterionSetDefinition,
@@ -61,6 +72,10 @@ export const EVALUATION_RUN_DEFINITION_DOMAIN = "proofstack.evaluation-run.v1" a
 export const RAW_OBSERVATION_DEFINITION_DOMAIN = "proofstack.raw-observation.v1" as const;
 export const EVALUATION_RUN_RESULT_DEFINITION_DOMAIN =
   "proofstack.evaluation-run-result.v1" as const;
+export const EVALUATION_AGGREGATION_POLICY_DEFINITION_DOMAIN =
+  "proofstack.evaluation-aggregation-policy.v1" as const;
+export const EVALUATION_AGGREGATE_DEFINITION_DOMAIN = "proofstack.evaluation-aggregate.v1" as const;
+export const ASSESSMENT_DEFINITION_DOMAIN = "proofstack.assessment.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -340,6 +355,42 @@ export function encodeEvaluationRunResultDefinition(
   return encodeDefinition(
     EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,
     EVALUATION_RUN_RESULT_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeEvaluationAggregationPolicyDefinition(
+  input: ScopedEvaluationDefinition<EvaluationAggregationPolicyDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(EvaluationAggregationPolicyDefinitionSchema).parse(input);
+  return encodeDefinition(
+    EVALUATION_AGGREGATION_POLICY_DEFINITION_DOMAIN,
+    EVALUATION_AGGREGATION_POLICY_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeEvaluationAggregateDefinition(
+  input: ScopedEvaluationDefinition<EvaluationAggregateDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(EvaluationAggregateDefinitionSchema).parse(input);
+  return encodeDefinition(
+    EVALUATION_AGGREGATE_DEFINITION_DOMAIN,
+    EVALUATION_AGGREGATE_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeAssessmentDefinition(
+  input: ScopedEvaluationDefinition<AssessmentDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(AssessmentDefinitionSchema).parse(input);
+  return encodeDefinition(
+    ASSESSMENT_DEFINITION_DOMAIN,
+    ASSESSMENT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

@@ -1,0 +1,260 @@
+{
+  "format": "proofstack.evaluation-assessment-definition.v1",
+  "vectors": [
+    {
+      "name": "fixed Wilson aggregation policy for one bounded dataset",
+      "kind": "aggregation_policy",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "changeRationale": "Initial fixed aggregation policy for the bounded regression dataset.",
+          "dataset": {
+            "datasetId": "dts_regression",
+            "datasetVersionId": "dtv_regression_v1",
+            "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "knownLimitations": ["The selected dataset is not evidence of the production population"],
+          "maximumAbstentionRateBasisPoints": 2500,
+          "maximumErrorRateBasisPoints": 2500,
+          "method": {
+            "confidenceLevelBasisPoints": 9500,
+            "method": "wilson_score_interval",
+            "methodVersion": "1.0.0"
+          },
+          "minimumApplicableCount": 2,
+          "minimumCoverageBasisPoints": 5000,
+          "minimumDecidedCount": 2,
+          "policyId": "agp_schema",
+          "policyVersionId": "agv_schema_v1",
+          "selectionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+        }
+      },
+      "encodedByteLength": 997,
+      "sha256": "d5a8d4189295ddb62e20a3362412bdc050d926a45ce17d5362c3e182db3eaafc"
+    },
+    {
+      "name": "two-member aggregate preserving exact counts and Wilson uncertainty",
+      "kind": "evaluation_aggregate",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "abstentionRate": { "denominator": 2, "numerator": 0, "status": "available" },
+          "aggregateId": "eva_schema",
+          "aggregationPolicy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "agp_schema",
+            "policyVersionId": "agv_schema_v1"
+          },
+          "counts": {
+            "abstainCount": 0,
+            "applicableCount": 2,
+            "attemptedCount": 2,
+            "decidedCount": 2,
+            "errorCount": 0,
+            "failCount": 1,
+            "notApplicableCount": 0,
+            "passCount": 1,
+            "selectedCount": 2
+          },
+          "coverage": { "denominator": 2, "numerator": 2, "status": "available" },
+          "criterion": {
+            "criterionId": "crt_schema",
+            "criterionSet": {
+              "criterionSetId": "crs_response",
+              "criterionSetVersionId": "csv_response_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          },
+          "errorRate": { "denominator": 2, "numerator": 0, "status": "available" },
+          "knownLimitations": ["The two exact fixtures do not prove production representativeness"],
+          "members": [
+            {
+              "independenceGroupId": "ind_schema",
+              "result": {
+                "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "evaluationRunId": "evr_0",
+                "resultId": "evs_0"
+              },
+              "run": {
+                "definitionSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                "evaluationRunId": "evr_0"
+              },
+              "verdict": "pass"
+            },
+            {
+              "independenceGroupId": "ind_schema",
+              "result": {
+                "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "evaluationRunId": "evr_1",
+                "resultId": "evs_1"
+              },
+              "run": {
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "evaluationRunId": "evr_1"
+              },
+              "verdict": "fail"
+            }
+          ],
+          "passInterval": {
+            "interval": {
+              "confidenceLevelBasisPoints": 9500,
+              "lowerBound": "0.0945286548008661",
+              "method": "wilson_score_interval",
+              "methodVersion": "1.0.0",
+              "successCount": 1,
+              "trialCount": 2,
+              "upperBound": "0.9054713451991339"
+            },
+            "status": "reported"
+          },
+          "passProportion": { "denominator": 2, "numerator": 1, "status": "available" },
+          "samplingAssumption": {
+            "evidence": [
+              {
+                "artifactId": "art_sampling_assumption",
+                "classification": "internal",
+                "mediaType": "application/json",
+                "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "sizeBytes": 1024
+              }
+            ],
+            "status": "supported"
+          }
+        }
+      },
+      "encodedByteLength": 2311,
+      "sha256": "90d3255448774509a69ec9d60e9cc70f4528ae680b5c0886df895107b2e54bc6"
+    },
+    {
+      "name": "eligible contestable assessment without release authority",
+      "kind": "assessment",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "aggregate": {
+            "aggregateId": "eva_schema",
+            "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "aggregationPolicy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "agp_schema",
+            "policyVersionId": "agv_schema_v1"
+          },
+          "assessmentId": "asm_schema",
+          "assumptions": [
+            "The selected fixtures are treated as the complete bounded evaluation set"
+          ],
+          "conflicts": [],
+          "counterevidence": [],
+          "criterion": {
+            "criterionId": "crt_schema",
+            "criterionSet": {
+              "criterionSetId": "crs_response",
+              "criterionSetVersionId": "csv_response_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          },
+          "criterionLifecycleStatus": "approved",
+          "criterionStatus": {
+            "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "statusRecordId": "csr_approved"
+          },
+          "dimensions": {
+            "applicability": "applicable",
+            "coverage": "sufficient",
+            "independence": "sufficient",
+            "integrity": "verified",
+            "qualification": "current",
+            "sourceFreshness": "current",
+            "sourceIdentity": "verified",
+            "statisticalAssumptions": "supported"
+          },
+          "disagreement": { "status": "none" },
+          "eligibility": { "status": "eligible" },
+          "exclusions": [],
+          "independenceGroups": [
+            {
+              "groupId": "ind_schema",
+              "implementationAuthors": ["ProofStack maintainers"],
+              "labelSourceIds": ["lbl_schema"],
+              "organization": "ProofStack"
+            }
+          ],
+          "knownLimitations": ["Eligibility is evidence usability, not release approval"],
+          "minorityFindings": [],
+          "observations": [
+            {
+              "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+              "observationId": "obs_0"
+            },
+            {
+              "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+              "observationId": "obs_1"
+            }
+          ],
+          "observedEvidenceClasses": [
+            "artifact",
+            "deterministic_oracle",
+            "replay_result",
+            "source_snapshot",
+            "statistical_aggregate"
+          ],
+          "qualifications": [
+            {
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "qualificationReportId": "qlr_evaluator"
+            },
+            {
+              "definitionSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "qualificationReportId": "qlr_oracle"
+            }
+          ],
+          "requiredEvidenceClasses": [
+            "deterministic_oracle",
+            "replay_result",
+            "source_snapshot",
+            "statistical_aggregate"
+          ],
+          "requiredIndependentGroups": 1,
+          "riskTier": "moderate",
+          "runs": [
+            {
+              "definitionSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "evaluationRunId": "evr_0"
+            },
+            {
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+              "evaluationRunId": "evr_1"
+            }
+          ],
+          "sourceReviews": [
+            {
+              "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+              "sourceReviewId": "srv_primary"
+            },
+            {
+              "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+              "sourceReviewId": "srv_secondary"
+            }
+          ],
+          "supportRationale": "The bounded aggregate supports the criterion while preserving its explicit limitations.",
+          "supportStatus": "supported"
+        }
+      },
+      "encodedByteLength": 3080,
+      "sha256": "6a37d89baf4427f29d232c0e5a457f2189b8b4b86f432dc4dfa7e716f2389513"
+    }
+  ]
+}
