@@ -512,7 +512,7 @@ export class EvaluationScenario {
       ...object(definition["applicability"], "run applicability"),
       context,
       contextSha256: contextSha256(context),
-      evaluatedAt: "2026-09-02T00:00:00Z",
+      evaluatedAt: "2026-09-01T00:02:00Z",
       result: applicability.result,
     };
     definition["attempts"] =

@@ -157,6 +157,7 @@ describe("PostgreSQL evidence schema", () => {
       "0036_evaluation_management_capability",
       "0037_evaluation_graph_registry",
       "0038_align_evaluation_execution_authority",
+      "0039_ignore_evaluation_selectors_in_lineage",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -165,6 +166,67 @@ describe("PostgreSQL evidence schema", () => {
         : expectedMigrations.slice(-firstMigration.newlyAppliedIds.length),
     );
     await expect(assertMigrationsCurrent(pool)).resolves.toBeUndefined();
+
+    const selectorSafeLineage = await pool.query<{
+      readonly parent_definition_sha256: string | null;
+      readonly parent_record_id: string;
+      readonly parent_record_kind: string;
+    }>(`
+      SELECT parent_record_kind, parent_record_id, parent_definition_sha256
+      FROM public.proofstack_evaluation_record_references(
+        'oracle_spec',
+        'orv_reference_v1',
+        jsonb_build_object(
+          'oracleVersionId', 'orv_reference_v1',
+          'qualificationFixtureSet', jsonb_build_object(
+            'fixtureSetVersionId', 'qfv_reference_v1',
+            'definitionSha256', repeat('a', 64)
+          ),
+          'supportedCriteria', jsonb_build_array(jsonb_build_object(
+            'criterionSetVersionId', 'csv_future_v1'
+          ))
+        )
+      )
+    `);
+    expect(selectorSafeLineage.rows).toEqual([
+      {
+        parent_definition_sha256: "a".repeat(64),
+        parent_record_id: "qfv_reference_v1",
+        parent_record_kind: "qualification_fixture_set",
+      },
+    ]);
+
+    const idOnlyResultLineage = await pool.query<{
+      readonly parent_definition_sha256: string | null;
+      readonly parent_record_id: string;
+      readonly parent_record_kind: string;
+    }>(`
+      SELECT parent_record_kind, parent_record_id, parent_definition_sha256
+      FROM public.proofstack_evaluation_record_references(
+        'evaluation_run_result',
+        'evs_reference',
+        jsonb_build_object(
+          'resultId', 'evs_reference',
+          'evaluationRunId', 'evr_reference',
+          'observations', jsonb_build_array(jsonb_build_object(
+            'observationId', 'obs_reference',
+            'definitionSha256', repeat('b', 64)
+          ))
+        )
+      )
+    `);
+    expect(idOnlyResultLineage.rows).toEqual([
+      {
+        parent_definition_sha256: null,
+        parent_record_id: "evr_reference",
+        parent_record_kind: "evaluation_run",
+      },
+      {
+        parent_definition_sha256: "b".repeat(64),
+        parent_record_id: "obs_reference",
+        parent_record_kind: "raw_observation",
+      },
+    ]);
 
     const normalizedRetryColumns = await pool.query<{
       readonly column_name: string;
