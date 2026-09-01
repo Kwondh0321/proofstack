@@ -58,6 +58,9 @@ import {
   QualificationReportDefinitionSchema,
 } from "./evaluation-spec.js";
 import {
+  CALIBRATION_REPORT_SCHEMA_VERSION,
+  type CalibrationReportDefinition,
+  CalibrationReportDefinitionSchema,
   INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
   type IndependenceDeclarationDefinition,
   IndependenceDeclarationDefinitionSchema,
@@ -80,6 +83,7 @@ export const MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN =
   "proofstack.model-evaluator-profile.v1" as const;
 export const INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN =
   "proofstack.independence-declaration.v1" as const;
+export const CALIBRATION_REPORT_DEFINITION_DOMAIN = "proofstack.calibration-report.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -336,6 +340,18 @@ export function encodeIndependenceDeclarationDefinition(
   return encodeDefinition(
     INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN,
     INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeCalibrationReportDefinition(
+  input: ScopedEvaluationDefinition<CalibrationReportDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(CalibrationReportDefinitionSchema).parse(input);
+  return encodeDefinition(
+    CALIBRATION_REPORT_DEFINITION_DOMAIN,
+    CALIBRATION_REPORT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

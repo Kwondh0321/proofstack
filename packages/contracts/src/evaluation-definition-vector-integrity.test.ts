@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   ASSESSMENT_DEFINITION_DOMAIN,
+  CALIBRATION_REPORT_DEFINITION_DOMAIN,
   CRITERION_SET_DEFINITION_DOMAIN,
   CRITERION_SET_STATUS_DEFINITION_DOMAIN,
   DISCOVERY_RECORD_DEFINITION_DOMAIN,
   encodeAssessmentDefinition,
+  encodeCalibrationReportDefinition,
   encodeCriterionSetDefinition,
   encodeCriterionSetStatusDefinition,
   encodeDiscoveryRecordDefinition,
@@ -74,6 +76,7 @@ const vectorFiles = [
   "evaluation-assessment-definition-v1.json",
   "evaluation-model-assurance-definition-v1.json",
   "evaluation-independence-definition-v1.json",
+  "evaluation-calibration-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -91,6 +94,10 @@ const registry = {
   assessment: {
     domain: ASSESSMENT_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeAssessmentDefinition(input as never),
+  },
+  calibration_report: {
+    domain: CALIBRATION_REPORT_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeCalibrationReportDefinition(input as never),
   },
   criterion_set: {
     domain: CRITERION_SET_DEFINITION_DOMAIN,

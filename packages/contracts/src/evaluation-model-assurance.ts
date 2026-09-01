@@ -1,12 +1,21 @@
 import { z } from "zod";
 import { ArtifactContentReferenceSchema } from "./artifact.js";
-import { CriterionVersionSelectorSchema } from "./evaluation-criteria.js";
+import {
+  CriterionReferenceSchema,
+  CriterionVersionSelectorSchema,
+  EvaluationRiskTierSchema,
+} from "./evaluation-criteria.js";
+import { EvaluationDatasetVersionReferenceSchema } from "./evaluation-run.js";
+import { QualificationReportReferenceSchema } from "./evaluation-spec.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-source.js";
 
 export const MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION = "0.1" as const;
 export const INDEPENDENCE_DECLARATION_SCHEMA_VERSION = "0.1" as const;
+export const CALIBRATION_REPORT_SCHEMA_VERSION = "0.1" as const;
+export const MAX_CALIBRATION_BINS = 100;
+export const MAX_SELECTIVE_RISK_POINTS = 100;
 export const MAX_MODEL_PROFILE_PROMPTS = 5;
 export const MAX_MODEL_PROFILE_TOOL_CONTRACTS = 16;
 
@@ -417,3 +426,356 @@ export type IndependenceDeclarationDefinition = z.infer<
   typeof IndependenceDeclarationDefinitionSchema
 >;
 export type IndependenceDeclaration = z.infer<typeof IndependenceDeclarationSchema>;
+
+const CalibrationCountSchema = z.number().int().nonnegative().max(10_000_000);
+const UnitIntervalDecimalSchema = z.string().regex(/^(?:0(?:\.[0-9]{1,18})?|1(?:\.0{1,18})?)$/);
+const NonnegativeDecimalSchema = z.string().regex(/^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,18})?$/);
+
+export const CalibrationReportReferenceSchema = z
+  .object({
+    calibrationReportId: OpaqueIdSchema,
+    definitionSha256: Sha256Schema,
+  })
+  .strict();
+
+export const CalibrationMethodSchema = z
+  .object({
+    configurationSha256: Sha256Schema,
+    implementationSha256: Sha256Schema,
+    kind: z.enum(["histogram_binning", "isotonic", "platt", "temperature_scaling"]),
+    methodVersion: AssuranceSummarySchema,
+  })
+  .strict();
+
+export const CalibrationReliabilityBinSchema = z
+  .object({
+    lowerBoundBasisPoints: z.number().int().min(0).max(9_999),
+    meanPredictedProbability: z.discriminatedUnion("status", [
+      z.object({ reason: z.literal("empty_bin"), status: z.literal("unavailable") }).strict(),
+      z
+        .object({
+          status: z.literal("available"),
+          value: UnitIntervalDecimalSchema,
+        })
+        .strict(),
+    ]),
+    observedPositiveFrequency: z.discriminatedUnion("status", [
+      z.object({ reason: z.literal("empty_bin"), status: z.literal("unavailable") }).strict(),
+      z
+        .object({
+          status: z.literal("available"),
+          value: UnitIntervalDecimalSchema,
+        })
+        .strict(),
+    ]),
+    positiveCount: CalibrationCountSchema,
+    sampleCount: CalibrationCountSchema,
+    upperBoundBasisPoints: z.number().int().min(1).max(10_000),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.lowerBoundBasisPoints >= value.upperBoundBasisPoints) {
+      context.addIssue({
+        code: "custom",
+        message: "A calibration bin requires a positive interval",
+        path: ["upperBoundBasisPoints"],
+      });
+    }
+    if (value.positiveCount > value.sampleCount) {
+      context.addIssue({
+        code: "custom",
+        message: "Calibration bin positiveCount cannot exceed sampleCount",
+        path: ["positiveCount"],
+      });
+    }
+    const available = value.sampleCount > 0;
+    if (
+      (value.meanPredictedProbability.status === "available") !== available ||
+      (value.observedPositiveFrequency.status === "available") !== available
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Calibration bin measurements are available exactly when the bin is non-empty",
+        path: ["sampleCount"],
+      });
+    }
+  });
+
+export const SelectiveRiskPointSchema = z
+  .object({
+    errorCount: CalibrationCountSchema,
+    selectedCount: CalibrationCountSchema,
+    totalCount: CalibrationCountSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.selectedCount > value.totalCount) {
+      context.addIssue({
+        code: "custom",
+        message: "Selective-risk selectedCount cannot exceed totalCount",
+        path: ["selectedCount"],
+      });
+    }
+    if (value.errorCount > value.selectedCount) {
+      context.addIssue({
+        code: "custom",
+        message: "Selective-risk errorCount cannot exceed selectedCount",
+        path: ["errorCount"],
+      });
+    }
+  });
+
+export const CalibrationDistributionShiftSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      evidence: exactArtifacts(16, "Distribution-shift evidence").min(1),
+      method: AssuranceSummarySchema,
+      status: z.literal("no_shift_detected"),
+    })
+    .strict(),
+  z
+    .object({
+      evidence: exactArtifacts(16, "Distribution-shift evidence").min(1),
+      method: AssuranceSummarySchema,
+      status: z.literal("shift_detected"),
+    })
+    .strict(),
+  z
+    .object({
+      reason: AssuranceRationaleSchema,
+      status: z.literal("not_assessed"),
+    })
+    .strict(),
+]);
+
+const calibrationReportDefinitionShape = {
+  calibrationEvidence: exactArtifacts(32, "Calibration evidence").min(1),
+  calibrationReportId: OpaqueIdSchema,
+  completedAt: UtcMillisecondTimestampSchema,
+  criteria: z
+    .array(CriterionReferenceSchema)
+    .min(1)
+    .max(100)
+    .refine(
+      (references) =>
+        isStrictlySortedUnique(
+          references.map(
+            ({ criterionId, criterionSet }) =>
+              `${criterionSet.criterionSetId}:${criterionSet.criterionSetVersionId}:${criterionId}`,
+          ),
+        ),
+      { message: "Calibration criteria must be unique and ordered" },
+    ),
+  dataset: EvaluationDatasetVersionReferenceSchema,
+  distributionShift: CalibrationDistributionShiftSchema,
+  evaluator: z
+    .object({
+      definitionSha256: Sha256Schema,
+      evaluatorId: OpaqueIdSchema,
+      evaluatorVersionId: OpaqueIdSchema,
+    })
+    .strict(),
+  executedByPrincipalId: OpaqueIdSchema,
+  knownLimitations: sortedUniqueText(64, "Calibration limitations"),
+  labelSources: exactArtifacts(16, "Calibration label sources").min(1),
+  method: CalibrationMethodSchema,
+  metrics: z
+    .object({
+      brierScore: UnitIntervalDecimalSchema,
+      expectedCalibrationError: z
+        .object({
+          value: UnitIntervalDecimalSchema,
+          variant: z.enum(["equal_frequency_absolute", "equal_width_absolute"]),
+        })
+        .strict(),
+      logLoss: NonnegativeDecimalSchema,
+      reliabilityBins: z.array(CalibrationReliabilityBinSchema).min(1).max(MAX_CALIBRATION_BINS),
+      selectiveRisk: z.array(SelectiveRiskPointSchema).min(1).max(MAX_SELECTIVE_RISK_POINTS),
+    })
+    .strict(),
+  modelProfile: ModelEvaluatorProfileReferenceSchema,
+  population: z
+    .object({
+      locale: z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/),
+      populationTags: sortedUniqueText(64, "Calibration population tags"),
+      riskTier: EvaluationRiskTierSchema,
+      taskKindIds: z.array(OpaqueIdSchema).min(1).max(32).refine(isStrictlySortedUnique, {
+        message: "Calibration task kinds must be unique and ordered",
+      }),
+    })
+    .strict(),
+  predecessor: CalibrationReportReferenceSchema.optional(),
+  qualificationReport: QualificationReportReferenceSchema,
+  sampleSummary: z
+    .object({
+      excludedCount: CalibrationCountSchema,
+      includedCount: CalibrationCountSchema,
+      minimumRequiredCount: z.number().int().positive().max(10_000_000),
+      negativeCount: CalibrationCountSchema,
+      positiveCount: CalibrationCountSchema,
+      totalCount: z.number().int().positive().max(10_000_000),
+    })
+    .strict(),
+  startedAt: UtcMillisecondTimestampSchema,
+  status: z.enum(["calibrated", "unavailable"]),
+  statusReasons: sortedUniqueText(32, "Calibration status reasons"),
+  validFrom: UtcMillisecondTimestampSchema,
+  validUntil: UtcMillisecondTimestampSchema,
+};
+
+function refineCalibrationReport(
+  value: {
+    readonly calibrationReportId: string;
+    readonly completedAt: string;
+    readonly distributionShift: { readonly status: string };
+    readonly metrics: {
+      readonly reliabilityBins: readonly {
+        readonly lowerBoundBasisPoints: number;
+        readonly positiveCount: number;
+        readonly sampleCount: number;
+        readonly upperBoundBasisPoints: number;
+      }[];
+      readonly selectiveRisk: readonly {
+        readonly selectedCount: number;
+        readonly totalCount: number;
+      }[];
+    };
+    readonly predecessor?: { readonly calibrationReportId: string } | undefined;
+    readonly sampleSummary: {
+      readonly excludedCount: number;
+      readonly includedCount: number;
+      readonly minimumRequiredCount: number;
+      readonly negativeCount: number;
+      readonly positiveCount: number;
+      readonly totalCount: number;
+    };
+    readonly startedAt: string;
+    readonly status: "calibrated" | "unavailable";
+    readonly statusReasons: readonly string[];
+    readonly validFrom: string;
+    readonly validUntil: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (evidenceTimestampOrderKey(value.completedAt) < evidenceTimestampOrderKey(value.startedAt)) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration completion cannot precede its start",
+      path: ["completedAt"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validFrom) < evidenceTimestampOrderKey(value.completedAt)) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration validity cannot begin before completion",
+      path: ["validFrom"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validUntil) <= evidenceTimestampOrderKey(value.validFrom)) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration validity must have a positive interval",
+      path: ["validUntil"],
+    });
+  }
+  const samples = value.sampleSummary;
+  if (samples.includedCount + samples.excludedCount !== samples.totalCount) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration included and excluded counts must equal totalCount",
+      path: ["sampleSummary", "totalCount"],
+    });
+  }
+  if (samples.positiveCount + samples.negativeCount !== samples.includedCount) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration positive and negative counts must equal includedCount",
+      path: ["sampleSummary", "includedCount"],
+    });
+  }
+  const bins = value.metrics.reliabilityBins;
+  const binSampleCount = bins.reduce((total, bin) => total + bin.sampleCount, 0);
+  const binPositiveCount = bins.reduce((total, bin) => total + bin.positiveCount, 0);
+  if (
+    bins[0]?.lowerBoundBasisPoints !== 0 ||
+    bins.at(-1)?.upperBoundBasisPoints !== 10_000 ||
+    bins.some(
+      (bin, index) =>
+        index > 0 && bins[index - 1]?.upperBoundBasisPoints !== bin.lowerBoundBasisPoints,
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration reliability bins must form one ordered complete partition",
+      path: ["metrics", "reliabilityBins"],
+    });
+  }
+  if (binSampleCount !== samples.includedCount || binPositiveCount !== samples.positiveCount) {
+    context.addIssue({
+      code: "custom",
+      message: "Calibration reliability-bin counts must reconstruct included labels",
+      path: ["metrics", "reliabilityBins"],
+    });
+  }
+  if (
+    value.metrics.selectiveRisk.some(
+      (point, index) =>
+        point.totalCount !== samples.includedCount ||
+        (index > 0 &&
+          (value.metrics.selectiveRisk[index - 1]?.selectedCount ?? -1) >= point.selectedCount),
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Selective-risk points must use the included denominator and increasing coverage",
+      path: ["metrics", "selectiveRisk"],
+    });
+  }
+  const mayBeCalibrated =
+    samples.includedCount >= samples.minimumRequiredCount &&
+    samples.positiveCount > 0 &&
+    samples.negativeCount > 0 &&
+    value.distributionShift.status === "no_shift_detected";
+  if (value.status === "calibrated" && (!mayBeCalibrated || value.statusReasons.length !== 0)) {
+    context.addIssue({
+      code: "custom",
+      message:
+        "Calibrated status requires sufficient mixed labels, no detected shift, and no reasons",
+      path: ["status"],
+    });
+  }
+  if (value.status === "unavailable" && value.statusReasons.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Unavailable calibration requires at least one status reason",
+      path: ["statusReasons"],
+    });
+  }
+  if (value.predecessor?.calibrationReportId === value.calibrationReportId) {
+    context.addIssue({
+      code: "custom",
+      message: "A calibration report cannot name itself as predecessor",
+      path: ["predecessor", "calibrationReportId"],
+    });
+  }
+}
+
+export const CalibrationReportDefinitionSchema = z
+  .object(calibrationReportDefinitionShape)
+  .strict()
+  .superRefine(refineCalibrationReport);
+
+export const CalibrationReportSchema = z
+  .object({
+    ...calibrationReportDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    schemaVersion: z.literal(CALIBRATION_REPORT_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineCalibrationReport);
+
+export type CalibrationReportReference = z.infer<typeof CalibrationReportReferenceSchema>;
+export type CalibrationReportDefinition = z.infer<typeof CalibrationReportDefinitionSchema>;
+export type CalibrationReport = z.infer<typeof CalibrationReportSchema>;

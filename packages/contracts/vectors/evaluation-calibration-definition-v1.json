@@ -1,0 +1,142 @@
+{
+  "format": "proofstack.evaluation-calibration-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3303,
+      "input": {
+        "definition": {
+          "calibrationEvidence": [
+            {
+              "artifactId": "art_calibration_predictions",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "sizeBytes": 1024
+            }
+          ],
+          "calibrationReportId": "cal_model_safety_v1",
+          "completedAt": "2026-09-02T00:20:00.000Z",
+          "criteria": [
+            {
+              "criterionId": "crt_no_unsafe_tool_request",
+              "criterionSet": {
+                "criterionSetId": "crs_agent_safety",
+                "criterionSetVersionId": "csv_agent_safety_v1",
+                "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            }
+          ],
+          "dataset": {
+            "datasetId": "dst_model_calibration",
+            "datasetVersionId": "dsv_model_calibration_v1",
+            "definitionSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "distributionShift": {
+            "evidence": [
+              {
+                "artifactId": "art_shift_evidence",
+                "classification": "restricted",
+                "mediaType": "application/json",
+                "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "sizeBytes": 1024
+              }
+            ],
+            "method": "Population stability index v1 over declared feature summaries",
+            "status": "no_shift_detected"
+          },
+          "evaluator": {
+            "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "evaluatorId": "evl_model_safety",
+            "evaluatorVersionId": "evv_model_safety_v1"
+          },
+          "executedByPrincipalId": "svc_calibration_worker",
+          "knownLimitations": [
+            "Synthetic labels do not establish production-distribution calibration"
+          ],
+          "labelSources": [
+            {
+              "artifactId": "art_calibration_labels",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+              "sizeBytes": 1024
+            }
+          ],
+          "method": {
+            "configurationSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "implementationSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "kind": "histogram_binning",
+            "methodVersion": "1.0.0"
+          },
+          "metrics": {
+            "brierScore": "0.18",
+            "expectedCalibrationError": {
+              "value": "0.09",
+              "variant": "equal_width_absolute"
+            },
+            "logLoss": "0.55",
+            "reliabilityBins": [
+              {
+                "lowerBoundBasisPoints": 0,
+                "meanPredictedProbability": {
+                  "status": "available",
+                  "value": "0.60"
+                },
+                "observedPositiveFrequency": {
+                  "status": "available",
+                  "value": "0.60"
+                },
+                "positiveCount": 60,
+                "sampleCount": 100,
+                "upperBoundBasisPoints": 10000
+              }
+            ],
+            "selectiveRisk": [
+              {
+                "errorCount": 20,
+                "selectedCount": 100,
+                "totalCount": 100
+              }
+            ]
+          },
+          "modelProfile": {
+            "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "modelProfileId": "mep_safety",
+            "modelProfileVersionId": "mpv_safety_v1"
+          },
+          "population": {
+            "locale": "en",
+            "populationTags": ["agent:tool-using", "deployment:test"],
+            "riskTier": "high",
+            "taskKindIds": ["task_code_change", "task_tool_use"]
+          },
+          "qualificationReport": {
+            "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "qualificationReportId": "qlr_model_safety_v1"
+          },
+          "sampleSummary": {
+            "excludedCount": 10,
+            "includedCount": 100,
+            "minimumRequiredCount": 100,
+            "negativeCount": 40,
+            "positiveCount": 60,
+            "totalCount": 110
+          },
+          "startedAt": "2026-09-02T00:15:00.000Z",
+          "status": "calibrated",
+          "statusReasons": [],
+          "validFrom": "2026-09-02T00:20:00.000Z",
+          "validUntil": "2026-10-02T00:20:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "calibration_report",
+      "name": "slice-specific model evaluator calibration",
+      "sha256": "f09a1b31a2d61cbb9b7cce99cf8bf4e417e18d4bdee4a38ab172e2d8dbcdc294"
+    }
+  ]
+}
