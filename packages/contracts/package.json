@@ -18,6 +18,10 @@
       "types": "./dist/evaluation-source.d.ts",
       "import": "./dist/evaluation-source.js"
     },
+    "./evaluation-criteria": {
+      "types": "./dist/evaluation-criteria.d.ts",
+      "import": "./dist/evaluation-criteria.js"
+    },
     "./artifact": {
       "types": "./dist/artifact.d.ts",
       "import": "./dist/artifact.js"
