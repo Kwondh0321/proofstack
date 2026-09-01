@@ -85,6 +85,7 @@ export interface ModelAssuranceControlFlowSummary {
     readonly reasons: ModelAssuranceAssessment["reasons"];
   };
   readonly localProvider: {
+    readonly failureCode: "provider_unavailable";
     readonly requestSha256: string;
     readonly responseSha256: string;
     readonly status: LocalModelHarnessResult["status"];
@@ -92,7 +93,17 @@ export interface ModelAssuranceControlFlowSummary {
   };
   readonly readBack: {
     readonly evaluationRecordCount: number;
+    readonly evaluationRecords: readonly {
+      readonly definitionSha256: string;
+      readonly kind: EvaluationRecordKind;
+      readonly recordId: string;
+    }[];
     readonly modelRecordCount: number;
+    readonly modelRecords: readonly {
+      readonly definitionSha256: string;
+      readonly kind: ModelAssuranceRecordKind;
+      readonly recordId: string;
+    }[];
   };
   readonly safeguards: {
     readonly calibrationStatus: "unavailable";
@@ -416,7 +427,16 @@ function runLocalProvider(profile: ModelEvaluatorProfile, namespace: string) {
   });
   if (result.status !== "completed")
     throw new Error("Expected the local provider fixture to complete");
-  return result;
+  const failed = runBoundedLocalModelProvider(request, {
+    code: "provider_unavailable",
+    expectedRequestSha256: computeLocalModelRequestSha256(request),
+    modelProfileDefinitionSha256: profile.definitionSha256,
+    operation: request.operation,
+    status: "failed",
+  });
+  if (failed.status !== "failed") throw new Error("Expected the provider failure fixture");
+  if (failed.code !== "provider_unavailable") throw new Error("Expected provider unavailability");
+  return { completed: result, failed };
 }
 
 /** Runs a deliberately adversarial model-assisted assessment across the API and isolated workers. */
@@ -668,11 +688,20 @@ export async function runModelAssuranceControlFlow(
     throw new Error("Expected model-assurance assessment");
   }
 
-  for (const fixture of harness.evaluation.records) {
-    await options.evaluationClient.readRecord({
+  const evaluationReferences = [
+    ...harness.evaluation.records.map((fixture) => ({
+      definitionSha256: fixture.record.definitionSha256,
       kind: fixture.kind,
       recordId: evaluationRecordId(fixture.kind, fixture.record),
-    });
+    })),
+    {
+      definitionSha256: critical.record.definitionSha256,
+      kind: "assessment" as const,
+      recordId: critical.record.assessmentId,
+    },
+  ];
+  for (const reference of evaluationReferences) {
+    await options.evaluationClient.readRecord(reference);
   }
   const modelReferences = [
     ...published.entries(),
@@ -685,6 +714,11 @@ export async function runModelAssuranceControlFlow(
     ...reviews.map((record) => [`human_review_record:${record.reviewId}`, record] as const),
     ["model_assurance_assessment:final", assessment.result.record],
   ] as const;
+  const modelReadBack: Array<{
+    definitionSha256: string;
+    kind: ModelAssuranceRecordKind;
+    recordId: string;
+  }> = [];
   for (const [, record] of modelReferences) {
     const kind = Object.entries({
       blinded_evaluation_plan: "blindedPlanVersionId",
@@ -704,10 +738,9 @@ export async function runModelAssuranceControlFlow(
       ([, field]) => field in record,
     )?.[0] as ModelAssuranceRecordKind | undefined;
     if (!kind) throw new Error("Could not identify model-assurance record kind");
-    await options.modelClient.readRecord({
-      kind,
-      recordId: modelAssuranceRecordId(kind, record as never),
-    });
+    const recordId = modelAssuranceRecordId(kind, record as never);
+    await options.modelClient.readRecord({ kind, recordId });
+    modelReadBack.push({ definitionSha256: record.definitionSha256, kind, recordId });
   }
 
   const comparison = compareEvaluatorIndependence(
@@ -738,14 +771,17 @@ export async function runModelAssuranceControlFlow(
       reasons: assessment.result.record.reasons,
     },
     localProvider: {
-      recordedToolRequestCount: localProvider.recordedToolRequests.length,
-      requestSha256: localProvider.requestSha256,
-      responseSha256: localProvider.responseSha256,
-      status: localProvider.status,
+      failureCode: "provider_unavailable",
+      recordedToolRequestCount: localProvider.completed.recordedToolRequests.length,
+      requestSha256: localProvider.completed.requestSha256,
+      responseSha256: localProvider.completed.responseSha256,
+      status: localProvider.completed.status,
     },
     readBack: {
-      evaluationRecordCount: harness.evaluation.records.length,
+      evaluationRecordCount: evaluationReferences.length,
+      evaluationRecords: evaluationReferences,
       modelRecordCount: modelReferences.length,
+      modelRecords: modelReadBack,
     },
     safeguards: {
       calibrationStatus: unavailable.record.status,

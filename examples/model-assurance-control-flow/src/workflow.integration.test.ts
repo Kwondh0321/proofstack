@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { type ApiConfig, createApp } from "@proofstack/api/composition";
 import type { PrincipalContext } from "@proofstack/contracts";
+import { AuthoritySplitModelAssuranceRepository } from "@proofstack/core";
 import { FixedClock } from "@proofstack/core/testing";
 import {
   createPostgresEvaluationWorker,
@@ -13,6 +14,7 @@ import {
 import {
   createPostgresPool,
   migrateDatabase,
+  PostgresModelAssuranceRepository,
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
@@ -62,6 +64,35 @@ const adminPool = createPostgresPool({
   onIdleError: (error) => {
     throw error;
   },
+});
+const assuranceControlPool = createPostgresPool({
+  applicationName: "proofstack-model-assurance-control-authority",
+  connectionString: roleDatabaseUrl(runtimeRoles.api),
+  maxConnections: 2,
+  onIdleError: (error) => {
+    throw error;
+  },
+});
+const assuranceExecutionPool = createPostgresPool({
+  applicationName: "proofstack-model-assurance-execution-authority",
+  connectionString: roleDatabaseUrl(runtimeRoles.modelEvaluationWorker),
+  maxConnections: 2,
+  onIdleError: (error) => {
+    throw error;
+  },
+});
+const assuranceHumanReviewPool = createPostgresPool({
+  applicationName: "proofstack-model-assurance-human-review-authority",
+  connectionString: roleDatabaseUrl(runtimeRoles.humanReviewer),
+  maxConnections: 2,
+  onIdleError: (error) => {
+    throw error;
+  },
+});
+const assuranceRepository = new AuthoritySplitModelAssuranceRepository({
+  control: new PostgresModelAssuranceRepository(assuranceControlPool),
+  execution: new PostgresModelAssuranceRepository(assuranceExecutionPool),
+  humanReview: new PostgresModelAssuranceRepository(assuranceHumanReviewPool),
 });
 
 const apiConfig: ApiConfig = {
@@ -116,7 +147,11 @@ function modelClient(): ProofStackModelAssuranceClient {
 }
 
 async function startApi(): Promise<void> {
-  app = await createApp(apiConfig, { authenticator, clock });
+  app = await createApp(apiConfig, {
+    authenticator,
+    clock,
+    modelAssuranceRepository: assuranceRepository,
+  });
   apiUrl = await app.listen({ host: "127.0.0.1", port: 0 });
 }
 
@@ -146,6 +181,11 @@ afterAll(async () => {
     await app?.close();
     await evaluationWorker?.close();
     await modelWorker?.close();
+    await Promise.all([
+      assuranceControlPool.end(),
+      assuranceExecutionPool.end(),
+      assuranceHumanReviewPool.end(),
+    ]);
     if (rolesCreated) {
       for (const role of Object.values(runtimeRoles)) {
         await adminPool.query(`DROP OWNED BY "${role.name}"`);
@@ -185,12 +225,13 @@ describe("service-backed model-assurance control flow", () => {
       ]),
     );
     expect(summary.localProvider).toMatchObject({
+      failureCode: "provider_unavailable",
       recordedToolRequestCount: 1,
       status: "completed",
     });
     expect(summary.localProvider.requestSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(summary.localProvider.responseSha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(summary.readBack.evaluationRecordCount).toBeGreaterThan(15);
+    expect(summary.readBack.evaluationRecordCount).toBeGreaterThan(16);
     expect(summary.readBack.modelRecordCount).toBeGreaterThan(20);
     expect(summary.safeguards).toEqual({
       calibrationStatus: "unavailable",
@@ -202,11 +243,13 @@ describe("service-backed model-assurance control flow", () => {
 
     await app?.close();
     await startApi();
-    const persisted = await modelClient().readRecord({
-      kind: "model_assurance_assessment",
-      recordId: summary.assessment.assessmentExtensionId,
-    });
-    expect(persisted.result.kind).toBe("model_assurance_assessment");
-    expect(persisted.result.record.definitionSha256).toBe(summary.assessment.definitionSha256);
+    for (const reference of summary.readBack.evaluationRecords) {
+      const persisted = await evaluationClient().readRecord(reference);
+      expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+    }
+    for (const reference of summary.readBack.modelRecords) {
+      const persisted = await modelClient().readRecord(reference);
+      expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+    }
   });
 });

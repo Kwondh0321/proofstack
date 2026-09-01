@@ -60,6 +60,55 @@ export interface ModelAssuranceRepository {
   ): Promise<PublishModelAssuranceRecordResult<ModelAssuranceRecordByKind[K]>>;
 }
 
+export interface AuthoritySplitModelAssuranceRepositories {
+  /** Owns control-plane definitions, declarations, protocols, and assessments. */
+  readonly control: ModelAssuranceRepository;
+  /** Owns model-produced qualification, blinded-result, and critique records. */
+  readonly execution: ModelAssuranceRepository;
+  /** Owns authenticated human-review records. */
+  readonly humanReview: ModelAssuranceRepository;
+  /** Optional least-privilege read path; defaults to the control repository. */
+  readonly read?: ModelAssuranceRepository;
+}
+
+const MODEL_EXECUTION_RECORD_KINDS = new Set<ModelAssuranceRecordKind>([
+  "blinded_evaluation_result",
+  "independent_critique",
+  "model_qualification_report",
+]);
+
+/**
+ * Routes writes to disjoint persistence authorities while presenting one repository boundary.
+ *
+ * HTTP authentication still decides whether a principal may invoke an operation. This router is
+ * the independent database backstop: a compromised control-plane connection cannot manufacture a
+ * model execution or a human review, and neither worker authority can publish an assessment.
+ */
+export class AuthoritySplitModelAssuranceRepository implements ModelAssuranceRepository {
+  constructor(private readonly repositories: AuthoritySplitModelAssuranceRepositories) {}
+
+  find<K extends ModelAssuranceRecordKind>(
+    scope: EvidenceScope,
+    kind: K,
+    recordId: string,
+  ): Promise<ModelAssuranceRecordByKind[K] | null> {
+    return (this.repositories.read ?? this.repositories.control).find(scope, kind, recordId);
+  }
+
+  publish<K extends ModelAssuranceRecordKind>(
+    kind: K,
+    candidate: ModelAssuranceRecordByKind[K],
+  ): Promise<PublishModelAssuranceRecordResult<ModelAssuranceRecordByKind[K]>> {
+    return this.writer(kind).publish(kind, candidate);
+  }
+
+  private writer(kind: ModelAssuranceRecordKind): ModelAssuranceRepository {
+    if (kind === "human_review_record") return this.repositories.humanReview;
+    if (MODEL_EXECUTION_RECORD_KINDS.has(kind)) return this.repositories.execution;
+    return this.repositories.control;
+  }
+}
+
 export class ModelAssuranceRecordConflictError extends Error {
   readonly code = "model_assurance_record_conflict";
 
