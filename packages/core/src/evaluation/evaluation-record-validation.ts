@@ -32,23 +32,7 @@ import {
   RawObservationSchema,
   SourceReviewRecordSchema,
   SourceSnapshotSchema,
-  type Assessment,
-  type CriterionSet,
-  type CriterionSetStatusRecord,
-  type DiscoveryRecord,
-  type EvaluationAggregate,
-  type EvaluationAggregationPolicy,
-  type EvaluationRun,
-  type EvaluationRunRejection,
-  type EvaluationRunResult,
-  type EvaluatorSpec,
   type EvidenceScope,
-  type OracleSpec,
-  type QualificationFixtureSet,
-  type QualificationReport,
-  type RawObservation,
-  type SourceReviewRecord,
-  type SourceSnapshot,
 } from "@proofstack/contracts";
 import {
   EvaluationRepositoryContractError,
@@ -58,24 +42,9 @@ import type {
   EvaluationRecordKind,
   EvaluationResourceKind,
 } from "./evaluation-repository-errors.js";
+import type { EvaluationRecord } from "./evaluation-repository.js";
 
-export type EvaluationStoredRecord =
-  | Assessment
-  | CriterionSet
-  | CriterionSetStatusRecord
-  | DiscoveryRecord
-  | EvaluationAggregate
-  | EvaluationAggregationPolicy
-  | EvaluationRun
-  | EvaluationRunRejection
-  | EvaluationRunResult
-  | EvaluatorSpec
-  | OracleSpec
-  | QualificationFixtureSet
-  | QualificationReport
-  | RawObservation
-  | SourceReviewRecord
-  | SourceSnapshot;
+export type EvaluationStoredRecord = EvaluationRecord;
 
 interface RecordBase {
   readonly definitionSha256: string;

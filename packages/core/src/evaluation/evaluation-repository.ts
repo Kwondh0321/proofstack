@@ -18,6 +18,24 @@ import type {
   SourceSnapshot,
 } from "@proofstack/contracts";
 
+export type EvaluationRecord =
+  | Assessment
+  | CriterionSet
+  | CriterionSetStatusRecord
+  | DiscoveryRecord
+  | EvaluationAggregate
+  | EvaluationAggregationPolicy
+  | EvaluationRun
+  | EvaluationRunRejection
+  | EvaluationRunResult
+  | EvaluatorSpec
+  | OracleSpec
+  | QualificationFixtureSet
+  | QualificationReport
+  | RawObservation
+  | SourceReviewRecord
+  | SourceSnapshot;
+
 export interface PublishEvaluationRecordResult<Record> {
   readonly created: boolean;
   readonly record: Record;
