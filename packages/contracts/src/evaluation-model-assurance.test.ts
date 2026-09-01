@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+  type IndependenceDeclaration,
+  type IndependenceDeclarationDefinition,
+  IndependenceDeclarationDefinitionSchema,
+  IndependenceDeclarationSchema,
   MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
   type ModelEvaluatorProfile,
   type ModelEvaluatorProfileDefinition,
@@ -267,6 +272,163 @@ describe("model evaluator profile contracts", () => {
       expect(
         () => ModelEvaluatorProfileDefinitionSchema.parse(input),
         `${section}.${field}`,
+      ).toThrow();
+    }
+  });
+});
+
+const declared = (identifier: string) => ({
+  identifiers: [identifier],
+  status: "declared" as const,
+});
+
+function independenceDeclarationDefinition(): IndependenceDeclarationDefinition {
+  return {
+    declaredConflicts: ["The evaluator and criterion are maintained in the same repository"],
+    dimensions: {
+      baseModelFamilies: declared("model-family:reference"),
+      criterionAuthors: declared("principal:usr_criterion_author"),
+      evaluatorDevelopers: declared("principal:usr_evaluator_developer"),
+      evaluatorImplementations: declared("sha256:implementation-a"),
+      fineTuneLineage: declared("fine-tune:none"),
+      labelSources: declared("dataset:qualification-v1"),
+      operatingOrganizations: declared("organization:proofstack"),
+      promptAuthors: declared("principal:usr_prompt_author"),
+      providers: declared("provider:reference"),
+      sharedInfrastructure: declared("infrastructure:local-harness"),
+    },
+    independenceDeclarationId: "ind_model_safety_v1",
+    knownLimitations: ["Organizational declarations require accountable external verification"],
+    reviewBasis: [artifact("art_independence_review", "a")],
+    reviewStatus: "verified",
+    reviewedAt: "2026-09-02T00:10:00.000Z",
+    reviewedByPrincipalId: "usr_independence_reviewer",
+    subject: {
+      evaluator: {
+        definitionSha256: sha("b"),
+        evaluatorId: "evl_model_safety",
+        evaluatorVersionId: "evv_model_safety_v1",
+      },
+      modelProfile: {
+        definitionSha256: sha("8"),
+        modelProfileId: "mep_safety",
+        modelProfileVersionId: "mpv_safety_v1",
+      },
+    },
+    validFrom: "2026-09-02T00:10:00.000Z",
+    validUntil: "2026-12-01T00:00:00.000Z",
+  };
+}
+
+function independenceDeclaration(): IndependenceDeclaration {
+  return {
+    ...independenceDeclarationDefinition(),
+    definitionSha256: sha("c"),
+    recordedAt: "2026-09-02T00:10:01.000Z",
+    schemaVersion: INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+    scope,
+  };
+}
+
+describe("independence declaration contracts", () => {
+  it("accepts a fully declared, reviewed evidence path without claiming pairwise independence", () => {
+    expect(
+      IndependenceDeclarationDefinitionSchema.parse(independenceDeclarationDefinition()),
+    ).toEqual(independenceDeclarationDefinition());
+    expect(IndependenceDeclarationSchema.parse(independenceDeclaration())).toEqual(
+      independenceDeclaration(),
+    );
+  });
+
+  it("fails closed when required material lineage is unknown", () => {
+    const missing = independenceDeclarationDefinition() as unknown as {
+      dimensions: Partial<IndependenceDeclarationDefinition["dimensions"]>;
+    };
+    delete missing.dimensions.providers;
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(missing)).toThrow();
+
+    const verified = independenceDeclarationDefinition();
+    verified.dimensions.providers = {
+      reason: "The provider lineage cannot be verified from retained evidence.",
+      status: "unknown",
+    };
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(verified)).toThrow(
+      "cannot contain unknown material lineage",
+    );
+
+    const unverifiable = independenceDeclarationDefinition();
+    unverifiable.dimensions.providers = {
+      reason: "The provider lineage cannot be verified from retained evidence.",
+      status: "unknown",
+    };
+    unverifiable.reviewStatus = "unverifiable";
+    expect(IndependenceDeclarationDefinitionSchema.parse(unverifiable)).toEqual(unverifiable);
+
+    const unjustified = independenceDeclarationDefinition();
+    unjustified.reviewStatus = "unverifiable";
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(unjustified)).toThrow(
+      "requires unknown material lineage",
+    );
+  });
+
+  it("requires review before validity and a positive validity interval", () => {
+    const premature = independenceDeclarationDefinition();
+    premature.validFrom = "2026-09-02T00:09:59.000Z";
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(premature)).toThrow(
+      "cannot begin before review",
+    );
+
+    const empty = independenceDeclarationDefinition();
+    empty.validUntil = empty.validFrom;
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(empty)).toThrow("positive interval");
+  });
+
+  it("preserves predecessor history without accepting self-reference", () => {
+    const self = independenceDeclarationDefinition();
+    self.predecessor = {
+      definitionSha256: sha("d"),
+      independenceDeclarationId: self.independenceDeclarationId,
+    };
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(self)).toThrow("name itself");
+
+    const successor = independenceDeclarationDefinition();
+    successor.predecessor = {
+      definitionSha256: sha("d"),
+      independenceDeclarationId: "ind_model_safety_v0",
+    };
+    expect(IndependenceDeclarationDefinitionSchema.parse(successor)).toEqual(successor);
+  });
+
+  it("rejects unordered material lineage, duplicate conflicts, missing basis, and authority fields", () => {
+    const lineage = independenceDeclarationDefinition();
+    lineage.dimensions.providers = {
+      identifiers: ["provider:z", "provider:a"],
+      status: "declared",
+    };
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(lineage)).toThrow(
+      "Material lineage identifiers must be unique and ordered",
+    );
+
+    const conflicts = independenceDeclarationDefinition();
+    conflicts.declaredConflicts = ["same", "same"];
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(conflicts)).toThrow(
+      "conflicts must be unique and ordered",
+    );
+
+    const basis = independenceDeclarationDefinition();
+    basis.reviewBasis = [];
+    expect(() => IndependenceDeclarationDefinitionSchema.parse(basis)).toThrow();
+
+    for (const forbidden of [
+      { independent: true },
+      { releaseAuthority: "allow" },
+      { waiveCorrelation: true },
+    ]) {
+      expect(() =>
+        IndependenceDeclarationDefinitionSchema.parse({
+          ...independenceDeclarationDefinition(),
+          ...forbidden,
+        }),
       ).toThrow();
     }
   });

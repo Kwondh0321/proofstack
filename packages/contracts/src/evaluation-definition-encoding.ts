@@ -58,6 +58,9 @@ import {
   QualificationReportDefinitionSchema,
 } from "./evaluation-spec.js";
 import {
+  INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+  type IndependenceDeclarationDefinition,
+  IndependenceDeclarationDefinitionSchema,
   MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
   type ModelEvaluatorProfileDefinition,
   ModelEvaluatorProfileDefinitionSchema,
@@ -75,6 +78,8 @@ export const ORACLE_SPEC_DEFINITION_DOMAIN = "proofstack.oracle-spec.v1" as cons
 export const EVALUATOR_SPEC_DEFINITION_DOMAIN = "proofstack.evaluator-spec.v1" as const;
 export const MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN =
   "proofstack.model-evaluator-profile.v1" as const;
+export const INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN =
+  "proofstack.independence-declaration.v1" as const;
 export const QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN =
   "proofstack.qualification-fixture-set.v1" as const;
 export const QUALIFICATION_REPORT_DEFINITION_DOMAIN = "proofstack.qualification-report.v1" as const;
@@ -319,6 +324,18 @@ export function encodeModelEvaluatorProfileDefinition(
   return encodeDefinition(
     MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
     MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeIndependenceDeclarationDefinition(
+  input: ScopedEvaluationDefinition<IndependenceDeclarationDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(IndependenceDeclarationDefinitionSchema).parse(input);
+  return encodeDefinition(
+    INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN,
+    INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

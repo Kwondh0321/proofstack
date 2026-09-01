@@ -6,6 +6,7 @@ import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./p
 import { AssuranceRationaleSchema, AssuranceSummarySchema } from "./evaluation-source.js";
 
 export const MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION = "0.1" as const;
+export const INDEPENDENCE_DECLARATION_SCHEMA_VERSION = "0.1" as const;
 export const MAX_MODEL_PROFILE_PROMPTS = 5;
 export const MAX_MODEL_PROFILE_TOOL_CONTRACTS = 16;
 
@@ -279,3 +280,140 @@ export type ModelEvaluatorSelector = z.infer<typeof ModelEvaluatorSelectorSchema
 export type ModelEvaluatorProfileReference = z.infer<typeof ModelEvaluatorProfileReferenceSchema>;
 export type ModelEvaluatorProfileDefinition = z.infer<typeof ModelEvaluatorProfileDefinitionSchema>;
 export type ModelEvaluatorProfile = z.infer<typeof ModelEvaluatorProfileSchema>;
+
+export const IndependenceDeclarationReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    independenceDeclarationId: OpaqueIdSchema,
+  })
+  .strict();
+
+export const MaterialLineageDimensionSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      identifiers: sortedUniqueText(32, "Material lineage identifiers").min(1),
+      status: z.literal("declared"),
+    })
+    .strict(),
+  z
+    .object({
+      reason: AssuranceRationaleSchema,
+      status: z.literal("unknown"),
+    })
+    .strict(),
+]);
+
+export const IndependenceSubjectSchema = z
+  .object({
+    evaluator: z
+      .object({
+        definitionSha256: Sha256Schema,
+        evaluatorId: OpaqueIdSchema,
+        evaluatorVersionId: OpaqueIdSchema,
+      })
+      .strict(),
+    modelProfile: ModelEvaluatorProfileReferenceSchema,
+  })
+  .strict();
+
+const independenceDeclarationDefinitionShape = {
+  declaredConflicts: sortedUniqueText(32, "Declared independence conflicts"),
+  dimensions: z
+    .object({
+      baseModelFamilies: MaterialLineageDimensionSchema,
+      criterionAuthors: MaterialLineageDimensionSchema,
+      evaluatorDevelopers: MaterialLineageDimensionSchema,
+      evaluatorImplementations: MaterialLineageDimensionSchema,
+      fineTuneLineage: MaterialLineageDimensionSchema,
+      labelSources: MaterialLineageDimensionSchema,
+      operatingOrganizations: MaterialLineageDimensionSchema,
+      promptAuthors: MaterialLineageDimensionSchema,
+      providers: MaterialLineageDimensionSchema,
+      sharedInfrastructure: MaterialLineageDimensionSchema,
+    })
+    .strict(),
+  independenceDeclarationId: OpaqueIdSchema,
+  knownLimitations: sortedUniqueText(32, "Independence declaration limitations"),
+  predecessor: IndependenceDeclarationReferenceSchema.optional(),
+  reviewBasis: exactArtifacts(16, "Independence review basis").min(1),
+  reviewStatus: z.enum(["rejected", "unverifiable", "verified"]),
+  reviewedAt: UtcMillisecondTimestampSchema,
+  reviewedByPrincipalId: OpaqueIdSchema,
+  subject: IndependenceSubjectSchema,
+  validFrom: UtcMillisecondTimestampSchema,
+  validUntil: UtcMillisecondTimestampSchema,
+};
+
+function refineIndependenceDeclaration(
+  value: {
+    readonly dimensions: Record<string, { readonly status: "declared" | "unknown" }>;
+    readonly independenceDeclarationId: string;
+    readonly predecessor?: { readonly independenceDeclarationId: string } | undefined;
+    readonly reviewStatus: "rejected" | "unverifiable" | "verified";
+    readonly reviewedAt: string;
+    readonly validFrom: string;
+    readonly validUntil: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  const hasUnknown = Object.values(value.dimensions).some(({ status }) => status === "unknown");
+  if (value.reviewStatus === "verified" && hasUnknown) {
+    context.addIssue({
+      code: "custom",
+      message: "A verified independence declaration cannot contain unknown material lineage",
+      path: ["reviewStatus"],
+    });
+  }
+  if (value.reviewStatus === "unverifiable" && !hasUnknown) {
+    context.addIssue({
+      code: "custom",
+      message: "An unverifiable independence declaration requires unknown material lineage",
+      path: ["reviewStatus"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validFrom) < evidenceTimestampOrderKey(value.reviewedAt)) {
+    context.addIssue({
+      code: "custom",
+      message: "Independence validity cannot begin before review",
+      path: ["validFrom"],
+    });
+  }
+  if (evidenceTimestampOrderKey(value.validUntil) <= evidenceTimestampOrderKey(value.validFrom)) {
+    context.addIssue({
+      code: "custom",
+      message: "Independence validity must have a positive interval",
+      path: ["validUntil"],
+    });
+  }
+  if (value.predecessor?.independenceDeclarationId === value.independenceDeclarationId) {
+    context.addIssue({
+      code: "custom",
+      message: "An independence declaration cannot name itself as predecessor",
+      path: ["predecessor", "independenceDeclarationId"],
+    });
+  }
+}
+
+export const IndependenceDeclarationDefinitionSchema = z
+  .object(independenceDeclarationDefinitionShape)
+  .strict()
+  .superRefine(refineIndependenceDeclaration);
+
+export const IndependenceDeclarationSchema = z
+  .object({
+    ...independenceDeclarationDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    schemaVersion: z.literal(INDEPENDENCE_DECLARATION_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+  })
+  .strict()
+  .superRefine(refineIndependenceDeclaration);
+
+export type IndependenceDeclarationReference = z.infer<
+  typeof IndependenceDeclarationReferenceSchema
+>;
+export type IndependenceDeclarationDefinition = z.infer<
+  typeof IndependenceDeclarationDefinitionSchema
+>;
+export type IndependenceDeclaration = z.infer<typeof IndependenceDeclarationSchema>;

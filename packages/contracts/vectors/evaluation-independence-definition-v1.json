@@ -1,0 +1,95 @@
+{
+  "format": "proofstack.evaluation-independence-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 2121,
+      "input": {
+        "definition": {
+          "declaredConflicts": [
+            "The evaluator and criterion are maintained in the same repository"
+          ],
+          "dimensions": {
+            "baseModelFamilies": {
+              "identifiers": ["model-family:reference"],
+              "status": "declared"
+            },
+            "criterionAuthors": {
+              "identifiers": ["principal:usr_criterion_author"],
+              "status": "declared"
+            },
+            "evaluatorDevelopers": {
+              "identifiers": ["principal:usr_evaluator_developer"],
+              "status": "declared"
+            },
+            "evaluatorImplementations": {
+              "identifiers": ["sha256:implementation-a"],
+              "status": "declared"
+            },
+            "fineTuneLineage": {
+              "identifiers": ["fine-tune:none"],
+              "status": "declared"
+            },
+            "labelSources": {
+              "identifiers": ["dataset:qualification-v1"],
+              "status": "declared"
+            },
+            "operatingOrganizations": {
+              "identifiers": ["organization:proofstack"],
+              "status": "declared"
+            },
+            "promptAuthors": {
+              "identifiers": ["principal:usr_prompt_author"],
+              "status": "declared"
+            },
+            "providers": {
+              "identifiers": ["provider:reference"],
+              "status": "declared"
+            },
+            "sharedInfrastructure": {
+              "identifiers": ["infrastructure:local-harness"],
+              "status": "declared"
+            }
+          },
+          "independenceDeclarationId": "ind_model_safety_v1",
+          "knownLimitations": [
+            "Organizational declarations require accountable external verification"
+          ],
+          "reviewBasis": [
+            {
+              "artifactId": "art_independence_review",
+              "classification": "restricted",
+              "mediaType": "application/json",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sizeBytes": 1024
+            }
+          ],
+          "reviewStatus": "verified",
+          "reviewedAt": "2026-09-02T00:10:00.000Z",
+          "reviewedByPrincipalId": "usr_independence_reviewer",
+          "subject": {
+            "evaluator": {
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "evaluatorId": "evl_model_safety",
+              "evaluatorVersionId": "evv_model_safety_v1"
+            },
+            "modelProfile": {
+              "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "modelProfileId": "mep_safety",
+              "modelProfileVersionId": "mpv_safety_v1"
+            }
+          },
+          "validFrom": "2026-09-02T00:10:00.000Z",
+          "validUntil": "2026-12-01T00:00:00.000Z"
+        },
+        "scope": {
+          "environmentId": "env_assurance",
+          "projectId": "prj_assurance",
+          "tenantId": "ten_assurance"
+        }
+      },
+      "kind": "independence_declaration",
+      "name": "reviewed model evaluator material lineage",
+      "sha256": "2e494b85417832f41d379ae03ab4e51a2f88b67e114ec80bfdb569a740b2a295"
+    }
+  ]
+}

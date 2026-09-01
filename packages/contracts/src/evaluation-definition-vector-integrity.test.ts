@@ -16,6 +16,7 @@ import {
   encodeEvaluationRunRejectionDefinition,
   encodeEvaluationRunResultDefinition,
   encodeEvaluatorSpecDefinition,
+  encodeIndependenceDeclarationDefinition,
   encodeModelEvaluatorProfileDefinition,
   encodeOracleSpecDefinition,
   encodeQualificationFixtureSetDefinition,
@@ -30,6 +31,7 @@ import {
   EVALUATION_RUN_REJECTION_DEFINITION_DOMAIN,
   EVALUATION_RUN_RESULT_DEFINITION_DOMAIN,
   EVALUATOR_SPEC_DEFINITION_DOMAIN,
+  INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN,
   MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
   ORACLE_SPEC_DEFINITION_DOMAIN,
   QUALIFICATION_FIXTURE_SET_DEFINITION_DOMAIN,
@@ -71,6 +73,7 @@ const vectorFiles = [
   "evaluation-run-definition-v1.json",
   "evaluation-assessment-definition-v1.json",
   "evaluation-model-assurance-definition-v1.json",
+  "evaluation-independence-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -120,6 +123,10 @@ const registry = {
   evaluator_spec: {
     domain: EVALUATOR_SPEC_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeEvaluatorSpecDefinition(input as never),
+  },
+  independence_declaration: {
+    domain: INDEPENDENCE_DECLARATION_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeIndependenceDeclarationDefinition(input as never),
   },
   model_evaluator_profile: {
     domain: MODEL_EVALUATOR_PROFILE_DEFINITION_DOMAIN,
