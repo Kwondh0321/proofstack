@@ -12,6 +12,7 @@ import {
 } from "@proofstack/replay";
 import { runClaimedReplayAttemptV2 } from "@proofstack/replay-worker";
 import { recordedReplayTargetAdapter, resolveDurableReplayTarget } from "./definitions.js";
+import { requestDurableReplayReportPublication } from "./report-publication.js";
 import {
   createLocalReplayReportPublisher,
   type DurableReplayWorkerCommand,
@@ -126,7 +127,20 @@ async function execute(command: DurableReplayWorkerCommand): Promise<void> {
     const prepared = exactInvocation(command, plan);
     const resolver = new RecordedBoundaryResolver(prepared);
     const resolvedTarget = resolveDurableReplayTarget(release, command.targetEntryPointPath);
-    const reportPublisher = await createLocalReplayReportPublisher(command.reportDirectory);
+    const localReportPublisher = await createLocalReplayReportPublisher(command.reportDirectory);
+    const reportPublisher = {
+      publish: async (publication: Parameters<typeof localReportPublisher.publish>[0]) => {
+        const reference = await localReportPublisher.publish(publication);
+        await requestDurableReplayReportPublication({
+          contentReference: publication.contentReference,
+          emit,
+          input: process.stdin,
+          scope: publication.scope,
+          signal: publication.signal,
+        });
+        return reference;
+      },
+    };
     const result = await runClaimedReplayAttemptV2({
       availableEnvironment: {
         PROOFSTACK_EXAMPLE_HOLD_MILLISECONDS: String(command.targetHoldMilliseconds),

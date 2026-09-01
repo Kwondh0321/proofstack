@@ -5,7 +5,12 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, "src/**/*.integration.test.ts"],
     coverage: {
       exclude: ["src/**/*.test.ts"],
-      include: ["src/definitions.ts", "src/target-source.ts", "src/worker-input.ts"],
+      include: [
+        "src/definitions.ts",
+        "src/report-publication.ts",
+        "src/target-source.ts",
+        "src/worker-input.ts",
+      ],
       provider: "v8",
       reporter: ["text", "json-summary"],
       thresholds: {

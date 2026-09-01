@@ -18,7 +18,7 @@ import {
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
 import { createS3Client } from "@proofstack/s3";
-import { ProofStackReplayClient } from "@proofstack/sdk";
+import { ProofStackRegressionClient, ProofStackReplayClient } from "@proofstack/sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runDurableReplayExample } from "./workflow.js";
 
@@ -216,6 +216,12 @@ describe("provider-neutral durable replay end to end", () => {
       environmentId: summary.scope.environmentId,
       projectId: summary.scope.projectId,
     });
+    const regression = new ProofStackRegressionClient({
+      authentication: { mode: "development" },
+      endpoint: apiUrl,
+      environmentId: summary.scope.environmentId,
+      projectId: summary.scope.projectId,
+    });
     for (const job of Object.values(summary.jobs)) {
       const persisted = await replay.readReplayJob({ jobId: job.jobId });
       expect(persisted.snapshot.job.status).toBe(job.status);
@@ -226,6 +232,25 @@ describe("provider-neutral durable replay end to end", () => {
       expect(content.byteLength).toBe(result.sizeBytes);
       expect(createHash("sha256").update(content).digest("hex")).toBe(result.sha256);
       expect(content.toString("utf8")).not.toContain(runtimeRoles.replayWorker.password);
+      const persistedArtifact = await regression.readArtifactMetadata({
+        artifactId: result.artifactId,
+      });
+      expect(persistedArtifact.metadata).toMatchObject({
+        contentReference: result,
+        redaction: { status: "not_required" },
+        retention: { mode: "retain" },
+        state: "available",
+      });
+      const persistedContent = await regression.readArtifactContent({
+        artifactId: result.artifactId,
+      });
+      expect(persistedContent).toMatchObject({
+        classification: result.classification,
+        mediaType: result.mediaType,
+        redactionStatus: "not_required",
+        sha256: result.sha256,
+      });
+      expect(Buffer.from(persistedContent.content)).toEqual(content);
     }
     const exactPlan = await replay.readReplayPlan(summary.replayPlan);
     expect(exactPlan.plan.definitionSha256).toBe(summary.replayPlan.definitionSha256);

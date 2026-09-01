@@ -5,6 +5,7 @@ import { isAbsolute, join } from "node:path";
 import {
   type EvidenceScope,
   EvidenceScopeSchema,
+  type ReplayArtifactContentReference,
   type ReplayJobSnapshot,
   ReplayWorkerMutationFenceSchema,
 } from "@proofstack/contracts";
@@ -19,6 +20,11 @@ import {
 import { z } from "zod";
 import { createDurableReplayDefinitions } from "./definitions.js";
 import {
+  DurableReplayReportPublicationAcknowledgementSchema,
+  type DurableReplayReportPublicationRequest,
+  DurableReplayReportPublicationRequestSchema,
+} from "./report-publication.js";
+import {
   createProviderNeutralDurableTargetSource,
   DURABLE_REPLAY_WORKER_PROTOCOL,
 } from "./target-source.js";
@@ -26,10 +32,12 @@ import {
   type DurableReplayWorkerCommand,
   DurableReplayWorkerCommandSchema,
   MAX_DURABLE_REPLAY_WORKER_INPUT_BYTES,
+  readLocalReplayReport,
 } from "./worker-input.js";
 
 const MAX_WORKER_STDOUT_BYTES = 1024 * 1024;
 const MAX_WORKER_STDERR_BYTES = 64 * 1024;
+const MAX_REPLAY_REPORT_BYTES = 1024 * 1024;
 const WORKER_EVENT_TIMEOUT_MILLISECONDS = 20_000;
 const SOURCE_REVISION_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
@@ -42,6 +50,7 @@ const ClaimedWorkerEventSchema = z
   .strict();
 const WorkerEventSchema = z.discriminatedUnion("event", [
   ClaimedWorkerEventSchema,
+  DurableReplayReportPublicationRequestSchema,
   z
     .object({
       event: z.literal("claim_rejected"),
@@ -146,6 +155,20 @@ function sha256(value: Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function sameContentReference(
+  left: ReplayArtifactContentReference,
+  right: ReplayArtifactContentReference,
+): boolean {
+  return (
+    left.artifactId === right.artifactId &&
+    left.classification === right.classification &&
+    left.mediaType === right.mediaType &&
+    left.redactedAt === right.redactedAt &&
+    left.sha256 === right.sha256 &&
+    left.sizeBytes === right.sizeBytes
+  );
+}
+
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -204,6 +227,7 @@ async function writeWorkerCommand(
 async function startWorker(options: {
   readonly command: DurableReplayWorkerCommand;
   readonly commandDirectory: string;
+  readonly publishReport: (request: DurableReplayReportPublicationRequest) => Promise<void>;
   readonly workerEntryPointPath: string;
 }): Promise<RunningWorker> {
   const inputPath = await writeWorkerCommand(options.commandDirectory, options.command);
@@ -214,7 +238,7 @@ async function startWorker(options: {
       LC_ALL: "C",
       NODE_ENV: "production",
     },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
   const events: WorkerEvent[] = [];
   const waiters = new Set<WorkerEventWaiter>();
@@ -223,6 +247,7 @@ async function startWorker(options: {
   let stdout = "";
   let stdoutBytes = 0;
   let stderrBytes = 0;
+  let publicationRequested = false;
   const stop = (): void => {
     if (completed) return;
     if (child.pid !== undefined) {
@@ -243,6 +268,25 @@ async function startWorker(options: {
   };
   const publish = (event: WorkerEvent): void => {
     events.push(event);
+    if (event.event === "report_publication_requested") {
+      if (publicationRequested || options.command.command !== "run") {
+        fail(new Error("The durable replay worker requested an invalid report publication"));
+        return;
+      }
+      publicationRequested = true;
+      void options
+        .publishReport(event)
+        .then(() => {
+          if (completed || child.stdin.destroyed) return;
+          const acknowledgement = DurableReplayReportPublicationAcknowledgementSchema.parse({
+            artifactId: event.contentReference.artifactId,
+            command: "report_publication_accepted",
+            sha256: event.contentReference.sha256,
+          });
+          child.stdin.end(`${JSON.stringify(acknowledgement)}\n`);
+        })
+        .catch(() => fail(new Error("The durable replay report publication was rejected")));
+    }
     for (const waiter of waiters) {
       if (waiter.event !== event.event) continue;
       clearTimeout(waiter.timer);
@@ -284,6 +328,9 @@ async function startWorker(options: {
       fail(new Error("The durable replay worker exceeded its diagnostic-output limit"));
       return;
     }
+  });
+  child.stdin.on("error", () => {
+    if (!completed) fail(new Error("The durable replay worker control input failed"));
   });
 
   const completion = new Promise<readonly WorkerEvent[]>((resolve, reject) => {
@@ -653,11 +700,51 @@ export async function runDurableReplayExample(
       workspaceParent,
     });
 
+  const publishReport = async (request: DurableReplayReportPublicationRequest): Promise<void> => {
+    assert(
+      JSON.stringify(request.scope) === JSON.stringify(scope),
+      "Replay report publication scope must match the running example",
+    );
+    assert(
+      request.contentReference.classification === "internal" &&
+        request.contentReference.mediaType ===
+          "application/vnd.proofstack.replay-attempt-report+json" &&
+        request.contentReference.sizeBytes <= MAX_REPLAY_REPORT_BYTES,
+      "Replay report publication must use the declared internal report profile",
+    );
+    const content = await readLocalReplayReport(reportDirectory, request.contentReference);
+    const reservation = await regression.reserveArtifact({
+      request: {
+        ...request.contentReference,
+        redaction: { status: "not_required" },
+        retention: { mode: "retain" },
+      },
+    });
+    assert(
+      sameContentReference(reservation.metadata.contentReference, request.contentReference) &&
+        reservation.metadata.redaction.status === "not_required" &&
+        reservation.metadata.retention.mode === "retain",
+      "Replay report reservation must preserve its immutable descriptor",
+    );
+    if (reservation.metadata.state === "available") return;
+    assert(reservation.metadata.state === "reserved", "Replay report must be publishable");
+    const upload = await regression.uploadArtifactContent({
+      artifactId: request.contentReference.artifactId,
+      content,
+    });
+    assert(
+      upload.metadata.state === "available" &&
+        sameContentReference(upload.metadata.contentReference, request.contentReference),
+      "Replay report upload must make the exact artifact available",
+    );
+  };
+
   const workers: RunningWorker[] = [];
   const launch = async (command: DurableReplayWorkerCommand): Promise<RunningWorker> => {
     const worker = await startWorker({
       command,
       commandDirectory,
+      publishReport,
       workerEntryPointPath: options.workerEntryPointPath,
     });
     workers.push(worker);

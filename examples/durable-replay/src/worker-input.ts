@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { constants as fileConstants } from "node:fs";
-import { lstat, mkdir, open, readFile } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
+import { lstat, mkdir, open, readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import {
+  ArtifactContentReferenceSchema,
   EvidenceScopeSchema,
   OpaqueIdSchema,
   RecordedInteractionFixtureContentExportSchema,
@@ -188,4 +189,51 @@ export async function createLocalReplayReportPublisher(
       return reference;
     },
   });
+}
+
+export async function readLocalReplayReport(
+  directory: string,
+  inputReference: unknown,
+): Promise<Uint8Array> {
+  if (!isAbsolute(directory) || directory.includes("\0")) {
+    throw new TypeError("Replay report directory must be absolute");
+  }
+  const reference = ArtifactContentReferenceSchema.parse(inputReference);
+  const directoryMetadata = await lstat(directory);
+  if (
+    !directoryMetadata.isDirectory() ||
+    directoryMetadata.isSymbolicLink() ||
+    !privateMode(directoryMetadata.mode)
+  ) {
+    throw new TypeError("Replay report directory must be a private real directory");
+  }
+  const path = join(directory, `${reference.artifactId}.json`);
+  const before = await lstat(path);
+  if (
+    !before.isFile() ||
+    before.isSymbolicLink() ||
+    !privateMode(before.mode) ||
+    before.size !== reference.sizeBytes
+  ) {
+    throw new TypeError("Replay report must be an exact private regular file");
+  }
+  const handle = await open(path, fileConstants.O_RDONLY | fileConstants.O_NOFOLLOW);
+  try {
+    const after = await handle.stat();
+    if (
+      !after.isFile() ||
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.size !== before.size
+    ) {
+      throw new TypeError("Replay report changed during secure open");
+    }
+    const content = await handle.readFile();
+    if (content.byteLength !== reference.sizeBytes || sha256(content) !== reference.sha256) {
+      throw new TypeError("Replay report does not match its immutable content reference");
+    }
+    return Uint8Array.from(content);
+  } finally {
+    await handle.close();
+  }
 }

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import {
   createLocalReplayReportPublisher,
   loadDurableReplayWorkerCommand,
   MAX_DURABLE_REPLAY_WORKER_INPUT_BYTES,
+  readLocalReplayReport,
 } from "./worker-input.js";
 
 const roots: string[] = [];
@@ -101,6 +102,9 @@ describe("local replay report publisher", () => {
     await expect(publisher.publish(command)).resolves.toEqual(contentReference);
     await expect(publisher.publish(command)).resolves.toEqual(contentReference);
     await expect(readFile(join(directory, "art_worker_report.json"))).resolves.toEqual(content);
+    await expect(readLocalReplayReport(directory, contentReference)).resolves.toEqual(
+      Uint8Array.from(content),
+    );
   });
 
   it("rejects non-absolute directories, mismatched bytes, cancellation, and conflicting retries", async () => {
@@ -144,6 +148,20 @@ describe("local replay report publisher", () => {
         signal: new AbortController().signal,
       }),
     ).rejects.toThrow("different bytes");
+    await expect(readLocalReplayReport("relative", reference)).rejects.toThrow("absolute");
+    await expect(readLocalReplayReport(root, { unknown: true })).rejects.toThrow();
+    await expect(readLocalReplayReport(root, reference)).rejects.toThrow("immutable");
+    await writeFile(join(root, `${reference.artifactId}.json`), content, {
+      flag: "w",
+      mode: 0o644,
+    });
+    await chmod(join(root, `${reference.artifactId}.json`), 0o644);
+    await expect(readLocalReplayReport(root, reference)).rejects.toThrow("private regular");
+    await unlink(join(root, `${reference.artifactId}.json`));
+    const outside = join(root, "outside.json");
+    await writeFile(outside, content, { mode: 0o600 });
+    await symlink(outside, join(root, `${reference.artifactId}.json`));
+    await expect(readLocalReplayReport(root, reference)).rejects.toThrow("private regular");
     const removedDirectory = join(root, "removed");
     const removedPublisher = await createLocalReplayReportPublisher(removedDirectory);
     await rm(removedDirectory, { recursive: true });
