@@ -49,15 +49,15 @@ Every publish operation must:
 state only inside one process. It has no restart durability, cross-process concurrency guarantee,
 database-enforced row isolation, outbox, backup, or recovery claim.
 
-`PostgresEvaluationRepository` implements the same port over migration `0037`. A registry, five
+`PostgresEvaluationRepository` implements the same port over migrations `0037` and `0038`. A registry, five
 tenant-wide resource bindings, derived lineage edges, terminal uniqueness slots, and 16 typed
 partitions remain append-only behind forced RLS. Each accepted record and its bounded outbox intent
 commit in one transaction. Canonical advisory-lock ordering serializes competing record, resource,
 lineage, and uniqueness keys; identical concurrent retries return one authoritative record.
 
 The API role can execute only the control-record function. The separate
-`proofstack_evaluation_worker` role can execute only the qualification, observation, and terminal
-result function. Neither role receives direct insert privilege on evaluation tables. Database
+`proofstack_evaluation_worker` role can execute only the qualification, observation, terminal
+result, and aggregate function. Neither role receives direct insert privilege on evaluation tables. Database
 functions derive resource bindings, lineage, uniqueness, and outbox values from the stored record
 rather than accepting those authority fields from callers.
 
@@ -67,9 +67,10 @@ The public use cases are deliberately narrower than a generic `publish(kind, bod
 
 | Use case | Required capability | Accepted records |
 | --- | --- | --- |
-| `PublishEvaluationDefinition` | `evaluation:manage` | discovery, source snapshot/review, criterion set, fixture set, oracle/evaluator spec, qualification report, aggregation policy |
+| `PublishEvaluationDefinition` | `evaluation:manage` | discovery, source snapshot/review, criterion set, fixture set, oracle/evaluator spec, aggregation policy |
 | `RecordCriterionSetStatus` | `evaluation:manage` | append-only criterion lifecycle status |
 | `RecordEvaluationRunDecision` | `evaluation:run` | accepted run or explicit rejection |
+| `RecordQualificationReport` | `evaluation:run` | evaluator qualification result |
 | `RecordRawObservation` | `evaluation:run` | one immutable attempt observation |
 | `RecordEvaluationRunResult` | `evaluation:run` | one terminal five-state result |
 | `CreateEvaluationAggregate` | `evaluation:run` | exact-member aggregate |

@@ -75,18 +75,20 @@ target, provider, search system, model을 호출하는 동안 DB lock을 유지�
 
 ### 선언된 lifecycle outbox intent만 발행
 
-첫 durable profile은 다음에 outbox intent를 발행합니다.
+첫 durable profile은 승인된 모든 record에 canonical outbox intent 하나를 발행하고, 다음과
+같은 제한된 lifecycle family로 분류합니다.
 
 - definition publication
+- source 및 discovery record
 - criterion lifecycle status
 - accepted 또는 rejected run creation
-- terminal run result
-- assessment creation
+- qualification, raw observation, terminal run result
+- aggregate 및 assessment creation
 
-raw observation과 aggregate는 immutable queryable state로 남지만 bounded consumer contract가
-생기기 전에는 shared outbox traffic을 만들지 않습니다. 발행되는 mutation과 canonical intent는
-하나의 transaction에서 commit합니다. intent에는 exact scope, record kind, record ID, definition
-digest가 들어가며 intent failure는 record를 rollback합니다.
+각 mutation과 canonical intent는 하나의 transaction에서 commit합니다. intent에는 exact scope,
+record kind, record ID, definition digest가 들어가며 intent failure는 record를 rollback합니다.
+observation traffic은 run에 사전 선언된 유한 attempt plan으로 제한됩니다. consumer는 대량
+result event를 구독하기 전에 retention과 backpressure를 선언해야 합니다.
 
 ### control-plane과 evaluator-worker DB 권한 분리
 
@@ -98,9 +100,9 @@ record를 게시하며 run을 생성·거부하고 assessment를 생성할 수 �
 worker raw observation을 쓰거나 terminal evaluator result를 선언할 수 없습니다.
 
 evaluation-worker role은 실행에 필요한 정확 definition·run만 읽고 좁은 security-definer
-function으로 observation append, 단 하나의 terminal result commit, aggregate 생성을 수행합니다.
-evaluation·outbox table에 직접 insert·update·delete 권한을 받지 않습니다. source, review,
-criterion, fixture, oracle/evaluator spec, qualification report, policy, criterion status,
+function으로 qualification report 또는 observation append, 단 하나의 terminal result commit,
+aggregate 생성을 수행합니다. evaluation·outbox table에 직접 insert·update·delete 권한을 받지
+않습니다. source, review, criterion, fixture, oracle/evaluator spec, policy, criterion status,
 assessment, replay result, release decision을 게시할 수 없습니다.
 
 모든 worker function은 `PUBLIC`을 revoke하고 `search_path`를 고정하며 transaction tenant·exact
@@ -176,10 +178,11 @@ duties를 지울 수 있으므로 거부했습니다.
 RLS는 tenant를 격리하지만 exact run lineage, attempt당 observation 하나, terminal result 하나,
 canonical DB time, atomic outbox publication을 강제할 수 없으므로 거부했습니다.
 
-### 모든 observation을 shared outbox에 발행
+### observation과 aggregate outbox intent 생략
 
-retention, backpressure, consumer contract 없이 잠재적으로 무제한 delivery traffic을 만들므로 첫
-profile에서는 거부했습니다.
+worker 소유 record에 durable delivery와 reconciliation이 없어지므로 거부했습니다. run contract가
+observation attempt 수를 제한하지만 consumer는 result stream을 구독하기 전에 명시적인 retention과
+backpressure를 갖춰야 합니다.
 
 ### 성공한 recovery를 갱신된 authority로 취급
 

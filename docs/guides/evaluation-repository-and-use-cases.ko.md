@@ -49,7 +49,7 @@ discovery -> source snapshot -> source review
 상태를 소유합니다. restart 영속성, cross-process concurrency, DB 강제 row isolation, outbox,
 backup 또는 recovery를 보장하지 않습니다.
 
-`PostgresEvaluationRepository`는 migration `0037` 위에서 같은 port를 구현합니다. registry,
+`PostgresEvaluationRepository`는 migration `0037`, `0038` 위에서 같은 port를 구현합니다. registry,
 tenant-wide resource binding 5종, DB가 유도한 lineage edge, terminal uniqueness slot, typed
 partition 16종은 forced RLS 뒤에서 append-only로 유지됩니다. 승인된 record와 제한된 outbox
 intent는 한 transaction에서 commit됩니다. canonical advisory-lock 순서가 record, resource,
@@ -57,7 +57,7 @@ lineage, uniqueness key 경쟁을 직렬화하며 동일 concurrent retry는 권
 수렴합니다.
 
 API role은 control-record 함수만 실행할 수 있습니다. 별도 `proofstack_evaluation_worker` role은
-qualification, observation, terminal result 함수만 실행할 수 있습니다. 두 role 모두 evaluation
+qualification, observation, terminal result, aggregate 함수만 실행할 수 있습니다. 두 role 모두 evaluation
 table에 직접 INSERT 권한이 없습니다. DB 함수는 resource binding, lineage, uniqueness, outbox
 값을 caller 입력으로 신뢰하지 않고 저장할 record에서 유도합니다.
 
@@ -67,9 +67,10 @@ table에 직접 INSERT 권한이 없습니다. DB 함수는 resource binding, li
 
 | 유스케이스 | 필요한 capability | 허용 record |
 | --- | --- | --- |
-| `PublishEvaluationDefinition` | `evaluation:manage` | discovery, source snapshot/review, criterion set, fixture set, oracle/evaluator spec, qualification report, aggregation policy |
+| `PublishEvaluationDefinition` | `evaluation:manage` | discovery, source snapshot/review, criterion set, fixture set, oracle/evaluator spec, aggregation policy |
 | `RecordCriterionSetStatus` | `evaluation:manage` | append-only criterion lifecycle status |
 | `RecordEvaluationRunDecision` | `evaluation:run` | 승인된 run 또는 명시적 rejection |
+| `RecordQualificationReport` | `evaluation:run` | evaluator qualification 결과 |
 | `RecordRawObservation` | `evaluation:run` | 불변 attempt observation 하나 |
 | `RecordEvaluationRunResult` | `evaluation:run` | terminal five-state result 하나 |
 | `CreateEvaluationAggregate` | `evaluation:run` | exact-member aggregate |

@@ -81,18 +81,20 @@ or model.
 
 ### Emit only declared lifecycle outbox intents
 
-The first durable profile emits an outbox intent for:
+The first durable profile emits one canonical outbox intent for every accepted record, classified
+into these bounded lifecycle families:
 
 - definition publication;
+- source and discovery records;
 - criterion lifecycle status;
 - accepted or rejected run creation;
-- terminal run result; and
-- assessment creation.
+- qualification, raw observation, and terminal run result; and
+- aggregate and assessment creation.
 
-Raw observations and aggregates remain immutable queryable state but do not each emit shared
-outbox traffic until a bounded consumer contract exists. Each emitted mutation and its canonical
-intent commit in one transaction. The intent includes exact scope, record kind, record ID, and
-definition digest; an intent failure rolls back the record.
+Each mutation and its canonical intent commit in one transaction. The intent includes exact scope,
+record kind, record ID, and definition digest; an intent failure rolls back the record. Observation
+traffic remains bounded by the run's predeclared finite attempt plan. Consumers must declare
+retention and backpressure before subscribing to high-volume result events.
 
 ### Separate control-plane and evaluator-worker database authority
 
@@ -104,10 +106,10 @@ application authorization, create or reject runs, and create assessments. It can
 worker observations or declare terminal evaluator results through direct table DML.
 
 The evaluation-worker role may read only the exact definitions and runs needed for execution and
-invoke narrow security-definer functions to append an observation, commit one terminal result, and
-create an aggregate. It receives no direct insert, update, or delete grant on evaluation or outbox
-tables. It cannot publish sources, reviews, criteria, fixtures, oracle/evaluator specs,
-qualification reports, policies, criterion status, assessments, replay results, or release
+invoke narrow security-definer functions to append a qualification report or observation, commit
+one terminal result, and create an aggregate. It receives no direct insert, update, or delete grant
+on evaluation or outbox tables. It cannot publish sources, reviews, criteria, fixtures,
+oracle/evaluator specs, policies, criterion status, assessments, replay results, or release
 decisions.
 
 Every worker function revokes `PUBLIC`, fixes `search_path`, validates the transaction tenant and
@@ -184,10 +186,11 @@ erase separation of duties inside one tenant.
 Rejected because RLS isolates tenants but cannot enforce exact run lineage, one observation per
 attempt, one terminal result, canonical database time, or atomic outbox publication.
 
-### Emit every observation to the shared outbox
+### Omit observation and aggregate outbox intents
 
-Rejected for the first profile because it creates potentially unbounded delivery traffic without a
-declared retention, backpressure, or consumer contract.
+Rejected because it would leave worker-owned records without durable delivery and reconciliation.
+The run contract bounds observation attempts; consumers still need explicit retention and
+backpressure before subscribing to the result stream.
 
 ### Treat successful recovery as renewed authority
 
