@@ -11,6 +11,7 @@ export * from "./evaluation/model-assurance-independence.js";
 export * from "./evaluation/model-assurance-calibration.js";
 export * from "./evaluation/model-assurance-blinded-result.js";
 export * from "./evaluation/model-assurance-human-review.js";
+export * from "./evaluation/model-assurance-qualification.js";
 export * from "./evaluation/record-evaluation.js";
 export * from "./evaluation/reference-aggregate.js";
 export * from "./evaluation/schema-oracle.js";
