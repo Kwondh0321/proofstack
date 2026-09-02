@@ -12,9 +12,17 @@ import {
 } from "./evaluation-assessment.js";
 import {
   COMPARISON_DEFINITION_SCHEMA_VERSION,
+  COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
   type ComparisonDefinitionInput,
   ComparisonDefinitionSchema,
+  type ComparisonEvidenceSnapshotDefinition,
+  ComparisonEvidenceSnapshotDefinitionSchema,
 } from "./evaluation-comparison.js";
+import {
+  COMPARISON_RESULT_SCHEMA_VERSION,
+  type ComparisonResultDefinition,
+  ComparisonResultDefinitionSchema,
+} from "./evaluation-comparison-result.js";
 import {
   CRITERION_SET_SCHEMA_VERSION,
   CRITERION_SET_STATUS_SCHEMA_VERSION,
@@ -155,6 +163,9 @@ export const EVALUATION_AGGREGATION_POLICY_DEFINITION_DOMAIN =
 export const EVALUATION_AGGREGATE_DEFINITION_DOMAIN = "proofstack.evaluation-aggregate.v1" as const;
 export const ASSESSMENT_DEFINITION_DOMAIN = "proofstack.assessment.v1" as const;
 export const COMPARISON_DEFINITION_DOMAIN = "proofstack.comparison-definition.v1" as const;
+export const COMPARISON_EVIDENCE_SNAPSHOT_DEFINITION_DOMAIN =
+  "proofstack.comparison-evidence-snapshot.v1" as const;
+export const COMPARISON_RESULT_DEFINITION_DOMAIN = "proofstack.comparison-result.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -650,6 +661,30 @@ export function encodeComparisonDefinition(
   return encodeDefinition(
     COMPARISON_DEFINITION_DOMAIN,
     COMPARISON_DEFINITION_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeComparisonEvidenceSnapshotDefinition(
+  input: ScopedEvaluationDefinition<ComparisonEvidenceSnapshotDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(ComparisonEvidenceSnapshotDefinitionSchema).parse(input);
+  return encodeDefinition(
+    COMPARISON_EVIDENCE_SNAPSHOT_DEFINITION_DOMAIN,
+    COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeComparisonResultDefinition(
+  input: ScopedEvaluationDefinition<ComparisonResultDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(ComparisonResultDefinitionSchema).parse(input);
+  return encodeDefinition(
+    COMPARISON_RESULT_DEFINITION_DOMAIN,
+    COMPARISON_RESULT_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

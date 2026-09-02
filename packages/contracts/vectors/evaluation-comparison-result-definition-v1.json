@@ -1,0 +1,178 @@
+{
+  "format": "proofstack.evaluation-comparison-result-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3584,
+      "input": {
+        "definition": {
+          "artifactChanges": [
+            {
+              "artifactId": "artifact_output",
+              "baseline": {
+                "artifactId": "artifact_output",
+                "classification": "internal",
+                "mediaType": "application/json",
+                "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "sizeBytes": 128
+              },
+              "candidate": {
+                "artifactId": "artifact_output",
+                "classification": "internal",
+                "mediaType": "application/json",
+                "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "sizeBytes": 256
+              },
+              "status": "metadata_changed"
+            }
+          ],
+          "baselineSnapshot": {
+            "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "role": "baseline",
+            "snapshotId": "snapshot_baseline"
+          },
+          "candidateSnapshot": {
+            "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "role": "candidate",
+            "snapshotId": "snapshot_candidate"
+          },
+          "cases": [
+            {
+              "baseline": {
+                "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "fixtureId": "fixture_login",
+                "fixtureVersionId": "fixture_login_v1"
+              },
+              "candidate": {
+                "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "fixtureId": "fixture_login",
+                "fixtureVersionId": "fixture_login_v2"
+              },
+              "fixtureId": "fixture_login",
+              "state": "paired"
+            }
+          ],
+          "comparability": {
+            "reasons": [],
+            "status": "comparable"
+          },
+          "comparison": {
+            "comparisonId": "comparison_reference",
+            "comparisonVersionId": "comparison_reference_v1",
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+          },
+          "distributions": [
+            {
+              "method": { "method": "mean", "methodVersion": "1.0.0" },
+              "metricId": "metric_latency",
+              "missingCount": 0,
+              "observedCount": 1,
+              "role": "baseline",
+              "totalCount": 1,
+              "unit": "milliseconds",
+              "value": "125.5"
+            },
+            {
+              "method": { "method": "mean", "methodVersion": "1.0.0" },
+              "metricId": "metric_latency",
+              "missingCount": 0,
+              "observedCount": 1,
+              "role": "candidate",
+              "totalCount": 1,
+              "unit": "milliseconds",
+              "value": "110.5"
+            }
+          ],
+          "knownLimitations": ["Synthetic paired result"],
+          "latestSourceCutoff": "2026-09-02T02:00:00.000Z",
+          "metricResults": [
+            {
+              "metricId": "metric_latency",
+              "samples": {
+                "baselineMissingCount": 0,
+                "baselineObservedCount": 1,
+                "baselineTotalCount": 1,
+                "candidateMissingCount": 0,
+                "candidateObservedCount": 1,
+                "candidateTotalCount": 1,
+                "pairedObservedCount": 1
+              },
+              "value": {
+                "baseline": { "unit": "milliseconds", "value": "125.5" },
+                "candidate": { "unit": "milliseconds", "value": "110.5" },
+                "delta": { "unit": "milliseconds", "value": "-15" },
+                "direction": "decreased",
+                "status": "available"
+              }
+            }
+          ],
+          "pairing": {
+            "baselineOnlyCount": 0,
+            "candidateOnlyCount": 0,
+            "invalidCount": 0,
+            "pairedCount": 1,
+            "requestedCount": 1
+          },
+          "resultId": "result_reference",
+          "safetyCounts": [
+            {
+              "counts": { "baseline": 1, "candidate": 2, "delta": 1 },
+              "kind": "guardrail_check"
+            }
+          ],
+          "verdictTransitions": [
+            {
+              "baseline": "fail",
+              "candidate": "pass",
+              "count": 1,
+              "criterion": {
+                "criterionId": "criterion_login",
+                "criterionSet": {
+                  "criterionSetId": "criteria_reference",
+                  "criterionSetVersionId": "criteria_reference_v1",
+                  "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888"
+                }
+              }
+            }
+          ],
+          "verdictMarginals": [
+            {
+              "baseline": {
+                "abstain": 0,
+                "error": 0,
+                "fail": 1,
+                "notApplicable": 0,
+                "pass": 0,
+                "total": 1
+              },
+              "candidate": {
+                "abstain": 0,
+                "error": 0,
+                "fail": 0,
+                "notApplicable": 0,
+                "pass": 1,
+                "total": 1
+              },
+              "criterion": {
+                "criterionId": "criterion_login",
+                "criterionSet": {
+                  "criterionSetId": "criteria_reference",
+                  "criterionSetVersionId": "criteria_reference_v1",
+                  "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888"
+                }
+              },
+              "pairedCount": 1
+            }
+          ]
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_reference",
+          "tenantId": "tenant_reference"
+        }
+      },
+      "kind": "comparison_result",
+      "name": "exact paired descriptive comparison result",
+      "sha256": "dbb7b9829432f31a39a0f5cf6264cfc2f11ce077f8bd7b08ca4c6ff428b54bf7"
+    }
+  ]
+}

@@ -7,6 +7,8 @@ import {
   BLINDED_EVALUATION_RESULT_DEFINITION_DOMAIN,
   CALIBRATION_REPORT_DEFINITION_DOMAIN,
   COMPARISON_DEFINITION_DOMAIN,
+  COMPARISON_EVIDENCE_SNAPSHOT_DEFINITION_DOMAIN,
+  COMPARISON_RESULT_DEFINITION_DOMAIN,
   CRITERION_SET_DEFINITION_DOMAIN,
   CRITERION_SET_STATUS_DEFINITION_DOMAIN,
   DISCOVERY_RECORD_DEFINITION_DOMAIN,
@@ -22,6 +24,8 @@ import {
   encodeBlindedEvaluationResultDefinition,
   encodeCalibrationReportDefinition,
   encodeComparisonDefinition,
+  encodeComparisonEvidenceSnapshotDefinition,
+  encodeComparisonResultDefinition,
   encodeCriterionSetDefinition,
   encodeCriterionSetStatusDefinition,
   encodeDiscoveryRecordDefinition,
@@ -110,6 +114,8 @@ const vectorFiles = [
   "evaluation-model-qualification-report-definition-v1.json",
   "evaluation-model-assurance-assessment-definition-v1.json",
   "evaluation-comparison-definition-v1.json",
+  "evaluation-comparison-snapshot-definition-v1.json",
+  "evaluation-comparison-result-definition-v1.json",
 ] as const;
 
 const documents = vectorFiles.map(
@@ -143,6 +149,14 @@ const registry = {
   comparison_definition: {
     domain: COMPARISON_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeComparisonDefinition(input as never),
+  },
+  comparison_evidence_snapshot: {
+    domain: COMPARISON_EVIDENCE_SNAPSHOT_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeComparisonEvidenceSnapshotDefinition(input as never),
+  },
+  comparison_result: {
+    domain: COMPARISON_RESULT_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeComparisonResultDefinition(input as never),
   },
   criterion_set: {
     domain: CRITERION_SET_DEFINITION_DOMAIN,

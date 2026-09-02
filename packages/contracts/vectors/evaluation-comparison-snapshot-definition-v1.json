@@ -1,0 +1,188 @@
+{
+  "format": "proofstack.evaluation-comparison-snapshot-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 4009,
+      "input": {
+        "definition": {
+          "comparison": {
+            "comparisonId": "comparison_reference",
+            "comparisonVersionId": "comparison_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "dataset": {
+            "datasetId": "dataset_reference",
+            "datasetVersionId": "dataset_reference_v1",
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          "fixtures": [
+            {
+              "artifacts": [
+                {
+                  "artifact": {
+                    "artifactId": "artifact_output",
+                    "classification": "internal",
+                    "mediaType": "application/json",
+                    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                    "sizeBytes": 256
+                  },
+                  "availability": "available"
+                }
+              ],
+              "assurance": [
+                {
+                  "eligibility": "ineligible",
+                  "kind": "assessment",
+                  "reasons": ["human_review_required"],
+                  "reference": {
+                    "assessmentId": "assessment_reference",
+                    "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+                  }
+                },
+                {
+                  "eligibility": "eligible",
+                  "kind": "model_assurance",
+                  "reasons": [],
+                  "reference": {
+                    "assessmentExtensionId": "assurance_reference",
+                    "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+                  }
+                }
+              ],
+              "evaluationOutcomes": [
+                {
+                  "assessment": {
+                    "assessmentId": "assessment_reference",
+                    "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+                  },
+                  "counts": {
+                    "abstain": 0,
+                    "error": 0,
+                    "fail": 1,
+                    "notApplicable": 0,
+                    "pass": 0,
+                    "total": 1
+                  },
+                  "criterion": {
+                    "criterionId": "criterion_login",
+                    "criterionSet": {
+                      "criterionSetId": "criteria_reference",
+                      "criterionSetVersionId": "criteria_reference_v1",
+                      "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+                    }
+                  }
+                }
+              ],
+              "fixture": {
+                "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                "fixtureId": "fixture_login",
+                "fixtureVersionId": "fixture_login_v1"
+              },
+              "numericObservations": [
+                {
+                  "measurementName": "response_time",
+                  "observation": {
+                    "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                    "observationId": "observation_reference"
+                  },
+                  "unit": "milliseconds",
+                  "value": "125.5"
+                }
+              ],
+              "replay": {
+                "attemptId": "attempt_reference",
+                "completedAt": "2026-09-02T01:00:00.000Z",
+                "jobId": "job_reference",
+                "plan": {
+                  "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                  "planId": "plan_reference",
+                  "planVersionId": "plan_reference_v1"
+                },
+                "result": {
+                  "artifactId": "artifact_result",
+                  "classification": "internal",
+                  "mediaType": "application/json",
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "sizeBytes": 128
+                },
+                "targetRelease": {
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "targetAdapter": {
+                    "name": "local_target",
+                    "protocolVersion": "1.0.0",
+                    "version": "1.0.0"
+                  },
+                  "targetId": "target_agent",
+                  "targetReleaseId": "release_reference",
+                  "workerProtocol": {
+                    "name": "json_line",
+                    "version": "1.0.0"
+                  }
+                },
+                "terminalCode": "completed",
+                "terminalStatus": "succeeded"
+              },
+              "safetyEvents": [
+                {
+                  "eventId": "safety_guardrail",
+                  "kind": "guardrail_check",
+                  "occurredAt": "2026-09-02T00:59:59.000Z",
+                  "sourceId": "event_guardrail",
+                  "sourceSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                }
+              ],
+              "trace": {
+                "eventCount": 2,
+                "eventKinds": [
+                  { "count": 1, "kind": "agent.run" },
+                  { "count": 1, "kind": "guardrail.check" }
+                ],
+                "eventStatuses": [{ "count": 1, "status": "error" }, { "count": 1, "status": "ok" }]
+              },
+              "usage": [
+                {
+                  "dimension": "elapsedMilliseconds",
+                  "value": {
+                    "amount": 125,
+                    "observedCount": 1,
+                    "sources": ["measured"],
+                    "status": "available",
+                    "unavailableCount": 0
+                  }
+                },
+                {
+                  "dimension": "providerCostMicrounits",
+                  "value": {
+                    "observedCount": 0,
+                    "status": "unavailable",
+                    "unavailableCount": 1,
+                    "unavailableReasons": ["provider_did_not_report"]
+                  }
+                }
+              ]
+            }
+          ],
+          "integrity": "verified",
+          "knownLimitations": ["Synthetic comparison source"],
+          "omissions": [
+            {
+              "reason": "classified_content_excluded",
+              "sourceKey": "prompt_plaintext"
+            }
+          ],
+          "role": "baseline",
+          "snapshotId": "snapshot_reference",
+          "sourceCutoff": "2026-09-02T01:00:01.000Z"
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_reference",
+          "tenantId": "tenant_reference"
+        }
+      },
+      "kind": "comparison_evidence_snapshot",
+      "name": "source-backed baseline evidence snapshot",
+      "sha256": "385441100604c0df7ce2df5d770d589304233db01e434d21b862427e2f14aa26"
+    }
+  ]
+}
