@@ -19,11 +19,14 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > exact·JSON Schema oracle, 명시적 reference aggregate, 권한 우선 불변 graph repository와
 > 제한된 application use case를 제공합니다. graph는 이제 PostgreSQL에 영속화되고 exact-version
 > API·TypeScript SDK로 노출되며 worker 소유 evidence write와 별도 database 권한으로 분리됩니다.
-> service-backed 기준 흐름은 의도적으로 ineligible인 논쟁 가능 assessment 하나를 기록하고 다시
-> 읽습니다. 로컬 기준 구현은 OS sandbox, 상시
-> scheduling worker 배포, 프로덕션 key provider 또는 프로덕션 live-provider 통합이 아닙니다.
+> 모델 보조·인간 평가는 정확한 model, prompt, tool, qualification, calibration, blinding, critique,
+> independence, counterevidence, 책임 있는 review record를 추가합니다. service-backed 기준 흐름은
+> 의도적으로 ineligible 상태를 유지하고 재시작 뒤 모든 digest를 다시 읽습니다. 로컬 기준 구현은
+> OS sandbox, 상시 scheduling worker 배포, 프로덕션 key provider 또는 프로덕션 live-provider
+> 통합이 아닙니다.
 > 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 콘솔
-> 로그인 연동, 평가, 릴리스 게이트는 아직 완성된 기능으로 표시하지 않습니다.
+> 로그인 연동, baseline/candidate 비교, policy, approval, release gate는 아직 완성된 기능으로
+> 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -67,9 +70,11 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 비모델 평가 primitive | total tri-state applicability, digest 등록 exact-byte·제한형 JSON Schema oracle, 정확한 다섯 verdict count, assumption이 확인된 Wilson interval |
 | 평가 graph 경계 | 불변 record 16종, memory·PostgreSQL 정확 scope repository, 권한 우선 server authorship, RLS, lineage, idempotency, outbox, recovery |
 | 평가 service 진입 | exact-version API·fail-closed SDK, 별도 최소 권한 evaluation-worker storage 권한, 다섯 verdict 논쟁 흐름, restart read-back |
+| 모델·인간 assurance | 엄격한 record 13종, 정확한 model/prompt/tool lineage, 필수 slice qualification, calibration 호환성, blinded order swap, 독립 critique, reviewer 책임성, 보수적 assessment |
+| Assurance 권한 | API capability 검사, RLS, append-only lineage, recovery, 전체 restart read-back을 갖춘 kind별 control·model-worker·human-review PostgreSQL role |
 | TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay·evaluation 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 evaluation 흐름 |
+| 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 비모델 평가, 적대적 모델·인간 assurance 흐름 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -157,6 +162,13 @@ API 프로세스 밖에서 정확 기록 모델·도구 흐름 하나와 강제 
 [영속 replay 가이드](docs/guides/durable-replay.ko.md)를 따르세요. 가이드의 로컬 credential과
 제한된 process profile을 프로덕션 설정 또는 격리로 간주하면 안 됩니다.
 
+모델 보조·인간 평가 기준은 자체 완결된 PostgreSQL integration harness입니다. 서로 분리된
+control·model-worker·human-review role을 만들고, injection, calibration, order, independence,
+counterevidence, provider failure, dissent signal을 보존하고, API 재시작 뒤 모든 digest를 다시
+읽습니다. [모델 보조·인간 평가 가이드](docs/guides/model-assisted-human-evaluation.ko.md)를
+따르세요. 결정적 local provider와 synthetic reviewer를 사용하며 live model이나 프로덕션 identity
+배포가 아닙니다.
+
 ## 저장소 구성
 
 ```text
@@ -173,11 +185,15 @@ packages/s3              불변 S3 호환 아티팩트 객체 어댑터
 services/artifact-maintenance  범위 제한 일회성 수명주기·키 안전 명령
 services/recovery        안전한 논리 DB 작업과 격리 복구 리허설
 services/replay-worker   Fenced 영속 attempt 실행, accounting, boundary supervision
+services/evaluation-worker  최소 권한 비모델 evaluation evidence recorder
+services/model-evaluation-worker  최소 권한 model execution evidence recorder
 sdks/typescript          공급자 중립 텔레메트리·회귀 control-plane 클라이언트
 examples/basic-agent     검증된 SDK-API 트레이스 예제
 examples/incident-to-regression  실행 가능한 evidence-only 회귀 카탈로그 흐름
 examples/interaction-capture  공급자 중립 캡처, 기록 replay, mismatch, 폐기 흐름
 examples/durable-replay  영속 성공, 취소, stale-fence 복구, 결과 흐름
+examples/evaluation-control-flow  논쟁 가능 비모델 service·restart 흐름
+examples/model-assurance-control-flow  적대적 모델·인간 assurance·recovery 흐름
 docs/architecture        번호가 지정된 아키텍처 결정 기록
 docs/operations          배포 계약과 운영자 절차
 docs/product             제품 헌법과 의존 순서가 명시된 로드맵
@@ -247,19 +263,27 @@ worker role, PostgreSQL, restart 경로를 실행합니다.
 [기준·비모델 평가 감사 기록](docs/development/workflow-1-criteria-evaluation-audit.ko.md)은 이
 불변 evidence·eligibility 경계를 승인하지만 model-assisted evaluation, comparison, policy,
 approval, release, production-readiness 주장은 승인하지 않습니다.
+[모델 보조·인간 평가 가이드](docs/guides/model-assisted-human-evaluation.ko.md)는 제한된 local
+provider, model-worker, human-review, authority, failure, restart 흐름을 설명합니다. 완료된
+[모델 보조·인간 평가 감사 기록](docs/development/workflow-1-model-human-evaluation-audit.ko.md)은
+이 논쟁 가능한 assurance 체크포인트를 승인하지만 baseline/candidate 제품 비교, policy, approval,
+release, live-provider, production-readiness 주장은 승인하지 않습니다.
 
 ## 현재의 경계
 
 현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
 스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
-상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target worker, 격리된 evaluator 실행,
-evaluator, 정책 집행, 지속적인 공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
+상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target·evaluator worker,
+프로덕션 live-provider model evaluation, baseline/candidate operator 비교, 정책 집행, 지속적인
+공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
 evidence-only 회귀 버전, fixture 소유 분류 상호작용 캡처, 기록 경계 replay, 별도 로컬
 프로세스를 사용하는 bounded 영속 replay job은 workload API key·OIDC browser 인증,
 artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. 비모델 평가
-primitive, 권한 우선 불변 graph, 영속 PostgreSQL adapter, exact-version API·SDK,
-worker-owned storage 경계도 구현되고 검증되었습니다. 기준 흐름은 synthetic evidence를
-기록할 뿐, 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 release decision을
+primitive와 model/human assurance contract, 권한 우선 불변 graph, 영속 PostgreSQL adapter,
+exact-version API·SDK, kind별 storage authority, 전용 worker, restart read-back도 구현되고
+검증되었습니다. 기준 흐름은 synthetic evidence와 결정적 local model provider를 사용할 뿐,
+OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer
+전문성을 검증하거나 operator surface에서 baseline·candidate를 비교하거나 release decision을
 내리지 않습니다.
 Replay 결과는
 OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content

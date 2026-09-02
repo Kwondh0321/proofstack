@@ -1,7 +1,7 @@
 # Capability roadmap
 
 Status: working sequence  
-Last reviewed: 2026-09-01
+Last reviewed: 2026-09-02
 
 This roadmap is ordered by dependency and risk, not calendar promises. A later capability must not
 pull an earlier one into production before its acceptance gates pass.
@@ -82,7 +82,7 @@ Goal: turn a failed production trace into repeatable evidence.
   live-provider modes.
 - [x] Versioned sources, criteria, deterministic oracles, statistical evaluators, raw
   observations, qualification, intervals, abstention, errors, coverage, and assessments.
-- [ ] Qualified model-assisted evaluators with exact model and prompt lineage, calibration,
+- [x] Qualified model-assisted evaluators with exact model and prompt lineage, calibration,
   independence groups, blinded order swaps, injection tests, counterevidence, disagreement, and
   human review.
 - [ ] Exact baseline and candidate diff API and operator view for traces, distributions, cost,
@@ -123,9 +123,13 @@ The completed
 records the accepted immutable evaluation evidence and eligibility boundary, closed cross-check
 findings, and the model-assisted, comparison, policy, and release limits that remain open.
 The model lineage, qualification, calibration, independence, blinding, injection, critique, human
-review, authority, persistence, recovery, and acceptance gates for the open sixth checkpoint are
-fixed by the
+review, authority, persistence, recovery, and acceptance gates for the sixth checkpoint are fixed
+by the
 [model-assisted and human evaluation entry audit](../development/workflow-1-model-human-evaluation-entry-audit.md).
+The completed
+[model-assisted and human evaluation audit](../development/workflow-1-model-human-evaluation-audit.md)
+accepts the contestable model-and-human assurance boundary and records the synthetic-provider,
+reviewer, isolation, comparison, policy, release, and production limits that remain open.
 
 ## Workflow 2: reliability release gate
 

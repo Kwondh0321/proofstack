@@ -19,12 +19,14 @@ evaluating, governing, and safely releasing AI agents.
 > applicability, digest-bound exact and JSON Schema oracles, explicit reference aggregates, and an
 > authorization-first immutable graph repository with bounded application use cases. The graph is
 > now persisted through PostgreSQL, exposed through an exact-version API and TypeScript SDK, and
-> split from worker-owned evidence writes by separate database authority. A service-backed
-> reference flow records and reads back one deliberately ineligible contested assessment. The local
-> reference is not an OS sandbox, continuously scheduled worker deployment, production key
-> provider, or production live-provider integration. Coordinated reference backup and isolated
-> restore do not constitute provider-specific production disaster recovery. Console sign-in
-> integration, evaluation, and release gates are intentionally not represented as complete.
+> split from worker-owned evidence writes by separate database authority. Model-assisted and human
+> evaluation now adds exact model, prompt, tool, qualification, calibration, blinding, critique,
+> independence, counterevidence, and accountable-review records. Its service-backed reference
+> deliberately remains ineligible and reads every digest again after restart. The local reference
+> is not an OS sandbox, continuously scheduled worker deployment, production key provider, or
+> production live-provider integration. Coordinated reference backup and isolated restore do not
+> constitute provider-specific production disaster recovery. Console sign-in, baseline/candidate
+> comparison, policy, approval, and release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -66,9 +68,11 @@ release when a declared policy regresses.
 | Non-model evaluation primitives | Total tri-state applicability, digest-registered exact-byte and bounded JSON Schema oracles, exact five-verdict counts, and assumption-gated Wilson intervals |
 | Evaluation graph boundary | Sixteen immutable record kinds, memory and PostgreSQL exact-scope repositories, authorization-first server authorship, RLS, lineage, idempotency, outbox, and recovery |
 | Evaluation service entry | Exact-version API and fail-closed SDK, separate least-privilege evaluation-worker storage authority, five-verdict contested reference flow, and restart read-back |
+| Model and human assurance | Thirteen strict record kinds, exact model/prompt/tool lineage, mandatory-slice qualification, calibration compatibility, blinded order swaps, independent critique, reviewer accountability, and conservative assessment |
+| Assurance authority | Kind-routed control, model-worker, and human-review PostgreSQL roles backed by API capability checks, RLS, append-only lineage, recovery, and complete restart read-back |
 | TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, and evaluation clients with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, and contested evaluation flows through real service boundaries |
+| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested non-model evaluation, and adversarial model/human assurance through real service boundaries |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -158,6 +162,14 @@ persists each terminal report before success. Follow the
 [durable replay guide](docs/guides/durable-replay.md); its local credentials and bounded process
 profile must not be treated as production configuration or isolation.
 
+The model-assisted and human-evaluation reference is a self-contained PostgreSQL integration
+harness. It provisions disjoint control, model-worker, and human-review roles; preserves injection,
+calibration, order, independence, counterevidence, provider-failure, and dissent signals; restarts
+the API; and re-reads every digest. Follow the
+[model-assisted and human evaluation guide](docs/guides/model-assisted-human-evaluation.md). It
+uses a deterministic local provider and synthetic reviewers, not a live model or production
+identity deployment.
+
 ## Repository map
 
 ```text
@@ -174,11 +186,15 @@ packages/s3              Immutable S3-compatible artifact object adapter
 services/artifact-maintenance  Scoped one-shot lifecycle and key-safety commands
 services/recovery        Safe logical database operations and isolated recovery rehearsal
 services/replay-worker   Fenced durable-attempt execution, accounting, and boundary supervision
+services/evaluation-worker  Least-privilege non-model evaluation evidence recorder
+services/model-evaluation-worker  Least-privilege model execution evidence recorder
 sdks/typescript          Provider-neutral telemetry and regression control-plane clients
 examples/basic-agent     Verified SDK-to-API trace example
 examples/incident-to-regression  Executable evidence-only regression catalog flow
 examples/interaction-capture  Provider-neutral capture, recorded replay, mismatch, and revocation flow
 examples/durable-replay  Durable success, cancellation, stale-fence recovery, and result flow
+examples/evaluation-control-flow  Contested non-model service and restart flow
+examples/model-assurance-control-flow  Adversarial model/human assurance and recovery flow
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
 docs/operations          Deployment contracts and operator procedures
@@ -243,23 +259,33 @@ The completed
 [criteria and non-model evaluation audit](docs/development/workflow-1-criteria-evaluation-audit.md)
 accepts that immutable evidence and eligibility boundary while withholding model-assisted
 evaluation, comparison, policy, approval, release, and production-readiness claims.
+The [model-assisted and human evaluation guide](docs/guides/model-assisted-human-evaluation.md)
+documents the bounded local-provider, model-worker, human-review, authority, failure, and restart
+flow. The completed
+[model-assisted and human evaluation audit](docs/development/workflow-1-model-human-evaluation-audit.md)
+accepts that contestable assurance checkpoint while withholding baseline/candidate product
+comparison, policy, approval, release, live-provider, and production-readiness claims.
 
 ## Current boundaries
 
 The current build does not provide console-integrated OIDC sign-in, a production external artifact
 key provider, continuously scheduled artifact workers, OTLP/gRPC or non-trace signal ingestion, a
 deployed outbox publisher, a continuously scheduled production replay-worker deployment,
-OS/container-isolated target workers, isolated evaluator execution, policy enforcement, continuous
-provider-specific disaster recovery, or production deployment artifacts. Immutable evidence-only regression
+OS/container-isolated target or evaluator workers, production live-provider model evaluation,
+baseline/candidate operator comparison, policy enforcement, continuous provider-specific disaster
+recovery, or production deployment artifacts. Immutable evidence-only regression
 versions, fixture-owned classified interaction capture, recorded-boundary replay, and bounded
 durable replay jobs with separate local processes are implemented and tested, alongside workload
 API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile.
-Non-model evaluation primitives, the authorization-first immutable graph, durable PostgreSQL
-adapter, exact-version API and SDK, and worker-owned storage boundary are implemented and tested.
+Non-model evaluation primitives and model/human assurance contracts, the authorization-first
+immutable graphs, durable PostgreSQL adapters, exact-version API and SDK, kind-routed storage
+authorities, dedicated workers, and restart read-back are implemented and tested.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
-The reference flow records synthetic evidence; ProofStack does not yet execute arbitrary
-evaluators, determine source authority automatically, or make a release decision.
+The reference flows record synthetic evidence and use a deterministic local model provider;
+ProofStack does not yet execute arbitrary evaluators in an OS sandbox, determine source authority
+automatically, validate real reviewer expertise, compare a baseline and candidate in an operator
+surface, or make a release decision.
 Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
 built-in content inspector rejects structured credential fields and supports configured scanners,
 but no scanner proves arbitrary opaque bytes secret-free; scanner
