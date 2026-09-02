@@ -3,6 +3,7 @@ export * from "./auth/workload-delegation.js";
 export * from "./clock.js";
 export * from "./errors.js";
 export * from "./evaluation/applicability.js";
+export * from "./evaluation/comparison-exact-arithmetic.js";
 export * from "./evaluation/comparison-pairing.js";
 export * from "./evaluation/create-model-assurance-assessment.js";
 export * from "./evaluation/evaluation-record-validation.js";

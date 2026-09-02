@@ -35,6 +35,7 @@ export const MAX_COMPARISON_NUMERIC_OBSERVATIONS = 8_000;
 export const MAX_COMPARISON_ARTIFACTS = 4_000;
 export const MAX_COMPARISON_SAFETY_EVENTS = 4_000;
 export const MAX_COMPARISON_OMISSIONS = 4_000;
+export const MAX_COMPARISON_EXACT_INTEGER_CHARACTERS = 128;
 const MAX_COMPARISON_COUNT = Number.MAX_SAFE_INTEGER;
 
 function isStrictlySortedUnique(values: readonly string[]): boolean {
@@ -312,11 +313,11 @@ export const PublishComparisonDefinitionRequestSchema = z
 
 const ExactIntegerSchema = z
   .string()
-  .max(128)
+  .max(MAX_COMPARISON_EXACT_INTEGER_CHARACTERS)
   .regex(/^-?(?:0|[1-9][0-9]*)$/);
 const ExactPositiveIntegerSchema = z
   .string()
-  .max(128)
+  .max(MAX_COMPARISON_EXACT_INTEGER_CHARACTERS)
   .regex(/^[1-9][0-9]*$/);
 
 function greatestCommonDivisor(left: bigint, right: bigint): bigint {
