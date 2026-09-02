@@ -35,6 +35,23 @@ interface ResponseSchema<Output> {
     | { readonly error: unknown; readonly success: false };
 }
 
+function localValidationDetail(error: unknown): string {
+  if (typeof error !== "object" || error === null || !("issues" in error)) return "";
+  const issues = error.issues;
+  if (!Array.isArray(issues)) return "";
+  const issue = issues[0];
+  if (typeof issue !== "object" || issue === null) return "";
+  const message = "message" in issue && typeof issue.message === "string" ? issue.message : "";
+  const path =
+    "path" in issue && Array.isArray(issue.path)
+      ? issue.path.filter((part: unknown): part is string | number =>
+          ["number", "string"].includes(typeof part),
+        )
+      : [];
+  if (!message) return "";
+  return `${path.length > 0 ? ` at ${path.join(".")}` : ""}: ${message}`;
+}
+
 export type ProofStackModelAssuranceAuthentication =
   | { readonly csrfToken: string; readonly mode: "browser" }
   | { readonly mode: "development" }
@@ -373,7 +390,11 @@ export class ProofStackModelAssuranceClient {
   ): Promise<PublishModelAssuranceRecordResponse> {
     const id = validatedIdentifier(recordIdInput, "recordId");
     const request = requestSchema.safeParse(requestInput);
-    if (!request.success) throw new ProofStackApiError(`${operation} failed local validation`);
+    if (!request.success) {
+      throw new ProofStackApiError(
+        `${operation} failed local validation${localValidationDetail(request.error)}`,
+      );
+    }
     const response = await this.request<PublishModelAssuranceRecordResponse>(
       ["model-assurance", segment, id],
       "POST",

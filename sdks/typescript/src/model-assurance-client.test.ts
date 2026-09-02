@@ -429,7 +429,7 @@ describe("ProofStackModelAssuranceClient", () => {
         recordId: "mpv_safety_v1",
         request: { definition: {}, kind: "model_evaluator_profile" } as never,
       }),
-    ).rejects.toThrow(/local validation/);
+    ).rejects.toThrow(/local validation at definition/);
     await expect(
       client.publishDefinition({
         recordId: "mpv_safety_v1",
