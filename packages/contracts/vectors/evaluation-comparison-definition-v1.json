@@ -1,0 +1,166 @@
+{
+  "format": "proofstack.evaluation-comparison-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3875,
+      "input": {
+        "definition": {
+          "baseline": {
+            "dataset": {
+              "datasetId": "dataset_reference",
+              "datasetVersionId": "dataset_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "fixtures": [
+              {
+                "assessments": [
+                  {
+                    "assessmentId": "assessment_baseline",
+                    "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                  }
+                ],
+                "fixture": {
+                  "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "fixtureId": "fixture_login",
+                  "fixtureVersionId": "fixture_login_v1"
+                },
+                "modelAssuranceAssessments": [
+                  {
+                    "assessmentExtensionId": "assurance_baseline",
+                    "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+                  }
+                ],
+                "replay": {
+                  "attemptId": "attempt_baseline",
+                  "completedAt": "2026-09-02T01:00:00.000Z",
+                  "jobId": "job_baseline",
+                  "plan": {
+                    "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                    "planId": "plan_baseline",
+                    "planVersionId": "plan_baseline_v1"
+                  },
+                  "result": {
+                    "artifactId": "artifact_result_baseline",
+                    "classification": "internal",
+                    "mediaType": "application/json",
+                    "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                    "sizeBytes": 256
+                  },
+                  "targetRelease": {
+                    "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                    "targetAdapter": {
+                      "name": "local_target",
+                      "protocolVersion": "1.0.0",
+                      "version": "1.0.0"
+                    },
+                    "targetId": "target_agent",
+                    "targetReleaseId": "release_baseline",
+                    "workerProtocol": {
+                      "name": "json_line",
+                      "version": "1.0.0"
+                    }
+                  },
+                  "terminalCode": "completed",
+                  "terminalStatus": "succeeded"
+                }
+              }
+            ]
+          },
+          "calculationPolicy": {
+            "confidenceIntervals": "source_only",
+            "decimalArithmetic": "exact_decimal_v1",
+            "fixturePairing": "logical_fixture_id",
+            "mean": "exact_rational_v1",
+            "missingness": "preserve_all",
+            "quantile": "nearest_rank_v1"
+          },
+          "candidate": {
+            "dataset": {
+              "datasetId": "dataset_reference",
+              "datasetVersionId": "dataset_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "fixtures": [
+              {
+                "assessments": [
+                  {
+                    "assessmentId": "assessment_candidate",
+                    "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888"
+                  }
+                ],
+                "fixture": {
+                  "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "fixtureId": "fixture_login",
+                  "fixtureVersionId": "fixture_login_v1"
+                },
+                "modelAssuranceAssessments": [
+                  {
+                    "assessmentExtensionId": "assurance_candidate",
+                    "definitionSha256": "9999999999999999999999999999999999999999999999999999999999999999"
+                  }
+                ],
+                "replay": {
+                  "attemptId": "attempt_candidate",
+                  "completedAt": "2026-09-02T01:05:00.000Z",
+                  "jobId": "job_candidate",
+                  "plan": {
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "planId": "plan_candidate",
+                    "planVersionId": "plan_candidate_v1"
+                  },
+                  "result": {
+                    "artifactId": "artifact_result_candidate",
+                    "classification": "internal",
+                    "mediaType": "application/json",
+                    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "sizeBytes": 240
+                  },
+                  "targetRelease": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "targetAdapter": {
+                      "name": "local_target",
+                      "protocolVersion": "1.0.0",
+                      "version": "1.0.0"
+                    },
+                    "targetId": "target_agent",
+                    "targetReleaseId": "release_candidate",
+                    "workerProtocol": {
+                      "name": "json_line",
+                      "version": "1.0.0"
+                    }
+                  },
+                  "terminalCode": "completed",
+                  "terminalStatus": "succeeded"
+                }
+              }
+            ]
+          },
+          "classifiedContentProjection": "metadata_only",
+          "comparisonId": "comparison_login",
+          "comparisonVersionId": "comparison_login_v1",
+          "description": "Compare exact login regression evidence",
+          "metrics": [
+            {
+              "aggregation": {
+                "method": "median"
+              },
+              "dimension": "elapsedMilliseconds",
+              "kind": "replay_usage",
+              "label": "Median elapsed milliseconds",
+              "metricId": "metric_elapsed"
+            }
+          ],
+          "name": "Exact login evidence comparison"
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_reference",
+          "tenantId": "tenant_reference"
+        }
+      },
+      "kind": "comparison_definition",
+      "name": "exact baseline and candidate definition",
+      "sha256": "bf9a27d9f3ac3701f9064e040118c1ca0f00b1b0bee87a34a0f270d921303d2f"
+    }
+  ]
+}

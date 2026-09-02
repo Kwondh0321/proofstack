@@ -11,6 +11,11 @@ import {
   EvaluationAggregationPolicyDefinitionSchema,
 } from "./evaluation-assessment.js";
 import {
+  COMPARISON_DEFINITION_SCHEMA_VERSION,
+  type ComparisonDefinitionInput,
+  ComparisonDefinitionSchema,
+} from "./evaluation-comparison.js";
+import {
   CRITERION_SET_SCHEMA_VERSION,
   CRITERION_SET_STATUS_SCHEMA_VERSION,
   type CriterionSetDefinition,
@@ -19,8 +24,53 @@ import {
   CriterionSetStatusDefinitionSchema,
 } from "./evaluation-criteria.js";
 import {
-  EVALUATION_RUN_RESULT_SCHEMA_VERSION,
+  MODEL_ASSURANCE_ASSESSMENT_SCHEMA_VERSION,
+  type ModelAssuranceAssessmentDefinition,
+  ModelAssuranceAssessmentDefinitionSchema,
+} from "./evaluation-model-assessment.js";
+import {
+  BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
+  BLINDED_EVALUATION_RESULT_SCHEMA_VERSION,
+  type BlindedEvaluationPlanDefinition,
+  BlindedEvaluationPlanDefinitionSchema,
+  type BlindedEvaluationResultDefinition,
+  BlindedEvaluationResultDefinitionSchema,
+  CALIBRATION_REPORT_SCHEMA_VERSION,
+  type CalibrationReportDefinition,
+  CalibrationReportDefinitionSchema,
+  HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION,
+  HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
+  HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION,
+  type HumanReviewerIndependenceDefinition,
+  HumanReviewerIndependenceDefinitionSchema,
+  type HumanReviewProtocolDefinition,
+  HumanReviewProtocolDefinitionSchema,
+  type HumanReviewRecordDefinition,
+  HumanReviewRecordDefinitionSchema,
+  INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
+  INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
+  type IndependenceDeclarationDefinition,
+  IndependenceDeclarationDefinitionSchema,
+  type IndependentCritiqueDefinition,
+  IndependentCritiqueDefinitionSchema,
+  MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
+  MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
+  type ModelAssistedEvaluatorSpecDefinition,
+  ModelAssistedEvaluatorSpecDefinitionSchema,
+  type ModelEvaluatorProfileDefinition,
+  ModelEvaluatorProfileDefinitionSchema,
+} from "./evaluation-model-assurance.js";
+import {
+  MODEL_QUALIFICATION_REPORT_SCHEMA_VERSION,
+  MODEL_QUALIFICATION_SUITE_SCHEMA_VERSION,
+  type ModelQualificationReportDefinition,
+  ModelQualificationReportDefinitionSchema,
+  type ModelQualificationSuiteDefinition,
+  ModelQualificationSuiteDefinitionSchema,
+} from "./evaluation-model-qualification.js";
+import {
   EVALUATION_RUN_REJECTION_SCHEMA_VERSION,
+  EVALUATION_RUN_RESULT_SCHEMA_VERSION,
   EVALUATION_RUN_SCHEMA_VERSION,
   type EvaluationRunDefinition,
   EvaluationRunDefinitionSchema,
@@ -51,58 +101,13 @@ import {
   type OracleSpecDefinition,
   OracleSpecDefinitionSchema,
   QUALIFICATION_FIXTURE_SET_SCHEMA_VERSION,
+  QUALIFICATION_REPORT_SCHEMA_VERSION,
   type QualificationFixtureSetDefinition,
   QualificationFixtureSetDefinitionSchema,
-  QUALIFICATION_REPORT_SCHEMA_VERSION,
   type QualificationReportDefinition,
   QualificationReportDefinitionSchema,
 } from "./evaluation-spec.js";
-import {
-  CALIBRATION_REPORT_SCHEMA_VERSION,
-  BLINDED_EVALUATION_RESULT_SCHEMA_VERSION,
-  type BlindedEvaluationResultDefinition,
-  BlindedEvaluationResultDefinitionSchema,
-  BLINDED_EVALUATION_PLAN_SCHEMA_VERSION,
-  type BlindedEvaluationPlanDefinition,
-  BlindedEvaluationPlanDefinitionSchema,
-  type CalibrationReportDefinition,
-  CalibrationReportDefinitionSchema,
-  INDEPENDENCE_DECLARATION_SCHEMA_VERSION,
-  INDEPENDENT_CRITIQUE_SCHEMA_VERSION,
-  type IndependentCritiqueDefinition,
-  IndependentCritiqueDefinitionSchema,
-  HUMAN_REVIEW_PROTOCOL_SCHEMA_VERSION,
-  type HumanReviewProtocolDefinition,
-  HumanReviewProtocolDefinitionSchema,
-  HUMAN_REVIEW_RECORD_SCHEMA_VERSION,
-  type HumanReviewRecordDefinition,
-  HumanReviewRecordDefinitionSchema,
-  HUMAN_REVIEWER_INDEPENDENCE_SCHEMA_VERSION,
-  type HumanReviewerIndependenceDefinition,
-  HumanReviewerIndependenceDefinitionSchema,
-  type IndependenceDeclarationDefinition,
-  IndependenceDeclarationDefinitionSchema,
-  MODEL_ASSISTED_EVALUATOR_SPEC_SCHEMA_VERSION,
-  type ModelAssistedEvaluatorSpecDefinition,
-  ModelAssistedEvaluatorSpecDefinitionSchema,
-  MODEL_EVALUATOR_PROFILE_SCHEMA_VERSION,
-  type ModelEvaluatorProfileDefinition,
-  ModelEvaluatorProfileDefinitionSchema,
-} from "./evaluation-model-assurance.js";
 import { type EvidenceScope, EvidenceScopeSchema } from "./evidence.js";
-import {
-  MODEL_ASSURANCE_ASSESSMENT_SCHEMA_VERSION,
-  type ModelAssuranceAssessmentDefinition,
-  ModelAssuranceAssessmentDefinitionSchema,
-} from "./evaluation-model-assessment.js";
-import {
-  MODEL_QUALIFICATION_REPORT_SCHEMA_VERSION,
-  type ModelQualificationReportDefinition,
-  ModelQualificationReportDefinitionSchema,
-  MODEL_QUALIFICATION_SUITE_SCHEMA_VERSION,
-  type ModelQualificationSuiteDefinition,
-  ModelQualificationSuiteDefinitionSchema,
-} from "./evaluation-model-qualification.js";
 
 export const EVALUATION_DEFINITION_ENCODING_VERSION =
   "proofstack.evaluation-definition-jcs.v1" as const;
@@ -149,6 +154,7 @@ export const EVALUATION_AGGREGATION_POLICY_DEFINITION_DOMAIN =
   "proofstack.evaluation-aggregation-policy.v1" as const;
 export const EVALUATION_AGGREGATE_DEFINITION_DOMAIN = "proofstack.evaluation-aggregate.v1" as const;
 export const ASSESSMENT_DEFINITION_DOMAIN = "proofstack.assessment.v1" as const;
+export const COMPARISON_DEFINITION_DOMAIN = "proofstack.comparison-definition.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
 
@@ -632,6 +638,18 @@ export function encodeAssessmentDefinition(
   return encodeDefinition(
     ASSESSMENT_DEFINITION_DOMAIN,
     ASSESSMENT_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeComparisonDefinition(
+  input: ScopedEvaluationDefinition<ComparisonDefinitionInput>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(ComparisonDefinitionSchema).parse(input);
+  return encodeDefinition(
+    COMPARISON_DEFINITION_DOMAIN,
+    COMPARISON_DEFINITION_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );
