@@ -612,7 +612,7 @@ export class CreateModelAssuranceAssessment {
         ),
       ),
     );
-    const humanDeclarations: HumanReviewerIndependence[] = await Promise.all(
+    const declarationResults: HumanReviewerIndependence[] = await Promise.all(
       reviews.map((review) =>
         assuranceRecord(
           repository,
@@ -623,6 +623,20 @@ export class CreateModelAssuranceAssessment {
         ),
       ),
     );
+    const humanDeclarations: HumanReviewerIndependence[] = [];
+    const humanDeclarationById = new Map<string, HumanReviewerIndependence>();
+    for (const declaration of declarationResults) {
+      const existing = humanDeclarationById.get(declaration.declarationId);
+      if (existing && existing.definitionSha256 !== declaration.definitionSha256) {
+        throw new ModelAssuranceDependencyError(
+          `human_reviewer_independence:${declaration.declarationId}`,
+        );
+      }
+      if (!existing) {
+        humanDeclarationById.set(declaration.declarationId, declaration);
+        humanDeclarations.push(declaration);
+      }
+    }
 
     const baseQualificationInput =
       await this.dependencies.evaluationRepository.findQualificationReport(

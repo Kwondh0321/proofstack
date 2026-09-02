@@ -812,6 +812,53 @@ describe("CreateModelAssuranceAssessment", () => {
     expect(result.record.independenceDeclarations).toHaveLength(2);
   });
 
+  it("deduplicates one exact reviewer-independence declaration across superseding reviews", async () => {
+    const setup = await fixture({ completeAssurance: true });
+    const originalReference = setup.command.definition.humanReviews[0];
+    if (!originalReference) throw new Error("Expected an original human review reference");
+    const original = await setup.repository.find(
+      setup.evaluation.scope,
+      "human_review_record",
+      originalReference.reviewId,
+    );
+    if (!original) throw new Error("Expected an original human review");
+    const {
+      definitionSha256: _definitionSha256,
+      recordedAt: _recordedAt,
+      schemaVersion: _schemaVersion,
+      scope: _scope,
+      ...correctionDefinition
+    } = structuredClone(original);
+    correctionDefinition.reviewId = "hrr_derived_reviewer_1_correction";
+    correctionDefinition.supersedes = {
+      definitionSha256: original.definitionSha256,
+      reviewId: original.reviewId,
+    };
+    const correction = materialize(
+      "human_review_record",
+      setup.evaluation.scope,
+      correctionDefinition,
+      { recordedAt: "2026-09-02T03:20:03.000Z" },
+    );
+    await setup.repository.publish("human_review_record", correction);
+
+    const command = structuredClone(setup.command);
+    command.definition.assessmentExtensionId = "maa_derived_superseding_review";
+    command.definition.humanReviews = [
+      ...command.definition.humanReviews,
+      { definitionSha256: correction.definitionSha256, reviewId: correction.reviewId },
+    ].sort((left, right) => left.reviewId.localeCompare(right.reviewId));
+    command.recordId = command.definition.assessmentExtensionId;
+
+    const result = await new CreateModelAssuranceAssessment({
+      clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+      evaluationRepository: setup.evaluation.repository,
+      modelAssuranceRepository: setup.repository,
+    }).execute(command);
+    expect(result.record).toMatchObject({ eligibility: "eligible", reasons: [] });
+    expect(result.record.humanReviews).toHaveLength(3);
+  });
+
   it("preserves a critical model-injection qualification failure as an exact ineligibility reason", async () => {
     const setup = await fixture({ completeAssurance: true });
     const reference = setup.command.definition.modelQualificationReport;
