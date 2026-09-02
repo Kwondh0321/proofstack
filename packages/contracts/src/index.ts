@@ -4,6 +4,7 @@ export * from "./artifact.js";
 export * from "./dataset.js";
 export * from "./evaluation-api.js";
 export * from "./evaluation-assessment.js";
+export * from "./evaluation-comparison.js";
 export * from "./evaluation-criteria.js";
 export * from "./evaluation-definition-encoding.js";
 export * from "./evaluation-model-assessment.js";
