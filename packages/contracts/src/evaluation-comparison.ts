@@ -310,12 +310,57 @@ export const PublishComparisonDefinitionRequestSchema = z
     }
   });
 
-export const ComparisonExactValueSchema = z
-  .object({
-    unit: AssuranceSummarySchema,
-    value: ExactDecimalSchema,
-  })
-  .strict();
+const ExactIntegerSchema = z
+  .string()
+  .max(128)
+  .regex(/^-?(?:0|[1-9][0-9]*)$/);
+const ExactPositiveIntegerSchema = z
+  .string()
+  .max(128)
+  .regex(/^[1-9][0-9]*$/);
+
+function greatestCommonDivisor(left: bigint, right: bigint): bigint {
+  let a = left < 0n ? -left : left;
+  let b = right < 0n ? -right : right;
+  while (b !== 0n) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+  return a;
+}
+
+export const ComparisonExactValueSchema = z.discriminatedUnion("representation", [
+  z
+    .object({
+      representation: z.literal("decimal"),
+      unit: AssuranceSummarySchema,
+      value: ExactDecimalSchema,
+    })
+    .strict(),
+  z
+    .object({
+      denominator: ExactPositiveIntegerSchema,
+      numerator: ExactIntegerSchema,
+      representation: z.literal("rational"),
+      unit: AssuranceSummarySchema,
+    })
+    .strict()
+    .superRefine((value, context) => {
+      const numerator = BigInt(value.numerator);
+      const denominator = BigInt(value.denominator);
+      if (
+        (numerator === 0n && denominator !== 1n) ||
+        greatestCommonDivisor(numerator, denominator) !== 1n
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Exact rational values must use a positive denominator and lowest terms",
+          path: ["denominator"],
+        });
+      }
+    }),
+]);
 
 export const ComparisonRoleSchema = z.enum(["baseline", "candidate"]);
 
@@ -696,6 +741,7 @@ export type ComparisonDefinition = z.infer<typeof ComparisonDefinitionRecordSche
 export type ComparisonDefinitionInput = z.infer<typeof ComparisonDefinitionSchema>;
 export type ComparisonDefinitionReference = z.infer<typeof ComparisonDefinitionReferenceSchema>;
 export type ComparisonMetric = z.infer<typeof ComparisonMetricSchema>;
+export type ComparisonExactValue = z.infer<typeof ComparisonExactValueSchema>;
 export type ComparisonEvidenceFixtureSnapshot = z.infer<
   typeof ComparisonEvidenceFixtureSnapshotSchema
 >;

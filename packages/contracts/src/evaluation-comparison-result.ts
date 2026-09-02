@@ -4,6 +4,7 @@ import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
 import {
   ComparisonDefinitionReferenceSchema,
   ComparisonEvidenceSnapshotReferenceSchema,
+  type ComparisonExactValue,
   ComparisonExactValueSchema,
   ComparisonVerdictCountsSchema,
   MAX_COMPARISON_ARTIFACTS,
@@ -11,13 +12,13 @@ import {
   MAX_COMPARISON_SUBJECT_ASSESSMENTS,
   MAX_COMPARISON_SUBJECT_FIXTURES,
 } from "./evaluation-comparison.js";
-import { CriterionReferenceSchema, ExactDecimalSchema } from "./evaluation-criteria.js";
+import { CriterionReferenceSchema } from "./evaluation-criteria.js";
 import { EvaluationVerdictSchema } from "./evaluation-run.js";
 import { AssuranceSummarySchema } from "./evaluation-source.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
-export const COMPARISON_RESULT_SCHEMA_VERSION = "0.1" as const;
+export const COMPARISON_RESULT_SCHEMA_VERSION = "0.2" as const;
 export const MAX_COMPARISON_RESULT_REASONS = 32;
 export const MAX_COMPARISON_RESULT_TRANSITIONS = 4_096;
 export const MAX_COMPARISON_RESULT_DISTRIBUTIONS = MAX_COMPARISON_METRICS * 2;
@@ -42,26 +43,46 @@ function exactDecimalParts(value: string): { integer: bigint; scale: number } {
   return { integer, scale: fraction.length };
 }
 
-function scaleExactInteger(integer: bigint, from: number, to: number): bigint {
-  return integer * 10n ** BigInt(to - from);
+function greatestCommonDivisor(left: bigint, right: bigint): bigint {
+  let a = left < 0n ? -left : left;
+  let b = right < 0n ? -right : right;
+  while (b !== 0n) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+  return a;
+}
+
+function exactFraction(value: ComparisonExactValue): { denominator: bigint; numerator: bigint } {
+  if (value.representation === "rational") {
+    return { denominator: BigInt(value.denominator), numerator: BigInt(value.numerator) };
+  }
+  const parts = exactDecimalParts(value.value);
+  const denominator = 10n ** BigInt(parts.scale);
+  const divisor = greatestCommonDivisor(parts.integer, denominator);
+  return { denominator: denominator / divisor, numerator: parts.integer / divisor };
 }
 
 function exactDelta(
-  baseline: string,
-  candidate: string,
-  delta: string,
+  baseline: ComparisonExactValue,
+  candidate: ComparisonExactValue,
+  delta: ComparisonExactValue,
 ): { matches: boolean; sign: -1 | 0 | 1 } {
-  const baselineParts = exactDecimalParts(baseline);
-  const candidateParts = exactDecimalParts(candidate);
-  const deltaParts = exactDecimalParts(delta);
-  const scale = Math.max(baselineParts.scale, candidateParts.scale, deltaParts.scale);
-  const expected =
-    scaleExactInteger(candidateParts.integer, candidateParts.scale, scale) -
-    scaleExactInteger(baselineParts.integer, baselineParts.scale, scale);
-  const supplied = scaleExactInteger(deltaParts.integer, deltaParts.scale, scale);
+  const baselineFraction = exactFraction(baseline);
+  const candidateFraction = exactFraction(candidate);
+  const deltaFraction = exactFraction(delta);
+  const expectedNumerator =
+    candidateFraction.numerator * baselineFraction.denominator -
+    baselineFraction.numerator * candidateFraction.denominator;
+  const expectedDenominator = candidateFraction.denominator * baselineFraction.denominator;
+  const suppliedNumerator = deltaFraction.numerator;
+  const suppliedDenominator = deltaFraction.denominator;
+  const matches =
+    expectedNumerator * suppliedDenominator === suppliedNumerator * expectedDenominator;
   return {
-    matches: supplied === expected,
-    sign: supplied === 0n ? 0 : supplied < 0n ? -1 : 1,
+    matches,
+    sign: suppliedNumerator === 0n ? 0 : suppliedNumerator < 0n ? -1 : 1,
   };
 }
 
@@ -292,11 +313,7 @@ export const ComparisonMetricValueSchema = z.discriminatedUnion("status", [
           path: ["delta", "unit"],
         });
       }
-      const derivedDelta = exactDelta(
-        value.baseline.value,
-        value.candidate.value,
-        value.delta.value,
-      );
+      const derivedDelta = exactDelta(value.baseline, value.candidate, value.delta);
       if (!derivedDelta.matches) {
         context.addIssue({
           code: "custom",
@@ -385,8 +402,7 @@ export const ComparisonDistributionSummarySchema = z
     observedCount: z.number().int().positive().max(MAX_COMPARISON_COUNT),
     role: z.enum(["baseline", "candidate"]),
     totalCount: z.number().int().positive().max(MAX_COMPARISON_COUNT),
-    unit: AssuranceSummarySchema,
-    value: ExactDecimalSchema,
+    value: ComparisonExactValueSchema,
   })
   .strict()
   .refine((value) => value.observedCount + value.missingCount === value.totalCount, {

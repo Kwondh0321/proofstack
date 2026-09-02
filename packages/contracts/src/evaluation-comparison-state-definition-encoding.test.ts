@@ -145,6 +145,12 @@ describe("canonical comparison state encoding", () => {
       (candidate) => {
         const metric = candidate.definition.metricResults[0];
         if (metric?.value.status !== "available") throw new Error("Expected metric");
+        if (
+          metric.value.candidate.representation !== "decimal" ||
+          metric.value.delta.representation !== "decimal"
+        ) {
+          throw new Error("Expected decimal metric values");
+        }
         metric.value.candidate.value = "109.5";
         metric.value.delta.value = "-16";
       },

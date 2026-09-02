@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ComparisonExactValueSchema } from "./evaluation-comparison.js";
 import {
   COMPARISON_RESULT_SCHEMA_VERSION,
   ComparisonArtifactChangeSchema,
@@ -82,8 +83,7 @@ function definition() {
         observedCount: 2,
         role: "baseline",
         totalCount: 2,
-        unit: "milliseconds",
-        value: "125.5",
+        value: { representation: "decimal", unit: "milliseconds", value: "125.5" },
       },
       {
         method: { method: "mean", methodVersion: "1.0.0" },
@@ -92,8 +92,7 @@ function definition() {
         observedCount: 1,
         role: "candidate",
         totalCount: 2,
-        unit: "milliseconds",
-        value: "110.5",
+        value: { representation: "decimal", unit: "milliseconds", value: "110.5" },
       },
     ],
     knownLimitations: ["One candidate fixture was unavailable"],
@@ -111,9 +110,9 @@ function definition() {
           pairedObservedCount: 1,
         },
         value: {
-          baseline: { unit: "milliseconds", value: "125.5" },
-          candidate: { unit: "milliseconds", value: "110.5" },
-          delta: { unit: "milliseconds", value: "-15" },
+          baseline: { representation: "decimal", unit: "milliseconds", value: "125.5" },
+          candidate: { representation: "decimal", unit: "milliseconds", value: "110.5" },
+          delta: { representation: "decimal", unit: "milliseconds", value: "-15" },
           direction: "decreased",
           status: "available",
         },
@@ -174,29 +173,105 @@ describe("comparison result contracts", () => {
   it("validates decimal deltas, units, and direction using exact arithmetic", () => {
     expect(
       ComparisonMetricValueSchema.safeParse({
-        baseline: { unit: "requests", value: "1.20" },
-        candidate: { unit: "requests", value: "1.30" },
-        delta: { unit: "requests", value: "0.10" },
+        baseline: { representation: "decimal", unit: "requests", value: "1.20" },
+        candidate: { representation: "decimal", unit: "requests", value: "1.30" },
+        delta: { representation: "decimal", unit: "requests", value: "0.10" },
         direction: "increased",
         status: "available",
       }).success,
     ).toBe(true);
     expect(
       ComparisonMetricValueSchema.safeParse({
-        baseline: { unit: "requests", value: "1.20" },
-        candidate: { unit: "requests", value: "1.30" },
-        delta: { unit: "requests", value: "0.20" },
+        baseline: { representation: "decimal", unit: "requests", value: "1.20" },
+        candidate: { representation: "decimal", unit: "requests", value: "1.30" },
+        delta: { representation: "decimal", unit: "requests", value: "0.20" },
         direction: "increased",
         status: "available",
       }).success,
     ).toBe(false);
     expect(
       ComparisonMetricValueSchema.safeParse({
-        baseline: { unit: "requests", value: "1" },
-        candidate: { unit: "tokens", value: "1" },
-        delta: { unit: "requests", value: "0" },
+        baseline: { representation: "decimal", unit: "requests", value: "1" },
+        candidate: { representation: "decimal", unit: "tokens", value: "1" },
+        delta: { representation: "decimal", unit: "requests", value: "0" },
         direction: "increased",
         status: "available",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("preserves canonical rational values and validates cross-representation deltas", () => {
+    expect(
+      ComparisonExactValueSchema.safeParse({
+        denominator: "3",
+        numerator: "1",
+        representation: "rational",
+        unit: "ratio",
+      }).success,
+    ).toBe(true);
+    for (const value of [
+      { denominator: "6", numerator: "2" },
+      { denominator: "2", numerator: "0" },
+    ]) {
+      expect(
+        ComparisonExactValueSchema.safeParse({
+          ...value,
+          representation: "rational",
+          unit: "ratio",
+        }).success,
+      ).toBe(false);
+    }
+
+    const exactThirdDelta = {
+      baseline: {
+        denominator: "3",
+        numerator: "1",
+        representation: "rational",
+        unit: "ratio",
+      },
+      candidate: {
+        denominator: "3",
+        numerator: "2",
+        representation: "rational",
+        unit: "ratio",
+      },
+      delta: {
+        denominator: "3",
+        numerator: "1",
+        representation: "rational",
+        unit: "ratio",
+      },
+      direction: "increased",
+      status: "available",
+    } as const;
+    expect(ComparisonMetricValueSchema.safeParse(exactThirdDelta).success).toBe(true);
+    expect(
+      ComparisonMetricValueSchema.safeParse({
+        ...exactThirdDelta,
+        baseline: { representation: "decimal", unit: "ratio", value: "0.5" },
+        candidate: {
+          denominator: "3",
+          numerator: "2",
+          representation: "rational",
+          unit: "ratio",
+        },
+        delta: {
+          denominator: "6",
+          numerator: "1",
+          representation: "rational",
+          unit: "ratio",
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ComparisonMetricValueSchema.safeParse({
+        ...exactThirdDelta,
+        delta: {
+          denominator: "4",
+          numerator: "1",
+          representation: "rational",
+          unit: "ratio",
+        },
       }).success,
     ).toBe(false);
   });
@@ -275,8 +350,8 @@ describe("comparison result contracts", () => {
     ).toBe(true);
     expect(
       ComparisonMetricValueSchema.safeParse({
-        baseline: { unit: "milliseconds", value: "10" },
-        candidate: { unit: "seconds", value: "1" },
+        baseline: { representation: "decimal", unit: "milliseconds", value: "10" },
+        candidate: { representation: "decimal", unit: "seconds", value: "1" },
         reasons: ["unit_mismatch"],
         status: "incomparable",
       }).success,

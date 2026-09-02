@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-result-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3584,
+      "encodedByteLength": 3739,
       "input": {
         "definition": {
           "artifactChanges": [
@@ -68,8 +68,11 @@
               "observedCount": 1,
               "role": "baseline",
               "totalCount": 1,
-              "unit": "milliseconds",
-              "value": "125.5"
+              "value": {
+                "representation": "decimal",
+                "unit": "milliseconds",
+                "value": "125.5"
+              }
             },
             {
               "method": { "method": "mean", "methodVersion": "1.0.0" },
@@ -78,8 +81,11 @@
               "observedCount": 1,
               "role": "candidate",
               "totalCount": 1,
-              "unit": "milliseconds",
-              "value": "110.5"
+              "value": {
+                "representation": "decimal",
+                "unit": "milliseconds",
+                "value": "110.5"
+              }
             }
           ],
           "knownLimitations": ["Synthetic paired result"],
@@ -97,9 +103,21 @@
                 "pairedObservedCount": 1
               },
               "value": {
-                "baseline": { "unit": "milliseconds", "value": "125.5" },
-                "candidate": { "unit": "milliseconds", "value": "110.5" },
-                "delta": { "unit": "milliseconds", "value": "-15" },
+                "baseline": {
+                  "representation": "decimal",
+                  "unit": "milliseconds",
+                  "value": "125.5"
+                },
+                "candidate": {
+                  "representation": "decimal",
+                  "unit": "milliseconds",
+                  "value": "110.5"
+                },
+                "delta": {
+                  "representation": "decimal",
+                  "unit": "milliseconds",
+                  "value": "-15"
+                },
                 "direction": "decreased",
                 "status": "available"
               }
@@ -172,7 +190,7 @@
       },
       "kind": "comparison_result",
       "name": "exact paired descriptive comparison result",
-      "sha256": "dbb7b9829432f31a39a0f5cf6264cfc2f11ce077f8bd7b08ca4c6ff428b54bf7"
+      "sha256": "1cad075de77b3dffe67bf63fae3a8ee076a59a3abc1ea89e33e2a8bf8ce8ce0b"
     }
   ]
 }
