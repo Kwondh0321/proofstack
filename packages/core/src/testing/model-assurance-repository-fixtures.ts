@@ -12,6 +12,7 @@ import type {
   IndependenceDeclarationDefinition,
   IndependentCritiqueDefinition,
   ModelAssistedEvaluatorSpecDefinition,
+  ModelAssuranceAssessmentDefinition,
   ModelEvaluatorProfileDefinition,
   ModelQualificationReportDefinition,
   ModelQualificationSuiteDefinition,
@@ -610,9 +611,15 @@ export async function createModelAssuranceRepositoryTestHarness(
     );
   }
 
-  const commandDefinition = vector<CreateModelAssuranceAssessmentCommand["definition"]>(
+  const assessmentDefinition = vector<ModelAssuranceAssessmentDefinition>(
     "evaluation-model-assurance-assessment-definition-v1.json",
   );
+  const {
+    eligibility: _eligibility,
+    evaluatedAt: _evaluatedAt,
+    reasons: _reasons,
+    ...commandDefinition
+  } = assessmentDefinition;
   commandDefinition.assessmentExtensionId = `maa_${namespace}_eligible`;
   commandDefinition.baseAssessment = {
     assessmentId: base.assessmentId,

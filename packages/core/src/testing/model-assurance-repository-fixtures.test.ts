@@ -1,3 +1,4 @@
+import { ModelAssuranceAssessmentInputSchema } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import { CreateModelAssuranceAssessment } from "../evaluation/create-model-assurance-assessment.js";
 import { FixedClock } from "./fixed-clock.js";
@@ -23,6 +24,9 @@ describe("model-assurance repository fixtures", () => {
       ]),
     );
     expect(harness.records).toHaveLength(20);
+    expect(ModelAssuranceAssessmentInputSchema.parse(harness.command.definition)).toEqual(
+      harness.command.definition,
+    );
 
     const critique = harness.records.find(({ kind }) => kind === "independent_critique");
     const baseQualification = harness.evaluation.records.find(
