@@ -842,13 +842,17 @@ describe("CreateModelAssuranceAssessment", () => {
     );
     await setup.repository.publish("human_review_record", correction);
 
-    const command = structuredClone(setup.command);
-    command.definition.assessmentExtensionId = "maa_derived_superseding_review";
-    command.definition.humanReviews = [
-      ...command.definition.humanReviews,
+    const definition = structuredClone(setup.command.definition);
+    definition.assessmentExtensionId = "maa_derived_superseding_review";
+    definition.humanReviews = [
+      ...definition.humanReviews,
       { definitionSha256: correction.definitionSha256, reviewId: correction.reviewId },
     ].sort((left, right) => left.reviewId.localeCompare(right.reviewId));
-    command.recordId = command.definition.assessmentExtensionId;
+    const command = {
+      ...setup.command,
+      definition,
+      recordId: definition.assessmentExtensionId,
+    };
 
     const result = await new CreateModelAssuranceAssessment({
       clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
