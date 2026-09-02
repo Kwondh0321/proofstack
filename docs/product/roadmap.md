@@ -130,6 +130,11 @@ The completed
 [model-assisted and human evaluation audit](../development/workflow-1-model-human-evaluation-audit.md)
 accepts the contestable model-and-human assurance boundary and records the synthetic-provider,
 reviewer, isolation, comparison, policy, release, and production limits that remain open.
+The exact subjects, pairing, missingness, distributions, usage, artifact, safety-event,
+comparability, API, operator-view, authority, persistence, recovery, and acceptance gates for the
+open seventh checkpoint are fixed by the
+[baseline and candidate comparison entry audit](../development/workflow-1-baseline-candidate-comparison-entry-audit.md)
+and [ADR-0020](../architecture/0020-exact-evidence-comparison.md).
 
 ## Workflow 2: reliability release gate
 
