@@ -15,6 +15,7 @@ export * from "./evaluation/comparison-usage-metrics.js";
 export * from "./evaluation/comparison-verdict-metrics.js";
 export * from "./evaluation/comparison-verdict-transitions.js";
 export * from "./evaluation/create-model-assurance-assessment.js";
+export * from "./evaluation/derive-comparison-result.js";
 export * from "./evaluation/evaluation-record-validation.js";
 export * from "./evaluation/evaluation-repository.js";
 export * from "./evaluation/evaluation-repository-errors.js";
