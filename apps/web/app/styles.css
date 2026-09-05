@@ -298,6 +298,25 @@ h2 {
   padding: 10px 14px;
 }
 
+.primary-nav a:focus-visible,
+.primary-action:focus-visible,
+.secondary-action:focus-visible,
+.lookup-row button:focus-visible,
+.table-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .workflow-list {
   display: grid;
   align-content: center;
@@ -717,6 +736,10 @@ h2 {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 11px;
+}
+
+.table-scroll:focus-visible {
+  border-color: var(--border-bright);
 }
 
 .data-table {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ScrollableTable } from "../../../components/scrollable-table";
 import {
   type ArtifactRoleDisplay,
   buildComparisonDisplay,
@@ -271,8 +272,9 @@ export default async function ComparisonDetailPage({
         description="Values retain their exact decimal or rational representation. Every denominator exposes missing, invalid, and unavailable classes."
         title="Declared metric results"
       >
-        <div className="table-scroll">
+        <ScrollableTable caption="Declared metric results">
           <table className="data-table metric-table">
+            <caption className="sr-only">Declared metric results</caption>
             <thead>
               <tr>
                 <th scope="col">Metric</th>
@@ -342,15 +344,16 @@ export default async function ComparisonDetailPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
       </TableSection>
 
       <TableSection
         description="The complete logical fixture population is retained, including unpaired and invalid cases."
         title="Exact comparison cases"
       >
-        <div className="table-scroll">
+        <ScrollableTable caption="Exact comparison cases">
           <table className="data-table">
+            <caption className="sr-only">Exact comparison cases</caption>
             <thead>
               <tr>
                 <th scope="col">Fixture</th>
@@ -384,7 +387,7 @@ export default async function ComparisonDetailPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
       </TableSection>
 
       <div className="two-column-sections">
@@ -439,8 +442,9 @@ export default async function ComparisonDetailPage({
 
       <TableSection title="Distribution summaries">
         {model.distributions.length > 0 ? (
-          <div className="table-scroll">
+          <ScrollableTable caption="Distribution summaries">
             <table className="data-table">
+              <caption className="sr-only">Distribution summaries</caption>
               <thead>
                 <tr>
                   <th scope="col">Metric / role</th>
@@ -468,7 +472,7 @@ export default async function ComparisonDetailPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         ) : (
           <p className="empty-state">No source-backed distribution summaries were recorded.</p>
         )}
@@ -477,8 +481,9 @@ export default async function ComparisonDetailPage({
       <div className="two-column-sections">
         <TableSection title="Safety event counts">
           {model.safety.length > 0 ? (
-            <div className="table-scroll">
+            <ScrollableTable caption="Safety event counts">
               <table className="data-table compact-table">
+                <caption className="sr-only">Safety event counts</caption>
                 <thead>
                   <tr>
                     <th scope="col">Kind</th>
@@ -498,7 +503,7 @@ export default async function ComparisonDetailPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollableTable>
           ) : (
             <p className="empty-state">No safety count projection was recorded.</p>
           )}
@@ -516,8 +521,9 @@ export default async function ComparisonDetailPage({
 
       <TableSection title="Verdict marginals and pairing availability">
         {model.verdictMarginals.length > 0 ? (
-          <div className="table-scroll">
+          <ScrollableTable caption="Verdict marginals and pairing availability">
             <table className="data-table">
+              <caption className="sr-only">Verdict marginals and pairing availability</caption>
               <thead>
                 <tr>
                   <th scope="col">Criterion</th>
@@ -539,7 +545,7 @@ export default async function ComparisonDetailPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         ) : (
           <p className="empty-state">No criterion verdict marginals were recorded.</p>
         )}
@@ -547,8 +553,9 @@ export default async function ComparisonDetailPage({
 
       <TableSection title="Exact verdict transitions">
         {model.verdictTransitions.length > 0 ? (
-          <div className="table-scroll">
+          <ScrollableTable caption="Exact verdict transitions">
             <table className="data-table compact-table">
+              <caption className="sr-only">Exact verdict transitions</caption>
               <thead>
                 <tr>
                   <th scope="col">Criterion</th>
@@ -570,7 +577,7 @@ export default async function ComparisonDetailPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         ) : (
           <p className="empty-state">No paired verdict transition was available.</p>
         )}
@@ -581,8 +588,9 @@ export default async function ComparisonDetailPage({
         title="Artifact metadata changes"
       >
         {model.artifacts.length > 0 ? (
-          <div className="table-scroll">
+          <ScrollableTable caption="Artifact metadata changes">
             <table className="data-table artifact-table">
+              <caption className="sr-only">Artifact metadata changes</caption>
               <thead>
                 <tr>
                   <th scope="col">Artifact</th>
@@ -610,7 +618,7 @@ export default async function ComparisonDetailPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
         ) : (
           <p className="empty-state">No artifact metadata changes were recorded.</p>
         )}
