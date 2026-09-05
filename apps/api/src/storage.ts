@@ -8,8 +8,10 @@ import {
 } from "@proofstack/artifacts";
 import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
 import {
+  type ComparisonRepository,
   type EvaluationRepository,
   type EvidenceRepository,
+  MemoryComparisonRepository,
   MemoryEvaluationRepository,
   MemoryEvidenceRepository,
   MemoryModelAssuranceRepository,
@@ -23,6 +25,7 @@ import {
   assertMigrationsCurrent,
   createPostgresPool,
   PostgresArtifactCatalogRepository,
+  PostgresComparisonRepository,
   PostgresEvaluationRepository,
   PostgresEvidenceRepository,
   PostgresModelAssuranceRepository,
@@ -50,6 +53,7 @@ export interface ApiStorage {
   readonly artifacts?: ApiArtifactStorage;
   readonly checkReadiness: () => Promise<void>;
   readonly close: () => Promise<void>;
+  readonly comparisonRepository: ComparisonRepository;
   readonly evaluationRepository: EvaluationRepository;
   readonly evidenceRepository: EvidenceRepository;
   readonly interactionFixtureVersionRepository?: InteractionFixtureVersionRepository;
@@ -104,6 +108,7 @@ export async function createApiStorage(
       },
       checkReadiness: async () => undefined,
       close: async () => undefined,
+      comparisonRepository: new MemoryComparisonRepository(),
       evaluationRepository: new MemoryEvaluationRepository(),
       evidenceRepository: new MemoryEvidenceRepository(),
       interactionFixtureVersionRepository: interactionStorage.regressionVersionRepository,
@@ -165,6 +170,7 @@ export async function createApiStorage(
       persistentObjects?.destroy();
       await pool.end();
     },
+    comparisonRepository: new PostgresComparisonRepository(pool),
     evaluationRepository: new PostgresEvaluationRepository(pool),
     evidenceRepository: new PostgresEvidenceRepository(pool),
     interactionFixtureVersionRepository: regressionVersionRepository,

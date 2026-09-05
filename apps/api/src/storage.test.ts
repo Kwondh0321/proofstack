@@ -1,4 +1,5 @@
 import {
+  MemoryComparisonRepository,
   MemoryEvaluationRepository,
   MemoryEvidenceRepository,
   MemoryModelAssuranceRepository,
@@ -7,6 +8,7 @@ import {
   type createPostgresPool,
   MigrationRequiredError,
   PostgresArtifactCatalogRepository,
+  PostgresComparisonRepository,
   PostgresEvaluationRepository,
   PostgresEvidenceRepository,
   PostgresModelAssuranceRepository,
@@ -68,6 +70,7 @@ describe("createApiStorage", () => {
   it("keeps dependency-free memory adapters as the development default", async () => {
     const storage = await createApiStorage({ mode: "memory" }, vi.fn());
 
+    expect(storage.comparisonRepository).toBeInstanceOf(MemoryComparisonRepository);
     expect(storage.evaluationRepository).toBeInstanceOf(MemoryEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
     expect(storage.modelAssuranceRepository).toBeInstanceOf(MemoryModelAssuranceRepository);
@@ -90,6 +93,7 @@ describe("createApiStorage", () => {
 
     const storage = await createApiStorage(postgresConfig(), onIdleError, adapters);
 
+    expect(storage.comparisonRepository).toBeInstanceOf(PostgresComparisonRepository);
     expect(storage.evaluationRepository).toBeInstanceOf(PostgresEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(PostgresEvidenceRepository);
     expect(storage.modelAssuranceRepository).toBeInstanceOf(PostgresModelAssuranceRepository);
