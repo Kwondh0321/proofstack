@@ -140,6 +140,10 @@ The completed
 accepts the immutable policy-independent descriptive comparison boundary and records the synthetic
 evidence, criteria-authority, statistical, operator-surface, policy, release, and production limits
 that remain open.
+The complete-lineage, production-composition, criteria-trust, authority, retention, isolation,
+recovery, failure-mode, usability, open-source, and acceptance gates for the final open checkpoint
+are fixed by the
+[Workflow 1 exit entry audit](../development/workflow-1-exit-entry-audit.md).
 
 ## Workflow 2: reliability release gate
 
