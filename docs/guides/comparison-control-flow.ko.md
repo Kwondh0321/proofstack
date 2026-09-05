@@ -31,6 +31,27 @@ pnpm example:comparison-control-flow
 - 정확한 유리수 delta, 단위, 방향, availability
 - storage에서 다시 읽은 영속 result ID와 SHA-256 definition digest
 
+## 브라우저 실험실 사용
+
+같은 실제 comparison 흐름을 로컬 브라우저 화면에서 실행할 수 있습니다.
+
+```bash
+pnpm example:comparison-lab
+```
+
+그다음 <http://127.0.0.1:3010/>을 여세요. 기본 interface는 영어이며 한국어 interface는
+<http://127.0.0.1:3010/?lang=ko>에서 사용할 수 있습니다.
+
+먼저 baseline `125`, candidate `100`으로 실행하면 정확히 `-25 milliseconds`, 설명 방향은
+`decreased`여야 합니다. 이어서 candidate `150`으로 `+25 milliseconds`, candidate `125`로
+`0 milliseconds`를 확인하세요. 기계 판독 결과를 펼치면 snapshot ID, result ID, definition
+digest를 확인할 수 있습니다.
+
+실험실은 `127.0.0.1`에만 binding하고, 크기가 제한된 strict JSON body만 받으며, 제한적인 Content
+Security Policy를 제공합니다. 매 실행에는 별도의 불변 namespace가 할당됩니다. approval이나
+release control은 의도적으로 포함하지 않습니다. 종료하려면 실행 중인 terminal에서 `Control-C`를
+누르세요.
+
 ## 실험값 변경
 
 첫 build 이후에는 다음처럼 측정값을 바꿔 package를 직접 실행할 수 있습니다.

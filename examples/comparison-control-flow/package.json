@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
+    "lab": "node dist/server.js",
     "lint": "biome lint src",
     "start": "node dist/run.js",
     "test": "vitest run --coverage",

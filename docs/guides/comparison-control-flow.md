@@ -32,6 +32,26 @@ The output includes:
 - the exact rational delta, its unit, direction, and availability;
 - the persisted result ID and SHA-256 definition digest read back from storage.
 
+## Use the browser lab
+
+Run the same real comparison flow through a local browser interface:
+
+```bash
+pnpm example:comparison-lab
+```
+
+Then open <http://127.0.0.1:3010/>. English is the default interface and the Korean interface is
+available at <http://127.0.0.1:3010/?lang=ko>.
+
+Start with baseline `125` and candidate `100`; the expected delta is exactly `-25 milliseconds`
+and the descriptive direction is `decreased`. Next try candidate `150` for `+25 milliseconds` and
+candidate `125` for `0 milliseconds`. Expand the machine-readable result to inspect the snapshot
+identifiers, result identifier, and definition digests.
+
+The lab binds only to `127.0.0.1`, accepts a strict bounded JSON body, serves a restrictive Content
+Security Policy, and assigns a distinct immutable namespace to each run. It intentionally has no
+approval or release control. Stop it with `Control-C` in the terminal where it is running.
+
 ## Change the experiment
 
 After the first build, run the package directly with different measurements:

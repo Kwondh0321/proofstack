@@ -33,6 +33,7 @@
     "docs:check": "node scripts/check-doc-links.mjs",
     "example:basic-agent": "pnpm build && pnpm --filter @proofstack/example-basic-agent start",
     "example:comparison-control-flow": "pnpm build && pnpm --filter @proofstack/example-comparison-control-flow start",
+    "example:comparison-lab": "pnpm --filter @proofstack/example-comparison-control-flow build && pnpm --filter @proofstack/example-comparison-control-flow lab",
     "example:incident-to-regression": "pnpm build && pnpm --filter @proofstack/example-incident-to-regression start",
     "example:interaction-capture": "pnpm build && pnpm --filter @proofstack/example-interaction-capture start",
     "example:durable-replay:prepare": "pnpm build && pnpm --filter @proofstack/example-durable-replay prepare:local",
