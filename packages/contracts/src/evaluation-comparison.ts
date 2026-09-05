@@ -26,7 +26,7 @@ import {
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
-export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.3" as const;
+export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.4" as const;
 export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.2" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
@@ -137,6 +137,38 @@ const comparisonMetricIdentityShape = {
   stratumId: OpaqueIdSchema,
 };
 
+export const COMPARISON_REPLAY_USAGE_UNITS = {
+  concurrentInteractions: "interactions",
+  elapsedMilliseconds: "milliseconds",
+  emittedArtifactBytes: "bytes",
+  inputTokens: "tokens",
+  jobAttempts: "attempts",
+  modelRequests: "requests",
+  outputTokens: "tokens",
+  providerCostMicrounits: "provider_cost_microunits",
+  retrievedBytes: "bytes",
+  toolCalls: "calls",
+} as const satisfies Record<z.infer<typeof ReplayBudgetDimensionSchema>, string>;
+
+const ComparisonReplayUsageMetricSchema = z
+  .object({
+    ...comparisonMetricIdentityShape,
+    aggregation: NumericAggregationSchema,
+    dimension: ReplayBudgetDimensionSchema,
+    kind: z.literal("replay_usage"),
+    unit: AssuranceSummarySchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.unit !== COMPARISON_REPLAY_USAGE_UNITS[value.dimension]) {
+      context.addIssue({
+        code: "custom",
+        message: "Replay usage metrics must declare the canonical unit for their dimension",
+        path: ["unit"],
+      });
+    }
+  });
+
 export const ComparisonStratumSchema = z
   .object({
     fixtureIds: z
@@ -177,14 +209,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       unit: AssuranceSummarySchema,
     })
     .strict(),
-  z
-    .object({
-      ...comparisonMetricIdentityShape,
-      aggregation: NumericAggregationSchema,
-      dimension: ReplayBudgetDimensionSchema,
-      kind: z.literal("replay_usage"),
-    })
-    .strict(),
+  ComparisonReplayUsageMetricSchema,
   z
     .object({
       ...comparisonMetricIdentityShape,

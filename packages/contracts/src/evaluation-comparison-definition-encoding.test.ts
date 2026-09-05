@@ -84,6 +84,12 @@ describe("canonical comparison definition encoding", () => {
         metric.aggregation = { method: "maximum", methodVersion: "1.0.0" };
       },
       (candidate) => {
+        const metric = candidate.definition.metrics[0];
+        if (metric?.kind !== "replay_usage") throw new Error("Expected usage metric");
+        metric.dimension = "providerCostMicrounits";
+        metric.unit = "provider_cost_microunits";
+      },
+      (candidate) => {
         candidate.definition.calculationPolicy.minimumPairedCoverageBasisPoints = 9_000;
       },
       (candidate) => {

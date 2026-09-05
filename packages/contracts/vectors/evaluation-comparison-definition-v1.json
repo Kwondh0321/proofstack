@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 4247,
+      "encodedByteLength": 4269,
       "input": {
         "definition": {
           "baseline": {
@@ -153,7 +153,8 @@
               "kind": "replay_usage",
               "label": "Median elapsed milliseconds",
               "metricId": "metric_elapsed",
-              "stratumId": "stratum_all"
+              "stratumId": "stratum_all",
+              "unit": "milliseconds"
             }
           ],
           "name": "Exact login evidence comparison",
@@ -173,7 +174,7 @@
       },
       "kind": "comparison_definition",
       "name": "exact baseline and candidate definition",
-      "sha256": "9aaf324ff780611b0c9739de926bb220e4b19b50d841477d11ac7fc7646df507"
+      "sha256": "349da074010a63c7f605b03c9bf23334d3631b5bd88e4a9ab36e1f59f3fcc260"
     }
   ]
 }

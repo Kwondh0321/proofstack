@@ -103,6 +103,7 @@ function definition() {
         label: "Median replay elapsed time",
         metricId: "metric_elapsed",
         stratumId: "stratum_all",
+        unit: "milliseconds",
       },
       {
         criterion: {
@@ -226,6 +227,7 @@ describe("comparison definition contracts", () => {
         label: "P95 provider cost",
         metricId: "metric_cost_p95",
         stratumId: "stratum_all",
+        unit: "provider_cost_microunits",
       }).success,
     ).toBe(true);
     expect(
@@ -240,6 +242,7 @@ describe("comparison definition contracts", () => {
         label: "Invalid quantile",
         metricId: "metric_invalid",
         stratumId: "stratum_all",
+        unit: "provider_cost_microunits",
       }).success,
     ).toBe(false);
     expect(
@@ -250,6 +253,18 @@ describe("comparison definition contracts", () => {
         label: "Unversioned mean",
         metricId: "metric_unversioned",
         stratumId: "stratum_all",
+        unit: "provider_cost_microunits",
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonMetricSchema.safeParse({
+        aggregation: { method: "sum", methodVersion: "1.0.0" },
+        dimension: "elapsedMilliseconds",
+        kind: "replay_usage",
+        label: "Invalid elapsed unit",
+        metricId: "metric_invalid_unit",
+        stratumId: "stratum_all",
+        unit: "seconds",
       }).success,
     ).toBe(false);
     expect(
