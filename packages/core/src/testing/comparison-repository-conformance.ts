@@ -104,10 +104,13 @@ export const comparisonRepositoryConformanceCases: readonly ComparisonRepository
         await withHarness(factory, "retry_isolation", async (harness) => {
           await publishGraph(harness);
           for (const fixture of harness.records) {
-            const retry = await publishComparisonFixture(
-              harness.repository,
-              structuredClone(fixture),
-            );
+            const retriedRecord = structuredClone(fixture.record);
+            retriedRecord.createdAt = "2026-09-02T03:00:01.000Z";
+            retriedRecord.createdByPrincipalId = "principal_retry_attempt";
+            const retry = await publishComparisonFixture(harness.repository, {
+              kind: fixture.kind,
+              record: retriedRecord,
+            } as typeof fixture);
             assert.equal(retry.created, false);
             assert.deepEqual(retry.record, fixture.record);
             retry.record.scope.environmentId = "env_mutated_retry";

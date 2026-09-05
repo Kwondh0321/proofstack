@@ -7,6 +7,7 @@ export default defineConfig({
       // These adapters' SQL, RLS, deferred constraints, and rollback semantics are exercised by
       // required real-PostgreSQL conformance suites rather than mocked-client unit tests.
       exclude: [
+        "src/postgres-comparison-repository.ts",
         "src/postgres-evaluation-repository.ts",
         "src/postgres-model-assurance-repository.ts",
         "src/postgres-replay-definition-repository.ts",

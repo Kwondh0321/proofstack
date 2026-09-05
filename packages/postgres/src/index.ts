@@ -46,6 +46,7 @@ export {
   MAX_CONSUMER_RECEIPT_RETRY_DELAY_MS,
   PostgresConsumerReceiptRepository,
 } from "./postgres-consumer-receipt-repository.js";
+export { PostgresComparisonRepository } from "./postgres-comparison-repository.js";
 export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
 export {

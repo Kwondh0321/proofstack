@@ -41,8 +41,10 @@ import {
 } from "@proofstack/contracts";
 import { CreateModelAssuranceAssessment } from "@proofstack/core";
 import {
+  createComparisonRepositoryTestHarness,
   createModelAssuranceRepositoryTestHarness,
   FixedClock,
+  publishComparisonFixture,
   publishEvaluationFixture,
 } from "@proofstack/core/testing";
 import {
@@ -65,6 +67,7 @@ import {
   MigrationIntegrityError,
   migrateDatabase,
   PostgresArtifactCatalogRepository,
+  PostgresComparisonRepository,
   PostgresConsumerReceiptRepository,
   PostgresEvaluationRepository,
   PostgresEvidenceRepository,
@@ -106,6 +109,13 @@ const EXPECTED_TABLES = [
   "proofstack_artifact_purge_receipts",
   "proofstack_artifact_tombstones",
   "proofstack_browser_sessions",
+  "proofstack_comparison_definitions",
+  "proofstack_comparison_evidence_snapshots",
+  "proofstack_comparison_lineage",
+  "proofstack_comparison_record_registry",
+  "proofstack_comparison_records",
+  "proofstack_comparison_resource_bindings",
+  "proofstack_comparison_results",
   "proofstack_consumer_receipts",
   "proofstack_evaluation_aggregates",
   "proofstack_evaluation_aggregation_policies",
@@ -1514,6 +1524,14 @@ async function seedRecoverableEvaluationGraph(): Promise<void> {
   expect(assessment.record).toMatchObject({ eligibility: "eligible", reasons: [] });
 }
 
+async function seedRecoverableComparisonGraph(): Promise<void> {
+  const harness = createComparisonRepositoryTestHarness("recovery");
+  const repository = new PostgresComparisonRepository(sourcePool);
+  for (const fixture of harness.records) {
+    await publishComparisonFixture(repository, fixture);
+  }
+}
+
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
@@ -1524,6 +1542,7 @@ async function seedAuthoritativeState(): Promise<void> {
   await seedRecoverableRecordedFixtures(interactionCaptures);
   await seedRecoverableReplayState();
   await seedRecoverableEvaluationGraph();
+  await seedRecoverableComparisonGraph();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,
