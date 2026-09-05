@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { ComparisonRepositoryContractError, comparisonRecordId } from "@proofstack/core";
 import {
+  ComparisonLineageError,
+  ComparisonRepositoryContractError,
+  comparisonRecordId,
+} from "@proofstack/core";
+import {
+  comparisonDefinitionFixture,
   comparisonRepositoryConformanceCases,
+  comparisonResultFixture,
+  comparisonSnapshotFixture,
   createComparisonRepositoryTestHarness,
   publishComparisonFixture,
+  type ComparisonRepositoryFixtureRecord,
 } from "@proofstack/core/testing";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -14,6 +22,7 @@ import {
   type RuntimeRoleCredentials,
   type RuntimeRoleProvisioningOptions,
 } from "./runtime-roles.js";
+import { withTenantTransaction } from "./tenant-transaction.js";
 
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
 if (!databaseUrl) {
@@ -73,6 +82,82 @@ const modelWorkerPool = new Pool({
   connectionString: connectionStringFor(credentials.modelEvaluationWorker),
   max: 2,
 });
+
+interface TenantComparisonGraph {
+  readonly definition: ReturnType<typeof comparisonDefinitionFixture>;
+  readonly records: readonly ComparisonRepositoryFixtureRecord[];
+  readonly scope: {
+    readonly environmentId: string;
+    readonly projectId: string;
+    readonly tenantId: string;
+  };
+}
+
+function tenantComparisonGraph(
+  label: string,
+  namespace = `matrix_${runKey}`,
+): TenantComparisonGraph {
+  const scope = {
+    environmentId: `env_matrix_${runKey}`,
+    projectId: `prj_matrix_${runKey}`,
+    tenantId: `ten_matrix_${label}_${runKey}`,
+  };
+  const definition = comparisonDefinitionFixture(namespace, scope, {
+    description: `Three-tenant isolation fixture owned by ${label}`,
+  });
+  const baseline = comparisonSnapshotFixture(namespace, scope, definition, "baseline");
+  const candidate = comparisonSnapshotFixture(namespace, scope, definition, "candidate");
+  const result = comparisonResultFixture(namespace, scope, definition, baseline, candidate);
+  return {
+    definition,
+    records: [
+      { kind: "comparison_definition", record: definition },
+      { kind: "comparison_evidence_snapshot", record: baseline },
+      { kind: "comparison_evidence_snapshot", record: candidate },
+      { kind: "comparison_result", record: result },
+    ],
+    scope,
+  };
+}
+
+async function findComparisonFixture(
+  repository: PostgresComparisonRepository,
+  scope: TenantComparisonGraph["scope"],
+  fixture: ComparisonRepositoryFixtureRecord,
+) {
+  switch (fixture.kind) {
+    case "comparison_definition":
+      return repository.findComparisonDefinition(scope, fixture.record.comparisonVersionId);
+    case "comparison_evidence_snapshot":
+      return repository.findComparisonEvidenceSnapshot(scope, fixture.record.snapshotId);
+    case "comparison_result":
+      return repository.findComparisonResult(scope, fixture.record.resultId);
+  }
+}
+
+function definitionCommand(
+  fixture: ComparisonRepositoryFixtureRecord,
+): Readonly<Record<string, unknown>> {
+  if (fixture.kind !== "comparison_definition") {
+    throw new Error("Expected a comparison definition command fixture");
+  }
+  const { record } = fixture;
+  return {
+    actorPrincipalId: record.createdByPrincipalId,
+    comparisonId: record.comparisonId,
+    comparisonRole: null,
+    comparisonVersionId: record.comparisonVersionId,
+    createdAt: record.createdAt,
+    definitionSha256: record.definitionSha256,
+    environmentId: record.scope.environmentId,
+    projectId: record.scope.projectId,
+    record,
+    recordId: record.comparisonVersionId,
+    recordKind: fixture.kind,
+    schemaVersion: record.schemaVersion,
+    tenantId: record.scope.tenantId,
+  };
+}
 
 beforeAll(async () => {
   await migrateDatabase(adminPool);
@@ -200,5 +285,173 @@ describe("PostgresComparisonRepository conformance", () => {
     await expect(
       repository.findComparisonDefinition(harness.scope, recordId),
     ).rejects.toBeInstanceOf(ComparisonRepositoryContractError);
+  });
+
+  it("isolates colliding identities, guessed reads, lineage, writes, and pooled context across three tenants", async () => {
+    const isolationPool = new Pool({
+      connectionString: connectionStringFor(credentials.api),
+      max: 1,
+    });
+    const repository = new PostgresComparisonRepository(isolationPool);
+    const graphs = [
+      tenantComparisonGraph("alpha"),
+      tenantComparisonGraph("beta"),
+      tenantComparisonGraph("gamma"),
+    ] as const;
+
+    try {
+      for (const graph of graphs) {
+        for (const fixture of graph.records) {
+          await publishComparisonFixture(repository, fixture);
+        }
+      }
+
+      const definitions = graphs.map(({ definition }) => definition);
+      expect(new Set(definitions.map(({ comparisonVersionId }) => comparisonVersionId)).size).toBe(
+        1,
+      );
+      expect(new Set(definitions.map(({ definitionSha256 }) => definitionSha256)).size).toBe(3);
+
+      for (const graph of graphs) {
+        for (const fixture of graph.records) {
+          await expect(findComparisonFixture(repository, graph.scope, fixture)).resolves.toEqual(
+            fixture.record,
+          );
+        }
+
+        const visible = await withTenantTransaction(isolationPool, graph.scope.tenantId, (client) =>
+          client.query<{
+            readonly binding_tenants: readonly string[];
+            readonly lineage_tenants: readonly string[];
+            readonly record_count: number;
+            readonly record_tenants: readonly string[];
+            readonly registry_tenants: readonly string[];
+            readonly tenant_context: string;
+          }>(`
+              SELECT
+                current_setting('proofstack.tenant_id') AS tenant_context,
+                ARRAY(
+                  SELECT DISTINCT tenant_id
+                  FROM public.proofstack_comparison_record_registry
+                  ORDER BY tenant_id
+                ) AS registry_tenants,
+                ARRAY(
+                  SELECT DISTINCT tenant_id
+                  FROM public.proofstack_comparison_resource_bindings
+                  ORDER BY tenant_id
+                ) AS binding_tenants,
+                ARRAY(
+                  SELECT DISTINCT tenant_id
+                  FROM public.proofstack_comparison_lineage
+                  ORDER BY tenant_id
+                ) AS lineage_tenants,
+                ARRAY(
+                  SELECT DISTINCT tenant_id
+                  FROM public.proofstack_comparison_records
+                  ORDER BY tenant_id
+                ) AS record_tenants,
+                (
+                  SELECT count(*)::integer
+                  FROM public.proofstack_comparison_records
+                ) AS record_count
+            `),
+        );
+        expect(visible.rows).toEqual([
+          {
+            binding_tenants: [graph.scope.tenantId],
+            lineage_tenants: [graph.scope.tenantId],
+            record_count: graph.records.length,
+            record_tenants: [graph.scope.tenantId],
+            registry_tenants: [graph.scope.tenantId],
+            tenant_context: graph.scope.tenantId,
+          },
+        ]);
+      }
+
+      const alpha = graphs[0];
+      const beta = graphs[1];
+      const gamma = graphs[2];
+      const alphaPrivate = tenantComparisonGraph("alpha", `matrix_private_${runKey}`);
+      for (const fixture of alphaPrivate.records) {
+        await publishComparisonFixture(repository, fixture);
+        await expect(findComparisonFixture(repository, beta.scope, fixture)).resolves.toBeNull();
+        await expect(findComparisonFixture(repository, gamma.scope, fixture)).resolves.toBeNull();
+      }
+      await expect(
+        repository.findComparisonDefinition(beta.scope, `comparison_absent_${runKey}`),
+      ).resolves.toBeNull();
+      await expect(
+        repository.findComparisonEvidenceSnapshot(beta.scope, `snapshot_absent_${runKey}`),
+      ).resolves.toBeNull();
+      await expect(
+        repository.findComparisonResult(beta.scope, `result_absent_${runKey}`),
+      ).resolves.toBeNull();
+
+      const betaDefinition = definitions[1];
+      if (!betaDefinition) throw new Error("Expected the beta definition fixture");
+      const crossTenantSnapshot = comparisonSnapshotFixture(
+        `matrix_cross_${runKey}`,
+        alpha.scope,
+        betaDefinition,
+        "candidate",
+      );
+      await expect(
+        repository.publishComparisonEvidenceSnapshot(crossTenantSnapshot),
+      ).rejects.toBeInstanceOf(ComparisonLineageError);
+      await expect(
+        repository.findComparisonEvidenceSnapshot(alpha.scope, crossTenantSnapshot.snapshotId),
+      ).resolves.toBeNull();
+
+      const forgedDefinition = comparisonDefinitionFixture(`matrix_forged_${runKey}`, alpha.scope);
+      const forgedFixture = {
+        kind: "comparison_definition",
+        record: forgedDefinition,
+      } as const satisfies ComparisonRepositoryFixtureRecord;
+      await expect(
+        isolationPool.query("SELECT public.proofstack_publish_comparison_record($1::jsonb)", [
+          JSON.stringify(definitionCommand(forgedFixture)),
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        withTenantTransaction(isolationPool, beta.scope.tenantId, (client) =>
+          client.query("SELECT public.proofstack_publish_comparison_record($1::jsonb)", [
+            JSON.stringify(definitionCommand(forgedFixture)),
+          ]),
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        repository.findComparisonDefinition(alpha.scope, forgedDefinition.comparisonVersionId),
+      ).resolves.toBeNull();
+
+      const unscoped = await isolationPool.query<{
+        readonly binding_count: number;
+        readonly lineage_count: number;
+        readonly record_count: number;
+        readonly registry_count: number;
+        readonly tenant_context: string | null;
+      }>(`
+        SELECT
+          NULLIF(current_setting('proofstack.tenant_id', true), '') AS tenant_context,
+          (SELECT count(*)::integer FROM public.proofstack_comparison_record_registry)
+            AS registry_count,
+          (SELECT count(*)::integer FROM public.proofstack_comparison_resource_bindings)
+            AS binding_count,
+          (SELECT count(*)::integer FROM public.proofstack_comparison_lineage)
+            AS lineage_count,
+          (SELECT count(*)::integer FROM public.proofstack_comparison_records)
+            AS record_count
+      `);
+      expect(unscoped.rows).toEqual([
+        {
+          binding_count: 0,
+          lineage_count: 0,
+          record_count: 0,
+          registry_count: 0,
+          tenant_context: null,
+        },
+      ]);
+    } finally {
+      await isolationPool.end();
+    }
   });
 });
