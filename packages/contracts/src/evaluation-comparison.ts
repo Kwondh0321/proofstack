@@ -1013,7 +1013,13 @@ function refineComparisonEvidenceSnapshot(
       );
       const expectedAvailability =
         omission.reason === "artifact_revoked" ? "revoked" : "unavailable";
-      if (retained && retained.availability !== expectedAvailability) {
+      if (!retained) {
+        context.addIssue({
+          code: "custom",
+          message: "An artifact omission must retain its exact unavailable artifact state",
+          path: ["omissions", index, "artifactId"],
+        });
+      } else if (retained.availability !== expectedAvailability) {
         context.addIssue({
           code: "custom",
           message: "A retained artifact state must agree with its omission reason",

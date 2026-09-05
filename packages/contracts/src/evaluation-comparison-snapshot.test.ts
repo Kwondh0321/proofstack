@@ -295,9 +295,31 @@ describe("comparison evidence snapshot contracts", () => {
     for (const omission of omissions) {
       expect(ComparisonOmissionSchema.safeParse(omission).success).toBe(true);
     }
+    const valid = definition();
+    const fixture = valid.fixtures[0];
+    expect(fixture).toBeDefined();
+    if (!fixture) return;
     expect(
       ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
-        ...definition(),
+        ...valid,
+        fixtures: [
+          {
+            ...fixture,
+            artifacts: [
+              {
+                artifact: {
+                  artifactId: "artifact_missing",
+                  classification: "internal",
+                  mediaType: "application/json",
+                  sha256: sha("1"),
+                  sizeBytes: 64,
+                },
+                availability: "unavailable",
+              },
+              ...fixture.artifacts,
+            ],
+          },
+        ],
         omissions,
       }).success,
     ).toBe(true);
@@ -408,6 +430,19 @@ describe("comparison evidence snapshot contracts", () => {
             },
             reason: "optional_assessment_missing",
             sourceKind: "model_assurance_assessment",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [
+          {
+            artifactId: "artifact_unknown",
+            fixtureId: "fixture_login",
+            reason: "artifact_unavailable",
+            sourceKind: "artifact",
           },
         ],
       }).success,

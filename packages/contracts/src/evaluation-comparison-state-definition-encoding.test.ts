@@ -117,6 +117,21 @@ describe("canonical comparison state encoding", () => {
         usage.value.unavailableReasons = ["source_unavailable"];
       },
       (candidate) => {
+        const fixture = candidate.definition.fixtures[0];
+        if (!fixture) throw new Error("Expected snapshot fixture");
+        fixture.artifacts = [
+          {
+            artifact: {
+              artifactId: "artifact_missing",
+              classification: "internal",
+              mediaType: "application/json",
+              sha256: "f".repeat(64),
+              sizeBytes: 64,
+            },
+            availability: "unavailable",
+          },
+          ...fixture.artifacts,
+        ];
         candidate.definition.knownLimitations = ["Changed bounded limitation"];
         candidate.definition.omissions = [
           {
