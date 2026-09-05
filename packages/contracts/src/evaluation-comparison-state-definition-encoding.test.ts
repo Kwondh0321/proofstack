@@ -220,6 +220,12 @@ describe("canonical comparison state encoding", () => {
         artifact.sha256 = "b".repeat(64);
       },
       (candidate) => {
+        const change = candidate.definition.artifactChanges[0];
+        if (!change) throw new Error("Expected artifact change");
+        change.candidateAvailability = "revoked";
+        change.status = "unavailable";
+      },
+      (candidate) => {
         candidate.definition.comparability = {
           reasons: ["unsupported_statistical_assumptions"],
           status: "partially_comparable",

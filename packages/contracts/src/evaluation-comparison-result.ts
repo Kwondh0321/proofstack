@@ -4,6 +4,7 @@ import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
 import {
   COMPARISON_METRIC_KINDS,
   COMPARISON_COUNT_METRIC_UNITS,
+  ComparisonArtifactAvailabilitySchema,
   ComparisonDefinitionReferenceSchema,
   ComparisonEvidenceSnapshotReferenceSchema,
   type ComparisonExactValue,
@@ -604,26 +605,64 @@ export const ComparisonDistributionSummarySchema = z
     },
   );
 
+function exactArtifactReferenceEqual(
+  left: z.infer<typeof ArtifactContentReferenceSchema>,
+  right: z.infer<typeof ArtifactContentReferenceSchema>,
+): boolean {
+  return (
+    left.artifactId === right.artifactId &&
+    left.classification === right.classification &&
+    left.mediaType === right.mediaType &&
+    left.redactedAt === right.redactedAt &&
+    left.sha256 === right.sha256 &&
+    left.sizeBytes === right.sizeBytes
+  );
+}
+
 export const ComparisonArtifactChangeSchema = z
   .object({
     artifactId: OpaqueIdSchema,
     baseline: ArtifactContentReferenceSchema.optional(),
+    baselineAvailability: ComparisonArtifactAvailabilitySchema.optional(),
     candidate: ArtifactContentReferenceSchema.optional(),
+    candidateAvailability: ComparisonArtifactAvailabilitySchema.optional(),
     status: z.enum(["added", "metadata_changed", "removed", "unchanged", "unavailable"]),
   })
   .strict()
   .superRefine((value, context) => {
     const hasBaseline = value.baseline !== undefined;
     const hasCandidate = value.candidate !== undefined;
+    const hasBaselineAvailability = value.baselineAvailability !== undefined;
+    const hasCandidateAvailability = value.candidateAvailability !== undefined;
+    if (hasBaseline !== hasBaselineAvailability || hasCandidate !== hasCandidateAvailability) {
+      context.addIssue({
+        code: "custom",
+        message: "Artifact references must retain their exact role-specific availability",
+        path: [
+          hasBaseline !== hasBaselineAvailability
+            ? "baselineAvailability"
+            : "candidateAvailability",
+        ],
+      });
+    }
+    const baselineAvailable = value.baselineAvailability === "available";
+    const candidateAvailable = value.candidateAvailability === "available";
+    const hasUnavailableRole =
+      (hasBaselineAvailability && !baselineAvailable) ||
+      (hasCandidateAvailability && !candidateAvailable);
     const validShape =
-      (value.status === "added" && !hasBaseline && hasCandidate) ||
-      (value.status === "removed" && hasBaseline && !hasCandidate) ||
-      (["metadata_changed", "unchanged"].includes(value.status) && hasBaseline && hasCandidate) ||
-      (value.status === "unavailable" && (hasBaseline || hasCandidate));
+      (value.status === "added" && !hasBaseline && hasCandidate && candidateAvailable) ||
+      (value.status === "removed" && hasBaseline && baselineAvailable && !hasCandidate) ||
+      (["metadata_changed", "unchanged"].includes(value.status) &&
+        hasBaseline &&
+        baselineAvailable &&
+        hasCandidate &&
+        candidateAvailable) ||
+      (value.status === "unavailable" && (hasBaseline || hasCandidate) && hasUnavailableRole);
     if (!validShape) {
       context.addIssue({
         code: "custom",
-        message: "Artifact change status must agree with retained role references",
+        message: "Artifact change status must agree with retained role references and availability",
         path: ["status"],
       });
     }
@@ -636,6 +675,19 @@ export const ComparisonArtifactChangeSchema = z
         message: "Artifact change references must retain the declared artifact identity",
         path: ["artifactId"],
       });
+    }
+    if (value.baseline && value.candidate) {
+      const referencesEqual = exactArtifactReferenceEqual(value.baseline, value.candidate);
+      if (
+        (value.status === "unchanged" && !referencesEqual) ||
+        (value.status === "metadata_changed" && referencesEqual)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Artifact change status must agree with the exact retained references",
+          path: ["status"],
+        });
+      }
     }
   });
 

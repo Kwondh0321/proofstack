@@ -737,10 +737,12 @@ export const ComparisonAssuranceStateSchema = z.discriminatedUnion("kind", [
     }),
 ]);
 
+export const ComparisonArtifactAvailabilitySchema = z.enum(["available", "revoked", "unavailable"]);
+
 export const ComparisonArtifactStateSchema = z
   .object({
     artifact: ArtifactContentReferenceSchema,
-    availability: z.enum(["available", "revoked", "unavailable"]),
+    availability: ComparisonArtifactAvailabilitySchema,
   })
   .strict();
 

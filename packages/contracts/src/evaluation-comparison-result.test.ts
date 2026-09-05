@@ -38,6 +38,7 @@ function definition() {
           sha256: sha("1"),
           sizeBytes: 256,
         },
+        candidateAvailability: "available",
         status: "added",
       },
     ],
@@ -572,7 +573,52 @@ describe("comparison result contracts", () => {
           sha256: sha("b"),
           sizeBytes: 1,
         },
+        candidateAvailability: "available",
         status: "added",
+      }).success,
+    ).toBe(false);
+    const exactReference = {
+      artifactId: "artifact_exact",
+      classification: "internal",
+      mediaType: "application/json",
+      sha256: sha("c"),
+      sizeBytes: 1,
+    } as const;
+    expect(
+      ComparisonArtifactChangeSchema.safeParse({
+        artifactId: exactReference.artifactId,
+        candidate: exactReference,
+        status: "added",
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonArtifactChangeSchema.safeParse({
+        artifactId: exactReference.artifactId,
+        baseline: exactReference,
+        baselineAvailability: "available",
+        candidate: exactReference,
+        candidateAvailability: "revoked",
+        status: "unavailable",
+      }).success,
+    ).toBe(true);
+    expect(
+      ComparisonArtifactChangeSchema.safeParse({
+        artifactId: exactReference.artifactId,
+        baseline: exactReference,
+        baselineAvailability: "available",
+        candidate: { ...exactReference, sha256: sha("d") },
+        candidateAvailability: "available",
+        status: "unchanged",
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonArtifactChangeSchema.safeParse({
+        artifactId: exactReference.artifactId,
+        baseline: exactReference,
+        baselineAvailability: "available",
+        candidate: exactReference,
+        candidateAvailability: "available",
+        status: "metadata_changed",
       }).success,
     ).toBe(false);
     expect(

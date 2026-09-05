@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-result-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 4943,
+      "encodedByteLength": 5014,
       "input": {
         "definition": {
           "artifactChanges": [
@@ -15,6 +15,7 @@
                 "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
                 "sizeBytes": 128
               },
+              "baselineAvailability": "available",
               "candidate": {
                 "artifactId": "artifact_output",
                 "classification": "internal",
@@ -22,6 +23,7 @@
                 "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
                 "sizeBytes": 256
               },
+              "candidateAvailability": "available",
               "status": "metadata_changed"
             }
           ],
@@ -246,7 +248,7 @@
       },
       "kind": "comparison_result",
       "name": "exact paired descriptive comparison result",
-      "sha256": "dc6ac1f8cb197c8bc4272f5882f992781714816e1420c40e7c9b01ebe1f6646e"
+      "sha256": "15f3b7a606f9ad35de0fc03bf4db83b33638e81ab7ea47c0eb6af01a4d09f4b7"
     }
   ]
 }
