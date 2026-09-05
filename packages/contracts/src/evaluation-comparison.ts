@@ -26,7 +26,7 @@ import {
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
-export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.1" as const;
+export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.2" as const;
 export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.1" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
@@ -207,6 +207,7 @@ export const ComparisonCalculationPolicySchema = z
     decimalArithmetic: z.literal("exact_decimal_v1"),
     fixturePairing: z.literal("logical_fixture_id"),
     mean: z.literal("exact_rational_v1"),
+    minimumPairedCoverageBasisPoints: z.number().int().min(1).max(10_000),
     missingness: z.literal("preserve_all"),
     quantile: z.literal("nearest_rank_v1"),
   })

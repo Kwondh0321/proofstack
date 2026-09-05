@@ -81,6 +81,9 @@ describe("canonical comparison definition encoding", () => {
         metric.aggregation = { method: "maximum" };
       },
       (candidate) => {
+        candidate.definition.calculationPolicy.minimumPairedCoverageBasisPoints = 9_000;
+      },
+      (candidate) => {
         candidate.definition.calculationPolicy.missingness = "preserve_all";
         candidate.definition.classifiedContentProjection = "metadata_only";
         candidate.definition.name = "Changed exact comparison";

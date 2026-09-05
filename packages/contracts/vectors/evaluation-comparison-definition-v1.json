@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3875,
+      "encodedByteLength": 3915,
       "input": {
         "definition": {
           "baseline": {
@@ -71,6 +71,7 @@
             "decimalArithmetic": "exact_decimal_v1",
             "fixturePairing": "logical_fixture_id",
             "mean": "exact_rational_v1",
+            "minimumPairedCoverageBasisPoints": 8000,
             "missingness": "preserve_all",
             "quantile": "nearest_rank_v1"
           },
@@ -160,7 +161,7 @@
       },
       "kind": "comparison_definition",
       "name": "exact baseline and candidate definition",
-      "sha256": "bf9a27d9f3ac3701f9064e040118c1ca0f00b1b0bee87a34a0f270d921303d2f"
+      "sha256": "db41b5c91dd537ace7e01dee1016380ea2d32c43905e15c4ac0e7ebe2cad5556"
     }
   ]
 }

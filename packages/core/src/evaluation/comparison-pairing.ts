@@ -292,7 +292,12 @@ function deriveComparability(
     reasons.add("dataset_mismatch");
   }
   const paired = cases.filter((value) => value.state === "paired");
-  if (paired.length === 0) reasons.add("insufficient_paired_coverage");
+  if (
+    paired.length * 10_000 <
+    cases.length * comparison.calculationPolicy.minimumPairedCoverageBasisPoints
+  ) {
+    reasons.add("insufficient_paired_coverage");
+  }
   if (cases.some((value) => value.state === "invalid")) reasons.add("invalid_source_integrity");
   if (cases.some((value) => value.state === "baseline_only" || value.state === "candidate_only")) {
     reasons.add("missing_source_evidence");

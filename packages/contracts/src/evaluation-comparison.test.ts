@@ -83,6 +83,7 @@ function definition() {
       decimalArithmetic: "exact_decimal_v1",
       fixturePairing: "logical_fixture_id",
       mean: "exact_rational_v1",
+      minimumPairedCoverageBasisPoints: 8_000,
       missingness: "preserve_all",
       quantile: "nearest_rank_v1",
     },
@@ -235,6 +236,26 @@ describe("comparison definition contracts", () => {
         threshold: "0.95",
       }).success,
     ).toBe(false);
+  });
+
+  it("requires an exact bounded minimum paired coverage rule", () => {
+    const valid = definition();
+    for (const minimumPairedCoverageBasisPoints of [0, 10_001, 1.5]) {
+      expect(
+        ComparisonDefinitionSchema.safeParse({
+          ...valid,
+          calculationPolicy: {
+            ...valid.calculationPolicy,
+            minimumPairedCoverageBasisPoints,
+          },
+        }).success,
+      ).toBe(false);
+    }
+
+    const missingPolicy = structuredClone(valid) as Record<string, unknown>;
+    const calculationPolicy = missingPolicy["calculationPolicy"] as Record<string, unknown>;
+    delete calculationPolicy["minimumPairedCoverageBasisPoints"];
+    expect(ComparisonDefinitionSchema.safeParse(missingPolicy).success).toBe(false);
   });
 
   it("accepts only canonical server provenance", () => {

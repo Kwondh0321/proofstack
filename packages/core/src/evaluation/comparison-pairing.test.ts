@@ -257,6 +257,55 @@ describe("exact comparison pairing", () => {
     ).toMatchObject({ reasons: ["unresolved_lineage"], state: "invalid" });
   });
 
+  it("enforces the declared paired coverage with exact basis-point arithmetic", () => {
+    const source = comparison();
+    const baselineFixture = source.baseline.fixtures[0];
+    const candidateFixture = source.candidate.fixtures[0];
+    if (!baselineFixture || !candidateFixture) throw new Error("Expected subject fixtures");
+    const threeCaseDefinition = ComparisonDefinitionRecordSchema.parse({
+      ...source,
+      baseline: {
+        ...source.baseline,
+        fixtures: [
+          cloneFixture(baselineFixture, "fixture_baseline_only", "fixture_baseline_v1", "1"),
+          baselineFixture,
+        ],
+      },
+      candidate: {
+        ...source.candidate,
+        fixtures: [
+          cloneFixture(candidateFixture, "fixture_candidate_only", "fixture_candidate_v1", "2"),
+          candidateFixture,
+        ],
+      },
+      calculationPolicy: {
+        ...source.calculationPolicy,
+        minimumPairedCoverageBasisPoints: 3_334,
+      },
+    });
+    const strictResult = pairComparisonEvidence({
+      baseline: snapshot(threeCaseDefinition, "baseline"),
+      candidate: snapshot(threeCaseDefinition, "candidate"),
+      comparison: threeCaseDefinition,
+    });
+    expect(strictResult.pairing).toMatchObject({ pairedCount: 1, requestedCount: 3 });
+    expect(strictResult.comparability.reasons).toContain("insufficient_paired_coverage");
+
+    const relaxedDefinition = ComparisonDefinitionRecordSchema.parse({
+      ...threeCaseDefinition,
+      calculationPolicy: {
+        ...threeCaseDefinition.calculationPolicy,
+        minimumPairedCoverageBasisPoints: 3_333,
+      },
+    });
+    const relaxedResult = pairComparisonEvidence({
+      baseline: snapshot(relaxedDefinition, "baseline"),
+      candidate: snapshot(relaxedDefinition, "candidate"),
+      comparison: relaxedDefinition,
+    });
+    expect(relaxedResult.comparability.reasons).not.toContain("insufficient_paired_coverage");
+  });
+
   it("marks digest and lineage corruption invalid instead of pairing it", () => {
     const definition = comparison();
     const baseline = snapshot(definition, "baseline");
