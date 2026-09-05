@@ -1,0 +1,26 @@
+{
+  "name": "@proofstack/example-comparison-control-flow",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable exact baseline-versus-candidate comparison experiment",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf coverage dist",
+    "lint": "biome lint src",
+    "start": "node dist/run.js",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
