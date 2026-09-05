@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-result-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3739,
+      "encodedByteLength": 4019,
       "input": {
         "definition": {
           "artifactChanges": [
@@ -62,12 +62,14 @@
           },
           "distributions": [
             {
+              "invalidCount": 0,
               "method": { "method": "mean", "methodVersion": "1.0.0" },
               "metricId": "metric_latency",
               "missingCount": 0,
               "observedCount": 1,
               "role": "baseline",
               "totalCount": 1,
+              "unavailableCount": 0,
               "value": {
                 "representation": "decimal",
                 "unit": "milliseconds",
@@ -75,12 +77,14 @@
               }
             },
             {
+              "invalidCount": 0,
               "method": { "method": "mean", "methodVersion": "1.0.0" },
               "metricId": "metric_latency",
               "missingCount": 0,
               "observedCount": 1,
               "role": "candidate",
               "totalCount": 1,
+              "unavailableCount": 0,
               "value": {
                 "representation": "decimal",
                 "unit": "milliseconds",
@@ -94,13 +98,21 @@
             {
               "metricId": "metric_latency",
               "samples": {
+                "baselineInvalidCount": 0,
                 "baselineMissingCount": 0,
                 "baselineObservedCount": 1,
                 "baselineTotalCount": 1,
+                "baselineUnavailableCount": 0,
+                "candidateInvalidCount": 0,
                 "candidateMissingCount": 0,
                 "candidateObservedCount": 1,
                 "candidateTotalCount": 1,
-                "pairedObservedCount": 1
+                "candidateUnavailableCount": 0,
+                "pairedInvalidCount": 0,
+                "pairedMissingCount": 0,
+                "pairedObservedCount": 1,
+                "pairedTotalCount": 1,
+                "pairedUnavailableCount": 0
               },
               "value": {
                 "baseline": {
@@ -190,7 +202,7 @@
       },
       "kind": "comparison_result",
       "name": "exact paired descriptive comparison result",
-      "sha256": "1cad075de77b3dffe67bf63fae3a8ee076a59a3abc1ea89e33e2a8bf8ce8ce0b"
+      "sha256": "a3c821367d987a7ad35d91bf2f1644e508626b1459184f7eb7763b870cc08245"
     }
   ]
 }

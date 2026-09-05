@@ -18,7 +18,7 @@ import { AssuranceSummarySchema } from "./evaluation-source.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
-export const COMPARISON_RESULT_SCHEMA_VERSION = "0.2" as const;
+export const COMPARISON_RESULT_SCHEMA_VERSION = "0.3" as const;
 export const MAX_COMPARISON_RESULT_REASONS = 32;
 export const MAX_COMPARISON_RESULT_TRANSITIONS = 4_096;
 export const MAX_COMPARISON_RESULT_DISTRIBUTIONS = MAX_COMPARISON_METRICS * 2;
@@ -234,6 +234,7 @@ export const ComparisonMetricUnavailableReasonSchema = z.enum([
   "baseline_missing",
   "candidate_missing",
   "insufficient_observations",
+  "invalid_observations",
   "measurement_unavailable",
   "source_over_limit",
 ]);
@@ -256,13 +257,21 @@ const orderedMetricIncomparabilityReasons = z
 
 export const ComparisonMetricSampleCountsSchema = z
   .object({
+    baselineInvalidCount: SafeComparisonCountSchema,
     baselineMissingCount: SafeComparisonCountSchema,
     baselineObservedCount: SafeComparisonCountSchema,
     baselineTotalCount: SafeComparisonCountSchema,
+    baselineUnavailableCount: SafeComparisonCountSchema,
+    candidateInvalidCount: SafeComparisonCountSchema,
     candidateMissingCount: SafeComparisonCountSchema,
     candidateObservedCount: SafeComparisonCountSchema,
     candidateTotalCount: SafeComparisonCountSchema,
+    candidateUnavailableCount: SafeComparisonCountSchema,
+    pairedInvalidCount: SafeComparisonCountSchema,
+    pairedMissingCount: SafeComparisonCountSchema,
     pairedObservedCount: SafeComparisonCountSchema,
+    pairedTotalCount: SafeComparisonCountSchema,
+    pairedUnavailableCount: SafeComparisonCountSchema,
   })
   .strict()
   .superRefine((value, context) => {
@@ -276,18 +285,55 @@ export const ComparisonMetricSampleCountsSchema = z
         path: ["pairedObservedCount"],
       });
     }
-    const baselineTotal = value.baselineMissingCount + value.baselineObservedCount;
-    const candidateTotal = value.candidateMissingCount + value.candidateObservedCount;
+    const baselineTotal =
+      value.baselineInvalidCount +
+      value.baselineMissingCount +
+      value.baselineObservedCount +
+      value.baselineUnavailableCount;
+    const candidateTotal =
+      value.candidateInvalidCount +
+      value.candidateMissingCount +
+      value.candidateObservedCount +
+      value.candidateUnavailableCount;
+    const pairedTotal =
+      value.pairedInvalidCount +
+      value.pairedMissingCount +
+      value.pairedObservedCount +
+      value.pairedUnavailableCount;
     if (
       !Number.isSafeInteger(baselineTotal) ||
       baselineTotal !== value.baselineTotalCount ||
       !Number.isSafeInteger(candidateTotal) ||
-      candidateTotal !== value.candidateTotalCount
+      candidateTotal !== value.candidateTotalCount ||
+      !Number.isSafeInteger(pairedTotal) ||
+      pairedTotal !== value.pairedTotalCount
     ) {
       context.addIssue({
         code: "custom",
-        message: "Role-specific metric counts must reconstruct their exact denominators",
+        message: "Metric sample classes must reconstruct every exact denominator",
         path: ["baselineTotalCount"],
+      });
+    }
+    if (
+      value.pairedTotalCount > value.baselineTotalCount ||
+      value.pairedTotalCount > value.candidateTotalCount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "The paired metric population cannot exceed either role-specific population",
+        path: ["pairedTotalCount"],
+      });
+    }
+    if (
+      value.pairedMissingCount > value.baselineMissingCount + value.candidateMissingCount ||
+      value.pairedUnavailableCount >
+        value.baselineUnavailableCount + value.candidateUnavailableCount ||
+      value.pairedInvalidCount > value.baselineInvalidCount + value.candidateInvalidCount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Paired non-observation classes require a matching role-specific classification",
+        path: ["pairedMissingCount"],
       });
     }
   });
@@ -353,7 +399,16 @@ export const ComparisonMetricResultSchema = z
     samples: ComparisonMetricSampleCountsSchema,
     value: ComparisonMetricValueSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.value.status === "available" && value.samples.pairedObservedCount === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "An available paired metric requires at least one paired observation",
+        path: ["samples", "pairedObservedCount"],
+      });
+    }
+  });
 
 export const ComparisonVerdictTransitionSchema = z
   .object({
@@ -396,19 +451,29 @@ export const ComparisonDistributionMethodSchema = z.discriminatedUnion("method",
 
 export const ComparisonDistributionSummarySchema = z
   .object({
+    invalidCount: SafeComparisonCountSchema,
     method: ComparisonDistributionMethodSchema,
     metricId: OpaqueIdSchema,
     missingCount: SafeComparisonCountSchema,
     observedCount: z.number().int().positive().max(MAX_COMPARISON_COUNT),
     role: z.enum(["baseline", "candidate"]),
     totalCount: z.number().int().positive().max(MAX_COMPARISON_COUNT),
+    unavailableCount: SafeComparisonCountSchema,
     value: ComparisonExactValueSchema,
   })
   .strict()
-  .refine((value) => value.observedCount + value.missingCount === value.totalCount, {
-    message: "Distribution counts must reconstruct the exact sample denominator",
-    path: ["totalCount"],
-  });
+  .refine(
+    (value) =>
+      Number.isSafeInteger(
+        value.invalidCount + value.missingCount + value.observedCount + value.unavailableCount,
+      ) &&
+      value.invalidCount + value.missingCount + value.observedCount + value.unavailableCount ===
+        value.totalCount,
+    {
+      message: "Distribution sample classes must reconstruct the exact denominator",
+      path: ["totalCount"],
+    },
+  );
 
 export const ComparisonArtifactChangeSchema = z
   .object({
@@ -571,6 +636,12 @@ function refineComparisonResult(
     pairedCount: value.cases.filter(({ state }) => state === "paired").length,
     requestedCount: value.cases.length,
   };
+  const baselinePopulationCount = value.cases.filter(
+    (entry) => "baseline" in entry && entry.baseline !== undefined,
+  ).length;
+  const candidatePopulationCount = value.cases.filter(
+    (entry) => "candidate" in entry && entry.candidate !== undefined,
+  ).length;
   for (const [key, count] of Object.entries(actual)) {
     if (value.pairing[key as keyof typeof actual] !== count) {
       context.addIssue({
@@ -590,6 +661,30 @@ function refineComparisonResult(
       path: ["comparability", "status"],
     });
   }
+  value.metricResults.forEach((metric, index) => {
+    if (
+      metric.samples.baselineTotalCount > baselinePopulationCount ||
+      metric.samples.candidateTotalCount > candidatePopulationCount ||
+      metric.samples.pairedTotalCount > actual.pairedCount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Metric populations cannot exceed the retained exact comparison cases",
+        path: ["metricResults", index, "samples"],
+      });
+    }
+  });
+  value.distributions.forEach((distribution, index) => {
+    const rolePopulationCount =
+      distribution.role === "baseline" ? baselinePopulationCount : candidatePopulationCount;
+    if (distribution.totalCount > rolePopulationCount) {
+      context.addIssue({
+        code: "custom",
+        message: "Distribution populations cannot exceed the retained role-specific cases",
+        path: ["distributions", index, "totalCount"],
+      });
+    }
+  });
   const marginalPairedCounts = new Map(
     value.verdictMarginals.map(({ criterion, pairedCount }) => [
       exactCriterionKey(criterion),

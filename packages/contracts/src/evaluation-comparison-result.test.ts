@@ -6,6 +6,7 @@ import {
   ComparisonCaseSchema,
   ComparisonComparabilitySchema,
   ComparisonCountDeltaSchema,
+  ComparisonDistributionSummarySchema,
   ComparisonMetricSampleCountsSchema,
   ComparisonMetricValueSchema,
   ComparisonResultDefinitionSchema,
@@ -77,21 +78,25 @@ function definition() {
     },
     distributions: [
       {
+        invalidCount: 0,
         method: { method: "mean", methodVersion: "1.0.0" },
         metricId: "metric_latency",
         missingCount: 0,
         observedCount: 2,
         role: "baseline",
         totalCount: 2,
+        unavailableCount: 0,
         value: { representation: "decimal", unit: "milliseconds", value: "125.5" },
       },
       {
+        invalidCount: 0,
         method: { method: "mean", methodVersion: "1.0.0" },
         metricId: "metric_latency",
-        missingCount: 1,
+        missingCount: 0,
         observedCount: 1,
         role: "candidate",
-        totalCount: 2,
+        totalCount: 1,
+        unavailableCount: 0,
         value: { representation: "decimal", unit: "milliseconds", value: "110.5" },
       },
     ],
@@ -101,13 +106,21 @@ function definition() {
       {
         metricId: "metric_latency",
         samples: {
+          baselineInvalidCount: 0,
           baselineMissingCount: 0,
           baselineObservedCount: 2,
           baselineTotalCount: 2,
-          candidateMissingCount: 1,
+          baselineUnavailableCount: 0,
+          candidateInvalidCount: 0,
+          candidateMissingCount: 0,
           candidateObservedCount: 1,
-          candidateTotalCount: 2,
+          candidateTotalCount: 1,
+          candidateUnavailableCount: 0,
+          pairedInvalidCount: 0,
+          pairedMissingCount: 0,
           pairedObservedCount: 1,
+          pairedTotalCount: 1,
+          pairedUnavailableCount: 0,
         },
         value: {
           baseline: { representation: "decimal", unit: "milliseconds", value: "125.5" },
@@ -317,26 +330,71 @@ describe("comparison result contracts", () => {
   });
 
   it("reconstructs metric denominators and bounds paired observations", () => {
+    const validSamples = {
+      baselineInvalidCount: 1,
+      baselineMissingCount: 1,
+      baselineObservedCount: 2,
+      baselineTotalCount: 5,
+      baselineUnavailableCount: 1,
+      candidateInvalidCount: 0,
+      candidateMissingCount: 1,
+      candidateObservedCount: 2,
+      candidateTotalCount: 4,
+      candidateUnavailableCount: 1,
+      pairedInvalidCount: 1,
+      pairedMissingCount: 1,
+      pairedObservedCount: 1,
+      pairedTotalCount: 4,
+      pairedUnavailableCount: 1,
+    } as const;
+    expect(ComparisonMetricSampleCountsSchema.safeParse(validSamples).success).toBe(true);
     expect(
       ComparisonMetricSampleCountsSchema.safeParse({
-        baselineMissingCount: 0,
-        baselineObservedCount: 1,
-        baselineTotalCount: 1,
-        candidateMissingCount: 0,
-        candidateObservedCount: 1,
-        candidateTotalCount: 1,
-        pairedObservedCount: 2,
+        ...validSamples,
+        pairedObservedCount: 3,
+        pairedTotalCount: 6,
       }).success,
     ).toBe(false);
     expect(
       ComparisonMetricSampleCountsSchema.safeParse({
-        baselineMissingCount: 1,
-        baselineObservedCount: 1,
-        baselineTotalCount: 1,
-        candidateMissingCount: 0,
-        candidateObservedCount: 1,
-        candidateTotalCount: 1,
-        pairedObservedCount: 1,
+        ...validSamples,
+        baselineTotalCount: 4,
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonMetricSampleCountsSchema.safeParse({
+        ...validSamples,
+        baselineMissingCount: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonMetricSampleCountsSchema.safeParse({
+        ...validSamples,
+        baselineMissingCount: 2,
+        baselineUnavailableCount: 0,
+        candidateMissingCount: 2,
+        candidateUnavailableCount: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps missing, unavailable, and invalid distribution samples distinct", () => {
+    const distribution = {
+      invalidCount: 1,
+      method: { method: "mean", methodVersion: "1.0.0" },
+      metricId: "metric_latency",
+      missingCount: 1,
+      observedCount: 1,
+      role: "candidate",
+      totalCount: 4,
+      unavailableCount: 1,
+      value: { representation: "decimal", unit: "milliseconds", value: "110.5" },
+    } as const;
+    expect(ComparisonDistributionSummarySchema.safeParse(distribution).success).toBe(true);
+    expect(
+      ComparisonDistributionSummarySchema.safeParse({
+        ...distribution,
+        totalCount: 3,
       }).success,
     ).toBe(false);
   });
@@ -344,7 +402,7 @@ describe("comparison result contracts", () => {
   it("preserves unavailable and incomparable metrics instead of coercing them to zero", () => {
     expect(
       ComparisonMetricValueSchema.safeParse({
-        reasons: ["candidate_missing"],
+        reasons: ["invalid_observations"],
         status: "unavailable",
       }).success,
     ).toBe(true);
@@ -441,6 +499,16 @@ describe("comparison result contracts", () => {
     expect(
       ComparisonResultDefinitionSchema.safeParse({
         ...valid,
+        distributions: valid.distributions.map((distribution) =>
+          distribution.role === "candidate"
+            ? { ...distribution, totalCount: 2, unavailableCount: 1 }
+            : distribution,
+        ),
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
         verdictMarginals: [],
       }).success,
     ).toBe(false);
@@ -448,6 +516,36 @@ describe("comparison result contracts", () => {
       ComparisonResultDefinitionSchema.safeParse({
         ...valid,
         verdictTransitions: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
+        metricResults: [
+          {
+            ...valid.metricResults[0],
+            samples: {
+              ...valid.metricResults[0].samples,
+              baselineObservedCount: 3,
+              baselineTotalCount: 3,
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
+        metricResults: [
+          {
+            ...valid.metricResults[0],
+            samples: {
+              ...valid.metricResults[0].samples,
+              pairedObservedCount: 0,
+              pairedTotalCount: 0,
+            },
+          },
+        ],
       }).success,
     ).toBe(false);
   });

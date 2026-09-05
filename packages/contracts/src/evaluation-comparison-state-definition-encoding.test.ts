@@ -155,6 +155,17 @@ describe("canonical comparison state encoding", () => {
         metric.value.delta.value = "-16";
       },
       (candidate) => {
+        const metric = candidate.definition.metricResults[0];
+        if (!metric) throw new Error("Expected metric");
+        metric.samples.baselineInvalidCount = 1;
+        metric.samples.baselineObservedCount = 0;
+        metric.samples.candidateInvalidCount = 1;
+        metric.samples.candidateObservedCount = 0;
+        metric.samples.pairedInvalidCount = 1;
+        metric.samples.pairedObservedCount = 0;
+        metric.value = { reasons: ["invalid_observations"], status: "unavailable" };
+      },
+      (candidate) => {
         const safety = candidate.definition.safetyCounts[0];
         if (!safety) throw new Error("Expected safety count");
         safety.counts.candidate = 3;
