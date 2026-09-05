@@ -24,9 +24,11 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > 의도적으로 ineligible 상태를 유지하고 재시작 뒤 모든 digest를 다시 읽습니다. 로컬 기준 구현은
 > OS sandbox, 상시 scheduling worker 배포, 프로덕션 key provider 또는 프로덕션 live-provider
 > 통합이 아닙니다.
-> 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 콘솔
-> 로그인 연동, baseline/candidate 비교, policy, approval, release gate는 아직 완성된 기능으로
-> 표시하지 않습니다.
+> 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 정확한
+> baseline/candidate comparison 기반에는 이제 불변 record, exact derivation, persistence, HTTP
+> route, 실행 가능한 synthetic 실험이 있습니다. authoritative production source resolver,
+> public SDK, OpenAPI surface, operator view는 아직 완성되지 않았습니다. 콘솔 로그인 연동,
+> policy, approval, release gate도 완성된 기능으로 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -72,9 +74,10 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 평가 service 진입 | exact-version API·fail-closed SDK, 별도 최소 권한 evaluation-worker storage 권한, 다섯 verdict 논쟁 흐름, restart read-back |
 | 모델·인간 assurance | 엄격한 record 13종, 정확한 model/prompt/tool lineage, 필수 slice qualification, calibration 호환성, blinded order swap, 독립 critique, reviewer 책임성, 보수적 assessment |
 | Assurance 권한 | API capability 검사, RLS, append-only lineage, recovery, 전체 restart read-back을 갖춘 kind별 control·model-worker·human-review PostgreSQL role |
+| 정확 evidence comparison | 엄격한 definition·source snapshot, 정확한 case pairing·산술, 불변 memory·PostgreSQL repository, HTTP route, 실행 가능한 synthetic 실험 |
 | TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay·evaluation 클라이언트 |
 | 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 서비스 경계를 통과하는 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 비모델 평가, 적대적 모델·인간 assurance 흐름 |
+| 예제 | 실제 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 평가·assurance, 정확 synthetic baseline/candidate comparison |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -142,6 +145,17 @@ dataset 버전 하나를 발행한 뒤 두 버전을 다시 조회해 불변 dig
 멱등성, 실패, 비재현 경계는
 [사고-회귀 가이드](docs/guides/incident-to-regression.ko.md)를 참고하세요.
 
+서버나 데이터베이스를 시작하지 않고 실제 exact comparison engine을 실행하려면 다음 명령을
+사용합니다.
+
+```bash
+pnpm example:comparison-control-flow
+```
+
+기본 실험은 synthetic baseline `125 ms`와 candidate `100 ms` evidence를 동결하고 정확한
+`-25 ms` delta를 도출하고 불변 결과를 저장한 뒤 다시 읽습니다. 입력값 변경 방법과 정확한
+제한은 [comparison 실험 가이드](docs/guides/comparison-control-flow.ko.md)를 참고하세요.
+
 정확한 공급자 중립 모델·도구 상호작용 경계를 캡처한 뒤 폐기하려면 다음을 실행합니다.
 
 ```bash
@@ -194,6 +208,7 @@ examples/interaction-capture  공급자 중립 캡처, 기록 replay, mismatch, 
 examples/durable-replay  영속 성공, 취소, stale-fence 복구, 결과 흐름
 examples/evaluation-control-flow  논쟁 가능 비모델 service·restart 흐름
 examples/model-assurance-control-flow  적대적 모델·인간 assurance·recovery 흐름
+examples/comparison-control-flow  정확 synthetic baseline/candidate engine 실험
 docs/architecture        번호가 지정된 아키텍처 결정 기록
 docs/operations          배포 계약과 운영자 절차
 docs/product             제품 헌법과 의존 순서가 명시된 로드맵

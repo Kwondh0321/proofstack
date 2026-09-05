@@ -25,8 +25,11 @@ evaluating, governing, and safely releasing AI agents.
 > deliberately remains ineligible and reads every digest again after restart. The local reference
 > is not an OS sandbox, continuously scheduled worker deployment, production key provider, or
 > production live-provider integration. Coordinated reference backup and isolated restore do not
-> constitute provider-specific production disaster recovery. Console sign-in, baseline/candidate
-> comparison, policy, approval, and release gates are intentionally not represented as complete.
+> constitute provider-specific production disaster recovery. The exact baseline/candidate
+> comparison foundation now has immutable records, exact derivation, persistence, HTTP routes, and
+> a runnable synthetic experiment; its authoritative production source resolver, public SDK,
+> OpenAPI surface, and operator view remain incomplete. Console sign-in, policy, approval, and
+> release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -70,9 +73,10 @@ release when a declared policy regresses.
 | Evaluation service entry | Exact-version API and fail-closed SDK, separate least-privilege evaluation-worker storage authority, five-verdict contested reference flow, and restart read-back |
 | Model and human assurance | Thirteen strict record kinds, exact model/prompt/tool lineage, mandatory-slice qualification, calibration compatibility, blinded order swaps, independent critique, reviewer accountability, and conservative assessment |
 | Assurance authority | Kind-routed control, model-worker, and human-review PostgreSQL roles backed by API capability checks, RLS, append-only lineage, recovery, and complete restart read-back |
+| Exact evidence comparison | Strict definitions and source snapshots, exact case pairing and arithmetic, immutable memory/PostgreSQL repositories, HTTP routes, and a runnable synthetic experiment |
 | TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, and evaluation clients with explicit authentication modes |
 | Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested non-model evaluation, and adversarial model/human assurance through real service boundaries |
+| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested evaluation/assurance, and exact synthetic baseline/candidate comparison |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -140,6 +144,17 @@ dataset version, reads both versions back, and prints their immutable digests. S
 [incident-to-regression guide](docs/guides/incident-to-regression.md) for authority, idempotency,
 failure, and non-replay boundaries.
 
+To execute the real exact comparison engine without starting a server or database:
+
+```bash
+pnpm example:comparison-control-flow
+```
+
+The default experiment freezes synthetic `125 ms` baseline and `100 ms` candidate evidence,
+derives an exact `-25 ms` delta, persists the immutable result, and reads it back. Change the input
+measurements or inspect the precise limitations in the
+[comparison experiment guide](docs/guides/comparison-control-flow.md).
+
 To capture and then revoke an exact provider-neutral model/tool interaction boundary:
 
 ```bash
@@ -195,6 +210,7 @@ examples/interaction-capture  Provider-neutral capture, recorded replay, mismatc
 examples/durable-replay  Durable success, cancellation, stale-fence recovery, and result flow
 examples/evaluation-control-flow  Contested non-model service and restart flow
 examples/model-assurance-control-flow  Adversarial model/human assurance and recovery flow
+examples/comparison-control-flow  Exact synthetic baseline/candidate engine experiment
 docs/architecture        Numbered architecture decision records
 docs/product             Product constitution and dependency-ordered roadmap
 docs/operations          Deployment contracts and operator procedures
