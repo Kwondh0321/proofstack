@@ -160,6 +160,7 @@ describe("PostgreSQL evidence schema", () => {
       "0039_ignore_evaluation_selectors_in_lineage",
       "0040_model_assurance_capabilities",
       "0041_model_assurance_graph",
+      "0042_comparison_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -454,6 +455,8 @@ describe("PostgreSQL evidence schema", () => {
       readonly evaluationHumanReviewWorkload: boolean;
       readonly evaluationManagementWorkload: boolean;
       readonly evaluationModelRunWorkload: boolean;
+      readonly comparisonManagementWorkload: boolean;
+      readonly comparisonReadWorkload: boolean;
       readonly replayManagementWorkload: boolean;
     }>(
       `
@@ -471,6 +474,12 @@ describe("PostgreSQL evidence schema", () => {
             ARRAY['evaluation:human:review']::text[]
           ) AS "evaluationHumanReviewWorkload",
           public.proofstack_valid_workload_capabilities(
+            ARRAY['comparison:read']::text[]
+          ) AS "comparisonReadWorkload",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['comparison:manage']::text[]
+          ) AS "comparisonManagementWorkload",
+          public.proofstack_valid_workload_capabilities(
             ARRAY['replay:manage']::text[]
           ) AS "replayManagementWorkload"
       `,
@@ -479,6 +488,8 @@ describe("PostgreSQL evidence schema", () => {
     expect(capabilityParity.rows[0]).toEqual({
       allUserCapabilities: true,
       allWorkloadCapabilities: true,
+      comparisonManagementWorkload: false,
+      comparisonReadWorkload: true,
       evaluationHumanReviewWorkload: false,
       evaluationManagementWorkload: false,
       evaluationModelRunWorkload: true,

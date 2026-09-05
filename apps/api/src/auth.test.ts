@@ -330,6 +330,8 @@ describe("createAuthenticator", () => {
         "evaluation:manage",
         "evaluation:model:run",
         "evaluation:human:review",
+        "comparison:read",
+        "comparison:manage",
       ]),
       principalId: "usr_local",
       tenantId: "ten_local",

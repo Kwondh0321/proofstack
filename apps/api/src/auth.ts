@@ -77,6 +77,8 @@ const DEVELOPMENT_CAPABILITIES = [
   "evaluation:model:run",
   "evaluation:human:review",
   "evaluation:manage",
+  "comparison:read",
+  "comparison:manage",
   "release:read",
   "release:manage",
   "policy:evaluate",

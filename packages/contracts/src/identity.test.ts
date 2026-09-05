@@ -145,11 +145,17 @@ describe("WorkloadCapabilitySchema", () => {
     "replay:manage",
     "evaluation:manage",
     "evaluation:human:review",
+    "comparison:manage",
     "identity:manage",
     "approval:decide",
     "project:manage",
     "policy:manage",
   ])("rejects administrative capability %s", (capability) => {
     expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(false);
+  });
+
+  it("allows comparison reads without delegating comparison management", () => {
+    expect(WorkloadCapabilitySchema.safeParse("comparison:read").success).toBe(true);
+    expect(WorkloadCapabilitySchema.safeParse("comparison:manage").success).toBe(false);
   });
 });
