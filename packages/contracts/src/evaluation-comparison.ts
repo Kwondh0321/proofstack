@@ -843,6 +843,10 @@ export const ComparisonEvidenceFixtureSnapshotSchema = z
             values.map(({ artifact }) => `${artifact.artifactId}:${artifact.sha256}`),
           ),
         { message: "Comparison artifacts must be unique and ordered by exact content reference" },
+      )
+      .refine(
+        (values) => isStrictlySortedUnique(values.map(({ artifact }) => artifact.artifactId)),
+        { message: "Comparison artifact identities must be unique and ordered" },
       ),
     assurance: z
       .array(ComparisonAssuranceStateSchema)
@@ -932,6 +936,21 @@ function refineComparisonEvidenceSnapshot(
   context: z.RefinementCtx,
 ): void {
   const fixtures = new Map(value.fixtures.map((entry) => [entry.fixture.fixtureId, entry]));
+  const artifactOwners = new Map<string, string>();
+  for (const [fixtureIndex, fixture] of value.fixtures.entries()) {
+    for (const [artifactIndex, { artifact }] of fixture.artifacts.entries()) {
+      const ownerFixtureId = artifactOwners.get(artifact.artifactId);
+      if (ownerFixtureId !== undefined) {
+        context.addIssue({
+          code: "custom",
+          message: `Artifact identity is already retained by fixture ${ownerFixtureId}`,
+          path: ["fixtures", fixtureIndex, "artifacts", artifactIndex, "artifact", "artifactId"],
+        });
+      } else {
+        artifactOwners.set(artifact.artifactId, fixture.fixture.fixtureId);
+      }
+    }
+  }
   for (const [index, omission] of value.omissions.entries()) {
     const fixture = fixtures.get(omission.fixtureId);
     if (!fixture) {

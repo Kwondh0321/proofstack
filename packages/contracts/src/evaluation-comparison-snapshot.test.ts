@@ -333,6 +333,42 @@ describe("comparison evidence snapshot contracts", () => {
         fixtures: [{ ...fixture, artifacts: [fixture.artifacts[0], fixture.artifacts[0]] }],
       }).success,
     ).toBe(false);
+    const retainedArtifact = fixture.artifacts[0];
+    expect(retainedArtifact).toBeDefined();
+    if (!retainedArtifact) return;
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        fixtures: [
+          {
+            ...fixture,
+            artifacts: [
+              {
+                ...retainedArtifact,
+                artifact: { ...retainedArtifact.artifact, sha256: sha("0") },
+              },
+              retainedArtifact,
+            ],
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        fixtures: [
+          fixture,
+          {
+            ...fixture,
+            fixture: {
+              definitionSha256: sha("d"),
+              fixtureId: "fixture_payment",
+              fixtureVersionId: "fixture_payment_v1",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
     expect(
       ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
         ...valid,
