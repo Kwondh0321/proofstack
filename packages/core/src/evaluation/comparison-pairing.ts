@@ -114,10 +114,18 @@ function fixtureIntegrityReasons(
     reasons.add("unresolved_lineage");
   }
   const expectedAssessments = expected.assessments.map(assessmentReferenceKey);
+  const expectedAssessmentSet = new Set(expectedAssessments);
   const actualAssessments = actual.assurance
     .filter((value) => value.kind === "assessment")
     .map((value) => assessmentReferenceKey(value.reference));
   if (!sameStringSet(expectedAssessments, actualAssessments)) {
+    reasons.add("unresolved_lineage");
+  }
+  if (
+    actual.evaluationOutcomes.some(
+      ({ assessment }) => !expectedAssessmentSet.has(assessmentReferenceKey(assessment)),
+    )
+  ) {
     reasons.add("unresolved_lineage");
   }
   const expectedModelAssurance = expected.modelAssuranceAssessments.map(modelAssuranceReferenceKey);

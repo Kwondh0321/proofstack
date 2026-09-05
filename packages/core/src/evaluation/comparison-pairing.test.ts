@@ -363,6 +363,46 @@ describe("exact comparison pairing", () => {
         comparison: definition,
       }).cases[0],
     ).toMatchObject({ reasons: ["unresolved_lineage"], state: "invalid" });
+
+    const unboundOutcome = ComparisonEvidenceSnapshotSchema.parse({
+      ...baseline,
+      fixtures: [
+        {
+          ...fixture,
+          evaluationOutcomes: [
+            {
+              assessment: {
+                assessmentId: "assessment_not_bound_to_subject",
+                definitionSha256: sha("9"),
+              },
+              counts: {
+                abstain: 0,
+                error: 0,
+                fail: 0,
+                notApplicable: 0,
+                pass: 1,
+                total: 1,
+              },
+              criterion: {
+                criterionId: "criterion_login",
+                criterionSet: {
+                  criterionSetId: "criteria_main",
+                  criterionSetVersionId: "criteria_main_v1",
+                  definitionSha256: sha("8"),
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(
+      pairComparisonEvidence({
+        baseline: unboundOutcome,
+        candidate: snapshot(definition, "candidate"),
+        comparison: definition,
+      }).cases[0],
+    ).toMatchObject({ reasons: ["unresolved_lineage"], state: "invalid" });
   });
 
   it("marks exact dataset changes and zero-overlap fixture sets incomparable", () => {
