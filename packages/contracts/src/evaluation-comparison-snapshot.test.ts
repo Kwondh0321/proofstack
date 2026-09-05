@@ -128,6 +128,10 @@ function definition() {
             { count: 1, kind: "agent.run" },
             { count: 1, kind: "guardrail.check" },
           ],
+          eventKindStatuses: [
+            { count: 1, kind: "agent.run", status: "ok" },
+            { count: 1, kind: "guardrail.check", status: "error" },
+          ],
           eventStatuses: [
             { count: 1, status: "error" },
             { count: 1, status: "ok" },
@@ -210,11 +214,38 @@ describe("comparison evidence snapshot contracts", () => {
   });
 
   it("reconstructs trace and verdict totals exactly", () => {
+    const trace = {
+      eventCount: 2,
+      eventKinds: [
+        { count: 1, kind: "agent.run" },
+        { count: 1, kind: "guardrail.check" },
+      ],
+      eventKindStatuses: [
+        { count: 1, kind: "agent.run", status: "ok" },
+        { count: 1, kind: "guardrail.check", status: "error" },
+      ],
+      eventStatuses: [
+        { count: 1, status: "error" },
+        { count: 1, status: "ok" },
+      ],
+    } as const;
+    expect(ComparisonTraceStructureSchema.safeParse(trace).success).toBe(true);
     expect(
       ComparisonTraceStructureSchema.safeParse({
-        eventCount: 2,
-        eventKinds: [{ count: 1, kind: "agent.run" }],
-        eventStatuses: [{ count: 2, status: "ok" }],
+        ...trace,
+        eventKindStatuses: [
+          { count: 1, kind: "agent.run", status: "error" },
+          { count: 1, kind: "guardrail.check", status: "error" },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonTraceStructureSchema.safeParse({
+        ...trace,
+        eventKindStatuses: [
+          ...trace.eventKindStatuses,
+          { count: 0, kind: "tool.execute", status: "unset" },
+        ],
       }).success,
     ).toBe(false);
     expect(

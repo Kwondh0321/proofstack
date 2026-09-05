@@ -27,7 +27,7 @@ import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./p
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
 export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.5" as const;
-export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.2" as const;
+export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.3" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
 export const MAX_COMPARISON_STRATA = 64;
@@ -502,12 +502,20 @@ export const ComparisonEvidenceSnapshotReferenceSchema = z
   .strict();
 
 const SafeComparisonCountSchema = z.number().int().nonnegative().max(MAX_COMPARISON_COUNT);
+const PositiveComparisonCountSchema = z.number().int().positive().max(MAX_COMPARISON_COUNT);
 
 const TraceKindCountSchema = z
-  .object({ count: SafeComparisonCountSchema, kind: EvidenceKindSchema })
+  .object({ count: PositiveComparisonCountSchema, kind: EvidenceKindSchema })
+  .strict();
+const TraceKindStatusCountSchema = z
+  .object({
+    count: PositiveComparisonCountSchema,
+    kind: EvidenceKindSchema,
+    status: EvidenceStatusSchema,
+  })
   .strict();
 const TraceStatusCountSchema = z
-  .object({ count: SafeComparisonCountSchema, status: EvidenceStatusSchema })
+  .object({ count: PositiveComparisonCountSchema, status: EvidenceStatusSchema })
   .strict();
 
 export const ComparisonTraceStructureSchema = z
@@ -519,6 +527,13 @@ export const ComparisonTraceStructureSchema = z
       .refine((values) => isStrictlySortedUnique(values.map(({ kind }) => kind)), {
         message: "Trace event-kind counts must be unique and ordered",
       }),
+    eventKindStatuses: z
+      .array(TraceKindStatusCountSchema)
+      .max(EvidenceKindSchema.options.length * EvidenceStatusSchema.options.length)
+      .refine(
+        (values) => isStrictlySortedUnique(values.map(({ kind, status }) => `${kind}:${status}`)),
+        { message: "Trace kind-status counts must be unique and ordered" },
+      ),
     eventStatuses: z
       .array(TraceStatusCountSchema)
       .max(EvidenceStatusSchema.options.length)
@@ -529,17 +544,46 @@ export const ComparisonTraceStructureSchema = z
   .strict()
   .superRefine((value, context) => {
     const kindTotal = value.eventKinds.reduce((sum, entry) => sum + entry.count, 0);
+    const kindStatusTotal = value.eventKindStatuses.reduce((sum, entry) => sum + entry.count, 0);
     const statusTotal = value.eventStatuses.reduce((sum, entry) => sum + entry.count, 0);
     if (
       !Number.isSafeInteger(kindTotal) ||
+      !Number.isSafeInteger(kindStatusTotal) ||
       !Number.isSafeInteger(statusTotal) ||
       kindTotal !== value.eventCount ||
+      kindStatusTotal !== value.eventCount ||
       statusTotal !== value.eventCount
     ) {
       context.addIssue({
         code: "custom",
-        message: "Trace kind and status counts must each reconstruct the exact event count",
+        message: "Trace kind, status, and joint counts must each reconstruct the exact event count",
         path: ["eventCount"],
+      });
+    }
+    const jointKindCounts = new Map<string, number>();
+    const jointStatusCounts = new Map<string, number>();
+    for (const entry of value.eventKindStatuses) {
+      jointKindCounts.set(entry.kind, (jointKindCounts.get(entry.kind) ?? 0) + entry.count);
+      jointStatusCounts.set(entry.status, (jointStatusCounts.get(entry.status) ?? 0) + entry.count);
+    }
+    if (
+      value.eventKinds.length !== jointKindCounts.size ||
+      value.eventKinds.some(({ count, kind }) => jointKindCounts.get(kind) !== count)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Trace kind counts must equal the exact joint kind-status projection",
+        path: ["eventKinds"],
+      });
+    }
+    if (
+      value.eventStatuses.length !== jointStatusCounts.size ||
+      value.eventStatuses.some(({ count, status }) => jointStatusCounts.get(status) !== count)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Trace status counts must equal the exact joint kind-status projection",
+        path: ["eventStatuses"],
       });
     }
   });

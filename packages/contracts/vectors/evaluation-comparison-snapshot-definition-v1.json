@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-snapshot-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 4075,
+      "encodedByteLength": 4196,
       "input": {
         "definition": {
           "comparison": {
@@ -137,6 +137,10 @@
                   { "count": 1, "kind": "agent.run" },
                   { "count": 1, "kind": "guardrail.check" }
                 ],
+                "eventKindStatuses": [
+                  { "count": 1, "kind": "agent.run", "status": "ok" },
+                  { "count": 1, "kind": "guardrail.check", "status": "error" }
+                ],
                 "eventStatuses": [{ "count": 1, "status": "error" }, { "count": 1, "status": "ok" }]
               },
               "usage": [
@@ -184,7 +188,7 @@
       },
       "kind": "comparison_evidence_snapshot",
       "name": "source-backed baseline evidence snapshot",
-      "sha256": "f8b6fdfefa3e920ed2434e34333c0cb88b86129e9490204dba6c96272c09c07a"
+      "sha256": "f9ee143efbde6d239a53e07a4963dfc5b92b2a38ba97f4a8ba176a609239ff95"
     }
   ]
 }

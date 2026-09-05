@@ -167,7 +167,7 @@ function snapshot(
       numericObservations: [],
       replay: value.replay,
       safetyEvents: [],
-      trace: { eventCount: 0, eventKinds: [], eventStatuses: [] },
+      trace: { eventCount: 0, eventKinds: [], eventKindStatuses: [], eventStatuses: [] },
       usage: usage[value.fixture.fixtureId] ?? [],
     })),
     integrity: "verified",

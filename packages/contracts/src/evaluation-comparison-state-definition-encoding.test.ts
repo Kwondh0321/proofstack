@@ -101,6 +101,14 @@ describe("canonical comparison state encoding", () => {
         observation.value = "126.5";
       },
       (candidate) => {
+        const trace = candidate.definition.fixtures[0]?.trace;
+        const agentRun = trace?.eventKindStatuses[0];
+        const guardrail = trace?.eventKindStatuses[1];
+        if (!agentRun || !guardrail) throw new Error("Expected joint trace counts");
+        agentRun.status = "error";
+        guardrail.status = "ok";
+      },
+      (candidate) => {
         const fixture = candidate.definition.fixtures[0];
         const usage = fixture?.usage[1];
         if (usage?.value.status !== "unavailable") {
