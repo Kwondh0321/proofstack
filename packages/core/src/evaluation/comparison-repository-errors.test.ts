@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   ComparisonLineageError,
   ComparisonRecordConflictError,
+  ComparisonRecordNotFoundError,
   ComparisonRepositoryContractError,
   ComparisonResourceConflictError,
+  ComparisonSourceUnavailableError,
   InvalidComparisonRecordInputError,
 } from "./comparison-repository-errors.js";
 
@@ -40,6 +42,20 @@ describe("comparison repository errors", () => {
       recordKind: "comparison_result",
       referenceId: "comparison_reference_v1",
       referenceKind: "comparison_definition",
+    });
+
+    expect(new ComparisonRecordNotFoundError("comparison_result", "result_absent")).toMatchObject({
+      code: "comparison_record_not_found",
+      name: "ComparisonRecordNotFoundError",
+      recordId: "result_absent",
+      recordKind: "comparison_result",
+    });
+
+    expect(new ComparisonSourceUnavailableError("replay_job", "job_absent")).toMatchObject({
+      code: "comparison_source_unavailable",
+      name: "ComparisonSourceUnavailableError",
+      sourceId: "job_absent",
+      sourceKind: "replay_job",
     });
   });
 

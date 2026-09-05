@@ -37,6 +37,30 @@ export class ComparisonLineageError extends Error {
   }
 }
 
+export class ComparisonRecordNotFoundError extends Error {
+  readonly code = "comparison_record_not_found";
+
+  constructor(
+    readonly recordKind: ComparisonRecordKind,
+    readonly recordId: string,
+  ) {
+    super(`${recordKind} record ${recordId} was not found`);
+    this.name = "ComparisonRecordNotFoundError";
+  }
+}
+
+export class ComparisonSourceUnavailableError extends Error {
+  readonly code = "comparison_source_unavailable";
+
+  constructor(
+    readonly sourceKind: string,
+    readonly sourceId: string,
+  ) {
+    super(`Exact ${sourceKind} source ${sourceId} is unavailable or conflicts with its digest`);
+    this.name = "ComparisonSourceUnavailableError";
+  }
+}
+
 export class InvalidComparisonRecordInputError extends TypeError {
   readonly code = "comparison_record_input_invalid";
 

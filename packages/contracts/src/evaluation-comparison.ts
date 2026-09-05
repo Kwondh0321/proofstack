@@ -1152,6 +1152,9 @@ export type ComparisonEvidenceSnapshotDefinition = z.infer<
 export type ComparisonEvidenceSnapshotReference = z.infer<
   typeof ComparisonEvidenceSnapshotReferenceSchema
 >;
+export type CreateComparisonEvidenceSnapshotRequest = z.infer<
+  typeof CreateComparisonEvidenceSnapshotRequestSchema
+>;
 export type ComparisonOmission = z.infer<typeof ComparisonOmissionSchema>;
 export type ComparisonRole = z.infer<typeof ComparisonRoleSchema>;
 export type ComparisonStratum = z.infer<typeof ComparisonStratumSchema>;

@@ -33,6 +33,7 @@ export * from "./evaluation/model-assurance-record-lineage.js";
 export * from "./evaluation/model-assurance-record-validation.js";
 export * from "./evaluation/model-assurance-repository.js";
 export * from "./evaluation/record-evaluation.js";
+export * from "./evaluation/record-comparison.js";
 export * from "./evaluation/record-model-assurance.js";
 export * from "./evaluation/reference-aggregate.js";
 export * from "./evaluation/schema-oracle.js";
