@@ -5,6 +5,15 @@
   "description": "Runnable exact baseline-versus-candidate comparison experiment",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    "./adversarial-scenario": {
+      "types": "./dist/adversarial-scenario.d.ts",
+      "default": "./dist/adversarial-scenario.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "api": "node dist/api-server.js",
     "build": "tsc -p tsconfig.build.json",

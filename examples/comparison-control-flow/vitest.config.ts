@@ -4,7 +4,14 @@ export default defineConfig({
   test: {
     coverage: {
       exclude: ["src/**/*.test.ts", "src/run.ts"],
-      include: ["src/lab-app.ts", "src/scenario.ts", "src/workflow.ts"],
+      include: [
+        "src/adversarial-scenario.ts",
+        "src/lab-app.ts",
+        "src/scenario.ts",
+        "src/service.ts",
+        "src/templates.ts",
+        "src/workflow.ts",
+      ],
       provider: "v8",
       reporter: ["text", "json-summary"],
       thresholds: {

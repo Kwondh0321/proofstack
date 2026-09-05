@@ -3,7 +3,7 @@ import {
   PublishComparisonRecordResponseSchema,
   type PublishComparisonRecordResponse,
 } from "@proofstack/contracts";
-import { ComparisonExperimentScenario } from "./scenario.js";
+import { ComparisonExperimentScenario, type ComparisonScenario } from "./scenario.js";
 
 const scopeUrl = "/v1/projects/prj_local/environments/env_local/comparisons";
 
@@ -15,7 +15,7 @@ export interface ComparisonDemoOptions {
 
 export interface ComparisonDemoApp {
   readonly app: Awaited<ReturnType<typeof createApp>>;
-  readonly scenario: ComparisonExperimentScenario;
+  readonly scenario: ComparisonScenario;
 }
 
 export const comparisonDemoConfig: ApiConfig = {
@@ -45,6 +45,12 @@ export async function createComparisonDemoApp(
   options: ComparisonDemoOptions,
 ): Promise<ComparisonDemoApp> {
   const scenario = new ComparisonExperimentScenario(options);
+  return createComparisonScenarioApp(scenario);
+}
+
+export async function createComparisonScenarioApp(
+  scenario: ComparisonScenario,
+): Promise<ComparisonDemoApp> {
   const app = await createApp(comparisonDemoConfig, {
     clock: { now: () => new Date("2026-09-02T04:00:00.000Z") },
     comparisonEvidenceResolver: {

@@ -1,36 +1,11 @@
-import { readFileSync } from "node:fs";
 import {
   type ComparisonDefinition,
-  type ComparisonDefinitionInput,
-  type ComparisonEvidenceSnapshotDefinition,
   OpaqueIdSchema,
+  type PublishComparisonDefinitionRequest,
   PublishComparisonDefinitionRequestSchema,
 } from "@proofstack/contracts";
 import type { ComparisonEvidenceResolution } from "@proofstack/core";
-
-interface StoredVector<Definition> {
-  readonly input: { readonly definition: Definition };
-}
-
-function vector<Definition>(filename: string): Definition {
-  const document = JSON.parse(
-    readFileSync(
-      new URL(`../../../packages/contracts/vectors/${filename}`, import.meta.url),
-      "utf8",
-    ),
-  ) as { readonly vectors: readonly StoredVector<Definition>[] };
-  const first = document.vectors[0];
-  /* v8 ignore next -- Checked-in contract vectors are required build inputs and are never empty. */
-  if (!first) throw new TypeError(`Missing ${filename}`);
-  return structuredClone(first.input.definition);
-}
-
-const definitionTemplate = vector<ComparisonDefinitionInput>(
-  "evaluation-comparison-definition-v1.json",
-);
-const snapshotTemplate = vector<ComparisonEvidenceSnapshotDefinition>(
-  "evaluation-comparison-snapshot-definition-v1.json",
-);
+import { comparisonDefinitionTemplate, comparisonSnapshotTemplate } from "./templates.js";
 
 export interface ComparisonExperimentScenarioOptions {
   readonly baselineMilliseconds: number;
@@ -38,7 +13,22 @@ export interface ComparisonExperimentScenarioOptions {
   readonly namespace: string;
 }
 
-export class ComparisonExperimentScenario {
+export interface ComparisonScenario {
+  readonly ids: {
+    readonly comparison: string;
+    readonly comparisonVersion: string;
+    readonly result: string;
+    readonly snapshotBaseline: string;
+    readonly snapshotCandidate: string;
+  };
+  definition(): PublishComparisonDefinitionRequest;
+  resolve(
+    comparison: ComparisonDefinition,
+    role: "baseline" | "candidate",
+  ): ComparisonEvidenceResolution;
+}
+
+export class ComparisonExperimentScenario implements ComparisonScenario {
   readonly baselineMilliseconds: number;
   readonly candidateMilliseconds: number;
   readonly ids: {
@@ -74,6 +64,7 @@ export class ComparisonExperimentScenario {
   }
 
   definition() {
+    const definitionTemplate = comparisonDefinitionTemplate();
     const {
       comparisonId: _comparisonId,
       predecessor: _predecessor,
@@ -92,6 +83,7 @@ export class ComparisonExperimentScenario {
     comparison: ComparisonDefinition,
     role: "baseline" | "candidate",
   ): ComparisonEvidenceResolution {
+    const snapshotTemplate = comparisonSnapshotTemplate();
     const subject = comparison[role];
     const fixture = subject.fixtures[0];
     const templateFixture = snapshotTemplate.fixtures[0];
