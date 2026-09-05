@@ -32,7 +32,11 @@ function displayFixture(): ComparisonView {
   return {
     baseline: {
       createdAt: "2026-09-04T01:00:00.000Z",
-      dataset: { datasetId: "dataset_eval", datasetVersionId: "dataset_v1", definitionSha256: digest },
+      dataset: {
+        datasetId: "dataset_eval",
+        datasetVersionId: "dataset_v1",
+        definitionSha256: digest,
+      },
       definitionSha256: digest,
       fixtures: [{}],
       integrity: "verified",
@@ -47,7 +51,11 @@ function displayFixture(): ComparisonView {
     },
     candidate: {
       createdAt: "2026-09-04T01:01:00.000Z",
-      dataset: { datasetId: "dataset_eval", datasetVersionId: "dataset_v1", definitionSha256: digest },
+      dataset: {
+        datasetId: "dataset_eval",
+        datasetVersionId: "dataset_v1",
+        definitionSha256: digest,
+      },
       definitionSha256: otherDigest,
       fixtures: [{}, {}],
       integrity: "verified",
@@ -180,10 +188,18 @@ function displayFixture(): ComparisonView {
           role: "candidate",
           totalCount: 1,
           unavailableCount: 0,
-          value: { denominator: "2", numerator: "221", representation: "rational", unit: "milliseconds" },
+          value: {
+            denominator: "2",
+            numerator: "221",
+            representation: "rational",
+            unit: "milliseconds",
+          },
         },
       ],
-      knownLimitations: ["Baseline observation window is short", "Candidate provider usage is partial"],
+      knownLimitations: [
+        "Baseline observation window is short",
+        "Candidate provider usage is partial",
+      ],
       latestSourceCutoff: "2026-09-04T01:00:00.000Z",
       metricResults: [
         {
@@ -205,7 +221,12 @@ function displayFixture(): ComparisonView {
           samples: sampleCounts,
           unit: "cases",
           value: {
-            baseline: { denominator: "2", numerator: "1", representation: "rational", unit: "cases" },
+            baseline: {
+              denominator: "2",
+              numerator: "1",
+              representation: "rational",
+              unit: "cases",
+            },
             reasons: ["population_mismatch"],
             status: "incomparable",
           },
@@ -242,11 +263,13 @@ function displayFixture(): ComparisonView {
         requestedCount: 4,
       },
       resultId: "result_login_candidate",
-      safetyCounts: [
-        { counts: { baseline: 1, candidate: 2, delta: 1 }, kind: "guardrail_check" },
-      ],
+      safetyCounts: [{ counts: { baseline: 1, candidate: 2, delta: 1 }, kind: "guardrail_check" }],
       schemaVersion: "0.6",
-      scope: { tenantId: "tenant_demo", projectId: "project_demo", environmentId: "environment_local" },
+      scope: {
+        tenantId: "tenant_demo",
+        projectId: "project_demo",
+        environmentId: "environment_local",
+      },
       verdictMarginals: [
         {
           baseline: { abstain: 0, error: 0, fail: 1, notApplicable: 0, pass: 0, total: 1 },
@@ -262,7 +285,12 @@ function displayFixture(): ComparisonView {
         },
       ],
       verdictTransitions: [
-        { baseline: "fail", candidate: "pass", count: 1, criterion: { criterionId: "criterion_login" } },
+        {
+          baseline: "fail",
+          candidate: "pass",
+          count: 1,
+          criterion: { criterionId: "criterion_login" },
+        },
       ],
     },
   } as unknown as ComparisonView;
@@ -270,14 +298,21 @@ function displayFixture(): ComparisonView {
 
 describe("comparison view model", () => {
   it("preserves exact decimal and rational representations", () => {
-    expect(exactValueDisplay({ representation: "decimal", unit: "seconds", value: "0.125" })).toEqual({
+    expect(
+      exactValueDisplay({ representation: "decimal", unit: "seconds", value: "0.125" }),
+    ).toEqual({
       representation: "decimal",
       text: "0.125 seconds",
       unit: "seconds",
       value: "0.125",
     });
     expect(
-      exactValueDisplay({ denominator: "8", numerator: "1", representation: "rational", unit: "seconds" }),
+      exactValueDisplay({
+        denominator: "8",
+        numerator: "1",
+        representation: "rational",
+        unit: "seconds",
+      }),
     ).toEqual({
       denominator: "8",
       numerator: "1",
@@ -339,10 +374,12 @@ describe("comparison view model", () => {
         },
       }),
     ]);
-    expect(model.distributions.map(({ method, value }) => ({ method, value: value.text }))).toEqual([
-      { method: "mean @ 1.0.0", value: "125.5 milliseconds" },
-      { method: "nearest_rank_quantile 9500bp @ 1.0.0", value: "221/2 milliseconds" },
-    ]);
+    expect(model.distributions.map(({ method, value }) => ({ method, value: value.text }))).toEqual(
+      [
+        { method: "mean @ 1.0.0", value: "125.5 milliseconds" },
+        { method: "nearest_rank_quantile 9500bp @ 1.0.0", value: "221/2 milliseconds" },
+      ],
+    );
     expect(model.artifacts[0]).toEqual(
       expect.objectContaining({
         baseline: expect.objectContaining({ redactedAt: "2026-09-04T00:00:00.000Z" }),
@@ -376,7 +413,13 @@ describe("comparison view model", () => {
     const definition = { ...view.definition, description: undefined, metrics: [] };
     const result = {
       ...view.result,
-      artifactChanges: [{ ...view.result.artifactChanges[1], candidate: undefined, candidateAvailability: undefined }],
+      artifactChanges: [
+        {
+          ...view.result.artifactChanges[1],
+          candidate: undefined,
+          candidateAvailability: undefined,
+        },
+      ],
     };
     const model = buildComparisonDisplay({ ...view, definition, result } as ComparisonView);
 

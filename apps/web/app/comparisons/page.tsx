@@ -66,8 +66,8 @@ export default async function ComparisonsPage({
       </section>
 
       <aside className="boundary-note">
-        <strong>Descriptive evidence only.</strong> Direction such as increased or decreased is not a
-        release verdict, approval, or claim of causal improvement.
+        <strong>Descriptive evidence only.</strong> Direction such as increased or decreased is not
+        a release verdict, approval, or claim of causal improvement.
       </aside>
     </div>
   );

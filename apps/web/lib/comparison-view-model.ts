@@ -199,11 +199,10 @@ function sampleClass(
 function provenanceText(
   provenance: NonNullable<ComparisonMetricResult["usageProvenance"]>["baseline"],
 ): string {
-  const sources = provenance.observedSources.length > 0 ? provenance.observedSources.join(", ") : "none";
+  const sources =
+    provenance.observedSources.length > 0 ? provenance.observedSources.join(", ") : "none";
   const reasons =
-    provenance.unavailableReasons.length > 0
-      ? provenance.unavailableReasons.join(", ")
-      : "none";
+    provenance.unavailableReasons.length > 0 ? provenance.unavailableReasons.join(", ") : "none";
   return `complete ${provenance.completeCount}; partial ${provenance.partialCount}; unavailable ${provenance.unavailableCount}; sources ${sources}; reasons ${reasons}`;
 }
 
@@ -271,7 +270,9 @@ function sourceDisplay(view: ComparisonView, role: "baseline" | "candidate"): So
     role,
     snapshotId: snapshot.snapshotId,
     sourceCutoff: snapshot.sourceCutoff,
-    targetReleaseIds: [...new Set(subject.fixtures.map(({ replay }) => replay.targetRelease.targetReleaseId))].sort(),
+    targetReleaseIds: [
+      ...new Set(subject.fixtures.map(({ replay }) => replay.targetRelease.targetReleaseId)),
+    ].sort(),
   };
 }
 
@@ -291,7 +292,10 @@ function caseDisplay(entry: ComparisonView["result"]["cases"][number]): CaseDisp
       ? { baselineDigest: baseline.definitionSha256, baselineVersion: baseline.fixtureVersionId }
       : {}),
     ...(candidate
-      ? { candidateDigest: candidate.definitionSha256, candidateVersion: candidate.fixtureVersionId }
+      ? {
+          candidateDigest: candidate.definitionSha256,
+          candidateVersion: candidate.fixtureVersionId,
+        }
       : {}),
     fixtureId: entry.fixtureId,
     reasons,

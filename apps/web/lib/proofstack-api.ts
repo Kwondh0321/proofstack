@@ -293,10 +293,7 @@ function sameOrderedStrings(left: readonly string[], right: readonly string[]): 
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function snapshotFitsSubject(
-  view: ComparisonView,
-  role: "baseline" | "candidate",
-): boolean {
+function snapshotFitsSubject(view: ComparisonView, role: "baseline" | "candidate"): boolean {
   const snapshot = view[role];
   const subject = view.definition[role];
   const subjectFixtureIds = new Set(subject.fixtures.map(({ fixture }) => fixture.fixtureId));
