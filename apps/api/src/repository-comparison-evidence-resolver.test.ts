@@ -12,7 +12,12 @@ import {
   ReplayPlanSchema,
   TargetReleaseSchema,
 } from "@proofstack/contracts";
-import { ComparisonSourceUnavailableError, MemoryEvidenceRepository } from "@proofstack/core";
+import {
+  ComparisonSourceUnavailableError,
+  type EvaluationRepository,
+  MemoryEvaluationRepository,
+  MemoryEvidenceRepository,
+} from "@proofstack/core";
 import {
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
@@ -355,10 +360,160 @@ async function graph() {
     replay,
     resolver: new RepositoryComparisonEvidenceResolver({
       evidenceRepository: evidence,
+      evaluationRepository: new MemoryEvaluationRepository(),
       interactionRepository: regression,
       replayRepository: replay,
     }),
   };
+}
+
+function evaluationRepository(
+  comparison: ComparisonDefinition,
+  reference: { readonly assessmentId: string; readonly definitionSha256: string },
+): EvaluationRepository {
+  const fixture = comparison.baseline.fixtures[0];
+  if (!fixture) throw new Error("Expected comparison fixture");
+  const criterion = {
+    criterionId: "criterion_accuracy",
+    criterionSet: {
+      criterionSetId: "criteria_comparison",
+      criterionSetVersionId: "criteria_comparison_v1",
+      definitionSha256: sha("d"),
+    },
+  };
+  const observationReference = {
+    definitionSha256: sha("f"),
+    observationId: "observation_comparison",
+  };
+  const verdicts = ["abstain", "error", "fail", "not_applicable", "pass"] as const;
+  const runDigests = ["e", "4", "5", "6", "7"] as const;
+  const resultDigests = ["0", "8", "9", "a", "b"] as const;
+  const runReferences = verdicts.map((verdict, index) => ({
+    definitionSha256: sha(runDigests[index] ?? "e"),
+    evaluationRunId: `evaluation_run_comparison_${index}_${verdict}`,
+  }));
+  const resultReferences = verdicts.map((verdict, index) => ({
+    definitionSha256: sha(resultDigests[index] ?? "0"),
+    evaluationRunId: runReferences[index]?.evaluationRunId ?? "evaluation_run_missing",
+    resultId: `evaluation_result_comparison_${index}_${verdict}`,
+  }));
+  const passRunReference = runReferences.at(-1);
+  if (!passRunReference) throw new Error("Expected pass run reference");
+  const assessment = {
+    aggregate: { aggregateId: "aggregate_comparison", definitionSha256: sha("1") },
+    assessmentId: reference.assessmentId,
+    createdAt: "2026-09-05T00:00:08.800Z",
+    definitionSha256: reference.definitionSha256,
+    eligibility: { status: "eligible" },
+    knownLimitations: ["Evaluation evidence covers one exact fixture."],
+    observations: [observationReference],
+    criterion,
+    runs: runReferences,
+    scope,
+  };
+  const aggregate = {
+    aggregateId: assessment.aggregate.aggregateId,
+    createdAt: "2026-09-05T00:00:08.700Z",
+    definitionSha256: assessment.aggregate.definitionSha256,
+    criterion,
+    knownLimitations: ["The exact fixture is not a production population."],
+    members: verdicts.map((verdict, index) => ({
+      independenceGroupId: `independence_group_test_${index}`,
+      result: resultReferences[index],
+      run: runReferences[index],
+      verdict,
+    })),
+    scope,
+  };
+  const runs = runReferences.map((runReference) => ({
+    createdAt: "2026-09-05T00:00:08.100Z",
+    criterion,
+    dataset: comparison.baseline.dataset,
+    definitionSha256: runReference.definitionSha256,
+    evaluationRunId: runReference.evaluationRunId,
+    fixture: fixture.fixture,
+    replay: fixture.replay,
+    scope,
+  }));
+  const results = resultReferences.map((resultReference, index) => ({
+    completedAt: "2026-09-05T00:00:08.500Z",
+    definitionSha256: resultReference.definitionSha256,
+    evaluationRunId: resultReference.evaluationRunId,
+    observations: index === verdicts.length - 1 ? [observationReference] : [],
+    recordedAt: "2026-09-05T00:00:08.600Z",
+    resultId: resultReference.resultId,
+    scope,
+    verdict: verdicts[index],
+  }));
+  const observation = {
+    completedAt: "2026-09-05T00:00:08.300Z",
+    definitionSha256: observationReference.definitionSha256,
+    measurement: {
+      kind: "numeric",
+      metricName: "latency_ms",
+      unit: "milliseconds",
+      value: "42",
+    },
+    observationId: observationReference.observationId,
+    output: {
+      artifact: {
+        artifactId: "art_evaluation_output",
+        classification: "internal",
+        mediaType: "application/json",
+        sha256: sha("2"),
+        sizeBytes: 32,
+      },
+      produced: true,
+      sha256: sha("2"),
+    },
+    recordedAt: "2026-09-05T00:00:08.400Z",
+    run: passRunReference,
+    scope,
+    startedAt: "2026-09-05T00:00:08.200Z",
+  };
+  const unused = async () => null;
+  const publishUnused = async () => {
+    throw new Error("Unexpected evaluation publication");
+  };
+  return {
+    findAggregationPolicy: unused,
+    findAssessment: async (_scope: EvidenceScope, id: string) =>
+      id === assessment.assessmentId ? assessment : null,
+    findCriterionSet: unused,
+    findCriterionSetStatus: unused,
+    findDiscoveryRecord: unused,
+    findEvaluationAggregate: async (_scope: EvidenceScope, id: string) =>
+      id === aggregate.aggregateId ? aggregate : null,
+    findEvaluationRun: async (_scope: EvidenceScope, id: string) =>
+      runs.find(({ evaluationRunId }) => evaluationRunId === id) ?? null,
+    findEvaluationRunRejection: unused,
+    findEvaluationRunResult: async (_scope: EvidenceScope, id: string) =>
+      results.find(({ resultId }) => resultId === id) ?? null,
+    findEvaluatorSpec: unused,
+    findOracleSpec: unused,
+    findQualificationFixtureSet: unused,
+    findQualificationReport: unused,
+    findRawObservation: async (_scope: EvidenceScope, id: string) =>
+      id === observation.observationId ? observation : null,
+    findSourceReview: unused,
+    findSourceSnapshot: unused,
+    publishAggregationPolicy: publishUnused,
+    publishAssessment: publishUnused,
+    publishCriterionSet: publishUnused,
+    publishCriterionSetStatus: publishUnused,
+    publishDiscoveryRecord: publishUnused,
+    publishEvaluationAggregate: publishUnused,
+    publishEvaluationRun: publishUnused,
+    publishEvaluationRunRejection: publishUnused,
+    publishEvaluationRunResult: publishUnused,
+    publishEvaluatorSpec: publishUnused,
+    publishOracleSpec: publishUnused,
+    publishQualificationFixtureSet: publishUnused,
+    publishQualificationReport: publishUnused,
+    publishRawObservation: publishUnused,
+    publishSourceReview: publishUnused,
+    publishSourceSnapshot: publishUnused,
+  } as unknown as EvaluationRepository;
 }
 
 describe("RepositoryComparisonEvidenceResolver", () => {
@@ -402,6 +557,47 @@ describe("RepositoryComparisonEvidenceResolver", () => {
     expect(resolution.sourceCutoff).toBe("2026-09-05T00:00:08.000Z");
   });
 
+  it("preserves an exact available artifact catalog state", async () => {
+    const test = await graph();
+    const artifact = test.comparison.baseline.fixtures[0]?.replay.result;
+    if (!artifact) throw new Error("Expected replay result artifact");
+    const artifactCatalog = {
+      find: async (_scope: EvidenceScope, artifactId: string) =>
+        artifactId === artifact.artifactId
+          ? {
+              metadata: {
+                availableAt: "2026-09-05T00:00:08.000Z",
+                contentReference: artifact,
+                createdAt: "2026-09-05T00:00:07.900Z",
+                redaction: { status: "not_required" },
+                retention: { mode: "retain" },
+                schemaVersion: "0.1",
+                scope,
+                state: "available",
+              },
+            }
+          : null,
+    };
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      artifactCatalog: artifactCatalog as never,
+      evidenceRepository: test.evidence,
+      evaluationRepository: new MemoryEvaluationRepository(),
+      interactionRepository: test.regression,
+      replayRepository: test.replay,
+    });
+
+    const resolution = await resolver.resolve({
+      comparison: test.comparison,
+      role: "baseline",
+      scope,
+    });
+
+    expect(resolution.fixtures[0]?.artifacts).toEqual([{ artifact, availability: "available" }]);
+    expect(resolution.omissions).not.toContainEqual(
+      expect.objectContaining({ sourceKind: "artifact" }),
+    );
+  });
+
   it("fails closed when an exact trace event is unavailable", async () => {
     const test = await graph();
     const missing = structuredClone(test.comparison);
@@ -412,6 +608,7 @@ describe("RepositoryComparisonEvidenceResolver", () => {
     };
     const resolver = new RepositoryComparisonEvidenceResolver({
       evidenceRepository: hiddenEvidence,
+      evaluationRepository: new MemoryEvaluationRepository(),
       interactionRepository: test.regression,
       replayRepository: test.replay,
     });
@@ -427,5 +624,75 @@ describe("RepositoryComparisonEvidenceResolver", () => {
     await expect(
       test.resolver.resolve({ comparison: changed, role: "baseline", scope }),
     ).rejects.toMatchObject({ sourceKind: "regression_dataset_membership" });
+  });
+
+  it("projects exact fixture evaluation outcomes and numeric observations", async () => {
+    const test = await graph();
+    const comparison = structuredClone(test.comparison);
+    const assessment = {
+      assessmentId: "assessment_comparison",
+      definitionSha256: sha("3"),
+    };
+    const fixture = comparison.baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected comparison fixture");
+    fixture.assessments = [assessment];
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      evidenceRepository: test.evidence,
+      evaluationRepository: evaluationRepository(comparison, assessment),
+      interactionRepository: test.regression,
+      replayRepository: test.replay,
+    });
+
+    const resolution = await resolver.resolve({ comparison, role: "baseline", scope });
+
+    expect(resolution.fixtures[0]?.assurance).toEqual([
+      { eligibility: "eligible", kind: "assessment", reasons: [], reference: assessment },
+    ]);
+    expect(resolution.fixtures[0]?.evaluationOutcomes).toEqual([
+      expect.objectContaining({
+        assessment,
+        counts: { abstain: 1, error: 1, fail: 1, notApplicable: 1, pass: 1, total: 5 },
+      }),
+    ]);
+    expect(resolution.fixtures[0]?.numericObservations).toEqual([
+      {
+        measurementName: "latency_ms",
+        observation: { definitionSha256: sha("f"), observationId: "observation_comparison" },
+        unit: "milliseconds",
+        value: "42",
+      },
+    ]);
+    expect(resolution.fixtures[0]?.artifacts.map(({ artifact }) => artifact.artifactId)).toEqual([
+      "art_evaluation_output",
+      "art_replay_result",
+    ]);
+    expect(resolution.knownLimitations).toContain("Evaluation evidence covers one exact fixture.");
+    expect(resolution.sourceCutoff).toBe("2026-09-05T00:00:08.800Z");
+  });
+
+  it("fails closed when a referenced raw evaluation observation is missing", async () => {
+    const test = await graph();
+    const comparison = structuredClone(test.comparison);
+    const assessment = {
+      assessmentId: "assessment_comparison",
+      definitionSha256: sha("3"),
+    };
+    const fixture = comparison.baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected comparison fixture");
+    fixture.assessments = [assessment];
+    const stored = evaluationRepository(comparison, assessment);
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      evidenceRepository: test.evidence,
+      evaluationRepository: {
+        ...stored,
+        findRawObservation: async () => null,
+      },
+      interactionRepository: test.regression,
+      replayRepository: test.replay,
+    });
+
+    await expect(resolver.resolve({ comparison, role: "baseline", scope })).rejects.toMatchObject({
+      sourceKind: "raw_observation",
+    });
   });
 });

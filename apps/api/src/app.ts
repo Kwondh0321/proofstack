@@ -281,6 +281,7 @@ export async function createApp(
         ? new RepositoryComparisonEvidenceResolver({
             ...(storage.artifacts ? { artifactCatalog: storage.artifacts.catalog } : {}),
             evidenceRepository: storage.evidenceRepository,
+            evaluationRepository: storage.evaluationRepository,
             interactionRepository: storage.interactionFixtureVersionRepository,
             replayRepository: storage.replayJobControlRepository,
           })

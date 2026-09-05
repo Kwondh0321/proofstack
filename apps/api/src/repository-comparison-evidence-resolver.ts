@@ -2,12 +2,17 @@ import { createHash } from "node:crypto";
 import type { ArtifactCatalogRepository } from "@proofstack/artifacts";
 import {
   ArtifactMetadataSchema,
+  type Assessment,
   type ComparisonEvidenceFixtureSnapshot,
   type ComparisonOmission,
+  type EvaluationAggregate,
+  type EvaluationRun,
+  type EvaluationRunResult,
   type EvidenceEnvelope,
   EvidenceEnvelopeSchema,
   type EvidenceScope,
   evidenceTimestampOrderKey,
+  type RawObservation,
   REPLAY_BUDGET_DIMENSIONS,
   RecordedInteractionFixtureVersionSchema,
   RegressionDatasetVersionSchema,
@@ -18,6 +23,7 @@ import {
   type ComparisonEvidenceResolution,
   type ComparisonEvidenceResolver,
   ComparisonSourceUnavailableError,
+  type EvaluationRepository,
   type EvidenceRepository,
   type ExactEvidenceRepository,
 } from "@proofstack/core";
@@ -27,14 +33,21 @@ import type { ReplayJobControlRepository } from "@proofstack/replay";
 type SubjectFixture = Parameters<
   ComparisonEvidenceResolver["resolve"]
 >[0]["comparison"]["baseline"]["fixtures"][number];
+type SubjectDataset = Parameters<
+  ComparisonEvidenceResolver["resolve"]
+>[0]["comparison"]["baseline"]["dataset"];
 type ResolvedFixture = ComparisonEvidenceFixtureSnapshot;
 type ArtifactState = ResolvedFixture["artifacts"][number];
 type SafetyEvent = ResolvedFixture["safetyEvents"][number];
 type UsageDimension = ResolvedFixture["usage"][number];
+type AssuranceState = ResolvedFixture["assurance"][number];
+type EvaluationOutcome = ResolvedFixture["evaluationOutcomes"][number];
+type NumericObservation = ResolvedFixture["numericObservations"][number];
 
 interface RepositoryComparisonEvidenceResolverDependencies {
   readonly artifactCatalog?: ArtifactCatalogRepository;
   readonly evidenceRepository: ExactEvidenceRepository;
+  readonly evaluationRepository: EvaluationRepository;
   readonly interactionRepository: InteractionFixtureVersionRepository;
   readonly replayRepository: ReplayJobControlRepository;
 }
@@ -54,6 +67,14 @@ interface UsageAccumulator {
   readonly unavailableReasons: Set<
     "measurement_failed" | "provider_did_not_report" | "source_unavailable"
   >;
+}
+
+interface EvaluationProjection {
+  readonly artifacts: ResolvedFixture["artifacts"][number]["artifact"][];
+  readonly assurance: AssuranceState[];
+  readonly evaluationOutcomes: EvaluationOutcome[];
+  readonly numericObservations: NumericObservation[];
+  readonly sourceTimes: string[];
 }
 
 const SNAPSHOT_LIMITATIONS = [
@@ -326,7 +347,13 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
     const fixtures: ResolvedFixture[] = [];
     const artifactOwners = new Map<string, string>();
     for (const fixture of subject.fixtures) {
-      const resolved = await this.resolveFixture(command.scope, fixture, omissions, limitations);
+      const resolved = await this.resolveFixture(
+        command.scope,
+        subject.dataset,
+        fixture,
+        omissions,
+        limitations,
+      );
       for (const { artifact } of resolved.fixture.artifacts) {
         const owner = artifactOwners.get(artifact.artifactId);
         if (owner !== undefined) {
@@ -354,12 +381,13 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
 
   private async resolveFixture(
     scope: EvidenceScope,
+    dataset: SubjectDataset,
     subject: SubjectFixture,
     omissions: ComparisonOmission[],
     limitations: Set<string>,
   ): Promise<{ readonly fixture: ResolvedFixture; readonly sourceTimes: readonly string[] }> {
-    if (subject.assessments.length > 0 || subject.modelAssuranceAssessments.length > 0) {
-      unavailable("evaluation_projection", subject.fixture.fixtureVersionId);
+    if (subject.modelAssuranceAssessments.length > 0) {
+      unavailable("model_assurance_projection", subject.fixture.fixtureVersionId);
     }
     const source = await this.findFixture(scope, subject);
     const eventsInput = await this.dependencies.evidenceRepository.resolveExactEvents(
@@ -415,10 +443,12 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
       unavailable("replay_result", `${subject.replay.jobId}:${subject.replay.attemptId}`);
     }
 
+    const evaluation = await this.evaluations(scope, dataset, subject, limitations);
     const artifacts = await this.artifacts(
       scope,
       source,
       subject.replay.result,
+      evaluation.artifacts,
       subject.fixture.fixtureId,
       omissions,
     );
@@ -471,16 +501,222 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
     return {
       fixture: {
         artifacts,
-        assurance: [],
-        evaluationOutcomes: [],
+        assurance: evaluation.assurance,
+        evaluationOutcomes: evaluation.evaluationOutcomes,
         fixture: structuredClone(subject.fixture),
-        numericObservations: [],
+        numericObservations: evaluation.numericObservations,
         replay: structuredClone(subject.replay),
         safetyEvents,
         trace: traceStructure(events),
         usage: usageProjection(replay),
       },
-      sourceTimes: sourceTimestamps(source.version, events, replay),
+      sourceTimes: [...sourceTimestamps(source.version, events, replay), ...evaluation.sourceTimes],
+    };
+  }
+
+  private async evaluations(
+    scope: EvidenceScope,
+    dataset: SubjectDataset,
+    subject: SubjectFixture,
+    limitations: Set<string>,
+  ): Promise<EvaluationProjection> {
+    const artifacts: EvaluationProjection["artifacts"] = [];
+    const assurance: AssuranceState[] = [];
+    const evaluationOutcomes: EvaluationOutcome[] = [];
+    const numericBySource = new Map<string, NumericObservation>();
+    const sourceTimes: string[] = [];
+
+    for (const reference of subject.assessments) {
+      const assessmentInput = await this.dependencies.evaluationRepository.findAssessment(
+        structuredClone(scope),
+        reference.assessmentId,
+      );
+      if (assessmentInput === null) unavailable("assessment", reference.assessmentId);
+      const assessment = assessmentInput as Assessment;
+      if (
+        !sameScope(assessment.scope, scope) ||
+        assessment.assessmentId !== reference.assessmentId ||
+        assessment.definitionSha256 !== reference.definitionSha256
+      ) {
+        unavailable("assessment", reference.assessmentId);
+      }
+
+      const aggregateInput = await this.dependencies.evaluationRepository.findEvaluationAggregate(
+        structuredClone(scope),
+        assessment.aggregate.aggregateId,
+      );
+      if (aggregateInput === null) {
+        unavailable("evaluation_aggregate", assessment.aggregate.aggregateId);
+      }
+      const aggregate = aggregateInput as EvaluationAggregate;
+      if (
+        !sameScope(aggregate.scope, scope) ||
+        aggregate.aggregateId !== assessment.aggregate.aggregateId ||
+        aggregate.definitionSha256 !== assessment.aggregate.definitionSha256 ||
+        !sameJson(aggregate.criterion, assessment.criterion)
+      ) {
+        unavailable("evaluation_aggregate", assessment.aggregate.aggregateId);
+      }
+
+      assurance.push({
+        eligibility: assessment.eligibility.status,
+        kind: "assessment",
+        reasons:
+          assessment.eligibility.status === "eligible" ? [] : [...assessment.eligibility.reasons],
+        reference: structuredClone(reference),
+      });
+      for (const limitation of [...assessment.knownLimitations, ...aggregate.knownLimitations]) {
+        limitations.add(limitation);
+      }
+      sourceTimes.push(assessment.createdAt, aggregate.createdAt);
+
+      const counts = {
+        abstain: 0,
+        error: 0,
+        fail: 0,
+        notApplicable: 0,
+        pass: 0,
+        total: 0,
+      };
+      for (const member of aggregate.members) {
+        const runInput = await this.dependencies.evaluationRepository.findEvaluationRun(
+          structuredClone(scope),
+          member.run.evaluationRunId,
+        );
+        if (runInput === null) unavailable("evaluation_run", member.run.evaluationRunId);
+        const run = runInput as EvaluationRun;
+        if (
+          !sameScope(run.scope, scope) ||
+          run.evaluationRunId !== member.run.evaluationRunId ||
+          run.definitionSha256 !== member.run.definitionSha256 ||
+          !sameJson(run.criterion, assessment.criterion)
+        ) {
+          unavailable("evaluation_run", member.run.evaluationRunId);
+        }
+
+        const resultInput = await this.dependencies.evaluationRepository.findEvaluationRunResult(
+          structuredClone(scope),
+          member.result.resultId,
+        );
+        if (resultInput === null) unavailable("evaluation_run_result", member.result.resultId);
+        const result = resultInput as EvaluationRunResult;
+        if (
+          !sameScope(result.scope, scope) ||
+          result.resultId !== member.result.resultId ||
+          result.definitionSha256 !== member.result.definitionSha256 ||
+          result.evaluationRunId !== run.evaluationRunId ||
+          member.result.evaluationRunId !== run.evaluationRunId ||
+          result.verdict !== member.verdict
+        ) {
+          unavailable("evaluation_run_result", member.result.resultId);
+        }
+        sourceTimes.push(run.createdAt, result.completedAt, result.recordedAt);
+
+        if (!sameJson(run.fixture, subject.fixture)) continue;
+        if (
+          !sameJson(run.dataset, dataset) ||
+          !sameJson(run.replay, subject.replay) ||
+          !assessment.runs.some((candidate) => sameJson(candidate, member.run))
+        ) {
+          unavailable("evaluation_fixture_lineage", run.evaluationRunId);
+        }
+
+        counts.total += 1;
+        switch (member.verdict) {
+          case "abstain":
+            counts.abstain += 1;
+            break;
+          case "error":
+            counts.error += 1;
+            break;
+          case "fail":
+            counts.fail += 1;
+            break;
+          case "not_applicable":
+            counts.notApplicable += 1;
+            break;
+          case "pass":
+            counts.pass += 1;
+            break;
+        }
+
+        for (const observationReference of result.observations) {
+          if (
+            !assessment.observations.some((candidate) => sameJson(candidate, observationReference))
+          ) {
+            unavailable("assessment_observation_lineage", observationReference.observationId);
+          }
+          const observationInput = await this.dependencies.evaluationRepository.findRawObservation(
+            structuredClone(scope),
+            observationReference.observationId,
+          );
+          if (observationInput === null) {
+            unavailable("raw_observation", observationReference.observationId);
+          }
+          const observation = observationInput as RawObservation;
+          if (
+            !sameScope(observation.scope, scope) ||
+            observation.observationId !== observationReference.observationId ||
+            observation.definitionSha256 !== observationReference.definitionSha256 ||
+            !sameJson(observation.run, member.run)
+          ) {
+            unavailable("raw_observation", observationReference.observationId);
+          }
+          sourceTimes.push(observation.startedAt, observation.completedAt, observation.recordedAt);
+          if (observation.output.produced && observation.output.artifact) {
+            artifacts.push(structuredClone(observation.output.artifact));
+          }
+          if (observation.measurement?.kind === "numeric") {
+            const projected = {
+              measurementName: observation.measurement.metricName,
+              observation: structuredClone(observationReference),
+              unit: observation.measurement.unit,
+              value: observation.measurement.value,
+            } satisfies NumericObservation;
+            const key = `${projected.measurementName}:${projected.unit}:${observationReference.observationId}:${observationReference.definitionSha256}`;
+            numericBySource.set(key, projected);
+          }
+        }
+      }
+      if (counts.total === 0) {
+        unavailable(
+          "evaluation_fixture_outcome",
+          `${reference.assessmentId}:${subject.fixture.fixtureId}`,
+        );
+      }
+      evaluationOutcomes.push({
+        assessment: structuredClone(reference),
+        counts,
+        criterion: structuredClone(assessment.criterion),
+      });
+    }
+
+    assurance.sort((left, right) => {
+      const leftId =
+        left.kind === "assessment"
+          ? left.reference.assessmentId
+          : left.reference.assessmentExtensionId;
+      const rightId =
+        right.kind === "assessment"
+          ? right.reference.assessmentId
+          : right.reference.assessmentExtensionId;
+      return `${left.kind}:${leftId}:${left.reference.definitionSha256}`.localeCompare(
+        `${right.kind}:${rightId}:${right.reference.definitionSha256}`,
+      );
+    });
+    evaluationOutcomes.sort((left, right) =>
+      `${left.criterion.criterionId}:${left.assessment.assessmentId}:${left.assessment.definitionSha256}`.localeCompare(
+        `${right.criterion.criterionId}:${right.assessment.assessmentId}:${right.assessment.definitionSha256}`,
+      ),
+    );
+    return {
+      artifacts,
+      assurance,
+      evaluationOutcomes,
+      numericObservations: [...numericBySource.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([, observation]) => observation),
+      sourceTimes,
     };
   }
 
@@ -529,6 +765,7 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
     scope: EvidenceScope,
     source: SourceFixture,
     replayResult: SubjectFixture["replay"]["result"],
+    evaluationArtifacts: EvaluationProjection["artifacts"],
     fixtureId: string,
     omissions: ComparisonOmission[],
   ): Promise<ArtifactState[]> {
@@ -539,6 +776,7 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
           )
         : []),
       replayResult,
+      ...evaluationArtifacts,
     ];
     const unique = new Map<string, (typeof references)[number]>();
     for (const reference of references) {
