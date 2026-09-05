@@ -23,7 +23,7 @@ import { AssuranceSummarySchema } from "./evaluation-source.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
-export const COMPARISON_RESULT_SCHEMA_VERSION = "0.5" as const;
+export const COMPARISON_RESULT_SCHEMA_VERSION = "0.6" as const;
 export const MAX_COMPARISON_RESULT_REASONS = 32;
 export const MAX_COMPARISON_RESULT_TRANSITIONS = 4_096;
 export const MAX_COMPARISON_RESULT_DISTRIBUTIONS = MAX_COMPARISON_METRICS * 2;
@@ -549,17 +549,48 @@ export const ComparisonVerdictTransitionSchema = z
   })
   .strict();
 
+export const ComparisonVerdictTransitionUnavailableReasonSchema = z.enum([
+  "ambiguous_aggregate_pairing",
+  "assessment_mismatch",
+  "invalid_paired_evidence",
+  "missing_paired_evidence",
+  "outcome_count_mismatch",
+]);
+
+export const ComparisonVerdictTransitionAvailabilitySchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      pairedCount: SafeComparisonCountSchema,
+      status: z.literal("available"),
+    })
+    .strict(),
+  z
+    .object({
+      reasons: z
+        .array(ComparisonVerdictTransitionUnavailableReasonSchema)
+        .min(1)
+        .max(ComparisonVerdictTransitionUnavailableReasonSchema.options.length)
+        .refine(isStrictlySortedUnique, {
+          message: "Unavailable verdict-transition reasons must be unique and ordered",
+        }),
+      status: z.literal("unavailable"),
+    })
+    .strict(),
+]);
+
 export const ComparisonVerdictMarginalSchema = z
   .object({
     baseline: ComparisonVerdictCountsSchema,
     candidate: ComparisonVerdictCountsSchema,
     criterion: CriterionReferenceSchema,
-    pairedCount: SafeComparisonCountSchema,
+    transition: ComparisonVerdictTransitionAvailabilitySchema,
   })
   .strict()
   .refine(
     (value) =>
-      value.pairedCount <= value.baseline.total && value.pairedCount <= value.candidate.total,
+      value.transition.status === "unavailable" ||
+      (value.transition.pairedCount <= value.baseline.total &&
+        value.transition.pairedCount <= value.candidate.total),
     { message: "Paired verdict count cannot exceed either complete marginal" },
   );
 
@@ -866,28 +897,27 @@ function refineComparisonResult(
       });
     }
   });
-  const marginalPairedCounts = new Map(
-    value.verdictMarginals.map(({ criterion, pairedCount }) => [
+  const marginalTransitions = new Map(
+    value.verdictMarginals.map(({ criterion, transition }) => [
       exactCriterionKey(criterion),
-      pairedCount,
+      transition,
     ]),
   );
   const transitionCounts = new Map<string, number>();
   for (const transition of value.verdictTransitions) {
     const key = exactCriterionKey(transition.criterion);
-    transitionCounts.set(key, (transitionCounts.get(key) ?? 0) + transition.count);
-  }
-  for (const [criterion, transitionCount] of transitionCounts) {
-    if (marginalPairedCounts.get(criterion) !== transitionCount) {
+    if (marginalTransitions.get(key)?.status !== "available") {
       context.addIssue({
         code: "custom",
-        message: "Verdict transitions must reconstruct the exact paired marginal count",
+        message: "Verdict transitions require an available exact marginal transition",
         path: ["verdictTransitions"],
       });
     }
+    transitionCounts.set(key, (transitionCounts.get(key) ?? 0) + transition.count);
   }
-  for (const [criterion, pairedCount] of marginalPairedCounts) {
-    if ((transitionCounts.get(criterion) ?? 0) !== pairedCount) {
+  for (const [criterion, transition] of marginalTransitions) {
+    const transitionCount = transitionCounts.get(criterion) ?? 0;
+    if (transition.status === "available" && transitionCount !== transition.pairedCount) {
       context.addIssue({
         code: "custom",
         message: "Every verdict marginal must have complete paired transitions",
@@ -968,4 +998,11 @@ export type ComparisonUsageMetricProvenance = z.infer<typeof ComparisonUsageMetr
 export type ComparisonResult = z.infer<typeof ComparisonResultSchema>;
 export type ComparisonResultDefinition = z.infer<typeof ComparisonResultDefinitionSchema>;
 export type ComparisonVerdictMarginal = z.infer<typeof ComparisonVerdictMarginalSchema>;
+export type ComparisonVerdictTransition = z.infer<typeof ComparisonVerdictTransitionSchema>;
+export type ComparisonVerdictTransitionAvailability = z.infer<
+  typeof ComparisonVerdictTransitionAvailabilitySchema
+>;
+export type ComparisonVerdictTransitionUnavailableReason = z.infer<
+  typeof ComparisonVerdictTransitionUnavailableReasonSchema
+>;
 export type DeriveComparisonResultRequest = z.infer<typeof DeriveComparisonResultRequestSchema>;

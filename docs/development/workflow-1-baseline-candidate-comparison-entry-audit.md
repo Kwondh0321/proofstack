@@ -136,7 +136,8 @@ and unresolved critical counterevidence.
 An immutable `ComparisonResult` binds the definition and both snapshots and derives:
 
 - trace structure counts and exact deltas;
-- paired evaluator outcome transitions and complete marginal verdict counts;
+- complete marginal evaluator verdict counts and paired transitions only when the retained
+  evidence reconstructs one exact transition matrix; otherwise explicit unavailability reasons;
 - numeric distributions using finite declared methods and exact sample counts;
 - latency, provider cost, token, byte, model-request, tool-call, and artifact-emission usage;
 - policy-independent safety-event counts and exact source references;

@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-result-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 5014,
+      "encodedByteLength": 5050,
       "input": {
         "definition": {
           "artifactChanges": [
@@ -236,7 +236,7 @@
                   "definitionSha256": "8888888888888888888888888888888888888888888888888888888888888888"
                 }
               },
-              "pairedCount": 1
+              "transition": { "pairedCount": 1, "status": "available" }
             }
           ]
         },
@@ -248,7 +248,7 @@
       },
       "kind": "comparison_result",
       "name": "exact paired descriptive comparison result",
-      "sha256": "15f3b7a606f9ad35de0fc03bf4db83b33638e81ab7ea47c0eb6af01a4d09f4b7"
+      "sha256": "a6ae695c7e74907add1a53d2c1bdc0d90e826614e0f46635882cdf9e042c04f2"
     }
   ]
 }

@@ -96,7 +96,8 @@ report:
 
 - signed exact deltas and direction-neutral states such as `increased`, `decreased`, `unchanged`,
   `unavailable`, or `incomparable`;
-- paired outcome transitions and complete marginal counts;
+- complete marginal outcome counts and paired transitions only when the retained evidence
+  reconstructs one exact transition matrix; otherwise an ordered unavailability reason set;
 - distribution summaries with explicit methods and sample counts;
 - latency, token, byte, request, tool-call, and provider-cost usage;
 - policy-independent safety-event counts and exact source references;

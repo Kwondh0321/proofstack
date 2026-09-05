@@ -219,7 +219,7 @@ function definition() {
             definitionSha256: sha("8"),
           },
         },
-        pairedCount: 1,
+        transition: { pairedCount: 1, status: "available" },
       },
     ],
   } as const;
@@ -700,6 +700,53 @@ describe("comparison result contracts", () => {
     expect(
       ComparisonResultDefinitionSchema.safeParse({
         ...valid,
+        verdictTransitions: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
+        verdictMarginals: valid.verdictMarginals.map((marginal) => ({
+          ...marginal,
+          transition: {
+            reasons: ["ambiguous_aggregate_pairing"],
+            status: "unavailable",
+          },
+        })),
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
+        verdictMarginals: valid.verdictMarginals.map((marginal) => ({
+          ...marginal,
+          transition: {
+            reasons: ["ambiguous_aggregate_pairing"],
+            status: "unavailable",
+          },
+        })),
+        verdictTransitions: [],
+      }).success,
+    ).toBe(true);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
+        verdictMarginals: valid.verdictMarginals.map((marginal) => ({
+          ...marginal,
+          transition: { pairedCount: marginal.baseline.total + 1, status: "available" },
+        })),
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonResultDefinitionSchema.safeParse({
+        ...valid,
+        verdictMarginals: valid.verdictMarginals.map((marginal) => ({
+          ...marginal,
+          transition: {
+            reasons: ["missing_paired_evidence", "ambiguous_aggregate_pairing"],
+            status: "unavailable",
+          },
+        })),
         verdictTransitions: [],
       }).success,
     ).toBe(false);
