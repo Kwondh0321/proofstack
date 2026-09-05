@@ -285,6 +285,59 @@ function sameComparisonReference(
   );
 }
 
+function sameCanonicalValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function snapshotFitsSubject(
+  view: ComparisonView,
+  role: "baseline" | "candidate",
+): boolean {
+  const snapshot = view[role];
+  const subject = view.definition[role];
+  const subjectFixtureIds = new Set(subject.fixtures.map(({ fixture }) => fixture.fixtureId));
+  return (
+    sameCanonicalValue(snapshot.dataset, subject.dataset) &&
+    snapshot.fixtures.every(({ fixture }) => subjectFixtureIds.has(fixture.fixtureId))
+  );
+}
+
+function hasConsistentDerivedMetadata(view: ComparisonView): boolean {
+  const expectedCaseIds = [
+    ...new Set([
+      ...view.definition.baseline.fixtures.map(({ fixture }) => fixture.fixtureId),
+      ...view.definition.candidate.fixtures.map(({ fixture }) => fixture.fixtureId),
+    ]),
+  ].sort();
+  const expectedMetricIds = view.definition.metrics.map(({ metricId }) => metricId);
+  const expectedLimitations = [
+    ...new Set([...view.baseline.knownLimitations, ...view.candidate.knownLimitations]),
+  ].sort();
+  const expectedSourceCutoff =
+    view.baseline.sourceCutoff < view.candidate.sourceCutoff
+      ? view.candidate.sourceCutoff
+      : view.baseline.sourceCutoff;
+
+  return (
+    snapshotFitsSubject(view, "baseline") &&
+    snapshotFitsSubject(view, "candidate") &&
+    sameOrderedStrings(
+      view.result.cases.map(({ fixtureId }) => fixtureId),
+      expectedCaseIds,
+    ) &&
+    sameOrderedStrings(
+      view.result.metricResults.map(({ metricId }) => metricId),
+      expectedMetricIds,
+    ) &&
+    sameOrderedStrings(view.result.knownLimitations, expectedLimitations) &&
+    view.result.latestSourceCutoff === expectedSourceCutoff
+  );
+}
+
 function assertComparisonBundle(view: ComparisonView): void {
   const reference = view.result.comparison;
   const definitionReference = {
@@ -304,7 +357,8 @@ function assertComparisonBundle(view: ComparisonView): void {
     view.result.candidateSnapshot.definitionSha256 !== view.candidate.definitionSha256 ||
     !sameScope(view.result.scope, view.definition.scope) ||
     !sameScope(view.result.scope, view.baseline.scope) ||
-    !sameScope(view.result.scope, view.candidate.scope)
+    !sameScope(view.result.scope, view.candidate.scope) ||
+    !hasConsistentDerivedMetadata(view)
   ) {
     throw new ComparisonViewError(
       "invalid_response",

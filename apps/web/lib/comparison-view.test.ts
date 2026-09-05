@@ -55,9 +55,32 @@ function digest(
   return createHash("sha256").update(encoded).digest("hex");
 }
 
-const definitionDigest = digest("comparison_definition", definitionVector.input.definition);
-const definitionRecord = ComparisonDefinitionRecordSchema.parse({
+const definitionInput = {
   ...structuredClone(definitionVector.input.definition),
+  metrics: [
+    {
+      aggregation: { method: "mean", methodVersion: "1.0.0" },
+      kind: "numeric_measurement",
+      label: "Mean response time",
+      measurementName: "response_time",
+      metricId: "metric_latency",
+      stratumId: "stratum_all",
+      unit: "milliseconds",
+    },
+    {
+      aggregation: { method: "mean", methodVersion: "1.0.0" },
+      dimension: "elapsedMilliseconds",
+      kind: "replay_usage",
+      label: "Mean elapsed time",
+      metricId: "metric_usage_elapsed",
+      stratumId: "stratum_all",
+      unit: "milliseconds",
+    },
+  ],
+};
+const definitionDigest = digest("comparison_definition", definitionInput);
+const definitionRecord = ComparisonDefinitionRecordSchema.parse({
+  ...definitionInput,
   createdAt,
   createdByPrincipalId,
   definitionSha256: definitionDigest,
@@ -74,6 +97,7 @@ function snapshotRecord(role: "baseline" | "candidate") {
   const definition = {
     ...structuredClone(snapshotVector.input.definition),
     comparison: comparisonReference,
+    dataset: definitionRecord[role].dataset,
     role,
     snapshotId: `snapshot_${role}_web`,
   };
@@ -104,6 +128,8 @@ function resultRecord(overrides: Record<string, unknown> = {}, recordScope = sco
       snapshotId: candidateRecord.snapshotId,
     },
     comparison: comparisonReference,
+    knownLimitations: ["Synthetic comparison source"],
+    latestSourceCutoff: "2026-09-02T01:00:01.000Z",
     resultId: "result_comparison_web",
     ...overrides,
   };
@@ -149,6 +175,20 @@ function bundleFetch(overrides: Partial<Record<ComparisonRecordKind, Response>> 
         recordResponse("comparison_evidence_snapshot", baselineRecord),
     )
     .mockResolvedValueOnce(recordResponse("comparison_evidence_snapshot", candidateRecord));
+}
+
+function exactBundleFetch(
+  resultValue: typeof result,
+  baselineValue = baselineRecord,
+  candidateValue = candidateRecord,
+  definitionValue = definitionRecord,
+) {
+  return vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(recordResponse("comparison_result", resultValue))
+    .mockResolvedValueOnce(recordResponse("comparison_definition", definitionValue))
+    .mockResolvedValueOnce(recordResponse("comparison_evidence_snapshot", baselineValue))
+    .mockResolvedValueOnce(recordResponse("comparison_evidence_snapshot", candidateValue));
 }
 
 afterEach(() => {
@@ -347,6 +387,59 @@ describe("getComparisonView", () => {
       kind: "invalid_response",
       message: "Comparison records have contradictory immutable lineage",
     });
+  });
+
+  it("rejects semantically substituted subject and derived metadata", async () => {
+    const mismatchedBaselineDefinition = {
+      ...structuredClone(snapshotVector.input.definition),
+      comparison: comparisonReference,
+      dataset: { ...definitionRecord.baseline.dataset, datasetVersionId: "dataset_other_v1" },
+      role: "baseline",
+      snapshotId: baselineRecord.snapshotId,
+    };
+    const mismatchedBaseline = ComparisonEvidenceSnapshotSchema.parse({
+      ...mismatchedBaselineDefinition,
+      createdAt,
+      createdByPrincipalId,
+      definitionSha256: digest("comparison_evidence_snapshot", mismatchedBaselineDefinition),
+      schemaVersion: "0.3",
+      scope,
+    });
+    const datasetResult = resultRecord({
+      baselineSnapshot: {
+        definitionSha256: mismatchedBaseline.definitionSha256,
+        role: "baseline",
+        snapshotId: mismatchedBaseline.snapshotId,
+      },
+    });
+    const substitutedCase = structuredClone(result.cases[0]);
+    if (substitutedCase?.state !== "paired") {
+      throw new Error("Expected paired comparison case");
+    }
+    substitutedCase.fixtureId = "fixture_substituted";
+    substitutedCase.baseline.fixtureId = "fixture_substituted";
+    substitutedCase.candidate.fixtureId = "fixture_substituted";
+    const caseResult = resultRecord({ cases: [substitutedCase] });
+    const substitutedMetrics = structuredClone(result.metricResults);
+    const firstMetric = substitutedMetrics[0];
+    if (!firstMetric) throw new Error("Expected comparison metric");
+    firstMetric.metricId = "metric_latency_substituted";
+    const metricResult = resultRecord({ metricResults: substitutedMetrics });
+    const variants = [
+      exactBundleFetch(datasetResult, mismatchedBaseline),
+      exactBundleFetch(caseResult),
+      exactBundleFetch(metricResult),
+      exactBundleFetch(resultRecord({ knownLimitations: ["Substituted limitation"] })),
+      exactBundleFetch(resultRecord({ latestSourceCutoff: "2026-09-02T01:00:02.000Z" })),
+    ];
+
+    for (const fetcher of variants) {
+      await expect(getComparisonView(result.resultId, fetcher)).resolves.toMatchObject({
+        kind: "invalid_response",
+        message: "Comparison records have contradictory immutable lineage",
+        ok: false,
+      });
+    }
   });
 
   it("normalizes network failures and bounds requests with a timeout", async () => {
