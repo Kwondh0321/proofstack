@@ -502,6 +502,42 @@ describe("comparison evidence snapshot contracts", () => {
     ).toBe(false);
   });
 
+  it("bounds retained artifacts across the complete snapshot population", () => {
+    const valid = definition();
+    const fixture = valid.fixtures[0];
+    expect(fixture).toBeDefined();
+    if (!fixture) return;
+    const artifacts = (prefix: string, count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        artifact: {
+          artifactId: `artifact_${prefix}_${index.toString().padStart(4, "0")}`,
+          classification: "internal" as const,
+          mediaType: "application/json",
+          sha256: sha("0"),
+          sizeBytes: 1,
+        },
+        availability: "available" as const,
+      }));
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        fixtures: [
+          { ...fixture, artifacts: artifacts("a", 2_001) },
+          {
+            ...fixture,
+            artifacts: artifacts("b", 2_000),
+            fixture: {
+              definitionSha256: sha("d"),
+              fixtureId: "fixture_payment",
+              fixtureVersionId: "fixture_payment_v1",
+            },
+          },
+        ],
+        omissions: [],
+      }).success,
+    ).toBe(false);
+  });
+
   it("requires canonical server provenance after the source cutoff", () => {
     const record = {
       ...definition(),

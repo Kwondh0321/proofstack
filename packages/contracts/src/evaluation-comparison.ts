@@ -937,7 +937,9 @@ function refineComparisonEvidenceSnapshot(
 ): void {
   const fixtures = new Map(value.fixtures.map((entry) => [entry.fixture.fixtureId, entry]));
   const artifactOwners = new Map<string, string>();
+  let retainedArtifactCount = 0;
   for (const [fixtureIndex, fixture] of value.fixtures.entries()) {
+    retainedArtifactCount += fixture.artifacts.length;
     for (const [artifactIndex, { artifact }] of fixture.artifacts.entries()) {
       const ownerFixtureId = artifactOwners.get(artifact.artifactId);
       if (ownerFixtureId !== undefined) {
@@ -950,6 +952,13 @@ function refineComparisonEvidenceSnapshot(
         artifactOwners.set(artifact.artifactId, fixture.fixture.fixtureId);
       }
     }
+  }
+  if (retainedArtifactCount > MAX_COMPARISON_ARTIFACTS) {
+    context.addIssue({
+      code: "custom",
+      message: `Evidence snapshots can retain at most ${MAX_COMPARISON_ARTIFACTS} artifacts in total`,
+      path: ["fixtures"],
+    });
   }
   for (const [index, omission] of value.omissions.entries()) {
     const fixture = fixtures.get(omission.fixtureId);
