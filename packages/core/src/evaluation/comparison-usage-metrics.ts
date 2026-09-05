@@ -282,6 +282,7 @@ function metricResult(
       kind: metric.kind,
       metricId: metric.metricId,
       samples,
+      unit: metric.unit,
       usageProvenance,
       value: {
         reasons: unavailableMetricReasons(baseline, candidate, paired),
@@ -296,6 +297,7 @@ function metricResult(
     kind: metric.kind,
     metricId: metric.metricId,
     samples,
+    unit: metric.unit,
     usageProvenance,
     value: {
       baseline: baselineValue,

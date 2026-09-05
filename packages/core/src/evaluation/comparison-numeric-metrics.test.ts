@@ -282,6 +282,7 @@ describe("numeric comparison derivation", () => {
             pairedTotalCount: 3,
             pairedUnavailableCount: 1,
           },
+          unit: "milliseconds",
           value: {
             baseline: exact("10"),
             candidate: exact("8"),

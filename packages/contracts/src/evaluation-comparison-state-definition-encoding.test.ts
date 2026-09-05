@@ -161,6 +161,14 @@ describe("canonical comparison state encoding", () => {
       },
       (candidate) => {
         const metric = candidate.definition.metricResults[0];
+        if (metric?.value.status !== "available") throw new Error("Expected metric");
+        metric.unit = "seconds";
+        metric.value.baseline.unit = "seconds";
+        metric.value.candidate.unit = "seconds";
+        metric.value.delta.unit = "seconds";
+      },
+      (candidate) => {
+        const metric = candidate.definition.metricResults[0];
         if (!metric) throw new Error("Expected metric");
         metric.samples.baselineInvalidCount = 1;
         metric.samples.baselineObservedCount = 0;

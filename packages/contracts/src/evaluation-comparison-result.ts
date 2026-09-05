@@ -3,6 +3,7 @@ import { ArtifactContentReferenceSchema } from "./artifact.js";
 import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
 import {
   COMPARISON_METRIC_KINDS,
+  COMPARISON_COUNT_METRIC_UNITS,
   ComparisonDefinitionReferenceSchema,
   ComparisonEvidenceSnapshotReferenceSchema,
   type ComparisonExactValue,
@@ -21,7 +22,7 @@ import { AssuranceSummarySchema } from "./evaluation-source.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
-export const COMPARISON_RESULT_SCHEMA_VERSION = "0.4" as const;
+export const COMPARISON_RESULT_SCHEMA_VERSION = "0.5" as const;
 export const MAX_COMPARISON_RESULT_REASONS = 32;
 export const MAX_COMPARISON_RESULT_TRANSITIONS = 4_096;
 export const MAX_COMPARISON_RESULT_DISTRIBUTIONS = MAX_COMPARISON_METRICS * 2;
@@ -455,11 +456,50 @@ export const ComparisonMetricResultSchema = z
     kind: ComparisonMetricKindSchema,
     metricId: OpaqueIdSchema,
     samples: ComparisonMetricSampleCountsSchema,
+    unit: AssuranceSummarySchema,
     usageProvenance: ComparisonUsageMetricProvenanceSchema.optional(),
     value: ComparisonMetricValueSchema,
   })
   .strict()
   .superRefine((value, context) => {
+    const canonicalCountUnit =
+      COMPARISON_COUNT_METRIC_UNITS[value.kind as keyof typeof COMPARISON_COUNT_METRIC_UNITS];
+    if (canonicalCountUnit !== undefined && value.unit !== canonicalCountUnit) {
+      context.addIssue({
+        code: "custom",
+        message: "Count-like metric results must retain their canonical unit",
+        path: ["unit"],
+      });
+    }
+    const exactValues: readonly {
+      readonly field: "baseline" | "candidate" | "delta";
+      readonly value: ComparisonExactValue;
+    }[] =
+      value.value.status === "available"
+        ? [
+            { field: "baseline", value: value.value.baseline },
+            { field: "candidate", value: value.value.candidate },
+            { field: "delta", value: value.value.delta },
+          ]
+        : value.value.status === "incomparable"
+          ? [
+              ...(value.value.baseline
+                ? [{ field: "baseline" as const, value: value.value.baseline }]
+                : []),
+              ...(value.value.candidate
+                ? [{ field: "candidate" as const, value: value.value.candidate }]
+                : []),
+            ]
+          : [];
+    for (const exactValue of exactValues) {
+      if (exactValue.value.unit !== value.unit) {
+        context.addIssue({
+          code: "custom",
+          message: "Metric result values must agree with the declared result unit",
+          path: ["value", exactValue.field, "unit"],
+        });
+      }
+    }
     if (value.value.status === "available" && value.samples.pairedObservedCount === 0) {
       context.addIssue({
         code: "custom",

@@ -265,6 +265,7 @@ function metricResult(
       kind: metric.kind,
       metricId: metric.metricId,
       samples,
+      unit: metric.unit,
       value: {
         reasons: unavailableMetricReasons(baseline, candidate, paired),
         status: "unavailable",
@@ -278,6 +279,7 @@ function metricResult(
     kind: metric.kind,
     metricId: metric.metricId,
     samples,
+    unit: metric.unit,
     value: {
       baseline: baselineValue,
       candidate: candidateValue,

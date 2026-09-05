@@ -118,6 +118,7 @@ function definition() {
         label: "Failed login evaluations",
         metricId: "metric_failures",
         stratumId: "stratum_all",
+        unit: "evaluation_outcomes",
         verdict: "fail",
       },
     ],
@@ -276,6 +277,75 @@ describe("comparison definition contracts", () => {
         threshold: "0.95",
       }).success,
     ).toBe(false);
+  });
+
+  it("requires canonical units for every count-like metric", () => {
+    const metrics = [
+      {
+        eventKind: "agent.run",
+        kind: "trace_event_count",
+        label: "Trace events",
+        metricId: "metric_trace",
+        stratumId: "stratum_all",
+        unit: "events",
+      },
+      {
+        criterion: {
+          criterionId: "criterion_login",
+          criterionSet: {
+            criterionSetId: "criteria_main",
+            criterionSetVersionId: "criteria_main_v1",
+            definitionSha256: sha("d"),
+          },
+        },
+        kind: "evaluation_verdict_count",
+        label: "Evaluation outcomes",
+        metricId: "metric_verdict",
+        stratumId: "stratum_all",
+        unit: "evaluation_outcomes",
+        verdict: "pass",
+      },
+      {
+        eventKind: "guardrail_check",
+        kind: "safety_event_count",
+        label: "Safety events",
+        metricId: "metric_safety",
+        stratumId: "stratum_all",
+        unit: "events",
+      },
+      {
+        kind: "artifact_set",
+        label: "Artifacts",
+        metricId: "metric_artifacts",
+        projection: "identity_digest_size_classification_availability",
+        stratumId: "stratum_all",
+        unit: "artifacts",
+      },
+      {
+        dimension: "human_review",
+        kind: "assurance_state_count",
+        label: "Assurance records",
+        metricId: "metric_assurance",
+        stratumId: "stratum_all",
+        unit: "assurance_records",
+      },
+      {
+        dimension: "paired",
+        kind: "coverage_count",
+        label: "Coverage cases",
+        metricId: "metric_coverage",
+        stratumId: "stratum_all",
+        unit: "cases",
+      },
+    ] as const;
+
+    for (const metric of metrics) {
+      expect(ComparisonMetricSchema.safeParse(metric).success).toBe(true);
+      const { unit: _unit, ...withoutUnit } = metric;
+      expect(_unit).toBeTruthy();
+      expect(ComparisonMetricSchema.safeParse(withoutUnit).success).toBe(false);
+      expect(ComparisonMetricSchema.safeParse({ ...metric, unit: "count" }).success).toBe(false);
+    }
   });
 
   it("requires an exact bounded minimum paired coverage rule", () => {

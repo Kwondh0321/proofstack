@@ -26,7 +26,7 @@ import {
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
-export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.4" as const;
+export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.5" as const;
 export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.2" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
@@ -161,6 +161,15 @@ export const COMPARISON_REPLAY_USAGE_UNITS = {
   toolCalls: "calls",
 } as const satisfies Record<z.infer<typeof ReplayBudgetDimensionSchema>, string>;
 
+export const COMPARISON_COUNT_METRIC_UNITS = {
+  artifact_set: "artifacts",
+  assurance_state_count: "assurance_records",
+  coverage_count: "cases",
+  evaluation_verdict_count: "evaluation_outcomes",
+  safety_event_count: "events",
+  trace_event_count: "events",
+} as const;
+
 const ComparisonReplayUsageMetricSchema = z
   .object({
     ...comparisonMetricIdentityShape,
@@ -201,6 +210,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       eventKind: EvidenceKindSchema,
       eventStatus: EvidenceStatusSchema.optional(),
       kind: z.literal("trace_event_count"),
+      unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.trace_event_count),
     })
     .strict(),
   z
@@ -208,6 +218,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       ...comparisonMetricIdentityShape,
       criterion: CriterionReferenceSchema,
       kind: z.literal("evaluation_verdict_count"),
+      unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.evaluation_verdict_count),
       verdict: EvaluationVerdictSchema,
     })
     .strict(),
@@ -226,6 +237,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       ...comparisonMetricIdentityShape,
       eventKind: z.enum(["guardrail_check", "replay_safety_intervention", "uncertain_side_effect"]),
       kind: z.literal("safety_event_count"),
+      unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.safety_event_count),
     })
     .strict(),
   z
@@ -233,6 +245,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       ...comparisonMetricIdentityShape,
       kind: z.literal("artifact_set"),
       projection: z.literal("identity_digest_size_classification_availability"),
+      unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.artifact_set),
     })
     .strict(),
   z
@@ -247,6 +260,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
         "model_assurance_eligibility",
       ]),
       kind: z.literal("assurance_state_count"),
+      unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.assurance_state_count),
     })
     .strict(),
   z
@@ -254,6 +268,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       ...comparisonMetricIdentityShape,
       dimension: z.enum(["abstention", "decided", "error", "observed", "paired"]),
       kind: z.literal("coverage_count"),
+      unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.coverage_count),
     })
     .strict(),
 ]);

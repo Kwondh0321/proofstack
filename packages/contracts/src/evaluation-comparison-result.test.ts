@@ -125,6 +125,7 @@ function definition() {
           pairedTotalCount: 1,
           pairedUnavailableCount: 0,
         },
+        unit: "milliseconds",
         value: {
           baseline: { representation: "decimal", unit: "milliseconds", value: "125.5" },
           candidate: { representation: "decimal", unit: "milliseconds", value: "110.5" },
@@ -153,6 +154,7 @@ function definition() {
           pairedTotalCount: 1,
           pairedUnavailableCount: 1,
         },
+        unit: "milliseconds",
         usageProvenance: {
           baseline: {
             completeCount: 1,
@@ -458,6 +460,50 @@ describe("comparison result contracts", () => {
         status: "incomparable",
       }).success,
     ).toBe(true);
+  });
+
+  it("retains one explicit unit even when a metric has no exact value", () => {
+    const available = definition().metricResults[0];
+    const unavailable = definition().metricResults[1];
+    if (!available || !unavailable) throw new Error("Expected fixed metric results");
+
+    expect(ComparisonMetricResultSchema.safeParse(available).success).toBe(true);
+    const { unit: _unit, ...withoutUnit } = unavailable;
+    expect(_unit).toBe("milliseconds");
+    expect(ComparisonMetricResultSchema.safeParse(withoutUnit).success).toBe(false);
+    expect(ComparisonMetricResultSchema.safeParse({ ...available, unit: "seconds" }).success).toBe(
+      false,
+    );
+    expect(
+      ComparisonMetricResultSchema.safeParse({
+        ...available,
+        unit: "milliseconds",
+        value: {
+          baseline: { representation: "decimal", unit: "seconds", value: "1" },
+          candidate: { representation: "decimal", unit: "seconds", value: "2" },
+          delta: { representation: "decimal", unit: "seconds", value: "1" },
+          direction: "increased",
+          status: "available",
+        },
+      }).success,
+    ).toBe(false);
+
+    const { usageProvenance: _usageProvenance, ...countResult } = unavailable;
+    expect(_usageProvenance).toBeDefined();
+    expect(
+      ComparisonMetricResultSchema.safeParse({
+        ...countResult,
+        kind: "coverage_count",
+        unit: "cases",
+      }).success,
+    ).toBe(true);
+    expect(
+      ComparisonMetricResultSchema.safeParse({
+        ...countResult,
+        kind: "coverage_count",
+        unit: "events",
+      }).success,
+    ).toBe(false);
   });
 
   it("binds replay usage provenance to complete and incomplete sample classes", () => {

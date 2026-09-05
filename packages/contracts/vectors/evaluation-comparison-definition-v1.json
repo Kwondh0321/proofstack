@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 4269,
+      "encodedByteLength": 4424,
       "input": {
         "definition": {
           "baseline": {
@@ -155,6 +155,14 @@
               "metricId": "metric_elapsed",
               "stratumId": "stratum_all",
               "unit": "milliseconds"
+            },
+            {
+              "eventKind": "agent.run",
+              "kind": "trace_event_count",
+              "label": "Agent run events",
+              "metricId": "metric_trace_events",
+              "stratumId": "stratum_all",
+              "unit": "events"
             }
           ],
           "name": "Exact login evidence comparison",
@@ -174,7 +182,7 @@
       },
       "kind": "comparison_definition",
       "name": "exact baseline and candidate definition",
-      "sha256": "349da074010a63c7f605b03c9bf23334d3631b5bd88e4a9ab36e1f59f3fcc260"
+      "sha256": "4f4c4e9d4277190be852a9fda5508f1f3435d3750571a1ffbcf0a14d0449f02b"
     }
   ]
 }

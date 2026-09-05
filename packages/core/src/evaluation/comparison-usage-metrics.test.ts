@@ -300,6 +300,7 @@ describe("replay usage comparison derivation", () => {
             pairedTotalCount: 3,
             pairedUnavailableCount: 2,
           },
+          unit: "milliseconds",
           usageProvenance: {
             baseline: {
               completeCount: 2,
@@ -482,6 +483,7 @@ describe("replay usage comparison derivation", () => {
           label: "Agent run events",
           metricId: "metric_events",
           stratumId: "stratum_all",
+          unit: "events",
         },
       ],
     });

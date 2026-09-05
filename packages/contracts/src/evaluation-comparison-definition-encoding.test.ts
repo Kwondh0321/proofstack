@@ -60,6 +60,8 @@ describe("canonical comparison definition encoding", () => {
     expect(text).toContain('"denominators":"role_fixture_membership_and_paired_observations"');
     expect(text).toContain('"invalidCases":"preserve_and_exclude_from_aggregation"');
     expect(text).toContain('"numericObservationMultiplicity":"at_most_one_per_fixture"');
+    expect(text).toContain('"kind":"trace_event_count"');
+    expect(text).toContain('"unit":"events"');
 
     const mutations: ((candidate: ComparisonVector["input"]) => void)[] = [
       (candidate) => {
@@ -90,6 +92,11 @@ describe("canonical comparison definition encoding", () => {
         metric.unit = "provider_cost_microunits";
       },
       (candidate) => {
+        const metric = candidate.definition.metrics[1];
+        if (metric?.kind !== "trace_event_count") throw new Error("Expected trace metric");
+        metric.eventStatus = "error";
+      },
+      (candidate) => {
         candidate.definition.calculationPolicy.minimumPairedCoverageBasisPoints = 9_000;
       },
       (candidate) => {
@@ -103,11 +110,12 @@ describe("canonical comparison definition encoding", () => {
         stratum.label = "Changed population";
       },
       (candidate) => {
-        const metric = candidate.definition.metrics[0];
         const stratum = candidate.definition.strata[0];
-        if (!metric || !stratum) throw new Error("Expected comparison metric and stratum");
+        if (!stratum) throw new Error("Expected comparison stratum");
         stratum.stratumId = "stratum_other";
-        metric.stratumId = "stratum_other";
+        for (const metric of candidate.definition.metrics) {
+          metric.stratumId = "stratum_other";
+        }
       },
     ];
     for (const mutate of mutations) {
