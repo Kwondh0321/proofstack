@@ -963,6 +963,7 @@ export type ComparisonCase = z.infer<typeof ComparisonCaseSchema>;
 export type ComparisonComparability = z.infer<typeof ComparisonComparabilitySchema>;
 export type ComparisonDistributionSummary = z.infer<typeof ComparisonDistributionSummarySchema>;
 export type ComparisonMetricResult = z.infer<typeof ComparisonMetricResultSchema>;
+export type ComparisonSafetyCount = z.infer<typeof ComparisonSafetyCountSchema>;
 export type ComparisonUsageMetricProvenance = z.infer<typeof ComparisonUsageMetricProvenanceSchema>;
 export type ComparisonResult = z.infer<typeof ComparisonResultSchema>;
 export type ComparisonResultDefinition = z.infer<typeof ComparisonResultDefinitionSchema>;

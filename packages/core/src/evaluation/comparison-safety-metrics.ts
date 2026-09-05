@@ -7,6 +7,8 @@ import {
   type ComparisonMetricResult,
   ComparisonMetricResultSchema,
   ComparisonMetricSampleCountsSchema,
+  type ComparisonSafetyCount,
+  ComparisonSafetyCountSchema,
 } from "@proofstack/contracts";
 import {
   compareComparisonExactValues,
@@ -33,6 +35,16 @@ interface ClassifiedSafetyPopulation {
 export interface ComparisonSafetyMetricDerivation {
   readonly metricResults: readonly ComparisonMetricResult[];
 }
+
+export interface ComparisonSafetyCountDerivation {
+  readonly safetyCounts: readonly ComparisonSafetyCount[];
+}
+
+const safetyEventKinds = [
+  "guardrail_check",
+  "replay_safety_intervention",
+  "uncertain_side_effect",
+] as const;
 
 function fixtureMap(
   snapshot: ComparisonEvidenceSnapshot,
@@ -251,4 +263,41 @@ export function deriveComparisonSafetyMetrics(
   }
 
   return { metricResults };
+}
+
+/**
+ * Summarizes every policy-independent safety kind over the exact paired fixture population. An
+ * empty result means no valid pair was available; once a pair exists, all three kinds are emitted
+ * so retained empty event sets remain distinguishable as observed zeroes.
+ */
+export function deriveComparisonSafetyCounts(
+  input: PairComparisonEvidenceInput,
+): ComparisonSafetyCountDerivation {
+  const pairing = pairComparisonEvidence(input);
+  const pairedFixtureIds = pairing.cases
+    .filter((entry) => entry.state === "paired")
+    .map(({ fixtureId }) => fixtureId);
+  if (pairedFixtureIds.length === 0) return { safetyCounts: [] };
+
+  const baselineFixtures = fixtureMap(input.baseline);
+  const candidateFixtures = fixtureMap(input.candidate);
+  const countEvents = (
+    fixtures: ReadonlyMap<string, ComparisonEvidenceFixtureSnapshot>,
+    kind: (typeof safetyEventKinds)[number],
+  ) =>
+    pairedFixtureIds.reduce((total, fixtureId) => {
+      const fixture = fixtures.get(fixtureId) as ComparisonEvidenceFixtureSnapshot;
+      return total + fixture.safetyEvents.filter((event) => event.kind === kind).length;
+    }, 0);
+
+  return {
+    safetyCounts: safetyEventKinds.map((kind) => {
+      const baseline = countEvents(baselineFixtures, kind);
+      const candidate = countEvents(candidateFixtures, kind);
+      return ComparisonSafetyCountSchema.parse({
+        counts: { baseline, candidate, delta: candidate - baseline },
+        kind,
+      });
+    }),
+  };
 }

@@ -10,7 +10,10 @@ import {
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import { ComparisonPairingError } from "./comparison-pairing.js";
-import { deriveComparisonSafetyMetrics } from "./comparison-safety-metrics.js";
+import {
+  deriveComparisonSafetyCounts,
+  deriveComparisonSafetyMetrics,
+} from "./comparison-safety-metrics.js";
 
 const sha = (character: string) => character.repeat(64);
 
@@ -227,6 +230,117 @@ const sampleCounts = {
 };
 
 describe("safety event comparison derivation", () => {
+  it("summarizes every safety kind over the exact paired population", () => {
+    const comparison = safetyComparison();
+    const baseline = snapshot(comparison, "baseline", {
+      fixture_a: [
+        safetyEvent("event_a_guardrail_1", "guardrail_check", "1"),
+        safetyEvent("event_a_guardrail_2", "guardrail_check", "2"),
+        safetyEvent("event_a_replay", "replay_safety_intervention", "3"),
+      ],
+    });
+    const candidate = snapshot(comparison, "candidate", {
+      fixture_a: [
+        safetyEvent("event_a_guardrail", "guardrail_check", "4"),
+        safetyEvent("event_a_uncertain", "uncertain_side_effect", "5"),
+      ],
+      fixture_b: [
+        safetyEvent("event_b_guardrail_1", "guardrail_check", "6"),
+        safetyEvent("event_b_guardrail_2", "guardrail_check", "7"),
+        safetyEvent("event_b_guardrail_3", "guardrail_check", "8"),
+      ],
+    });
+
+    expect(deriveComparisonSafetyCounts({ baseline, candidate, comparison })).toEqual({
+      safetyCounts: [
+        {
+          counts: { baseline: 2, candidate: 4, delta: 2 },
+          kind: "guardrail_check",
+        },
+        {
+          counts: { baseline: 1, candidate: 0, delta: -1 },
+          kind: "replay_safety_intervention",
+        },
+        {
+          counts: { baseline: 0, candidate: 1, delta: 1 },
+          kind: "uncertain_side_effect",
+        },
+      ],
+    });
+  });
+
+  it("distinguishes observed zero safety events from an absent paired population", () => {
+    const comparison = safetyComparison();
+    expect(
+      deriveComparisonSafetyCounts({
+        baseline: snapshot(comparison, "baseline"),
+        candidate: snapshot(comparison, "candidate"),
+        comparison,
+      }),
+    ).toEqual({
+      safetyCounts: safetyEventKindsWithZeroCounts(),
+    });
+
+    const baseline = snapshot(comparison, "baseline");
+    const candidate = snapshot(comparison, "candidate");
+    const invalidBaseline = ComparisonEvidenceSnapshotSchema.parse({
+      ...baseline,
+      fixtures: baseline.fixtures.map((value) => ({
+        ...value,
+        fixture: { ...value.fixture, definitionSha256: sha("9") },
+      })),
+    });
+    expect(
+      deriveComparisonSafetyCounts({
+        baseline: invalidBaseline,
+        candidate,
+        comparison,
+      }),
+    ).toEqual({ safetyCounts: [] });
+  });
+
+  it("excludes unpaired and invalid fixtures from safety summaries", () => {
+    const comparison = safetyComparison();
+    const fullBaseline = snapshot(comparison, "baseline", {
+      fixture_a: [safetyEvent("event_a_guardrail", "guardrail_check", "1")],
+      fixture_b: [safetyEvent("event_b_guardrail", "guardrail_check", "2")],
+    });
+    const fullCandidate = snapshot(comparison, "candidate", {
+      fixture_a: [
+        safetyEvent("event_a_guardrail_1", "guardrail_check", "3"),
+        safetyEvent("event_a_guardrail_2", "guardrail_check", "4"),
+      ],
+    });
+    const candidate = ComparisonEvidenceSnapshotSchema.parse({
+      ...fullCandidate,
+      fixtures: fullCandidate.fixtures.filter(({ fixture }) => fixture.fixtureId === "fixture_a"),
+    });
+    expect(
+      deriveComparisonSafetyCounts({ baseline: fullBaseline, candidate, comparison }).safetyCounts,
+    ).toEqual([
+      {
+        counts: { baseline: 1, candidate: 2, delta: 1 },
+        kind: "guardrail_check",
+      },
+      ...safetyEventKindsWithZeroCounts().slice(1),
+    ]);
+
+    const invalidBaseline = ComparisonEvidenceSnapshotSchema.parse({
+      ...fullBaseline,
+      fixtures: fullBaseline.fixtures.map((value) => ({
+        ...value,
+        fixture: { ...value.fixture, definitionSha256: sha("9") },
+      })),
+    });
+    expect(
+      deriveComparisonSafetyCounts({
+        baseline: invalidBaseline,
+        candidate: fullCandidate,
+        comparison,
+      }),
+    ).toEqual({ safetyCounts: [] });
+  });
+
   it("counts every safety kind across exact paired fixtures", () => {
     const comparison = safetyComparison();
     const baseline = snapshot(comparison, "baseline", {
@@ -420,3 +534,20 @@ describe("safety event comparison derivation", () => {
     ).toThrowError(ComparisonPairingError);
   });
 });
+
+function safetyEventKindsWithZeroCounts() {
+  return [
+    {
+      counts: { baseline: 0, candidate: 0, delta: 0 },
+      kind: "guardrail_check",
+    },
+    {
+      counts: { baseline: 0, candidate: 0, delta: 0 },
+      kind: "replay_safety_intervention",
+    },
+    {
+      counts: { baseline: 0, candidate: 0, delta: 0 },
+      kind: "uncertain_side_effect",
+    },
+  ] as const;
+}
