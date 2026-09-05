@@ -322,6 +322,7 @@ describe("comparison definition contracts", () => {
         unit: "artifacts",
       },
       {
+        condition: "human_review_missing",
         dimension: "human_review",
         kind: "assurance_state_count",
         label: "Assurance records",
@@ -345,6 +346,35 @@ describe("comparison definition contracts", () => {
       expect(_unit).toBeTruthy();
       expect(ComparisonMetricSchema.safeParse(withoutUnit).success).toBe(false);
       expect(ComparisonMetricSchema.safeParse({ ...metric, unit: "count" }).success).toBe(false);
+    }
+
+    expect(
+      ComparisonMetricSchema.safeParse({
+        ...metrics[4],
+        condition: "calibration_stale",
+      }).success,
+    ).toBe(false);
+
+    const assuranceMetric = metrics[4];
+    const { condition: _condition, ...withoutCondition } = assuranceMetric;
+    expect(_condition).toBe("human_review_missing");
+    expect(ComparisonMetricSchema.safeParse(withoutCondition).success).toBe(false);
+
+    for (const [dimension, condition] of [
+      ["assessment_eligibility", "assessment_ineligible"],
+      ["calibration_availability", "calibration_available"],
+      ["counterevidence", "critical_counterevidence_present"],
+      ["disagreement", "unresolved_disagreement"],
+      ["human_review", "human_review_available"],
+      ["model_assurance_eligibility", "model_assurance_eligible"],
+    ] as const) {
+      expect(
+        ComparisonMetricSchema.safeParse({
+          ...assuranceMetric,
+          condition,
+          dimension,
+        }).success,
+      ).toBe(true);
     }
   });
 

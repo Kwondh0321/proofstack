@@ -26,7 +26,7 @@ import {
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
-export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.5" as const;
+export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.6" as const;
 export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.3" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
@@ -170,6 +170,53 @@ export const COMPARISON_COUNT_METRIC_UNITS = {
   trace_event_count: "events",
 } as const;
 
+export const ComparisonAssuranceConditionSchema = z.enum([
+  "assessment_eligible",
+  "assessment_ineligible",
+  "calibration_available",
+  "calibration_incompatible",
+  "calibration_stale",
+  "calibration_unavailable",
+  "critical_counterevidence_absent",
+  "critical_counterevidence_present",
+  "disagreement_absent",
+  "human_review_available",
+  "human_review_conflicted",
+  "human_review_expired",
+  "human_review_invalid",
+  "human_review_missing",
+  "human_review_protocol_mismatch",
+  "human_review_quorum_shortfall",
+  "model_assurance_eligible",
+  "model_assurance_ineligible",
+  "order_sensitive_result",
+  "unresolved_disagreement",
+]);
+
+const comparisonAssuranceConditions = {
+  assessment_eligibility: ["assessment_eligible", "assessment_ineligible"],
+  calibration_availability: [
+    "calibration_available",
+    "calibration_incompatible",
+    "calibration_stale",
+    "calibration_unavailable",
+  ],
+  counterevidence: ["critical_counterevidence_absent", "critical_counterevidence_present"],
+  disagreement: ["disagreement_absent", "order_sensitive_result", "unresolved_disagreement"],
+  human_review: [
+    "human_review_available",
+    "human_review_conflicted",
+    "human_review_expired",
+    "human_review_invalid",
+    "human_review_missing",
+    "human_review_protocol_mismatch",
+    "human_review_quorum_shortfall",
+  ],
+  model_assurance_eligibility: ["model_assurance_eligible", "model_assurance_ineligible"],
+} as const satisfies Readonly<
+  Record<string, readonly z.infer<typeof ComparisonAssuranceConditionSchema>[]>
+>;
+
 const ComparisonReplayUsageMetricSchema = z
   .object({
     ...comparisonMetricIdentityShape,
@@ -251,6 +298,7 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
   z
     .object({
       ...comparisonMetricIdentityShape,
+      condition: ComparisonAssuranceConditionSchema,
       dimension: z.enum([
         "assessment_eligibility",
         "calibration_availability",
@@ -262,7 +310,17 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
       kind: z.literal("assurance_state_count"),
       unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.assurance_state_count),
     })
-    .strict(),
+    .strict()
+    .superRefine((value, context) => {
+      const allowedConditions = comparisonAssuranceConditions[value.dimension] as readonly string[];
+      if (!allowedConditions.includes(value.condition)) {
+        context.addIssue({
+          code: "custom",
+          message: "Assurance condition must belong to the declared dimension",
+          path: ["condition"],
+        });
+      }
+    }),
   z
     .object({
       ...comparisonMetricIdentityShape,
