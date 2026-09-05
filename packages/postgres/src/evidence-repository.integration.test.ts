@@ -87,6 +87,20 @@ describe("PostgresEvidenceRepository contract", () => {
         { limit: 10 },
       );
       expect(page.events).toEqual([persisted]);
+      await expect(
+        new PostgresEvidenceRepository(restartedPool).resolveExactEvents(
+          persisted.scope,
+          persisted.evidence.traceId,
+          [persisted.evidence.eventId],
+        ),
+      ).resolves.toEqual([persisted]);
+      await expect(
+        new PostgresEvidenceRepository(restartedPool).resolveExactEvents(
+          { ...persisted.scope, tenantId: "ten_restart_hidden" },
+          persisted.evidence.traceId,
+          [persisted.evidence.eventId],
+        ),
+      ).resolves.toBeNull();
     } finally {
       await restartedPool.end();
     }

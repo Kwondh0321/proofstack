@@ -9,7 +9,7 @@ import type {
   EvidencePage,
   EvidencePageCursor,
   EvidencePageOptions,
-  EvidenceRepository,
+  ExactEvidenceRepository,
 } from "../evidence/evidence-repository.js";
 
 function evidenceKey(envelope: EvidenceEnvelope): string {
@@ -81,7 +81,7 @@ function matchesCursor(envelope: EvidenceEnvelope, cursor: EvidencePageCursor): 
   );
 }
 
-export class MemoryEvidenceRepository implements EvidenceRepository {
+export class MemoryEvidenceRepository implements ExactEvidenceRepository {
   private readonly events = new Map<string, EvidenceEnvelope>();
 
   async append(envelopes: readonly EvidenceEnvelope[]): Promise<AppendEvidenceResult> {
@@ -150,5 +150,24 @@ export class MemoryEvidenceRepository implements EvidenceRepository {
       events: window.slice(0, options.limit).map((envelope) => cloneForJsonStorage(envelope)),
       hasMore: window.length > options.limit,
     };
+  }
+
+  async resolveExactEvents(
+    scope: EvidenceScope,
+    traceId: string,
+    eventIds: readonly string[],
+  ): Promise<readonly EvidenceEnvelope[] | null> {
+    if (eventIds.length === 0 || new Set(eventIds).size !== eventIds.length) {
+      throw new TypeError("Exact evidence references must be non-empty and unique");
+    }
+    const resolved: EvidenceEnvelope[] = [];
+    for (const eventId of eventIds) {
+      const envelope = this.events.get(`${scope.tenantId}:${eventId}`);
+      if (!envelope || !matchesScope(envelope, scope) || envelope.evidence.traceId !== traceId) {
+        return null;
+      }
+      resolved.push(cloneForJsonStorage(envelope));
+    }
+    return resolved;
   }
 }

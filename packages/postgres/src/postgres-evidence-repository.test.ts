@@ -292,3 +292,94 @@ describe("PostgresEvidenceRepository.listByTrace", () => {
     ).rejects.toBeInstanceOf(PostgresDataIntegrityError);
   });
 });
+
+describe("PostgresEvidenceRepository.resolveExactEvents", () => {
+  it("returns complete events in requested order inside one tenant transaction", async () => {
+    const second = envelope({
+      evidence: { ...envelope().evidence, eventId: "evt_repository_002" },
+    });
+    const harness = transactionRows((text) => {
+      if (text.includes("array_position")) return { rows: [storedRow(second), storedRow()] };
+      return { rows: [] };
+    });
+
+    await expect(
+      harness.repository.resolveExactEvents(envelope().scope, envelope().evidence.traceId, [
+        second.evidence.eventId,
+        envelope().evidence.eventId,
+      ]),
+    ).resolves.toEqual([second, envelope()]);
+    const query = harness.client.queries.find(({ text }) => text.includes("array_position"));
+    expect(query?.values).toEqual([
+      "ten_local",
+      "prj_local",
+      "env_local",
+      envelope().evidence.traceId,
+      [second.evidence.eventId, envelope().evidence.eventId],
+    ]);
+    expect(query?.text).toContain("event_id = ANY($5::varchar[])");
+  });
+
+  it("returns null rather than partial evidence", async () => {
+    const harness = transactionRows((text) =>
+      text.includes("array_position") ? { rows: [storedRow()] } : { rows: [] },
+    );
+
+    await expect(
+      harness.repository.resolveExactEvents(envelope().scope, envelope().evidence.traceId, [
+        envelope().evidence.eventId,
+        "evt_repository_missing",
+      ]),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects malformed requests before opening a connection", async () => {
+    const harness = transactionRows(() => ({ rows: [] }));
+
+    await expect(
+      harness.repository.resolveExactEvents(envelope().scope, envelope().evidence.traceId, []),
+    ).rejects.toBeInstanceOf(TypeError);
+    await expect(
+      harness.repository.resolveExactEvents(envelope().scope, envelope().evidence.traceId, [
+        envelope().evidence.eventId,
+        envelope().evidence.eventId,
+      ]),
+    ).rejects.toBeInstanceOf(TypeError);
+    expect(harness.connections.count).toBe(0);
+  });
+
+  it("fails closed if PostgreSQL returns a different exact order", async () => {
+    const second = envelope({
+      evidence: { ...envelope().evidence, eventId: "evt_repository_002" },
+    });
+    const harness = transactionRows((text) => {
+      if (text.includes("array_position")) return { rows: [storedRow(), storedRow(second)] };
+      return { rows: [] };
+    });
+
+    await expect(
+      harness.repository.resolveExactEvents(envelope().scope, envelope().evidence.traceId, [
+        second.evidence.eventId,
+        envelope().evidence.eventId,
+      ]),
+    ).rejects.toBeInstanceOf(PostgresDataIntegrityError);
+  });
+
+  it("fails closed if PostgreSQL returns a record outside the requested trace", async () => {
+    const wrongTrace = envelope({
+      evidence: {
+        ...envelope().evidence,
+        traceId: "5bf92f3577b34da6a3ce929d0e0e4736",
+      },
+    });
+    const harness = transactionRows((text) =>
+      text.includes("array_position") ? { rows: [storedRow(wrongTrace)] } : { rows: [] },
+    );
+
+    await expect(
+      harness.repository.resolveExactEvents(envelope().scope, envelope().evidence.traceId, [
+        envelope().evidence.eventId,
+      ]),
+    ).rejects.toBeInstanceOf(PostgresDataIntegrityError);
+  });
+});

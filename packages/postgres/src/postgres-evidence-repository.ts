@@ -8,7 +8,7 @@ import {
   type AppendEvidenceResult,
   type EvidencePage,
   type EvidencePageOptions,
-  type EvidenceRepository,
+  type ExactEvidenceRepository,
 } from "@proofstack/core";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { withTenantTransaction } from "./tenant-transaction.js";
@@ -136,6 +136,17 @@ const LIST_TRACE_AFTER_SQL = `
   LIMIT $8
 `;
 
+const RESOLVE_EXACT_EVENTS_SQL = `
+  SELECT ${SELECT_EVIDENCE_COLUMNS}
+  FROM public.proofstack_evidence_events
+  WHERE tenant_id = $1
+    AND project_id = $2
+    AND environment_id = $3
+    AND trace_id = $4
+    AND event_id = ANY($5::varchar[])
+  ORDER BY array_position($5::varchar[], event_id)
+`;
+
 function insertValues(envelope: EvidenceEnvelope): unknown[] {
   return [
     envelope.scope.tenantId,
@@ -209,7 +220,7 @@ async function appendEnvelope(client: PoolClient, envelope: EvidenceEnvelope): P
   return false;
 }
 
-export class PostgresEvidenceRepository implements EvidenceRepository {
+export class PostgresEvidenceRepository implements ExactEvidenceRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
   async append(envelopes: readonly EvidenceEnvelope[]): Promise<AppendEvidenceResult> {
@@ -283,6 +294,42 @@ export class PostgresEvidenceRepository implements EvidenceRepository {
         events: result.rows.slice(0, options.limit).map(storedEnvelope),
         hasMore,
       };
+    });
+  }
+
+  async resolveExactEvents(
+    scope: EvidenceScope,
+    traceId: string,
+    eventIds: readonly string[],
+  ): Promise<readonly EvidenceEnvelope[] | null> {
+    if (eventIds.length === 0 || new Set(eventIds).size !== eventIds.length) {
+      throw new TypeError("Exact evidence references must be non-empty and unique");
+    }
+    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
+      const result = await client.query<StoredEvidenceRow>(RESOLVE_EXACT_EVENTS_SQL, [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        traceId,
+        [...eventIds],
+      ]);
+      if (result.rows.length !== eventIds.length) return null;
+      const events = result.rows.map(storedEnvelope);
+      if (
+        events.some(
+          (event, index) =>
+            event.evidence.eventId !== eventIds[index] ||
+            event.evidence.traceId !== traceId ||
+            event.scope.tenantId !== scope.tenantId ||
+            event.scope.projectId !== scope.projectId ||
+            event.scope.environmentId !== scope.environmentId,
+        )
+      ) {
+        throw new PostgresDataIntegrityError(
+          "Exact evidence resolution returned records outside the requested identity or order",
+        );
+      }
+      return events;
     });
   }
 }

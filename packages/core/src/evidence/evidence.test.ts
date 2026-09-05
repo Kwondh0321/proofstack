@@ -358,3 +358,77 @@ describe("ListTraceEvidence", () => {
     ).rejects.toBeInstanceOf(InvalidTraceCursorError);
   });
 });
+
+describe("MemoryEvidenceRepository.resolveExactEvents", () => {
+  it("returns complete exact events in requested order as detached values", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+    const second = {
+      ...baseEvidence,
+      eventId: "evt_01k3t5d7h9m2p4r6s8v0w2y4z7",
+      spanId: "10f067aa0ba902b7",
+    };
+    await ingest.execute({
+      ...command(),
+      request: IngestEvidenceRequestSchema.parse({
+        events: [baseEvidence, second],
+        schemaVersion: EVIDENCE_SCHEMA_VERSION,
+      }),
+    });
+    const scope = { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" };
+
+    const resolved = await repository.resolveExactEvents(scope, baseEvidence.traceId, [
+      second.eventId,
+      baseEvidence.eventId,
+    ]);
+
+    expect(resolved?.map(({ evidence }) => evidence.eventId)).toEqual([
+      second.eventId,
+      baseEvidence.eventId,
+    ]);
+    if (!resolved) throw new Error("Expected exact evidence resolution");
+    (resolved[0]?.evidence.attributes as Record<string, unknown>)["mutated"] = true;
+    const reread = await repository.resolveExactEvents(scope, baseEvidence.traceId, [
+      second.eventId,
+    ]);
+    expect(reread?.[0]?.evidence.attributes).toEqual({});
+  });
+
+  it("returns no partial evidence for missing, wrong-trace, or out-of-scope sources", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const ingest = new IngestEvidence(repository, clock);
+    await ingest.execute(command());
+    const scope = { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" };
+
+    await expect(
+      repository.resolveExactEvents(scope, baseEvidence.traceId, [
+        baseEvidence.eventId,
+        "evt_missing",
+      ]),
+    ).resolves.toBeNull();
+    await expect(
+      repository.resolveExactEvents(scope, "5bf92f3577b34da6a3ce929d0e0e4736", [
+        baseEvidence.eventId,
+      ]),
+    ).resolves.toBeNull();
+    await expect(
+      repository.resolveExactEvents({ ...scope, tenantId: "ten_other" }, baseEvidence.traceId, [
+        baseEvidence.eventId,
+      ]),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects empty or duplicate exact-reference lists", async () => {
+    const repository = new MemoryEvidenceRepository();
+    const scope = { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" };
+    await expect(
+      repository.resolveExactEvents(scope, baseEvidence.traceId, []),
+    ).rejects.toBeInstanceOf(TypeError);
+    await expect(
+      repository.resolveExactEvents(scope, baseEvidence.traceId, [
+        baseEvidence.eventId,
+        baseEvidence.eventId,
+      ]),
+    ).rejects.toBeInstanceOf(TypeError);
+  });
+});

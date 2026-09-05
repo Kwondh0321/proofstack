@@ -37,3 +37,18 @@ export interface EvidenceRepository {
     options: EvidencePageOptions,
   ): Promise<EvidencePage>;
 }
+
+/**
+ * Exact immutable evidence read required by source-backed snapshots.
+ *
+ * Implementations return records in the caller's requested order only when every event exists in
+ * the exact tenant, project, environment, and trace. Absence and out-of-scope records both return
+ * `null`; partial results are forbidden. Callers must provide a bounded, unique list.
+ */
+export interface ExactEvidenceRepository extends EvidenceRepository {
+  resolveExactEvents(
+    scope: EvidenceScope,
+    traceId: string,
+    eventIds: readonly string[],
+  ): Promise<readonly EvidenceEnvelope[] | null>;
+}
