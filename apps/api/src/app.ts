@@ -30,9 +30,9 @@ import {
   type Clock,
   type ComparisonEvidenceResolver,
   ComparisonLineageError,
-  type ComparisonRepository,
   ComparisonRecordConflictError,
   ComparisonRecordNotFoundError,
+  type ComparisonRepository,
   ComparisonRepositoryContractError,
   ComparisonResourceConflictError,
   ComparisonSourceUnavailableError,
@@ -50,8 +50,8 @@ import {
   type EvidenceRepository,
   ForbiddenError,
   IngestEvidence,
-  InvalidEvaluationRecordInputError,
   InvalidComparisonRecordInputError,
+  InvalidEvaluationRecordInputError,
   InvalidModelAssuranceRecordInputError,
   InvalidTraceCursorError,
   ListTraceEvidence,
@@ -61,11 +61,11 @@ import {
   ModelAssuranceRecordNotFoundError,
   type ModelAssuranceRepository,
   ModelAssuranceRepositoryContractError,
-  PublishEvaluationDefinition,
   PublishComparisonDefinition,
+  PublishEvaluationDefinition,
   PublishModelAssuranceDefinition,
-  ReadEvaluationRecord,
   ReadComparisonRecord,
+  ReadEvaluationRecord,
   ReadModelAssuranceRecord,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
@@ -128,8 +128,8 @@ import {
   BrowserRequestRejectedError,
   createAuthenticator,
 } from "./auth.js";
-import type { ApiConfig } from "./config.js";
 import { registerComparisonRoutes } from "./comparison-routes.js";
+import type { ApiConfig } from "./config.js";
 import { registerEvaluationRoutes } from "./evaluation-routes.js";
 import {
   type ApiKeyLifecycleService,
@@ -150,6 +150,10 @@ import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerInteractionFixtureRoutes, registerRegressionRoutes } from "./regression-routes.js";
 import { registerReplayRoutes } from "./replay-routes.js";
+import {
+  isExactEvidenceRepository,
+  RepositoryComparisonEvidenceResolver,
+} from "./repository-comparison-evidence-resolver.js";
 import { registerRoutes } from "./routes.js";
 import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
 
@@ -270,6 +274,25 @@ export async function createApp(
         ...(identityStorage ? { apiKeyCredentials: identityStorage.repository } : {}),
         ...(oidcRuntime ? { browserAuthenticator: oidcRuntime.browserSessions } : {}),
       });
+    const comparisonEvidenceResolver =
+      dependencies.comparisonEvidenceResolver ??
+      (storage.interactionFixtureVersionRepository &&
+      isExactEvidenceRepository(storage.evidenceRepository)
+        ? new RepositoryComparisonEvidenceResolver({
+            ...(storage.artifacts ? { artifactCatalog: storage.artifacts.catalog } : {}),
+            evidenceRepository: storage.evidenceRepository,
+            interactionRepository: storage.interactionFixtureVersionRepository,
+            replayRepository: storage.replayJobControlRepository,
+          })
+        : ({
+            resolve: async ({ comparison, role }) => {
+              const subject = comparison[role];
+              throw new ComparisonSourceUnavailableError(
+                "comparison_evidence_projection",
+                `${subject.dataset.datasetVersionId}:${role}`,
+              );
+            },
+          } satisfies ComparisonEvidenceResolver));
 
     await app.register(helmet, {
       contentSecurityPolicy: false,
@@ -339,17 +362,7 @@ export async function createApp(
       authenticator,
       createSnapshot: new CreateComparisonEvidenceSnapshot({
         clock,
-        evidenceResolver:
-          dependencies.comparisonEvidenceResolver ??
-          ({
-            resolve: async ({ comparison, role }) => {
-              const subject = comparison[role];
-              throw new ComparisonSourceUnavailableError(
-                "comparison_evidence_projection",
-                `${subject.dataset.datasetVersionId}:${role}`,
-              );
-            },
-          } satisfies ComparisonEvidenceResolver),
+        evidenceResolver: comparisonEvidenceResolver,
         repository: storage.comparisonRepository,
       }),
       deriveResult: new DeriveComparisonResult({
