@@ -122,6 +122,11 @@ const modules = [
     packageName: "@proofstack/web",
   },
   {
+    allowed: new Set(["@proofstack/api", "@proofstack/contracts", "@proofstack/core"]),
+    directory: "examples/comparison-control-flow/src",
+    packageName: "@proofstack/example-comparison-control-flow",
+  },
+  {
     allowed: new Set(["@proofstack/sdk"]),
     directory: "examples/basic-agent/src",
     packageName: "@proofstack/example-basic-agent",

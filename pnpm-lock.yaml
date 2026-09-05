@@ -179,6 +179,9 @@ importers:
 
   examples/comparison-control-flow:
     dependencies:
+      '@proofstack/api':
+        specifier: workspace:*
+        version: link:../../apps/api
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

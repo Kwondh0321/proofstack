@@ -6,6 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "api": "node dist/api-server.js",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
     "lab": "node dist/server.js",
@@ -15,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@proofstack/api": "workspace:*",
     "@proofstack/contracts": "workspace:*",
     "@proofstack/core": "workspace:*"
   },
