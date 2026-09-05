@@ -137,6 +137,17 @@ const comparisonMetricIdentityShape = {
   stratumId: OpaqueIdSchema,
 };
 
+export const COMPARISON_METRIC_KINDS = [
+  "artifact_set",
+  "assurance_state_count",
+  "coverage_count",
+  "evaluation_verdict_count",
+  "numeric_measurement",
+  "replay_usage",
+  "safety_event_count",
+  "trace_event_count",
+] as const;
+
 export const COMPARISON_REPLAY_USAGE_UNITS = {
   concurrentInteractions: "interactions",
   elapsedMilliseconds: "milliseconds",
@@ -518,8 +529,8 @@ export const ComparisonTraceStructureSchema = z
     }
   });
 
-const ComparisonUsageSourceSchema = z.enum(["estimated", "measured", "provider_reported"]);
-const ComparisonUsageUnavailableReasonSchema = z.enum([
+export const ComparisonUsageSourceSchema = z.enum(["estimated", "measured", "provider_reported"]);
+export const ComparisonUsageUnavailableReasonSchema = z.enum([
   "measurement_failed",
   "provider_did_not_report",
   "source_unavailable",

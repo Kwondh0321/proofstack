@@ -7,10 +7,12 @@ import {
   ComparisonComparabilitySchema,
   ComparisonCountDeltaSchema,
   ComparisonDistributionSummarySchema,
+  ComparisonMetricResultSchema,
   ComparisonMetricSampleCountsSchema,
   ComparisonMetricValueSchema,
   ComparisonResultDefinitionSchema,
   ComparisonResultSchema,
+  ComparisonUsageMetricRoleProvenanceSchema,
   DeriveComparisonResultRequestSchema,
 } from "./evaluation-comparison-result.js";
 
@@ -104,6 +106,7 @@ function definition() {
     latestSourceCutoff: "2026-09-02T02:00:00.000Z",
     metricResults: [
       {
+        kind: "numeric_measurement",
         metricId: "metric_latency",
         samples: {
           baselineInvalidCount: 0,
@@ -128,6 +131,47 @@ function definition() {
           delta: { representation: "decimal", unit: "milliseconds", value: "-15" },
           direction: "decreased",
           status: "available",
+        },
+      },
+      {
+        kind: "replay_usage",
+        metricId: "metric_usage_elapsed",
+        samples: {
+          baselineInvalidCount: 0,
+          baselineMissingCount: 0,
+          baselineObservedCount: 1,
+          baselineTotalCount: 1,
+          baselineUnavailableCount: 0,
+          candidateInvalidCount: 0,
+          candidateMissingCount: 0,
+          candidateObservedCount: 0,
+          candidateTotalCount: 1,
+          candidateUnavailableCount: 1,
+          pairedInvalidCount: 0,
+          pairedMissingCount: 0,
+          pairedObservedCount: 0,
+          pairedTotalCount: 1,
+          pairedUnavailableCount: 1,
+        },
+        usageProvenance: {
+          baseline: {
+            completeCount: 1,
+            observedSources: ["measured"],
+            partialCount: 0,
+            unavailableCount: 0,
+            unavailableReasons: [],
+          },
+          candidate: {
+            completeCount: 0,
+            observedSources: ["provider_reported"],
+            partialCount: 1,
+            unavailableCount: 0,
+            unavailableReasons: ["provider_did_not_report"],
+          },
+        },
+        value: {
+          reasons: ["insufficient_observations", "measurement_unavailable"],
+          status: "unavailable",
         },
       },
     ],
@@ -414,6 +458,55 @@ describe("comparison result contracts", () => {
         status: "incomparable",
       }).success,
     ).toBe(true);
+  });
+
+  it("binds replay usage provenance to complete and incomplete sample classes", () => {
+    const metric = definition().metricResults[1];
+    if (!metric || metric.kind !== "replay_usage") throw new Error("Expected replay usage metric");
+    expect(ComparisonMetricResultSchema.safeParse(metric).success).toBe(true);
+    expect(
+      ComparisonMetricResultSchema.safeParse({
+        ...metric,
+        usageProvenance: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonMetricResultSchema.safeParse({
+        ...metric,
+        kind: "numeric_measurement",
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonMetricResultSchema.safeParse({
+        ...metric,
+        usageProvenance: {
+          ...metric.usageProvenance,
+          candidate: {
+            ...metric.usageProvenance.candidate,
+            partialCount: 0,
+            unavailableCount: 0,
+          },
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonUsageMetricRoleProvenanceSchema.safeParse({
+        completeCount: 0,
+        observedSources: [],
+        partialCount: 1,
+        unavailableCount: 0,
+        unavailableReasons: ["provider_did_not_report"],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonUsageMetricRoleProvenanceSchema.safeParse({
+        completeCount: 0,
+        observedSources: ["provider_reported"],
+        partialCount: 1,
+        unavailableCount: 0,
+        unavailableReasons: [],
+      }).success,
+    ).toBe(false);
   });
 
   it("validates artifact shapes and signed count deltas", () => {

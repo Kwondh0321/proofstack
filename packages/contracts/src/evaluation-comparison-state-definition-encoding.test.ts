@@ -171,6 +171,13 @@ describe("canonical comparison state encoding", () => {
         metric.value = { reasons: ["invalid_observations"], status: "unavailable" };
       },
       (candidate) => {
+        const metric = candidate.definition.metricResults[1];
+        if (metric?.kind !== "replay_usage" || !metric.usageProvenance) {
+          throw new Error("Expected replay usage provenance");
+        }
+        metric.usageProvenance.candidate.observedSources = ["estimated"];
+      },
+      (candidate) => {
         const safety = candidate.definition.safetyCounts[0];
         if (!safety) throw new Error("Expected safety count");
         safety.counts.candidate = 3;

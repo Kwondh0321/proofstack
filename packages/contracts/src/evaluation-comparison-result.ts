@@ -2,10 +2,13 @@ import { z } from "zod";
 import { ArtifactContentReferenceSchema } from "./artifact.js";
 import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
 import {
+  COMPARISON_METRIC_KINDS,
   ComparisonDefinitionReferenceSchema,
   ComparisonEvidenceSnapshotReferenceSchema,
   type ComparisonExactValue,
   ComparisonExactValueSchema,
+  ComparisonUsageSourceSchema,
+  ComparisonUsageUnavailableReasonSchema,
   ComparisonVerdictCountsSchema,
   MAX_COMPARISON_ARTIFACTS,
   MAX_COMPARISON_METRICS,
@@ -18,7 +21,7 @@ import { AssuranceSummarySchema } from "./evaluation-source.js";
 import { EvidenceScopeSchema, evidenceTimestampOrderKey } from "./evidence.js";
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 
-export const COMPARISON_RESULT_SCHEMA_VERSION = "0.3" as const;
+export const COMPARISON_RESULT_SCHEMA_VERSION = "0.4" as const;
 export const MAX_COMPARISON_RESULT_REASONS = 32;
 export const MAX_COMPARISON_RESULT_TRANSITIONS = 4_096;
 export const MAX_COMPARISON_RESULT_DISTRIBUTIONS = MAX_COMPARISON_METRICS * 2;
@@ -393,10 +396,66 @@ export const ComparisonMetricValueSchema = z.discriminatedUnion("status", [
     .strict(),
 ]);
 
+const ComparisonMetricKindSchema = z.enum(COMPARISON_METRIC_KINDS);
+
+export const ComparisonUsageMetricRoleProvenanceSchema = z
+  .object({
+    completeCount: SafeComparisonCountSchema,
+    observedSources: z
+      .array(ComparisonUsageSourceSchema)
+      .max(ComparisonUsageSourceSchema.options.length)
+      .refine(isStrictlySortedUnique, {
+        message: "Usage observation sources must be unique and ordered",
+      }),
+    partialCount: SafeComparisonCountSchema,
+    unavailableCount: SafeComparisonCountSchema,
+    unavailableReasons: z
+      .array(ComparisonUsageUnavailableReasonSchema)
+      .max(ComparisonUsageUnavailableReasonSchema.options.length)
+      .refine(isStrictlySortedUnique, {
+        message: "Usage unavailability reasons must be unique and ordered",
+      }),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const hasObservedUsage = value.completeCount > 0 || value.partialCount > 0;
+    const hasUnavailableUsage = value.partialCount > 0 || value.unavailableCount > 0;
+    if (!Number.isSafeInteger(value.completeCount + value.partialCount + value.unavailableCount)) {
+      context.addIssue({
+        code: "custom",
+        message: "Usage provenance counts must remain within safe integer bounds",
+        path: ["completeCount"],
+      });
+    }
+    if (hasObservedUsage !== value.observedSources.length > 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Observed usage requires its exact measurement source set",
+        path: ["observedSources"],
+      });
+    }
+    if (hasUnavailableUsage !== value.unavailableReasons.length > 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Partial or unavailable usage requires its exact unavailability reasons",
+        path: ["unavailableReasons"],
+      });
+    }
+  });
+
+export const ComparisonUsageMetricProvenanceSchema = z
+  .object({
+    baseline: ComparisonUsageMetricRoleProvenanceSchema,
+    candidate: ComparisonUsageMetricRoleProvenanceSchema,
+  })
+  .strict();
+
 export const ComparisonMetricResultSchema = z
   .object({
+    kind: ComparisonMetricKindSchema,
     metricId: OpaqueIdSchema,
     samples: ComparisonMetricSampleCountsSchema,
+    usageProvenance: ComparisonUsageMetricProvenanceSchema.optional(),
     value: ComparisonMetricValueSchema,
   })
   .strict()
@@ -407,6 +466,36 @@ export const ComparisonMetricResultSchema = z
         message: "An available paired metric requires at least one paired observation",
         path: ["samples", "pairedObservedCount"],
       });
+    }
+    if (value.kind === "replay_usage" && !value.usageProvenance) {
+      context.addIssue({
+        code: "custom",
+        message: "Replay usage metrics must retain role-specific measurement provenance",
+        path: ["usageProvenance"],
+      });
+    }
+    if (value.kind !== "replay_usage" && value.usageProvenance) {
+      context.addIssue({
+        code: "custom",
+        message: "Usage provenance belongs only to replay usage metrics",
+        path: ["usageProvenance"],
+      });
+    }
+    if (value.usageProvenance) {
+      for (const role of ["baseline", "candidate"] as const) {
+        const provenance = value.usageProvenance[role];
+        if (
+          provenance.completeCount !== value.samples[`${role}ObservedCount`] ||
+          provenance.partialCount + provenance.unavailableCount !==
+            value.samples[`${role}UnavailableCount`]
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: "Usage provenance classes must reconstruct the role-specific metric samples",
+            path: ["usageProvenance", role],
+          });
+        }
+      }
     }
   });
 
@@ -782,6 +871,7 @@ export type ComparisonCase = z.infer<typeof ComparisonCaseSchema>;
 export type ComparisonComparability = z.infer<typeof ComparisonComparabilitySchema>;
 export type ComparisonDistributionSummary = z.infer<typeof ComparisonDistributionSummarySchema>;
 export type ComparisonMetricResult = z.infer<typeof ComparisonMetricResultSchema>;
+export type ComparisonUsageMetricProvenance = z.infer<typeof ComparisonUsageMetricProvenanceSchema>;
 export type ComparisonResult = z.infer<typeof ComparisonResultSchema>;
 export type ComparisonResultDefinition = z.infer<typeof ComparisonResultDefinitionSchema>;
 export type ComparisonVerdictMarginal = z.infer<typeof ComparisonVerdictMarginalSchema>;

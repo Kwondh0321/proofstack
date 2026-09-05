@@ -263,6 +263,7 @@ describe("numeric comparison derivation", () => {
       ],
       metricResults: [
         {
+          kind: "numeric_measurement",
           metricId: "metric_latency",
           samples: {
             baselineInvalidCount: 1,

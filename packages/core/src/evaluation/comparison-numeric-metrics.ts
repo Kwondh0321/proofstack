@@ -262,6 +262,7 @@ function metricResult(
   });
   if (paired.observedCount === 0) {
     return ComparisonMetricResultSchema.parse({
+      kind: metric.kind,
       metricId: metric.metricId,
       samples,
       value: {
@@ -274,6 +275,7 @@ function metricResult(
   const candidateValue = aggregateComparisonExactValues(pairedCandidateValues, metric.aggregation);
   const ordering = compareComparisonExactValues(candidateValue, baselineValue);
   return ComparisonMetricResultSchema.parse({
+    kind: metric.kind,
     metricId: metric.metricId,
     samples,
     value: {
