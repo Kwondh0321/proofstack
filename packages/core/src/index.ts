@@ -4,6 +4,7 @@ export * from "./clock.js";
 export * from "./errors.js";
 export * from "./evaluation/applicability.js";
 export * from "./evaluation/comparison-artifact-metrics.js";
+export * from "./evaluation/comparison-assurance-metrics.js";
 export * from "./evaluation/comparison-exact-arithmetic.js";
 export * from "./evaluation/comparison-numeric-metrics.js";
 export * from "./evaluation/comparison-pairing.js";
