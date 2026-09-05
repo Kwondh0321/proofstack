@@ -6,6 +6,7 @@ export * from "./evaluation/applicability.js";
 export * from "./evaluation/comparison-exact-arithmetic.js";
 export * from "./evaluation/comparison-numeric-metrics.js";
 export * from "./evaluation/comparison-pairing.js";
+export * from "./evaluation/comparison-trace-metrics.js";
 export * from "./evaluation/comparison-usage-metrics.js";
 export * from "./evaluation/create-model-assurance-assessment.js";
 export * from "./evaluation/evaluation-record-validation.js";
