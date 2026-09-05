@@ -85,7 +85,7 @@ Goal: turn a failed production trace into repeatable evidence.
 - [x] Qualified model-assisted evaluators with exact model and prompt lineage, calibration,
   independence groups, blinded order swaps, injection tests, counterevidence, disagreement, and
   human review.
-- [ ] Exact baseline and candidate diff API and operator view for traces, distributions, cost,
+- [x] Exact baseline and candidate diff API and operator view for traces, distributions, cost,
   latency, policy-independent safety events, artifacts, uncertainty, and coverage.
 - [ ] Independent end-to-end Workflow 1 audit covering correctness, usability, open-source
   contribution, security, isolation, retention, recovery, failure modes, and public claims.
@@ -132,9 +132,14 @@ accepts the contestable model-and-human assurance boundary and records the synth
 reviewer, isolation, comparison, policy, release, and production limits that remain open.
 The exact subjects, pairing, missingness, distributions, usage, artifact, safety-event,
 comparability, API, operator-view, authority, persistence, recovery, and acceptance gates for the
-open seventh checkpoint are fixed by the
+seventh checkpoint were fixed by the
 [baseline and candidate comparison entry audit](../development/workflow-1-baseline-candidate-comparison-entry-audit.md)
 and [ADR-0020](../architecture/0020-exact-evidence-comparison.md).
+The completed
+[baseline and candidate comparison audit](../development/workflow-1-baseline-candidate-comparison-audit.md)
+accepts the immutable policy-independent descriptive comparison boundary and records the synthetic
+evidence, criteria-authority, statistical, operator-surface, policy, release, and production limits
+that remain open.
 
 ## Workflow 2: reliability release gate
 
