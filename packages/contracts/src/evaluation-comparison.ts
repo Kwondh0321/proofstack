@@ -27,7 +27,7 @@ import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./p
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
 export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.3" as const;
-export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.1" as const;
+export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.2" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
 export const MAX_COMPARISON_STRATA = 64;
@@ -668,12 +668,64 @@ export const ComparisonOmissionReasonSchema = z.enum([
   "source_over_limit",
 ]);
 
-export const ComparisonOmissionSchema = z
-  .object({
-    reason: ComparisonOmissionReasonSchema,
-    sourceKey: AssuranceSummarySchema,
-  })
-  .strict();
+export const ComparisonOmissionSchema = z.discriminatedUnion("sourceKind", [
+  z
+    .object({
+      artifactId: OpaqueIdSchema,
+      fixtureId: OpaqueIdSchema,
+      reason: z.enum(["artifact_revoked", "artifact_unavailable"]),
+      sourceKind: z.literal("artifact"),
+    })
+    .strict(),
+  z
+    .object({
+      assessment: AssessmentReferenceSchema,
+      fixtureId: OpaqueIdSchema,
+      reason: z.literal("optional_assessment_missing"),
+      sourceKind: z.literal("assessment"),
+    })
+    .strict(),
+  z
+    .object({
+      fixtureId: OpaqueIdSchema,
+      projectionKey: AssuranceSummarySchema,
+      reason: z.literal("classified_content_excluded"),
+      sourceKind: z.literal("classified_content"),
+    })
+    .strict(),
+  z
+    .object({
+      fixtureId: OpaqueIdSchema,
+      measurementName: AssuranceSummarySchema,
+      reason: z.enum(["measurement_unavailable", "source_over_limit"]),
+      sourceKind: z.literal("numeric_measurement"),
+      unit: AssuranceSummarySchema,
+    })
+    .strict(),
+  z
+    .object({
+      fixtureId: OpaqueIdSchema,
+      modelAssuranceAssessment: ModelAssuranceAssessmentReferenceSchema,
+      reason: z.literal("optional_assessment_missing"),
+      sourceKind: z.literal("model_assurance_assessment"),
+    })
+    .strict(),
+]);
+
+function comparisonOmissionKey(value: z.infer<typeof ComparisonOmissionSchema>): string {
+  switch (value.sourceKind) {
+    case "artifact":
+      return `${value.fixtureId}:artifact:${value.artifactId}`;
+    case "assessment":
+      return `${value.fixtureId}:assessment:${value.assessment.assessmentId}:${value.assessment.definitionSha256}`;
+    case "classified_content":
+      return `${value.fixtureId}:classified_content:${value.projectionKey}`;
+    case "model_assurance_assessment":
+      return `${value.fixtureId}:model_assurance_assessment:${value.modelAssuranceAssessment.assessmentExtensionId}:${value.modelAssuranceAssessment.definitionSha256}`;
+    case "numeric_measurement":
+      return `${value.fixtureId}:numeric_measurement:${value.measurementName}:${value.unit}`;
+  }
+}
 
 function exactAssuranceReferenceKey(
   value:
@@ -772,17 +824,96 @@ const comparisonEvidenceSnapshotDefinitionShape = {
   omissions: z
     .array(ComparisonOmissionSchema)
     .max(MAX_COMPARISON_OMISSIONS)
-    .refine((values) => isStrictlySortedUnique(values.map(({ sourceKey }) => sourceKey)), {
-      message: "Evidence snapshot omissions must be unique and ordered by sourceKey",
+    .refine((values) => isStrictlySortedUnique(values.map(comparisonOmissionKey)), {
+      message: "Evidence snapshot omissions must be unique and ordered by exact source identity",
     }),
   role: ComparisonRoleSchema,
   snapshotId: OpaqueIdSchema,
   sourceCutoff: UtcMillisecondTimestampSchema,
 };
 
+function refineComparisonEvidenceSnapshot(
+  value: z.infer<z.ZodObject<typeof comparisonEvidenceSnapshotDefinitionShape>>,
+  context: z.RefinementCtx,
+): void {
+  const fixtures = new Map(value.fixtures.map((entry) => [entry.fixture.fixtureId, entry]));
+  for (const [index, omission] of value.omissions.entries()) {
+    const fixture = fixtures.get(omission.fixtureId);
+    if (!fixture) {
+      context.addIssue({
+        code: "custom",
+        message: "Evidence omissions must reference a retained exact fixture",
+        path: ["omissions", index, "fixtureId"],
+      });
+      continue;
+    }
+    if (
+      omission.sourceKind === "numeric_measurement" &&
+      fixture.numericObservations.some(
+        (observation) =>
+          observation.measurementName === omission.measurementName &&
+          observation.unit === omission.unit,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "An omitted measurement cannot also be retained as an exact observation",
+        path: ["omissions", index],
+      });
+    }
+    if (
+      omission.sourceKind === "assessment" &&
+      fixture.assurance.some(
+        (assurance) =>
+          assurance.kind === "assessment" &&
+          assurance.reference.assessmentId === omission.assessment.assessmentId &&
+          assurance.reference.definitionSha256 === omission.assessment.definitionSha256,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "An omitted assessment cannot also be retained in assurance evidence",
+        path: ["omissions", index],
+      });
+    }
+    if (
+      omission.sourceKind === "model_assurance_assessment" &&
+      fixture.assurance.some(
+        (assurance) =>
+          assurance.kind === "model_assurance" &&
+          assurance.reference.assessmentExtensionId ===
+            omission.modelAssuranceAssessment.assessmentExtensionId &&
+          assurance.reference.definitionSha256 ===
+            omission.modelAssuranceAssessment.definitionSha256,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "An omitted model-assurance assessment cannot also be retained",
+        path: ["omissions", index],
+      });
+    }
+    if (omission.sourceKind === "artifact") {
+      const retained = fixture.artifacts.find(
+        ({ artifact }) => artifact.artifactId === omission.artifactId,
+      );
+      const expectedAvailability =
+        omission.reason === "artifact_revoked" ? "revoked" : "unavailable";
+      if (retained && retained.availability !== expectedAvailability) {
+        context.addIssue({
+          code: "custom",
+          message: "A retained artifact state must agree with its omission reason",
+          path: ["omissions", index, "reason"],
+        });
+      }
+    }
+  }
+}
+
 export const ComparisonEvidenceSnapshotDefinitionSchema = z
   .object(comparisonEvidenceSnapshotDefinitionShape)
-  .strict();
+  .strict()
+  .superRefine(refineComparisonEvidenceSnapshot);
 
 export const ComparisonEvidenceSnapshotSchema = z
   .object({
@@ -795,6 +926,7 @@ export const ComparisonEvidenceSnapshotSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    refineComparisonEvidenceSnapshot(value, context);
     if (
       evidenceTimestampOrderKey(value.createdAt) < evidenceTimestampOrderKey(value.sourceCutoff)
     ) {
@@ -830,6 +962,7 @@ export type ComparisonEvidenceSnapshotDefinition = z.infer<
 export type ComparisonEvidenceSnapshotReference = z.infer<
   typeof ComparisonEvidenceSnapshotReferenceSchema
 >;
+export type ComparisonOmission = z.infer<typeof ComparisonOmissionSchema>;
 export type ComparisonRole = z.infer<typeof ComparisonRoleSchema>;
 export type ComparisonStratum = z.infer<typeof ComparisonStratumSchema>;
 export type ComparisonSubject = z.infer<typeof ComparisonSubjectSchema>;

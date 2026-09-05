@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-snapshot-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 4009,
+      "encodedByteLength": 4075,
       "input": {
         "definition": {
           "comparison": {
@@ -166,8 +166,10 @@
           "knownLimitations": ["Synthetic comparison source"],
           "omissions": [
             {
+              "fixtureId": "fixture_login",
+              "projectionKey": "prompt_plaintext",
               "reason": "classified_content_excluded",
-              "sourceKey": "prompt_plaintext"
+              "sourceKind": "classified_content"
             }
           ],
           "role": "baseline",
@@ -182,7 +184,7 @@
       },
       "kind": "comparison_evidence_snapshot",
       "name": "source-backed baseline evidence snapshot",
-      "sha256": "385441100604c0df7ce2df5d770d589304233db01e434d21b862427e2f14aa26"
+      "sha256": "f8b6fdfefa3e920ed2434e34333c0cb88b86129e9490204dba6c96272c09c07a"
     }
   ]
 }

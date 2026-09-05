@@ -111,7 +111,12 @@ describe("canonical comparison state encoding", () => {
       (candidate) => {
         candidate.definition.knownLimitations = ["Changed bounded limitation"];
         candidate.definition.omissions = [
-          { reason: "artifact_unavailable", sourceKey: "artifact_output" },
+          {
+            artifactId: "artifact_missing",
+            fixtureId: "fixture_login",
+            reason: "artifact_unavailable",
+            sourceKind: "artifact",
+          },
         ];
       },
       (candidate) => {

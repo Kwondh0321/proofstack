@@ -4,6 +4,7 @@ import {
   ComparisonAssuranceStateSchema,
   ComparisonEvidenceSnapshotDefinitionSchema,
   ComparisonEvidenceSnapshotSchema,
+  ComparisonOmissionSchema,
   ComparisonTraceStructureSchema,
   ComparisonUsageValueSchema,
   ComparisonVerdictCountsSchema,
@@ -159,7 +160,14 @@ function definition() {
     ],
     integrity: "verified",
     knownLimitations: ["Synthetic comparison source"],
-    omissions: [{ reason: "classified_content_excluded", sourceKey: "prompt_plaintext" }],
+    omissions: [
+      {
+        fixtureId: "fixture_login",
+        projectionKey: "prompt_plaintext",
+        reason: "classified_content_excluded",
+        sourceKind: "classified_content",
+      },
+    ],
     role: "candidate",
     snapshotId: "snapshot_candidate",
     sourceCutoff: "2026-09-02T01:00:01.000Z",
@@ -221,6 +229,49 @@ describe("comparison evidence snapshot contracts", () => {
     ).toBe(false);
   });
 
+  it("binds every omission to one typed fixture source", () => {
+    const omissions = [
+      {
+        artifactId: "artifact_missing",
+        fixtureId: "fixture_login",
+        reason: "artifact_unavailable",
+        sourceKind: "artifact",
+      },
+      {
+        assessment: { assessmentId: "assessment_optional", definitionSha256: sha("1") },
+        fixtureId: "fixture_login",
+        reason: "optional_assessment_missing",
+        sourceKind: "assessment",
+      },
+      definition().omissions[0],
+      {
+        fixtureId: "fixture_login",
+        modelAssuranceAssessment: {
+          assessmentExtensionId: "assurance_optional",
+          definitionSha256: sha("2"),
+        },
+        reason: "optional_assessment_missing",
+        sourceKind: "model_assurance_assessment",
+      },
+      {
+        fixtureId: "fixture_login",
+        measurementName: "optional_latency",
+        reason: "measurement_unavailable",
+        sourceKind: "numeric_measurement",
+        unit: "milliseconds",
+      },
+    ] as const;
+    for (const omission of omissions) {
+      expect(ComparisonOmissionSchema.safeParse(omission).success).toBe(true);
+    }
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...definition(),
+        omissions,
+      }).success,
+    ).toBe(true);
+  });
+
   it("requires eligibility to agree with exact ordered reasons", () => {
     expect(
       ComparisonAssuranceStateSchema.safeParse({
@@ -249,6 +300,88 @@ describe("comparison evidence snapshot contracts", () => {
       ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
         ...valid,
         fixtures: [{ ...fixture, artifacts: [fixture.artifacts[0], fixture.artifacts[0]] }],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [
+          {
+            fixtureId: "fixture_login",
+            measurementName: "response_time",
+            reason: "measurement_unavailable",
+            sourceKind: "numeric_measurement",
+            unit: "milliseconds",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [
+          {
+            assessment: { assessmentId: "assessment_login", definitionSha256: sha("7") },
+            fixtureId: "fixture_login",
+            reason: "optional_assessment_missing",
+            sourceKind: "assessment",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [
+          {
+            fixtureId: "fixture_login",
+            modelAssuranceAssessment: {
+              assessmentExtensionId: "assurance_login",
+              definitionSha256: sha("8"),
+            },
+            reason: "optional_assessment_missing",
+            sourceKind: "model_assurance_assessment",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [
+          {
+            artifactId: "artifact_output",
+            fixtureId: "fixture_login",
+            reason: "artifact_unavailable",
+            sourceKind: "artifact",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [valid.omissions[0], valid.omissions[0]],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [{ ...valid.omissions[0], fixtureId: "fixture_unknown" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonEvidenceSnapshotDefinitionSchema.safeParse({
+        ...valid,
+        omissions: [
+          {
+            fixtureId: "fixture_login",
+            measurementName: "response_time",
+            reason: "artifact_unavailable",
+            sourceKind: "numeric_measurement",
+            unit: "milliseconds",
+          },
+        ],
       }).success,
     ).toBe(false);
 
