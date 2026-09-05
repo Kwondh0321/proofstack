@@ -161,6 +161,7 @@ describe("PostgreSQL evidence schema", () => {
       "0040_model_assurance_capabilities",
       "0041_model_assurance_graph",
       "0042_comparison_capabilities",
+      "0043_comparison_graph",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -301,6 +302,77 @@ describe("PostgreSQL evidence schema", () => {
       ]) AS required(signature)
     `);
     expect(assuranceFunctions.rows).toEqual([{ present: true }]);
+
+    const comparisonLineage = await pool.query<{
+      readonly edge_position: number;
+      readonly parent_definition_sha256: string;
+      readonly parent_record_id: string;
+      readonly parent_record_kind: string;
+    }>(`
+      SELECT edge_position, parent_record_kind, parent_record_id,
+        parent_definition_sha256
+      FROM public.proofstack_comparison_record_references(
+        'comparison_result',
+        jsonb_build_object(
+          'comparison', jsonb_build_object(
+            'comparisonVersionId', 'cmp_reference_v1',
+            'definitionSha256', repeat('a', 64)
+          ),
+          'baselineSnapshot', jsonb_build_object(
+            'snapshotId', 'csp_reference_baseline',
+            'definitionSha256', repeat('b', 64)
+          ),
+          'candidateSnapshot', jsonb_build_object(
+            'snapshotId', 'csp_reference_candidate',
+            'definitionSha256', repeat('c', 64)
+          )
+        )
+      )
+    `);
+    expect(comparisonLineage.rows).toEqual([
+      {
+        edge_position: 0,
+        parent_definition_sha256: "a".repeat(64),
+        parent_record_id: "cmp_reference_v1",
+        parent_record_kind: "comparison_definition",
+      },
+      {
+        edge_position: 1,
+        parent_definition_sha256: "b".repeat(64),
+        parent_record_id: "csp_reference_baseline",
+        parent_record_kind: "comparison_evidence_snapshot",
+      },
+      {
+        edge_position: 2,
+        parent_definition_sha256: "c".repeat(64),
+        parent_record_id: "csp_reference_candidate",
+        parent_record_kind: "comparison_evidence_snapshot",
+      },
+    ]);
+
+    const comparisonPartitions = await pool.query<{
+      readonly partition_count: number;
+      readonly protected_count: number;
+    }>(`
+      SELECT
+        count(*)::integer AS partition_count,
+        count(*) FILTER (WHERE child.relrowsecurity AND child.relforcerowsecurity)::integer
+          AS protected_count
+      FROM pg_inherits
+      JOIN pg_class AS parent ON parent.oid = pg_inherits.inhparent
+      JOIN pg_class AS child ON child.oid = pg_inherits.inhrelid
+      WHERE parent.relname = 'proofstack_comparison_records'
+    `);
+    expect(comparisonPartitions.rows).toEqual([{ partition_count: 3, protected_count: 3 }]);
+    const comparisonFunctions = await pool.query<{ readonly present: boolean }>(`
+      SELECT every(to_regprocedure(signature) IS NOT NULL) AS present
+      FROM unnest(ARRAY[
+        'public.proofstack_comparison_record_references(text,jsonb)',
+        'public.proofstack_insert_comparison_record(jsonb)',
+        'public.proofstack_publish_comparison_record(jsonb)'
+      ]) AS required(signature)
+    `);
+    expect(comparisonFunctions.rows).toEqual([{ present: true }]);
 
     const normalizedRetryColumns = await pool.query<{
       readonly column_name: string;

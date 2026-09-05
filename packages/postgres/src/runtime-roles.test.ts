@@ -168,6 +168,15 @@ describe("provisionRuntimeRoles", () => {
       'GRANT SELECT, INSERT ON TABLE public.proofstack_evidence_events TO "proofstack_api"',
     );
     expect(statements).toContain(
+      'GRANT SELECT ON TABLE public.proofstack_comparison_record_registry, public.proofstack_comparison_resource_bindings, public.proofstack_comparison_lineage, public.proofstack_comparison_records TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_publish_comparison_record(jsonb) TO "proofstack_api"',
+    );
+    expect(statements).not.toContain(
+      'GRANT INSERT, UPDATE, DELETE ON TABLE public.proofstack_comparison_records TO "proofstack_api"',
+    );
+    expect(statements).toContain(
       'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM "proofstack_api"',
     );
     expect(statements).toContain(
@@ -184,6 +193,7 @@ describe("provisionRuntimeRoles", () => {
     expect(identityTableRevocation).toBeDefined();
     for (const table of [
       "proofstack_api_key_credentials",
+      "proofstack_comparison_records",
       "proofstack_replay_jobs",
       "proofstack_replay_attempts",
       "proofstack_replay_attempt_events",

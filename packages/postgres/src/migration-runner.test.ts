@@ -128,6 +128,7 @@ describe("migration inspection", () => {
         "0040_model_assurance_capabilities",
         "0041_model_assurance_graph",
         "0042_comparison_capabilities",
+        "0043_comparison_graph",
       ],
     });
   });

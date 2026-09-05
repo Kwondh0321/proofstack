@@ -480,6 +480,11 @@ describe("runtime role provisioning", () => {
       readonly artifactTombstoneInsert: boolean;
       readonly artifactTombstoneSelect: boolean;
       readonly can_create_public: boolean;
+      readonly comparisonDelete: boolean;
+      readonly comparisonInsert: boolean;
+      readonly comparisonPublishExecute: boolean;
+      readonly comparisonSelect: boolean;
+      readonly comparisonUpdate: boolean;
       readonly evidence_insert: boolean;
       readonly evidence_select: boolean;
       readonly evidence_update: boolean;
@@ -532,6 +537,31 @@ describe("runtime role provisioning", () => {
           'proofstack_find_active_oidc_binding(text, text, text)',
           'EXECUTE'
         ) AS oidc_lookup_execute,
+        has_table_privilege(
+          current_user,
+          'proofstack_comparison_records',
+          'SELECT'
+        ) AS "comparisonSelect",
+        has_table_privilege(
+          current_user,
+          'proofstack_comparison_records',
+          'INSERT'
+        ) AS "comparisonInsert",
+        has_table_privilege(
+          current_user,
+          'proofstack_comparison_records',
+          'UPDATE'
+        ) AS "comparisonUpdate",
+        has_table_privilege(
+          current_user,
+          'proofstack_comparison_records',
+          'DELETE'
+        ) AS "comparisonDelete",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_comparison_record(jsonb)',
+          'EXECUTE'
+        ) AS "comparisonPublishExecute",
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
         has_table_privilege(
@@ -785,6 +815,11 @@ describe("runtime role provisioning", () => {
       artifactTombstoneInsert: true,
       artifactTombstoneSelect: true,
       can_create_public: false,
+      comparisonDelete: false,
+      comparisonInsert: false,
+      comparisonPublishExecute: true,
+      comparisonSelect: true,
+      comparisonUpdate: false,
       evidence_insert: true,
       evidence_select: true,
       evidence_update: false,
