@@ -331,7 +331,15 @@ describe("comparison definition contracts", () => {
         unit: "assurance_records",
       },
       {
-        dimension: "paired",
+        criterion: {
+          criterionId: "criterion_login",
+          criterionSet: {
+            criterionSetId: "criteria_main",
+            criterionSetVersionId: "criteria_main_v1",
+            definitionSha256: sha("d"),
+          },
+        },
+        dimension: "observed",
         kind: "coverage_count",
         label: "Coverage cases",
         metricId: "metric_coverage",
@@ -376,6 +384,17 @@ describe("comparison definition contracts", () => {
         }).success,
       ).toBe(true);
     }
+
+    const coverageMetric = metrics[5];
+    const { criterion: _criterion, ...withoutCriterion } = coverageMetric;
+    expect(_criterion.criterionId).toBe("criterion_login");
+    expect(ComparisonMetricSchema.safeParse(withoutCriterion).success).toBe(false);
+    expect(
+      ComparisonMetricSchema.safeParse({
+        ...coverageMetric,
+        dimension: "paired",
+      }).success,
+    ).toBe(false);
   });
 
   it("requires an exact bounded minimum paired coverage rule", () => {

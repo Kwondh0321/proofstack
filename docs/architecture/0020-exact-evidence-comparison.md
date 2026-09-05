@@ -82,6 +82,13 @@ declared assumptions are supported. Incompatible units, methods, criteria, popul
 calibration slices, or denominators produce `incomparable` or `unavailable`; they are never coerced
 or assigned a zero delta.
 
+Coverage metrics count logical fixtures for one exact criterion. `observed` means that the fixture
+retains an exact matching outcome, `abstention` and `error` mean that the corresponding retained
+count is nonzero, and `decided` means that at least one pass, fail, or not-applicable outcome is
+retained. Missing criterion outcomes remain missing rather than becoming zero. Paired fixture
+coverage is authoritative in the pairing summary and each metric's paired sample counts, so it is
+not duplicated as a separately interpreted coverage dimension.
+
 ### Derive descriptive differences without policy
 
 An immutable `ComparisonResult` binds the exact definition and both evidence snapshots. It may

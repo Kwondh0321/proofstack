@@ -26,7 +26,7 @@ import {
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
-export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.6" as const;
+export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.7" as const;
 export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.3" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
@@ -324,7 +324,8 @@ export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
   z
     .object({
       ...comparisonMetricIdentityShape,
-      dimension: z.enum(["abstention", "decided", "error", "observed", "paired"]),
+      criterion: CriterionReferenceSchema,
+      dimension: z.enum(["abstention", "decided", "error", "observed"]),
       kind: z.literal("coverage_count"),
       unit: z.literal(COMPARISON_COUNT_METRIC_UNITS.coverage_count),
     })

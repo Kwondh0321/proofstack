@@ -119,6 +119,12 @@ Duplicate keys, cross-scope identities, or ambiguous many-to-one mappings are re
 calculated before aggregate statistics. The result records complete role-specific and paired
 denominators, preventing missing candidate cases from making the candidate appear better.
 
+`coverage_count` is an exact-criterion logical-fixture metric: `observed` requires a retained
+matching outcome, `abstention` and `error` require a nonzero corresponding count, and `decided`
+requires at least one pass, fail, or not-applicable outcome. Missing outcomes remain missing.
+Paired fixture coverage is recorded once by the pairing summary and every metric's paired sample
+counts rather than being reinterpreted as another coverage metric.
+
 Overall comparability is `comparable`, `partially_comparable`, or `incomparable` with an exact,
 ordered reason set. Reasons cover at least dataset mismatch, fixture mismatch, criterion mismatch,
 unit mismatch, method mismatch, population mismatch, calibration mismatch, insufficient paired

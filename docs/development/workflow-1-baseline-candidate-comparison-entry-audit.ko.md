@@ -115,6 +115,13 @@ case는 정확한 logical fixture identity로 짝지으며 양쪽에서 사용�
 먼저 계산하고 역할별 전체 분모와 paired 분모를 함께 기록하여 어려운 candidate case가 사라져서
 candidate가 좋아 보이는 일을 막습니다.
 
+`coverage_count`는 정확한 criterion 하나에 대한 logical fixture metric입니다. `observed`는 해당
+criterion의 정확한 outcome이 보존되어 있어야 하고, `abstention`과 `error`는 각각의 보존 count가
+0보다 커야 하며, `decided`는 pass, fail, not-applicable outcome 중 하나 이상이 있어야 합니다.
+outcome이 없으면 0으로 바꾸지 않고 missing으로 유지합니다. paired fixture coverage는 pairing
+summary와 각 metric의 paired sample count에 한 번만 기록하며 별도 coverage metric으로 재해석하지
+않습니다.
+
 전체 comparability는 `comparable`, `partially_comparable`, `incomparable` 중 하나이며 정확하고
 정렬된 reason 집합을 가집니다. reason은 dataset·fixture·criterion·unit·method·population·calibration
 mismatch, insufficient paired coverage, missing source evidence, invalid source integrity,
