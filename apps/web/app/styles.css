@@ -158,6 +158,11 @@ input {
   gap: 32px;
 }
 
+.page-header > div,
+.section-heading > div {
+  min-width: 0;
+}
+
 .eyebrow {
   margin: 0 0 11px;
   color: var(--accent);
@@ -498,7 +503,15 @@ h2 {
 }
 
 .comparison-heading h1 {
+  overflow-wrap: anywhere;
   font-size: clamp(34px, 5vw, 58px);
+}
+
+.comparison-page h2,
+.comparison-page h3,
+.comparison-page p,
+.comparison-page dd {
+  overflow-wrap: anywhere;
 }
 
 .identity-strip {
