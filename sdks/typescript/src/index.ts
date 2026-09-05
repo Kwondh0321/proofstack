@@ -1,5 +1,6 @@
 export * from "./client.js";
 export * from "./comparison-definition-digest.js";
+export * from "./comparison-client.js";
 export * from "./evaluation-client.js";
 export * from "./evaluation-definition-digest.js";
 export * from "./ids.js";
