@@ -398,6 +398,7 @@ async function superviseReplayTargetProcessCore(
     try {
       return session.stop(reason);
     } catch {
+      /* v8 ignore next -- A concurrent terminal frame can make best-effort shutdown redundant. */
       return undefined;
     }
   };
