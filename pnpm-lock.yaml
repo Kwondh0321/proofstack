@@ -25,8 +25,8 @@ catalogs:
       specifier: 8.23.0
       version: 8.23.0
     protobufjs:
-      specifier: 8.6.6
-      version: 8.6.6
+      specifier: 8.8.0
+      version: 8.8.0
     typescript:
       specifier: 6.0.3
       version: 6.0.3
@@ -468,7 +468,7 @@ importers:
         version: link:../contracts
       protobufjs:
         specifier: 'catalog:'
-        version: 8.6.6
+        version: 8.8.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2023,8 +2023,8 @@ packages:
   process-warning@5.1.0:
     resolution: {integrity: sha512-jQSaVHsPgtyw60e1rQ/A+/ArPEj/S8pS/vFnyGa/gYFXrKk/6RuDkoqVDQ5NI5MmS01698ltlAk0NoDBNLujRw==}
 
-  protobufjs@8.6.6:
-    resolution: {integrity: sha512-RkLIhE+Tdc2Kpq1F4Uw6OnpAXPca7B+GSDov/GqGCqNBpVyDskQ9yReZfgM+C7xw9AAix873iQZXbBWXj6NzYQ==}
+  protobufjs@8.8.0:
+    resolution: {integrity: sha512-N3xhQ5yyBx3vQq4gubBfASzYhJGNzeDbjqBpu61g7UVylsN/qyffU96TKWD3GbbLOKF82VGNRNvv1+BFgE31Eg==}
     engines: {node: '>=12.0.0'}
 
   quick-format-unescaped@4.0.4:
@@ -3409,7 +3409,7 @@ snapshots:
 
   process-warning@5.1.0: {}
 
-  protobufjs@8.6.6:
+  protobufjs@8.8.0:
     dependencies:
       long: 5.3.2
 

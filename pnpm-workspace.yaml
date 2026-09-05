@@ -16,7 +16,7 @@ catalog:
   "@types/pg": 8.23.1
   "@vitest/coverage-v8": 4.1.11
   "pg": 8.23.0
-  "protobufjs": 8.6.6
+  "protobufjs": 8.8.0
   "typescript": 6.0.3
   "vitest": 4.1.11
   "zod": 4.4.3
