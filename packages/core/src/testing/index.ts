@@ -1,4 +1,19 @@
 export {
+  type ComparisonRepositoryConformanceCase,
+  type ComparisonRepositoryTestFactory,
+  comparisonRepositoryConformanceCases,
+  publishComparisonFixture,
+} from "./comparison-repository-conformance.js";
+export {
+  comparisonDefinitionFixture,
+  comparisonFixtureScope,
+  type ComparisonRepositoryFixtureRecord,
+  type ComparisonRepositoryTestHarness,
+  comparisonResultFixture,
+  comparisonSnapshotFixture,
+  createComparisonRepositoryTestHarness,
+} from "./comparison-repository-fixtures.js";
+export {
   type EvaluationRepositoryConformanceCase,
   type EvaluationRepositoryFixtureRecord,
   type EvaluationRepositoryTestFactory,
