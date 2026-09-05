@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    exclude: ["lib/**/*.integration.test.ts"],
+    include: ["lib/**/*.test.ts"],
     coverage: {
       exclude: ["**/*.test.ts", "next-env.d.ts"],
       include: ["lib/**/*.ts"],

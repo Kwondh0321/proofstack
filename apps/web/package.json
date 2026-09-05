@@ -12,6 +12,7 @@
     "lint": "biome lint app components lib",
     "start": "next start --port 3000",
     "test": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "node ../../scripts/prepare-web-typecheck.mjs && next typegen && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -21,6 +22,10 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@proofstack/api": "workspace:*",
+    "@proofstack/example-comparison-control-flow": "workspace:*",
+    "@proofstack/postgres": "workspace:*",
+    "@proofstack/sdk": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",

@@ -120,6 +120,12 @@ const modules = [
     allowed: new Set(["@proofstack/contracts"]),
     directory: "apps/web",
     packageName: "@proofstack/web",
+    testAllowed: new Set([
+      "@proofstack/api",
+      "@proofstack/example-comparison-control-flow",
+      "@proofstack/postgres",
+      "@proofstack/sdk",
+    ]),
   },
   {
     allowed: new Set(["@proofstack/api", "@proofstack/contracts", "@proofstack/core"]),

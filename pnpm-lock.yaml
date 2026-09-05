@@ -145,6 +145,18 @@ importers:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
+      '@proofstack/api':
+        specifier: workspace:*
+        version: link:../api
+      '@proofstack/example-comparison-control-flow':
+        specifier: workspace:*
+        version: link:../../examples/comparison-control-flow
+      '@proofstack/postgres':
+        specifier: workspace:*
+        version: link:../../packages/postgres
+      '@proofstack/sdk':
+        specifier: workspace:*
+        version: link:../../sdks/typescript
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
