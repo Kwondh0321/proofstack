@@ -12,6 +12,7 @@ import {
   EvidenceEnvelopeSchema,
   type EvidenceScope,
   evidenceTimestampOrderKey,
+  type ModelAssuranceAssessment,
   type RawObservation,
   REPLAY_BUDGET_DIMENSIONS,
   RecordedInteractionFixtureVersionSchema,
@@ -26,6 +27,7 @@ import {
   type EvaluationRepository,
   type EvidenceRepository,
   type ExactEvidenceRepository,
+  type ModelAssuranceRepository,
 } from "@proofstack/core";
 import type { InteractionFixtureVersionRepository } from "@proofstack/datasets";
 import type { ReplayJobControlRepository } from "@proofstack/replay";
@@ -49,6 +51,7 @@ interface RepositoryComparisonEvidenceResolverDependencies {
   readonly evidenceRepository: ExactEvidenceRepository;
   readonly evaluationRepository: EvaluationRepository;
   readonly interactionRepository: InteractionFixtureVersionRepository;
+  readonly modelAssuranceRepository: ModelAssuranceRepository;
   readonly replayRepository: ReplayJobControlRepository;
 }
 
@@ -386,9 +389,6 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
     omissions: ComparisonOmission[],
     limitations: Set<string>,
   ): Promise<{ readonly fixture: ResolvedFixture; readonly sourceTimes: readonly string[] }> {
-    if (subject.modelAssuranceAssessments.length > 0) {
-      unavailable("model_assurance_projection", subject.fixture.fixtureVersionId);
-    }
     const source = await this.findFixture(scope, subject);
     const eventsInput = await this.dependencies.evidenceRepository.resolveExactEvents(
       structuredClone(scope),
@@ -689,6 +689,39 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
         counts,
         criterion: structuredClone(assessment.criterion),
       });
+    }
+
+    for (const reference of subject.modelAssuranceAssessments) {
+      const input = await this.dependencies.modelAssuranceRepository.find(
+        structuredClone(scope),
+        "model_assurance_assessment",
+        reference.assessmentExtensionId,
+      );
+      if (input === null) {
+        unavailable("model_assurance_assessment", reference.assessmentExtensionId);
+      }
+      const assessment = input as ModelAssuranceAssessment;
+      if (
+        !sameScope(assessment.scope, scope) ||
+        assessment.assessmentExtensionId !== reference.assessmentExtensionId ||
+        assessment.definitionSha256 !== reference.definitionSha256 ||
+        !subject.assessments.some((candidate) => sameJson(candidate, assessment.baseAssessment))
+      ) {
+        unavailable("model_assurance_assessment", reference.assessmentExtensionId);
+      }
+      assurance.push({
+        eligibility: assessment.eligibility,
+        kind: "model_assurance",
+        reasons: [...assessment.reasons],
+        reference: structuredClone(reference),
+      });
+      artifacts.push(
+        structuredClone(assessment.policy),
+        ...assessment.counterevidence.map((artifact) => structuredClone(artifact)),
+        ...assessment.disagreementEvidence.map((artifact) => structuredClone(artifact)),
+      );
+      for (const limitation of assessment.knownLimitations) limitations.add(limitation);
+      sourceTimes.push(assessment.evaluatedAt, assessment.recordedAt);
     }
 
     assurance.sort((left, right) => {

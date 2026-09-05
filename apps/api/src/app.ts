@@ -283,6 +283,7 @@ export async function createApp(
             evidenceRepository: storage.evidenceRepository,
             evaluationRepository: storage.evaluationRepository,
             interactionRepository: storage.interactionFixtureVersionRepository,
+            modelAssuranceRepository: storage.modelAssuranceRepository,
             replayRepository: storage.replayJobControlRepository,
           })
         : ({

@@ -17,6 +17,8 @@ import {
   type EvaluationRepository,
   MemoryEvaluationRepository,
   MemoryEvidenceRepository,
+  MemoryModelAssuranceRepository,
+  type ModelAssuranceRepository,
 } from "@proofstack/core";
 import {
   digestRegressionDatasetVersionDefinition,
@@ -362,6 +364,7 @@ async function graph() {
       evidenceRepository: evidence,
       evaluationRepository: new MemoryEvaluationRepository(),
       interactionRepository: regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       replayRepository: replay,
     }),
   };
@@ -516,6 +519,42 @@ function evaluationRepository(
   } as unknown as EvaluationRepository;
 }
 
+function modelAssuranceRepository(
+  baseAssessment: { readonly assessmentId: string; readonly definitionSha256: string },
+  reference: { readonly assessmentExtensionId: string; readonly definitionSha256: string },
+): ModelAssuranceRepository {
+  const artifact = (artifactId: string, digit: string) => ({
+    artifactId,
+    classification: "internal" as const,
+    mediaType: "application/json",
+    sha256: sha(digit),
+    sizeBytes: 48,
+  });
+  const assessment = {
+    assessmentExtensionId: reference.assessmentExtensionId,
+    baseAssessment,
+    counterevidence: [artifact("art_model_counterevidence", "4")],
+    definitionSha256: reference.definitionSha256,
+    disagreementEvidence: [artifact("art_model_disagreement", "5")],
+    eligibility: "ineligible",
+    evaluatedAt: "2026-09-05T00:00:08.900Z",
+    knownLimitations: ["Model judgment remains contestable evidence."],
+    policy: artifact("art_model_policy", "6"),
+    reasons: ["human_review_missing"],
+    recordedAt: "2026-09-05T00:00:09.000Z",
+    scope,
+  };
+  return {
+    find: async (_scope: EvidenceScope, kind: string, id: string) =>
+      kind === "model_assurance_assessment" && id === reference.assessmentExtensionId
+        ? assessment
+        : null,
+    publish: async () => {
+      throw new Error("Unexpected model-assurance publication");
+    },
+  } as unknown as ModelAssuranceRepository;
+}
+
 describe("RepositoryComparisonEvidenceResolver", () => {
   it("projects exact retained trace, replay, usage, artifact, and safety evidence", async () => {
     const test = await graph();
@@ -583,6 +622,7 @@ describe("RepositoryComparisonEvidenceResolver", () => {
       evidenceRepository: test.evidence,
       evaluationRepository: new MemoryEvaluationRepository(),
       interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       replayRepository: test.replay,
     });
 
@@ -610,6 +650,7 @@ describe("RepositoryComparisonEvidenceResolver", () => {
       evidenceRepository: hiddenEvidence,
       evaluationRepository: new MemoryEvaluationRepository(),
       interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       replayRepository: test.replay,
     });
     await expect(
@@ -640,6 +681,7 @@ describe("RepositoryComparisonEvidenceResolver", () => {
       evidenceRepository: test.evidence,
       evaluationRepository: evaluationRepository(comparison, assessment),
       interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       replayRepository: test.replay,
     });
 
@@ -688,11 +730,83 @@ describe("RepositoryComparisonEvidenceResolver", () => {
         findRawObservation: async () => null,
       },
       interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       replayRepository: test.replay,
     });
 
     await expect(resolver.resolve({ comparison, role: "baseline", scope })).rejects.toMatchObject({
       sourceKind: "raw_observation",
+    });
+  });
+
+  it("preserves model assurance as bounded contestable evidence", async () => {
+    const test = await graph();
+    const comparison = structuredClone(test.comparison);
+    const assessment = {
+      assessmentId: "assessment_comparison",
+      definitionSha256: sha("3"),
+    };
+    const modelAssessment = {
+      assessmentExtensionId: "model_assessment_comparison",
+      definitionSha256: sha("7"),
+    };
+    const fixture = comparison.baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected comparison fixture");
+    fixture.assessments = [assessment];
+    fixture.modelAssuranceAssessments = [modelAssessment];
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      evidenceRepository: test.evidence,
+      evaluationRepository: evaluationRepository(comparison, assessment),
+      interactionRepository: test.regression,
+      modelAssuranceRepository: modelAssuranceRepository(assessment, modelAssessment),
+      replayRepository: test.replay,
+    });
+
+    const resolution = await resolver.resolve({ comparison, role: "baseline", scope });
+
+    expect(resolution.fixtures[0]?.assurance).toContainEqual({
+      eligibility: "ineligible",
+      kind: "model_assurance",
+      reasons: ["human_review_missing"],
+      reference: modelAssessment,
+    });
+    expect(resolution.fixtures[0]?.artifacts.map(({ artifact }) => artifact.artifactId)).toEqual([
+      "art_evaluation_output",
+      "art_model_counterevidence",
+      "art_model_disagreement",
+      "art_model_policy",
+      "art_replay_result",
+    ]);
+    expect(resolution.knownLimitations).toContain("Model judgment remains contestable evidence.");
+    expect(resolution.sourceCutoff).toBe("2026-09-05T00:00:09.000Z");
+  });
+
+  it("fails closed when an exact model-assurance assessment is missing", async () => {
+    const test = await graph();
+    const comparison = structuredClone(test.comparison);
+    const assessment = {
+      assessmentId: "assessment_comparison",
+      definitionSha256: sha("3"),
+    };
+    const fixture = comparison.baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected comparison fixture");
+    fixture.assessments = [assessment];
+    fixture.modelAssuranceAssessments = [
+      {
+        assessmentExtensionId: "model_assessment_missing",
+        definitionSha256: sha("7"),
+      },
+    ];
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      evidenceRepository: test.evidence,
+      evaluationRepository: evaluationRepository(comparison, assessment),
+      interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
+      replayRepository: test.replay,
+    });
+
+    await expect(resolver.resolve({ comparison, role: "baseline", scope })).rejects.toMatchObject({
+      sourceKind: "model_assurance_assessment",
     });
   });
 });
