@@ -1770,6 +1770,7 @@ describe("replay worker lease authority", () => {
     const secondLeaseId = `lease_worker_reclaim_b_${runKey}`;
     const competingAttemptId = `att_worker_reclaim_c_${runKey}`;
     const competingLeaseId = `lease_worker_reclaim_c_${runKey}`;
+    const reclaimedLeaseDurationMilliseconds = 1_500;
     await withTenantTransaction(apiPool, tenantId, (client) => createJob(client, jobId));
 
     const firstClaim = await withTenantTransaction(workerPool, tenantId, (client) =>
@@ -1799,10 +1800,24 @@ describe("replay worker lease authority", () => {
     await adminPool.query("SELECT pg_sleep(2.05)");
     const reclaimOutcomes = await Promise.allSettled([
       withTenantTransaction(workerPool, tenantId, (client) =>
-        claimJob(client, jobId, secondAttemptId, secondLeaseId, workerProtocol, 100),
+        claimJob(
+          client,
+          jobId,
+          secondAttemptId,
+          secondLeaseId,
+          workerProtocol,
+          reclaimedLeaseDurationMilliseconds,
+        ),
       ),
       withTenantTransaction(workerPool, tenantId, (client) =>
-        claimJob(client, jobId, competingAttemptId, competingLeaseId, workerProtocol, 100),
+        claimJob(
+          client,
+          jobId,
+          competingAttemptId,
+          competingLeaseId,
+          workerProtocol,
+          reclaimedLeaseDurationMilliseconds,
+        ),
       ),
     ]);
     expect(reclaimOutcomes.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
@@ -1862,7 +1877,14 @@ describe("replay worker lease authority", () => {
       withTenantTransaction(workerPool, tenantId, (client) => heartbeatJob(client, firstFence)),
     ).rejects.toMatchObject({ code: "55000" });
     const repeatedClaim = await withTenantTransaction(workerPool, tenantId, (client) =>
-      claimJob(client, jobId, secondFence.attemptId, secondFence.leaseId, workerProtocol, 100),
+      claimJob(
+        client,
+        jobId,
+        secondFence.attemptId,
+        secondFence.leaseId,
+        workerProtocol,
+        reclaimedLeaseDurationMilliseconds,
+      ),
     );
     expect(repeatedClaim.rows).toEqual(reclaimed.rows);
   });
