@@ -28,8 +28,18 @@ import {
 } from "@proofstack/artifacts";
 import {
   type Clock,
+  type ComparisonEvidenceResolver,
+  ComparisonLineageError,
+  type ComparisonRepository,
+  ComparisonRecordConflictError,
+  ComparisonRecordNotFoundError,
+  ComparisonRepositoryContractError,
+  ComparisonResourceConflictError,
+  ComparisonSourceUnavailableError,
   CreateAssessment,
+  CreateComparisonEvidenceSnapshot,
   CreateModelAssuranceAssessment,
+  DeriveComparisonResult,
   EvaluationLineageError,
   EvaluationRecordConflictError,
   EvaluationRecordNotFoundError,
@@ -41,6 +51,7 @@ import {
   ForbiddenError,
   IngestEvidence,
   InvalidEvaluationRecordInputError,
+  InvalidComparisonRecordInputError,
   InvalidModelAssuranceRecordInputError,
   InvalidTraceCursorError,
   ListTraceEvidence,
@@ -51,8 +62,10 @@ import {
   type ModelAssuranceRepository,
   ModelAssuranceRepositoryContractError,
   PublishEvaluationDefinition,
+  PublishComparisonDefinition,
   PublishModelAssuranceDefinition,
   ReadEvaluationRecord,
+  ReadComparisonRecord,
   ReadModelAssuranceRecord,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
@@ -116,6 +129,7 @@ import {
   createAuthenticator,
 } from "./auth.js";
 import type { ApiConfig } from "./config.js";
+import { registerComparisonRoutes } from "./comparison-routes.js";
 import { registerEvaluationRoutes } from "./evaluation-routes.js";
 import {
   type ApiKeyLifecycleService,
@@ -146,6 +160,8 @@ export interface AppDependencies {
   readonly authenticator?: Authenticator;
   readonly checkReadiness?: () => Promise<void>;
   readonly clock?: Clock;
+  readonly comparisonEvidenceResolver?: ComparisonEvidenceResolver;
+  readonly comparisonRepository?: ComparisonRepository;
   readonly evaluationRepository?: EvaluationRepository;
   readonly identityStorage?: IdentityStorage;
   readonly modelAssuranceRepository?: ModelAssuranceRepository;
@@ -193,6 +209,7 @@ export async function createApp(
     });
     const storage =
       dependencies.repository ||
+      dependencies.comparisonRepository ||
       dependencies.evaluationRepository ||
       dependencies.modelAssuranceRepository ||
       dependencies.regressionVersionRepository ||
@@ -203,6 +220,8 @@ export async function createApp(
             ...defaultStorage,
             ...(dependencies.artifactStorage ? { artifacts: dependencies.artifactStorage } : {}),
             checkReadiness: dependencies.checkReadiness ?? defaultStorage.checkReadiness,
+            comparisonRepository:
+              dependencies.comparisonRepository ?? defaultStorage.comparisonRepository,
             evaluationRepository:
               dependencies.evaluationRepository ?? defaultStorage.evaluationRepository,
             modelAssuranceRepository:
@@ -315,6 +334,33 @@ export async function createApp(
         clock,
         repository: storage.evaluationRepository,
       }),
+    });
+    await registerComparisonRoutes(app, {
+      authenticator,
+      createSnapshot: new CreateComparisonEvidenceSnapshot({
+        clock,
+        evidenceResolver:
+          dependencies.comparisonEvidenceResolver ??
+          ({
+            resolve: async ({ comparison, role }) => {
+              const subject = comparison[role];
+              throw new ComparisonSourceUnavailableError(
+                "comparison_evidence_projection",
+                `${subject.dataset.datasetVersionId}:${role}`,
+              );
+            },
+          } satisfies ComparisonEvidenceResolver),
+        repository: storage.comparisonRepository,
+      }),
+      deriveResult: new DeriveComparisonResult({
+        clock,
+        repository: storage.comparisonRepository,
+      }),
+      publishDefinition: new PublishComparisonDefinition({
+        clock,
+        repository: storage.comparisonRepository,
+      }),
+      readRecord: new ReadComparisonRecord(storage.comparisonRepository),
     });
     await registerModelAssuranceRoutes(app, {
       authenticator,
@@ -568,6 +614,55 @@ export async function createApp(
           status: 503,
           title: "Evaluation storage unavailable",
           type: "https://proofstack.dev/problems/evaluation-storage-unavailable",
+        });
+      }
+
+      if (error instanceof InvalidComparisonRecordInputError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The comparison request does not match the required immutable contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid comparison request",
+          type: "https://proofstack.dev/problems/comparison-record-input-invalid",
+        });
+      }
+
+      if (error instanceof ComparisonRecordNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Comparison record not found",
+          type: "https://proofstack.dev/problems/comparison-record-not-found",
+        });
+      }
+
+      if (
+        error instanceof ComparisonLineageError ||
+        error instanceof ComparisonRecordConflictError ||
+        error instanceof ComparisonResourceConflictError ||
+        error instanceof ComparisonSourceUnavailableError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Comparison graph conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (error instanceof ComparisonRepositoryContractError) {
+        return sendProblem(reply, {
+          code: "comparison_storage_unavailable",
+          detail: "Comparison storage is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Comparison storage unavailable",
+          type: "https://proofstack.dev/problems/comparison-storage-unavailable",
         });
       }
 
