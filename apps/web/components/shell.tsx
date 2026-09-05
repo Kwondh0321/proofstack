@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 const navigation = [
   { href: "/", label: "Overview" },
   { href: "/traces", label: "Traces" },
+  { href: "/comparisons", label: "Comparisons" },
 ] as const;
 
 export function Shell({ children }: { readonly children: ReactNode }) {
@@ -16,7 +17,7 @@ export function Shell({ children }: { readonly children: ReactNode }) {
           </span>
           <span>
             <strong>ProofStack</strong>
-            <small>Foundation preview</small>
+            <small>Operator preview</small>
           </span>
         </Link>
 
@@ -30,7 +31,7 @@ export function Shell({ children }: { readonly children: ReactNode }) {
 
         <div className="sidebar-note">
           <span className="status-dot" />
-          Local development identity
+          Development build · incomplete
         </div>
       </aside>
       <main className="main-content">{children}</main>
