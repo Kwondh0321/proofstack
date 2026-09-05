@@ -26,10 +26,11 @@ import {
 import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./primitives.js";
 import { ReplayBudgetDimensionSchema } from "./replay-accounting.js";
 
-export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.2" as const;
+export const COMPARISON_DEFINITION_SCHEMA_VERSION = "0.3" as const;
 export const COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION = "0.1" as const;
 export const MAX_COMPARISON_SUBJECT_FIXTURES = 500;
 export const MAX_COMPARISON_SUBJECT_ASSESSMENTS = 128;
+export const MAX_COMPARISON_STRATA = 64;
 export const MAX_COMPARISON_METRICS = 128;
 export const MAX_COMPARISON_NUMERIC_OBSERVATIONS = 8_000;
 export const MAX_COMPARISON_ARTIFACTS = 4_000;
@@ -115,7 +116,12 @@ export const ComparisonSubjectSchema = z
   .strict();
 
 const NumericAggregationSchema = z.discriminatedUnion("method", [
-  z.object({ method: z.enum(["maximum", "mean", "median", "minimum", "sum"]) }).strict(),
+  z
+    .object({
+      method: z.enum(["maximum", "mean", "median", "minimum", "sum"]),
+      methodVersion: z.literal("1.0.0"),
+    })
+    .strict(),
   z
     .object({
       basisPoints: z.number().int().min(1).max(10_000),
@@ -128,7 +134,22 @@ const NumericAggregationSchema = z.discriminatedUnion("method", [
 const comparisonMetricIdentityShape = {
   label: AssuranceSummarySchema,
   metricId: OpaqueIdSchema,
+  stratumId: OpaqueIdSchema,
 };
+
+export const ComparisonStratumSchema = z
+  .object({
+    fixtureIds: z
+      .array(OpaqueIdSchema)
+      .min(1)
+      .max(MAX_COMPARISON_SUBJECT_FIXTURES)
+      .refine(isStrictlySortedUnique, {
+        message: "Comparison stratum fixture IDs must be unique and ordered",
+      }),
+    label: AssuranceSummarySchema,
+    stratumId: OpaqueIdSchema,
+  })
+  .strict();
 
 export const ComparisonMetricSchema = z.discriminatedUnion("kind", [
   z
@@ -205,10 +226,13 @@ export const ComparisonCalculationPolicySchema = z
   .object({
     confidenceIntervals: z.literal("source_only"),
     decimalArithmetic: z.literal("exact_decimal_v1"),
+    denominators: z.literal("role_fixture_membership_and_paired_observations"),
     fixturePairing: z.literal("logical_fixture_id"),
+    invalidCases: z.literal("preserve_and_exclude_from_aggregation"),
     mean: z.literal("exact_rational_v1"),
     minimumPairedCoverageBasisPoints: z.number().int().min(1).max(10_000),
     missingness: z.literal("preserve_all"),
+    numericObservationMultiplicity: z.literal("at_most_one_per_fixture"),
     quantile: z.literal("nearest_rank_v1"),
   })
   .strict();
@@ -230,6 +254,13 @@ const comparisonDefinitionShape = {
     }),
   name: AssuranceSummarySchema,
   predecessor: ComparisonDefinitionPredecessorSchema.optional(),
+  strata: z
+    .array(ComparisonStratumSchema)
+    .min(1)
+    .max(MAX_COMPARISON_STRATA)
+    .refine((strata) => isStrictlySortedUnique(strata.map(({ stratumId }) => stratumId)), {
+      message: "Comparison strata must be unique and ordered by stratumId",
+    }),
 };
 
 function subjectsEqual(
@@ -237,6 +268,42 @@ function subjectsEqual(
   right: z.infer<typeof ComparisonSubjectSchema>,
 ): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function refineComparisonPopulation(
+  value: {
+    readonly baseline: z.infer<typeof ComparisonSubjectSchema>;
+    readonly candidate: z.infer<typeof ComparisonSubjectSchema>;
+    readonly metrics: readonly z.infer<typeof ComparisonMetricSchema>[];
+    readonly strata: readonly z.infer<typeof ComparisonStratumSchema>[];
+  },
+  context: z.RefinementCtx,
+): void {
+  const fixtureIds = new Set([
+    ...value.baseline.fixtures.map(({ fixture }) => fixture.fixtureId),
+    ...value.candidate.fixtures.map(({ fixture }) => fixture.fixtureId),
+  ]);
+  const stratumIds = new Set(value.strata.map(({ stratumId }) => stratumId));
+  for (const [stratumIndex, stratum] of value.strata.entries()) {
+    for (const [fixtureIndex, fixtureId] of stratum.fixtureIds.entries()) {
+      if (!fixtureIds.has(fixtureId)) {
+        context.addIssue({
+          code: "custom",
+          message: "Comparison strata may reference only fixtures bound by either exact subject",
+          path: ["strata", stratumIndex, "fixtureIds", fixtureIndex],
+        });
+      }
+    }
+  }
+  for (const [metricIndex, metric] of value.metrics.entries()) {
+    if (!stratumIds.has(metric.stratumId)) {
+      context.addIssue({
+        code: "custom",
+        message: "Every comparison metric must reference a declared exact stratum",
+        path: ["metrics", metricIndex, "stratumId"],
+      });
+    }
+  }
 }
 
 function refineComparisonDefinition(
@@ -257,6 +324,7 @@ function refineComparisonDefinition(
       path: ["candidate"],
     });
   }
+  refineComparisonPopulation(value, context);
 }
 
 export const ComparisonDefinitionSchema = z
@@ -293,6 +361,13 @@ export const PublishComparisonDefinitionRequestSchema = z
       }),
     name: AssuranceSummarySchema,
     predecessorVersionId: OpaqueIdSchema.optional(),
+    strata: z
+      .array(ComparisonStratumSchema)
+      .min(1)
+      .max(MAX_COMPARISON_STRATA)
+      .refine((strata) => isStrictlySortedUnique(strata.map(({ stratumId }) => stratumId)), {
+        message: "Comparison strata must be unique and ordered by stratumId",
+      }),
   })
   .strict()
   .superRefine((value, context) => {
@@ -310,6 +385,7 @@ export const PublishComparisonDefinitionRequestSchema = z
         path: ["candidate"],
       });
     }
+    refineComparisonPopulation(value, context);
   });
 
 const ExactIntegerSchema = z
@@ -755,6 +831,7 @@ export type ComparisonEvidenceSnapshotReference = z.infer<
   typeof ComparisonEvidenceSnapshotReferenceSchema
 >;
 export type ComparisonRole = z.infer<typeof ComparisonRoleSchema>;
+export type ComparisonStratum = z.infer<typeof ComparisonStratumSchema>;
 export type ComparisonSubject = z.infer<typeof ComparisonSubjectSchema>;
 export type ComparisonSubjectFixture = z.infer<typeof ComparisonSubjectFixtureSchema>;
 export type PublishComparisonDefinitionRequest = z.infer<

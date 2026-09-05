@@ -162,7 +162,13 @@ function validateAggregation(value: ComparisonExactAggregation): void {
     readonly methodVersion?: unknown;
   };
   const method = candidate.method;
-  if (["maximum", "mean", "median", "minimum", "sum"].includes(method as string)) return;
+  if (["maximum", "mean", "median", "minimum", "sum"].includes(method as string)) {
+    if (candidate.methodVersion === "1.0.0") return;
+    throw new ComparisonExactArithmeticError(
+      "invalid_aggregation",
+      "Exact comparison aggregations require method version 1.0.0",
+    );
+  }
   if (method !== "nearest_rank_quantile") {
     throw new ComparisonExactArithmeticError(
       "invalid_aggregation",

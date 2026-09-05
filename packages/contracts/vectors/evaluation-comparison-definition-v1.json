@@ -2,7 +2,7 @@
   "format": "proofstack.evaluation-comparison-definition.v1",
   "vectors": [
     {
-      "encodedByteLength": 3915,
+      "encodedByteLength": 4247,
       "input": {
         "definition": {
           "baseline": {
@@ -69,10 +69,13 @@
           "calculationPolicy": {
             "confidenceIntervals": "source_only",
             "decimalArithmetic": "exact_decimal_v1",
+            "denominators": "role_fixture_membership_and_paired_observations",
             "fixturePairing": "logical_fixture_id",
+            "invalidCases": "preserve_and_exclude_from_aggregation",
             "mean": "exact_rational_v1",
             "minimumPairedCoverageBasisPoints": 8000,
             "missingness": "preserve_all",
+            "numericObservationMultiplicity": "at_most_one_per_fixture",
             "quantile": "nearest_rank_v1"
           },
           "candidate": {
@@ -143,15 +146,24 @@
           "metrics": [
             {
               "aggregation": {
-                "method": "median"
+                "method": "median",
+                "methodVersion": "1.0.0"
               },
               "dimension": "elapsedMilliseconds",
               "kind": "replay_usage",
               "label": "Median elapsed milliseconds",
-              "metricId": "metric_elapsed"
+              "metricId": "metric_elapsed",
+              "stratumId": "stratum_all"
             }
           ],
-          "name": "Exact login evidence comparison"
+          "name": "Exact login evidence comparison",
+          "strata": [
+            {
+              "fixtureIds": ["fixture_login"],
+              "label": "All requested fixtures",
+              "stratumId": "stratum_all"
+            }
+          ]
         },
         "scope": {
           "environmentId": "environment_reference",
@@ -161,7 +173,7 @@
       },
       "kind": "comparison_definition",
       "name": "exact baseline and candidate definition",
-      "sha256": "db41b5c91dd537ace7e01dee1016380ea2d32c43905e15c4ac0e7ebe2cad5556"
+      "sha256": "9aaf324ff780611b0c9739de926bb220e4b19b50d841477d11ac7fc7646df507"
     }
   ]
 }

@@ -81,10 +81,13 @@ function definition() {
     calculationPolicy: {
       confidenceIntervals: "source_only",
       decimalArithmetic: "exact_decimal_v1",
+      denominators: "role_fixture_membership_and_paired_observations",
       fixturePairing: "logical_fixture_id",
+      invalidCases: "preserve_and_exclude_from_aggregation",
       mean: "exact_rational_v1",
       minimumPairedCoverageBasisPoints: 8_000,
       missingness: "preserve_all",
+      numericObservationMultiplicity: "at_most_one_per_fixture",
       quantile: "nearest_rank_v1",
     },
     candidate: subject("candidate"),
@@ -95,10 +98,11 @@ function definition() {
     metrics: [
       {
         dimension: "elapsedMilliseconds",
-        aggregation: { method: "median" },
+        aggregation: { method: "median", methodVersion: "1.0.0" },
         kind: "replay_usage",
         label: "Median replay elapsed time",
         metricId: "metric_elapsed",
+        stratumId: "stratum_all",
       },
       {
         criterion: {
@@ -112,10 +116,18 @@ function definition() {
         kind: "evaluation_verdict_count",
         label: "Failed login evaluations",
         metricId: "metric_failures",
+        stratumId: "stratum_all",
         verdict: "fail",
       },
     ],
     name: "Login evidence comparison",
+    strata: [
+      {
+        fixtureIds: ["fixture_login"],
+        label: "All requested fixtures",
+        stratumId: "stratum_all",
+      },
+    ],
   } as const;
 }
 
@@ -213,6 +225,7 @@ describe("comparison definition contracts", () => {
         kind: "replay_usage",
         label: "P95 provider cost",
         metricId: "metric_cost_p95",
+        stratumId: "stratum_all",
       }).success,
     ).toBe(true);
     expect(
@@ -226,6 +239,17 @@ describe("comparison definition contracts", () => {
         kind: "replay_usage",
         label: "Invalid quantile",
         metricId: "metric_invalid",
+        stratumId: "stratum_all",
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonMetricSchema.safeParse({
+        aggregation: { method: "mean" },
+        dimension: "providerCostMicrounits",
+        kind: "replay_usage",
+        label: "Unversioned mean",
+        metricId: "metric_unversioned",
+        stratumId: "stratum_all",
       }).success,
     ).toBe(false);
     expect(
@@ -233,6 +257,7 @@ describe("comparison definition contracts", () => {
         kind: "weighted_release_score",
         label: "Forbidden score",
         metricId: "metric_release",
+        stratumId: "stratum_all",
         threshold: "0.95",
       }).success,
     ).toBe(false);
@@ -252,10 +277,67 @@ describe("comparison definition contracts", () => {
       ).toBe(false);
     }
 
-    const missingPolicy = structuredClone(valid) as Record<string, unknown>;
-    const calculationPolicy = missingPolicy["calculationPolicy"] as Record<string, unknown>;
-    delete calculationPolicy["minimumPairedCoverageBasisPoints"];
-    expect(ComparisonDefinitionSchema.safeParse(missingPolicy).success).toBe(false);
+    const { minimumPairedCoverageBasisPoints: _minimumCoverage, ...policyWithoutCoverage } =
+      valid.calculationPolicy;
+    expect(_minimumCoverage).toBe(8_000);
+    expect(
+      ComparisonDefinitionSchema.safeParse({
+        ...valid,
+        calculationPolicy: policyWithoutCoverage,
+      }).success,
+    ).toBe(false);
+
+    for (const field of [
+      "denominators",
+      "invalidCases",
+      "numericObservationMultiplicity",
+    ] as const) {
+      const policyWithoutRule = Object.fromEntries(
+        Object.entries(valid.calculationPolicy).filter(([key]) => key !== field),
+      );
+      expect(
+        ComparisonDefinitionSchema.safeParse({
+          ...valid,
+          calculationPolicy: policyWithoutRule,
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("binds finite strata and every metric to an exact declared population", () => {
+    const valid = definition();
+    expect(
+      ComparisonDefinitionSchema.safeParse({
+        ...valid,
+        metrics: valid.metrics.map((metric) => ({ ...metric, stratumId: "stratum_missing" })),
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonDefinitionSchema.safeParse({
+        ...valid,
+        strata: [
+          {
+            fixtureIds: ["fixture_not_requested"],
+            label: "Unknown population",
+            stratumId: "stratum_unknown",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ComparisonDefinitionSchema.safeParse({
+        ...valid,
+        strata: [valid.strata[0], { ...valid.strata[0], stratumId: "stratum_all" }],
+      }).success,
+    ).toBe(false);
+    const { comparisonId: _comparisonId, ...request } = valid;
+    expect(_comparisonId).toBe("comparison_login");
+    expect(
+      PublishComparisonDefinitionRequestSchema.safeParse({
+        ...request,
+        metrics: request.metrics.map((metric) => ({ ...metric, stratumId: "stratum_missing" })),
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts only canonical server provenance", () => {

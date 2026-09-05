@@ -57,6 +57,9 @@ describe("canonical comparison definition encoding", () => {
     const text = Buffer.from(original).toString("utf8");
     expect(text).toContain(COMPARISON_DEFINITION_DOMAIN);
     expect(text).toContain(`"schemaVersion":"${COMPARISON_DEFINITION_SCHEMA_VERSION}"`);
+    expect(text).toContain('"denominators":"role_fixture_membership_and_paired_observations"');
+    expect(text).toContain('"invalidCases":"preserve_and_exclude_from_aggregation"');
+    expect(text).toContain('"numericObservationMultiplicity":"at_most_one_per_fixture"');
 
     const mutations: ((candidate: ComparisonVector["input"]) => void)[] = [
       (candidate) => {
@@ -78,7 +81,7 @@ describe("canonical comparison definition encoding", () => {
       (candidate) => {
         const metric = candidate.definition.metrics[0];
         if (metric?.kind !== "replay_usage") throw new Error("Expected usage metric");
-        metric.aggregation = { method: "maximum" };
+        metric.aggregation = { method: "maximum", methodVersion: "1.0.0" };
       },
       (candidate) => {
         candidate.definition.calculationPolicy.minimumPairedCoverageBasisPoints = 9_000;
@@ -87,6 +90,18 @@ describe("canonical comparison definition encoding", () => {
         candidate.definition.calculationPolicy.missingness = "preserve_all";
         candidate.definition.classifiedContentProjection = "metadata_only";
         candidate.definition.name = "Changed exact comparison";
+      },
+      (candidate) => {
+        const stratum = candidate.definition.strata[0];
+        if (!stratum) throw new Error("Expected comparison stratum");
+        stratum.label = "Changed population";
+      },
+      (candidate) => {
+        const metric = candidate.definition.metrics[0];
+        const stratum = candidate.definition.strata[0];
+        if (!metric || !stratum) throw new Error("Expected comparison metric and stratum");
+        stratum.stratumId = "stratum_other";
+        metric.stratumId = "stratum_other";
       },
     ];
     for (const mutate of mutations) {

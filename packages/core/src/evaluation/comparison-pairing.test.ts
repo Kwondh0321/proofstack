@@ -385,6 +385,7 @@ describe("exact comparison pairing", () => {
         },
         fixtures: [cloneFixture(candidateFixture, "fixture_beta", "fixture_beta_v1", "2")],
       },
+      strata: [{ ...source.strata[0], fixtureIds: ["fixture_alpha", "fixture_beta"] }],
     });
     const result = pairComparisonEvidence({
       baseline: snapshot(definition, "baseline"),

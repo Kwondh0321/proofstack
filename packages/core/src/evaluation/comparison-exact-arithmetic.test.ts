@@ -34,6 +34,7 @@ describe("exact comparison arithmetic", () => {
     expect(
       aggregateComparisonExactValues([decimal("1.20"), decimal("-0.2"), rational("1", "3")], {
         method: "sum",
+        methodVersion: "1.0.0",
       }),
     ).toEqual(rational("4", "3"));
   });
@@ -42,24 +43,26 @@ describe("exact comparison arithmetic", () => {
     expect(
       aggregateComparisonExactValues([decimal("1"), decimal("0"), decimal("0")], {
         method: "mean",
+        methodVersion: "1.0.0",
       }),
     ).toEqual(rational("1", "3"));
   });
 
   it("derives ordered extrema and odd or even medians across negative values", () => {
     const values = [decimal("10"), decimal("-2"), decimal("1"), decimal("0")];
-    expect(aggregateComparisonExactValues(values, { method: "minimum" })).toEqual(
-      rational("-2", "1"),
-    );
-    expect(aggregateComparisonExactValues(values, { method: "maximum" })).toEqual(
-      rational("10", "1"),
-    );
-    expect(aggregateComparisonExactValues(values, { method: "median" })).toEqual(
-      rational("1", "2"),
-    );
+    expect(
+      aggregateComparisonExactValues(values, { method: "minimum", methodVersion: "1.0.0" }),
+    ).toEqual(rational("-2", "1"));
+    expect(
+      aggregateComparisonExactValues(values, { method: "maximum", methodVersion: "1.0.0" }),
+    ).toEqual(rational("10", "1"));
+    expect(
+      aggregateComparisonExactValues(values, { method: "median", methodVersion: "1.0.0" }),
+    ).toEqual(rational("1", "2"));
     expect(
       aggregateComparisonExactValues([decimal("10"), decimal("-2"), decimal("1")], {
         method: "median",
+        methodVersion: "1.0.0",
       }),
     ).toEqual(rational("1", "1"));
   });
@@ -86,15 +89,15 @@ describe("exact comparison arithmetic", () => {
   it("is invariant to input order and exact input representation", () => {
     const first = aggregateComparisonExactValues(
       [decimal("0.5"), rational("2", "3"), rational("1", "3")],
-      { method: "mean" },
+      { method: "mean", methodVersion: "1.0.0" },
     );
     const equivalent = aggregateComparisonExactValues(
       [rational("1", "3"), rational("1", "2"), rational("2", "3")],
-      { method: "mean" },
+      { method: "mean", methodVersion: "1.0.0" },
     );
     const rounded = aggregateComparisonExactValues(
       [decimal("0.333333333333333333"), decimal("0.5"), rational("2", "3")],
-      { method: "mean" },
+      { method: "mean", methodVersion: "1.0.0" },
     );
     expect(first).toEqual(rational("1", "2"));
     expect(equivalent).toEqual(first);
@@ -102,6 +105,7 @@ describe("exact comparison arithmetic", () => {
     expect(
       aggregateComparisonExactValues([rational("1", "3"), decimal("0.5"), rational("2", "3")], {
         method: "mean",
+        methodVersion: "1.0.0",
       }),
     ).toEqual(first);
   });
@@ -116,22 +120,29 @@ describe("exact comparison arithmetic", () => {
 
   it("rejects empty, oversized, malformed, mixed-unit, and invalid quantile inputs", () => {
     expectArithmeticError(
-      () => aggregateComparisonExactValues([], { method: "sum" }),
+      () => aggregateComparisonExactValues([], { method: "sum", methodVersion: "1.0.0" }),
       "empty_sample",
     );
     const oversized = [] as ComparisonExactValue[];
     oversized.length = MAX_COMPARISON_EXACT_AGGREGATION_VALUES + 1;
     expectArithmeticError(
-      () => aggregateComparisonExactValues(oversized, { method: "sum" }),
+      () => aggregateComparisonExactValues(oversized, { method: "sum", methodVersion: "1.0.0" }),
       "sample_limit_exceeded",
     );
     expectArithmeticError(
-      () => aggregateComparisonExactValues([decimal("01")], { method: "sum" }),
+      () =>
+        aggregateComparisonExactValues([decimal("01")], {
+          method: "sum",
+          methodVersion: "1.0.0",
+        }),
       "invalid_value",
     );
     expectArithmeticError(
       () =>
-        aggregateComparisonExactValues([decimal("1"), decimal("1", "tokens")], { method: "sum" }),
+        aggregateComparisonExactValues([decimal("1"), decimal("1", "tokens")], {
+          method: "sum",
+          methodVersion: "1.0.0",
+        }),
       "mixed_units",
     );
     expectArithmeticError(
@@ -145,6 +156,14 @@ describe("exact comparison arithmetic", () => {
     );
     expectArithmeticError(
       () => aggregateComparisonExactValues([decimal("1")], { method: "unknown" } as never),
+      "invalid_aggregation",
+    );
+    expectArithmeticError(
+      () =>
+        aggregateComparisonExactValues([decimal("1")], {
+          method: "sum",
+          methodVersion: "2.0.0",
+        } as never),
       "invalid_aggregation",
     );
     expectArithmeticError(
@@ -169,14 +188,18 @@ describe("exact comparison arithmetic", () => {
   it("fails closed when a reduced result exceeds the public rational bound", () => {
     const maximum = rational("9".repeat(128), "1");
     expectArithmeticError(
-      () => aggregateComparisonExactValues([maximum, maximum], { method: "sum" }),
+      () =>
+        aggregateComparisonExactValues([maximum, maximum], {
+          method: "sum",
+          methodVersion: "1.0.0",
+        }),
       "result_out_of_bounds",
     );
     expectArithmeticError(
       () =>
         aggregateComparisonExactValues(
           [rational("1", `1${"0".repeat(127)}`), rational("1", "9".repeat(128))],
-          { method: "sum" },
+          { method: "sum", methodVersion: "1.0.0" },
         ),
       "result_out_of_bounds",
     );
