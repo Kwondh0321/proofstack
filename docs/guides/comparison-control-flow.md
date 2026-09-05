@@ -52,6 +52,58 @@ The lab binds only to `127.0.0.1`, accepts a strict bounded JSON body, serves a 
 Security Policy, and assigns a distinct immutable namespace to each run. It intentionally has no
 approval or release control. Stop it with `Control-C` in the terminal where it is running.
 
+## Exercise the API and operator console
+
+Use two terminals to test the complete development path through the real HTTP routes and the web
+console. The first command builds the workspace, starts a loopback-only API, publishes the
+definition and both evidence snapshots through `POST` routes, and derives the result through the
+result route:
+
+```bash
+# Terminal 1
+PROOFSTACK_WEB_PORT=3011 pnpm example:comparison-api
+```
+
+The default API address is <http://127.0.0.1:4318>. Leave that terminal running. Start the operator
+console on port 3011 in the second terminal:
+
+```bash
+# Terminal 2
+pnpm --filter @proofstack/web exec next dev --port 3011
+```
+
+Open the exact result URL printed by Terminal 1. With the defaults, it is
+<http://127.0.0.1:3011/comparisons/result_latency_service>. The page must show all of the following:
+
+- result ID `result_latency_service` and status `comparable`;
+- one requested and paired case, with zero missing or incompatible cases;
+- baseline `125/1 milliseconds`, candidate `100/1 milliseconds`, and delta
+  `-25/1 milliseconds`;
+- complete source IDs, definition digests, timestamps, provenance, policies, safety counts, and
+  retained limitations;
+- an explicit empty state for absent verdict and artifact records; and
+- `Development build · incomplete`, with no approval or release action.
+
+This page is fail-closed: if the API is stopped, malformed, or semantically inconsistent, the
+console reports the unavailable or invalid response instead of substituting demonstration data.
+
+To use port 3000 when it is free, omit `PROOFSTACK_WEB_PORT` and run `pnpm dev:web` in Terminal 2.
+If the API itself must use another port, set the same absolute loopback URL for the web process:
+
+```bash
+# Terminal 1
+PROOFSTACK_PORT=4320 PROOFSTACK_WEB_PORT=3011 pnpm example:comparison-api
+
+# Terminal 2
+PROOFSTACK_API_URL=http://127.0.0.1:4320 \
+pnpm --filter @proofstack/web exec next dev --port 3011
+```
+
+Stop each process with `Control-C` in its terminal. The demonstration uses the real application,
+HTTP, and presentation boundaries, but its adapter is intentionally in-memory: stopping the API
+deletes the demonstration records. It does not prove PostgreSQL persistence, restart recovery,
+production authentication, a live agent integration, or production readiness.
+
 ## Change the experiment
 
 After the first build, run the package directly with different measurements:
@@ -66,6 +118,17 @@ pnpm --filter @proofstack/example-comparison-control-flow start
 That scenario should report a `30 ms` delta and direction `increased`. Measurements must be
 non-negative safe integers. The namespace must contain 1-20 lowercase letters or digits so each
 experiment uses unambiguous immutable IDs.
+
+The same variables work with the service-backed experiment. The namespace determines the exact
+result URL, so this run is available at `/comparisons/result_latency_mytrial`:
+
+```bash
+PROOFSTACK_BASELINE_MS=125 \
+PROOFSTACK_CANDIDATE_MS=150 \
+PROOFSTACK_COMPARISON_NAMESPACE=mytrial \
+PROOFSTACK_WEB_PORT=3011 \
+pnpm example:comparison-api
+```
 
 Run its focused verification independently:
 

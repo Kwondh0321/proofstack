@@ -156,6 +156,19 @@ pnpm example:comparison-control-flow
 `-25 ms` delta를 도출하고 불변 결과를 저장한 뒤 다시 읽습니다. 입력값 변경 방법과 정확한
 제한은 [comparison 실험 가이드](docs/guides/comparison-control-flow.ko.md)를 참고하세요.
 
+같은 comparison을 실제 HTTP API와 운영자 console을 거쳐 시험하려면 서로 다른 terminal에서
+아래 두 명령을 계속 실행한 뒤
+<http://127.0.0.1:3011/comparisons/result_latency_service>를 여세요.
+
+```bash
+PROOFSTACK_WEB_PORT=3011 pnpm example:comparison-api
+pnpm --filter @proofstack/web exec next dev --port 3011
+```
+
+3011번 port는 3000번에서 실행 중인 다른 service와 충돌하지 않게 해줍니다. API 기반
+demonstration은 synthetic·memory-only입니다. 예상 결과, 입력 변경, 종료 방법, 의도적으로
+보장하지 않는 production 범위는 위 가이드에서 확인할 수 있습니다.
+
 정확한 공급자 중립 모델·도구 상호작용 경계를 캡처한 뒤 폐기하려면 다음을 실행합니다.
 
 ```bash

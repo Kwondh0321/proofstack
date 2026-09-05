@@ -155,6 +155,19 @@ derives an exact `-25 ms` delta, persists the immutable result, and reads it bac
 measurements or inspect the precise limitations in the
 [comparison experiment guide](docs/guides/comparison-control-flow.md).
 
+To exercise the same comparison through the actual HTTP API and operator console, keep these two
+commands running in separate terminals, then open
+<http://127.0.0.1:3011/comparisons/result_latency_service>:
+
+```bash
+PROOFSTACK_WEB_PORT=3011 pnpm example:comparison-api
+pnpm --filter @proofstack/web exec next dev --port 3011
+```
+
+Port 3011 avoids collisions with another service on port 3000. The API-backed demonstration is
+synthetic and memory-only; the guide documents expected values, custom inputs, shutdown, and the
+production claims it deliberately does not make.
+
 To capture and then revoke an exact provider-neutral model/tool interaction boundary:
 
 ```bash
