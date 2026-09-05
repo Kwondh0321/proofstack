@@ -6,6 +6,9 @@ import {
   encodeComparisonDefinition,
   encodeComparisonEvidenceSnapshotDefinition,
   encodeComparisonResultDefinition,
+  type ComparisonDefinition,
+  type ComparisonEvidenceSnapshot,
+  type ComparisonResult,
   type EvidenceScope,
 } from "@proofstack/contracts";
 import {
@@ -26,6 +29,12 @@ interface ComparisonRecordDescriptor {
   }) => Uint8Array;
   readonly idOf: (record: ComparisonRecordBase) => string;
   readonly parse: (input: unknown) => ComparisonRecord;
+}
+
+export interface ComparisonRecordReference {
+  readonly definitionSha256: string;
+  readonly recordId: string;
+  readonly recordKind: ComparisonRecordKind;
 }
 
 const receiptKeys = [
@@ -102,4 +111,69 @@ export function validateComparisonRecord(
 
 export function comparisonRecordId(kind: ComparisonRecordKind, record: ComparisonRecord): string {
   return comparisonRecordDescriptors[kind].idOf(record);
+}
+
+function exact(
+  recordKind: ComparisonRecordKind,
+  recordId: string,
+  definitionSha256: string,
+): ComparisonRecordReference {
+  return { definitionSha256, recordId, recordKind };
+}
+
+export function comparisonRecordReferences(
+  kind: ComparisonRecordKind,
+  record: ComparisonRecord,
+): readonly ComparisonRecordReference[] {
+  switch (kind) {
+    case "comparison_definition": {
+      const definition = record as ComparisonDefinition;
+      return definition.predecessor
+        ? [
+            exact(
+              "comparison_definition",
+              definition.predecessor.comparisonVersionId,
+              definition.predecessor.definitionSha256,
+            ),
+          ]
+        : [];
+    }
+    case "comparison_evidence_snapshot": {
+      const snapshot = record as ComparisonEvidenceSnapshot;
+      return [
+        exact(
+          "comparison_definition",
+          snapshot.comparison.comparisonVersionId,
+          snapshot.comparison.definitionSha256,
+        ),
+      ];
+    }
+    case "comparison_result": {
+      const result = record as ComparisonResult;
+      return [
+        exact(
+          "comparison_definition",
+          result.comparison.comparisonVersionId,
+          result.comparison.definitionSha256,
+        ),
+        exact(
+          "comparison_evidence_snapshot",
+          result.baselineSnapshot.snapshotId,
+          result.baselineSnapshot.definitionSha256,
+        ),
+        exact(
+          "comparison_evidence_snapshot",
+          result.candidateSnapshot.snapshotId,
+          result.candidateSnapshot.definitionSha256,
+        ),
+      ];
+    }
+  }
+}
+
+export function comparisonResourceId(
+  kind: ComparisonRecordKind,
+  record: ComparisonRecord,
+): string | null {
+  return kind === "comparison_definition" ? (record as ComparisonDefinition).comparisonId : null;
 }

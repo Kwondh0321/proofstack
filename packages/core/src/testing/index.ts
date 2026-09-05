@@ -14,6 +14,7 @@ export {
   evidenceRepositoryConformanceCases,
 } from "./evidence-repository-conformance.js";
 export { FixedClock } from "./fixed-clock.js";
+export { MemoryComparisonRepository } from "./memory-comparison-repository.js";
 export { MemoryEvaluationRepository } from "./memory-evaluation-repository.js";
 export { MemoryEvidenceRepository } from "./memory-evidence-repository.js";
 export { MemoryModelAssuranceRepository } from "./memory-model-assurance-repository.js";
