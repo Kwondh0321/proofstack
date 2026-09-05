@@ -56,15 +56,21 @@ interface ComparisonRoute {
 
 export interface PublishComparisonDefinitionCommand extends ComparisonRoute {
   readonly comparisonId: string;
+  /** Exact HTTP route binding when invoked through a transport adapter. */
+  readonly comparisonVersionId?: string;
   readonly input: PublishComparisonDefinitionRequest;
 }
 
 export interface CreateComparisonEvidenceSnapshotCommand extends ComparisonRoute {
   readonly input: CreateComparisonEvidenceSnapshotRequest;
+  /** Exact HTTP route binding when invoked through a transport adapter. */
+  readonly snapshotId?: string;
 }
 
 export interface DeriveComparisonResultCommand extends ComparisonRoute {
   readonly input: DeriveComparisonResultRequest;
+  /** Exact HTTP route binding when invoked through a transport adapter. */
+  readonly resultId?: string;
 }
 
 export interface ReadComparisonRecordCommand extends ComparisonRoute {
@@ -404,11 +410,28 @@ export class PublishComparisonDefinition {
   ): Promise<RecordComparisonResult<ComparisonDefinition>> {
     const { principal, scope } = authorizedScope(command, "comparison:manage");
     const comparisonId = OpaqueIdSchema.safeParse(command.comparisonId);
+    const comparisonVersionId =
+      command.comparisonVersionId === undefined
+        ? undefined
+        : OpaqueIdSchema.safeParse(command.comparisonVersionId);
     const parsed = PublishComparisonDefinitionRequestSchema.safeParse(command.input);
-    if (!comparisonId.success || !parsed.success) {
+    if (!comparisonId.success || comparisonVersionId?.success === false || !parsed.success) {
       throw invalidInput(
         "Comparison definition request is invalid",
-        comparisonId.success ? parsed.error : comparisonId.error,
+        !comparisonId.success
+          ? comparisonId.error
+          : comparisonVersionId?.success === false
+            ? comparisonVersionId.error
+            : parsed.error,
+      );
+    }
+    if (
+      comparisonVersionId?.success === true &&
+      parsed.data.comparisonVersionId !== comparisonVersionId.data
+    ) {
+      throw invalidInput(
+        "Comparison definition route and immutable version identifier do not match",
+        undefined,
       );
     }
     let predecessor: ComparisonDefinition["predecessor"];
@@ -506,8 +529,21 @@ export class CreateComparisonEvidenceSnapshot {
     command: CreateComparisonEvidenceSnapshotCommand,
   ): Promise<RecordComparisonResult<ComparisonEvidenceSnapshot>> {
     const { principal, scope } = authorizedScope(command, "comparison:manage");
+    const snapshotId =
+      command.snapshotId === undefined ? undefined : OpaqueIdSchema.safeParse(command.snapshotId);
     const parsed = CreateComparisonEvidenceSnapshotRequestSchema.safeParse(command.input);
-    if (!parsed.success) throw invalidInput("Comparison snapshot request is invalid", parsed.error);
+    if (snapshotId?.success === false || !parsed.success) {
+      throw invalidInput(
+        "Comparison snapshot request is invalid",
+        snapshotId?.success === false ? snapshotId.error : parsed.error,
+      );
+    }
+    if (snapshotId?.success === true && parsed.data.snapshotId !== snapshotId.data) {
+      throw invalidInput(
+        "Comparison snapshot route and immutable identifier do not match",
+        undefined,
+      );
+    }
     const comparison = await exactDefinition(
       this.dependencies.repository,
       scope,
@@ -598,8 +634,21 @@ export class DeriveComparisonResult {
     command: DeriveComparisonResultCommand,
   ): Promise<RecordComparisonResult<ComparisonResult>> {
     const { principal, scope } = authorizedScope(command, "comparison:manage");
+    const resultId =
+      command.resultId === undefined ? undefined : OpaqueIdSchema.safeParse(command.resultId);
     const parsed = DeriveComparisonResultRequestSchema.safeParse(command.input);
-    if (!parsed.success) throw invalidInput("Comparison result request is invalid", parsed.error);
+    if (resultId?.success === false || !parsed.success) {
+      throw invalidInput(
+        "Comparison result request is invalid",
+        resultId?.success === false ? resultId.error : parsed.error,
+      );
+    }
+    if (resultId?.success === true && parsed.data.resultId !== resultId.data) {
+      throw invalidInput(
+        "Comparison result route and immutable identifier do not match",
+        undefined,
+      );
+    }
     const comparison = await exactDefinition(
       this.dependencies.repository,
       scope,

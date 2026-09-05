@@ -493,6 +493,22 @@ describe("comparison recording use cases", () => {
       useCase.execute({
         ...route(),
         comparisonId: "comparison_login",
+        comparisonVersionId: "comparison_different_version",
+        input: definitionRequest(),
+      }),
+    ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
+    await expect(
+      useCase.execute({
+        ...route(),
+        comparisonId: "comparison_login",
+        comparisonVersionId: "",
+        input: definitionRequest(),
+      }),
+    ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
+    await expect(
+      useCase.execute({
+        ...route(),
+        comparisonId: "comparison_login",
         input: { ...definitionRequest(), unexpected: true } as never,
       }),
     ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
@@ -528,6 +544,20 @@ describe("comparison recording use cases", () => {
     });
     await expect(
       useCase.execute({ ...route(), input: { comparison: exact, role: "baseline" } as never }),
+    ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
+    await expect(
+      useCase.execute({
+        ...route(),
+        input: { comparison: exact, role: "baseline", snapshotId: "snapshot_body" },
+        snapshotId: "snapshot_path",
+      }),
+    ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
+    await expect(
+      useCase.execute({
+        ...route(),
+        input: { comparison: exact, role: "baseline", snapshotId: "snapshot_body" },
+        snapshotId: "",
+      }),
     ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
     await expect(
       useCase.execute({
@@ -682,6 +712,12 @@ describe("comparison recording use cases", () => {
     await expect(
       derive.execute({ ...route(), input: { ...input, unexpected: true } as never }),
     ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
+    await expect(
+      derive.execute({ ...route(), input, resultId: "result_different" }),
+    ).rejects.toBeInstanceOf(InvalidComparisonRecordInputError);
+    await expect(derive.execute({ ...route(), input, resultId: "" })).rejects.toBeInstanceOf(
+      InvalidComparisonRecordInputError,
+    );
     await expect(
       derive.execute({
         ...route(),
