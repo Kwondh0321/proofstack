@@ -134,7 +134,7 @@ describe("health routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.json()).toMatchObject({
-      info: { title: "ProofStack API", version: "0.8.0-workflow-1" },
+      info: { title: "ProofStack API", version: "0.9.0-workflow-1" },
       openapi: "3.2.0",
     });
   });

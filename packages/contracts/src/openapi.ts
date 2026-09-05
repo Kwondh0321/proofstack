@@ -60,6 +60,16 @@ import {
   RecordEvaluationRunDecisionRequestSchema,
 } from "./evaluation-api.js";
 import {
+  ComparisonRecordKindSchema,
+  PublishComparisonRecordResponseSchema,
+  ReadComparisonRecordResponseSchema,
+} from "./evaluation-comparison-api.js";
+import {
+  CreateComparisonEvidenceSnapshotRequestSchema,
+  PublishComparisonDefinitionRequestSchema,
+} from "./evaluation-comparison.js";
+import { DeriveComparisonResultRequestSchema } from "./evaluation-comparison-result.js";
+import {
   CreateModelAssuranceAssessmentRequestSchema,
   ModelAssuranceRecordKindSchema,
   PublishModelAssuranceDefinitionRequestSchema,
@@ -75,7 +85,7 @@ import { CreateReplayJobRequestSchema, RequestReplayCancellationSchema } from ".
 import { ReplayPlanDefinitionSchema, TargetReleaseDefinitionSchema } from "./replay-plan.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.8.0-workflow-1" as const;
+export const PROOFSTACK_API_VERSION = "0.9.0-workflow-1" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -260,6 +270,54 @@ const evaluationRecordKindParameter = {
   name: "kind",
   required: true,
   schema: schemaReference("EvaluationRecordKind"),
+} as const;
+
+const comparisonParameter = {
+  description: "Opaque logical comparison identifier within the authorized scope",
+  in: "path",
+  name: "comparisonId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const comparisonVersionParameter = {
+  description: "Exact immutable comparison definition version identifier",
+  in: "path",
+  name: "comparisonVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const comparisonSnapshotParameter = {
+  description: "Exact immutable comparison evidence snapshot identifier",
+  in: "path",
+  name: "snapshotId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const comparisonResultParameter = {
+  description: "Exact immutable derived comparison result identifier",
+  in: "path",
+  name: "resultId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const comparisonRecordParameter = {
+  description: "Exact immutable comparison record identifier",
+  in: "path",
+  name: "recordId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const comparisonRecordKindParameter = {
+  description: "Exact comparison record kind; mutable aliases are not accepted",
+  in: "path",
+  name: "kind",
+  required: true,
+  schema: schemaReference("ComparisonRecordKind"),
 } as const;
 
 const modelAssuranceRecordParameter = {
@@ -465,6 +523,22 @@ const evaluationStorageUnavailableResponse = {
   description: "Evaluation storage is unavailable or violated its public repository contract",
 } as const;
 
+const comparisonNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "The exact comparison record does not exist in the authorized scope",
+} as const;
+
+const comparisonConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable comparison conflicts with existing semantics, exact lineage, or authoritative source availability",
+} as const;
+
+const comparisonStorageUnavailableResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "Comparison storage is unavailable or violated its repository contract",
+} as const;
+
 const modelAssuranceNotFoundResponse = {
   content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
   description: "The exact model-assurance record does not exist in the authorized scope",
@@ -501,6 +575,19 @@ function evaluationJsonResponse(schemaName: string, description: string): Record
     headers: {
       "Cache-Control": {
         description: "Evaluation control-plane responses are never cacheable",
+        schema: { const: "no-store", type: "string" },
+      },
+    },
+  };
+}
+
+function comparisonJsonResponse(schemaName: string, description: string): Record<string, unknown> {
+  return {
+    content: { "application/json": { schema: schemaReference(schemaName) } },
+    description,
+    headers: {
+      "Cache-Control": {
+        description: "Comparison control-plane responses are never cacheable",
         schema: { const: "no-store", type: "string" },
       },
     },
@@ -554,6 +641,24 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "output",
     ),
     ...componentsFor("ReadEvaluationRecordResponse", ReadEvaluationRecordResponseSchema, "output"),
+    ...componentsFor("ComparisonRecordKind", ComparisonRecordKindSchema, "input"),
+    ...componentsFor(
+      "PublishComparisonDefinitionRequest",
+      PublishComparisonDefinitionRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "CreateComparisonEvidenceSnapshotRequest",
+      CreateComparisonEvidenceSnapshotRequestSchema,
+      "input",
+    ),
+    ...componentsFor("DeriveComparisonResultRequest", DeriveComparisonResultRequestSchema, "input"),
+    ...componentsFor(
+      "PublishComparisonRecordResponse",
+      PublishComparisonRecordResponseSchema,
+      "output",
+    ),
+    ...componentsFor("ReadComparisonRecordResponse", ReadComparisonRecordResponseSchema, "output"),
     ...componentsFor("ModelAssuranceRecordKind", ModelAssuranceRecordKindSchema, "input"),
     ...componentsFor(
       "PublishModelAssuranceDefinitionRequest",
@@ -710,7 +815,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, exact immutable evaluation control, durable bounded replay control, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, immutable evaluation and evidence-comparison control, durable bounded replay control, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -1765,6 +1870,144 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             tags: ["Evaluation"],
           },
         },
+      "/v1/projects/{projectId}/environments/{environmentId}/comparisons/{comparisonId}/definitions/{comparisonVersionId}":
+        {
+          post: {
+            description:
+              "Publishes one exact immutable baseline/candidate comparison definition. Every dataset, fixture, terminal replay, assessment, and model-assurance reference is digest-bound. The result remains descriptive and cannot approve a release. Requires non-delegable comparison:manage authority.",
+            operationId: "publishComparisonDefinition",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              comparisonParameter,
+              comparisonVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishComparisonDefinitionRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": comparisonJsonResponse(
+                "PublishComparisonRecordResponse",
+                "An identical retry returned the existing immutable comparison definition",
+              ),
+              "201": comparisonJsonResponse(
+                "PublishComparisonRecordResponse",
+                "A new immutable comparison definition was published",
+              ),
+              ...problemResponses,
+              "409": comparisonConflictResponse,
+              "503": comparisonStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish an exact comparison definition",
+            tags: ["Comparison"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/comparisons/evidence-snapshots/{snapshotId}":
+        {
+          post: {
+            description:
+              "Freezes one server-derived bounded projection of the exact baseline or candidate evidence named by a comparison definition. Callers submit only immutable references; trace, usage, safety, omission, artifact, and assessment values are resolved authoritatively and cannot be caller-authored. Requires non-delegable comparison:manage authority.",
+            operationId: "createComparisonEvidenceSnapshot",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              comparisonSnapshotParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("CreateComparisonEvidenceSnapshotRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": comparisonJsonResponse(
+                "PublishComparisonRecordResponse",
+                "An identical retry returned the existing immutable evidence snapshot",
+              ),
+              "201": comparisonJsonResponse(
+                "PublishComparisonRecordResponse",
+                "A new immutable comparison evidence snapshot was frozen",
+              ),
+              ...problemResponses,
+              "409": comparisonConflictResponse,
+              "503": comparisonStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Freeze exact comparison evidence",
+            tags: ["Comparison"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/comparisons/results/{resultId}": {
+        post: {
+          description:
+            "Derives one immutable policy-independent result from exact baseline and candidate evidence snapshots using bounded case pairing and exact arithmetic. The caller cannot submit metric values, a verdict, or release authority. Requires non-delegable comparison:manage authority.",
+          operationId: "deriveComparisonResult",
+          parameters: [
+            projectParameter,
+            environmentParameter,
+            comparisonResultParameter,
+            ...browserMutationParameters,
+          ],
+          requestBody: {
+            content: {
+              "application/json": { schema: schemaReference("DeriveComparisonResultRequest") },
+            },
+            required: true,
+          },
+          responses: {
+            "200": comparisonJsonResponse(
+              "PublishComparisonRecordResponse",
+              "An identical retry returned the existing immutable comparison result",
+            ),
+            "201": comparisonJsonResponse(
+              "PublishComparisonRecordResponse",
+              "A new immutable comparison result was derived",
+            ),
+            ...problemResponses,
+            "409": comparisonConflictResponse,
+            "503": comparisonStorageUnavailableResponse,
+          },
+          security: browserSecurity,
+          summary: "Derive an exact comparison result",
+          tags: ["Comparison"],
+        },
+      },
+      "/v1/projects/{projectId}/environments/{environmentId}/comparisons/records/{kind}/{recordId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable comparison definition, evidence snapshot, or result by strict kind and identifier. Cross-scope and absent records share the same not-found response. There is no latest alias.",
+            operationId: "getComparisonRecord",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              comparisonRecordKindParameter,
+              comparisonRecordParameter,
+            ],
+            responses: {
+              "200": comparisonJsonResponse(
+                "ReadComparisonRecordResponse",
+                "The exact immutable comparison record",
+              ),
+              ...problemResponses,
+              "404": comparisonNotFoundResponse,
+              "503": comparisonStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact comparison record",
+            tags: ["Comparison"],
+          },
+        },
       "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/definitions/{recordId}":
         {
           post: {
@@ -2272,6 +2515,11 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         description:
           "Exact immutable evaluation definitions, lifecycle decisions, assessments, and graph reads",
         name: "Evaluation",
+      },
+      {
+        description:
+          "Policy-independent exact baseline/candidate evidence snapshots and derived results",
+        name: "Comparison",
       },
       {
         description:

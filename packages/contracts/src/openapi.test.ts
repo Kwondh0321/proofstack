@@ -20,7 +20,7 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.8.0-workflow-1" },
+      info: { version: "0.9.0-workflow-1" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -35,6 +35,13 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/identity/api-keys/{credentialId}/revoke": {},
         "/v1/identity/api-keys/{credentialId}/rotate": {},
         "/v1/projects/{projectId}/environments/{environmentId}/evidence": {},
+        "/v1/projects/{projectId}/environments/{environmentId}/comparisons/{comparisonId}/definitions/{comparisonVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/comparisons/evidence-snapshots/{snapshotId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/comparisons/records/{kind}/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/comparisons/results/{resultId}": {},
         "/v1/projects/{projectId}/environments/{environmentId}/evaluations/assessments/{recordId}":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/evaluations/criterion-set-statuses/{recordId}":
@@ -87,6 +94,85 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}": {},
       },
     });
+  });
+
+  it("documents policy-independent exact comparison control without mutable aliases", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+        post?: {
+          parameters: Array<{ name: string }>;
+          requestBody: { content: { "application/json": { schema: { $ref: string } } } };
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const prefix = "/v1/projects/{projectId}/environments/{environmentId}/comparisons";
+    const definition = paths[`${prefix}/{comparisonId}/definitions/{comparisonVersionId}`]?.post;
+    const snapshot = paths[`${prefix}/evidence-snapshots/{snapshotId}`]?.post;
+    const result = paths[`${prefix}/results/{resultId}`]?.post;
+    const read = paths[`${prefix}/records/{kind}/{recordId}`]?.get;
+
+    for (const operation of [definition, snapshot, result]) {
+      expect(operation?.security).toEqual([{ browserSession: [] }]);
+      expect(operation?.responses).toHaveProperty("200");
+      expect(operation?.responses).toHaveProperty("201");
+      expect(operation?.responses).toHaveProperty("409");
+      expect(operation?.responses).toHaveProperty("503");
+      expect(operation?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+      expect(operation?.parameters.map(({ name }) => name)).toContain("X-ProofStack-CSRF");
+    }
+    expect(read?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(read?.responses).toHaveProperty("404");
+    expect(read?.responses).toHaveProperty("503");
+    expect(read?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    expect(definition?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "comparisonId",
+      "comparisonVersionId",
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
+    expect(snapshot?.parameters.map(({ name }) => name)).toContain("snapshotId");
+    expect(result?.parameters.map(({ name }) => name)).toContain("resultId");
+    expect(read?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "kind",
+      "recordId",
+    ]);
+    expect(definition?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/PublishComparisonDefinitionRequest",
+    );
+    expect(snapshot?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/CreateComparisonEvidenceSnapshotRequest",
+    );
+    expect(result?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/DeriveComparisonResultRequest",
+    );
+    for (const schema of [
+      "ComparisonRecordKind",
+      "PublishComparisonDefinitionRequest",
+      "CreateComparisonEvidenceSnapshotRequest",
+      "DeriveComparisonResultRequest",
+      "PublishComparisonRecordResponse",
+      "ReadComparisonRecordResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
+    const comparisonPaths = Object.keys(paths).filter((path) => path.includes("/comparisons/"));
+    expect(comparisonPaths).toHaveLength(4);
+    expect(comparisonPaths.some((path) => /latest|approve|release/.test(path))).toBe(false);
   });
 
   it("documents separated exact model-assurance authority and no mutable aliases", () => {
