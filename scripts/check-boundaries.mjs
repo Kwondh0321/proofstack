@@ -173,6 +173,18 @@ const modules = [
     directory: "examples/evaluation-control-flow/src",
     packageName: "@proofstack/example-evaluation-control-flow",
   },
+  {
+    allowed: new Set([
+      "@proofstack/contracts",
+      "@proofstack/core",
+      "@proofstack/evaluation-worker",
+      "@proofstack/model-evaluation-worker",
+      "@proofstack/sdk",
+    ]),
+    directory: "examples/model-assurance-control-flow/src",
+    packageName: "@proofstack/example-model-assurance-control-flow",
+    testAllowed: new Set(["@proofstack/api", "@proofstack/postgres"]),
+  },
 ];
 
 const internalPackages = new Set(modules.map((module) => module.packageName));
