@@ -131,6 +131,7 @@ describe("migration inspection", () => {
         "0043_comparison_graph",
         "0044_source_reviewer_qualifications",
         "0045_release_candidate_graph",
+        "0046_policy_author_capabilities",
       ],
     });
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CapabilitySchema,
   PrincipalContextSchema,
   WORKLOAD_DELEGABLE_CAPABILITIES,
   WorkloadCapabilitySchema,
@@ -133,6 +134,7 @@ describe("WorkloadCapabilitySchema", () => {
     "replay:cancel",
     "evaluation:run",
     "evaluation:model:run",
+    "policy:read",
     "policy:evaluate",
   ])("accepts delegable capability %s", (capability) => {
     expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(true);
@@ -148,6 +150,7 @@ describe("WorkloadCapabilitySchema", () => {
     "comparison:manage",
     "identity:manage",
     "approval:decide",
+    "policy:author",
     "project:manage",
     "policy:manage",
   ])("rejects administrative capability %s", (capability) => {
@@ -157,5 +160,15 @@ describe("WorkloadCapabilitySchema", () => {
   it("allows comparison reads without delegating comparison management", () => {
     expect(WorkloadCapabilitySchema.safeParse("comparison:read").success).toBe(true);
     expect(WorkloadCapabilitySchema.safeParse("comparison:manage").success).toBe(false);
+  });
+
+  it("separates policy reading, authoring, and reserved evaluation authority", () => {
+    expect(CapabilitySchema.safeParse("policy:read").success).toBe(true);
+    expect(CapabilitySchema.safeParse("policy:author").success).toBe(true);
+    expect(CapabilitySchema.safeParse("policy:evaluate").success).toBe(true);
+    expect(CapabilitySchema.safeParse("policy:manage").success).toBe(false);
+    expect(WorkloadCapabilitySchema.safeParse("policy:read").success).toBe(true);
+    expect(WorkloadCapabilitySchema.safeParse("policy:evaluate").success).toBe(true);
+    expect(WorkloadCapabilitySchema.safeParse("policy:author").success).toBe(false);
   });
 });

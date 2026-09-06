@@ -164,6 +164,7 @@ describe("PostgreSQL evidence schema", () => {
       "0043_comparison_graph",
       "0044_source_reviewer_qualifications",
       "0045_release_candidate_graph",
+      "0046_policy_author_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -543,6 +544,9 @@ describe("PostgreSQL evidence schema", () => {
       readonly evaluationModelRunWorkload: boolean;
       readonly comparisonManagementWorkload: boolean;
       readonly comparisonReadWorkload: boolean;
+      readonly policyAuthorWorkload: boolean;
+      readonly policyManageUser: boolean;
+      readonly policyReadWorkload: boolean;
       readonly replayManagementWorkload: boolean;
     }>(
       `
@@ -566,6 +570,15 @@ describe("PostgreSQL evidence schema", () => {
             ARRAY['comparison:manage']::text[]
           ) AS "comparisonManagementWorkload",
           public.proofstack_valid_workload_capabilities(
+            ARRAY['policy:read']::text[]
+          ) AS "policyReadWorkload",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['policy:author']::text[]
+          ) AS "policyAuthorWorkload",
+          public.proofstack_valid_user_capabilities(
+            ARRAY['policy:manage']::text[]
+          ) AS "policyManageUser",
+          public.proofstack_valid_workload_capabilities(
             ARRAY['replay:manage']::text[]
           ) AS "replayManagementWorkload"
       `,
@@ -579,6 +592,9 @@ describe("PostgreSQL evidence schema", () => {
       evaluationHumanReviewWorkload: false,
       evaluationManagementWorkload: false,
       evaluationModelRunWorkload: true,
+      policyAuthorWorkload: false,
+      policyManageUser: false,
+      policyReadWorkload: true,
       replayManagementWorkload: false,
     });
 
