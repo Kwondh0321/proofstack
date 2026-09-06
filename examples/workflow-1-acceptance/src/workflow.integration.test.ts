@@ -422,7 +422,11 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
+    const assessmentValidUntil = new Date(
+      clock.now().getTime() + 24 * 60 * 60 * 1_000,
+    ).toISOString();
     const prepared = await prepareWorkflow1Acceptance({
+      assessmentValidUntil,
       comparisonClient: comparisonClient(),
       controlPrincipal,
       durableReplay: {

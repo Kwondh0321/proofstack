@@ -75,7 +75,13 @@ function clientWithGraph(options: { readonly corruptObservation?: boolean } = {}
     ],
   ]);
   return {
-    readRecord: async ({ kind, recordId }: { readonly kind: string; readonly recordId: string }) => {
+    readRecord: async ({
+      kind,
+      recordId,
+    }: {
+      readonly kind: string;
+      readonly recordId: string;
+    }) => {
       const result = records.get(`${kind}:${recordId}`);
       if (!result) throw new Error(`Missing test record ${kind}:${recordId}`);
       return { requestId: "req_oracle_resolution", result };

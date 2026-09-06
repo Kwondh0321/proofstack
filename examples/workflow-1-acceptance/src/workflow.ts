@@ -33,6 +33,7 @@ type EvaluationClient = EvaluationOptions["client"] & ModelAssuranceOptions["eva
 type ModelClient = ModelAssuranceOptions["modelClient"];
 
 export interface PrepareWorkflow1AcceptanceOptions {
+  readonly assessmentValidUntil: string;
   readonly comparisonClient: ComparisonClient;
   readonly controlPrincipal: PrincipalContext;
   readonly durableReplay: RunDurableReplayExampleOptions;
@@ -149,6 +150,7 @@ export async function prepareWorkflow1Acceptance(
   }
 
   const modelAssurance = await runModelAssuranceControlFlow({
+    assessmentValidUntil: options.assessmentValidUntil,
     baseAssessment,
     evaluationClient: options.evaluationClient,
     evaluationWorker: options.evaluationWorker,

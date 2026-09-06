@@ -71,6 +71,7 @@ type ModelWorkerKind =
   | "model_qualification_report";
 
 export interface ModelAssuranceControlFlowOptions {
+  readonly assessmentValidUntil?: string;
   readonly baseAssessment?: Assessment;
   readonly evaluationClient: EvaluationClient;
   readonly evaluationWorker: EvaluationWorkerOperations;
@@ -759,6 +760,9 @@ export async function runModelAssuranceControlFlow(
   finalDefinition.nonModelEvidence.oracles = [
     ...(await resolveAssessmentOracleReferences(options.evaluationClient, critical.record)),
   ];
+  if (options.assessmentValidUntil !== undefined) {
+    finalDefinition.validUntil = options.assessmentValidUntil;
+  }
 
   options.selectApiPrincipal(
     userPrincipal(scope.tenantId, "usr_assurance_manager", `req_${options.namespace}_final`),
