@@ -90,6 +90,10 @@
       "types": "./dist/release-policy.d.ts",
       "import": "./dist/release-policy.js"
     },
+    "./release-policy-api": {
+      "types": "./dist/release-policy-api.d.ts",
+      "import": "./dist/release-policy-api.js"
+    },
     "./release-policy-definition-encoding": {
       "types": "./dist/release-policy-definition-encoding.d.ts",
       "import": "./dist/release-policy-definition-encoding.js"
