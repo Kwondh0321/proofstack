@@ -7,6 +7,7 @@ import type {
   QualificationFixtureSet,
   QualificationReport,
   SourceReviewRecord,
+  SourceReviewerQualification,
   SourceSnapshot,
 } from "@proofstack/contracts";
 import { CriterionSetDefinitionSchema } from "@proofstack/contracts";
@@ -29,6 +30,7 @@ type RecordByKind = {
   qualification_fixture_set: QualificationFixtureSet;
   qualification_report: QualificationReport;
   source_review: SourceReviewRecord;
+  source_reviewer_qualification: SourceReviewerQualification;
   source_snapshot: SourceSnapshot;
 };
 
@@ -91,6 +93,13 @@ const receiptKeys: Readonly<Record<keyof RecordByKind, readonly string[]>> = {
     "schemaVersion",
     "scope",
   ],
+  source_reviewer_qualification: [
+    "definitionSha256",
+    "recordedAt",
+    "schemaVersion",
+    "scope",
+    "verifiedByPrincipalId",
+  ],
   source_snapshot: [
     "definitionSha256",
     "publishedByPrincipalId",
@@ -122,6 +131,7 @@ function redigest<K extends keyof RecordByKind>(kind: K, value: RecordByKind[K])
 function availableArtifacts(input: {
   readonly reports: readonly QualificationReport[];
   readonly review: SourceReviewRecord;
+  readonly reviewerQualifications: readonly SourceReviewerQualification[];
   readonly source: SourceSnapshot;
 }): CriteriaTrustArtifactAvailability[] {
   const references = [
@@ -130,6 +140,7 @@ function availableArtifacts(input: {
       ? input.source.identityVerification.evidence
       : []),
     ...input.review.reviewBasis,
+    ...input.reviewerQualifications.flatMap(({ credentialEvidence }) => credentialEvidence),
     ...input.reports.flatMap((report) => [
       ...report.environmentEvidence,
       ...report.caseResults.flatMap(({ rawEvidence }) => rawEvidence),
@@ -155,8 +166,15 @@ function fixture(): EvaluateCriteriaTrustInput {
     (value) => value.status === "approved",
   );
   const source = record(records, "source_snapshot");
+  const reviewerQualification = record(records, "source_reviewer_qualification");
+  reviewerQualification.reviewerPrincipalId = "usr_source_reviewer";
+  redigest("source_reviewer_qualification", reviewerQualification);
   const review = record(records, "source_review");
   review.reviewedByPrincipalId = "usr_source_reviewer";
+  review.reviewerQualification = {
+    definitionSha256: reviewerQualification.definitionSha256,
+    qualificationId: reviewerQualification.qualificationId,
+  };
   review.declaredRelationships = [];
   redigest("source_review", review);
   const sourceReference = criterionSet.sources[0];
@@ -183,7 +201,12 @@ function fixture(): EvaluateCriteriaTrustInput {
   );
   oracleReport.executedByPrincipalId = "wrk_oracle_qualifier";
   const reports = [evaluatorReport, oracleReport];
-  const artifacts = availableArtifacts({ reports, review, source });
+  const artifacts = availableArtifacts({
+    reports,
+    review,
+    reviewerQualifications: [reviewerQualification],
+    source,
+  });
 
   return {
     artifacts,
@@ -206,16 +229,7 @@ function fixture(): EvaluateCriteriaTrustInput {
       requesterPrincipalId: "usr_task_requester",
       scope: structuredClone(criterionSet.scope),
     },
-    reviewerQualifications: [
-      {
-        evidence: structuredClone(review.reviewBasis),
-        reviewerPrincipalId: review.reviewedByPrincipalId,
-        status: "qualified",
-        validFrom: "2026-09-01T00:00:00.000Z",
-        validUntil: "2026-12-01T00:00:00.000Z",
-        verifiedByPrincipalId: "usr_reviewer_verifier",
-      },
-    ],
+    reviewerQualifications: [reviewerQualification],
     sources: [{ review, source }],
   };
 }
@@ -257,6 +271,35 @@ function replaceSource(
   redigest("source_review", evidence.review);
   sourceReference.source.definitionSha256 = evidence.source.definitionSha256;
   sourceReference.review.definitionSha256 = evidence.review.definitionSha256;
+  redigest("criterion_set", value.criterionSet);
+  value.criterionStatus.criterionSet.definitionSha256 = value.criterionSet.definitionSha256;
+  redigest("criterion_set_status", value.criterionStatus);
+  return value;
+}
+
+function replaceReviewerQualification(
+  input: EvaluateCriteriaTrustInput,
+  mutate: (qualification: SourceReviewerQualification) => void,
+) {
+  const value = structuredClone(input) as MutableCriteriaTrustInput & {
+    criterionStatus: CriterionSetStatusRecord;
+    reviewerQualifications: SourceReviewerQualification[];
+    sources: { review: SourceReviewRecord; source: SourceSnapshot }[];
+  };
+  const qualification = value.reviewerQualifications[0];
+  const review = value.sources[0]?.review;
+  const sourceReference = value.criterionSet.sources[0];
+  if (!qualification || !review || !sourceReference) {
+    throw new Error("Expected exact reviewer qualification");
+  }
+  mutate(qualification);
+  redigest("source_reviewer_qualification", qualification);
+  review.reviewerQualification = {
+    definitionSha256: qualification.definitionSha256,
+    qualificationId: qualification.qualificationId,
+  };
+  redigest("source_review", review);
+  sourceReference.review.definitionSha256 = review.definitionSha256;
   redigest("criterion_set", value.criterionSet);
   value.criterionStatus.criterionSet.definitionSha256 = value.criterionSet.definitionSha256;
   redigest("criterion_set_status", value.criterionStatus);
@@ -339,6 +382,7 @@ describe("evaluateCriteriaTrust", () => {
         input.reviewerQualifications = input.reviewerQualifications.map((value) => ({
           ...value,
           status: "unqualified",
+          statusReasons: ["Required credentials were not demonstrated"],
         }));
       },
       "reviewer_unqualified",
@@ -395,6 +439,86 @@ describe("evaluateCriteriaTrust", () => {
         "source_review_requires_approval",
       ]),
       status: "ineligible",
+    });
+  });
+
+  it.each([
+    [
+      "wrong exact qualification digest",
+      (input: EvaluateCriteriaTrustInput) =>
+        replaceReview(input, (review) => {
+          if (!review.reviewerQualification) throw new Error("Expected qualification reference");
+          review.reviewerQualification.definitionSha256 = "f".repeat(64);
+        }),
+      "reviewer_qualification_reference_mismatch",
+      "ineligible",
+    ],
+    [
+      "different reviewer principal",
+      (input: EvaluateCriteriaTrustInput) =>
+        replaceReviewerQualification(input, (qualification) => {
+          qualification.reviewerPrincipalId = "usr_other_reviewer";
+        }),
+      "reviewer_qualification_reference_mismatch",
+      "ineligible",
+    ],
+    [
+      "narrower qualification scope",
+      (input: EvaluateCriteriaTrustInput) =>
+        replaceReviewerQualification(input, (qualification) => {
+          qualification.applicabilityScope.locales = { mode: "include", values: ["en"] };
+        }),
+      "reviewer_qualification_scope_mismatch",
+      "ineligible",
+    ],
+    [
+      "unsupported source kind",
+      (input: EvaluateCriteriaTrustInput) =>
+        replaceReviewerQualification(input, (qualification) => {
+          qualification.sourceKinds = ["law_or_regulation"];
+        }),
+      "reviewer_qualification_source_kind_mismatch",
+      "ineligible",
+    ],
+    [
+      "unverifiable qualification",
+      (input: EvaluateCriteriaTrustInput) =>
+        replaceReviewerQualification(input, (qualification) => {
+          qualification.status = "unverifiable";
+          qualification.statusReasons = ["Credential issuer could not be reached"];
+        }),
+      "reviewer_qualification_unverifiable",
+      "unverifiable",
+    ],
+    [
+      "expired qualification",
+      (input: EvaluateCriteriaTrustInput) =>
+        replaceReviewerQualification(input, (qualification) => {
+          qualification.validUntil = "2026-09-02T00:00:00.000Z";
+        }),
+      "reviewer_qualification_not_current",
+      "unverifiable",
+    ],
+  ] as const)("fails closed for %s", (_name, mutate, reason, status) => {
+    expect(evaluateCriteriaTrust(mutate(fixture()))).toMatchObject({
+      reasons: expect.arrayContaining([reason]),
+      status,
+    });
+  });
+
+  it("requires every retained reviewer credential artifact", () => {
+    const input = structuredClone(fixture()) as MutableCriteriaTrustInput;
+    const credential = input.reviewerQualifications[0]?.credentialEvidence[0];
+    if (!credential) throw new Error("Expected reviewer credential evidence");
+    input.artifacts = input.artifacts.map((value) =>
+      value.artifactId === credential.artifactId && value.sha256 === credential.sha256
+        ? { ...value, state: "unavailable" }
+        : value,
+    );
+
+    expect(evaluateCriteriaTrust(input)).toMatchObject({
+      reasons: expect.arrayContaining(["reviewer_qualification_evidence_unavailable"]),
+      status: "unverifiable",
     });
   });
 
@@ -562,7 +686,7 @@ describe("evaluateCriteriaTrust", () => {
     const reviewer = structuredClone(fixture()) as MutableCriteriaTrustInput;
     const qualification = reviewer.reviewerQualifications[0];
     if (!qualification) throw new Error("Expected reviewer qualification");
-    qualification.evidence = [];
+    qualification.credentialEvidence = [];
     expect(() => evaluateCriteriaTrust(reviewer)).toThrow(InvalidCriteriaTrustInputError);
   });
 });

@@ -9,6 +9,7 @@ import type {
   QualificationReport,
   SourceApplicabilityScope,
   SourceReviewRecord,
+  SourceReviewerQualification,
   SourceSnapshot,
 } from "@proofstack/contracts";
 import {
@@ -23,6 +24,7 @@ import {
   QualificationFixtureSetSchema,
   QualificationReportSchema,
   SourceReviewRecordSchema,
+  SourceReviewerQualificationSchema,
   SourceSnapshotSchema,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
@@ -44,7 +46,11 @@ export const CRITERIA_TRUST_REASONS = [
   "reviewer_qualification_evidence_unavailable",
   "reviewer_qualification_not_independent",
   "reviewer_qualification_not_current",
+  "reviewer_qualification_reference_mismatch",
+  "reviewer_qualification_scope_mismatch",
+  "reviewer_qualification_source_kind_mismatch",
   "reviewer_qualification_unavailable",
+  "reviewer_qualification_unverifiable",
   "reviewer_unqualified",
   "source_applicability_not_approved",
   "source_authority_not_accepted",
@@ -90,21 +96,6 @@ export interface CriteriaTrustQualificationEvidence {
   readonly subject: EvaluatorSpec | OracleSpec | null;
 }
 
-/**
- * A server-resolved qualification of the accountable source reviewer.
- *
- * This is deliberately a port value rather than requester input. The persistence adapter that
- * supplies it must bind the reviewer, verifier, validity interval, and exact evidence records.
- */
-export interface CriteriaTrustReviewerQualification {
-  readonly evidence: readonly CriteriaTrustArtifactReference[];
-  readonly reviewerPrincipalId: string;
-  readonly status: "qualified" | "unqualified" | "unverifiable";
-  readonly validFrom: string;
-  readonly validUntil: string;
-  readonly verifiedByPrincipalId: string;
-}
-
 export interface CriteriaTrustArtifactReference {
   readonly artifactId: string;
   readonly sha256: string;
@@ -121,7 +112,8 @@ export interface EvaluateCriteriaTrustInput {
     readonly requesterPrincipalId: string;
     readonly scope: EvidenceScope;
   };
-  readonly reviewerQualifications: readonly CriteriaTrustReviewerQualification[];
+  /** Exact, repository-resolved qualification records; requester assertions are not accepted. */
+  readonly reviewerQualifications: readonly SourceReviewerQualification[];
   readonly sources: readonly CriteriaTrustSourceEvidence[];
 }
 
@@ -152,6 +144,7 @@ const UNVERIFIABLE_REASONS = new Set<CriteriaTrustReason>([
   "reviewer_qualification_evidence_unavailable",
   "reviewer_qualification_not_current",
   "reviewer_qualification_unavailable",
+  "reviewer_qualification_unverifiable",
   "source_content_unavailable",
   "source_identity_evidence_unavailable",
   "source_reference_mismatch",
@@ -278,6 +271,13 @@ function exactReviewKey(value: {
   return `${value.sourceReviewId}:${value.definitionSha256}`;
 }
 
+function exactReviewerQualificationKey(value: {
+  readonly definitionSha256: string;
+  readonly qualificationId: string;
+}) {
+  return `${value.qualificationId}:${value.definitionSha256}`;
+}
+
 function exactQualificationKey(value: {
   readonly definitionSha256: string;
   readonly qualificationReportId: string;
@@ -341,30 +341,16 @@ function parseQualifications(
 }
 
 function parseReviewerQualifications(
-  input: readonly CriteriaTrustReviewerQualification[],
-): CriteriaTrustReviewerQualification[] {
+  input: readonly SourceReviewerQualification[],
+): SourceReviewerQualification[] {
   const parsed = input.map((value) => {
-    const reviewerPrincipalId = OpaqueIdSchema.safeParse(value.reviewerPrincipalId);
-    const verifiedByPrincipalId = OpaqueIdSchema.safeParse(value.verifiedByPrincipalId);
-    const validFrom = UtcMillisecondTimestampSchema.safeParse(value.validFrom);
-    const validUntil = UtcMillisecondTimestampSchema.safeParse(value.validUntil);
-    if (
-      !reviewerPrincipalId.success ||
-      !verifiedByPrincipalId.success ||
-      !validFrom.success ||
-      !validUntil.success ||
-      !before(validFrom.data, validUntil.data) ||
-      value.evidence.length === 0
-    ) {
-      throw invalid("Criteria-trust reviewer qualification is invalid");
+    try {
+      return SourceReviewerQualificationSchema.parse(value);
+    } catch (cause) {
+      throw invalid("Criteria-trust reviewer qualification is invalid", cause);
     }
-    return structuredClone(value);
   });
-  assertUniqueBy(
-    parsed,
-    ({ reviewerPrincipalId }) => reviewerPrincipalId,
-    "reviewer qualifications",
-  );
+  assertUniqueBy(parsed, exactReviewerQualificationKey, "reviewer qualifications");
   return parsed;
 }
 
@@ -395,7 +381,7 @@ function addSourceReasons(
   criterionSet: CriterionSet,
   request: EvaluateCriteriaTrustInput["request"],
   sourceEvidence: readonly CriteriaTrustSourceEvidence[],
-  reviewerQualifications: readonly CriteriaTrustReviewerQualification[],
+  reviewerQualifications: readonly SourceReviewerQualification[],
   availableArtifacts: ReadonlyMap<string, "available" | "unavailable">,
   at: string,
 ): void {
@@ -414,7 +400,10 @@ function addSourceReasons(
       .map((value) => [exactReviewKey(value.review), value]),
   );
   const reviewerEvidence = new Map(
-    reviewerQualifications.map((value) => [value.reviewerPrincipalId, value]),
+    reviewerQualifications.map((value) => [exactReviewerQualificationKey(value), value]),
+  );
+  const reviewerEvidenceById = new Map(
+    reviewerQualifications.map((value) => [value.qualificationId, value]),
   );
 
   for (const expected of criterionSet.sources) {
@@ -510,13 +499,36 @@ function addSourceReasons(
     ) {
       reasons.add("requester_only_review");
     }
-    const reviewer = reviewerEvidence.get(review.reviewedByPrincipalId);
-    if (!reviewer) {
+    const reviewerReference = review.reviewerQualification;
+    const reviewer = reviewerReference
+      ? reviewerEvidence.get(exactReviewerQualificationKey(reviewerReference))
+      : undefined;
+    if (!reviewerReference) {
       reasons.add("reviewer_qualification_unavailable");
+    } else if (!reviewer) {
+      reasons.add(
+        reviewerEvidenceById.has(reviewerReference.qualificationId)
+          ? "reviewer_qualification_reference_mismatch"
+          : "reviewer_qualification_unavailable",
+      );
+    } else if (
+      !sameScope(reviewer.scope, criterionSet.scope) ||
+      reviewer.reviewerPrincipalId !== review.reviewedByPrincipalId
+    ) {
+      reasons.add("reviewer_qualification_reference_mismatch");
+    } else if (
+      !sourceScopeCovers(reviewer.applicabilityScope, criterionSet.applicabilityScope) ||
+      !sourceScopeCovers(reviewer.applicabilityScope, review.approvedScope)
+    ) {
+      reasons.add("reviewer_qualification_scope_mismatch");
+    } else if (!reviewer.sourceKinds.includes(source.sourceKind)) {
+      reasons.add("reviewer_qualification_source_kind_mismatch");
     } else if (reviewer.status === "unqualified") {
       reasons.add("reviewer_unqualified");
+    } else if (reviewer.status === "unverifiable") {
+      reasons.add("reviewer_qualification_unverifiable");
     } else if (
-      reviewer.status === "unverifiable" ||
+      before(at, reviewer.recordedAt) ||
       !currentAt(at, reviewer.validFrom, reviewer.validUntil)
     ) {
       reasons.add("reviewer_qualification_not_current");
@@ -526,7 +538,7 @@ function addSourceReasons(
       reviewer.verifiedByPrincipalId === request.requesterPrincipalId
     ) {
       reasons.add("reviewer_qualification_not_independent");
-    } else if (!artifactsAvailable(reviewer.evidence, availableArtifacts)) {
+    } else if (!artifactsAvailable(reviewer.credentialEvidence, availableArtifacts)) {
       reasons.add("reviewer_qualification_evidence_unavailable");
     }
   }
