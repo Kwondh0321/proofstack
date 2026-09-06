@@ -283,9 +283,13 @@ async function publishEvaluationFixture(
   fixture: EvaluationRepositoryFixtureRecord,
 ): Promise<void> {
   const scope = fixture.record.scope;
+  const controlPrincipalId =
+    fixture.kind === "source_reviewer_qualification"
+      ? fixture.record.verifiedByPrincipalId
+      : "usr_repository_conformance";
   const principal = userPrincipal(
     scope.tenantId,
-    "usr_repository_conformance",
+    controlPrincipalId,
     `req_${options.namespace}_evaluation_${fixture.kind}`,
   );
   const recordId = evaluationRecordId(fixture.kind, fixture.record);
