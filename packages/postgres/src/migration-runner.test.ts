@@ -133,6 +133,7 @@ describe("migration inspection", () => {
         "0045_release_candidate_graph",
         "0046_policy_author_capabilities",
         "0047_release_policy_graph",
+        "0048_allow_policy_withdrawal",
       ],
     });
   });
