@@ -87,23 +87,24 @@ Goal: turn a failed production trace into repeatable evidence.
   human review.
 - [x] Exact baseline and candidate diff API and operator view for traces, distributions, cost,
   latency, policy-independent safety events, artifacts, uncertainty, and coverage.
-- [ ] Independent end-to-end Workflow 1 audit covering correctness, usability, open-source
+- [x] Independent end-to-end Workflow 1 audit covering correctness, usability, open-source
   contribution, security, isolation, retention, recovery, failure modes, and public claims.
 
 No single model-judge score is sufficient evidence for a high-impact decision.
 
 The dependency boundary, risks, and executable gates for these checkpoints are recorded in the
 [Workflow 1 entry audit](../development/workflow-1-entry-audit.md) and
-[ADRs 0012–0014](../architecture/README.md). Workflow 2 remains blocked until the final Workflow 1
-audit is accepted.
+[ADRs 0012–0014](../architecture/README.md). The final Workflow 1 audit is accepted; Workflow 2 may
+now begin in dependency order without implying policy, release, deployment, or production
+authority.
 
 The evidence and remaining limits for the first completed checkpoint are recorded in the
 [regression catalog audit](../development/workflow-1-regression-catalog-audit.md).
 The second checkpoint's classified content, ownership, export, revocation, interoperability,
 recovery, and explicit non-replay evidence are recorded in the
 [interaction-capture audit](../development/workflow-1-interaction-capture-audit.md).
-The exact matching, preflight, fallback, runtime-control, and reproducibility gates for the open
-third checkpoint are fixed by the
+The exact matching, preflight, fallback, runtime-control, and reproducibility gates for the third
+checkpoint were fixed by the
 [recorded-boundary replay entry audit](../development/workflow-1-recorded-replay-entry-audit.md).
 The third checkpoint's exact boundary evidence, explicit same-process limits, adversarial matrix,
 and remaining durable-job boundary are recorded in the
@@ -141,13 +142,16 @@ accepts the immutable policy-independent descriptive comparison boundary and rec
 evidence, criteria-authority, statistical, operator-surface, policy, release, and production limits
 that remain open.
 The complete-lineage, production-composition, criteria-trust, authority, retention, isolation,
-recovery, failure-mode, usability, open-source, and acceptance gates for the final open checkpoint
-are fixed by the
+recovery, failure-mode, usability, open-source, and acceptance gates for the final checkpoint were
+fixed by the
 [Workflow 1 exit entry audit](../development/workflow-1-exit-entry-audit.md).
 The focused
 [criteria trust-root audit](../development/workflow-1-criteria-trust-root-audit.md) accepts the
 requester, search, freshness, availability, conflict, scope, reviewer, and qualification matrix
 without accepting Workflow 1 or granting policy and release authority.
+The completed [Workflow 1 end-to-end audit](../development/workflow-1-audit.md) accepts the bounded
+reference incident-to-comparison stage and opens Workflow 2 development while explicitly
+withholding policy, approval, deployment, release, and production-readiness claims.
 
 ## Workflow 2: reliability release gate
 

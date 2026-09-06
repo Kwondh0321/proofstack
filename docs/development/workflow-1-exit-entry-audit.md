@@ -3,21 +3,20 @@
 [English](workflow-1-exit-entry-audit.md) |
 [한국어](workflow-1-exit-entry-audit.ko.md)
 
-- Status: final repository gate in progress; checkpoint remains open
+- Status: exit audit complete; Workflow 1 accepted
 - Reviewed: 2026-09-06
-- Dependency: seven accepted Workflow 1 capability checkpoints plus exit hardening through `7df28c6`
+- Dependency: seven accepted Workflow 1 capability checkpoints plus exit hardening through `e19908b`
 - Production readiness: not approved
-- Workflow 2 entry: blocked
+- Workflow 2 entry: approved for dependency-ordered development
 
-## Decision
+## Final decision
 
-The independent Workflow 1 exit review may begin. Every dependency-ordered capability is present,
-but accepted checkpoint evidence is not sufficient by itself to approve the complete stage. The
-exit review must prove that the independently implemented parts form one honest, usable,
-tenant-isolated incident-to-comparison workflow and that no example-only adapter is being mistaken
-for a production composition boundary.
+The independent Workflow 1 exit review is complete. The joined implementation forms one honest,
+bounded, tenant-isolated incident-to-comparison reference workflow through the normal repository,
+API, SDK, worker, PostgreSQL-role, recovery, and browser boundaries. The final decision and exact
+evidence are recorded in the completed [Workflow 1 end-to-end audit](workflow-1-audit.md).
 
-The review starts from this exact authority chain:
+The review used this exact authority chain:
 
 ```text
 authenticated failed trace
@@ -30,12 +29,12 @@ authenticated failed trace
   -> descriptive operator view
 ```
 
-Each arrow must resolve exact persisted sources through the normal repository, API, SDK, worker,
+Each arrow resolves exact persisted sources through the normal repository, API, SDK, worker,
 database-role, recovery, and browser boundaries. A schema fixture, in-memory-only flow, injected
 synthetic resolver, separately passing examples, or client-authored projection cannot substitute
 for this proof.
 
-The exit review remains policy-independent. It may conclude that evidence is eligible,
+The accepted stage remains policy-independent. It may conclude that evidence is eligible,
 ineligible, unverifiable, comparable, partially comparable, or incomparable. It cannot choose a
 release threshold, approve an exception, grant an agent capability, deploy a candidate, or decide
 that one business objective is correct. Those authorities remain reserved for Workflow 2 and
@@ -67,14 +66,14 @@ before stage acceptance:
    production readiness, arbitrary provider compatibility, causal improvement, approval, or
    release authority.
 
-These are open audit findings, not accepted limitations. Each must be repaired, disproved with
-executable evidence, or retained as a reason that Workflow 1 cannot exit.
+These were the findings opened at audit entry. Each was repaired or disproved with executable
+evidence before the final stage decision.
 
 ## Audit progress
 
-Findings 1 through 6 are now closed at their stated boundaries. The final all-repository gate and
-independent stage decision remain open, so Workflow 1 is not accepted and Workflow 2 remains
-blocked.
+Findings 1 through 6, the final all-repository gate, and the independent stage decision are closed
+at their stated boundaries. Workflow 1 is accepted, and Workflow 2 development may begin under its
+own entry and checkpoint gates.
 
 | Finding | State | Executable evidence |
 | --- | --- | --- |
@@ -93,11 +92,16 @@ quality gates, secret scan, S3, artifact lifecycle, PostgreSQL integration, and 
 clean-checkout command. The same SHA passed CodeQL in
 [Security run 34021924192](https://github.com/Kwondh0321/proofstack/actions/runs/34021924192). This
 evidence closes only findings 1 through 5; the focused public-claims and browser audit closes
-finding 6 separately. Neither record is a production-readiness or stage-exit approval.
+finding 6 separately. The final implementation at
+`e19908bb47329ecca4312c34b24b522f3332ac98` then passed
+[CI run 34034203433](https://github.com/Kwondh0321/proofstack/actions/runs/34034203433) and
+[Security run 34034203438](https://github.com/Kwondh0321/proofstack/actions/runs/34034203438),
+closing the repository gate. The resulting stage decision is in the
+[final audit](workflow-1-audit.md); none of these records grants production readiness.
 
-## Independent audit method
+## Independent audit method used
 
-The exit review will use evidence independent of the earlier checkbox decisions:
+The exit review used evidence independent of the earlier checkbox decisions:
 
 1. Inventory every public contract, API operation, SDK method, worker command, database table,
    role grant, RLS policy, recovery projection, guide, example, and browser route added by Workflow
@@ -141,7 +145,8 @@ may discover better candidates but may not silently fill a missing authority lay
 
 ## Exit acceptance matrix
 
-The final Workflow 1 roadmap checkbox remains open until every row is executable and accepted.
+Every row below is executable and accepted at the scope recorded in the
+[final audit](workflow-1-audit.md).
 
 | Boundary | Required exit evidence |
 | --- | --- |
@@ -160,9 +165,10 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
 | Open source | Architecture, threat model, operations, examples, extension boundaries, test commands, license, security policy, contribution process, and unsupported claims are discoverable and internally consistent |
 | Repository | Frozen install, format, boundaries, docs, lint, strict types, coverage, builds, dependency audit, secret scan, CodeQL, PostgreSQL, S3, artifact, recovery, and the complete Workflow 1 service gate are green |
 
-## Entry limits
+## Accepted exit limits
 
-- This document opens an audit; it does not accept Workflow 1.
+- This document preserves the audit entry and its final disposition. The completed final audit
+  accepts Workflow 1 without approving production readiness.
 - Prior checkpoint acceptance remains valid for each stated boundary, but it cannot be added up to
   produce stage acceptance.
 - No standalone comparison lab is part of exit evidence. The supported operator surface must use
@@ -174,7 +180,7 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
   readiness, universal provider compatibility, model truth, legal compliance, RPO/RTO, or release
   enforcement.
 
-## Immediate audit order
+## Completed audit order
 
 1. Implement the repository-backed comparison evidence projection and its fail-closed source
    resolution matrix.
@@ -186,8 +192,8 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
 5. Add one contributor-facing execution guide and independently follow it from a clean state.
 6. Audit public claims and browser behavior, close every finding, and run complete local and remote
    gates.
-7. Only after those results are green, publish a final Workflow 1 audit and consider Workflow 2
-   entry.
+7. After those results were green, publish the final Workflow 1 audit and open Workflow 2 entry.
 
-The first six work items are accepted only at the boundaries recorded in the audit-progress table.
-The final all-repository gate and independent Workflow 1 decision remain open.
+All seven work items are complete at the boundaries recorded here and in the final audit.
+Workflow 2 entry is open; policy, approval, deployment, release, and production-readiness authority
+remain unapproved.

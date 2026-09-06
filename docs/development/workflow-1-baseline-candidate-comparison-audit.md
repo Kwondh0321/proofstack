@@ -8,7 +8,7 @@
 - Implementation scope: `88d2371` through `cd39596`
 - Production readiness: not approved
 - Policy, approval, deployment, or release authority: not included
-- Workflow 1 exit: not approved
+- Workflow 1 exit: not approved by this checkpoint audit; subsequently approved by the final audit
 
 ## Decision
 
@@ -147,7 +147,9 @@ No unresolved finding in this audit invalidates the seventh Workflow 1 checkpoin
   disaster-recovery certification.
 - No comparison result grants capabilities, enforces a threshold, approves an exception, deploys
   code, authorizes release, or substitutes for an accountable human decision.
-- Workflow 1 still requires its independent end-to-end exit audit. Workflow 2 remains blocked.
+- At this checkpoint, Workflow 1 still required its independent end-to-end exit audit and Workflow
+  2 remained blocked. The subsequent [final audit](workflow-1-audit.md) accepted the bounded stage
+  and opened Workflow 2 development without granting release authority.
 
 ## Next dependency-ordered checkpoint
 

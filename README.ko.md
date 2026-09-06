@@ -305,9 +305,10 @@ release, live-provider, production-readiness 주장은 승인하지 않습니다
 완료된
 [baseline/candidate comparison 감사 기록](docs/development/workflow-1-baseline-candidate-comparison-audit.ko.md)은
 불변 설명형 comparison 경계를 승인하지만 policy, approval, release, causal,
-production-readiness 주장은 승인하지 않습니다. 현재 진행 중인
-[Workflow 1 종료 감사](docs/development/workflow-1-exit-entry-audit.ko.md)는 독립적인 단계 검토를
-기록하며 남은 finding이 모두 닫힐 때까지 Workflow 2를 차단합니다.
+production-readiness 주장은 승인하지 않습니다. 완료된
+[Workflow 1 엔드투엔드 감사](docs/development/workflow-1-audit.ko.md)는 제한된 참조
+사고→비교 단계를 승인하고 워크플로 2 개발 진입을 열지만 정책, 승인, 배포, 릴리스,
+production-readiness 주장은 계속 승인하지 않습니다.
 
 ## 현재의 경계
 

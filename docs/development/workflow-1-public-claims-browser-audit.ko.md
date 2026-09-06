@@ -8,7 +8,7 @@
 - 구현 범위: `824c7f8`, `f99b3ef`, `7df28c6`
 - 프로덕션 준비: 승인되지 않음
 - Workflow 1 종료: 이 집중 감사만으로는 승인되지 않음
-- Workflow 2 진입: 차단됨
+- Workflow 2 진입: 이후 최종 Workflow 1 감사에서 열림
 
 ## 결정
 
@@ -72,8 +72,9 @@ Trace 경계 구현 `824c7f8`은
    18시간 된 comparison API와 19시간 된 web process를 찾아 중단하고 workspace를 다시 build한
    뒤 새 process로 browser 결과를 승인했습니다.
 
-이 집중 감사에서 해결되지 않은 finding 때문에 exit finding 6을 열어 둘 이유는 없습니다.
-독립적인 Workflow 1 단계 결정과 최종 전체 repository gate는 별도 작업으로 남습니다.
+이 집중 감사에서 해결되지 않은 finding 때문에 exit finding 6을 열어 둘 이유는 없습니다. 이
+집중 결정 시점에는 독립적인 Workflow 1 단계 결정과 최종 전체 repository gate가 별도 작업으로
+남아 있었고, 이후 [최종 감사](workflow-1-audit.ko.md)가 그 승인을 기록합니다.
 
 ## 승인된 한계
 
@@ -90,8 +91,9 @@ Trace 경계 구현 `824c7f8`은
 - 어떤 view·comparison result도 capability를 부여하거나 exception을 승인하거나 code를
   deploy하거나 release를 차단하거나 책임 있는 결정을 대체하지 않습니다.
 
-## 다음 gate
+## 이후 최종 gate
 
-Exit audit는 최종 candidate SHA에서 전체 repository gate를 실행하고 CI·CodeQL을 확인하고,
-모든 exit-matrix row를 보존된 acceptance·recovery evidence와 대조한 뒤 하나의 최종 Workflow 1
-결정을 게시해야 합니다. 그 결정이 승인될 때까지 Workflow 2는 차단됩니다.
+이후 [최종 Workflow 1 감사](workflow-1-audit.ko.md)는 `e19908b`에서 전체 repository gate를
+실행하고 CI·CodeQL을 확인하고 모든 exit-matrix row를 대조해 제한된 단계를 승인하고
+Workflow 2 개발 진입을 열었습니다. 그 이후 결정도 이 집중 browser finding을 프로덕션 준비,
+policy, approval, deployment, release 주장으로 확장하지 않습니다.

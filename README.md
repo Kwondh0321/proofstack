@@ -305,9 +305,10 @@ comparison, policy, approval, release, live-provider, and production-readiness c
 The completed
 [baseline/candidate comparison audit](docs/development/workflow-1-baseline-candidate-comparison-audit.md)
 accepts the immutable descriptive comparison boundary while withholding policy, approval,
-release, causal, and production-readiness claims. The open
-[Workflow 1 exit audit](docs/development/workflow-1-exit-entry-audit.md) records the independent
-stage review and keeps Workflow 2 blocked until every remaining finding closes.
+release, causal, and production-readiness claims. The completed
+[Workflow 1 end-to-end audit](docs/development/workflow-1-audit.md) accepts the bounded reference
+incident-to-comparison stage and opens Workflow 2 development while withholding policy, approval,
+deployment, release, and production-readiness claims.
 
 ## Current boundaries
 

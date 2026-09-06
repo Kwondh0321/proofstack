@@ -8,7 +8,7 @@
 - Implementation scope: `824c7f8`, `f99b3ef`, and `7df28c6`
 - Production readiness: not approved
 - Workflow 1 exit: not approved by this focused audit
-- Workflow 2 entry: blocked
+- Workflow 2 entry: subsequently opened by the final Workflow 1 audit
 
 ## Decision
 
@@ -76,8 +76,9 @@ here.
    stopped an 18-hour-old comparison API and 19-hour-old web process, rebuilt the workspace, and
    ran fresh processes before accepting any browser result.
 
-No unresolved finding in this focused audit keeps exit finding 6 open. The independent Workflow 1
-stage decision and final all-repository gates remain separate work.
+No unresolved finding in this focused audit keeps exit finding 6 open. At the time of this focused
+decision, the independent Workflow 1 stage decision and final all-repository gates remained
+separate work; the subsequent [final audit](workflow-1-audit.md) records their acceptance.
 
 ## Accepted limits
 
@@ -95,8 +96,9 @@ stage decision and final all-repository gates remain separate work.
 - No view or comparison result grants a capability, approves an exception, deploys code, blocks a
   release, or replaces an accountable decision.
 
-## Next gate
+## Subsequent final gate
 
-The exit audit must now run the complete repository gate at the final candidate SHA, confirm CI and
-CodeQL, reconcile every exit-matrix row with the retained acceptance and recovery evidence, and
-publish one final Workflow 1 decision. Workflow 2 remains blocked until that decision is accepted.
+The subsequent [final Workflow 1 audit](workflow-1-audit.md) ran the complete repository gate at
+`e19908b`, confirmed CI and CodeQL, reconciled every exit-matrix row, accepted the bounded stage,
+and opened Workflow 2 development. That later decision does not expand this focused browser
+finding into a production-readiness, policy, approval, deployment, or release claim.
