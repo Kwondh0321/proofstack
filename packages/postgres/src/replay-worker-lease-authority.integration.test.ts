@@ -80,6 +80,10 @@ const credentials = {
     name: `ps_worker_model_${runKey}`,
     password: `proofstack-worker-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_worker_policy_${runKey}`,
+    password: `proofstack-worker-policy-${runKey}`,
+  },
   publisher: {
     name: `ps_worker_pub_${runKey}`,
     password: `proofstack-worker-publisher-${runKey}`,

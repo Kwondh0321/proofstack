@@ -96,6 +96,10 @@ function options(overrides: Partial<RuntimeRoleProvisioningOptions> = {}) {
       name: DEFAULT_RUNTIME_ROLE_NAMES.modelEvaluationWorker,
       password: "local-model-evaluation-worker-password",
     },
+    policyAuthor: {
+      name: DEFAULT_RUNTIME_ROLE_NAMES.policyAuthor,
+      password: "local-policy-author-password",
+    },
     publisher: {
       name: DEFAULT_RUNTIME_ROLE_NAMES.publisher,
       password: "local-publisher-password",
@@ -117,6 +121,7 @@ function managedRole(
     | "humanReviewer"
     | "identity"
     | "modelEvaluationWorker"
+    | "policyAuthor"
     | "publisher"
     | "replayWorker",
   overrides: Partial<RoleRow> = {},
@@ -141,6 +146,7 @@ describe("provisionRuntimeRoles", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_policy_author",
         "proofstack_evaluation_worker",
         "proofstack_model_evaluation_worker",
         "proofstack_human_reviewer",
@@ -243,6 +249,31 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO "proofstack_model_evaluation_worker"',
     ]);
     expect(
+      statements.filter((statement) => statement.endsWith('TO "proofstack_policy_author"')),
+    ).toEqual([
+      'GRANT USAGE ON SCHEMA public TO "proofstack_policy_author"',
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_policy_author"',
+      'GRANT SELECT ON TABLE public.proofstack_release_policy_registry, public.proofstack_release_policy_resources, public.proofstack_release_policy_lineage, public.proofstack_release_policies, public.proofstack_release_policy_sources, public.proofstack_release_policy_rules, public.proofstack_release_policy_rule_sources, public.proofstack_release_policy_lifecycle_events TO "proofstack_policy_author"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_publish_release_policy(jsonb) TO "proofstack_policy_author"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_publish_release_policy_lifecycle(jsonb) TO "proofstack_policy_author"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_intent_status(text, text, jsonb, timestamp with time zone) TO "proofstack_policy_author"',
+      'GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_lifecycle_intent_status(text, text, jsonb, timestamp with time zone) TO "proofstack_policy_author"',
+    ]);
+    expect(
+      statements.some(
+        (statement) =>
+          statement.includes("proofstack_insert_release_policy") &&
+          statement.endsWith('TO "proofstack_policy_author"'),
+      ),
+    ).toBe(false);
+    expect(
+      statements.some(
+        (statement) =>
+          statement.includes("proofstack_outbox") &&
+          statement.endsWith('TO "proofstack_policy_author"'),
+      ),
+    ).toBe(false);
+    expect(
       statements.filter((statement) => statement.endsWith('TO "proofstack_human_reviewer"')),
     ).toEqual([
       'GRANT USAGE ON SCHEMA public TO "proofstack_human_reviewer"',
@@ -342,6 +373,7 @@ describe("provisionRuntimeRoles", () => {
     client.roles.set("proofstack_evaluation_worker", managedRole("evaluationWorker"));
     client.roles.set("proofstack_human_reviewer", managedRole("humanReviewer"));
     client.roles.set("proofstack_model_evaluation_worker", managedRole("modelEvaluationWorker"));
+    client.roles.set("proofstack_policy_author", managedRole("policyAuthor"));
     client.roles.set("proofstack_replay_worker", managedRole("replayWorker"));
 
     await expect(provisionRuntimeRoles(poolWith(client), options())).resolves.toEqual({
@@ -349,6 +381,7 @@ describe("provisionRuntimeRoles", () => {
       updatedRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_policy_author",
         "proofstack_evaluation_worker",
         "proofstack_model_evaluation_worker",
         "proofstack_human_reviewer",
@@ -358,7 +391,7 @@ describe("provisionRuntimeRoles", () => {
         "proofstack_consumer",
       ],
     });
-    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(9);
+    expect(client.queries.filter(({ text }) => text.includes("'ALTER ROLE"))).toHaveLength(10);
     expect(client.queries.some(({ text }) => text.startsWith("COMMENT ON ROLE"))).toBe(false);
   });
 

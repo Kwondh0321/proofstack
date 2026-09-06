@@ -85,6 +85,10 @@ definitions, create jobs, request cancellation, or use API authority.
 The `proofstack_evaluation_worker` role can read the immutable evaluation graph and execute only
 the narrow result-persistence authority; it cannot publish criteria, sources, evaluator/oracle
 specifications, runs, or assessments, and it has no direct table or outbox write privilege.
+The `proofstack_policy_author` role can read exact immutable release-policy graphs and execute only
+the public policy-publication and lifecycle-append functions; it cannot call their internal insert
+helpers, mutate policy tables directly, write the outbox directly, or substitute for another
+runtime role.
 Stop the local database
 without deleting evidence with:
 
@@ -337,6 +341,7 @@ redaction, and retry guidance in the
 | `PROOFSTACK_CONSUMER_DATABASE_ROLE` | `proofstack_consumer` | database CLI | Managed consumer role name |
 | `PROOFSTACK_EVALUATION_WORKER_DATABASE_ROLE` | `proofstack_evaluation_worker` | database CLI | Managed evaluation result worker role name |
 | `PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_ROLE` | `proofstack_model_evaluation_worker` | database CLI | Managed model-evaluation result worker role name |
+| `PROOFSTACK_POLICY_AUTHOR_DATABASE_ROLE` | `proofstack_policy_author` | database CLI | Managed release-policy author role name |
 | `PROOFSTACK_HUMAN_REVIEWER_DATABASE_ROLE` | `proofstack_human_reviewer` | database CLI | Managed human-review record writer role name |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_ROLE` | `proofstack_replay_worker` | database CLI | Managed replay worker role name |
 | `PROOFSTACK_API_DATABASE_PASSWORD` | unset | database CLI | API role password used only during provisioning |
@@ -346,6 +351,7 @@ redaction, and retry guidance in the
 | `PROOFSTACK_CONSUMER_DATABASE_PASSWORD` | unset | database CLI | Consumer role password used only during provisioning |
 | `PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD` | unset | database CLI | Evaluation worker role password used only during provisioning |
 | `PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD` | unset | database CLI | Model-evaluation worker role password used only during provisioning |
+| `PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD` | unset | database CLI | Release-policy author password used only during provisioning |
 | `PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD` | unset | database CLI | Human reviewer role password used only during provisioning |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD` | unset | database CLI | Replay worker role password used only during provisioning |
 | `PROOFSTACK_IDENTITY_TENANT_ID` | unset | identity CLI | Explicit tenant for bootstrap and aggregate status |

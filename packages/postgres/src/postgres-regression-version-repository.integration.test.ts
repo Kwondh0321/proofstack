@@ -66,6 +66,10 @@ const credentials = {
     name: `proofstack_regression_model_${runKey}`,
     password: `proofstack-regression-model-${runKey}-password`,
   },
+  policyAuthor: {
+    name: `proofstack_regression_policy_${runKey}`,
+    password: `proofstack-regression-policy-${runKey}-password`,
+  },
   publisher: {
     name: `proofstack_regression_pub_${runKey}`,
     password: `proofstack-regression-publisher-${runKey}-password`,

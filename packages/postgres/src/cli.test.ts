@@ -234,6 +234,7 @@ describe("runDatabaseCli", () => {
         createdRoles: [
           "proofstack_api",
           "proofstack_identity",
+          "proofstack_policy_author",
           "proofstack_evaluation_worker",
           "proofstack_model_evaluation_worker",
           "proofstack_human_reviewer",
@@ -257,6 +258,7 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD: "local-human-password",
         PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "local-identity-password",
         PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD: "local-model-password",
+        PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD: "local-policy-author-password",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
         PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD: "local-replay-worker-password",
       },
@@ -269,6 +271,7 @@ describe("runDatabaseCli", () => {
       createdRoles: [
         "proofstack_api",
         "proofstack_identity",
+        "proofstack_policy_author",
         "proofstack_evaluation_worker",
         "proofstack_model_evaluation_worker",
         "proofstack_human_reviewer",
@@ -305,6 +308,10 @@ describe("runDatabaseCli", () => {
         modelEvaluationWorker: {
           name: "proofstack_model_evaluation_worker",
           password: "local-model-password",
+        },
+        policyAuthor: {
+          name: "proofstack_policy_author",
+          password: "local-policy-author-password",
         },
       }),
     );
@@ -595,6 +602,8 @@ describe("runDatabaseCli", () => {
         PROOFSTACK_IDENTITY_DATABASE_ROLE: "custom_identity",
         PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD: "local-model-password",
         PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_ROLE: "custom_model_worker",
+        PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD: "local-policy-author-password",
+        PROOFSTACK_POLICY_AUTHOR_DATABASE_ROLE: "custom_policy_author",
         PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "local-publisher-password",
         PROOFSTACK_PUBLISHER_DATABASE_ROLE: "custom_publisher",
         PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD: "local-replay-worker-password",
@@ -620,6 +629,10 @@ describe("runDatabaseCli", () => {
       modelEvaluationWorker: {
         name: "custom_model_worker",
         password: "local-model-password",
+      },
+      policyAuthor: {
+        name: "custom_policy_author",
+        password: "local-policy-author-password",
       },
       publisher: { name: "custom_publisher", password: "local-publisher-password" },
       replayWorker: {

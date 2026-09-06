@@ -59,6 +59,10 @@ const credentials = {
     name: `ps_comparison_model_${runKey}`,
     password: `proofstack-comparison-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_comparison_policy_${runKey}`,
+    password: `proofstack-comparison-policy-${runKey}`,
+  },
   publisher: {
     name: `ps_comparison_pub_${runKey}`,
     password: `proofstack-comparison-publisher-${runKey}`,

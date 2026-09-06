@@ -58,6 +58,10 @@ const roleOptions: RuntimeRoleProvisioningOptions = {
     name: `ps_it_model_${runKey}`,
     password: `proofstack-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_it_policy_${runKey}`,
+    password: `proofstack-policy-${runKey}`,
+  },
   publisher: { name: `ps_it_publisher_${runKey}`, password: `proofstack-publisher-${runKey}` },
   replayWorker: {
     name: `ps_it_worker_${runKey}`,

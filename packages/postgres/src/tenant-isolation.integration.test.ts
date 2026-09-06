@@ -55,6 +55,10 @@ const roles = {
     name: `ps_matrix_model_${runKey}`,
     password: `proofstack-matrix-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_matrix_policy_${runKey}`,
+    password: `proofstack-matrix-policy-${runKey}`,
+  },
   publisher: {
     name: `ps_matrix_publisher_${runKey}`,
     password: `proofstack-matrix-publisher-${runKey}`,

@@ -41,6 +41,7 @@ const runtimeRoles: RuntimeRoleProvisioningOptions = {
   humanReviewer: credentials("human"),
   identity: credentials("identity"),
   modelEvaluationWorker: credentials("model"),
+  policyAuthor: credentials("policy"),
   publisher: credentials("publisher"),
   replayWorker: credentials("replay"),
 };

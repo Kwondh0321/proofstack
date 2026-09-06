@@ -22,6 +22,7 @@ const roleNames = {
   humanReviewer: `proofstack_it_human_${runKey}`,
   identity: `proofstack_it_identity_role_${runKey}`,
   modelEvaluationWorker: `proofstack_it_model_${runKey}`,
+  policyAuthor: `proofstack_it_policy_author_${runKey}`,
   publisher: `proofstack_it_publisher_${runKey}`,
   replayWorker: `proofstack_it_replay_worker_${runKey}`,
 };
@@ -46,6 +47,10 @@ function provisioningOptions(suffix: string): RuntimeRoleProvisioningOptions {
     modelEvaluationWorker: {
       name: roleNames.modelEvaluationWorker,
       password: `proofstack-model-${suffix}-password`,
+    },
+    policyAuthor: {
+      name: roleNames.policyAuthor,
+      password: `proofstack-policy-author-${suffix}-password`,
     },
     publisher: { name: roleNames.publisher, password: `proofstack-publisher-${suffix}-password` },
     replayWorker: {
@@ -100,6 +105,7 @@ describe("runtime role provisioning", () => {
       createdRoles: [
         roleNames.api,
         roleNames.identity,
+        roleNames.policyAuthor,
         roleNames.evaluationWorker,
         roleNames.modelEvaluationWorker,
         roleNames.humanReviewer,
@@ -163,7 +169,7 @@ describe("runtime role provisioning", () => {
       `,
       [Object.values(roleNames)],
     );
-    expect(roleState.rows).toHaveLength(9);
+    expect(roleState.rows).toHaveLength(10);
     expect(
       roleState.rows.every(
         ({
@@ -192,6 +198,7 @@ describe("runtime role provisioning", () => {
       "proofstack-managed-runtime-role:v1:humanReviewer",
       "proofstack-managed-runtime-role:v1:identity",
       "proofstack-managed-runtime-role:v1:modelEvaluationWorker",
+      "proofstack-managed-runtime-role:v1:policyAuthor",
       "proofstack-managed-runtime-role:v1:publisher",
       "proofstack-managed-runtime-role:v1:replayWorker",
     ]);
@@ -1030,6 +1037,164 @@ describe("runtime role provisioning", () => {
       tombstoneUpdate: false,
     });
 
+    const policyAuthorPool = poolFor(initial.policyAuthor);
+    const policyAuthorPrivileges = await policyAuthorPool.query<{
+      readonly internalLifecycleExecute: boolean;
+      readonly internalPolicyExecute: boolean;
+      readonly ledgerSelect: boolean;
+      readonly lifecycleIntentExecute: boolean;
+      readonly lifecyclePublishExecute: boolean;
+      readonly outboxInsert: boolean;
+      readonly outboxSelect: boolean;
+      readonly policyDelete: boolean;
+      readonly policyInsert: boolean;
+      readonly policyIntentExecute: boolean;
+      readonly policyPublishExecute: boolean;
+      readonly policySelect: boolean;
+      readonly policyUpdate: boolean;
+      readonly releaseCandidatePublishExecute: boolean;
+      readonly sequenceUsage: boolean;
+    }>(
+      `
+        SELECT
+          has_table_privilege(current_user, 'proofstack_schema_migrations', 'SELECT')
+            AS "ledgerSelect",
+          (
+            SELECT bool_and(has_table_privilege(current_user, relation_name, 'SELECT'))
+            FROM unnest(ARRAY[
+              'proofstack_release_policy_registry',
+              'proofstack_release_policy_resources',
+              'proofstack_release_policy_lineage',
+              'proofstack_release_policies',
+              'proofstack_release_policy_sources',
+              'proofstack_release_policy_rules',
+              'proofstack_release_policy_rule_sources',
+              'proofstack_release_policy_lifecycle_events'
+            ]) AS policy_relation(relation_name)
+          ) AS "policySelect",
+          (
+            SELECT bool_or(has_table_privilege(current_user, relation_name, 'INSERT'))
+            FROM unnest(ARRAY[
+              'proofstack_release_policy_registry',
+              'proofstack_release_policy_resources',
+              'proofstack_release_policy_lineage',
+              'proofstack_release_policies',
+              'proofstack_release_policy_sources',
+              'proofstack_release_policy_rules',
+              'proofstack_release_policy_rule_sources',
+              'proofstack_release_policy_lifecycle_events'
+            ]) AS policy_relation(relation_name)
+          ) AS "policyInsert",
+          (
+            SELECT bool_or(has_table_privilege(current_user, relation_name, 'UPDATE'))
+            FROM unnest(ARRAY[
+              'proofstack_release_policy_registry',
+              'proofstack_release_policy_resources',
+              'proofstack_release_policy_lineage',
+              'proofstack_release_policies',
+              'proofstack_release_policy_sources',
+              'proofstack_release_policy_rules',
+              'proofstack_release_policy_rule_sources',
+              'proofstack_release_policy_lifecycle_events'
+            ]) AS policy_relation(relation_name)
+          ) AS "policyUpdate",
+          (
+            SELECT bool_or(has_table_privilege(current_user, relation_name, 'DELETE'))
+            FROM unnest(ARRAY[
+              'proofstack_release_policy_registry',
+              'proofstack_release_policy_resources',
+              'proofstack_release_policy_lineage',
+              'proofstack_release_policies',
+              'proofstack_release_policy_sources',
+              'proofstack_release_policy_rules',
+              'proofstack_release_policy_rule_sources',
+              'proofstack_release_policy_lifecycle_events'
+            ]) AS policy_relation(relation_name)
+          ) AS "policyDelete",
+          has_function_privilege(
+            current_user,
+            'proofstack_publish_release_policy(jsonb)',
+            'EXECUTE'
+          ) AS "policyPublishExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_publish_release_policy_lifecycle(jsonb)',
+            'EXECUTE'
+          ) AS "lifecyclePublishExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_release_policy_intent_status(text, text, jsonb, timestamp with time zone)',
+            'EXECUTE'
+          ) AS "policyIntentExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_release_policy_lifecycle_intent_status(text, text, jsonb, timestamp with time zone)',
+            'EXECUTE'
+          ) AS "lifecycleIntentExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_insert_release_policy(jsonb)',
+            'EXECUTE'
+          ) AS "internalPolicyExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_insert_release_policy_lifecycle(jsonb)',
+            'EXECUTE'
+          ) AS "internalLifecycleExecute",
+          has_function_privilege(
+            current_user,
+            'proofstack_publish_release_candidate(jsonb)',
+            'EXECUTE'
+          ) AS "releaseCandidatePublishExecute",
+          has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS "outboxSelect",
+          has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS "outboxInsert",
+          has_sequence_privilege(current_user, $1, 'USAGE') AS "sequenceUsage"
+      `,
+      [`public.${sequenceName}`],
+    );
+    expect(policyAuthorPrivileges.rows[0]).toEqual({
+      internalLifecycleExecute: false,
+      internalPolicyExecute: false,
+      ledgerSelect: true,
+      lifecycleIntentExecute: true,
+      lifecyclePublishExecute: true,
+      outboxInsert: false,
+      outboxSelect: false,
+      policyDelete: false,
+      policyInsert: false,
+      policyIntentExecute: true,
+      policyPublishExecute: true,
+      policySelect: true,
+      policyUpdate: false,
+      releaseCandidatePublishExecute: false,
+      sequenceUsage: false,
+    });
+
+    for (const [kind, credentials] of Object.entries(initial)) {
+      if (kind === "policyAuthor") continue;
+      const substitute = poolFor(credentials);
+      await expect(
+        substitute.query<{
+          readonly lifecyclePublishExecute: boolean;
+          readonly policyPublishExecute: boolean;
+        }>(`
+          SELECT
+            has_function_privilege(
+              current_user,
+              'proofstack_publish_release_policy(jsonb)',
+              'EXECUTE'
+            ) AS "policyPublishExecute",
+            has_function_privilege(
+              current_user,
+              'proofstack_publish_release_policy_lifecycle(jsonb)',
+              'EXECUTE'
+            ) AS "lifecyclePublishExecute"
+        `),
+      ).resolves.toMatchObject({
+        rows: [{ lifecyclePublishExecute: false, policyPublishExecute: false }],
+      });
+    }
+
     const publisherPool = poolFor(initial.publisher);
     const publisherPrivileges = await publisherPool.query<{
       readonly evidence_select: boolean;
@@ -1285,6 +1450,7 @@ describe("runtime role provisioning", () => {
       updatedRoles: [
         roleNames.api,
         roleNames.identity,
+        roleNames.policyAuthor,
         roleNames.evaluationWorker,
         roleNames.modelEvaluationWorker,
         roleNames.humanReviewer,

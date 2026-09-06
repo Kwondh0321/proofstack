@@ -57,6 +57,10 @@ const credentials = {
     name: `ps_assurance_model_${runKey}`,
     password: `proofstack-assurance-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_assurance_policy_${runKey}`,
+    password: `proofstack-assurance-policy-${runKey}`,
+  },
   publisher: {
     name: `ps_assurance_pub_${runKey}`,
     password: `proofstack-assurance-publisher-${runKey}`,

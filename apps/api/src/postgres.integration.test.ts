@@ -224,6 +224,10 @@ const runtimeRoles = {
     name: "proofstack_test_model_runtime",
     password: "proofstack-test-model-runtime",
   },
+  policyAuthor: {
+    name: "proofstack_test_policy_author_runtime",
+    password: "proofstack-test-policy-author-runtime",
+  },
   publisher: {
     name: "proofstack_test_publisher_runtime",
     password: "proofstack-test-publisher-runtime",

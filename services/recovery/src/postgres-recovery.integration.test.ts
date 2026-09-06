@@ -427,6 +427,7 @@ function workflowRuntimeRoleOptions(stage: "restored" | "source") {
     humanReviewer: credentials("human"),
     identity: credentials("identity"),
     modelEvaluationWorker: credentials("model"),
+    policyAuthor: credentials("policy"),
     publisher: credentials("publisher"),
     replayWorker: credentials("replay"),
   } satisfies RuntimeRoleProvisioningOptions;
@@ -2330,6 +2331,10 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
     modelEvaluationWorker: {
       name: role("model"),
       password: `recovery-model-${runKey}`,
+    },
+    policyAuthor: {
+      name: role("policy"),
+      password: `recovery-policy-${runKey}`,
     },
     publisher: { name: role("publisher"), password: `recovery-publisher-${runKey}` },
     replayWorker: { name: role("worker"), password: `recovery-replay-worker-${runKey}` },

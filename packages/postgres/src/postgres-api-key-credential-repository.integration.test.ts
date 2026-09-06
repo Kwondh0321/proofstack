@@ -27,6 +27,7 @@ const roleNames = {
   humanReviewer: `proofstack_adapter_human_${runKey}`,
   identity: `proofstack_adapter_identity_${runKey}`,
   modelEvaluationWorker: `proofstack_adapter_model_${runKey}`,
+  policyAuthor: `proofstack_adapter_policy_${runKey}`,
   publisher: `proofstack_adapter_publisher_${runKey}`,
   replayWorker: `proofstack_adapter_replay_worker_${runKey}`,
 };
@@ -59,6 +60,10 @@ function options(): RuntimeRoleProvisioningOptions {
     modelEvaluationWorker: {
       name: roleNames.modelEvaluationWorker,
       password: `proofstack-adapter-model-${runKey}`,
+    },
+    policyAuthor: {
+      name: roleNames.policyAuthor,
+      password: `proofstack-adapter-policy-${runKey}`,
     },
     publisher: {
       name: roleNames.publisher,

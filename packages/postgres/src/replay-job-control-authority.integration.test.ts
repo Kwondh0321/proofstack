@@ -53,6 +53,10 @@ const credentials = {
     name: `ps_ctrl_model_${runKey}`,
     password: `proofstack-control-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_ctrl_policy_${runKey}`,
+    password: `proofstack-control-policy-${runKey}`,
+  },
   publisher: {
     name: `ps_ctrl_pub_${runKey}`,
     password: `proofstack-control-publisher-${runKey}`,

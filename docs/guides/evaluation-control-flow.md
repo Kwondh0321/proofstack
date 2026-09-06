@@ -161,7 +161,7 @@ assessment usability policy; it would still not authorize production deployment.
 ## Automated verification
 
 The unit suite materializes the graph through the public core use cases and memory repository. The
-integration suite provisions all seven runtime roles against a real PostgreSQL database, starts an
+integration suite provisions all ten runtime roles against a real PostgreSQL database, starts an
 ephemeral API listener, composes the dedicated evaluation worker, runs the flow, restarts the API,
 and verifies both the exact assessment and the same criterion-trust reasons again:
 

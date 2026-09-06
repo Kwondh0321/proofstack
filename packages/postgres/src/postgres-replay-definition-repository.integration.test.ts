@@ -59,6 +59,10 @@ const credentials = {
     name: `proofstack_replay_model_${runKey}`,
     password: `proofstack-replay-model-${runKey}-password`,
   },
+  policyAuthor: {
+    name: `proofstack_replay_policy_${runKey}`,
+    password: `proofstack-replay-policy-${runKey}-password`,
+  },
   publisher: {
     name: `proofstack_replay_pub_${runKey}`,
     password: `proofstack-replay-publisher-${runKey}-password`,

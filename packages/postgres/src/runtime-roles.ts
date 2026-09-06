@@ -10,6 +10,7 @@ export const DEFAULT_RUNTIME_ROLE_NAMES = {
   humanReviewer: "proofstack_human_reviewer",
   identity: "proofstack_identity",
   modelEvaluationWorker: "proofstack_model_evaluation_worker",
+  policyAuthor: "proofstack_policy_author",
   publisher: "proofstack_publisher",
   replayWorker: "proofstack_replay_worker",
 } as const;
@@ -35,6 +36,7 @@ export interface RuntimeRoleProvisioningOptions {
   readonly humanReviewer: RuntimeRoleCredentials;
   readonly identity: RuntimeRoleCredentials;
   readonly modelEvaluationWorker: RuntimeRoleCredentials;
+  readonly policyAuthor: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
   readonly replayWorker: RuntimeRoleCredentials;
 }
@@ -350,6 +352,14 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_publish_model_assurance_execution_record(jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone) TO %ROLE%",
   ],
+  policyAuthor: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT SELECT ON TABLE public.proofstack_release_policy_registry, public.proofstack_release_policy_resources, public.proofstack_release_policy_lineage, public.proofstack_release_policies, public.proofstack_release_policy_sources, public.proofstack_release_policy_rules, public.proofstack_release_policy_rule_sources, public.proofstack_release_policy_lifecycle_events TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_release_policy(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_release_policy_lifecycle(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_intent_status(text, text, jsonb, timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_lifecycle_intent_status(text, text, jsonb, timestamp with time zone) TO %ROLE%",
+  ],
   publisher: ["GRANT SELECT, UPDATE ON TABLE public.proofstack_outbox TO %ROLE%"],
   replayWorker: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
@@ -406,6 +416,7 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
       "modelEvaluationWorker",
       options.modelEvaluationWorker,
     ),
+    policyAuthor: validateCredentials("policyAuthor", options.policyAuthor),
     publisher: validateCredentials("publisher", options.publisher),
     replayWorker: validateCredentials("replayWorker", options.replayWorker),
   };
@@ -651,6 +662,7 @@ export async function provisionRuntimeRoles(
       for (const kind of [
         "api",
         "identity",
+        "policyAuthor",
         "evaluationWorker",
         "modelEvaluationWorker",
         "humanReviewer",

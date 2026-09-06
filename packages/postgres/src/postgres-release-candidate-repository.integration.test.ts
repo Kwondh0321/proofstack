@@ -52,6 +52,10 @@ const credentials = {
     name: `ps_candidate_model_${runKey}`,
     password: `proofstack-candidate-model-${runKey}`,
   },
+  policyAuthor: {
+    name: `ps_candidate_policy_${runKey}`,
+    password: `proofstack-candidate-policy-${runKey}`,
+  },
   publisher: {
     name: `ps_candidate_pub_${runKey}`,
     password: `proofstack-candidate-publisher-${runKey}`,

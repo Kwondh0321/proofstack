@@ -52,6 +52,8 @@ interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_MIGRATION_DATABASE_URL?: string;
   readonly PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_ROLE?: string;
+  readonly PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_POLICY_AUTHOR_DATABASE_ROLE?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD?: string;
@@ -299,6 +301,7 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
   const humanReviewerPassword = environment.PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD;
   const modelEvaluationWorkerPassword =
     environment.PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD;
+  const policyAuthorPassword = environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD;
   const replayWorkerPassword = environment.PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD;
   if (
     !apiPassword ||
@@ -309,10 +312,11 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
     !humanReviewerPassword ||
     !identityPassword ||
     !modelEvaluationWorkerPassword ||
+    !policyAuthorPassword ||
     !replayWorkerPassword
   ) {
     throw new DatabaseCliUsageError(
-      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD, PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD, PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD, PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
+      "Set PROOFSTACK_API_DATABASE_PASSWORD, PROOFSTACK_ARTIFACT_DATABASE_PASSWORD, PROOFSTACK_IDENTITY_DATABASE_PASSWORD, PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD, PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD, PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD, PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD, PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD, PROOFSTACK_PUBLISHER_DATABASE_PASSWORD, and PROOFSTACK_CONSUMER_DATABASE_PASSWORD before provisioning runtime roles",
     );
   }
   return {
@@ -349,6 +353,12 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
         environment.PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_ROLE ??
         DEFAULT_RUNTIME_ROLE_NAMES.modelEvaluationWorker,
       password: modelEvaluationWorkerPassword,
+    },
+    policyAuthor: {
+      name:
+        environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_ROLE ??
+        DEFAULT_RUNTIME_ROLE_NAMES.policyAuthor,
+      password: policyAuthorPassword,
     },
     publisher: {
       name: environment.PROOFSTACK_PUBLISHER_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.publisher,
