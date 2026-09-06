@@ -109,6 +109,7 @@ import {
   PostgresProjectionCursorRepository,
   PostgresRegressionVersionRepository,
   PostgresReleaseCandidateRepository,
+  PostgresReleasePolicyRepository,
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
@@ -317,6 +318,13 @@ let releaseCandidateRecoveryState:
   | {
       readonly candidate: ReleaseCandidate;
       readonly successor: ReleaseCandidate;
+    }
+  | undefined;
+let releasePolicyRecoveryState:
+  | {
+      readonly policy: ReleasePolicy;
+      readonly successor: ReleasePolicy;
+      readonly supersession: ReleasePolicyLifecycleEvent;
     }
   | undefined;
 let regressionCatalogState:
@@ -2001,6 +2009,7 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
   await publishReleasePolicyRecord(policy);
   await publishReleasePolicyRecord(successor);
   await publishReleasePolicyLifecycleRecord(supersession);
+  releasePolicyRecoveryState = { policy, successor, supersession };
 }
 
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
@@ -2192,6 +2201,13 @@ function requiredReleaseCandidateRecoveryState(): NonNullable<
     throw new Error("Recovery release candidate graph was not seeded");
   }
   return releaseCandidateRecoveryState;
+}
+
+function requiredReleasePolicyRecoveryState(): NonNullable<typeof releasePolicyRecoveryState> {
+  if (!releasePolicyRecoveryState) {
+    throw new Error("Recovery release policy graph was not seeded");
+  }
+  return releasePolicyRecoveryState;
 }
 
 async function emptyRecoveryBucket(bucket: string): Promise<void> {
@@ -2615,6 +2631,81 @@ describe("coordinated recovery rehearsal", () => {
         structuredClone(releaseCandidates.successor),
       ),
     ).resolves.toEqual({ candidate: releaseCandidates.successor, created: false });
+    const releasePolicies = requiredReleasePolicyRecoveryState();
+    const restoredReleasePolicyRepository = new PostgresReleasePolicyRepository(restoredPool);
+    await expect(
+      restoredReleasePolicyRepository.findReleasePolicy(
+        releasePolicies.policy.scope,
+        releasePolicies.policy.policyVersionId,
+      ),
+    ).resolves.toEqual(releasePolicies.policy);
+    await expect(
+      restoredReleasePolicyRepository.findReleasePolicy(
+        releasePolicies.successor.scope,
+        releasePolicies.successor.policyVersionId,
+      ),
+    ).resolves.toEqual(releasePolicies.successor);
+    await expect(
+      restoredReleasePolicyRepository.findReleasePolicyLifecycleEvent(
+        releasePolicies.supersession.scope,
+        releasePolicies.supersession.eventId,
+      ),
+    ).resolves.toEqual(releasePolicies.supersession);
+    await expect(
+      restoredReleasePolicyRepository.listReleasePolicyLifecycleEvents(
+        releasePolicies.policy.scope,
+        releasePolicies.policy.policyVersionId,
+      ),
+    ).resolves.toEqual([releasePolicies.supersession]);
+    const policyRowsBeforeRetry = await restoredPool.query<{
+      readonly lifecycle_count: string;
+      readonly outbox_count: string;
+      readonly policy_count: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM public.proofstack_release_policies
+          WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3) AS policy_count,
+         (SELECT count(*)::text FROM public.proofstack_release_policy_lifecycle_events
+          WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3) AS lifecycle_count,
+         (SELECT count(*)::text FROM public.proofstack_outbox
+          WHERE tenant_id = $1
+            AND aggregate_type IN ('release_policy', 'release_policy_lifecycle')) AS outbox_count`,
+      [
+        releasePolicies.policy.scope.tenantId,
+        releasePolicies.policy.scope.projectId,
+        releasePolicies.policy.scope.environmentId,
+      ],
+    );
+    await expect(
+      restoredReleasePolicyRepository.publishReleasePolicy(
+        structuredClone(releasePolicies.successor),
+      ),
+    ).resolves.toEqual({ created: false, policy: releasePolicies.successor });
+    await expect(
+      restoredReleasePolicyRepository.publishReleasePolicyLifecycleEvent(
+        structuredClone(releasePolicies.supersession),
+      ),
+    ).resolves.toEqual({ created: false, event: releasePolicies.supersession });
+    const policyRowsAfterRetry = await restoredPool.query<{
+      readonly lifecycle_count: string;
+      readonly outbox_count: string;
+      readonly policy_count: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM public.proofstack_release_policies
+          WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3) AS policy_count,
+         (SELECT count(*)::text FROM public.proofstack_release_policy_lifecycle_events
+          WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3) AS lifecycle_count,
+         (SELECT count(*)::text FROM public.proofstack_outbox
+          WHERE tenant_id = $1
+            AND aggregate_type IN ('release_policy', 'release_policy_lifecycle')) AS outbox_count`,
+      [
+        releasePolicies.policy.scope.tenantId,
+        releasePolicies.policy.scope.projectId,
+        releasePolicies.policy.scope.environmentId,
+      ],
+    );
+    expect(policyRowsAfterRetry.rows).toEqual(policyRowsBeforeRetry.rows);
     const replayRecovery = requiredReplayRecoveryState();
     const restoredRecoveryEpoch = await restoredPool.query<{
       readonly advanced_at_lexical: string;
