@@ -8,12 +8,18 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import {
+  type CreateReplayJobResponse,
   EVIDENCE_SCHEMA_VERSION,
   InteractionCaptureManifestSchema,
+  type PublishComparisonRecordResponse,
   type PublishRegressionDatasetVersionResponse,
   type PublishRegressionFixtureVersionResponse,
+  type PublishReplayPlanResponse,
+  type PublishTargetReleaseResponse,
   type RecordedInteractionFixtureVersionDefinition,
   RecordedInteractionFixtureVersionDefinitionSchema,
+  ReplayPlanDefinitionSchema,
+  TargetReleaseDefinitionSchema,
 } from "@proofstack/contracts";
 import { decodeOtlpJson, encodeOtlpProtobufRequest } from "@proofstack/otlp";
 import {
@@ -22,8 +28,10 @@ import {
   inspectIdentityCredentials,
   migrateDatabase,
   PostgresApiKeyCredentialRepository,
+  PostgresReplayJobWorkerRepository,
   provisionRuntimeRoles,
 } from "@proofstack/postgres";
+import { digestRecordedBoundaryReplayInvocationDefinition } from "@proofstack/replay";
 import { createS3Client, type S3ClientConnectionOptions } from "@proofstack/s3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
@@ -85,6 +93,27 @@ const interactionVector = RecordedInteractionFixtureVersionDefinitionSchema.pars
     }
   ).vectors[0]?.input,
 );
+
+const replayDefinitionVectors = (
+  JSON.parse(
+    readFileSync(
+      new URL("../../../packages/replay/vectors/replay-definition-v1.json", import.meta.url),
+      "utf8",
+    ),
+  ) as {
+    readonly vectors: readonly {
+      readonly input: unknown;
+      readonly kind: "replay_plan" | "target_release";
+    }[];
+  }
+).vectors;
+const targetReleaseVector = replayDefinitionVectors.find(({ kind }) => kind === "target_release");
+const replayPlanVector = replayDefinitionVectors.find(({ kind }) => kind === "replay_plan");
+if (!targetReleaseVector || !replayPlanVector) {
+  throw new Error("Replay definition vectors are incomplete");
+}
+const targetReleaseTemplate = TargetReleaseDefinitionSchema.parse(targetReleaseVector.input);
+const replayPlanTemplate = ReplayPlanDefinitionSchema.parse(replayPlanVector.input);
 
 function sha256(content: Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
@@ -214,6 +243,9 @@ runtimeDatabaseUrl.password = runtimeRoles.api.password;
 const identityDatabaseUrl = new URL(databaseUrl);
 identityDatabaseUrl.username = runtimeRoles.identity.name;
 identityDatabaseUrl.password = runtimeRoles.identity.password;
+const replayWorkerDatabaseUrl = new URL(databaseUrl);
+replayWorkerDatabaseUrl.username = runtimeRoles.replayWorker.name;
+replayWorkerDatabaseUrl.password = runtimeRoles.replayWorker.password;
 let issuedApiKey: Awaited<ReturnType<typeof bootstrapApiKey>>;
 let otlpApiKey: Awaited<ReturnType<typeof bootstrapApiKey>>;
 
@@ -723,6 +755,538 @@ describe("PostgreSQL-backed API", () => {
       new ListObjectsV2Command({ Bucket: artifactBucket }),
     );
     expect(remainingObjects.KeyCount).toBe(0);
+  }, 30_000);
+
+  it("derives an authenticated source-backed comparison after a PostgreSQL restart", async () => {
+    const runKey = randomUUID().replaceAll("-", "").slice(0, 8);
+    const scope = {
+      environmentId: `env_compare_${runKey}`,
+      projectId: `prj_compare_${runKey}`,
+      tenantId: "ten_local",
+    } as const;
+    const scopeUrl = `/v1/projects/${scope.projectId}/environments/${scope.environmentId}`;
+    const artifactUrl = `${scopeUrl}/artifacts`;
+    const traceId = randomUUID().replaceAll("-", "");
+    const fixtureId = `fix_compare_${runKey}`;
+    const fixtureVersionId = `fixv_compare_${runKey}`;
+    const datasetId = `dat_compare_${runKey}`;
+    const datasetVersionId = `datv_compare_${runKey}`;
+    const targetId = `target_compare_${runKey}`;
+    const targetReleaseId = `trg_compare_${runKey}`;
+    const planId = `plan_compare_${runKey}`;
+    const planVersionId = `plv_compare_${runKey}`;
+    const comparisonId = `comparison_${runKey}`;
+    const comparisonVersionId = `cmpv_${runKey}`;
+    const targetProvenanceContent = Buffer.from(
+      JSON.stringify({ build: runKey, kind: "integration_provenance" }),
+      "utf8",
+    );
+    const baselineResultContent = Buffer.from(JSON.stringify({ role: "baseline", runKey }), "utf8");
+    const candidateResultContent = Buffer.from(
+      JSON.stringify({ role: "candidate", runKey }),
+      "utf8",
+    );
+    const artifacts = [
+      {
+        content: targetProvenanceContent,
+        reference: {
+          artifactId: `art_provenance_${runKey}`,
+          classification: "internal" as const,
+          mediaType: "application/json",
+          sha256: sha256(targetProvenanceContent),
+          sizeBytes: targetProvenanceContent.byteLength,
+        },
+      },
+      {
+        content: baselineResultContent,
+        reference: {
+          artifactId: `art_baseline_${runKey}`,
+          classification: "internal" as const,
+          mediaType: "application/json",
+          sha256: sha256(baselineResultContent),
+          sizeBytes: baselineResultContent.byteLength,
+        },
+      },
+      {
+        content: candidateResultContent,
+        reference: {
+          artifactId: `art_candidate_${runKey}`,
+          classification: "internal" as const,
+          mediaType: "application/json",
+          sha256: sha256(candidateResultContent),
+          sizeBytes: candidateResultContent.byteLength,
+        },
+      },
+    ];
+    let comparisonReference:
+      | {
+          readonly comparisonId: string;
+          readonly comparisonVersionId: string;
+          readonly definitionSha256: string;
+        }
+      | undefined;
+
+    const firstApp = await createApp(persistentArtifactConfig());
+    try {
+      const ingest = await firstApp.inject({
+        body: {
+          events: [
+            {
+              attributes: { "proofstack.integration.run": runKey },
+              endedAt: "2026-09-05T23:00:00.100Z",
+              eventId: `evt_compare_${runKey}`,
+              kind: "agent.run",
+              name: "source-backed-comparison-failure",
+              source: {
+                sdkName: "@proofstack/sdk",
+                sdkVersion: "0.0.0",
+                serviceName: "comparison-integration",
+              },
+              spanId: traceId.slice(0, 16),
+              startedAt: "2026-09-05T23:00:00.000Z",
+              status: "error",
+              traceId,
+            },
+          ],
+          schemaVersion: EVIDENCE_SCHEMA_VERSION,
+        },
+        method: "POST",
+        url: `${scopeUrl}/evidence`,
+      });
+      expect(ingest.statusCode, ingest.body).toBe(202);
+
+      const fixtureResponse = await firstApp.inject({
+        body: {
+          fixtureVersionId,
+          name: "Retained comparison failure",
+          source: { kind: "trace_snapshot", traceId },
+        },
+        method: "POST",
+        url: `${scopeUrl}/regression-fixtures/${fixtureId}/versions`,
+      });
+      expect(fixtureResponse.statusCode, fixtureResponse.body).toBe(201);
+      const publishedFixture = fixtureResponse.json<PublishRegressionFixtureVersionResponse>();
+
+      const datasetResponse = await firstApp.inject({
+        body: {
+          datasetVersionId,
+          fixtureVersions: [{ fixtureId, fixtureVersionId }],
+          name: "Retained comparison dataset",
+        },
+        method: "POST",
+        url: `${scopeUrl}/regression-datasets/${datasetId}/versions`,
+      });
+      expect(datasetResponse.statusCode, datasetResponse.body).toBe(201);
+      const publishedDataset = datasetResponse.json<PublishRegressionDatasetVersionResponse>();
+
+      for (const artifact of artifacts) {
+        const reserve = await firstApp.inject({
+          body: {
+            ...artifact.reference,
+            redaction: { status: "not_required" },
+            retention: { mode: "retain" },
+          },
+          method: "POST",
+          url: artifactUrl,
+        });
+        const upload = await firstApp.inject({
+          body: artifact.content,
+          headers: { "content-type": "application/octet-stream" },
+          method: "PUT",
+          url: `${artifactUrl}/${artifact.reference.artifactId}/content`,
+        });
+        expect(reserve.statusCode, reserve.body).toBe(201);
+        expect(upload.statusCode, upload.body).toBe(200);
+      }
+
+      const targetDefinition = TargetReleaseDefinitionSchema.parse({
+        ...structuredClone(targetReleaseTemplate),
+        build: {
+          ...structuredClone(targetReleaseTemplate.build),
+          provenance: artifacts[0]?.reference,
+        },
+        scope,
+        targetId,
+        targetReleaseId,
+      });
+      const targetResponse = await firstApp.inject({
+        body: targetDefinition,
+        method: "POST",
+        url: `${scopeUrl}/replay-targets/${targetId}/releases/${targetReleaseId}`,
+      });
+      expect(targetResponse.statusCode, targetResponse.body).toBe(201);
+      const publishedTarget = targetResponse.json<PublishTargetReleaseResponse>().release;
+
+      const recordedBoundary = replayPlanTemplate.boundaries[0];
+      if (recordedBoundary?.mode !== "recorded_stub") {
+        throw new Error("Expected the replay definition vector to contain a recorded boundary");
+      }
+      const invocation = {
+        ...structuredClone(recordedBoundary.invocation),
+        fixture: {
+          definitionSha256: publishedFixture.version.definitionSha256,
+          fixtureId,
+          fixtureVersionId,
+        },
+      };
+      const planDefinition = ReplayPlanDefinitionSchema.parse({
+        ...structuredClone(replayPlanTemplate),
+        boundaries: [
+          {
+            ...structuredClone(recordedBoundary),
+            invocation,
+            invocationDefinitionSha256:
+              digestRecordedBoundaryReplayInvocationDefinition(invocation),
+          },
+        ],
+        dataset: {
+          datasetId,
+          datasetVersionId,
+          definitionSha256: publishedDataset.version.definitionSha256,
+        },
+        planId,
+        planVersionId,
+        scope,
+        targetRelease: {
+          definitionSha256: publishedTarget.definitionSha256,
+          targetAdapter: publishedTarget.targetAdapter,
+          targetId,
+          targetReleaseId,
+          workerProtocol: publishedTarget.workerProtocol,
+        },
+        workerProtocol: publishedTarget.workerProtocol,
+      });
+      const planResponse = await firstApp.inject({
+        body: planDefinition,
+        method: "POST",
+        url: `${scopeUrl}/replay-plans/${planId}/versions/${planVersionId}`,
+      });
+      expect(planResponse.statusCode, planResponse.body).toBe(201);
+      const publishedPlan = planResponse.json<PublishReplayPlanResponse>().plan;
+      const planReference = {
+        definitionSha256: publishedPlan.definitionSha256,
+        planId,
+        planVersionId,
+      };
+      const jobs = [
+        { jobId: `job_baseline_${runKey}`, result: artifacts[1]?.reference, usage: 125 },
+        { jobId: `job_candidate_${runKey}`, result: artifacts[2]?.reference, usage: 100 },
+      ];
+      for (const job of jobs) {
+        const response = await firstApp.inject({
+          body: { jobId: job.jobId, plan: planReference },
+          method: "POST",
+          url: `${scopeUrl}/replay-jobs/${job.jobId}`,
+        });
+        expect(response.statusCode, response.body).toBe(201);
+        expect(response.json<CreateReplayJobResponse>()).toMatchObject({
+          created: true,
+          snapshot: { job: { jobId: job.jobId, status: "queued" } },
+        });
+      }
+
+      const workerPool = createPostgresPool({
+        applicationName: `proofstack-api-comparison-${runKey}`,
+        connectionString: replayWorkerDatabaseUrl.toString(),
+        maxConnections: 1,
+        onIdleError: (error) => {
+          throw error;
+        },
+      });
+      const worker = new PostgresReplayJobWorkerRepository(workerPool);
+      const replayReferences = [];
+      try {
+        for (const [index, job] of jobs.entries()) {
+          if (!job.result) throw new Error("Expected one exact result artifact per replay job");
+          const claimed = await worker.claimJob({
+            attemptId: `att_compare_${index}_${runKey}`,
+            jobId: job.jobId,
+            leaseDurationMilliseconds: 1_500,
+            leaseId: `lease_compare_${index}_${runKey}`,
+            scope,
+            workerBuildSha256: "d".repeat(64),
+            workerId: `worker_compare_${runKey}`,
+            workerProtocol: publishedPlan.workerProtocol,
+          });
+          expect(claimed.claimed).toBe(true);
+          if (!claimed.claimed) throw new Error("Expected the comparison replay job to be claimed");
+          await worker.appendUsageObservation({
+            measurements: [
+              {
+                dimension: "elapsedMilliseconds",
+                usage: { amount: job.usage, source: "measured", status: "observed" },
+              },
+            ],
+            observationId: `obs_usage_${index}_${runKey}`,
+            scope,
+            sourceEventSha256: sha256(Buffer.from(`${job.jobId}:elapsed`, "utf8")),
+            workerFence: claimed.workerFence,
+          });
+          const completed = await worker.completeJob({
+            code: "completed",
+            result: job.result,
+            scope,
+            status: "succeeded",
+            workerFence: claimed.workerFence,
+          });
+          const attempt = completed.attempts.at(-1);
+          if (!attempt?.endedAt || !attempt.result || attempt.status !== "succeeded") {
+            throw new Error("Expected an exact successful replay attempt");
+          }
+          replayReferences.push({
+            attemptId: attempt.attemptId,
+            completedAt: attempt.endedAt,
+            jobId: job.jobId,
+            plan: attempt.plan,
+            result: attempt.result,
+            targetRelease: attempt.targetRelease,
+            terminalCode: "completed" as const,
+            terminalStatus: "succeeded" as const,
+          });
+        }
+      } finally {
+        await workerPool.end();
+      }
+
+      const datasetReference = {
+        datasetId,
+        datasetVersionId,
+        definitionSha256: publishedDataset.version.definitionSha256,
+      };
+      const fixtureReference = {
+        definitionSha256: publishedFixture.version.definitionSha256,
+        fixtureId,
+        fixtureVersionId,
+      };
+      const baselineReplay = replayReferences[0];
+      const candidateReplay = replayReferences[1];
+      if (!baselineReplay || !candidateReplay) {
+        throw new Error("Expected exact baseline and candidate replay references");
+      }
+      const comparisonResponse = await firstApp.inject({
+        body: {
+          baseline: {
+            dataset: datasetReference,
+            fixtures: [
+              {
+                assessments: [],
+                fixture: fixtureReference,
+                modelAssuranceAssessments: [],
+                replay: baselineReplay,
+              },
+            ],
+          },
+          calculationPolicy: {
+            confidenceIntervals: "source_only",
+            decimalArithmetic: "exact_decimal_v1",
+            denominators: "role_fixture_membership_and_paired_observations",
+            fixturePairing: "logical_fixture_id",
+            invalidCases: "preserve_and_exclude_from_aggregation",
+            mean: "exact_rational_v1",
+            minimumPairedCoverageBasisPoints: 10_000,
+            missingness: "preserve_all",
+            numericObservationMultiplicity: "at_most_one_per_fixture",
+            quantile: "nearest_rank_v1",
+          },
+          candidate: {
+            dataset: datasetReference,
+            fixtures: [
+              {
+                assessments: [],
+                fixture: fixtureReference,
+                modelAssuranceAssessments: [],
+                replay: candidateReplay,
+              },
+            ],
+          },
+          classifiedContentProjection: "metadata_only",
+          comparisonVersionId,
+          description: "Exact retained failure, replay, usage, and artifact evidence",
+          metrics: [
+            {
+              aggregation: { method: "median", methodVersion: "1.0.0" },
+              dimension: "elapsedMilliseconds",
+              kind: "replay_usage",
+              label: "Median elapsed milliseconds",
+              metricId: `metric_elapsed_${runKey}`,
+              stratumId: `stratum_all_${runKey}`,
+              unit: "milliseconds",
+            },
+            {
+              eventKind: "agent.run",
+              eventStatus: "error",
+              kind: "trace_event_count",
+              label: "Failed agent runs",
+              metricId: `metric_trace_${runKey}`,
+              stratumId: `stratum_all_${runKey}`,
+              unit: "events",
+            },
+          ],
+          name: "Source-backed comparison restart proof",
+          strata: [
+            {
+              fixtureIds: [fixtureId],
+              label: "Exact retained failure fixture",
+              stratumId: `stratum_all_${runKey}`,
+            },
+          ],
+        },
+        method: "POST",
+        url: `${scopeUrl}/comparisons/${comparisonId}/definitions/${comparisonVersionId}`,
+      });
+      expect(comparisonResponse.statusCode, comparisonResponse.body).toBe(201);
+      const comparisonResult = comparisonResponse.json<PublishComparisonRecordResponse>().result;
+      if (comparisonResult.kind !== "comparison_definition") {
+        throw new Error("Expected an immutable comparison definition");
+      }
+      comparisonReference = {
+        comparisonId,
+        comparisonVersionId,
+        definitionSha256: comparisonResult.record.definitionSha256,
+      };
+    } finally {
+      await firstApp.close();
+    }
+
+    if (!comparisonReference) throw new Error("Expected an exact comparison reference");
+    const snapshotRecords = [];
+    let resultDefinitionSha256: string | undefined;
+    const restartedApp = await createApp(persistentArtifactConfig());
+    try {
+      for (const role of ["baseline", "candidate"] as const) {
+        const snapshotId = `snapshot_${role}_${runKey}`;
+        const response = await restartedApp.inject({
+          body: { comparison: comparisonReference, role, snapshotId },
+          method: "POST",
+          url: `${scopeUrl}/comparisons/evidence-snapshots/${snapshotId}`,
+        });
+        expect(response.statusCode, response.body).toBe(201);
+        const result = response.json<PublishComparisonRecordResponse>().result;
+        if (result.kind !== "comparison_evidence_snapshot") {
+          throw new Error("Expected an immutable comparison evidence snapshot");
+        }
+        expect(result.record).toMatchObject({
+          fixtures: [
+            {
+              artifacts: [{ availability: "available" }],
+              assurance: [],
+              evaluationOutcomes: [],
+              fixture: { fixtureId, fixtureVersionId },
+              trace: {
+                eventCount: 1,
+                eventKindStatuses: [{ count: 1, kind: "agent.run", status: "error" }],
+              },
+              usage: expect.arrayContaining([
+                {
+                  dimension: "elapsedMilliseconds",
+                  value: {
+                    amount: role === "baseline" ? 125 : 100,
+                    observedCount: 1,
+                    sources: ["measured"],
+                    status: "available",
+                  },
+                },
+              ]),
+            },
+          ],
+          integrity: "verified",
+          omissions: [],
+          role,
+          snapshotId,
+        });
+        snapshotRecords.push(result.record);
+      }
+      const [baselineSnapshot, candidateSnapshot] = snapshotRecords;
+      if (!baselineSnapshot || !candidateSnapshot) {
+        throw new Error("Expected both immutable evidence snapshots");
+      }
+      const resultId = `result_${runKey}`;
+      const resultResponse = await restartedApp.inject({
+        body: {
+          baselineSnapshot: {
+            definitionSha256: baselineSnapshot.definitionSha256,
+            role: "baseline",
+            snapshotId: baselineSnapshot.snapshotId,
+          },
+          candidateSnapshot: {
+            definitionSha256: candidateSnapshot.definitionSha256,
+            role: "candidate",
+            snapshotId: candidateSnapshot.snapshotId,
+          },
+          comparison: comparisonReference,
+          resultId,
+        },
+        method: "POST",
+        url: `${scopeUrl}/comparisons/results/${resultId}`,
+      });
+      expect(resultResponse.statusCode, resultResponse.body).toBe(201);
+      const result = resultResponse.json<PublishComparisonRecordResponse>().result;
+      if (result.kind !== "comparison_result") {
+        throw new Error("Expected an immutable comparison result");
+      }
+      expect(result.record.metricResults).toEqual([
+        expect.objectContaining({
+          metricId: `metric_elapsed_${runKey}`,
+          value: {
+            delta: { denominator: "1", numerator: "-25", unit: "milliseconds" },
+            direction: "decreased",
+            status: "available",
+          },
+        }),
+        expect.objectContaining({ metricId: `metric_trace_${runKey}` }),
+      ]);
+      resultDefinitionSha256 = result.record.definitionSha256;
+    } finally {
+      await restartedApp.close();
+    }
+
+    if (!resultDefinitionSha256) throw new Error("Expected a retained comparison result digest");
+    const finalApp = await createApp(persistentArtifactConfig());
+    try {
+      const records = await Promise.all([
+        finalApp.inject({
+          method: "GET",
+          url: `${scopeUrl}/comparisons/records/comparison_definition/${comparisonVersionId}`,
+        }),
+        ...snapshotRecords.map((snapshot) =>
+          finalApp.inject({
+            method: "GET",
+            url: `${scopeUrl}/comparisons/records/comparison_evidence_snapshot/${snapshot.snapshotId}`,
+          }),
+        ),
+        finalApp.inject({
+          method: "GET",
+          url: `${scopeUrl}/comparisons/records/comparison_result/result_${runKey}`,
+        }),
+      ]);
+      expect(records.map(({ statusCode }) => statusCode)).toEqual([200, 200, 200, 200]);
+      expect(records[0]?.json()).toMatchObject({
+        result: {
+          kind: "comparison_definition",
+          record: { definitionSha256: comparisonReference.definitionSha256 },
+        },
+      });
+      expect(records[1]?.json()).toMatchObject({
+        result: {
+          kind: "comparison_evidence_snapshot",
+          record: { definitionSha256: snapshotRecords[0]?.definitionSha256 },
+        },
+      });
+      expect(records[2]?.json()).toMatchObject({
+        result: {
+          kind: "comparison_evidence_snapshot",
+          record: { definitionSha256: snapshotRecords[1]?.definitionSha256 },
+        },
+      });
+      expect(records[3]?.json()).toMatchObject({
+        result: {
+          kind: "comparison_result",
+          record: { definitionSha256: resultDefinitionSha256 },
+        },
+      });
+    } finally {
+      await finalApp.close();
+    }
   }, 30_000);
 
   it("authenticates a bootstrapped key and observes authoritative revocation", async () => {
