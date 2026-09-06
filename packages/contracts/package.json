@@ -78,6 +78,10 @@
       "types": "./dist/release-candidate.d.ts",
       "import": "./dist/release-candidate.js"
     },
+    "./release-candidate-definition-encoding": {
+      "types": "./dist/release-candidate-definition-encoding.d.ts",
+      "import": "./dist/release-candidate-definition-encoding.js"
+    },
     "./replay-plan": {
       "types": "./dist/replay-plan.d.ts",
       "import": "./dist/replay-plan.js"

@@ -1,0 +1,162 @@
+{
+  "format": "proofstack.release-candidate-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 3833,
+      "input": {
+        "definition": {
+          "assessments": [
+            {
+              "assessmentId": "assessment_candidate",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "buildArtifacts": [
+            {
+              "artifact": {
+                "artifactId": "artifact_agent_bundle",
+                "classification": "internal",
+                "mediaType": "application/vnd.proofstack.agent+tar",
+                "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "sizeBytes": 4096
+              },
+              "role": "agent_bundle"
+            },
+            {
+              "artifact": {
+                "artifactId": "artifact_sbom",
+                "classification": "metadata",
+                "mediaType": "application/spdx+json",
+                "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 2048
+              },
+              "role": "sbom"
+            }
+          ],
+          "candidateId": "candidate_checkout_agent",
+          "candidateVersionId": "candidate_checkout_agent_v1",
+          "comparisons": [
+            {
+              "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+              "resultId": "comparison_candidate"
+            }
+          ],
+          "contentProjection": "artifact_references_only",
+          "datasets": [
+            {
+              "datasetId": "dataset_checkout",
+              "datasetVersionId": "dataset_checkout_v1",
+              "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+            }
+          ],
+          "description": "Exact checkout-agent candidate for a staging release gate.",
+          "knownLimitations": ["Provider exposes the served model version but not model weights."],
+          "modelAssuranceAssessments": [
+            {
+              "assessmentExtensionId": "model_assessment_candidate",
+              "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+            }
+          ],
+          "name": "Checkout agent candidate",
+          "omissions": [
+            {
+              "kind": "tool_contract",
+              "rationale": "The candidate intentionally has no refund tool.",
+              "reason": "intentionally_not_used",
+              "role": "refund_tool"
+            }
+          ],
+          "runtimeComponents": [
+            {
+              "adapter": {
+                "adapterId": "adapter_model_provider",
+                "adapterVersionId": "adapter_model_provider_v1",
+                "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+              },
+              "kind": "model",
+              "providerId": "provider_example",
+              "providerModelId": "checkout-model",
+              "resolution": {
+                "resolutionEvidence": {
+                  "artifactId": "artifact_model_resolution",
+                  "classification": "confidential",
+                  "mediaType": "application/json",
+                  "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                  "sizeBytes": 256
+                },
+                "resolvedModelVersion": "checkout-model-2026-09-01",
+                "status": "exact"
+              },
+              "role": "primary_model"
+            },
+            {
+              "content": {
+                "artifactId": "artifact_system_prompt",
+                "classification": "confidential",
+                "mediaType": "text/plain",
+                "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                "sizeBytes": 512
+              },
+              "kind": "prompt",
+              "role": "system_prompt"
+            },
+            {
+              "content": {
+                "artifactId": "artifact_payment_tool",
+                "classification": "internal",
+                "mediaType": "application/schema+json",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "sizeBytes": 384
+              },
+              "kind": "tool_contract",
+              "role": "payment_tool"
+            }
+          ],
+          "source": {
+            "commit": {
+              "algorithm": "sha1",
+              "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "repositoryUrl": "https://github.com/example/checkout-agent.git",
+            "tree": {
+              "algorithm": "sha256",
+              "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            }
+          },
+          "target": {
+            "environmentId": "env_staging",
+            "jurisdiction": "us",
+            "locale": "en-us",
+            "maximumDataClassification": "confidential",
+            "populationTags": ["business", "checkout"],
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent"
+          },
+          "targetRelease": {
+            "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "targetAdapter": {
+              "name": "local_target",
+              "protocolVersion": "1.0.0",
+              "version": "1.0.0"
+            },
+            "targetId": "target_checkout_agent",
+            "targetReleaseId": "target_checkout_agent_v1",
+            "workerProtocol": {
+              "name": "json_line",
+              "version": "1.0.0"
+            }
+          }
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "kind": "release_candidate",
+      "name": "exact checkout-agent release candidate",
+      "sha256": "6a9f726d01f26c95d081dd45aa1cc793576e01d6110fd69deccee393403dd6fd"
+    }
+  ]
+}
