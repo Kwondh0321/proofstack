@@ -247,7 +247,7 @@ const scope: EvidenceScope = {
   projectId: "prj_recovery",
   tenantId: "ten_recovery",
 };
-const workflowNamespace = `recovery_${runKey}`;
+const workflowNamespace = `rec${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 const workflowScope: EvidenceScope = {
   environmentId: `env_${workflowNamespace}_primary`,
   projectId: `prj_${workflowNamespace}_primary`,
