@@ -9,6 +9,10 @@
     "./comparison-definition": {
       "types": "./dist/comparison-definition.d.ts",
       "default": "./dist/comparison-definition.js"
+    },
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "default": "./dist/workflow.js"
     }
   },
   "files": [
@@ -22,7 +26,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@proofstack/contracts": "workspace:*"
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/example-durable-replay": "workspace:*",
+    "@proofstack/example-evaluation-control-flow": "workspace:*",
+    "@proofstack/example-model-assurance-control-flow": "workspace:*",
+    "@proofstack/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

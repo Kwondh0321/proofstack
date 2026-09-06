@@ -186,7 +186,13 @@ const modules = [
     testAllowed: new Set(["@proofstack/api", "@proofstack/postgres"]),
   },
   {
-    allowed: new Set(["@proofstack/contracts"]),
+    allowed: new Set([
+      "@proofstack/contracts",
+      "@proofstack/example-durable-replay",
+      "@proofstack/example-evaluation-control-flow",
+      "@proofstack/example-model-assurance-control-flow",
+      "@proofstack/sdk",
+    ]),
     directory: "examples/workflow-1-acceptance/src",
     packageName: "@proofstack/example-workflow-1-acceptance",
   },

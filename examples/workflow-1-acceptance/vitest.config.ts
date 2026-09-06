@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, "src/**/*.integration.test.ts"],
     coverage: {
-      exclude: ["src/**/*.test.ts"],
+      exclude: ["src/**/*.test.ts", "src/workflow.ts"],
       include: ["src/comparison-definition.ts"],
       provider: "v8",
       reporter: ["text", "json-summary"],

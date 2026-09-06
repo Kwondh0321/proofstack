@@ -374,6 +374,18 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@proofstack/example-durable-replay':
+        specifier: workspace:*
+        version: link:../durable-replay
+      '@proofstack/example-evaluation-control-flow':
+        specifier: workspace:*
+        version: link:../evaluation-control-flow
+      '@proofstack/example-model-assurance-control-flow':
+        specifier: workspace:*
+        version: link:../model-assurance-control-flow
+      '@proofstack/sdk':
+        specifier: workspace:*
+        version: link:../../sdks/typescript
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
