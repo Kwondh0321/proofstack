@@ -5,6 +5,15 @@
   "description": "Service-backed model and human assurance reference flow",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "default": "./dist/workflow.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
