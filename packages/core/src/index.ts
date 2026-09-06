@@ -37,6 +37,7 @@ export * from "./evaluation/record-comparison.js";
 export * from "./evaluation/record-evaluation.js";
 export * from "./evaluation/record-model-assurance.js";
 export * from "./evaluation/reference-aggregate.js";
+export * from "./evaluation/resolve-criteria-trust.js";
 export * from "./evaluation/schema-oracle.js";
 export * from "./evidence/evidence-repository.js";
 export * from "./evidence/ingest-evidence.js";
