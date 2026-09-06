@@ -5,10 +5,10 @@ export {
   publishComparisonFixture,
 } from "./comparison-repository-conformance.js";
 export {
-  comparisonDefinitionFixture,
-  comparisonFixtureScope,
   type ComparisonRepositoryFixtureRecord,
   type ComparisonRepositoryTestHarness,
+  comparisonDefinitionFixture,
+  comparisonFixtureScope,
   comparisonResultFixture,
   comparisonSnapshotFixture,
   createComparisonRepositoryTestHarness,
@@ -34,6 +34,12 @@ export { MemoryEvaluationRepository } from "./memory-evaluation-repository.js";
 export { MemoryEvidenceRepository } from "./memory-evidence-repository.js";
 export { MemoryModelAssuranceRepository } from "./memory-model-assurance-repository.js";
 export { MemoryReleaseCandidateRepository } from "./memory-release-candidate-repository.js";
+export { MemoryReleasePolicyRepository } from "./memory-release-policy-repository.js";
+export {
+  createModelAssuranceRepositoryTestHarness,
+  type ModelAssuranceRepositoryFixtureRecord,
+  type ModelAssuranceRepositoryTestHarness,
+} from "./model-assurance-repository-fixtures.js";
 export {
   type ReleaseCandidateRepositoryConformanceCase,
   type ReleaseCandidateRepositoryTestFactory,
@@ -41,12 +47,19 @@ export {
 } from "./release-candidate-repository-conformance.js";
 export {
   createReleaseCandidateRepositoryTestHarness,
+  type ReleaseCandidateRepositoryTestHarness,
   releaseCandidateFixture,
   releaseCandidateFixtureScope,
-  type ReleaseCandidateRepositoryTestHarness,
 } from "./release-candidate-repository-fixtures.js";
 export {
-  createModelAssuranceRepositoryTestHarness,
-  type ModelAssuranceRepositoryFixtureRecord,
-  type ModelAssuranceRepositoryTestHarness,
-} from "./model-assurance-repository-fixtures.js";
+  type ReleasePolicyRepositoryConformanceCase,
+  type ReleasePolicyRepositoryTestFactory,
+  releasePolicyRepositoryConformanceCases,
+} from "./release-policy-repository-conformance.js";
+export {
+  createReleasePolicyRepositoryTestHarness,
+  type ReleasePolicyRepositoryTestHarness,
+  releasePolicyFixtureScope,
+  releasePolicyLifecycleFixture,
+  releasePolicyRepositoryFixture,
+} from "./release-policy-repository-fixtures.js";
