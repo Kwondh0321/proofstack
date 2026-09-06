@@ -64,6 +64,12 @@ describe("ProofStack OpenAPI document", () => {
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/release-candidates/{candidateId}/versions/{candidateVersionId}":
           {},
+        "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}/lifecycle-events":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}/lifecycle-events/{eventId}":
+          {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}/content": {},
@@ -263,6 +269,114 @@ describe("ProofStack OpenAPI document", () => {
     );
     expect(candidatePaths).toHaveLength(1);
     expect(candidatePaths.some((path) => /latest|approve|deploy/iu.test(path))).toBe(false);
+  });
+
+  it("documents immutable release policy authoring and exact lifecycle reads", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          operationId: string;
+          parameters: Array<{ name: string }>;
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+        post?: {
+          description: string;
+          operationId: string;
+          parameters: Array<{ name: string }>;
+          requestBody: { content: { "application/json": { schema: { $ref: string } } } };
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const policyPath =
+      "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}";
+    const lifecyclePath = `${policyPath}/lifecycle-events`;
+    const policy = paths[policyPath];
+    const lifecycle = paths[lifecyclePath]?.post;
+    const exactLifecycle = paths[`${lifecyclePath}/{eventId}`]?.get;
+
+    expect(policy?.post?.security).toEqual([{ browserSession: [] }]);
+    expect(lifecycle?.security).toEqual([{ browserSession: [] }]);
+    expect(policy?.get?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(exactLifecycle?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+
+    expect(policy?.post?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "policyId",
+      "policyVersionId",
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
+    expect(policy?.get?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "policyId",
+      "policyVersionId",
+    ]);
+    expect(lifecycle?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "policyId",
+      "policyVersionId",
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
+    expect(exactLifecycle?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "policyId",
+      "policyVersionId",
+      "eventId",
+    ]);
+
+    expect(policy?.post?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/PublishReleasePolicyRequest",
+    );
+    expect(lifecycle?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/PublishReleasePolicyLifecycleRequest",
+    );
+    for (const mutation of [policy?.post, lifecycle]) {
+      for (const status of ["200", "201", "400", "401", "403", "409", "429", "500", "503"]) {
+        expect(mutation?.responses).toHaveProperty(status);
+      }
+      expect(mutation?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+      expect(mutation?.responses["201"]?.headers).toHaveProperty("Cache-Control");
+    }
+    for (const read of [policy?.get, exactLifecycle]) {
+      for (const status of ["200", "400", "401", "403", "404", "429", "500", "503"]) {
+        expect(read?.responses).toHaveProperty(status);
+      }
+      expect(read?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    }
+    expect(lifecycle?.responses).toHaveProperty("404");
+
+    expect(policy?.post?.operationId).toBe("publishReleasePolicy");
+    expect(policy?.get?.operationId).toBe("getReleasePolicy");
+    expect(lifecycle?.operationId).toBe("publishReleasePolicyLifecycleEvent");
+    expect(exactLifecycle?.operationId).toBe("getReleasePolicyLifecycleEvent");
+    expect(policy?.post?.description).toContain("installer-bound issuer authority");
+    expect(policy?.post?.description).toContain("does not evaluate a candidate");
+
+    for (const schema of [
+      "PublishReleasePolicyRequest",
+      "PublishReleasePolicyResponse",
+      "ReadReleasePolicyResponse",
+      "PublishReleasePolicyLifecycleRequest",
+      "PublishReleasePolicyLifecycleResponse",
+      "ReadReleasePolicyLifecycleResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
+    const policyPaths = Object.keys(paths).filter((path) => path.includes("/release-policies/"));
+    expect(policyPaths).toHaveLength(3);
+    expect(policyPaths.some((path) => /latest|evaluate|approve|deploy/iu.test(path))).toBe(false);
   });
 
   it("documents separated exact model-assurance authority and no mutable aliases", () => {

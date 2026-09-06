@@ -89,6 +89,16 @@ import {
   PublishReleaseCandidateResponseSchema,
   ReadReleaseCandidateResponseSchema,
 } from "./release-candidate-api.js";
+import {
+  PublishReleasePolicyLifecycleResponseSchema,
+  PublishReleasePolicyResponseSchema,
+  ReadReleasePolicyLifecycleResponseSchema,
+  ReadReleasePolicyResponseSchema,
+} from "./release-policy-api.js";
+import {
+  PublishReleasePolicyLifecycleRequestSchema,
+  PublishReleasePolicyRequestSchema,
+} from "./release-policy.js";
 import { ReplayPlanDefinitionSchema, TargetReleaseDefinitionSchema } from "./replay-plan.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
@@ -351,6 +361,30 @@ const releaseCandidateVersionParameter = {
   schema: schemaReference("OpaqueId"),
 } as const;
 
+const releasePolicyParameter = {
+  description: "Opaque logical release policy identifier within the authorized scope",
+  in: "path",
+  name: "policyId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const releasePolicyVersionParameter = {
+  description: "Exact immutable release policy version identifier",
+  in: "path",
+  name: "policyVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const releasePolicyLifecycleEventParameter = {
+  description: "Exact immutable release policy lifecycle event identifier",
+  in: "path",
+  name: "eventId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
 const modelAssuranceRecordParameter = {
   description: "Exact immutable model-assurance record identifier",
   in: "path",
@@ -586,6 +620,24 @@ const releaseCandidateStorageUnavailableResponse = {
   description: "Release candidate storage is unavailable or violated its repository contract",
 } as const;
 
+const releasePolicyNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The exact release policy version or lifecycle event does not exist in the authorized scope",
+} as const;
+
+const releasePolicyConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "Publication authority was rejected or the immutable policy graph conflicts with existing semantics, lineage, resources, or lifecycle state",
+} as const;
+
+const releasePolicyUnavailableResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "Release policy authority resolution or storage is unavailable or violated its public contract",
+} as const;
+
 const modelAssuranceNotFoundResponse = {
   content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
   description: "The exact model-assurance record does not exist in the authorized scope",
@@ -651,6 +703,22 @@ function releaseCandidateJsonResponse(
     headers: {
       "Cache-Control": {
         description: "Release candidate responses are never cacheable",
+        schema: { const: "no-store", type: "string" },
+      },
+    },
+  };
+}
+
+function releasePolicyJsonResponse(
+  schemaName: string,
+  description: string,
+): Record<string, unknown> {
+  return {
+    content: { "application/json": { schema: schemaReference(schemaName) } },
+    description,
+    headers: {
+      "Cache-Control": {
+        description: "Release policy control-plane responses are never cacheable",
         schema: { const: "no-store", type: "string" },
       },
     },
@@ -739,6 +807,24 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "output",
     ),
     ...componentsFor("ReadReleaseCandidateResponse", ReadReleaseCandidateResponseSchema, "output"),
+    ...componentsFor("PublishReleasePolicyRequest", PublishReleasePolicyRequestSchema, "input"),
+    ...componentsFor("PublishReleasePolicyResponse", PublishReleasePolicyResponseSchema, "output"),
+    ...componentsFor("ReadReleasePolicyResponse", ReadReleasePolicyResponseSchema, "output"),
+    ...componentsFor(
+      "PublishReleasePolicyLifecycleRequest",
+      PublishReleasePolicyLifecycleRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "PublishReleasePolicyLifecycleResponse",
+      PublishReleasePolicyLifecycleResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadReleasePolicyLifecycleResponse",
+      ReadReleasePolicyLifecycleResponseSchema,
+      "output",
+    ),
     ...componentsFor("ModelAssuranceRecordKind", ModelAssuranceRecordKindSchema, "input"),
     ...componentsFor(
       "PublishModelAssuranceDefinitionRequest",
@@ -895,7 +981,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, immutable evaluation, evidence-comparison, and release-candidate control, durable bounded replay control, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, immutable evaluation, evidence-comparison, release-candidate control, release-policy authoring and lifecycle records, durable bounded replay control, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -2188,6 +2274,133 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             security: browserSecurity,
             summary: "Publish an exact release candidate",
             tags: ["Release candidate"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable release policy version. Cross-scope and absent versions share the same not-found response. Mutable aliases are not accepted, and reading a policy does not evaluate it or authorize a release.",
+            operationId: "getReleasePolicy",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              releasePolicyParameter,
+              releasePolicyVersionParameter,
+            ],
+            responses: {
+              "200": releasePolicyJsonResponse(
+                "ReadReleasePolicyResponse",
+                "The exact immutable release policy version",
+              ),
+              ...problemResponses,
+              "404": releasePolicyNotFoundResponse,
+              "503": releasePolicyUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact release policy version",
+            tags: ["Release policy"],
+          },
+          post: {
+            description:
+              "Publishes one exact immutable release policy only after resolving installer-bound issuer authority and every cited source through authoritative boundaries. Requires non-delegable policy:author authority. Publication records criteria; it does not evaluate a candidate, approve a release, or execute a deployment.",
+            operationId: "publishReleasePolicy",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              releasePolicyParameter,
+              releasePolicyVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": { schema: schemaReference("PublishReleasePolicyRequest") },
+              },
+              required: true,
+            },
+            responses: {
+              "200": releasePolicyJsonResponse(
+                "PublishReleasePolicyResponse",
+                "An identical retry returned the existing immutable release policy",
+              ),
+              "201": releasePolicyJsonResponse(
+                "PublishReleasePolicyResponse",
+                "A new immutable release policy was published",
+              ),
+              ...problemResponses,
+              "409": releasePolicyConflictResponse,
+              "503": releasePolicyUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish an exact release policy version",
+            tags: ["Release policy"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}/lifecycle-events":
+        {
+          post: {
+            description:
+              "Publishes one immutable withdrawal or supersession event for an exact policy version. Requires non-delegable policy:author authority. Events preserve history and never rewrite or delete the policy definition.",
+            operationId: "publishReleasePolicyLifecycleEvent",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              releasePolicyParameter,
+              releasePolicyVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishReleasePolicyLifecycleRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": releasePolicyJsonResponse(
+                "PublishReleasePolicyLifecycleResponse",
+                "An identical retry returned the existing immutable lifecycle event",
+              ),
+              "201": releasePolicyJsonResponse(
+                "PublishReleasePolicyLifecycleResponse",
+                "A new immutable lifecycle event was published",
+              ),
+              ...problemResponses,
+              "404": releasePolicyNotFoundResponse,
+              "409": releasePolicyConflictResponse,
+              "503": releasePolicyUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish a release policy lifecycle event",
+            tags: ["Release policy"],
+          },
+        },
+      "/v1/projects/{projectId}/environments/{environmentId}/release-policies/{policyId}/versions/{policyVersionId}/lifecycle-events/{eventId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable withdrawal or supersession event. Cross-scope and absent events share the same not-found response; mutable lifecycle summaries and latest aliases are not accepted.",
+            operationId: "getReleasePolicyLifecycleEvent",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              releasePolicyParameter,
+              releasePolicyVersionParameter,
+              releasePolicyLifecycleEventParameter,
+            ],
+            responses: {
+              "200": releasePolicyJsonResponse(
+                "ReadReleasePolicyLifecycleResponse",
+                "The exact immutable release policy lifecycle event",
+              ),
+              ...problemResponses,
+              "404": releasePolicyNotFoundResponse,
+              "503": releasePolicyUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact release policy lifecycle event",
+            tags: ["Release policy"],
           },
         },
       "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/definitions/{recordId}":
