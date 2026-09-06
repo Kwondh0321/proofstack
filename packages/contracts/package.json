@@ -74,6 +74,10 @@
       "types": "./dist/recovery.d.ts",
       "import": "./dist/recovery.js"
     },
+    "./release-candidate": {
+      "types": "./dist/release-candidate.d.ts",
+      "import": "./dist/release-candidate.js"
+    },
     "./replay-plan": {
       "types": "./dist/replay-plan.d.ts",
       "import": "./dist/replay-plan.js"
