@@ -446,6 +446,11 @@ h2 {
   gap: 20px;
 }
 
+.event-card header > div,
+.event-card dl > div {
+  min-width: 0;
+}
+
 .event-card header p {
   margin-bottom: 5px;
   color: var(--accent);
@@ -494,12 +499,11 @@ h2 {
 }
 
 .event-card dd {
-  overflow: hidden;
+  overflow-wrap: anywhere;
   margin: 0;
   color: #d6dce3;
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .empty-state {
