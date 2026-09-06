@@ -7,13 +7,13 @@ import type {
   ReleaseCandidateSource,
   TargetRelease,
 } from "@proofstack/contracts";
-import type { Workflow1AcceptanceSummary } from "@proofstack/example-workflow-1-acceptance/workflow";
 import { digestReleaseCandidateDefinition } from "@proofstack/sdk";
 import { describe, expect, it } from "vitest";
 import {
   runWorkflow2ReleaseCandidate,
   WORKFLOW_2_REFERENCE_MODEL_ADAPTER,
   WORKFLOW_2_REFERENCE_MODEL_DECLARATION,
+  type Workflow1CandidateSources,
 } from "./workflow.js";
 
 const scope: EvidenceScope = {
@@ -48,7 +48,7 @@ const provenance = {
   sizeBytes: 512,
 };
 
-function workflow1(): Workflow1AcceptanceSummary {
+function workflow1(): Workflow1CandidateSources {
   return {
     durableReplay: {
       dataset: {
@@ -84,7 +84,7 @@ function workflow1(): Workflow1AcceptanceSummary {
       resultId: "comparison_workflow_2",
     },
     scope,
-  } as unknown as Workflow1AcceptanceSummary;
+  };
 }
 
 function fixture(
@@ -182,7 +182,7 @@ function options(
     readonly fixture?: RecordedInteractionFixtureVersion;
     readonly source?: ReleaseCandidateSource;
     readonly targetRelease?: TargetRelease;
-    readonly workflow1?: Workflow1AcceptanceSummary;
+    readonly workflow1?: Workflow1CandidateSources;
   } = {},
 ) {
   const harness = candidateHarness();

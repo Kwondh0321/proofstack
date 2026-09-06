@@ -7,7 +7,14 @@ import { resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const composeFile = resolve(repositoryRoot, "compose.yaml");
-const projectName = `proofstack-workflow-1-${process.pid}-${randomBytes(4).toString("hex")}`;
+const arguments_ = process.argv.slice(2);
+const unknownArguments = arguments_.filter((argument) => argument !== "--release-candidate");
+if (unknownArguments.length > 0) {
+  throw new TypeError(`Unknown acceptance argument: ${unknownArguments.join(", ")}`);
+}
+const releaseCandidateMode = arguments_.includes("--release-candidate");
+const workflowLabel = releaseCandidateMode ? "Workflow 2 candidate" : "Workflow 1";
+const projectName = `proofstack-${releaseCandidateMode ? "workflow-2-candidate" : "workflow-1"}-${process.pid}-${randomBytes(4).toString("hex")}`;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 let activeChild;
 let receivedSignal;
@@ -95,9 +102,10 @@ try {
     PROOFSTACK_TEST_S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
     PROOFSTACK_TEST_S3_REGION: "us-east-1",
     PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY: "proofstack-local-secret",
+    PROOFSTACK_ACCEPT_RELEASE_CANDIDATE: releaseCandidateMode ? "true" : "false",
   };
 
-  console.log(`Starting isolated Workflow 1 services as ${projectName}.`);
+  console.log(`Starting isolated ${workflowLabel} services as ${projectName}.`);
   console.log(`PostgreSQL uses loopback port ${postgresPort}; object storage uses ${s3Port}.`);
   await run(
     "docker",
@@ -130,7 +138,7 @@ try {
     ],
     { env: testEnvironment },
   );
-  console.log("Workflow 1 acceptance passed. Removing the isolated services and volumes.");
+  console.log(`${workflowLabel} acceptance passed. Removing the isolated services and volumes.`);
 } catch (error) {
   primaryError = error;
 } finally {
@@ -159,10 +167,10 @@ try {
 }
 
 if (cleanupError) {
-  console.error(`Workflow 1 cleanup failed: ${cleanupError.message}`);
+  console.error(`${workflowLabel} cleanup failed: ${cleanupError.message}`);
 }
 if (primaryError) {
-  console.error(`Workflow 1 acceptance failed: ${primaryError.message}`);
+  console.error(`${workflowLabel} acceptance failed: ${primaryError.message}`);
 }
 if (receivedSignal) {
   process.kill(process.pid, receivedSignal);

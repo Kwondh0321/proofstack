@@ -10,13 +10,29 @@ import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
-import { type ApiConfig, createApp } from "@proofstack/api/composition";
-import { type PrincipalContext, TraceResponseSchema } from "@proofstack/contracts";
+import {
+  type ApiConfig,
+  createApp,
+  LocalGitReleaseCandidateRevisionAuthority,
+  StaticReleaseCandidateRuntimeAuthority,
+} from "@proofstack/api/composition";
+import {
+  type PrincipalContext,
+  type ReleaseCandidateSource,
+  ReleaseCandidateSourceSchema,
+  TraceResponseSchema,
+} from "@proofstack/contracts";
 import { AuthoritySplitModelAssuranceRepository, SystemClock } from "@proofstack/core";
 import {
   createPostgresEvaluationWorker,
   type PostgresEvaluationWorkerRuntime,
 } from "@proofstack/evaluation-worker";
+import {
+  runWorkflow2ReleaseCandidate,
+  WORKFLOW_2_REFERENCE_MODEL_ADAPTER,
+  WORKFLOW_2_REFERENCE_MODEL_DECLARATION,
+  type Workflow2ReleaseCandidateSummary,
+} from "@proofstack/example-workflow-2-release-candidate/workflow";
 import {
   createPostgresModelEvaluationWorker,
   type PostgresModelEvaluationWorkerRuntime,
@@ -34,6 +50,7 @@ import {
   ProofStackEvaluationClient,
   ProofStackModelAssuranceClient,
   ProofStackRegressionClient,
+  ProofStackReleaseCandidateClient,
   ProofStackReplayClient,
 } from "@proofstack/sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -59,6 +76,9 @@ const s3AccessKeyId = requiredEnvironment("PROOFSTACK_TEST_S3_ACCESS_KEY_ID");
 const s3SecretAccessKey = requiredEnvironment("PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY");
 const s3Endpoint = requiredEnvironment("PROOFSTACK_TEST_S3_ENDPOINT");
 const s3Region = requiredEnvironment("PROOFSTACK_TEST_S3_REGION");
+const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
+const repositoryUrl = "https://github.com/Kwondh0321/proofstack";
+const acceptReleaseCandidate = process.env["PROOFSTACK_ACCEPT_RELEASE_CANDIDATE"] === "true";
 const runKey = randomUUID().replaceAll("-", "").slice(0, 12);
 const scope = {
   environmentId: `env_${runKey}_primary`,
@@ -190,6 +210,8 @@ const controlPrincipal: PrincipalContext = {
     "evaluation:manage",
     "comparison:read",
     "comparison:manage",
+    "release:read",
+    "release:manage",
   ],
   principalId: `usr_acceptance_${runKey}`,
   principalType: "user",
@@ -263,12 +285,48 @@ function replayClient(): ProofStackReplayClient {
   });
 }
 
+function releaseCandidateClient(): ProofStackReleaseCandidateClient {
+  return new ProofStackReleaseCandidateClient({
+    authentication: { mode: "development" },
+    endpoint: apiUrl,
+    environmentId: scope.environmentId,
+    projectId: scope.projectId,
+    timeoutMs: 20_000,
+  });
+}
+
+function gitOutput(arguments_: readonly string[]): string {
+  return execFileSync("git", arguments_, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+}
+
+function releaseCandidateSource(): ReleaseCandidateSource {
+  const algorithm = gitOutput(["rev-parse", "--show-object-format"]);
+  const revision = gitOutput(["rev-parse", "HEAD"]);
+  const tree = gitOutput(["show", "--no-patch", "--format=%T", revision]);
+  return ReleaseCandidateSourceSchema.parse({
+    commit: { algorithm, value: revision },
+    repositoryUrl,
+    tree: { algorithm, value: tree },
+  });
+}
+
 async function startApi(): Promise<void> {
   selectedPrincipal = controlPrincipal;
   app = await createApp(apiConfig, {
     authenticator,
     clock,
     modelAssuranceRepository: assuranceRepository,
+    releaseCandidateRevisionAuthority: new LocalGitReleaseCandidateRevisionAuthority({
+      repositories: [{ checkoutPath: repositoryRoot, repositoryUrl, scope }],
+    }),
+    releaseCandidateRuntimeAuthority: new StaticReleaseCandidateRuntimeAuthority({
+      modelDeclarations: [{ declaration: WORKFLOW_2_REFERENCE_MODEL_DECLARATION, scope }],
+      runtimeAdapters: [{ adapter: WORKFLOW_2_REFERENCE_MODEL_ADAPTER, scope }],
+    }),
   });
   apiUrl = await app.listen({ host: "127.0.0.1", port: 0 });
 }
@@ -437,11 +495,8 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
     if (!evaluationWorker || !modelWorker || !outputRoot) {
       throw new Error("Workflow 1 acceptance infrastructure is unavailable");
     }
-    const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: fileURLToPath(new URL("../../..", import.meta.url)),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+    const source = releaseCandidateSource();
+    const sourceRevision = source.commit.value;
     const assessmentValidUntil = new Date(
       clock.now().getTime() + 24 * 60 * 60 * 1_000,
     ).toISOString();
@@ -524,7 +579,33 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
     });
     expect(summary.verifiedComparisonRecords).toHaveLength(4);
 
+    let releaseCandidate: Workflow2ReleaseCandidateSummary | undefined;
+    if (acceptReleaseCandidate) {
+      releaseCandidate = await runWorkflow2ReleaseCandidate({
+        candidateClient: releaseCandidateClient(),
+        fixtureReader: regressionClient(),
+        namespace: runKey,
+        source,
+        targetReleaseReader: replayClient(),
+        workflow1: summary,
+      });
+      expect(releaseCandidate.idempotentRetryConfirmed).toBe(true);
+      expect(releaseCandidate.candidate.source).toEqual(source);
+      expect(releaseCandidate.exactReferences).toMatchObject({
+        comparisonResultId: summary.result.resultId,
+        datasetVersionId: summary.durableReplay.dataset.datasetVersionId,
+        targetReleaseId: summary.durableReplay.targetRelease.targetReleaseId,
+      });
+    }
+
     await restartApi();
     await verifyCompleteReadBack(summary);
+    if (releaseCandidate) {
+      const restored = await releaseCandidateClient().readCandidate({
+        candidateId: releaseCandidate.candidate.candidateId,
+        candidateVersionId: releaseCandidate.candidate.candidateVersionId,
+      });
+      expect(restored.candidate).toEqual(releaseCandidate.candidate);
+    }
   });
 });

@@ -13,7 +13,6 @@ import {
   type ReleaseCandidateSource,
   type TargetRelease,
 } from "@proofstack/contracts";
-import type { Workflow1AcceptanceSummary } from "@proofstack/example-workflow-1-acceptance/workflow";
 
 const REFERENCE_ADAPTER_DEFINITION = `${JSON.stringify({
   boundary: "model",
@@ -64,13 +63,55 @@ interface ReleaseCandidateClient {
   }): Promise<ReadReleaseCandidateResponse>;
 }
 
+/**
+ * Minimal retained Workflow 1 projection required to construct a release candidate. Keeping this
+ * structural boundary local prevents either workflow package from owning the other workflow's
+ * complete acceptance result or creating a package dependency cycle.
+ */
+export interface Workflow1CandidateSources {
+  readonly durableReplay: {
+    readonly dataset: {
+      readonly datasetId: string;
+      readonly datasetVersionId: string;
+      readonly definitionSha256: string;
+    };
+    readonly fixture: {
+      readonly fixtureId: string;
+      readonly fixtureVersionId: string;
+      readonly definitionSha256: string;
+    };
+    readonly targetRelease: {
+      readonly targetId: string;
+      readonly targetReleaseId: string;
+      readonly definitionSha256: string;
+    };
+  };
+  readonly evaluation: {
+    readonly assessment: {
+      readonly assessmentId: string;
+      readonly definitionSha256: string;
+    };
+  };
+  readonly modelAssurance: {
+    readonly assessment: {
+      readonly assessmentExtensionId: string;
+      readonly definitionSha256: string;
+    };
+  };
+  readonly result: {
+    readonly definitionSha256: string;
+    readonly resultId: string;
+  };
+  readonly scope: EvidenceScope;
+}
+
 export interface RunWorkflow2ReleaseCandidateOptions {
   readonly candidateClient: ReleaseCandidateClient;
   readonly fixtureReader: RecordedFixtureReader;
   readonly namespace: string;
   readonly source: ReleaseCandidateSource;
   readonly targetReleaseReader: TargetReleaseReader;
-  readonly workflow1: Workflow1AcceptanceSummary;
+  readonly workflow1: Workflow1CandidateSources;
 }
 
 export interface Workflow2ReleaseCandidateSummary {
@@ -109,7 +150,7 @@ function exactArtifact(
 }
 
 function assertWorkflow1SourceGraph(
-  workflow1: Workflow1AcceptanceSummary,
+  workflow1: Workflow1CandidateSources,
   fixture: RecordedInteractionFixtureVersion,
   release: TargetRelease,
   source: ReleaseCandidateSource,

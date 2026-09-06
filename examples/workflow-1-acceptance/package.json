@@ -38,6 +38,7 @@
     "@proofstack/api": "workspace:*",
     "@proofstack/core": "workspace:*",
     "@proofstack/evaluation-worker": "workspace:*",
+    "@proofstack/example-workflow-2-release-candidate": "workspace:*",
     "@proofstack/model-evaluation-worker": "workspace:*",
     "@proofstack/postgres": "workspace:*",
     "@proofstack/s3": "workspace:*",

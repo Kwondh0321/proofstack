@@ -399,6 +399,9 @@ importers:
       '@proofstack/evaluation-worker':
         specifier: workspace:*
         version: link:../../services/evaluation-worker
+      '@proofstack/example-workflow-2-release-candidate':
+        specifier: workspace:*
+        version: link:../workflow-2-release-candidate
       '@proofstack/model-evaluation-worker':
         specifier: workspace:*
         version: link:../../services/model-evaluation-worker
@@ -426,9 +429,6 @@ importers:
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@proofstack/example-workflow-1-acceptance':
-        specifier: workspace:*
-        version: link:../workflow-1-acceptance
       '@proofstack/sdk':
         specifier: workspace:*
         version: link:../../sdks/typescript

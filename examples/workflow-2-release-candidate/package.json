@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@proofstack/contracts": "workspace:*",
-    "@proofstack/example-workflow-1-acceptance": "workspace:*",
     "@proofstack/sdk": "workspace:*"
   },
   "devDependencies": {
