@@ -50,6 +50,7 @@ export * from "./outbox/projection-cursor-repository.js";
 export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";
+export * from "./release/release-candidate-source-references.js";
 export { MemoryComparisonRepository } from "./testing/memory-comparison-repository.js";
 export {
   type EvaluationRecordReference,
