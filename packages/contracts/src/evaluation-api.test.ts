@@ -49,6 +49,7 @@ function requestSchema(kind: EvaluationRecordKind) {
     case "oracle_spec":
     case "qualification_fixture_set":
     case "source_review":
+    case "source_reviewer_qualification":
     case "source_snapshot":
       return PublishEvaluationDefinitionRequestSchema;
     case "criterion_set_status":
@@ -99,6 +100,8 @@ function receipt(kind: EvaluationRecordKind): Record<string, unknown> {
         reviewedByPrincipalId: principalId,
         reviewerRole: "Independent API contract reviewer",
       };
+    case "source_reviewer_qualification":
+      return { recordedAt: timestamp, verifiedByPrincipalId: principalId };
     case "source_snapshot":
       return { publishedByPrincipalId: principalId, recordedAt: timestamp };
   }
@@ -116,7 +119,7 @@ function record(vector: StoredVector) {
 
 describe("evaluation API contracts", () => {
   it("binds every strict definition to exactly one semantic mutation family", () => {
-    expect(vectors).toHaveLength(16);
+    expect(vectors).toHaveLength(17);
     for (const vector of vectors) {
       expect(
         requestSchema(vector.kind).parse({

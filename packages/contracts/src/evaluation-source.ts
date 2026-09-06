@@ -12,6 +12,7 @@ import {
 export const DISCOVERY_RECORD_SCHEMA_VERSION = "0.1" as const;
 export const SOURCE_SNAPSHOT_SCHEMA_VERSION = "0.1" as const;
 export const SOURCE_REVIEW_SCHEMA_VERSION = "0.1" as const;
+export const SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION = "0.1" as const;
 export const MAX_DISCOVERY_CANDIDATES = 100;
 export const MAX_SOURCE_CONFLICTS = 64;
 export const MAX_SOURCE_REVIEW_BASIS_ARTIFACTS = 16;
@@ -116,6 +117,13 @@ export const SourceReviewReferenceSchema = z
   .object({
     definitionSha256: Sha256Schema,
     sourceReviewId: OpaqueIdSchema,
+  })
+  .strict();
+
+export const SourceReviewerQualificationReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    qualificationId: OpaqueIdSchema,
   })
   .strict();
 
@@ -290,6 +298,16 @@ export const SourceIdentityVerificationSchema = z.discriminatedUnion("status", [
     .strict(),
 ]);
 
+export const SourceKindSchema = z.enum([
+  "contract",
+  "law_or_regulation",
+  "organizational_policy",
+  "primary_research",
+  "product_specification",
+  "standard",
+  "technical_documentation",
+]);
+
 export const SourceLicenseSchema = z.discriminatedUnion("status", [
   z
     .object({
@@ -347,15 +365,7 @@ const sourceSnapshotDefinitionShape = {
   publishedAt: PostgresTimestampSchema.optional(),
   publisher: SourcePublisherClaimSchema,
   retrievedAt: PostgresTimestampSchema,
-  sourceKind: z.enum([
-    "contract",
-    "law_or_regulation",
-    "organizational_policy",
-    "primary_research",
-    "product_specification",
-    "standard",
-    "technical_documentation",
-  ]),
+  sourceKind: SourceKindSchema,
   sourceSnapshotId: OpaqueIdSchema,
   supersedes: sourceReferences("Superseded sources"),
 };
@@ -435,6 +445,99 @@ export const SourceSnapshotSchema = z
   .strict()
   .superRefine(refineSourceSnapshot);
 
+const sourceReviewerQualificationDefinitionShape = {
+  applicabilityScope: SourceApplicabilityScopeSchema,
+  competenceAreas: sortedCanonicalTextValues(32, 256, "Reviewer competence area").min(1),
+  conflicts: sortedCanonicalTextValues(32, 256, "Reviewer qualification conflict"),
+  credentialEvidence: exactArtifactReferences("Reviewer qualification credential evidence"),
+  predecessor: SourceReviewerQualificationReferenceSchema.optional(),
+  qualificationId: OpaqueIdSchema,
+  rationale: AssuranceRationaleSchema,
+  reviewerPrincipalId: OpaqueIdSchema,
+  sourceKinds: z
+    .array(SourceKindSchema)
+    .min(1)
+    .max(SourceKindSchema.options.length)
+    .refine(isStrictlySortedUnique, {
+      message: "Reviewer qualification source kinds must be unique and ordered",
+    }),
+  status: z.enum(["qualified", "unqualified", "unverifiable"]),
+  statusReasons: sortedCanonicalTextValues(32, 256, "Reviewer qualification status reason"),
+  validFrom: PostgresTimestampSchema,
+  validUntil: PostgresTimestampSchema,
+};
+
+function refineSourceReviewerQualification(
+  value: {
+    readonly conflicts: readonly string[];
+    readonly predecessor?: { readonly qualificationId: string } | undefined;
+    readonly qualificationId: string;
+    readonly reviewerPrincipalId: string;
+    readonly status: "qualified" | "unqualified" | "unverifiable";
+    readonly statusReasons: readonly string[];
+    readonly validFrom: string;
+    readonly validUntil: string;
+    readonly verifiedByPrincipalId?: string | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (compareTimestamp(value.validFrom, value.validUntil) >= 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Reviewer qualification validity must have a positive interval",
+      path: ["validUntil"],
+    });
+  }
+  if (value.predecessor?.qualificationId === value.qualificationId) {
+    context.addIssue({
+      code: "custom",
+      message: "A reviewer qualification cannot name itself as predecessor",
+      path: ["predecessor", "qualificationId"],
+    });
+  }
+  if (
+    value.status === "qualified" &&
+    (value.conflicts.length > 0 || value.statusReasons.length > 0)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "A qualified reviewer record cannot retain conflicts or adverse status reasons",
+      path: ["status"],
+    });
+  }
+  if (value.status !== "qualified" && value.statusReasons.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "A non-qualified reviewer record requires at least one status reason",
+      path: ["statusReasons"],
+    });
+  }
+  if (value.verifiedByPrincipalId === value.reviewerPrincipalId) {
+    context.addIssue({
+      code: "custom",
+      message: "A reviewer cannot verify their own qualification",
+      path: ["verifiedByPrincipalId"],
+    });
+  }
+}
+
+export const SourceReviewerQualificationDefinitionSchema = z
+  .object(sourceReviewerQualificationDefinitionShape)
+  .strict()
+  .superRefine(refineSourceReviewerQualification);
+
+export const SourceReviewerQualificationSchema = z
+  .object({
+    ...sourceReviewerQualificationDefinitionShape,
+    definitionSha256: Sha256Schema,
+    recordedAt: UtcMillisecondTimestampSchema,
+    schemaVersion: z.literal(SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION),
+    scope: EvidenceScopeSchema,
+    verifiedByPrincipalId: OpaqueIdSchema,
+  })
+  .strict()
+  .superRefine(refineSourceReviewerQualification);
+
 const sourceReviewDefinitionShape = {
   applicabilityConclusion: z.enum(["approved", "rejected", "undetermined"]),
   approvedScope: SourceApplicabilityScopeSchema,
@@ -449,6 +552,7 @@ const sourceReviewDefinitionShape = {
   reviewedConflicts: sourceReferences("Reviewed source conflicts"),
   source: SourceReferenceSchema,
   sourceReviewId: OpaqueIdSchema,
+  reviewerQualification: SourceReviewerQualificationReferenceSchema.optional(),
   supersedesReview: SourceReviewReferenceSchema.optional(),
   validFrom: PostgresTimestampSchema,
   validUntil: PostgresTimestampSchema,
@@ -551,5 +655,12 @@ export type SourceApplicabilityScope = z.infer<typeof SourceApplicabilityScopeSc
 export type SourceReference = z.infer<typeof SourceReferenceSchema>;
 export type SourceReviewDefinition = z.infer<typeof SourceReviewDefinitionSchema>;
 export type SourceReviewRecord = z.infer<typeof SourceReviewRecordSchema>;
+export type SourceReviewerQualification = z.infer<typeof SourceReviewerQualificationSchema>;
+export type SourceReviewerQualificationDefinition = z.infer<
+  typeof SourceReviewerQualificationDefinitionSchema
+>;
+export type SourceReviewerQualificationReference = z.infer<
+  typeof SourceReviewerQualificationReferenceSchema
+>;
 export type SourceSnapshot = z.infer<typeof SourceSnapshotSchema>;
 export type SourceSnapshotDefinition = z.infer<typeof SourceSnapshotDefinitionSchema>;

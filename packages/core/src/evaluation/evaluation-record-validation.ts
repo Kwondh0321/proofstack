@@ -4,6 +4,13 @@ import {
   CriterionSetSchema,
   CriterionSetStatusRecordSchema,
   DiscoveryRecordSchema,
+  EvaluationAggregateSchema,
+  EvaluationAggregationPolicySchema,
+  EvaluationRunRejectionSchema,
+  EvaluationRunResultSchema,
+  EvaluationRunSchema,
+  EvaluatorSpecSchema,
+  type EvidenceScope,
   encodeAssessmentDefinition,
   encodeCriterionSetDefinition,
   encodeCriterionSetStatusDefinition,
@@ -19,30 +26,25 @@ import {
   encodeQualificationReportDefinition,
   encodeRawObservationDefinition,
   encodeSourceReviewDefinition,
+  encodeSourceReviewerQualificationDefinition,
   encodeSourceSnapshotDefinition,
-  EvaluationAggregateSchema,
-  EvaluationAggregationPolicySchema,
-  EvaluationRunRejectionSchema,
-  EvaluationRunResultSchema,
-  EvaluationRunSchema,
-  EvaluatorSpecSchema,
   OracleSpecSchema,
   QualificationFixtureSetSchema,
   QualificationReportSchema,
   RawObservationSchema,
+  SourceReviewerQualificationSchema,
   SourceReviewRecordSchema,
   SourceSnapshotSchema,
-  type EvidenceScope,
 } from "@proofstack/contracts";
-import {
-  EvaluationRepositoryContractError,
-  InvalidEvaluationRecordInputError,
-} from "./evaluation-repository-errors.js";
+import type { EvaluationRecord } from "./evaluation-repository.js";
 import type {
   EvaluationRecordKind,
   EvaluationResourceKind,
 } from "./evaluation-repository-errors.js";
-import type { EvaluationRecord } from "./evaluation-repository.js";
+import {
+  EvaluationRepositoryContractError,
+  InvalidEvaluationRecordInputError,
+} from "./evaluation-repository-errors.js";
 
 export type EvaluationStoredRecord = EvaluationRecord;
 
@@ -184,6 +186,12 @@ export const evaluationRecordDescriptors: Readonly<
     idOf: (record) => field(record, "sourceReviewId"),
     parse: (input) => SourceReviewRecordSchema.parse(input),
     receiptKeys: [...commonReceiptKeys, "reviewedAt", "reviewedByPrincipalId", "reviewerRole"],
+  },
+  source_reviewer_qualification: {
+    encode: (input) => encodeSourceReviewerQualificationDefinition(input as never),
+    idOf: (record) => field(record, "qualificationId"),
+    parse: (input) => SourceReviewerQualificationSchema.parse(input),
+    receiptKeys: [...commonReceiptKeys, "recordedAt", "verifiedByPrincipalId"],
   },
   source_snapshot: {
     encode: (input) => encodeSourceSnapshotDefinition(input as never),

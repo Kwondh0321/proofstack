@@ -5,9 +5,13 @@ import {
   DiscoveryRecordDefinitionSchema,
   DiscoveryRecordSchema,
   SOURCE_REVIEW_SCHEMA_VERSION,
+  SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION,
   SOURCE_SNAPSHOT_SCHEMA_VERSION,
   type SourceApplicabilityScope,
   SourceReviewDefinitionSchema,
+  type SourceReviewerQualificationDefinition,
+  SourceReviewerQualificationDefinitionSchema,
+  SourceReviewerQualificationSchema,
   SourceReviewRecordSchema,
   SourceSnapshotDefinitionSchema,
   SourceSnapshotSchema,
@@ -127,6 +131,23 @@ function reviewDefinition() {
     sourceReviewId: "srv_standard",
     validFrom: "2026-01-05T00:00:00Z",
     validUntil: "2026-12-31T00:00:00Z",
+  };
+}
+
+function reviewerQualificationDefinition(): SourceReviewerQualificationDefinition {
+  return {
+    applicabilityScope: applicabilityScope(),
+    competenceAreas: ["AI assurance", "technical standards"],
+    conflicts: [],
+    credentialEvidence: [artifact("art_reviewer_credential", "5")],
+    qualificationId: "srq_standard_reviewer",
+    rationale: "Exact retained credentials cover the declared source kinds and bounded scope.",
+    reviewerPrincipalId: "usr_reviewer",
+    sourceKinds: ["law_or_regulation", "standard"],
+    status: "qualified",
+    statusReasons: [],
+    validFrom: "2026-01-06T00:00:00Z",
+    validUntil: "2027-01-06T00:00:00Z",
   };
 }
 
@@ -420,5 +441,70 @@ describe("source review contracts", () => {
     const value = reviewDefinition();
     value.reviewBasis = [artifact("art_review_basis", "4"), artifact("art_review_basis", "4")];
     expect(SourceReviewDefinitionSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("source reviewer qualification contracts", () => {
+  it("binds a reviewer to exact credential evidence, source kinds, scope, and validity", () => {
+    const definition = reviewerQualificationDefinition();
+    expect(SourceReviewerQualificationDefinitionSchema.parse(definition)).toEqual(definition);
+
+    const record = {
+      ...definition,
+      definitionSha256: sha("6"),
+      recordedAt: "2026-01-05T00:00:00.000Z",
+      schemaVersion: SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION,
+      scope,
+      verifiedByPrincipalId: "usr_credential_verifier",
+    };
+    expect(SourceReviewerQualificationSchema.parse(record)).toEqual(record);
+
+    const review = {
+      ...reviewDefinition(),
+      reviewerQualification: {
+        definitionSha256: record.definitionSha256,
+        qualificationId: record.qualificationId,
+      },
+    };
+    expect(SourceReviewDefinitionSchema.parse(review)).toEqual(review);
+  });
+
+  it("rejects self-verification, invalid windows, ambiguous ordering, and unsupported success", () => {
+    const base = reviewerQualificationDefinition();
+    expect(
+      SourceReviewerQualificationSchema.safeParse({
+        ...base,
+        definitionSha256: sha("6"),
+        recordedAt: "2026-01-05T00:00:00.000Z",
+        schemaVersion: SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION,
+        scope,
+        verifiedByPrincipalId: base.reviewerPrincipalId,
+      }).success,
+    ).toBe(false);
+    expect(
+      SourceReviewerQualificationDefinitionSchema.safeParse({
+        ...base,
+        validUntil: base.validFrom,
+      }).success,
+    ).toBe(false);
+    expect(
+      SourceReviewerQualificationDefinitionSchema.safeParse({
+        ...base,
+        sourceKinds: ["standard", "law_or_regulation"],
+      }).success,
+    ).toBe(false);
+    expect(
+      SourceReviewerQualificationDefinitionSchema.safeParse({
+        ...base,
+        conflicts: ["same organization"],
+      }).success,
+    ).toBe(false);
+
+    const unverifiable = {
+      ...base,
+      status: "unverifiable",
+      statusReasons: ["Credential issuer could not be reached"],
+    };
+    expect(SourceReviewerQualificationDefinitionSchema.parse(unverifiable)).toEqual(unverifiable);
   });
 });

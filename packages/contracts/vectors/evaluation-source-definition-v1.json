@@ -200,6 +200,10 @@
               "sizeBytes": 1024
             }
           ],
+          "reviewerQualification": {
+            "definitionSha256": "883819497ca4e9fe1a9d37ec707bfeca5da1fb1a40e2f1207633a7b25ca03e8b",
+            "qualificationId": "srq_standard_reviewer"
+          },
           "reviewedConflicts": [
             {
               "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
@@ -215,8 +219,69 @@
           "validUntil": "2026-12-31T00:00:00Z"
         }
       },
-      "encodedByteLength": 1511,
-      "sha256": "699ed05334ee38e0190ac97f2c70b5e8866fc90a0f6aaf633881282a60b1196a"
+      "encodedByteLength": 1665,
+      "sha256": "cae68be4afc48ed2cb372fdca8a7c6d7f863f3907dabf22eeb1136c420be34be"
+    },
+    {
+      "name": "independently verified source reviewer qualification",
+      "kind": "source_reviewer_qualification",
+      "input": {
+        "scope": {
+          "tenantId": "ten_local",
+          "projectId": "prj_local",
+          "environmentId": "env_local"
+        },
+        "definition": {
+          "applicabilityScope": {
+            "environments": {
+              "mode": "include",
+              "values": ["env_local"]
+            },
+            "exclusions": [],
+            "jurisdictions": {
+              "mode": "include",
+              "values": ["kr"]
+            },
+            "locales": {
+              "mode": "include",
+              "values": ["en", "ko-kr"]
+            },
+            "populations": {
+              "mode": "include",
+              "values": ["adult users"]
+            },
+            "riskTiers": {
+              "mode": "include",
+              "values": ["high"]
+            },
+            "taskKinds": {
+              "mode": "include",
+              "values": ["task_support"]
+            }
+          },
+          "competenceAreas": ["AI assurance", "technical standards"],
+          "conflicts": [],
+          "credentialEvidence": [
+            {
+              "artifactId": "art_reviewer_credential",
+              "classification": "internal",
+              "mediaType": "application/pdf",
+              "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+              "sizeBytes": 1024
+            }
+          ],
+          "qualificationId": "srq_standard_reviewer",
+          "rationale": "Exact retained credentials cover the declared source kinds and bounded scope.",
+          "reviewerPrincipalId": "usr_reviewer",
+          "sourceKinds": ["law_or_regulation", "standard"],
+          "status": "qualified",
+          "statusReasons": [],
+          "validFrom": "2026-01-06T00:00:00Z",
+          "validUntil": "2027-01-06T00:00:00Z"
+        }
+      },
+      "encodedByteLength": 1228,
+      "sha256": "883819497ca4e9fe1a9d37ec707bfeca5da1fb1a40e2f1207633a7b25ca03e8b"
     }
   ]
 }

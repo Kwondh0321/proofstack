@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import type { EvidenceScope } from "@proofstack/contracts";
-import type { EvaluationRecordKind } from "../evaluation/evaluation-repository-errors.js";
-import type { EvaluationRecord } from "../evaluation/evaluation-repository.js";
 import {
   digestEvaluationRecordDefinition,
   evaluationRecordId,
 } from "../evaluation/evaluation-record-validation.js";
+import type { EvaluationRecord } from "../evaluation/evaluation-repository.js";
+import type { EvaluationRecordKind } from "../evaluation/evaluation-repository-errors.js";
 import type {
   EvaluationRepositoryFixtureRecord,
   EvaluationRepositoryTestHarness,
@@ -46,14 +46,17 @@ interface MutableObject {
   previousStatus?: unknown;
   policyVersionId?: unknown;
   qualificationFixtureSet?: unknown;
+  qualificationId?: unknown;
   qualificationReportId?: unknown;
   qualifications?: unknown;
   query?: unknown;
   resultId?: unknown;
+  reviewerPrincipalId?: unknown;
   reviewedConflicts?: unknown;
   run?: unknown;
   source?: unknown;
   sourceReviewId?: unknown;
+  reviewerQualification?: unknown;
   sourceReviews?: unknown;
   sources?: unknown;
   sourceSnapshotId?: unknown;
@@ -140,6 +143,8 @@ function receipt(kind: EvaluationRecordKind): Record<string, unknown> {
         reviewedByPrincipalId: principal,
         reviewerRole: "Independent repository conformance reviewer",
       };
+    case "source_reviewer_qualification":
+      return { recordedAt: timestamp, verifiedByPrincipalId: principal };
     case "source_snapshot":
       return { publishedByPrincipalId: principal, recordedAt: timestamp };
   }
@@ -153,6 +158,7 @@ const referenceIdPriority = [
   "qualificationReportId",
   "statusRecordId",
   "sourceReviewId",
+  "qualificationId",
   "sourceSnapshotId",
   "discoveryId",
   "evaluatorVersionId",
@@ -251,9 +257,16 @@ export function createEvaluationRepositoryTestHarness(
   };
   const source = add("source_snapshot", sourceBody);
 
+  const reviewerQualificationBody = template("source_reviewer_qualification");
+  reviewerQualificationBody.qualificationId = "srq_primary";
+  reviewerQualificationBody.reviewerPrincipalId = "usr_source_reviewer";
+  delete reviewerQualificationBody.predecessor;
+  const reviewerQualification = add("source_reviewer_qualification", reviewerQualificationBody);
+
   const reviewBody = template("source_review");
   reviewBody.sourceReviewId = "srv_primary";
   reviewBody.source = exactReference(source, "sourceSnapshotId");
+  reviewBody.reviewerQualification = exactReference(reviewerQualification, "qualificationId");
   reviewBody.reviewedConflicts = [];
   reviewBody.criticalConflictStatus = "none";
   delete reviewBody.supersedesReview;

@@ -14,6 +14,7 @@ import type {
   QualificationFixtureSet,
   QualificationReport,
   RawObservation,
+  SourceReviewerQualification,
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
@@ -34,6 +35,7 @@ export type EvaluationRecord =
   | QualificationReport
   | RawObservation
   | SourceReviewRecord
+  | SourceReviewerQualification
   | SourceSnapshot;
 
 export interface PublishEvaluationRecordResult<Record> {
@@ -47,6 +49,10 @@ export interface EvaluationSourceRepository {
     scope: EvidenceScope,
     sourceReviewId: string,
   ): Promise<SourceReviewRecord | null>;
+  findSourceReviewerQualification(
+    scope: EvidenceScope,
+    qualificationId: string,
+  ): Promise<SourceReviewerQualification | null>;
   findSourceSnapshot(
     scope: EvidenceScope,
     sourceSnapshotId: string,
@@ -57,6 +63,9 @@ export interface EvaluationSourceRepository {
   publishSourceReview(
     candidate: SourceReviewRecord,
   ): Promise<PublishEvaluationRecordResult<SourceReviewRecord>>;
+  publishSourceReviewerQualification(
+    candidate: SourceReviewerQualification,
+  ): Promise<PublishEvaluationRecordResult<SourceReviewerQualification>>;
   publishSourceSnapshot(
     candidate: SourceSnapshot,
   ): Promise<PublishEvaluationRecordResult<SourceSnapshot>>;

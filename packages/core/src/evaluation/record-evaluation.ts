@@ -31,6 +31,8 @@ import type {
   RawObservation,
   RawObservationDefinition,
   SourceReviewDefinition,
+  SourceReviewerQualification,
+  SourceReviewerQualificationDefinition,
   SourceReviewRecord,
   SourceSnapshot,
   SourceSnapshotDefinition,
@@ -44,22 +46,22 @@ import {
 import { requireCapability, requireEnvironmentAccess } from "../auth/authorization.js";
 import type { Clock } from "../clock.js";
 import {
-  EvaluationRecordConflictError,
-  EvaluationRecordNotFoundError,
-  EvaluationRepositoryContractError,
-  InvalidEvaluationRecordInputError,
-  type EvaluationRecordKind,
-} from "./evaluation-repository-errors.js";
+  digestEvaluationRecordDefinition,
+  evaluationRecordId,
+  validateEvaluationRecord,
+} from "./evaluation-record-validation.js";
 import type {
   EvaluationRecord,
   EvaluationRepository,
   PublishEvaluationRecordResult,
 } from "./evaluation-repository.js";
 import {
-  digestEvaluationRecordDefinition,
-  evaluationRecordId,
-  validateEvaluationRecord,
-} from "./evaluation-record-validation.js";
+  EvaluationRecordConflictError,
+  type EvaluationRecordKind,
+  EvaluationRecordNotFoundError,
+  EvaluationRepositoryContractError,
+  InvalidEvaluationRecordInputError,
+} from "./evaluation-repository-errors.js";
 
 export interface EvaluationDefinitionByKind {
   readonly aggregation_policy: EvaluationAggregationPolicyDefinition;
@@ -77,6 +79,7 @@ export interface EvaluationDefinitionByKind {
   readonly qualification_report: QualificationReportDefinition;
   readonly raw_observation: RawObservationDefinition;
   readonly source_review: SourceReviewDefinition;
+  readonly source_reviewer_qualification: SourceReviewerQualificationDefinition;
   readonly source_snapshot: SourceSnapshotDefinition;
 }
 
@@ -96,6 +99,7 @@ export interface EvaluationRecordByKind {
   readonly qualification_report: QualificationReport;
   readonly raw_observation: RawObservation;
   readonly source_review: SourceReviewRecord;
+  readonly source_reviewer_qualification: SourceReviewerQualification;
   readonly source_snapshot: SourceSnapshot;
 }
 
@@ -206,6 +210,8 @@ function receipt(
         reviewedByPrincipalId: principal.principalId,
         reviewerRole: `Authenticated roles: ${[...principal.roles].sort().join(", ")}`,
       };
+    case "source_reviewer_qualification":
+      return { recordedAt: timestamp, verifiedByPrincipalId: principal.principalId };
     case "source_snapshot":
       return { publishedByPrincipalId: principal.principalId, recordedAt: timestamp };
   }
@@ -226,6 +232,13 @@ function createCandidate<Kind extends EvaluationRecordKind>(
       (definition as RawObservationDefinition).executedByPrincipalId !== principal.principalId
     ) {
       throw invalidInput("Raw observation executor must match the authenticated principal");
+    }
+    if (
+      kind === "source_reviewer_qualification" &&
+      (definition as SourceReviewerQualificationDefinition).reviewerPrincipalId ===
+        principal.principalId
+    ) {
+      throw invalidInput("A reviewer cannot verify their own qualification");
     }
     const candidate = {
       ...definition,
@@ -286,6 +299,8 @@ async function findRecord(
       return repository.findRawObservation(scope, recordId);
     case "source_review":
       return repository.findSourceReview(scope, recordId);
+    case "source_reviewer_qualification":
+      return repository.findSourceReviewerQualification(scope, recordId);
     case "source_snapshot":
       return repository.findSourceSnapshot(scope, recordId);
   }
@@ -327,6 +342,8 @@ async function publishRecord(
       return repository.publishRawObservation(record as RawObservation);
     case "source_review":
       return repository.publishSourceReview(record as SourceReviewRecord);
+    case "source_reviewer_qualification":
+      return repository.publishSourceReviewerQualification(record as SourceReviewerQualification);
     case "source_snapshot":
       return repository.publishSourceSnapshot(record as SourceSnapshot);
   }

@@ -28,6 +28,8 @@ import {
   DiscoveryRecordDefinitionSchema,
   DiscoveryRecordSchema,
   SourceReviewDefinitionSchema,
+  SourceReviewerQualificationDefinitionSchema,
+  SourceReviewerQualificationSchema,
   SourceReviewRecordSchema,
   SourceSnapshotDefinitionSchema,
   SourceSnapshotSchema,
@@ -59,6 +61,7 @@ export const EvaluationRecordKindSchema = z.enum([
   "qualification_report",
   "raw_observation",
   "source_review",
+  "source_reviewer_qualification",
   "source_snapshot",
 ]);
 
@@ -70,6 +73,7 @@ export const EvaluationDefinitionPublicationKindSchema = z.enum([
   "oracle_spec",
   "qualification_fixture_set",
   "source_review",
+  "source_reviewer_qualification",
   "source_snapshot",
 ]);
 
@@ -88,6 +92,7 @@ export const PublishEvaluationDefinitionRequestSchema = z.discriminatedUnion("ki
   mutationRequest("oracle_spec", OracleSpecDefinitionSchema),
   mutationRequest("qualification_fixture_set", QualificationFixtureSetDefinitionSchema),
   mutationRequest("source_review", SourceReviewDefinitionSchema),
+  mutationRequest("source_reviewer_qualification", SourceReviewerQualificationDefinitionSchema),
   mutationRequest("source_snapshot", SourceSnapshotDefinitionSchema),
 ]);
 
@@ -149,6 +154,7 @@ export const EvaluationRecordEnvelopeSchema = z.discriminatedUnion("kind", [
   recordEnvelope("qualification_report", QualificationReportSchema),
   recordEnvelope("raw_observation", RawObservationSchema),
   recordEnvelope("source_review", SourceReviewRecordSchema),
+  recordEnvelope("source_reviewer_qualification", SourceReviewerQualificationSchema),
   recordEnvelope("source_snapshot", SourceSnapshotSchema),
 ]);
 

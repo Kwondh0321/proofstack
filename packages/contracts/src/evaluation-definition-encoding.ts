@@ -95,9 +95,12 @@ import {
   type DiscoveryRecordDefinition,
   DiscoveryRecordDefinitionSchema,
   SOURCE_REVIEW_SCHEMA_VERSION,
+  SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION,
   SOURCE_SNAPSHOT_SCHEMA_VERSION,
   type SourceReviewDefinition,
   SourceReviewDefinitionSchema,
+  type SourceReviewerQualificationDefinition,
+  SourceReviewerQualificationDefinitionSchema,
   type SourceSnapshotDefinition,
   SourceSnapshotDefinitionSchema,
 } from "./evaluation-source.js";
@@ -122,6 +125,8 @@ export const EVALUATION_DEFINITION_ENCODING_VERSION =
 export const DISCOVERY_RECORD_DEFINITION_DOMAIN = "proofstack.discovery-record.v1" as const;
 export const SOURCE_SNAPSHOT_DEFINITION_DOMAIN = "proofstack.source-snapshot.v1" as const;
 export const SOURCE_REVIEW_DEFINITION_DOMAIN = "proofstack.source-review.v1" as const;
+export const SOURCE_REVIEWER_QUALIFICATION_DEFINITION_DOMAIN =
+  "proofstack.source-reviewer-qualification.v1" as const;
 export const CRITERION_SET_DEFINITION_DOMAIN = "proofstack.criterion-set.v1" as const;
 export const CRITERION_SET_STATUS_DEFINITION_DOMAIN = "proofstack.criterion-set-status.v1" as const;
 export const ORACLE_SPEC_DEFINITION_DOMAIN = "proofstack.oracle-spec.v1" as const;
@@ -337,6 +342,18 @@ export function encodeSourceReviewDefinition(
   return encodeDefinition(
     SOURCE_REVIEW_DEFINITION_DOMAIN,
     SOURCE_REVIEW_SCHEMA_VERSION,
+    parsed.scope,
+    parsed.definition,
+  );
+}
+
+export function encodeSourceReviewerQualificationDefinition(
+  input: ScopedEvaluationDefinition<SourceReviewerQualificationDefinition>,
+): Uint8Array {
+  const parsed = scopedDefinitionSchema(SourceReviewerQualificationDefinitionSchema).parse(input);
+  return encodeDefinition(
+    SOURCE_REVIEWER_QUALIFICATION_DEFINITION_DOMAIN,
+    SOURCE_REVIEWER_QUALIFICATION_SCHEMA_VERSION,
     parsed.scope,
     parsed.definition,
   );

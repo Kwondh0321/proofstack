@@ -15,6 +15,7 @@ import type {
   QualificationFixtureSet,
   QualificationReport,
   RawObservation,
+  SourceReviewerQualification,
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
@@ -46,6 +47,7 @@ interface RecordByKind {
   readonly qualification_report: QualificationReport;
   readonly raw_observation: RawObservation;
   readonly source_review: SourceReviewRecord;
+  readonly source_reviewer_qualification: SourceReviewerQualification;
   readonly source_snapshot: SourceSnapshot;
 }
 
@@ -93,6 +95,7 @@ const allKinds: readonly EvaluationRecordKind[] = [
   "qualification_report",
   "raw_observation",
   "source_review",
+  "source_reviewer_qualification",
   "source_snapshot",
 ];
 
@@ -131,6 +134,8 @@ export async function publishEvaluationFixture(
       return repository.publishRawObservation(fixture.record);
     case "source_review":
       return repository.publishSourceReview(fixture.record);
+    case "source_reviewer_qualification":
+      return repository.publishSourceReviewerQualification(fixture.record);
     case "source_snapshot":
       return repository.publishSourceSnapshot(fixture.record);
   }
@@ -168,6 +173,8 @@ function recordId(fixture: EvaluationRepositoryFixtureRecord): string {
       return fixture.record.observationId;
     case "source_review":
       return fixture.record.sourceReviewId;
+    case "source_reviewer_qualification":
+      return fixture.record.qualificationId;
     case "source_snapshot":
       return fixture.record.sourceSnapshotId;
   }
@@ -210,6 +217,8 @@ async function findFixture(
       return repository.findRawObservation(scope, id);
     case "source_review":
       return repository.findSourceReview(scope, id);
+    case "source_reviewer_qualification":
+      return repository.findSourceReviewerQualification(scope, id);
     case "source_snapshot":
       return repository.findSourceSnapshot(scope, id);
   }

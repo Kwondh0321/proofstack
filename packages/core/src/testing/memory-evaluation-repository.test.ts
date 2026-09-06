@@ -6,18 +6,20 @@ import type {
   EvaluationAggregationPolicyDefinition,
   EvidenceScope,
   SourceReviewDefinition,
+  SourceReviewerQualification,
+  SourceReviewerQualificationDefinition,
   SourceReviewRecord,
   SourceSnapshot,
   SourceSnapshotDefinition,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
+import { digestEvaluationRecordDefinition } from "../evaluation/evaluation-record-validation.js";
 import {
   EvaluationLineageError,
   EvaluationRecordConflictError,
   EvaluationResourceConflictError,
   InvalidEvaluationRecordInputError,
 } from "../evaluation/evaluation-repository-errors.js";
-import { digestEvaluationRecordDefinition } from "../evaluation/evaluation-record-validation.js";
 import { MemoryEvaluationRepository } from "./memory-evaluation-repository.js";
 
 interface StoredVector {
@@ -92,12 +94,17 @@ function sourceReview(
   namespace: string,
   recordScope: EvidenceScope,
   source: SourceSnapshot,
+  reviewerQualification: SourceReviewerQualification,
 ): SourceReviewRecord {
   const body = definition<SourceReviewDefinition>("source_review", sourceVectors);
   body.sourceReviewId = `srv_${namespace}`;
   body.source = {
     definitionSha256: source.definitionSha256,
     sourceSnapshotId: source.sourceSnapshotId,
+  };
+  body.reviewerQualification = {
+    definitionSha256: reviewerQualification.definitionSha256,
+    qualificationId: reviewerQualification.qualificationId,
   };
   body.reviewedConflicts = [];
   body.criticalConflictStatus = "none";
@@ -109,6 +116,30 @@ function sourceReview(
     reviewerRole: "Repository conformance reviewer",
     schemaVersion: "0.1",
     scope: recordScope,
+  };
+}
+
+function sourceReviewerQualification(
+  namespace: string,
+  recordScope: EvidenceScope,
+): SourceReviewerQualification {
+  const body = definition<SourceReviewerQualificationDefinition>(
+    "source_reviewer_qualification",
+    sourceVectors,
+  );
+  body.qualificationId = `srq_${namespace}`;
+  body.reviewerPrincipalId = `usr_${namespace}`;
+  return {
+    ...body,
+    definitionSha256: digestEvaluationRecordDefinition(
+      "source_reviewer_qualification",
+      recordScope,
+      body,
+    ),
+    recordedAt: "2026-09-02T00:00:02.500Z",
+    schemaVersion: "0.1",
+    scope: recordScope,
+    verifiedByPrincipalId: `svc_${namespace}_credential_authority`,
   };
 }
 
@@ -139,7 +170,8 @@ describe("MemoryEvaluationRepository", () => {
     const expectedScope = scope("source_graph");
     const discovery = discoveryRecord("source_graph", expectedScope);
     const source = sourceSnapshot("source_graph", expectedScope, discovery);
-    const review = sourceReview("source_graph", expectedScope, source);
+    const reviewerQualification = sourceReviewerQualification("source_graph", expectedScope);
+    const review = sourceReview("source_graph", expectedScope, source, reviewerQualification);
 
     await expect(repository.publishSourceSnapshot(source)).rejects.toBeInstanceOf(
       EvaluationLineageError,
@@ -151,6 +183,10 @@ describe("MemoryEvaluationRepository", () => {
       record: discovery,
     });
     await repository.publishSourceSnapshot(source);
+    await expect(repository.publishSourceReview(review)).rejects.toBeInstanceOf(
+      EvaluationLineageError,
+    );
+    await repository.publishSourceReviewerQualification(reviewerQualification);
     await repository.publishSourceReview(review);
 
     discovery.query = "mutated after write";

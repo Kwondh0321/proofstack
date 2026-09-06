@@ -5,12 +5,14 @@ import {
   encodeDiscoveryRecordDefinition,
   encodeEvaluationCanonicalJson,
   encodeSourceReviewDefinition,
+  encodeSourceReviewerQualificationDefinition,
   encodeSourceSnapshotDefinition,
   type ScopedEvaluationDefinition,
 } from "./evaluation-definition-encoding.js";
 import type {
   DiscoveryRecordDefinition,
   SourceReviewDefinition,
+  SourceReviewerQualificationDefinition,
   SourceSnapshotDefinition,
 } from "./evaluation-source.js";
 
@@ -35,7 +37,16 @@ interface SourceSnapshotVector extends StaticVectorBase {
   readonly kind: "source_snapshot";
 }
 
-type StaticVector = DiscoveryVector | SourceReviewVector | SourceSnapshotVector;
+interface SourceReviewerQualificationVector extends StaticVectorBase {
+  readonly input: ScopedEvaluationDefinition<SourceReviewerQualificationDefinition>;
+  readonly kind: "source_reviewer_qualification";
+}
+
+type StaticVector =
+  | DiscoveryVector
+  | SourceReviewVector
+  | SourceReviewerQualificationVector
+  | SourceSnapshotVector;
 
 const vectorsDocument = JSON.parse(
   readFileSync(new URL("../vectors/evaluation-source-definition-v1.json", import.meta.url), "utf8"),
@@ -52,6 +63,8 @@ function encode(vector: StaticVector): Uint8Array {
       return encodeSourceSnapshotDefinition(vector.input);
     case "source_review":
       return encodeSourceReviewDefinition(vector.input);
+    case "source_reviewer_qualification":
+      return encodeSourceReviewerQualificationDefinition(vector.input);
   }
 }
 
@@ -72,6 +85,7 @@ describe("canonical evaluation source definition encoding", () => {
       "discovery_record",
       "source_snapshot",
       "source_review",
+      "source_reviewer_qualification",
     ]);
 
     for (const vector of vectorsDocument.vectors) {

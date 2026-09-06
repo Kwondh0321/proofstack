@@ -14,6 +14,7 @@ import type {
   QualificationFixtureSet,
   QualificationReport,
   RawObservation,
+  SourceReviewerQualification,
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
@@ -101,6 +102,15 @@ function sourceSnapshotReferences(record: SourceSnapshot): readonly EvaluationRe
 function sourceReviewReferences(record: SourceReviewRecord): readonly EvaluationRecordReference[] {
   return [
     exact("source_snapshot", record.source.sourceSnapshotId, record.source.definitionSha256),
+    ...(record.reviewerQualification
+      ? [
+          exact(
+            "source_reviewer_qualification",
+            record.reviewerQualification.qualificationId,
+            record.reviewerQualification.definitionSha256,
+          ),
+        ]
+      : []),
     ...record.reviewedConflicts.map(({ definitionSha256, sourceSnapshotId }) =>
       exact("source_snapshot", sourceSnapshotId, definitionSha256),
     ),
@@ -114,6 +124,20 @@ function sourceReviewReferences(record: SourceReviewRecord): readonly Evaluation
         ]
       : []),
   ];
+}
+
+function sourceReviewerQualificationReferences(
+  record: SourceReviewerQualification,
+): readonly EvaluationRecordReference[] {
+  return record.predecessor
+    ? [
+        exact(
+          "source_reviewer_qualification",
+          record.predecessor.qualificationId,
+          record.predecessor.definitionSha256,
+        ),
+      ]
+    : [];
 }
 
 function criterionSetReferences(record: CriterionSet): readonly EvaluationRecordReference[] {
@@ -408,6 +432,8 @@ export function evaluationRecordReferences(
     }
     case "source_review":
       return sourceReviewReferences(record as SourceReviewRecord);
+    case "source_reviewer_qualification":
+      return sourceReviewerQualificationReferences(record as SourceReviewerQualification);
     case "source_snapshot":
       return sourceSnapshotReferences(record as SourceSnapshot);
   }
@@ -545,6 +571,9 @@ export class MemoryEvaluationRepository implements EvaluationRepository {
   async findSourceReview(scope: EvidenceScope, id: string) {
     return this.find<SourceReviewRecord>("source_review", scope, id);
   }
+  async findSourceReviewerQualification(scope: EvidenceScope, id: string) {
+    return this.find<SourceReviewerQualification>("source_reviewer_qualification", scope, id);
+  }
   async findSourceSnapshot(scope: EvidenceScope, id: string) {
     return this.find<SourceSnapshot>("source_snapshot", scope, id);
   }
@@ -593,6 +622,9 @@ export class MemoryEvaluationRepository implements EvaluationRepository {
   }
   async publishSourceReview(candidate: SourceReviewRecord) {
     return this.publish("source_review", candidate);
+  }
+  async publishSourceReviewerQualification(candidate: SourceReviewerQualification) {
+    return this.publish("source_reviewer_qualification", candidate);
   }
   async publishSourceSnapshot(candidate: SourceSnapshot) {
     return this.publish("source_snapshot", candidate);

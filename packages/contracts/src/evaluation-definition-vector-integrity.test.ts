@@ -50,6 +50,7 @@ import {
   encodeQualificationReportDefinition,
   encodeRawObservationDefinition,
   encodeSourceReviewDefinition,
+  encodeSourceReviewerQualificationDefinition,
   encodeSourceSnapshotDefinition,
   HUMAN_REVIEW_PROTOCOL_DEFINITION_DOMAIN,
   HUMAN_REVIEW_RECORD_DEFINITION_DOMAIN,
@@ -66,6 +67,7 @@ import {
   QUALIFICATION_REPORT_DEFINITION_DOMAIN,
   RAW_OBSERVATION_DEFINITION_DOMAIN,
   SOURCE_REVIEW_DEFINITION_DOMAIN,
+  SOURCE_REVIEWER_QUALIFICATION_DEFINITION_DOMAIN,
   SOURCE_SNAPSHOT_DEFINITION_DOMAIN,
 } from "./evaluation-definition-encoding.js";
 
@@ -249,6 +251,10 @@ const registry = {
   source_review: {
     domain: SOURCE_REVIEW_DEFINITION_DOMAIN,
     encode: (input: unknown) => encodeSourceReviewDefinition(input as never),
+  },
+  source_reviewer_qualification: {
+    domain: SOURCE_REVIEWER_QUALIFICATION_DEFINITION_DOMAIN,
+    encode: (input: unknown) => encodeSourceReviewerQualificationDefinition(input as never),
   },
   source_snapshot: {
     domain: SOURCE_SNAPSHOT_DEFINITION_DOMAIN,

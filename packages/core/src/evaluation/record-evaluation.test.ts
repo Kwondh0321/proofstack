@@ -4,27 +4,27 @@ import { describe, expect, it } from "vitest";
 import { ForbiddenError } from "../errors.js";
 import { FixedClock } from "../testing/fixed-clock.js";
 import { MemoryEvaluationRepository } from "../testing/memory-evaluation-repository.js";
+import { validateEvaluationRecord } from "./evaluation-record-validation.js";
+import type { EvaluationRecord, EvaluationRepository } from "./evaluation-repository.js";
 import {
   EvaluationRecordConflictError,
+  type EvaluationRecordKind,
   EvaluationRecordNotFoundError,
   EvaluationRepositoryContractError,
   InvalidEvaluationRecordInputError,
-  type EvaluationRecordKind,
 } from "./evaluation-repository-errors.js";
-import type { EvaluationRecord, EvaluationRepository } from "./evaluation-repository.js";
-import { validateEvaluationRecord } from "./evaluation-record-validation.js";
 import {
   CreateAssessment,
   CreateEvaluationAggregate,
   PublishEvaluationDefinition,
   ReadEvaluationRecord,
   RecordCriterionSetStatus,
+  type RecordEvaluationCommand,
+  type RecordEvaluationDependencies,
   RecordEvaluationRunDecision,
   RecordEvaluationRunResult,
   RecordQualificationReport,
   RecordRawObservation,
-  type RecordEvaluationCommand,
-  type RecordEvaluationDependencies,
 } from "./record-evaluation.js";
 
 interface StoredVector {
@@ -84,6 +84,7 @@ function recordId(
     qualification_report: "qualificationReportId",
     raw_observation: "observationId",
     source_review: "sourceReviewId",
+    source_reviewer_qualification: "qualificationId",
     source_snapshot: "sourceSnapshotId",
   };
   const value = definition[field[kind]];
@@ -136,6 +137,7 @@ async function executeVector(vector: StoredVector, dependencies: RecordEvaluatio
     case "oracle_spec":
     case "qualification_fixture_set":
     case "source_review":
+    case "source_reviewer_qualification":
     case "source_snapshot":
       return new PublishEvaluationDefinition(dependencies).execute(input as never);
     case "criterion_set_status":
@@ -164,7 +166,7 @@ describe("evaluation recording use cases", () => {
       clock: new FixedClock(timestamp),
       repository: passThroughRepository(),
     };
-    expect(vectors).toHaveLength(16);
+    expect(vectors).toHaveLength(17);
     for (const vector of vectors) {
       const result = await executeVector(vector, dependencies);
       expect(result.created, vector.kind).toBe(true);
@@ -239,10 +241,25 @@ describe("evaluation recording use cases", () => {
     ).rejects.toBeInstanceOf(EvaluationRecordConflictError);
   });
 
-  it("rejects spoofed observation executors and malformed repository results", async () => {
+  it("rejects self-authored authority, spoofed executors, and malformed storage results", async () => {
     const observation = vectors.find(({ kind }) => kind === "raw_observation");
+    const reviewerQualification = vectors.find(
+      ({ kind }) => kind === "source_reviewer_qualification",
+    );
     const discovery = vectors.find(({ kind }) => kind === "discovery_record");
-    if (!observation || !discovery) throw new Error("Expected vectors");
+    if (!observation || !reviewerQualification || !discovery) throw new Error("Expected vectors");
+
+    const selfVerified = command(reviewerQualification);
+    await expect(
+      new PublishEvaluationDefinition({
+        clock: new FixedClock(timestamp),
+        repository: passThroughRepository(),
+      }).execute({
+        ...selfVerified,
+        principal: principal({ principalId: "usr_reviewer" }),
+      } as never),
+    ).rejects.toBeInstanceOf(InvalidEvaluationRecordInputError);
+
     const spoofed = command(observation);
     (spoofed.definition as RawObservationDefinition).executedByPrincipalId = "svc_spoofed";
     await expect(

@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import type { EvidenceScope } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import type { EvaluationRecordKind } from "./evaluation-repository-errors.js";
 import {
   digestEvaluationRecordDefinition,
+  type EvaluationStoredRecord,
   evaluationRecordId,
   evaluationResource,
-  type EvaluationStoredRecord,
   validateEvaluationRecord,
 } from "./evaluation-record-validation.js";
+import type { EvaluationRecordKind } from "./evaluation-repository-errors.js";
 
 interface StoredVector {
   readonly input: { readonly definition: Record<string, unknown> };
@@ -69,6 +69,8 @@ function receipt(kind: EvaluationRecordKind): Record<string, unknown> {
         reviewedByPrincipalId: principal,
         reviewerRole: "Independent validation reviewer",
       };
+    case "source_reviewer_qualification":
+      return { recordedAt: timestamp, verifiedByPrincipalId: principal };
     case "source_snapshot":
       return { publishedByPrincipalId: principal, recordedAt: timestamp };
   }
@@ -103,6 +105,7 @@ describe("evaluation record validation registry", () => {
       "qualification_report",
       "raw_observation",
       "source_review",
+      "source_reviewer_qualification",
       "source_snapshot",
     ]);
 
