@@ -6,6 +6,7 @@ import { createServer } from "node:net";
 import { resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
+const composeFile = resolve(repositoryRoot, "compose.yaml");
 const projectName = `proofstack-workflow-1-${process.pid}-${randomBytes(4).toString("hex")}`;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 let activeChild;
@@ -76,9 +77,13 @@ try {
 
   composeEnvironment = {
     ...process.env,
+    COMPOSE_DISABLE_ENV_FILE: "true",
     PROOFSTACK_POSTGRES_PORT: String(postgresPort),
     PROOFSTACK_S3_PORT: String(s3Port),
   };
+  delete composeEnvironment.COMPOSE_ENV_FILES;
+  delete composeEnvironment.COMPOSE_FILE;
+  delete composeEnvironment.COMPOSE_PROFILES;
   const testEnvironment = {
     ...composeEnvironment,
     AWS_ACCESS_KEY_ID: "proofstack-local",
@@ -98,6 +103,8 @@ try {
     "docker",
     [
       "compose",
+      "--file",
+      composeFile,
       "--project-name",
       projectName,
       "--profile",
@@ -133,6 +140,8 @@ try {
         "docker",
         [
           "compose",
+          "--file",
+          composeFile,
           "--project-name",
           projectName,
           "--profile",
