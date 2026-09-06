@@ -7,6 +7,15 @@ export class InvalidReleaseCandidateRecordInputError extends TypeError {
   }
 }
 
+export class InvalidReleaseCandidateCommandError extends TypeError {
+  readonly code = "release_candidate_command_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidReleaseCandidateCommandError";
+  }
+}
+
 export class ReleaseCandidateVersionConflictError extends Error {
   readonly code = "release_candidate_version_conflict";
 
@@ -47,5 +56,27 @@ export class ReleaseCandidateRepositoryContractError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "ReleaseCandidateRepositoryContractError";
+  }
+}
+
+export class ReleaseCandidateSourceUnavailableError extends Error {
+  readonly code = "release_candidate_source_unavailable";
+
+  constructor(
+    readonly sourceKind: string,
+    readonly sourceId: string,
+    options?: ErrorOptions,
+  ) {
+    super(`Exact ${sourceKind} source ${sourceId} is unavailable`, options);
+    this.name = "ReleaseCandidateSourceUnavailableError";
+  }
+}
+
+export class ReleaseCandidateNotFoundError extends Error {
+  readonly code = "release_candidate_not_found";
+
+  constructor(readonly candidateVersionId: string) {
+    super(`Release candidate ${candidateVersionId} was not found`);
+    this.name = "ReleaseCandidateNotFoundError";
   }
 }

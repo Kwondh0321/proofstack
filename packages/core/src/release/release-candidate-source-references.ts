@@ -116,3 +116,31 @@ export function releaseCandidateSourceReferences(
   references.push({ kind: "target_release", targetRelease: parsed.targetRelease });
   return references;
 }
+
+export function releaseCandidateSourceReferenceId(
+  reference: ReleaseCandidateSourceReference,
+): string {
+  switch (reference.kind) {
+    case "source_revision":
+      return `${reference.source.commit.algorithm}:${reference.source.commit.value}`;
+    case "build_artifact":
+    case "model_resolution_evidence":
+    case "prompt":
+    case "tool_contract":
+      return reference.artifact.artifactId;
+    case "dataset_version":
+      return reference.dataset.datasetVersionId;
+    case "assessment":
+      return reference.assessment.assessmentId;
+    case "model_assurance_assessment":
+      return reference.assessment.assessmentExtensionId;
+    case "comparison_result":
+      return reference.comparison.resultId;
+    case "model_declaration":
+      return `${reference.providerId}:${reference.role}`;
+    case "runtime_adapter":
+      return reference.adapter.adapterVersionId;
+    case "target_release":
+      return reference.targetRelease.targetReleaseId;
+  }
+}

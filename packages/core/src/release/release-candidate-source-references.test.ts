@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { ReleaseCandidateDefinition } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  releaseCandidateSourceReferenceId,
   releaseCandidateSourceReferences,
   type ReleaseCandidateSourceReference,
 } from "./release-candidate-source-references.js";
@@ -48,6 +49,7 @@ describe("release candidate source references", () => {
       "target_release",
     ]);
     expect(references).toHaveLength(13);
+    expect(new Set(references.map(releaseCandidateSourceReferenceId)).size).toBe(13);
     expect(references).toContainEqual({
       artifact: expect.objectContaining({ artifactId: "artifact_system_prompt" }),
       kind: "prompt",
