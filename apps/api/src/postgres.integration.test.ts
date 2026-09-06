@@ -1176,24 +1176,34 @@ describe("PostgreSQL-backed API", () => {
                 eventCount: 1,
                 eventKindStatuses: [{ count: 1, kind: "agent.run", status: "error" }],
               },
-              usage: expect.arrayContaining([
-                {
-                  dimension: "elapsedMilliseconds",
-                  value: {
-                    amount: role === "baseline" ? 125 : 100,
-                    observedCount: 1,
-                    sources: ["measured"],
-                    status: "available",
-                  },
-                },
-              ]),
             },
           ],
           integrity: "verified",
-          omissions: [],
+          omissions: [
+            {
+              fixtureId,
+              projectionKey: "classified_content",
+              reason: "classified_content_excluded",
+              sourceKind: "classified_content",
+            },
+          ],
           role,
           snapshotId,
         });
+        expect(result.record.fixtures[0]?.usage).toEqual(
+          expect.arrayContaining([
+            {
+              dimension: "elapsedMilliseconds",
+              value: {
+                amount: role === "baseline" ? 125 : 100,
+                observedCount: 1,
+                sources: ["measured"],
+                status: "available",
+                unavailableCount: 0,
+              },
+            },
+          ]),
+        );
         snapshotRecords.push(result.record);
       }
       const [baselineSnapshot, candidateSnapshot] = snapshotRecords;
