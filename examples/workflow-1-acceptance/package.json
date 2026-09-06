@@ -23,6 +23,7 @@
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
     "test": "vitest run --coverage",
+    "test:integration": "pnpm build && vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -33,6 +34,13 @@
     "@proofstack/sdk": "workspace:*"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@proofstack/api": "workspace:*",
+    "@proofstack/core": "workspace:*",
+    "@proofstack/evaluation-worker": "workspace:*",
+    "@proofstack/model-evaluation-worker": "workspace:*",
+    "@proofstack/postgres": "workspace:*",
+    "@proofstack/s3": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",

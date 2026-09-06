@@ -387,6 +387,27 @@ importers:
         specifier: workspace:*
         version: link:../../sdks/typescript
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1119.0
+      '@proofstack/api':
+        specifier: workspace:*
+        version: link:../../apps/api
+      '@proofstack/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@proofstack/evaluation-worker':
+        specifier: workspace:*
+        version: link:../../services/evaluation-worker
+      '@proofstack/model-evaluation-worker':
+        specifier: workspace:*
+        version: link:../../services/model-evaluation-worker
+      '@proofstack/postgres':
+        specifier: workspace:*
+        version: link:../../packages/postgres
+      '@proofstack/s3':
+        specifier: workspace:*
+        version: link:../../packages/s3
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3

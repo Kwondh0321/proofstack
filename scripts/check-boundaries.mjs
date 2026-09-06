@@ -195,6 +195,14 @@ const modules = [
     ]),
     directory: "examples/workflow-1-acceptance/src",
     packageName: "@proofstack/example-workflow-1-acceptance",
+    testAllowed: new Set([
+      "@proofstack/api",
+      "@proofstack/core",
+      "@proofstack/evaluation-worker",
+      "@proofstack/model-evaluation-worker",
+      "@proofstack/postgres",
+      "@proofstack/s3",
+    ]),
   },
 ];
 
