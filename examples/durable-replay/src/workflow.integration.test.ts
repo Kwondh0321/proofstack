@@ -265,6 +265,7 @@ describe("provider-neutral durable replay end to end", () => {
     expect(dataset.version.definitionSha256).toBe(summary.dataset.definitionSha256);
     expect(dataset.version.fixtureVersions).toEqual([
       {
+        definitionSha256: summary.fixture.definitionSha256,
         fixtureId: summary.fixture.fixtureId,
         fixtureVersionId: summary.fixture.fixtureVersionId,
       },
