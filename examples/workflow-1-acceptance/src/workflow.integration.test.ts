@@ -278,6 +278,26 @@ async function restartApi(): Promise<void> {
   await startApi();
 }
 
+async function restartExecutionWorkers(): Promise<void> {
+  await evaluationWorker?.close();
+  await modelWorker?.close();
+  evaluationWorker = await createPostgresEvaluationWorker({
+    clock,
+    databaseUrl: roleDatabaseUrl(runtimeRoles.evaluationWorker),
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  modelWorker = await createPostgresModelEvaluationWorker({
+    clock,
+    databaseUrl: roleDatabaseUrl(runtimeRoles.modelEvaluationWorker),
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  await Promise.all([evaluationWorker.checkReadiness(), modelWorker.checkReadiness()]);
+}
+
 async function emptyArtifactBucket(): Promise<void> {
   while (true) {
     const page = await artifactAdministrationClient.send(
@@ -413,7 +433,7 @@ afterAll(async () => {
 }, 30_000);
 
 describe("Workflow 1 retained failure-to-comparison acceptance", () => {
-  it("resolves one authenticated persisted graph after restart without exposing classified content", async () => {
+  it("resolves one authenticated persisted graph after API and worker restarts without exposing classified content", async () => {
     if (!evaluationWorker || !modelWorker || !outputRoot) {
       throw new Error("Workflow 1 acceptance infrastructure is unavailable");
     }
@@ -451,7 +471,7 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
       },
     });
 
-    await restartApi();
+    await Promise.all([restartApi(), restartExecutionWorkers()]);
     const summary = await completeWorkflow1Acceptance(comparisonClient(), prepared);
     expect(summary.snapshots.baseline.integrity).toBe("verified");
     expect(summary.snapshots.candidate.integrity).toBe("verified");
