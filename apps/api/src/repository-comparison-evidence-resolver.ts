@@ -612,13 +612,15 @@ export class RepositoryComparisonEvidenceResolver implements ComparisonEvidenceR
         }
         sourceTimes.push(run.createdAt, result.completedAt, result.recordedAt);
 
-        if (!sameJson(run.fixture, subject.fixture)) continue;
+        if (!assessment.runs.some((candidate) => sameJson(candidate, member.run))) {
+          unavailable("assessment_run_lineage", run.evaluationRunId);
+        }
         if (
           !sameJson(run.dataset, dataset) ||
-          !sameJson(run.replay, subject.replay) ||
-          !assessment.runs.some((candidate) => sameJson(candidate, member.run))
+          !sameJson(run.fixture, subject.fixture) ||
+          !sameJson(run.replay, subject.replay)
         ) {
-          unavailable("evaluation_fixture_lineage", run.evaluationRunId);
+          continue;
         }
 
         counts.total += 1;

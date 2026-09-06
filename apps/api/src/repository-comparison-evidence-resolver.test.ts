@@ -373,6 +373,15 @@ async function graph() {
 function evaluationRepository(
   comparison: ComparisonDefinition,
   reference: { readonly assessmentId: string; readonly definitionSha256: string },
+  options: {
+    readonly unrelatedVerdicts?: readonly (
+      | "abstain"
+      | "error"
+      | "fail"
+      | "not_applicable"
+      | "pass"
+    )[];
+  } = {},
 ): EvaluationRepository {
   const fixture = comparison.baseline.fixtures[0];
   if (!fixture) throw new Error("Expected comparison fixture");
@@ -428,14 +437,16 @@ function evaluationRepository(
     })),
     scope,
   };
-  const runs = runReferences.map((runReference) => ({
+  const runs = runReferences.map((runReference, index) => ({
     createdAt: "2026-09-05T00:00:08.100Z",
     criterion,
     dataset: comparison.baseline.dataset,
     definitionSha256: runReference.definitionSha256,
     evaluationRunId: runReference.evaluationRunId,
     fixture: fixture.fixture,
-    replay: fixture.replay,
+    replay: options.unrelatedVerdicts?.includes(verdicts[index] ?? "pass")
+      ? { ...fixture.replay, jobId: `job_unrelated_${verdicts[index]}` }
+      : fixture.replay,
     scope,
   }));
   const results = resultReferences.map((resultReference, index) => ({
@@ -710,6 +721,60 @@ describe("RepositoryComparisonEvidenceResolver", () => {
     ]);
     expect(resolution.knownLimitations).toContain("Evaluation evidence covers one exact fixture.");
     expect(resolution.sourceCutoff).toBe("2026-09-05T00:00:08.800Z");
+  });
+
+  it("projects only evaluation members for the exact dataset, fixture, and replay", async () => {
+    const test = await graph();
+    const comparison = structuredClone(test.comparison);
+    const assessment = {
+      assessmentId: "assessment_comparison",
+      definitionSha256: sha("3"),
+    };
+    const fixture = comparison.baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected comparison fixture");
+    fixture.assessments = [assessment];
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      evidenceRepository: test.evidence,
+      evaluationRepository: evaluationRepository(comparison, assessment, {
+        unrelatedVerdicts: ["error", "not_applicable"],
+      }),
+      interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
+      replayRepository: test.replay,
+    });
+
+    const resolution = await resolver.resolve({ comparison, role: "baseline", scope });
+
+    expect(resolution.fixtures[0]?.evaluationOutcomes).toEqual([
+      expect.objectContaining({
+        counts: { abstain: 1, error: 0, fail: 1, notApplicable: 0, pass: 1, total: 3 },
+      }),
+    ]);
+  });
+
+  it("fails closed when an assessment has no outcome for the exact subject", async () => {
+    const test = await graph();
+    const comparison = structuredClone(test.comparison);
+    const assessment = {
+      assessmentId: "assessment_comparison",
+      definitionSha256: sha("3"),
+    };
+    const fixture = comparison.baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected comparison fixture");
+    fixture.assessments = [assessment];
+    const resolver = new RepositoryComparisonEvidenceResolver({
+      evidenceRepository: test.evidence,
+      evaluationRepository: evaluationRepository(comparison, assessment, {
+        unrelatedVerdicts: ["abstain", "error", "fail", "not_applicable", "pass"],
+      }),
+      interactionRepository: test.regression,
+      modelAssuranceRepository: new MemoryModelAssuranceRepository(),
+      replayRepository: test.replay,
+    });
+
+    await expect(resolver.resolve({ comparison, role: "baseline", scope })).rejects.toMatchObject({
+      sourceKind: "evaluation_fixture_outcome",
+    });
   });
 
   it("fails closed when a referenced raw evaluation observation is missing", async () => {
