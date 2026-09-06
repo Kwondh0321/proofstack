@@ -52,6 +52,7 @@ import {
 } from "./dataset.js";
 import {
   CreateAssessmentRequestSchema,
+  EvaluateCriteriaTrustResponseSchema,
   EvaluationRecordKindSchema,
   PublishEvaluationDefinitionRequestSchema,
   PublishEvaluationRecordResponseSchema,
@@ -60,15 +61,16 @@ import {
   RecordEvaluationRunDecisionRequestSchema,
 } from "./evaluation-api.js";
 import {
+  CreateComparisonEvidenceSnapshotRequestSchema,
+  PublishComparisonDefinitionRequestSchema,
+} from "./evaluation-comparison.js";
+import {
   ComparisonRecordKindSchema,
   PublishComparisonRecordResponseSchema,
   ReadComparisonRecordResponseSchema,
 } from "./evaluation-comparison-api.js";
-import {
-  CreateComparisonEvidenceSnapshotRequestSchema,
-  PublishComparisonDefinitionRequestSchema,
-} from "./evaluation-comparison.js";
 import { DeriveComparisonResultRequestSchema } from "./evaluation-comparison-result.js";
+import { EvaluateCriteriaTrustRequestSchema } from "./evaluation-criteria-trust.js";
 import {
   CreateModelAssuranceAssessmentRequestSchema,
   ModelAssuranceRecordKindSchema,
@@ -260,6 +262,14 @@ const evaluationRecordParameter = {
   description: "Exact immutable evaluation record identifier",
   in: "path",
   name: "recordId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const criterionSetVersionParameter = {
+  description: "Exact immutable criterion-set version identifier",
+  in: "path",
+  name: "criterionSetVersionId",
   required: true,
   schema: schemaReference("OpaqueId"),
 } as const;
@@ -635,6 +645,12 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "input",
     ),
     ...componentsFor("CreateAssessmentRequest", CreateAssessmentRequestSchema, "input"),
+    ...componentsFor("EvaluateCriteriaTrustRequest", EvaluateCriteriaTrustRequestSchema, "input"),
+    ...componentsFor(
+      "EvaluateCriteriaTrustResponse",
+      EvaluateCriteriaTrustResponseSchema,
+      "output",
+    ),
     ...componentsFor(
       "PublishEvaluationRecordResponse",
       PublishEvaluationRecordResponseSchema,
@@ -1844,6 +1860,40 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
           tags: ["Evaluation"],
         },
       },
+      "/v1/projects/{projectId}/environments/{environmentId}/evaluations/criterion-sets/{criterionSetVersionId}/trust":
+        {
+          post: {
+            description:
+              "Derives criterion usability from exact repository records, server time, reviewer qualifications, and retained artifact availability. The caller supplies selectors and applicability context only; search results, snippets, generated summaries, and caller-authored trust fields are never authority. Missing evidence fails closed. Requires evaluation:read authority.",
+            operationId: "evaluateCriteriaTrust",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              criterionSetVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("EvaluateCriteriaTrustRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": evaluationJsonResponse(
+                "EvaluateCriteriaTrustResponse",
+                "A fail-closed trust decision derived from the exact retained evidence graph",
+              ),
+              ...problemResponses,
+              "404": evaluationNotFoundResponse,
+              "503": evaluationStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Evaluate exact criteria trust",
+            tags: ["Evaluation"],
+          },
+        },
       "/v1/projects/{projectId}/environments/{environmentId}/evaluations/records/{kind}/{recordId}":
         {
           get: {

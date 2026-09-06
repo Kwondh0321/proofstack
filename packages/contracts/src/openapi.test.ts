@@ -282,12 +282,14 @@ describe("ProofStack OpenAPI document", () => {
     const criterionStatus = paths[`${prefix}/criterion-set-statuses/{recordId}`]?.post;
     const runDecision = paths[`${prefix}/run-decisions/{recordId}`]?.post;
     const assessment = paths[`${prefix}/assessments/{recordId}`]?.post;
+    const trust = paths[`${prefix}/criterion-sets/{criterionSetVersionId}/trust`]?.post;
     const read = paths[`${prefix}/records/{kind}/{recordId}`]?.get;
 
     for (const operation of [definition, criterionStatus, assessment]) {
       expect(operation?.security).toEqual([{ browserSession: [] }]);
     }
     expect(runDecision?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(trust?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
     expect(read?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
 
     expect(definition?.requestBody.content["application/json"].schema.$ref).toBe(
@@ -302,6 +304,16 @@ describe("ProofStack OpenAPI document", () => {
     expect(assessment?.requestBody.content["application/json"].schema.$ref).toBe(
       "#/components/schemas/CreateAssessmentRequest",
     );
+    expect(trust?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/EvaluateCriteriaTrustRequest",
+    );
+    expect(trust?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "criterionSetVersionId",
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
     expect(read?.parameters.map(({ name }) => name)).toEqual([
       "projectId",
       "environmentId",
@@ -321,6 +333,10 @@ describe("ProofStack OpenAPI document", () => {
     expect(read?.responses).toHaveProperty("404");
     expect(read?.responses).toHaveProperty("503");
     expect(read?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    expect(trust?.responses).toHaveProperty("200");
+    expect(trust?.responses).toHaveProperty("404");
+    expect(trust?.responses).toHaveProperty("503");
+    expect(trust?.responses["200"]?.headers).toHaveProperty("Cache-Control");
 
     for (const schema of [
       "EvaluationRecordKind",
@@ -328,13 +344,15 @@ describe("ProofStack OpenAPI document", () => {
       "RecordCriterionSetStatusRequest",
       "RecordEvaluationRunDecisionRequest",
       "CreateAssessmentRequest",
+      "EvaluateCriteriaTrustRequest",
+      "EvaluateCriteriaTrustResponse",
       "PublishEvaluationRecordResponse",
       "ReadEvaluationRecordResponse",
     ]) {
       expect(components).toHaveProperty(schema);
     }
     const evaluationPaths = Object.keys(paths).filter((path) => path.includes("/evaluations/"));
-    expect(evaluationPaths).toHaveLength(5);
+    expect(evaluationPaths).toHaveLength(6);
     expect(
       evaluationPaths.some((path) =>
         /latest|execute|raw-observations|qualification-reports/.test(path),

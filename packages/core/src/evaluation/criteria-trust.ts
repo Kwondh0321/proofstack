@@ -1,5 +1,8 @@
 import type {
   ApplicabilityContext,
+  CriteriaTrustEvaluation,
+  CriteriaTrustReason,
+  CriteriaTrustStatus,
   CriterionSet,
   CriterionSetStatusRecord,
   EvaluatorSpec,
@@ -8,12 +11,13 @@ import type {
   QualificationFixtureSet,
   QualificationReport,
   SourceApplicabilityScope,
-  SourceReviewRecord,
   SourceReviewerQualification,
+  SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
 import {
   ApplicabilityContextSchema,
+  CRITERIA_TRUST_REASONS,
   CriterionSetSchema,
   CriterionSetStatusRecordSchema,
   EvaluatorSpecSchema,
@@ -23,61 +27,14 @@ import {
   OracleSpecSchema,
   QualificationFixtureSetSchema,
   QualificationReportSchema,
-  SourceReviewRecordSchema,
   SourceReviewerQualificationSchema,
+  SourceReviewRecordSchema,
   SourceSnapshotSchema,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 
-export const CRITERIA_TRUST_REASONS = [
-  "criterion_not_approved",
-  "criterion_status_not_current",
-  "criterion_status_unavailable",
-  "qualification_evidence_unavailable",
-  "qualification_fixture_not_independent",
-  "qualification_fixture_mismatch",
-  "qualification_fixture_set_unavailable",
-  "qualification_not_current",
-  "qualification_not_independent",
-  "qualification_reference_mismatch",
-  "qualification_report_unavailable",
-  "qualification_unqualified",
-  "requester_only_review",
-  "reviewer_qualification_evidence_unavailable",
-  "reviewer_qualification_not_independent",
-  "reviewer_qualification_not_current",
-  "reviewer_qualification_reference_mismatch",
-  "reviewer_qualification_scope_mismatch",
-  "reviewer_qualification_source_kind_mismatch",
-  "reviewer_qualification_unavailable",
-  "reviewer_qualification_unverifiable",
-  "reviewer_unqualified",
-  "source_applicability_not_approved",
-  "source_authority_not_accepted",
-  "source_conflict_review_incomplete",
-  "source_conflict_unresolved",
-  "source_content_unavailable",
-  "source_identity_disputed",
-  "source_identity_evidence_unavailable",
-  "source_identity_not_current",
-  "source_identity_not_independent",
-  "source_identity_unverified",
-  "source_license_unusable",
-  "source_not_current",
-  "source_not_effective",
-  "source_reference_mismatch",
-  "source_review_basis_unavailable",
-  "source_review_not_current",
-  "source_review_relationship_disclosed",
-  "source_review_requires_approval",
-  "source_review_unavailable",
-  "source_review_unverifiable",
-  "source_scope_mismatch",
-  "source_snapshot_unavailable",
-] as const;
-
-export type CriteriaTrustReason = (typeof CRITERIA_TRUST_REASONS)[number];
-export type CriteriaTrustStatus = "eligible" | "ineligible" | "require_approval" | "unverifiable";
+export type { CriteriaTrustEvaluation, CriteriaTrustReason, CriteriaTrustStatus };
+export { CRITERIA_TRUST_REASONS };
 
 export interface CriteriaTrustArtifactAvailability {
   readonly artifactId: string;
@@ -115,12 +72,6 @@ export interface EvaluateCriteriaTrustInput {
   /** Exact, repository-resolved qualification records; requester assertions are not accepted. */
   readonly reviewerQualifications: readonly SourceReviewerQualification[];
   readonly sources: readonly CriteriaTrustSourceEvidence[];
-}
-
-export interface CriteriaTrustEvaluation {
-  readonly evaluatedAt: string;
-  readonly reasons: readonly CriteriaTrustReason[];
-  readonly status: CriteriaTrustStatus;
 }
 
 export class InvalidCriteriaTrustInputError extends TypeError {

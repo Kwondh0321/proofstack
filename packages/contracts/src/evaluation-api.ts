@@ -14,6 +14,7 @@ import {
   CriterionSetStatusDefinitionSchema,
   CriterionSetStatusRecordSchema,
 } from "./evaluation-criteria.js";
+import { CriteriaTrustEvaluationSchema } from "./evaluation-criteria-trust.js";
 import {
   EvaluationRunDefinitionSchema,
   EvaluationRunRejectionDefinitionSchema,
@@ -173,6 +174,13 @@ export const ReadEvaluationRecordResponseSchema = z
   })
   .strict();
 
+export const EvaluateCriteriaTrustResponseSchema = z
+  .object({
+    requestId: RequestIdSchema,
+    result: CriteriaTrustEvaluationSchema,
+  })
+  .strict();
+
 export type CreateAssessmentRequest = z.infer<typeof CreateAssessmentRequestSchema>;
 export type CreateEvaluationAggregateRequest = z.infer<
   typeof CreateEvaluationAggregateRequestSchema
@@ -182,6 +190,7 @@ export type EvaluationDefinitionPublicationKind = z.infer<
 >;
 export type EvaluationRecordEnvelope = z.infer<typeof EvaluationRecordEnvelopeSchema>;
 export type EvaluationRecordKind = z.infer<typeof EvaluationRecordKindSchema>;
+export type EvaluateCriteriaTrustResponse = z.infer<typeof EvaluateCriteriaTrustResponseSchema>;
 export type PublishEvaluationDefinitionRequest = z.infer<
   typeof PublishEvaluationDefinitionRequestSchema
 >;

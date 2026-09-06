@@ -1,5 +1,6 @@
 import type {
   ApplicabilityContext,
+  CriteriaTrustEvaluation,
   CriterionSet,
   CriterionSetStatusRecord,
   EvaluatorSpec,
@@ -15,6 +16,7 @@ import type {
 import {
   ApplicabilityContextSchema,
   EvidenceScopeSchema,
+  MAX_CRITERIA_TRUST_QUALIFICATION_REPORTS,
   OpaqueIdSchema,
   PrincipalContextSchema,
   UtcMillisecondTimestampSchema,
@@ -24,7 +26,6 @@ import type { Clock } from "../clock.js";
 import {
   type CriteriaTrustArtifactAvailability,
   type CriteriaTrustArtifactReference,
-  type CriteriaTrustEvaluation,
   type CriteriaTrustQualificationEvidence,
   type CriteriaTrustSourceEvidence,
   evaluateCriteriaTrust,
@@ -37,8 +38,6 @@ import {
   EvaluationRepositoryContractError,
   InvalidEvaluationRecordInputError,
 } from "./evaluation-repository-errors.js";
-
-const MAX_QUALIFICATION_REPORTS = 128;
 
 interface CriteriaTrustRoute {
   readonly environmentId: string;
@@ -140,7 +139,7 @@ function authorize(command: ResolveCriteriaTrustCommand): AuthorizedCriteriaTrus
   }
   if (
     !Array.isArray(command.qualificationReportIds) ||
-    command.qualificationReportIds.length > MAX_QUALIFICATION_REPORTS
+    command.qualificationReportIds.length > MAX_CRITERIA_TRUST_QUALIFICATION_REPORTS
   ) {
     throw invalidInput("Criteria-trust qualification report selection is invalid");
   }

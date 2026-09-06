@@ -8,6 +8,7 @@ export * from "./evaluation-comparison.js";
 export * from "./evaluation-comparison-api.js";
 export * from "./evaluation-comparison-result.js";
 export * from "./evaluation-criteria.js";
+export * from "./evaluation-criteria-trust.js";
 export * from "./evaluation-definition-encoding.js";
 export * from "./evaluation-model-assessment.js";
 export * from "./evaluation-model-assurance.js";
