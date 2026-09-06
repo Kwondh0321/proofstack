@@ -139,6 +139,15 @@ export class ReleasePolicyLifecycleEventConflictError extends Error {
   }
 }
 
+export class ReleasePolicyLifecycleEventNotFoundError extends Error {
+  readonly code = "release_policy_lifecycle_event_not_found";
+
+  constructor(readonly eventId: string) {
+    super(`Release policy lifecycle event ${eventId} was not found`);
+    this.name = "ReleasePolicyLifecycleEventNotFoundError";
+  }
+}
+
 export class ReleasePolicyLifecycleStateConflictError extends Error {
   readonly code = "release_policy_lifecycle_state_conflict";
 

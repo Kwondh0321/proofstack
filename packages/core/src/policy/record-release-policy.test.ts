@@ -14,6 +14,7 @@ import {
   PublishReleasePolicy,
   PublishReleasePolicyLifecycle,
   ReadReleasePolicy,
+  ReadReleasePolicyLifecycle,
 } from "./record-release-policy.js";
 import type { ReleasePolicyAuthorityEvidenceResolver } from "./release-policy-authority-resolver.js";
 import {
@@ -21,6 +22,7 @@ import {
   ReleasePolicyAuthorityRejectedError,
   ReleasePolicyAuthorityResolverContractError,
   ReleasePolicyLifecycleEventConflictError,
+  ReleasePolicyLifecycleEventNotFoundError,
   ReleasePolicyLifecycleStateConflictError,
   ReleasePolicyLineageError,
   ReleasePolicyNotFoundError,
@@ -390,6 +392,88 @@ describe("release policy exact reads", () => {
     await expect(
       reader.execute({ ...readCommand, policyVersionId: "invalid ID" }),
     ).rejects.toBeInstanceOf(InvalidReleasePolicyCommandError);
+  });
+
+  it("reads one exact lifecycle event without leaking another policy identity", async () => {
+    const value = setup();
+    const published = await value.publisher.execute(value.command);
+    value.now.mockReturnValue(new Date("2026-09-06T23:02:00.000Z"));
+    const lifecycle = new PublishReleasePolicyLifecycle({
+      clock: { now: value.now },
+      repository: value.port.repository,
+    });
+    const publication = await lifecycle.execute({
+      ...value.command,
+      input: {
+        eventId: "policy_event_exact_read",
+        kind: "withdrawn",
+        reason: "The exact lifecycle event must remain independently readable.",
+      },
+    });
+    const reader = new ReadReleasePolicyLifecycle(value.port.repository);
+    const { input: _input, ...route } = value.command;
+    const command = {
+      ...route,
+      eventId: publication.event.eventId,
+    };
+
+    await expect(reader.execute(command)).resolves.toEqual(publication.event);
+    expect(value.port.findReleasePolicyLifecycleEvent).toHaveBeenLastCalledWith(
+      published.policy.scope,
+      publication.event.eventId,
+    );
+    await expect(
+      reader.execute({ ...command, eventId: "policy_event_absent" }),
+    ).rejects.toBeInstanceOf(ReleasePolicyLifecycleEventNotFoundError);
+    await expect(reader.execute({ ...command, policyId: "policy_other" })).rejects.toBeInstanceOf(
+      ReleasePolicyNotFoundError,
+    );
+
+    const mismatchedEventId = "policy_event_other_resource";
+    value.port.events.set(mismatchedEventId, {
+      ...publication.event,
+      eventId: mismatchedEventId,
+      policy: {
+        definitionSha256: "a".repeat(64),
+        policyId: "policy_other",
+        policyVersionId: "policy_other_v1",
+      },
+    });
+    await expect(reader.execute({ ...command, eventId: mismatchedEventId })).rejects.toBeInstanceOf(
+      ReleasePolicyLifecycleEventNotFoundError,
+    );
+  });
+
+  it("authorizes lifecycle reads before validating route identifiers", async () => {
+    const value = setup();
+    const reader = new ReadReleasePolicyLifecycle(value.port.repository);
+    const unauthorized = principal(value.fixture.input.scope.tenantId, ["policy:author"]);
+    const { input: _input, ...route } = value.command;
+    await expect(
+      reader.execute({
+        ...route,
+        eventId: "invalid ID",
+        policyId: "invalid ID",
+        policyVersionId: "invalid ID",
+        principal: unauthorized,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(value.port.findReleasePolicy).not.toHaveBeenCalled();
+    expect(value.port.findReleasePolicyLifecycleEvent).not.toHaveBeenCalled();
+
+    for (const command of [
+      { ...route, eventId: "invalid ID" },
+      { ...route, eventId: "policy_event", policyId: "invalid ID" },
+      {
+        ...route,
+        eventId: "policy_event",
+        policyVersionId: "invalid ID",
+      },
+    ]) {
+      await expect(reader.execute(command)).rejects.toBeInstanceOf(
+        InvalidReleasePolicyCommandError,
+      );
+    }
   });
 });
 

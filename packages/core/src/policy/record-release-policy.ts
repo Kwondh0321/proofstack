@@ -26,6 +26,7 @@ import {
   ReleasePolicyAuthorityRejectedError,
   ReleasePolicyAuthorityResolverContractError,
   ReleasePolicyLifecycleEventConflictError,
+  ReleasePolicyLifecycleEventNotFoundError,
   ReleasePolicyLifecycleStateConflictError,
   ReleasePolicyLineageError,
   ReleasePolicyNotFoundError,
@@ -57,6 +58,10 @@ export interface PublishReleasePolicyCommand extends ReleasePolicyRoute {
 }
 
 export interface ReadReleasePolicyCommand extends ReleasePolicyRoute {}
+
+export interface ReadReleasePolicyLifecycleCommand extends ReleasePolicyRoute {
+  readonly eventId: string;
+}
 
 export interface PublishReleasePolicyLifecycleCommand extends ReleasePolicyRoute {
   readonly input: unknown;
@@ -454,6 +459,39 @@ export class ReadReleasePolicy {
     return structuredClone(
       await exactPolicy(this.repository, scope, policyId.data, policyVersionId.data),
     );
+  }
+}
+
+export class ReadReleasePolicyLifecycle {
+  constructor(private readonly repository: ReleasePolicyRepository) {}
+
+  async execute(command: ReadReleasePolicyLifecycleCommand): Promise<ReleasePolicyLifecycleEvent> {
+    const { scope } = authorizedScope(command, "policy:read");
+    const policyId = OpaqueIdSchema.safeParse(command.policyId);
+    const policyVersionId = OpaqueIdSchema.safeParse(command.policyVersionId);
+    const eventId = OpaqueIdSchema.safeParse(command.eventId);
+    if (!policyId.success || !policyVersionId.success || !eventId.success) {
+      throw invalidCommand(
+        "Release policy lifecycle route is invalid",
+        !policyId.success
+          ? policyId.error
+          : !policyVersionId.success
+            ? policyVersionId.error
+            : eventId.error,
+      );
+    }
+
+    const policy = await exactPolicy(this.repository, scope, policyId.data, policyVersionId.data);
+    const input = await this.repository.findReleasePolicyLifecycleEvent(
+      structuredClone(scope),
+      eventId.data,
+    );
+    if (input === null) throw new ReleasePolicyLifecycleEventNotFoundError(eventId.data);
+    const event = validateRepositoryLifecycleEvent(input, scope, eventId.data);
+    if (!samePolicyReference(event.policy, releasePolicyReference(policy))) {
+      throw new ReleasePolicyLifecycleEventNotFoundError(eventId.data);
+    }
+    return structuredClone(event);
   }
 }
 
