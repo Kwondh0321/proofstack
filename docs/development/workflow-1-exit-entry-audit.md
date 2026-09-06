@@ -140,8 +140,8 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
 - This document opens an audit; it does not accept Workflow 1.
 - Prior checkpoint acceptance remains valid for each stated boundary, but it cannot be added up to
   produce stage acceptance.
-- The optional port-3010 comparison lab is developer convenience and is excluded from exit
-  evidence. The supported operator surface must work without it.
+- No standalone comparison lab is part of exit evidence. The supported operator surface must use
+  retained API state.
 - Synthetic fixtures may drive deterministic adversarial cases, but the full service must retain
   them through real public and persistence boundaries rather than fabricating the final
   projection.

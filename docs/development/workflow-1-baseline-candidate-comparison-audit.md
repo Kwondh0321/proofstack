@@ -64,7 +64,8 @@ and accessibility suites also passed independently before the remote gates.
 ## Browser cross-check
 
 The accepted operator surface is the existing web console backed by the running API. It is not a
-new demonstration site and does not depend on the optional comparison lab.
+new demonstration site. The redundant standalone comparison lab has been removed so contributors
+have one browser path to actual API state.
 
 The final narrow-screen check used a 390-by-844 Chromium viewport against the real comparison
 route. The document remained exactly 390 CSS pixels wide. The accessibility tree exposed four
@@ -73,10 +74,6 @@ navigation reached each region, the focused region exposed a two-pixel visible o
 keys moved the first horizontally scrollable region from zero to 200 pixels without moving the
 document viewport. A separate hostile-value run retained literal long text, produced no horizontal
 document overflow, and did not execute the injected marker.
-
-Port 3010 belongs only to an explicitly started, optional local developer experiment. It is not
-required by the API, SDK, PostgreSQL service path, or operator console; it is not part of this
-checkpoint's accepted product surface and no production availability claim is attached to it.
 
 ## Cross-check findings closed
 
@@ -143,8 +140,8 @@ No unresolved finding in this audit invalidates the seventh Workflow 1 checkpoin
   ProofStack retains that provenance and does not normalize unavailable values to zero.
 - The browser renders a bounded safe projection and omits classified prompt, artifact, credential,
   and private-review plaintext. It is not a general evidence browser.
-- The optional local comparison lab on port 3010 is developer convenience only. It is not required
-  by the accepted service, has no uptime promise, and is not a deployed product surface.
+- No separate standalone comparison lab or listener is part of the accepted service. Browser
+  verification uses the API-backed operator console.
 - PostgreSQL recovery proves the documented reference procedure against the pinned CI services. It
   does not establish a production RPO, RTO, regional failover, cloud-provider compatibility, or
   disaster-recovery certification.

@@ -202,7 +202,7 @@ function mutationResponse(kind: EvaluationRecordKind, record: unknown, created =
 function developmentClient(fetch: typeof globalThis.fetch, overrides = {}) {
   return new ProofStackEvaluationClient({
     authentication: { mode: "development" },
-    endpoint: "http://127.0.0.1:3010/base?ignored=true#fragment",
+    endpoint: "http://127.0.0.1:4318/base?ignored=true#fragment",
     environmentId: criterion.scope.environmentId,
     fetch,
     projectId: criterion.scope.projectId,
@@ -279,12 +279,12 @@ describe("ProofStackEvaluationClient", () => {
 
     expect(fetch).toHaveBeenCalledTimes(6);
     expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
-      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/definitions/${criterion.criterionSetVersionId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/criterion-set-statuses/${statusRecord.statusRecordId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/run-decisions/${run.evaluationRunId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/assessments/${assessment.assessmentId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/criterion-sets/${criterion.criterionSetVersionId}/trust`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/records/criterion_set/${criterion.criterionSetVersionId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_local/environments/env_local/evaluations/definitions/${criterion.criterionSetVersionId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_local/environments/env_local/evaluations/criterion-set-statuses/${statusRecord.statusRecordId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_local/environments/env_local/evaluations/run-decisions/${run.evaluationRunId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_local/environments/env_local/evaluations/assessments/${assessment.assessmentId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_local/environments/env_local/evaluations/criterion-sets/${criterion.criterionSetVersionId}/trust`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_local/environments/env_local/evaluations/records/criterion_set/${criterion.criterionSetVersionId}`,
     ]);
     for (const [, init] of fetch.mock.calls) {
       expect(init).toMatchObject({ credentials: "omit", redirect: "manual" });

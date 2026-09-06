@@ -130,7 +130,7 @@ function readResponse(kind: ComparisonRecordKind, record: unknown): Response {
 function developmentClient(fetch: typeof globalThis.fetch, overrides = {}) {
   return new ProofStackComparisonClient({
     authentication: { mode: "development" },
-    endpoint: "http://127.0.0.1:3010/base?ignored=true#fragment",
+    endpoint: "http://127.0.0.1:4318/base?ignored=true#fragment",
     environmentId: definitionRecord.scope.environmentId,
     fetch,
     projectId: definitionRecord.scope.projectId,
@@ -176,12 +176,12 @@ describe("ProofStackComparisonClient", () => {
     await client.readRecord({ kind: "comparison_result", recordId: resultRecord.resultId });
 
     expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
-      `http://127.0.0.1:3010/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/${definitionComparisonId}/definitions/${definitionRecord.comparisonVersionId}`,
-      `http://127.0.0.1:3010/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/evidence-snapshots/${snapshotRecord.snapshotId}`,
-      `http://127.0.0.1:3010/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/results/${resultRecord.resultId}`,
-      `http://127.0.0.1:3010/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/records/comparison_definition/${definitionRecord.comparisonVersionId}`,
-      `http://127.0.0.1:3010/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/records/comparison_evidence_snapshot/${snapshotRecord.snapshotId}`,
-      `http://127.0.0.1:3010/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/records/comparison_result/${resultRecord.resultId}`,
+      `http://127.0.0.1:4318/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/${definitionComparisonId}/definitions/${definitionRecord.comparisonVersionId}`,
+      `http://127.0.0.1:4318/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/evidence-snapshots/${snapshotRecord.snapshotId}`,
+      `http://127.0.0.1:4318/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/results/${resultRecord.resultId}`,
+      `http://127.0.0.1:4318/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/records/comparison_definition/${definitionRecord.comparisonVersionId}`,
+      `http://127.0.0.1:4318/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/records/comparison_evidence_snapshot/${snapshotRecord.snapshotId}`,
+      `http://127.0.0.1:4318/base/v1/projects/${definitionRecord.scope.projectId}/environments/${definitionRecord.scope.environmentId}/comparisons/records/comparison_result/${resultRecord.resultId}`,
     ]);
     expect(fetch.mock.calls.slice(0, 3).map(([, init]) => init?.body)).toEqual([
       JSON.stringify(definitionRequest),

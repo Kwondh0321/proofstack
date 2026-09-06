@@ -166,7 +166,7 @@ describe("ProofStackRegressionClient", () => {
       .mockResolvedValue(Response.json({ requestId: "req_local", version: fixtureVersion }));
     const sdk = new ProofStackRegressionClient({
       authentication: { mode: "development" },
-      endpoint: "http://127.0.0.1:3010",
+      endpoint: "http://127.0.0.1:4318",
       environmentId: "env_local",
       fetch,
       projectId: "prj_local",

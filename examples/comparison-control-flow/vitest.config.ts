@@ -6,7 +6,6 @@ export default defineConfig({
       exclude: ["src/**/*.test.ts", "src/run.ts"],
       include: [
         "src/adversarial-scenario.ts",
-        "src/lab-app.ts",
         "src/scenario.ts",
         "src/service.ts",
         "src/templates.ts",

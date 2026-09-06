@@ -147,7 +147,7 @@ function mutationResponse(
 function developmentClient(fetch: typeof globalThis.fetch) {
   return new ProofStackModelAssuranceClient({
     authentication: { mode: "development" },
-    endpoint: "http://127.0.0.1:3010/base?ignored=true#fragment",
+    endpoint: "http://127.0.0.1:4318/base?ignored=true#fragment",
     environmentId: profileVector.input.scope.environmentId,
     fetch,
     projectId: profileVector.input.scope.projectId,
@@ -214,10 +214,10 @@ describe("ProofStackModelAssuranceClient", () => {
     });
 
     expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
-      "http://127.0.0.1:3010/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/definitions/mpv_safety_v1",
-      "http://127.0.0.1:3010/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/executions/crq_observation_safety_v1",
-      "http://127.0.0.1:3010/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/human-reviews/hrr_agent_safety_reviewer_one",
-      "http://127.0.0.1:3010/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/assessments/maa_agent_safety_v1",
+      "http://127.0.0.1:4318/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/definitions/mpv_safety_v1",
+      "http://127.0.0.1:4318/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/executions/crq_observation_safety_v1",
+      "http://127.0.0.1:4318/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/human-reviews/hrr_agent_safety_reviewer_one",
+      "http://127.0.0.1:4318/base/v1/projects/prj_assurance/environments/env_assurance/model-assurance/assessments/maa_agent_safety_v1",
     ]);
   });
 
@@ -351,7 +351,7 @@ describe("ProofStackModelAssuranceClient", () => {
       () =>
         new ProofStackModelAssuranceClient({
           authentication: { mode: "development" },
-          endpoint: "http://127.0.0.1:3010",
+          endpoint: "http://127.0.0.1:4318",
           environmentId: "INVALID",
           projectId: "prj_assurance",
         }),
@@ -370,7 +370,7 @@ describe("ProofStackModelAssuranceClient", () => {
         () =>
           new ProofStackModelAssuranceClient({
             authentication: { mode: "development" },
-            endpoint: "http://127.0.0.1:3010",
+            endpoint: "http://127.0.0.1:4318",
             environmentId: "env_assurance",
             projectId: "prj_assurance",
             ...limits,
@@ -396,7 +396,7 @@ describe("ProofStackModelAssuranceClient", () => {
       .mockRejectedValueOnce(new Error("offline"));
     const client = new ProofStackModelAssuranceClient({
       authentication: { mode: "development" },
-      endpoint: "http://127.0.0.1:3010",
+      endpoint: "http://127.0.0.1:4318",
       environmentId: "env_assurance",
       fetch,
       maxResponseBytes: 1024,

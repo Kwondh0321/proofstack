@@ -114,7 +114,7 @@ function jsonResponse(
 function developmentClient(fetch: typeof globalThis.fetch, overrides = {}) {
   return new ProofStackReplayClient({
     authentication: { mode: "development" },
-    endpoint: "http://127.0.0.1:3010/base?ignored=true#fragment",
+    endpoint: "http://127.0.0.1:4318/base?ignored=true#fragment",
     environmentId: targetDefinition.scope.environmentId,
     fetch,
     projectId: targetDefinition.scope.projectId,
@@ -173,13 +173,13 @@ describe("ProofStackReplayClient", () => {
     expect(fetch).toHaveBeenCalledTimes(7);
     const calls = fetch.mock.calls;
     expect(calls.map(([url]) => String(url))).toEqual([
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-targets/${targetDefinition.targetId}/releases/${targetDefinition.targetReleaseId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-targets/${targetDefinition.targetId}/releases/${targetDefinition.targetReleaseId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-plans/${plan.planId}/versions/${plan.planVersionId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-plans/${plan.planId}/versions/${plan.planVersionId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-jobs/${jobId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-jobs/${jobId}`,
-      `http://127.0.0.1:3010/base/v1/projects/prj_vector/environments/env_vector/replay-jobs/${jobId}/cancellation-requests/${cancellationId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-targets/${targetDefinition.targetId}/releases/${targetDefinition.targetReleaseId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-targets/${targetDefinition.targetId}/releases/${targetDefinition.targetReleaseId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-plans/${plan.planId}/versions/${plan.planVersionId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-plans/${plan.planId}/versions/${plan.planVersionId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-jobs/${jobId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-jobs/${jobId}`,
+      `http://127.0.0.1:4318/base/v1/projects/prj_vector/environments/env_vector/replay-jobs/${jobId}/cancellation-requests/${cancellationId}`,
     ]);
     for (const [, init] of calls) {
       expect(init).toMatchObject({ credentials: "omit", redirect: "manual" });

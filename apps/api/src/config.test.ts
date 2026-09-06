@@ -305,8 +305,8 @@ describe("loadConfig", () => {
   });
 
   it("accepts only canonical browser origins and requires HTTPS with OIDC", () => {
-    expect(loadConfig({ PROOFSTACK_CORS_ORIGIN: "http://127.0.0.1:3010" })).toMatchObject({
-      corsOrigin: "http://127.0.0.1:3010",
+    expect(loadConfig({ PROOFSTACK_CORS_ORIGIN: "http://127.0.0.1:3011" })).toMatchObject({
+      corsOrigin: "http://127.0.0.1:3011",
     });
     expect(() =>
       loadConfig({ PROOFSTACK_CORS_ORIGIN: "https://console.example.test/path" }),
