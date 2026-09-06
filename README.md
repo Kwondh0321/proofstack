@@ -310,8 +310,10 @@ release, causal, and production-readiness claims. The completed
 incident-to-comparison stage and opens Workflow 2 development while withholding policy, approval,
 deployment, release, and production-readiness claims. The
 [Workflow 2 entry audit](docs/development/workflow-2-entry-audit.md) fixes the authority split and
-seven dependency-ordered gates for that future work; it does not represent any release-gate
-capability as implemented.
+seven dependency-ordered gates. The
+[immutable release-candidate guide](docs/guides/workflow-2-release-candidate.md) runs the first
+bounded subject slice against the complete retained Workflow 1 graph while withholding policy,
+approval, decision, attestation, CI-enforcement, deployment, and production-readiness claims.
 
 ## Current boundaries
 
@@ -329,7 +331,9 @@ immutable graphs, durable PostgreSQL adapters, exact-version API and SDK, kind-r
 authorities, dedicated workers, and restart read-back are implemented and tested.
 Repository-backed exact comparison source resolution, immutable comparison records, bounded API
 and OpenAPI operations, workspace SDK methods, and the read-only operator projection are also
-implemented and tested.
+implemented and tested. Strict release-candidate contracts, exact source resolution, append-only
+memory and PostgreSQL storage, bounded API and SDK operations, restart read-back, and empty-target
+predecessor recovery are implemented and tested as a policy-independent Workflow 2 subject.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
 The reference flows record synthetic evidence and use a deterministic local model provider;

@@ -310,8 +310,10 @@ production-readiness 주장은 승인하지 않습니다. 완료된
 사고→비교 단계를 승인하고 워크플로 2 개발 진입을 열지만 정책, 승인, 배포, 릴리스,
 production-readiness 주장은 계속 승인하지 않습니다.
 [Workflow 2 진입 감사](docs/development/workflow-2-entry-audit.ko.md)는 이 후속 작업의 권한
-분리와 의존성 순서가 고정된 7개 gate를 정의하며, release-gate 기능이 구현됐다고 표시하지
-않습니다.
+분리와 의존성 순서가 고정된 7개 gate를 정의합니다.
+[불변 release candidate 가이드](docs/guides/workflow-2-release-candidate.ko.md)는 policy,
+approval, decision, attestation, CI enforcement, deployment, production-readiness 주장을 승인하지
+않으면서 완전히 보존된 Workflow 1 graph에 대해 첫 번째 제한된 subject slice를 실행합니다.
 
 ## 현재의 경계
 
@@ -327,7 +329,10 @@ primitive와 model/human assurance contract, 권한 우선 불변 graph, 영속 
 exact-version API·SDK, kind별 storage authority, 전용 worker, restart read-back도 구현되고
 검증되었습니다. Repository-backed exact comparison source 해석, 불변 comparison record,
 제한된 API·OpenAPI operation, workspace SDK method, 읽기 전용 operator projection도 구현되고
-검증되었습니다. 기준 흐름은 synthetic evidence와 결정적 local model provider를 사용할 뿐,
+검증되었습니다. 엄격한 release-candidate contract, exact source 해석, append-only memory·
+PostgreSQL storage, bounded API·SDK operation, restart read-back, 빈 target predecessor recovery도
+policy와 독립적인 Workflow 2 subject로 구현되고 검증되었습니다. 기준 흐름은 synthetic
+evidence와 결정적 local model provider를 사용할 뿐,
 OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer
 전문성을 검증하거나 workspace SDK를 package registry에 배포하거나 설명형 comparison을
 release decision으로 재해석하지 않습니다.
