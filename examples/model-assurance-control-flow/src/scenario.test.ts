@@ -1,5 +1,6 @@
 import {
   AssessmentDefinitionSchema,
+  AssessmentSchema,
   BlindedEvaluationResultDefinitionSchema,
   CalibrationReportDefinitionSchema,
   HumanReviewRecordDefinitionSchema,
@@ -47,6 +48,19 @@ describe("model-assurance reference scenario variants", () => {
     );
     expect(AssessmentDefinitionSchema.parse(definition)).toMatchObject({
       eligibility: { reasons: ["critical_counterevidence"], status: "ineligible" },
+    });
+  });
+
+  it("preserves every existing ineligibility reason when critical evidence is added", () => {
+    const source = structuredClone(AssessmentSchema.parse(evaluationRecord("assessment")));
+    source.dimensions.coverage = "insufficient";
+    source.eligibility = { reasons: ["insufficient_coverage"], status: "ineligible" };
+
+    const definition = criticalBaseAssessmentDefinition(source as never, "retained");
+
+    expect(AssessmentDefinitionSchema.parse(definition).eligibility).toEqual({
+      reasons: ["critical_counterevidence", "insufficient_coverage"],
+      status: "ineligible",
     });
   });
 

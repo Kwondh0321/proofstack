@@ -68,7 +68,12 @@ export function criticalBaseAssessmentDefinition(
     },
   ];
   definition.counterevidence = [artifactEvidence, sourceEvidence];
-  definition.eligibility = { reasons: ["critical_counterevidence"], status: "ineligible" };
+  const inheritedReasons =
+    source.eligibility.status === "ineligible" ? source.eligibility.reasons : [];
+  definition.eligibility = {
+    reasons: [...new Set([...inheritedReasons, "critical_counterevidence" as const])].sort(),
+    status: "ineligible",
+  };
   return definition;
 }
 
