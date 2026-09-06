@@ -5,6 +5,16 @@
   "description": "Provider-neutral durable replay operator example",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    "./worker": "./dist/worker.js",
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "default": "./dist/workflow.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf coverage dist",
