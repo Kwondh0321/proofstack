@@ -188,4 +188,24 @@ describe("evaluation control-plane API", () => {
     });
     expect(JSON.stringify(response.json())).not.toContain("corrupt-row");
   });
+
+  it("composes criteria trust from exact server-owned records", async () => {
+    const app = await testApp();
+    const response = await app.inject({
+      body: {
+        context: { environmentId: "env_local", populationTags: [] },
+        criterionStatusRecordId: "csr_missing",
+        qualificationReportIds: [],
+      },
+      method: "POST",
+      url: `${scopeUrl}/criterion-sets/crs_missing/trust`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({
+      code: "evaluation_record_not_found",
+      detail: "criterion_set record crs_missing was not found in the authorized scope",
+      status: 404,
+    });
+  });
 });

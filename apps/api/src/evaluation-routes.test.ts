@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import {
   AssessmentDefinitionSchema,
   AssessmentSchema,
+  CriteriaTrustEvaluationSchema,
   CriterionSetDefinitionSchema,
   CriterionSetSchema,
   CriterionSetStatusDefinitionSchema,
@@ -97,6 +98,23 @@ const assessment = AssessmentSchema.parse({
   schemaVersion: "0.1",
   scope: assessmentVector.input.scope,
 });
+const criteriaTrustEvaluation = CriteriaTrustEvaluationSchema.parse({
+  evaluatedAt: "2026-09-02T01:00:04.000Z",
+  reasons: [],
+  status: "eligible",
+});
+const criteriaTrustRequest = {
+  context: {
+    environmentId: "env_local",
+    jurisdiction: "kr",
+    locale: "ko-kr",
+    populationTags: ["adult users"],
+    riskTier: "high",
+    taskKind: "task_support",
+  },
+  criterionStatusRecordId: status.statusRecordId,
+  qualificationReportIds: ["qlr_evaluator", "qlr_oracle"],
+} as const;
 
 function principal() {
   return PrincipalContextSchema.parse({
@@ -128,6 +146,7 @@ function dependencies(
     recordRunDecision: {
       execute: vi.fn(async () => ({ created: true, record: run })),
     } as unknown as EvaluationRouteDependencies["recordRunDecision"],
+    resolveCriteriaTrust: { execute: vi.fn(async () => criteriaTrustEvaluation) },
     ...overrides,
   };
 }
@@ -137,6 +156,7 @@ const definitionUrl = `${scopeUrl}/definitions/${criterion.criterionSetVersionId
 const statusUrl = `${scopeUrl}/criterion-set-statuses/${status.statusRecordId}`;
 const runUrl = `${scopeUrl}/run-decisions/${run.evaluationRunId}`;
 const assessmentUrl = `${scopeUrl}/assessments/${assessment.assessmentId}`;
+const criteriaTrustUrl = `${scopeUrl}/criterion-sets/${criterion.criterionSetVersionId}/trust`;
 const readUrl = `${scopeUrl}/records/criterion_set/${criterion.criterionSetVersionId}`;
 
 const apps: ReturnType<typeof Fastify>[] = [];
@@ -187,10 +207,11 @@ describe("evaluation routes", () => {
         method: "POST",
         url: assessmentUrl,
       }),
+      app.inject({ body: criteriaTrustRequest, method: "POST", url: criteriaTrustUrl }),
       app.inject({ method: "GET", url: readUrl }),
     ]);
 
-    expect(responses.map(({ statusCode }) => statusCode)).toEqual([201, 201, 201, 201, 200]);
+    expect(responses.map(({ statusCode }) => statusCode)).toEqual([201, 201, 201, 201, 200, 200]);
     for (const response of responses) {
       expect(response.headers["cache-control"]).toBe("no-store");
       expect(response.json()).toMatchObject({ requestId: expect.any(String) });
@@ -226,6 +247,15 @@ describe("evaluation routes", () => {
       principal: principal(),
       projectId: "prj_local",
       recordId: assessment.assessmentId,
+    });
+    expect(value.resolveCriteriaTrust.execute).toHaveBeenCalledWith({
+      context: criteriaTrustRequest.context,
+      criterionSetVersionId: criterion.criterionSetVersionId,
+      criterionStatusRecordId: status.statusRecordId,
+      environmentId: "env_local",
+      principal: principal(),
+      projectId: "prj_local",
+      qualificationReportIds: criteriaTrustRequest.qualificationReportIds,
     });
     expect(value.readRecord.execute).toHaveBeenCalledWith({
       environmentId: "env_local",
@@ -295,6 +325,18 @@ describe("evaluation routes", () => {
     expect(qualificationOnDefinitionRoute.statusCode).toBe(400);
     expect(workerRoutes.map(({ statusCode }) => statusCode)).toEqual([404, 404, 404, 404]);
     expect(value.publishDefinition.execute).not.toHaveBeenCalled();
+  });
+
+  it("rejects caller-authored trust assertions", async () => {
+    const { app, value } = await testApp();
+    const response = await app.inject({
+      body: { ...criteriaTrustRequest, sources: [], status: "eligible" },
+      method: "POST",
+      url: criteriaTrustUrl,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(value.resolveCriteriaTrust.execute).not.toHaveBeenCalled();
   });
 
   it("rejects invalid kinds and corrupt public responses", async () => {

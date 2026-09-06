@@ -71,6 +71,7 @@ import {
   RecordEvaluationRunDecision,
   RecordHumanReview,
   RecordModelAssuranceExecution,
+  ResolveCriteriaTrust,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
@@ -154,6 +155,7 @@ import {
   isExactEvidenceRepository,
   RepositoryComparisonEvidenceResolver,
 } from "./repository-comparison-evidence-resolver.js";
+import { RepositoryCriteriaTrustArtifactResolver } from "./repository-criteria-trust-artifact-resolver.js";
 import { registerRoutes } from "./routes.js";
 import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
 
@@ -295,6 +297,15 @@ export async function createApp(
               );
             },
           } satisfies ComparisonEvidenceResolver));
+    const criteriaTrustArtifactResolver = new RepositoryCriteriaTrustArtifactResolver(
+      storage.artifacts
+        ? {
+            catalog: storage.artifacts.catalog,
+            encryption: storage.artifacts.encryption,
+            objects: storage.artifacts.objects,
+          }
+        : {},
+    );
 
     await app.register(helmet, {
       contentSecurityPolicy: false,
@@ -356,6 +367,11 @@ export async function createApp(
         repository: storage.evaluationRepository,
       }),
       recordRunDecision: new RecordEvaluationRunDecision({
+        clock,
+        repository: storage.evaluationRepository,
+      }),
+      resolveCriteriaTrust: new ResolveCriteriaTrust({
+        artifactResolver: criteriaTrustArtifactResolver,
         clock,
         repository: storage.evaluationRepository,
       }),

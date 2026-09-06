@@ -1,5 +1,7 @@
 import {
   CreateAssessmentRequestSchema,
+  EvaluateCriteriaTrustRequestSchema,
+  EvaluateCriteriaTrustResponseSchema,
   EvaluationRecordKindSchema,
   OpaqueIdSchema,
   PublishEvaluationDefinitionRequestSchema,
@@ -14,6 +16,7 @@ import type {
   ReadEvaluationRecord,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
+  ResolveCriteriaTrust,
 } from "@proofstack/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -34,6 +37,10 @@ const EvaluationRecordPathSchema = EvaluationMutationPathSchema.extend({
   kind: EvaluationRecordKindSchema,
 }).strict();
 
+const CriteriaTrustPathSchema = EvaluationScopePathSchema.extend({
+  criterionSetVersionId: OpaqueIdSchema,
+}).strict();
+
 export interface EvaluationRouteDependencies {
   readonly authenticator: Authenticator;
   readonly createAssessment: Pick<CreateAssessment, "execute">;
@@ -41,6 +48,7 @@ export interface EvaluationRouteDependencies {
   readonly readRecord: Pick<ReadEvaluationRecord, "execute">;
   readonly recordCriterionSetStatus: Pick<RecordCriterionSetStatus, "execute">;
   readonly recordRunDecision: Pick<RecordEvaluationRunDecision, "execute">;
+  readonly resolveCriteriaTrust: Pick<ResolveCriteriaTrust, "execute">;
 }
 
 const mutationRateLimit = {
@@ -175,6 +183,30 @@ export async function registerEvaluationRoutes(
           result: { kind: body.kind, record: result.record },
         }),
       );
+    },
+  );
+
+  app.post(
+    "/v1/projects/:projectId/environments/:environmentId/evaluations/criterion-sets/:criterionSetVersionId/trust",
+    { config: { rateLimit: mutationRateLimit } },
+    async (request, reply) => {
+      const principal = await dependencies.authenticator.authenticate(request);
+      const path = CriteriaTrustPathSchema.parse(request.params);
+      const body = EvaluateCriteriaTrustRequestSchema.parse(request.body);
+      const result = await dependencies.resolveCriteriaTrust.execute({
+        context: body.context,
+        criterionSetVersionId: path.criterionSetVersionId,
+        criterionStatusRecordId: body.criterionStatusRecordId,
+        environmentId: path.environmentId,
+        principal,
+        projectId: path.projectId,
+        qualificationReportIds: body.qualificationReportIds,
+      });
+      preventCaching(reply);
+      return validatedResponse(EvaluateCriteriaTrustResponseSchema, {
+        requestId: request.id,
+        result,
+      });
     },
   );
 
