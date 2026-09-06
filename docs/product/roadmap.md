@@ -144,6 +144,10 @@ The complete-lineage, production-composition, criteria-trust, authority, retenti
 recovery, failure-mode, usability, open-source, and acceptance gates for the final open checkpoint
 are fixed by the
 [Workflow 1 exit entry audit](../development/workflow-1-exit-entry-audit.md).
+The focused
+[criteria trust-root audit](../development/workflow-1-criteria-trust-root-audit.md) accepts the
+requester, search, freshness, availability, conflict, scope, reviewer, and qualification matrix
+without accepting Workflow 1 or granting policy and release authority.
 
 ## Workflow 2: reliability release gate
 

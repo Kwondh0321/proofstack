@@ -153,3 +153,8 @@ ProofStack은 잘못된 지시를 그 작성자를 더 강하게 신뢰하는 �
    실행한다.
 7. 그 결과가 모두 녹색인 뒤에만 최종 워크플로 1 감사를 발행하고 워크플로 2 진입을
    검토한다.
+
+세 번째 작업 항목은 집중
+[기준 신뢰 루트 감사](workflow-1-criteria-trust-root-audit.ko.md)에서 승인했습니다. 이는 해당
+종료 finding만 닫으며 Workflow 1을 승인하거나 Workflow 2 차단을 해제하지 않습니다. 위의
+완전한 service lineage, recovery, contributor, 공개 주장, repository 행은 계속 열려 있습니다.

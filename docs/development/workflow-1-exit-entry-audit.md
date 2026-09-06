@@ -163,3 +163,8 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
    gates.
 7. Only after those results are green, publish a final Workflow 1 audit and consider Workflow 2
    entry.
+
+The third work item is now accepted in the focused
+[criteria trust-root audit](workflow-1-criteria-trust-root-audit.md). This closes only that exit
+finding; it does not accept Workflow 1 or unblock Workflow 2. The complete service lineage,
+recovery, contributor, public-claims, and repository rows above remain open.
