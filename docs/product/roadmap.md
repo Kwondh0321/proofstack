@@ -184,6 +184,11 @@ the policy-independent exact subject, source authority, persistence, isolation, 
 clean-checkout acceptance boundaries. It opens versioned policy-definition development while
 withholding policy evaluation, approval, decision, attestation, CI enforcement, deployment,
 rollback, break-glass, and production-readiness claims.
+The contract vocabulary, installation and source authority, applicability, immutable lifecycle,
+dedicated author capability and database role, adversarial matrix, and executable exit gates for
+the second checkpoint are fixed by the
+[versioned policy definition entry audit](../development/workflow-2-policy-definition-entry-audit.md).
+The checkpoint remains open; no policy evaluation or release authority is implied.
 
 ## Scale and ecosystem
 

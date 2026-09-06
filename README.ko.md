@@ -316,6 +316,9 @@ approval, decision, attestation, CI enforcement, deployment, production-readines
 않으면서 완전히 보존된 Workflow 1 graph에 대해 첫 번째 제한된 subject slice를 실행합니다.
 완료된 [release-candidate 감사](docs/development/workflow-2-release-candidate-audit.ko.md)는 이 첫
 번째 제한된 체크포인트를 승인하고 versioned policy-definition 개발 진입을 엽니다.
+[버전 정책 정의 진입 감사](docs/development/workflow-2-policy-definition-entry-audit.ko.md)는 평가나
+release authority를 주장하지 않은 채 유한 non-executable rule vocabulary, installation·source
+authority, 불변 lifecycle, 전용 author boundary, 실행 가능한 exit gate를 고정합니다.
 
 ## 현재의 경계
 

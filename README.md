@@ -315,7 +315,11 @@ seven dependency-ordered gates. The
 bounded subject slice against the complete retained Workflow 1 graph while withholding policy,
 approval, decision, attestation, CI-enforcement, deployment, and production-readiness claims. The
 completed [release-candidate audit](docs/development/workflow-2-release-candidate-audit.md) accepts
-that first bounded checkpoint and opens versioned policy-definition development.
+that first bounded checkpoint and opens versioned policy-definition development. The
+[versioned policy-definition entry audit](docs/development/workflow-2-policy-definition-entry-audit.md)
+fixes the finite non-executable rule vocabulary, installation and source authority, immutable
+lifecycle, dedicated author boundary, and executable exit gates without claiming evaluation or
+release authority.
 
 ## Current boundaries
 
