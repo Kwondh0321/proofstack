@@ -167,6 +167,81 @@ describe("exact comparison pairing", () => {
     });
   });
 
+  it.each(["assessment", "model_assurance"] as const)(
+    "makes unresolved critical counterevidence in %s evidence globally incomparable",
+    (kind) => {
+      const definition = comparison();
+      const baseline = snapshot(definition, "baseline");
+      const fixture = baseline.fixtures[0];
+      if (!fixture) throw new Error("Expected baseline fixture");
+      const assurance = fixture.assurance.find((value) => value.kind === kind);
+      if (!assurance) throw new Error(`Expected ${kind} assurance`);
+      const guardedBaseline = ComparisonEvidenceSnapshotSchema.parse({
+        ...baseline,
+        fixtures: [
+          {
+            ...fixture,
+            assurance: fixture.assurance.map((value) =>
+              value.kind === kind
+                ? {
+                    ...value,
+                    eligibility: "ineligible",
+                    reasons: ["critical_counterevidence"],
+                  }
+                : value,
+            ),
+          },
+        ],
+      });
+
+      expect(
+        pairComparisonEvidence({
+          baseline: guardedBaseline,
+          candidate: snapshot(definition, "candidate"),
+          comparison: definition,
+        }).comparability,
+      ).toEqual({
+        reasons: ["unresolved_critical_counterevidence"],
+        status: "incomparable",
+      });
+    },
+  );
+
+  it("retains unsupported statistical assumptions as an explicit comparability reason", () => {
+    const definition = comparison();
+    const baseline = snapshot(definition, "baseline");
+    const fixture = baseline.fixtures[0];
+    if (!fixture) throw new Error("Expected baseline fixture");
+    const unsupported = ComparisonEvidenceSnapshotSchema.parse({
+      ...baseline,
+      fixtures: [
+        {
+          ...fixture,
+          assurance: fixture.assurance.map((value) =>
+            value.kind === "assessment"
+              ? {
+                  ...value,
+                  eligibility: "ineligible",
+                  reasons: ["unsupported_statistical_assumptions"],
+                }
+              : value,
+          ),
+        },
+      ],
+    });
+
+    expect(
+      pairComparisonEvidence({
+        baseline: unsupported,
+        candidate: snapshot(definition, "candidate"),
+        comparison: definition,
+      }).comparability,
+    ).toEqual({
+      reasons: ["unsupported_statistical_assumptions"],
+      status: "partially_comparable",
+    });
+  });
+
   it("makes changed fixture versions visible as partial comparability", () => {
     const source = comparison();
     const candidateFixture = source.candidate.fixtures[0];

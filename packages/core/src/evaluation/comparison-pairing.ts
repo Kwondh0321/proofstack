@@ -2,6 +2,7 @@ import {
   type ComparisonCase,
   ComparisonCaseSchema,
   type ComparisonComparability,
+  type ComparisonComparabilityReasonSchema,
   ComparisonComparabilitySchema,
   type ComparisonDefinition,
   ComparisonDefinitionRecordSchema,
@@ -47,6 +48,7 @@ export interface ComparisonPairingResult {
 
 type SubjectFixture = ComparisonDefinition["baseline"]["fixtures"][number];
 type ComparisonInvalidCaseReason = ReturnType<typeof ComparisonInvalidCaseReasonSchema.parse>;
+type ComparisonComparabilityReason = ReturnType<typeof ComparisonComparabilityReasonSchema.parse>;
 
 function canonicalEqual(left: unknown, right: unknown): boolean {
   return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
@@ -286,14 +288,10 @@ function exactDatasetKey(value: ComparisonDefinition["baseline"]["dataset"]): st
 function deriveComparability(
   comparison: ComparisonDefinition,
   cases: readonly ComparisonCase[],
+  baseline: ComparisonEvidenceSnapshot,
+  candidate: ComparisonEvidenceSnapshot,
 ): ComparisonComparability {
-  const reasons = new Set<
-    | "dataset_mismatch"
-    | "fixture_mismatch"
-    | "insufficient_paired_coverage"
-    | "invalid_source_integrity"
-    | "missing_source_evidence"
-  >();
+  const reasons = new Set<ComparisonComparabilityReason>();
   if (
     exactDatasetKey(comparison.baseline.dataset) !== exactDatasetKey(comparison.candidate.dataset)
   ) {
@@ -319,13 +317,29 @@ function deriveComparability(
   ) {
     reasons.add("fixture_mismatch");
   }
+  for (const snapshot of [baseline, candidate]) {
+    for (const fixture of snapshot.fixtures) {
+      for (const assurance of fixture.assurance) {
+        if (assurance.reasons.includes("critical_counterevidence")) {
+          reasons.add("unresolved_critical_counterevidence");
+        }
+        if (
+          assurance.kind === "assessment" &&
+          assurance.reasons.includes("unsupported_statistical_assumptions")
+        ) {
+          reasons.add("unsupported_statistical_assumptions");
+        }
+      }
+    }
+  }
   const orderedReasons = [...reasons].sort();
+  const hasFatalReason = reasons.has("unresolved_critical_counterevidence");
   return ComparisonComparabilitySchema.parse({
     reasons: orderedReasons,
     status:
       orderedReasons.length === 0
         ? "comparable"
-        : paired.length === 0
+        : paired.length === 0 || hasFatalReason
           ? "incomparable"
           : "partially_comparable",
   });
@@ -372,7 +386,7 @@ export function pairComparisonEvidence(
   });
   return {
     cases,
-    comparability: deriveComparability(comparison, cases),
+    comparability: deriveComparability(comparison, cases, baseline, candidate),
     pairing,
   };
 }
