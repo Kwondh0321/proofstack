@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import {
+  type EvaluationRunDefinition,
   type EvidenceScope,
   EvidenceScopeSchema,
   type ReplayArtifactContentReference,
@@ -95,6 +96,10 @@ export interface DurableReplayJobSummary {
   readonly usageObservationCount: number;
 }
 
+export interface SuccessfulDurableReplayJobSummary extends DurableReplayJobSummary {
+  readonly evidenceReference: EvaluationRunDefinition["replay"];
+}
+
 export interface DurableReplayExampleSummary {
   readonly dataset: {
     readonly datasetId: string;
@@ -108,11 +113,11 @@ export interface DurableReplayExampleSummary {
   };
   readonly jobs: {
     readonly cancellation: DurableReplayJobSummary;
-    readonly staleFenceRecovery: DurableReplayJobSummary & {
+    readonly staleFenceRecovery: SuccessfulDurableReplayJobSummary & {
       readonly recoveredFencingToken: number;
       readonly rejectedFencingToken: number;
     };
-    readonly success: DurableReplayJobSummary;
+    readonly success: SuccessfulDurableReplayJobSummary;
   };
   readonly replayPlan: {
     readonly definitionSha256: string;
@@ -420,6 +425,34 @@ function summarize(snapshot: ReplayJobSnapshot): DurableReplayJobSummary {
     status: snapshot.job.status,
     usageObservationCount: snapshot.usageObservations.length,
   });
+}
+
+function successfulEvidenceReference(
+  snapshot: ReplayJobSnapshot,
+): EvaluationRunDefinition["replay"] {
+  const attempt = snapshot.attempts.at(-1);
+  if (
+    snapshot.job.status !== "succeeded" ||
+    snapshot.job.terminal?.status !== "succeeded" ||
+    snapshot.job.terminal.code !== "completed" ||
+    !attempt?.endedAt ||
+    !attempt.result ||
+    attempt.status !== "succeeded"
+  ) {
+    throw new TypeError(
+      "A successful replay evidence reference requires an exact terminal attempt",
+    );
+  }
+  return {
+    attemptId: attempt.attemptId,
+    completedAt: attempt.endedAt,
+    jobId: snapshot.job.jobId,
+    plan: structuredClone(attempt.plan),
+    result: structuredClone(attempt.result),
+    targetRelease: structuredClone(attempt.targetRelease),
+    terminalCode: "completed",
+    terminalStatus: "succeeded",
+  };
 }
 
 function assertSuccessfulSnapshot(snapshot: ReplayJobSnapshot, expectedAttempts: number): void {
@@ -854,10 +887,14 @@ export async function runDurableReplayExample(
         cancellation: summarize(cancellationSnapshot),
         staleFenceRecovery: {
           ...summarize(recoverySnapshot),
+          evidenceReference: successfulEvidenceReference(recoverySnapshot),
           recoveredFencingToken: recoveredClaim.workerFence.fencingToken,
           rejectedFencingToken: staleClaim.workerFence.fencingToken,
         },
-        success: summarize(successSnapshot),
+        success: {
+          ...summarize(successSnapshot),
+          evidenceReference: successfulEvidenceReference(successSnapshot),
+        },
       },
       replayPlan,
       scope,

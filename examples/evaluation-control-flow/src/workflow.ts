@@ -46,6 +46,7 @@ interface RecordReference {
 export interface RunEvaluationControlFlowOptions {
   readonly client: EvaluationClient;
   readonly evidenceSubject?: EvaluationRunEvidenceSubject;
+  readonly evidenceSubjects?: Readonly<Record<ReferenceVerdict, EvaluationRunEvidenceSubject>>;
   readonly environmentId: string;
   readonly namespace: string;
   readonly projectId: string;
@@ -388,6 +389,7 @@ export async function runEvaluationControlFlow(
   const observations: RawObservation[] = [];
   const results: EvaluationRunResult[] = [];
   for (const verdict of referenceVerdicts) {
+    const evidenceSubject = options.evidenceSubjects?.[verdict] ?? options.evidenceSubject;
     const run = responseRecord(
       (
         await options.client.recordRunDecision({
@@ -397,7 +399,7 @@ export async function runEvaluationControlFlow(
               criterionSet,
               evaluator,
               evaluatorQualification,
-              ...(options.evidenceSubject ? { evidenceSubject: options.evidenceSubject } : {}),
+              ...(evidenceSubject ? { evidenceSubject } : {}),
               oracle,
               oracleQualification,
               policy,
