@@ -1,23 +1,23 @@
 import type {
-  EvidenceScope,
   EvaluationRun,
   EvaluationRunResult,
+  EvidenceScope,
   PrincipalContext,
   RawObservation,
 } from "@proofstack/contracts";
 import {
   CreateAssessment,
   CreateEvaluationAggregate,
+  type EvaluationRecordKind,
   MemoryEvaluationRepository,
   PublishEvaluationDefinition,
   RecordCriterionSetStatus,
+  type RecordEvaluationCommand,
+  type RecordEvaluationDependencies,
   RecordEvaluationRunDecision,
   RecordEvaluationRunResult,
   RecordQualificationReport,
   RecordRawObservation,
-  type EvaluationRecordKind,
-  type RecordEvaluationCommand,
-  type RecordEvaluationDependencies,
 } from "@proofstack/core";
 import { describe, expect, it } from "vitest";
 import { EvaluationScenario, type ReferenceVerdict } from "./scenario.js";
@@ -338,6 +338,125 @@ describe("contestable evaluation reference scenario", () => {
     expect(() => scenario.aggregate(policy, criterionSet, [firstRun], [])).toThrow(
       `Missing result for ${firstRun.evaluationRunId}`,
     );
+  });
+
+  it("constructs an independently qualified source path without hidden conflicts", async () => {
+    const dependencies: RecordEvaluationDependencies = {
+      clock: { now: () => new Date("2026-09-02T12:00:00.000Z") },
+      repository: new MemoryEvaluationRepository(),
+    };
+    const definitions = new PublishEvaluationDefinition(dependencies);
+    const scenario = new EvaluationScenario({
+      environmentId: scope.environmentId,
+      namespace: "qualified",
+    });
+    const discovery = (
+      await definitions.execute(
+        command("discovery_record", "dsc_primary_qualified", scenario.discovery()),
+      )
+    ).record;
+    const source = (
+      await definitions.execute(
+        command(
+          "source_snapshot",
+          scenario.ids.sourcePrimary,
+          scenario.authoritativeSource(discovery),
+        ),
+      )
+    ).record;
+    const reviewerQualification = (
+      await definitions.execute({
+        ...command(
+          "source_reviewer_qualification",
+          scenario.ids.sourceReviewerQualification,
+          scenario.sourceReviewerQualification(),
+        ),
+        principal: {
+          ...principal,
+          principalId: "usr_credential_authority",
+          requestId: "req_qualified_credential_authority",
+        },
+      })
+    ).record;
+    const review = (
+      await definitions.execute({
+        ...command(
+          "source_review",
+          scenario.ids.sourceReviewPrimary,
+          scenario.qualifiedSourceReview(source, reviewerQualification),
+        ),
+        principal: {
+          ...principal,
+          principalId: "usr_source_reviewer",
+          requestId: "req_qualified_source_reviewer",
+        },
+      })
+    ).record;
+    const fixtureSet = (
+      await definitions.execute(
+        command(
+          "qualification_fixture_set",
+          scenario.ids.fixtureSetVersion,
+          scenario.qualificationFixtureSet(),
+        ),
+      )
+    ).record;
+    const oracle = (
+      await definitions.execute(
+        command("oracle_spec", scenario.ids.oracleVersion, scenario.oracle(fixtureSet)),
+      )
+    ).record;
+    const evaluator = (
+      await definitions.execute(
+        command(
+          "evaluator_spec",
+          scenario.ids.evaluatorVersion,
+          scenario.evaluator(fixtureSet, oracle),
+        ),
+      )
+    ).record;
+    const criterionSet = (
+      await definitions.execute(
+        command(
+          "criterion_set",
+          scenario.ids.criterionSetVersion,
+          scenario.qualifiedCriterionSet({ evaluator, oracle, review, source }),
+        ),
+      )
+    ).record;
+
+    expect(source.conflictsWith).toEqual([]);
+    expect(source.identityVerification).toMatchObject({
+      status: "verified",
+      verifierPrincipalId: "usr_identity_verifier",
+    });
+    expect(reviewerQualification).toMatchObject({
+      conflicts: [],
+      reviewerPrincipalId: "usr_source_reviewer",
+      status: "qualified",
+    });
+    expect(review).toMatchObject({
+      criticalConflictStatus: "none",
+      declaredRelationships: [],
+      outcome: "approved",
+      reviewerQualification: {
+        definitionSha256: reviewerQualification.definitionSha256,
+        qualificationId: reviewerQualification.qualificationId,
+      },
+    });
+    expect(criterionSet.sources).toEqual([
+      {
+        review: {
+          definitionSha256: review.definitionSha256,
+          sourceReviewId: review.sourceReviewId,
+        },
+        source: {
+          definitionSha256: source.definitionSha256,
+          sourceSnapshotId: source.sourceSnapshotId,
+        },
+      },
+    ]);
+    expect(criterionSet.criteria[0]?.counterevidence).toEqual([]);
   });
 
   it.each(["UPPERCASE", "contains-hyphen", "waytoolongnamespacevalue"])(

@@ -2,50 +2,53 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
-  AssessmentDefinitionSchema,
-  CriterionSetDefinitionSchema,
-  CriterionSetStatusDefinitionSchema,
-  DiscoveryRecordDefinitionSchema,
-  encodeEvaluationCanonicalJson,
-  EvaluationAggregationPolicyDefinitionSchema,
-  EvaluationRunDefinitionSchema,
-  EvaluationRunResultDefinitionSchema,
-  EvaluatorSpecDefinitionSchema,
-  OpaqueIdSchema,
-  OracleSpecDefinitionSchema,
-  QualificationFixtureSetDefinitionSchema,
-  QualificationReportDefinitionSchema,
-  RawObservationDefinitionSchema,
-  SourceReviewDefinitionSchema,
-  SourceSnapshotDefinitionSchema,
   type AssessmentDefinition,
+  AssessmentDefinitionSchema,
   type CriterionSet,
   type CriterionSetDefinition,
+  CriterionSetDefinitionSchema,
   type CriterionSetStatusDefinition,
+  CriterionSetStatusDefinitionSchema,
   type CriterionSetStatusRecord,
   type DiscoveryRecordDefinition,
+  DiscoveryRecordDefinitionSchema,
   type EvaluationAggregateDefinition,
   type EvaluationAggregationPolicy,
   type EvaluationAggregationPolicyDefinition,
+  EvaluationAggregationPolicyDefinitionSchema,
   type EvaluationRun,
   type EvaluationRunDefinition,
+  EvaluationRunDefinitionSchema,
   type EvaluationRunResult,
   type EvaluationRunResultDefinition,
+  EvaluationRunResultDefinitionSchema,
   type EvaluationVerdict,
   type EvaluatorSpec,
   type EvaluatorSpecDefinition,
+  EvaluatorSpecDefinitionSchema,
+  encodeEvaluationCanonicalJson,
+  OpaqueIdSchema,
   type OracleSpec,
   type OracleSpecDefinition,
+  OracleSpecDefinitionSchema,
   type QualificationFixtureSet,
   type QualificationFixtureSetDefinition,
+  QualificationFixtureSetDefinitionSchema,
   type QualificationReport,
   type QualificationReportDefinition,
+  QualificationReportDefinitionSchema,
   type RawObservation,
   type RawObservationDefinition,
+  RawObservationDefinitionSchema,
   type SourceReviewDefinition,
+  SourceReviewDefinitionSchema,
+  type SourceReviewerQualification,
+  type SourceReviewerQualificationDefinition,
+  SourceReviewerQualificationDefinitionSchema,
   type SourceReviewRecord,
   type SourceSnapshot,
   type SourceSnapshotDefinition,
+  SourceSnapshotDefinitionSchema,
 } from "@proofstack/contracts";
 import { buildReferenceAggregate, evaluateApplicability } from "@proofstack/core";
 
@@ -144,6 +147,7 @@ export class EvaluationScenario {
     readonly sourcePrimary: string;
     readonly sourceReviewConflict: string;
     readonly sourceReviewPrimary: string;
+    readonly sourceReviewerQualification: string;
     readonly statusApproved: string;
     readonly statusDraft: string;
   };
@@ -169,6 +173,7 @@ export class EvaluationScenario {
       sourcePrimary: this.id("src_primary"),
       sourceReviewConflict: this.id("srv_conflicting"),
       sourceReviewPrimary: this.id("srv_primary"),
+      sourceReviewerQualification: this.id("srq_primary"),
       statusApproved: this.id("csr_approved"),
       statusDraft: this.id("csr_draft"),
     });
@@ -205,6 +210,85 @@ export class EvaluationScenario {
     content["artifactId"] = this.id("art_source_conflicting");
     content["sha256"] = "2".repeat(64);
     return SourceSnapshotDefinitionSchema.parse(definition);
+  }
+
+  authoritativeSource(discovery: {
+    readonly definitionSha256: string;
+    readonly discoveryId: string;
+  }): SourceSnapshotDefinition {
+    const definition = template("source_snapshot");
+    definition["sourceSnapshotId"] = this.ids.sourcePrimary;
+    definition["canonicalUri"] = `https://standards.example.test/${this.namespace}/authoritative`;
+    definition["conflictsWith"] = [];
+    definition["supersedes"] = [];
+    definition["discovery"] = {
+      candidateRank: 1,
+      ...exactReference(discovery, { discoveryId: discovery.discoveryId }),
+    };
+    const applicability = object(definition["applicabilityScope"], "source applicability scope");
+    object(applicability["environments"], "source environment scope")["values"] = [
+      this.environmentId,
+    ];
+    const content = object(definition["content"], "source content");
+    content["artifactId"] = this.id("art_source_authoritative");
+    const identity = object(definition["identityVerification"], "source identity verification");
+    identity["verifierPrincipalId"] = "usr_identity_verifier";
+    const identityEvidence = object(
+      array(identity["evidence"], "source identity evidence")[0],
+      "source identity evidence",
+    );
+    identityEvidence["artifactId"] = this.id("art_source_identity");
+    return SourceSnapshotDefinitionSchema.parse(definition);
+  }
+
+  sourceReviewerQualification(): SourceReviewerQualificationDefinition {
+    const definition = template("source_reviewer_qualification");
+    definition["qualificationId"] = this.ids.sourceReviewerQualification;
+    definition["reviewerPrincipalId"] = "usr_source_reviewer";
+    definition["conflicts"] = [];
+    delete definition["predecessor"];
+    const applicability = object(
+      definition["applicabilityScope"],
+      "reviewer qualification applicability scope",
+    );
+    object(applicability["environments"], "reviewer qualification environment scope")["values"] = [
+      this.environmentId,
+    ];
+    const credential = object(
+      array(definition["credentialEvidence"], "reviewer credentials")[0],
+      "reviewer credential",
+    );
+    credential["artifactId"] = this.id("art_reviewer_credential");
+    return SourceReviewerQualificationDefinitionSchema.parse(definition);
+  }
+
+  qualifiedSourceReview(
+    source: SourceSnapshot,
+    qualification: SourceReviewerQualification,
+  ): SourceReviewDefinition {
+    const definition = template("source_review");
+    definition["sourceReviewId"] = this.ids.sourceReviewPrimary;
+    definition["source"] = exactReference(source, {
+      sourceSnapshotId: source.sourceSnapshotId,
+    });
+    definition["reviewerQualification"] = exactReference(qualification, {
+      qualificationId: qualification.qualificationId,
+    });
+    definition["reviewedConflicts"] = [];
+    definition["criticalConflictStatus"] = "none";
+    definition["declaredRelationships"] = [];
+    definition["outcome"] = "approved";
+    definition["validFrom"] = "2026-01-07T00:00:00Z";
+    definition["validUntil"] = "2027-01-01T00:00:00Z";
+    delete definition["supersedesReview"];
+    const approvedScope = object(definition["approvedScope"], "approved source scope");
+    object(approvedScope["environments"], "approved environments")["values"] = [this.environmentId];
+    const basis = object(
+      array(definition["reviewBasis"], "source review basis")[0],
+      "source review basis",
+    );
+    basis["artifactId"] = this.id("art_source_review_basis");
+    return SourceReviewDefinitionSchema.parse(definition);
   }
 
   primarySource(
@@ -358,6 +442,55 @@ export class EvaluationScenario {
         sourceSnapshotId: input.conflictSource.sourceSnapshotId,
       }),
     ];
+    criterion["evaluator"] = {
+      evaluatorId: input.evaluator.evaluatorId,
+      ...exactReference(input.evaluator, {
+        evaluatorVersionId: input.evaluator.evaluatorVersionId,
+      }),
+    };
+    criterion["oracle"] = {
+      oracleId: input.oracle.oracleId,
+      ...exactReference(input.oracle, { oracleVersionId: input.oracle.oracleVersionId }),
+    };
+    const expression = object(criterion["applicability"], "criterion applicability");
+    const environmentOperand = object(
+      array(expression["operands"], "applicability operands")[0],
+      "environment operand",
+    );
+    environmentOperand["value"] = this.environmentId;
+    delete definition["predecessor"];
+    return CriterionSetDefinitionSchema.parse(definition);
+  }
+
+  qualifiedCriterionSet(input: {
+    readonly evaluator: EvaluatorSpec;
+    readonly oracle: OracleSpec;
+    readonly review: SourceReviewRecord;
+    readonly source: SourceSnapshot;
+  }): CriterionSetDefinition {
+    const definition = template("criterion_set");
+    definition["criterionSetId"] = this.ids.criterionSet;
+    definition["criterionSetVersionId"] = this.ids.criterionSetVersion;
+    const applicabilityScope = object(
+      definition["applicabilityScope"],
+      "criterion applicability scope",
+    );
+    object(applicabilityScope["environments"], "criterion environments")["values"] = [
+      this.environmentId,
+    ];
+    definition["sources"] = [
+      {
+        review: exactReference(input.review, {
+          sourceReviewId: input.review.sourceReviewId,
+        }),
+        source: exactReference(input.source, {
+          sourceSnapshotId: input.source.sourceSnapshotId,
+        }),
+      },
+    ];
+    const criterion = object(array(definition["criteria"], "criteria")[0], "criterion");
+    criterion["criterionId"] = this.criterionSelector().criterionId;
+    criterion["counterevidence"] = [];
     criterion["evaluator"] = {
       evaluatorId: input.evaluator.evaluatorId,
       ...exactReference(input.evaluator, {
