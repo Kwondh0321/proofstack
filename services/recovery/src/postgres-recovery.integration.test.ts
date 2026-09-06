@@ -34,6 +34,7 @@ import type {
   PrincipalContext,
   RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinition,
+  ReleaseCandidate,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
   ReplayPlanDefinition,
@@ -59,6 +60,7 @@ import {
   FixedClock,
   publishComparisonFixture,
   publishEvaluationFixture,
+  releaseCandidateFixture,
 } from "@proofstack/core/testing";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -102,6 +104,7 @@ import {
   PostgresModelAssuranceRepository,
   PostgresOidcIdentityRepository,
   PostgresProjectionCursorRepository,
+  PostgresReleaseCandidateRepository,
   PostgresRegressionVersionRepository,
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
@@ -215,6 +218,10 @@ const EXPECTED_TABLES = [
   "proofstack_regression_fixture_events",
   "proofstack_regression_fixture_versions",
   "proofstack_regression_fixtures",
+  "proofstack_release_candidate_lineage",
+  "proofstack_release_candidate_registry",
+  "proofstack_release_candidate_resources",
+  "proofstack_release_candidates",
   "proofstack_replay_attempt_events",
   "proofstack_replay_attempts",
   "proofstack_replay_budget_entries",
@@ -295,6 +302,12 @@ const trackedObjectKeys = new Set<string>();
 let restoredPool: Pool;
 let restoredDatabaseUrl: string;
 let workflowRecoverySummary: Workflow1AcceptanceSummary | undefined;
+let releaseCandidateRecoveryState:
+  | {
+      readonly candidate: ReleaseCandidate;
+      readonly successor: ReleaseCandidate;
+    }
+  | undefined;
 let regressionCatalogState:
   | {
       readonly datasetChild: RegressionDatasetVersion;
@@ -1874,6 +1887,30 @@ async function seedRecoverableComparisonGraph(): Promise<void> {
   }
 }
 
+async function seedRecoverableReleaseCandidateGraph(): Promise<void> {
+  const candidate = releaseCandidateFixture("recovery_candidate", scope);
+  const successor = releaseCandidateFixture("recovery_candidate", scope, {
+    predecessor: {
+      candidateId: candidate.candidateId,
+      candidateVersionId: candidate.candidateVersionId,
+      definitionSha256: candidate.definitionSha256,
+    },
+    version: "v2",
+  });
+  const repository = new PostgresReleaseCandidateRepository(sourcePool);
+  await expect(repository.publishReleaseCandidate(candidate)).resolves.toMatchObject({
+    created: true,
+  });
+  await expect(repository.publishReleaseCandidate(successor)).resolves.toMatchObject({
+    created: true,
+  });
+  await expect(repository.publishReleaseCandidate(structuredClone(successor))).resolves.toEqual({
+    candidate: successor,
+    created: false,
+  });
+  releaseCandidateRecoveryState = { candidate, successor };
+}
+
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
   const roles = workflowRuntimeRoleOptions("source");
   await provisionRuntimeRoles(sourcePool, roles);
@@ -1951,6 +1988,7 @@ async function seedAuthoritativeState(): Promise<void> {
   await seedRecoverableReplayState();
   await seedRecoverableEvaluationGraph();
   await seedRecoverableComparisonGraph();
+  await seedRecoverableReleaseCandidateGraph();
   await seedRecoverableWorkflow1Graph();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
@@ -2052,6 +2090,15 @@ function requiredReplayRecoveryState(): NonNullable<typeof replayRecoveryState> 
 function requiredWorkflowRecoverySummary(): Workflow1AcceptanceSummary {
   if (!workflowRecoverySummary) throw new Error("Workflow 1 recovery graph was not seeded");
   return workflowRecoverySummary;
+}
+
+function requiredReleaseCandidateRecoveryState(): NonNullable<
+  typeof releaseCandidateRecoveryState
+> {
+  if (!releaseCandidateRecoveryState) {
+    throw new Error("Recovery release candidate graph was not seeded");
+  }
+  return releaseCandidateRecoveryState;
 }
 
 async function emptyRecoveryBucket(bucket: string): Promise<void> {
@@ -2452,6 +2499,25 @@ describe("coordinated recovery rehearsal", () => {
     expect(snapshotWithoutRecoveryTransitions(restoredSnapshot)).toEqual(
       snapshotWithoutRecoveryTransitions(sourceSnapshot),
     );
+    const releaseCandidates = requiredReleaseCandidateRecoveryState();
+    const restoredReleaseCandidateRepository = new PostgresReleaseCandidateRepository(restoredPool);
+    await expect(
+      restoredReleaseCandidateRepository.findReleaseCandidate(
+        scope,
+        releaseCandidates.candidate.candidateVersionId,
+      ),
+    ).resolves.toEqual(releaseCandidates.candidate);
+    await expect(
+      restoredReleaseCandidateRepository.findReleaseCandidate(
+        scope,
+        releaseCandidates.successor.candidateVersionId,
+      ),
+    ).resolves.toEqual(releaseCandidates.successor);
+    await expect(
+      restoredReleaseCandidateRepository.publishReleaseCandidate(
+        structuredClone(releaseCandidates.successor),
+      ),
+    ).resolves.toEqual({ candidate: releaseCandidates.successor, created: false });
     const replayRecovery = requiredReplayRecoveryState();
     const restoredRecoveryEpoch = await restoredPool.query<{
       readonly advanced_at_lexical: string;
