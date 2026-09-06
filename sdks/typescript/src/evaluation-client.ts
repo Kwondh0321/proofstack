@@ -2,6 +2,10 @@ import {
   ApiKeyValueSchema,
   type CreateAssessmentRequest,
   CreateAssessmentRequestSchema,
+  type EvaluateCriteriaTrustRequest,
+  EvaluateCriteriaTrustRequestSchema,
+  type EvaluateCriteriaTrustResponse,
+  EvaluateCriteriaTrustResponseSchema,
   type EvaluationRecordEnvelope,
   type EvaluationRecordKind,
   EvaluationRecordKindSchema,
@@ -73,6 +77,11 @@ export interface CreateEvaluationAssessmentInput {
 export interface ReadEvaluationRecordInput {
   readonly kind: EvaluationRecordKind;
   readonly recordId: string;
+}
+
+export interface EvaluateCriteriaTrustInput {
+  readonly criterionSetVersionId: string;
+  readonly request: EvaluateCriteriaTrustRequest;
 }
 
 function validatedIdentifier(value: unknown, name: string): string {
@@ -392,6 +401,28 @@ export class ProofStackEvaluationClient {
     ).value;
     await this.verifyResult(response.result, kind.data, id, "evaluation record read");
     return response;
+  }
+
+  async evaluateCriteriaTrust(
+    input: EvaluateCriteriaTrustInput,
+  ): Promise<EvaluateCriteriaTrustResponse> {
+    const criterionSetVersionId = validatedIdentifier(
+      input.criterionSetVersionId,
+      "criterionSetVersionId",
+    );
+    const request = EvaluateCriteriaTrustRequestSchema.safeParse(input.request);
+    if (!request.success) {
+      throw new ProofStackApiError("criteria trust evaluation failed local validation");
+    }
+    return (
+      await this.request<EvaluateCriteriaTrustResponse>(
+        ["evaluations", "criterion-sets", criterionSetVersionId, "trust"],
+        "POST",
+        request.data,
+        EvaluateCriteriaTrustResponseSchema,
+        [200],
+      )
+    ).value;
   }
 
   private async mutate<

@@ -6,6 +6,7 @@ import {
   CriterionSetSchema,
   CriterionSetStatusDefinitionSchema,
   CriterionSetStatusRecordSchema,
+  type EvaluateCriteriaTrustRequest,
   type EvaluationRecordKind,
   EvaluationRunDefinitionSchema,
   EvaluationRunSchema,
@@ -166,6 +167,21 @@ const assessment = AssessmentSchema.parse({
 });
 
 const requestId = "req_evaluation_sdk";
+const criteriaTrustRequest: EvaluateCriteriaTrustRequest = {
+  context: {
+    environmentId: criterion.scope.environmentId,
+    populationTags: ["adult users"],
+    riskTier: "high",
+    taskKind: "task_support",
+  },
+  criterionStatusRecordId: statusRecord.statusRecordId,
+  qualificationReportIds: ["qlr_evaluator", "qlr_oracle"],
+};
+const criteriaTrustEvaluation = {
+  evaluatedAt: "2026-09-02T02:00:04.000Z",
+  reasons: [] as const,
+  status: "eligible" as const,
+};
 const successHeaders = {
   "cache-control": "private, no-store",
   "content-type": "application/json; charset=utf-8",
@@ -221,6 +237,7 @@ describe("ProofStackEvaluationClient", () => {
       .mockResolvedValueOnce(mutationResponse("criterion_set_status", statusRecord))
       .mockResolvedValueOnce(mutationResponse("evaluation_run", run))
       .mockResolvedValueOnce(mutationResponse("assessment", assessment))
+      .mockResolvedValueOnce(jsonResponse({ requestId, result: criteriaTrustEvaluation }))
       .mockResolvedValueOnce(
         jsonResponse({ requestId, result: { kind: "criterion_set", record: criterion } }),
       );
@@ -251,15 +268,22 @@ describe("ProofStackEvaluationClient", () => {
       }),
     ).resolves.toMatchObject({ result: { kind: "assessment" } });
     await expect(
+      client.evaluateCriteriaTrust({
+        criterionSetVersionId: criterion.criterionSetVersionId,
+        request: criteriaTrustRequest,
+      }),
+    ).resolves.toEqual({ requestId, result: criteriaTrustEvaluation });
+    await expect(
       client.readRecord({ kind: "criterion_set", recordId: criterion.criterionSetVersionId }),
     ).resolves.toMatchObject({ result: { record: { definitionSha256: criterionVector.sha256 } } });
 
-    expect(fetch).toHaveBeenCalledTimes(5);
+    expect(fetch).toHaveBeenCalledTimes(6);
     expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
       `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/definitions/${criterion.criterionSetVersionId}`,
       `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/criterion-set-statuses/${statusRecord.statusRecordId}`,
       `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/run-decisions/${run.evaluationRunId}`,
       `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/assessments/${assessment.assessmentId}`,
+      `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/criterion-sets/${criterion.criterionSetVersionId}/trust`,
       `http://127.0.0.1:3010/base/v1/projects/prj_local/environments/env_local/evaluations/records/criterion_set/${criterion.criterionSetVersionId}`,
     ]);
     for (const [, init] of fetch.mock.calls) {
@@ -268,6 +292,7 @@ describe("ProofStackEvaluationClient", () => {
     expect(fetch.mock.calls[0]?.[1]?.body).toBe(
       JSON.stringify({ definition: criterionDefinition, kind: "criterion_set" }),
     );
+    expect(fetch.mock.calls[4]?.[1]?.body).toBe(JSON.stringify(criteriaTrustRequest));
   });
 
   it("preserves browser CSRF and allows workloads only on delegated run and read operations", async () => {
@@ -298,6 +323,7 @@ describe("ProofStackEvaluationClient", () => {
     const workloadFetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(mutationResponse("evaluation_run", run))
+      .mockResolvedValueOnce(jsonResponse({ requestId, result: criteriaTrustEvaluation }))
       .mockResolvedValueOnce(
         jsonResponse({ requestId, result: { kind: "evaluation_run", record: run } }),
       );
@@ -313,6 +339,10 @@ describe("ProofStackEvaluationClient", () => {
       recordId: run.evaluationRunId,
       request: { definition: runDefinition, kind: "evaluation_run" },
     });
+    await workload.evaluateCriteriaTrust({
+      criterionSetVersionId: criterion.criterionSetVersionId,
+      request: criteriaTrustRequest,
+    });
     await workload.readRecord({ kind: "evaluation_run", recordId: run.evaluationRunId });
     await expect(
       workload.publishDefinition({
@@ -326,7 +356,7 @@ describe("ProofStackEvaluationClient", () => {
         request: { definition: assessmentDefinition, kind: "assessment" },
       }),
     ).rejects.toThrow(/not workload-delegable/);
-    expect(workloadFetch).toHaveBeenCalledTimes(2);
+    expect(workloadFetch).toHaveBeenCalledTimes(3);
     for (const [, init] of workloadFetch.mock.calls) {
       expect(init?.headers).toMatchObject({ authorization: `Bearer ${apiKey}` });
     }
@@ -460,11 +490,39 @@ describe("ProofStackEvaluationClient", () => {
         request: { definition: runDefinition, kind: "evaluation_run" } as never,
       }),
     ).rejects.toThrow(/local validation/);
+    await expect(
+      client.evaluateCriteriaTrust({
+        criterionSetVersionId: criterion.criterionSetVersionId,
+        request: { ...criteriaTrustRequest, status: "eligible" } as never,
+      }),
+    ).rejects.toThrow(/local validation/);
     expect(fetch).not.toHaveBeenCalled();
     const publicSurface = client as unknown as Record<string, unknown>;
     const method = (name: string) => publicSurface[name];
     expect(method("recordRawObservation")).toBeUndefined();
     expect(method("recordQualificationReport")).toBeUndefined();
     expect(method("createAggregate")).toBeUndefined();
+  });
+
+  it("rejects malformed criteria trust decisions", async () => {
+    const client = developmentClient(
+      vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        jsonResponse({
+          requestId,
+          result: {
+            evaluatedAt: criteriaTrustEvaluation.evaluatedAt,
+            reasons: ["source_scope_mismatch", "criterion_not_approved"],
+            status: "ineligible",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      client.evaluateCriteriaTrust({
+        criterionSetVersionId: criterion.criterionSetVersionId,
+        request: criteriaTrustRequest,
+      }),
+    ).rejects.toThrow(/published evaluation contract/);
   });
 });
