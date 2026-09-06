@@ -15,6 +15,12 @@ RLS, lineage, outbox, 재시작 경계를 통과해 보존할 수 있음을 검�
 않은 critical conflict도 보존합니다. 따라서 최종 assessment는 반드시 `inconclusive`와
 `ineligible`로 남습니다.
 
+runner는 정확히 저장된 graph를 바탕으로 criterion trust를 도출하도록 API에 요청합니다. 이 로컬
+profile은 의도적으로 artifact storage를 비활성화하고, 독립적으로 검증된 source reviewer
+qualification도 발행하지 않습니다. 따라서 trust 결과는 보존 byte 부재, reviewer qualification
+부재, 오래된 review, 해결되지 않은 conflict 사유를 그대로 드러냅니다. 검색 순위, snippet,
+caller가 작성한 trust field는 이를 대신할 수 없습니다.
+
 이 예제는 임의의 AI 에이전트를 실행하거나, 웹을 검색하거나, 예시 `example.test` 출처를
 가져오거나, synthetic artifact에 실제 증거가 있다고 입증하지 않습니다. 엄격한 공개 definition을
 사용해 제어·증거 기록 경계를 검증합니다. 적격 evaluator, 보존된 source byte, replay output,
@@ -128,9 +134,25 @@ pnpm example:evaluation-control-flow
       ]
     }
   },
+  "criterion": {
+    "status": "approved",
+    "trust": {
+      "status": "ineligible",
+      "reasons": [
+        "qualification_evidence_unavailable",
+        "reviewer_qualification_unavailable",
+        "source_conflict_unresolved",
+        "source_content_unavailable",
+        "source_review_not_current"
+      ]
+    }
+  },
   "readBack": { "recordCount": 30 }
 }
 ```
+
+실제 trust 결과에는 적용되는 canonical reason이 모두 포함되므로, 위에 줄여 표시한 예상 부분집합
+외의 항목도 들어갈 수 있습니다. `evaluatedAt`은 server time입니다.
 
 이것은 release decision이 아닙니다. `eligible`도 선언된 assessment evidence 사용 정책을
 충족했다는 뜻일 뿐, production 배포를 승인하지 않습니다.
@@ -139,7 +161,8 @@ pnpm example:evaluation-control-flow
 
 unit suite는 공개 core use case와 memory repository로 graph를 구체화합니다. integration suite는
 실제 PostgreSQL에 runtime role 7종을 만들고, 임시 API listener와 전용 evaluation worker를
-조합해 흐름을 실행한 뒤 API를 재시작하고 정확한 assessment를 다시 확인합니다.
+조합해 흐름을 실행한 뒤 API를 재시작하고 정확한 assessment와 동일한 criterion-trust reason을
+다시 확인합니다.
 
 ```bash
 pnpm --filter @proofstack/example-evaluation-control-flow test
@@ -167,6 +190,7 @@ migration을 적용하므로 격리된 test database에서만 실행하세요.
 - API endpoint가 HTTPS 또는 명시적 loopback HTTP가 아님
 - namespace, project, environment, request, response 또는 record가 strict contract를 위반함
 - 정확한 dependency가 없거나 scope 밖이거나 다른 digest에 결합됨
+- caller가 trust status, source projection, 검색 결과 또는 보존 byte availability 주장을 전달하려 함
 - server response가 `no-store`를 빠뜨리거나, byte 제한을 넘거나, redirect하거나, identity를 바꿈
 - worker의 idle database connection이 끊김
 - 영속 저장 뒤 read-back이 모든 권위 있는 definition을 재현하지 못함
@@ -176,9 +200,8 @@ retry 가능성을 추측해서가 아니라 repository가 정확한 idempotency
 
 ## 남은 범위
 
-이 기준 흐름은 service-backed 진입 slice를 닫지만 평가 roadmap을 완료하지는 않습니다. 독립
-검토된 실제 source ingestion, evaluator 실행 격리, 더 강한 qualification·calibration, 모델 보조·
-human-review record, blinded comparison, policy decision, release approval, console workflow,
-상시 배포, 독립 checkpoint acceptance audit가 남습니다. 자세한 의존 순서는
-[criteria·비모델 평가 진입 감사](../development/workflow-1-criteria-evaluation-entry-audit.ko.md)를
-참조하세요.
+이 기준 흐름은 논쟁 가능한 criteria 경계 하나를 입증하지만 Workflow 1 전체 종료를 승인하지는
+않습니다. 완전한 incident-to-comparison lineage, 해당 graph의 조정된 recovery, 전체 trust-root
+적대 행렬, clean-checkout contributor 경로, 독립 public-claim 감사가 남아 있습니다. Policy decision과
+release approval은 계속 Workflow 1 범위 밖입니다. 자세한 내용은
+[Workflow 1 종료 진입 감사](../development/workflow-1-exit-entry-audit.ko.md)를 참조하세요.

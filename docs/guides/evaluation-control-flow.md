@@ -15,6 +15,12 @@ coverage is 50% against a predeclared 75% minimum. One primary-source review is 
 an unresolved critical conflict. The final assessment must therefore remain `inconclusive` and
 `ineligible`.
 
+The runner also asks the API to derive criterion trust from the exact stored graph. This local
+profile deliberately disables artifact storage and publishes no independently verified source
+reviewer qualification. The trust result therefore exposes unavailable retained bytes, missing
+reviewer qualification, stale review, and unresolved conflict reasons. Search rank, snippets, and
+caller-authored trust fields are not accepted as substitutes.
+
 The example does not execute an arbitrary agent, browse the web, retrieve the illustrative
 `example.test` sources, or prove that its synthetic artifacts contain real evidence. It exercises
 the control and evidence-recording boundary with strict public definitions. Connecting qualified
@@ -129,9 +135,25 @@ stable:
       ]
     }
   },
+  "criterion": {
+    "status": "approved",
+    "trust": {
+      "status": "ineligible",
+      "reasons": [
+        "qualification_evidence_unavailable",
+        "reviewer_qualification_unavailable",
+        "source_conflict_unresolved",
+        "source_content_unavailable",
+        "source_review_not_current"
+      ]
+    }
+  },
   "readBack": { "recordCount": 30 }
 }
 ```
+
+The actual trust result contains every applicable canonical reason, so it can contain additional
+entries beyond this abbreviated expected subset. Its `evaluatedAt` value is server time.
 
 This is not a release decision. `eligible` would mean only that the evidence met a declared
 assessment usability policy; it would still not authorize production deployment.
@@ -141,7 +163,7 @@ assessment usability policy; it would still not authorize production deployment.
 The unit suite materializes the graph through the public core use cases and memory repository. The
 integration suite provisions all seven runtime roles against a real PostgreSQL database, starts an
 ephemeral API listener, composes the dedicated evaluation worker, runs the flow, restarts the API,
-and verifies the exact assessment again:
+and verifies both the exact assessment and the same criterion-trust reasons again:
 
 ```bash
 pnpm --filter @proofstack/example-evaluation-control-flow test
@@ -169,6 +191,8 @@ The runner refuses to proceed when:
 - the API endpoint is not HTTPS or explicit loopback HTTP;
 - a namespace, project, environment, request, response, or record violates its strict contract;
 - an exact dependency is missing, out of scope, or bound to a different digest;
+- a caller attempts to supply a trust status, source projection, search result, or retained-byte
+  availability assertion;
 - a server response omits `no-store`, exceeds the byte limit, redirects, or changes identity;
 - the worker loses an idle database connection; or
 - read-back after persistence does not reproduce all authoritative definitions.
@@ -179,9 +203,9 @@ retryable.
 
 ## What remains
 
-This reference closes the service-backed entry slice, not the evaluation roadmap. Remaining work
-includes independently reviewed real source ingestion, evaluator execution isolation, richer
-qualification and calibration, model-assisted and human-review records, blinded comparison,
-policy decisions, release approval, console workflows, scheduled deployments, and an independent
-checkpoint acceptance audit. See the
-[criteria and non-model evaluation entry audit](../development/workflow-1-criteria-evaluation-entry-audit.md).
+This reference proves one contested criteria boundary; it does not approve the complete Workflow 1
+exit. Remaining exit work includes the complete incident-to-comparison lineage, coordinated
+recovery of that graph, the full trust-root adversarial matrix, one clean-checkout contributor
+path, and an independent public-claims audit. Policy decisions and release approval remain outside
+Workflow 1. See the
+[Workflow 1 exit entry audit](../development/workflow-1-exit-entry-audit.md).
