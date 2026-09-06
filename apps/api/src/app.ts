@@ -74,7 +74,6 @@ import {
   RecordEvaluationRunDecision,
   RecordHumanReview,
   RecordModelAssuranceExecution,
-  ResolveCriteriaTrust,
   ReleaseCandidateLineageError,
   ReleaseCandidateNotFoundError,
   type ReleaseCandidateRepository,
@@ -83,6 +82,7 @@ import {
   type ReleaseCandidateSourceResolver,
   ReleaseCandidateSourceUnavailableError,
   ReleaseCandidateVersionConflictError,
+  ResolveCriteriaTrust,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
@@ -168,6 +168,11 @@ import {
   RepositoryComparisonEvidenceResolver,
 } from "./repository-comparison-evidence-resolver.js";
 import { RepositoryCriteriaTrustArtifactResolver } from "./repository-criteria-trust-artifact-resolver.js";
+import {
+  type ReleaseCandidateRevisionAuthority,
+  type ReleaseCandidateRuntimeAuthority,
+  RepositoryReleaseCandidateSourceResolver,
+} from "./repository-release-candidate-source-resolver.js";
 import { registerRoutes } from "./routes.js";
 import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
 
@@ -186,6 +191,8 @@ export interface AppDependencies {
   readonly oidcRuntime?: OidcRuntime;
   readonly regressionVersionRepository?: RegressionVersionRepository;
   readonly releaseCandidateRepository?: ReleaseCandidateRepository;
+  readonly releaseCandidateRevisionAuthority?: ReleaseCandidateRevisionAuthority;
+  readonly releaseCandidateRuntimeAuthority?: ReleaseCandidateRuntimeAuthority;
   readonly releaseCandidateSourceResolver?: ReleaseCandidateSourceResolver;
   readonly repository?: EvidenceRepository;
   readonly replayDefinitionRepository?: ReplayDefinitionRepository;
@@ -323,6 +330,29 @@ export async function createApp(
           }
         : {},
     );
+    const releaseCandidateSourceResolver =
+      dependencies.releaseCandidateSourceResolver ??
+      new RepositoryReleaseCandidateSourceResolver({
+        ...(storage.artifacts
+          ? {
+              artifacts: {
+                catalog: storage.artifacts.catalog,
+                verifier: criteriaTrustArtifactResolver,
+              },
+            }
+          : {}),
+        comparisonRepository: storage.comparisonRepository,
+        evaluationRepository: storage.evaluationRepository,
+        modelAssuranceRepository: storage.modelAssuranceRepository,
+        regressionVersionRepository: storage.regressionVersionRepository,
+        replayDefinitionRepository: storage.replayDefinitionRepository,
+        ...(dependencies.releaseCandidateRevisionAuthority
+          ? { revisionAuthority: dependencies.releaseCandidateRevisionAuthority }
+          : {}),
+        ...(dependencies.releaseCandidateRuntimeAuthority
+          ? { runtimeAuthority: dependencies.releaseCandidateRuntimeAuthority }
+          : {}),
+      });
 
     await app.register(helmet, {
       contentSecurityPolicy: false,
@@ -415,9 +445,7 @@ export async function createApp(
       publishCandidate: new PublishReleaseCandidate({
         clock,
         repository: storage.releaseCandidateRepository,
-        sourceResolver: dependencies.releaseCandidateSourceResolver ?? {
-          isAvailable: () => Promise.resolve(false),
-        },
+        sourceResolver: releaseCandidateSourceResolver,
       }),
       readCandidate: new ReadReleaseCandidate(storage.releaseCandidateRepository),
     });
