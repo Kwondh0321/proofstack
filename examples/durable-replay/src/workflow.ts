@@ -119,6 +119,11 @@ export interface DurableReplayExampleSummary {
     };
     readonly success: SuccessfulDurableReplayJobSummary;
   };
+  readonly predecessor: {
+    readonly definitionSha256: string;
+    readonly fixtureId: string;
+    readonly fixtureVersionId: string;
+  };
   readonly replayPlan: {
     readonly definitionSha256: string;
     readonly planId: string;
@@ -892,6 +897,11 @@ export async function runDurableReplayExample(
           ...summarize(successSnapshot),
           evidenceReference: successfulEvidenceReference(successSnapshot),
         },
+      },
+      predecessor: {
+        definitionSha256: predecessor.version.definitionSha256,
+        fixtureId,
+        fixtureVersionId: predecessorVersionId,
       },
       replayPlan,
       scope,

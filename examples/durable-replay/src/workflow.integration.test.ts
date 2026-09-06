@@ -255,6 +255,20 @@ describe("provider-neutral durable replay end to end", () => {
       });
       expect(Buffer.from(persistedContent.content)).toEqual(content);
     }
+    const predecessor = await regression.readFixtureVersion(summary.predecessor);
+    expect(predecessor.version.definitionSha256).toBe(summary.predecessor.definitionSha256);
+    expect(predecessor.version.replayability).toBe("evidence_only");
+    const fixture = await regression.readRecordedInteractionFixtureMetadata(summary.fixture);
+    expect(fixture.version.definitionSha256).toBe(summary.fixture.definitionSha256);
+    expect(fixture.version.predecessor.fixtureVersionId).toBe(summary.predecessor.fixtureVersionId);
+    const dataset = await regression.readDatasetVersion(summary.dataset);
+    expect(dataset.version.definitionSha256).toBe(summary.dataset.definitionSha256);
+    expect(dataset.version.fixtureVersions).toEqual([
+      {
+        fixtureId: summary.fixture.fixtureId,
+        fixtureVersionId: summary.fixture.fixtureVersionId,
+      },
+    ]);
     const exactPlan = await replay.readReplayPlan(summary.replayPlan);
     expect(exactPlan.plan.definitionSha256).toBe(summary.replayPlan.definitionSha256);
     const exactRelease = await replay.readTargetRelease(summary.targetRelease);
