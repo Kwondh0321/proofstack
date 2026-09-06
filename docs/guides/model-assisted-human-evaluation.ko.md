@@ -149,7 +149,7 @@ truth, reviewer 전문성, 프로덕션 모델 적합성, policy 준수, approva
 mutation은 추측으로 재시도하지 않습니다. 동일 재시도가 안전한 이유는 PostgreSQL이 kind·ID를
 하나의 불변 definition과 atomic outbox intent에 결합하기 때문입니다.
 
-## 정직한 한계와 다음 체크포인트
+## 정직한 한계와 의존 순서
 
 scenario, provider output, reviewer, credential, artifact, evidence는 synthetic입니다. local provider는
 결정적 test infrastructure이지 격리된 live inference service가 아닙니다. model worker는 별도
@@ -162,6 +162,7 @@ counterevidence 후보를 제안할 수 있지만 retained byte, exact provenanc
 책임 있는 review를 기록한 뒤에만 사용할 수 있습니다. 기준이 부족하면 `unverifiable` 또는 승인
 요구 상태로 남으며 묵시적으로 신뢰하지 않습니다.
 
-다음 Workflow 1 체크포인트는 정확한 baseline/candidate comparison API와 operator view입니다.
-그 체크포인트가 끝난 뒤에만 독립적인 Workflow 1 end-to-end audit를 시작합니다. Workflow 2의
-policy·release authority는 Workflow 1이 종료될 때까지 차단됩니다.
+이 체크포인트 다음에는 정확한 baseline/candidate comparison API와 operator view가
+구현되었습니다. 해당 comparison 체크포인트는 승인되었고 독립적인 Workflow 1 end-to-end
+audit가 현재 진행 중입니다. Workflow 2의 policy·release authority는 Workflow 1이 종료될
+때까지 차단됩니다.

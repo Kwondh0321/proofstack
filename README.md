@@ -26,10 +26,12 @@ evaluating, governing, and safely releasing AI agents.
 > is not an OS sandbox, continuously scheduled worker deployment, production key provider, or
 > production live-provider integration. Coordinated reference backup and isolated restore do not
 > constitute provider-specific production disaster recovery. The exact baseline/candidate
-> comparison foundation now has immutable records, exact derivation, persistence, HTTP routes, and
-> a runnable synthetic experiment; its authoritative production source resolver, public SDK,
-> OpenAPI surface, and operator view remain incomplete. Console sign-in, policy, approval, and
-> release gates are intentionally not represented as complete.
+> comparison reference now resolves exact retained upstream records in the default
+> repository-backed composition and exposes immutable definitions, snapshots, and results through
+> PostgreSQL, bounded HTTP/OpenAPI routes, the workspace TypeScript SDK, and a digest- and
+> lineage-verifying operator view. Its examples remain synthetic, and the SDK is not published to
+> a package registry. Console sign-in integration, policy, approval, and release gates are
+> intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -45,9 +47,10 @@ ProofStack is designed around a continuous reliability loop:
 
 `observe -> reproduce -> evaluate -> enforce -> release -> learn`
 
-The initial wedge is a single complete workflow: instrument a tool-using agent, inspect its causal
-trace, turn a failure into a regression fixture, evaluate a candidate release, and block the
-release when a declared policy regresses.
+The implemented Workflow 1 reference instruments a tool-using agent, inspects its linked evidence
+trace, turns a failure into an immutable regression fixture, performs exact recorded replay,
+evaluates retained evidence, and derives a descriptive baseline/candidate comparison. It does not
+block a release. Policy enforcement and accountable release decisions remain Workflow 2 work.
 
 ## What works today
 
@@ -55,7 +58,7 @@ release when a declared policy regresses.
 | --- | --- |
 | Contract | Strict, versioned, provider-neutral `EvidenceEnvelope` with W3C trace identity |
 | Core | Tenant-scoped authorization, idempotent ingestion, conflict detection, atomic batches |
-| API | Health, direct JSON ingestion, trace and exact evaluation-record reads, bounded evaluation mutations, stable problem documents, OpenAPI 3.2 |
+| API | Health, direct JSON ingestion, exact trace and Workflow 1 record reads, bounded control-plane mutations, stable problem documents, OpenAPI 3.2 |
 | OTLP interoperability | OTLP 1.11 trace JSON/Protobuf, gzip, partial success, bounded normalization, and authenticated scope routing |
 | Persistence | Checksum-verified PostgreSQL migrations, forced RLS, append-only evidence, atomic outbox |
 | Delivery state | Leased outbox retries, poison-message visibility, monotonic cursors, consumer receipts |
@@ -73,10 +76,10 @@ release when a declared policy regresses.
 | Evaluation service entry | Exact-version API and fail-closed SDK, separate least-privilege evaluation-worker storage authority, five-verdict contested reference flow, and restart read-back |
 | Model and human assurance | Thirteen strict record kinds, exact model/prompt/tool lineage, mandatory-slice qualification, calibration compatibility, blinded order swaps, independent critique, reviewer accountability, and conservative assessment |
 | Assurance authority | Kind-routed control, model-worker, and human-review PostgreSQL roles backed by API capability checks, RLS, append-only lineage, recovery, and complete restart read-back |
-| Exact evidence comparison | Strict definitions and source snapshots, exact case pairing and arithmetic, immutable memory/PostgreSQL repositories, HTTP routes, and a runnable synthetic experiment |
-| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, and evaluation clients with explicit authentication modes |
-| Console | API health and exact trace inspection without placeholder telemetry |
-| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested evaluation/assurance, and exact synthetic baseline/candidate comparison |
+| Exact evidence comparison | Repository-backed retained-source resolution, strict definitions and snapshots, exact case pairing and arithmetic, immutable memory/PostgreSQL repositories, HTTP/OpenAPI, workspace SDK, and a digest-verifying operator view |
+| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, evaluation, model-assurance, and comparison clients with explicit authentication modes |
+| Console | API health, exact linked-trace inspection, and digest- and lineage-verified comparison reads without placeholder telemetry, classified plaintext, or release controls |
+| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested evaluation/assurance, exact synthetic comparison, and a disposable retained Workflow 1 acceptance path |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -164,9 +167,9 @@ PROOFSTACK_WEB_PORT=3011 pnpm example:comparison-api
 pnpm --filter @proofstack/web exec next dev --port 3011
 ```
 
-Port 3011 avoids collisions with another service on port 3000. The API-backed demonstration is
-synthetic and memory-only; the guide documents expected values, custom inputs, shutdown, and the
-production claims it deliberately does not make.
+Port 3011 is optional and only avoids a collision when the normal port 3000 is already occupied.
+The API-backed demonstration is synthetic and memory-only; the guide documents expected values,
+custom inputs, shutdown, and the production claims it deliberately does not make.
 
 To capture and then revoke an exact provider-neutral model/tool interaction boundary:
 
@@ -221,7 +224,7 @@ services/recovery        Safe logical database operations and isolated recovery 
 services/replay-worker   Fenced durable-attempt execution, accounting, and boundary supervision
 services/evaluation-worker  Least-privilege non-model evaluation evidence recorder
 services/model-evaluation-worker  Least-privilege model execution evidence recorder
-sdks/typescript          Provider-neutral telemetry and regression control-plane clients
+sdks/typescript          Provider-neutral telemetry and exact Workflow 1 control-plane clients
 examples/basic-agent     Verified SDK-to-API trace example
 examples/incident-to-regression  Executable evidence-only regression catalog flow
 examples/interaction-capture  Provider-neutral capture, recorded replay, mismatch, and revocation flow
@@ -284,8 +287,8 @@ and authority gates. The completed
 execution boundary against green local and service gates while withholding evaluation, approval,
 release, and production-readiness claims.
 The [non-model evaluation primitives guide](docs/guides/non-model-evaluation-primitives.md)
-documents the current core-only applicability, oracle, and aggregate boundary and the service,
-isolation, qualification, and persistence work that remains open.
+documents the core-only applicability, oracle, and aggregate boundary that preceded the accepted
+service-backed checkpoint.
 The [service-backed evaluation control-flow guide](docs/guides/evaluation-control-flow.md) runs the
 exact API, SDK, worker-role, PostgreSQL, and restart path while preserving stale sources,
 counterevidence, disagreement, low coverage, and an ineligible conclusion.
@@ -299,6 +302,12 @@ flow. The completed
 [model-assisted and human evaluation audit](docs/development/workflow-1-model-human-evaluation-audit.md)
 accepts that contestable assurance checkpoint while withholding baseline/candidate product
 comparison, policy, approval, release, live-provider, and production-readiness claims.
+The completed
+[baseline/candidate comparison audit](docs/development/workflow-1-baseline-candidate-comparison-audit.md)
+accepts the immutable descriptive comparison boundary while withholding policy, approval,
+release, causal, and production-readiness claims. The open
+[Workflow 1 exit audit](docs/development/workflow-1-exit-entry-audit.md) records the independent
+stage review and keeps Workflow 2 blocked until every remaining finding closes.
 
 ## Current boundaries
 
@@ -306,20 +315,23 @@ The current build does not provide console-integrated OIDC sign-in, a production
 key provider, continuously scheduled artifact workers, OTLP/gRPC or non-trace signal ingestion, a
 deployed outbox publisher, a continuously scheduled production replay-worker deployment,
 OS/container-isolated target or evaluator workers, production live-provider model evaluation,
-baseline/candidate operator comparison, policy enforcement, continuous provider-specific disaster
-recovery, or production deployment artifacts. Immutable evidence-only regression
+policy enforcement, continuous provider-specific disaster recovery, or production deployment
+artifacts. Immutable evidence-only regression
 versions, fixture-owned classified interaction capture, recorded-boundary replay, and bounded
 durable replay jobs with separate local processes are implemented and tested, alongside workload
 API-key and OIDC browser authentication, artifact lifecycle, and the OTLP/HTTP trace profile.
 Non-model evaluation primitives and model/human assurance contracts, the authorization-first
 immutable graphs, durable PostgreSQL adapters, exact-version API and SDK, kind-routed storage
 authorities, dedicated workers, and restart read-back are implemented and tested.
+Repository-backed exact comparison source resolution, immutable comparison records, bounded API
+and OpenAPI operations, workspace SDK methods, and the read-only operator projection are also
+implemented and tested.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
 The reference flows record synthetic evidence and use a deterministic local model provider;
 ProofStack does not yet execute arbitrary evaluators in an OS sandbox, determine source authority
-automatically, validate real reviewer expertise, compare a baseline and candidate in an operator
-surface, or make a release decision.
+automatically, validate real reviewer expertise, publish its workspace SDK to a package registry,
+or reinterpret a descriptive comparison as a release decision.
 Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
 built-in content inspector rejects structured credential fields and supports configured scanners,
 but no scanner proves arbitrary opaque bytes secret-free; scanner

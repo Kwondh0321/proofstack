@@ -271,10 +271,10 @@ or a shared database/object-store account. The fixed acceptance matrix is record
 [durable replay audit](../development/workflow-1-durable-replay-audit.md) closes that matrix against
 the green local and service gates and records the accepted limits.
 
-## What comes next
+## Dependency order after this checkpoint
 
-Durable execution is evidence generation, not correctness judgment. The next dependency-ordered
-Workflow 1 checkpoint introduces versioned criterion sources, applicability, deterministic
-oracles, statistical evaluators, raw observations, intervals, coverage, abstention, and
-assessments. Qualified model-assisted evaluators follow only after that non-model evaluation base
-is independently accepted. No replay result can approve its own release.
+Durable execution is evidence generation, not correctness judgment. This checkpoint was followed
+by versioned criterion sources, applicability, deterministic oracles, statistical evaluators, raw
+observations, intervals, coverage, abstention, and assessments, then by qualified model-assisted
+evaluation. Those later checkpoints are now accepted at their documented reference boundaries.
+No replay result can approve its own release.

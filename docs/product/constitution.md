@@ -1,7 +1,7 @@
 # ProofStack Product Constitution
 
 Status: Accepted  
-Last updated: 2026-08-28
+Last updated: 2026-09-06
 
 This document defines the decisions that must remain true while ProofStack grows.
 Changing a constitutional rule requires a public RFC, a migration plan, and an
@@ -31,13 +31,17 @@ internally.
 Secondary users are security engineers, reliability engineers, reviewers, and
 governance teams who need the same evidence with different permissions and views.
 
-## Initial wedge
+## Target workflow
 
-The first complete workflow is deliberately narrow:
+The first target workflow is deliberately narrow:
 
 > Instrument a tool-using agent, inspect its end-to-end trace, turn a failed run
-> into a regression test, compare a candidate release, and block the release when
-> a declared reliability policy regresses.
+> into a regression test, compare a candidate release, and let a separately
+> authorized policy stage block a release when a declared reliability policy regresses.
+
+The roadmap, not this constitution, is authoritative for current implementation status. Workflow
+1 ends at a descriptive comparison; policy enforcement and release authority begin only in
+Workflow 2.
 
 Every foundation-phase feature must support this workflow or make it safer to
 operate. Features outside this workflow remain documented proposals until the

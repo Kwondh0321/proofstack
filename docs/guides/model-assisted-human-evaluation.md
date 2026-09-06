@@ -151,7 +151,7 @@ The flow stops rather than weakening evidence when:
 Mutations are never retried speculatively. Identical retries are safe because PostgreSQL binds each
 kind and ID to one immutable definition and atomic outbox intent.
 
-## Honest limits and next checkpoint
+## Honest limits and dependency order
 
 The scenario, provider output, reviewers, credentials, artifacts, and evidence are synthetic. The
 local provider is deterministic test infrastructure, not an isolated live inference service. The
@@ -164,6 +164,6 @@ may propose sources and counterevidence, but a result becomes usable only after 
 exact provenance, freshness, scope, conflicts, and accountable review are recorded. Inadequate
 criteria remain `unverifiable` or require approval; they are not silently accepted.
 
-The next Workflow 1 checkpoint is an exact baseline/candidate comparison API and operator view.
-Only after that checkpoint may the independent end-to-end Workflow 1 audit begin. Workflow 2
-policy and release authority remain blocked until Workflow 1 exits.
+This checkpoint was followed by the exact baseline/candidate comparison API and operator view.
+That comparison checkpoint is accepted, and the independent end-to-end Workflow 1 audit is now in
+progress. Workflow 2 policy and release authority remain blocked until Workflow 1 exits.

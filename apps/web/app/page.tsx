@@ -2,10 +2,10 @@ import Link from "next/link";
 import { apiHealth } from "../lib/proofstack-api";
 
 const foundation = [
-  { label: "Canonical contract", state: "Active", value: "EvidenceEnvelope 0.1" },
-  { label: "Storage adapter", state: "Development", value: "In-memory" },
-  { label: "Authentication", state: "Development", value: "Local identity" },
-  { label: "Release gates", state: "Planned", value: "Not active" },
+  { label: "Evidence contract", state: "Implemented", value: "EvidenceEnvelope 0.1" },
+  { label: "Operator reads", state: "Implemented", value: "Trace + comparison" },
+  { label: "Decision authority", state: "Not present", value: "Descriptive only" },
+  { label: "Production readiness", state: "Incomplete", value: "Not approved" },
 ] as const;
 
 export default async function OverviewPage() {
@@ -18,8 +18,8 @@ export default async function OverviewPage() {
           <p className="eyebrow">Agent Reliability Engineering</p>
           <h1>Operational evidence, before automation becomes trust.</h1>
           <p className="lede">
-            The foundation console exposes only capabilities backed by a running contract. Planned
-            systems remain visibly planned.
+            The operator console exposes bounded read-only views backed by the configured API.
+            Planned decision systems remain visibly absent.
           </p>
         </div>
         <div className={`health-pill ${health.ok ? "healthy" : "offline"}`}>
@@ -41,7 +41,7 @@ export default async function OverviewPage() {
       <section className="panel split-panel">
         <div>
           <p className="eyebrow">First verified workflow</p>
-          <h2>Ingest and inspect a causal trace</h2>
+          <h2>Ingest and inspect a linked evidence trace</h2>
           <p>
             Metadata is validated at the boundary, scoped by the server-owned tenant identity, and
             stored through an idempotent repository port.
@@ -61,7 +61,7 @@ export default async function OverviewPage() {
             <span>03</span> Core assigns immutable tenant scope
           </li>
           <li>
-            <span>04</span> Console renders the causal timeline
+            <span>04</span> Console renders ordered evidence
           </li>
         </ol>
       </section>

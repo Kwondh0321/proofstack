@@ -25,9 +25,10 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > OS sandbox, 상시 scheduling worker 배포, 프로덕션 key provider 또는 프로덕션 live-provider
 > 통합이 아닙니다.
 > 조정된 기준 백업과 격리 복원은 공급자별 프로덕션 재해 복구를 의미하지 않습니다. 정확한
-> baseline/candidate comparison 기반에는 이제 불변 record, exact derivation, persistence, HTTP
-> route, 실행 가능한 synthetic 실험이 있습니다. authoritative production source resolver,
-> public SDK, OpenAPI surface, operator view는 아직 완성되지 않았습니다. 콘솔 로그인 연동,
+> baseline/candidate comparison 기준 구현은 이제 기본 repository-backed composition에서 정확히
+> 보존된 upstream record를 해석하고 불변 definition·snapshot·result를 PostgreSQL, 제한된
+> HTTP/OpenAPI route, workspace TypeScript SDK, digest·lineage 검증 operator view로 노출합니다.
+> 예제는 synthetic이며 SDK는 package registry에 배포되지 않았습니다. 콘솔 로그인 연동,
 > policy, approval, release gate도 완성된 기능으로 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
@@ -45,10 +46,11 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 
 `관찰 -> 재현 -> 평가 -> 집행 -> 출시 -> 학습`
 
-첫 번째 핵심 흐름은 의도적으로 하나의 완결된 과정에 집중합니다. 도구를 사용하는
-에이전트를 계측하고, 인과 관계가 보존된 트레이스를 검사하고, 실패를 회귀 테스트
-픽스처로 전환하고, 후보 릴리스를 평가한 뒤, 선언된 정책이 퇴보했을 때 출시를
-차단하는 과정입니다.
+구현된 Workflow 1 기준 흐름은 도구를 사용하는 에이전트를 계측하고, 연결 관계가 보존된
+evidence trace를 검사하고, 실패를 불변 회귀 fixture로 전환하고, 정확 recorded replay와
+보존 evidence 평가를 수행한 뒤 설명적인 baseline/candidate comparison을 도출합니다. 이
+흐름은 release를 차단하지 않습니다. 정책 집행과 책임 있는 release 결정은 Workflow 2에
+남아 있습니다.
 
 ## 현재 작동하는 기능
 
@@ -56,7 +58,7 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | --- | --- |
 | 계약 | W3C 트레이스 식별자를 사용하는 엄격하고 버전이 명시된 공급자 중립 `EvidenceEnvelope` |
 | 코어 | 테넌트 범위 인가, 멱등 수집, 충돌 감지, 원자적 배치 처리 |
-| API | 상태 확인, 직접 JSON 수집, 트레이스·정확 evaluation record 조회, 제한된 evaluation mutation, 안정적인 문제 문서, OpenAPI 3.2 |
+| API | 상태 확인, 직접 JSON 수집, 정확 trace·Workflow 1 record 조회, 제한된 control-plane mutation, 안정적인 문제 문서, OpenAPI 3.2 |
 | OTLP 상호운용성 | OTLP 1.11 트레이스 JSON/Protobuf, gzip, 부분 성공, 제한된 정규화, 인증된 범위 라우팅 |
 | 영속성 | 체크섬 검증 PostgreSQL 마이그레이션, 강제 RLS, 불변 증거, 원자적 아웃박스 |
 | 전달 상태 | 임대형 아웃박스 재시도, 독성 메시지 가시성, 단조 커서, 소비자 처리 기록 |
@@ -74,10 +76,10 @@ ProofStack은 다음과 같은 연속적인 신뢰성 순환 구조를 중심으
 | 평가 service 진입 | exact-version API·fail-closed SDK, 별도 최소 권한 evaluation-worker storage 권한, 다섯 verdict 논쟁 흐름, restart read-back |
 | 모델·인간 assurance | 엄격한 record 13종, 정확한 model/prompt/tool lineage, 필수 slice qualification, calibration 호환성, blinded order swap, 독립 critique, reviewer 책임성, 보수적 assessment |
 | Assurance 권한 | API capability 검사, RLS, append-only lineage, recovery, 전체 restart read-back을 갖춘 kind별 control·model-worker·human-review PostgreSQL role |
-| 정확 evidence comparison | 엄격한 definition·source snapshot, 정확한 case pairing·산술, 불변 memory·PostgreSQL repository, HTTP route, 실행 가능한 synthetic 실험 |
-| TypeScript SDK | 식별자 생성, 제한된 텔레메트리 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 회귀·replay·evaluation 클라이언트 |
-| 콘솔 | 임시 텔레메트리 없이 실제 API 상태와 정확한 트레이스 조회 |
-| 예제 | 실제 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 평가·assurance, 정확 synthetic baseline/candidate comparison |
+| 정확 evidence comparison | Repository-backed 보존 source 해석, 엄격한 definition·snapshot, 정확 case pairing·산술, 불변 memory·PostgreSQL repository, HTTP/OpenAPI, workspace SDK, digest 검증 operator view |
+| TypeScript SDK | 식별자 생성, 제한된 telemetry 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 regression·replay·evaluation·model-assurance·comparison client |
+| 콘솔 | 임시 telemetry, 분류된 평문, release control 없이 실제 API 상태, 정확 linked trace, digest·lineage 검증 comparison 조회 |
+| 예제 | 실제 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 evaluation·assurance, 정확 synthetic comparison, 일회성 보존 Workflow 1 acceptance 경로 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -165,9 +167,9 @@ PROOFSTACK_WEB_PORT=3011 pnpm example:comparison-api
 pnpm --filter @proofstack/web exec next dev --port 3011
 ```
 
-3011번 port는 3000번에서 실행 중인 다른 service와 충돌하지 않게 해줍니다. API 기반
-demonstration은 synthetic·memory-only입니다. 예상 결과, 입력 변경, 종료 방법, 의도적으로
-보장하지 않는 production 범위는 위 가이드에서 확인할 수 있습니다.
+3011번 port는 기본 3000번 port가 이미 사용 중일 때 충돌을 피하기 위한 선택 경로일 뿐입니다.
+API 기반 demonstration은 synthetic·memory-only입니다. 예상 결과, 입력 변경, 종료 방법,
+의도적으로 보장하지 않는 production 범위는 위 가이드에서 확인할 수 있습니다.
 
 정확한 공급자 중립 모델·도구 상호작용 경계를 캡처한 뒤 폐기하려면 다음을 실행합니다.
 
@@ -219,7 +221,7 @@ services/recovery        안전한 논리 DB 작업과 격리 복구 리허설
 services/replay-worker   Fenced 영속 attempt 실행, accounting, boundary supervision
 services/evaluation-worker  최소 권한 비모델 evaluation evidence recorder
 services/model-evaluation-worker  최소 권한 model execution evidence recorder
-sdks/typescript          공급자 중립 텔레메트리·회귀 control-plane 클라이언트
+sdks/typescript          공급자 중립 telemetry·정확 Workflow 1 control-plane client
 examples/basic-agent     검증된 SDK-API 트레이스 예제
 examples/incident-to-regression  실행 가능한 evidence-only 회귀 카탈로그 흐름
 examples/interaction-capture  공급자 중립 캡처, 기록 replay, mismatch, 폐기 흐름
@@ -283,9 +285,8 @@ process 제한을 명시한 정확 기록 일치를 승인하지만 영속 job, 
 [영속 replay job 감사 기록](docs/development/workflow-1-durable-replay-audit.ko.md)은 green 로컬·
 service gate를 근거로 bounded 실행 경계를 승인하지만 evaluation, approval, release,
 production-readiness 주장은 승인하지 않습니다.
-[비모델 평가 primitive 가이드](docs/guides/non-model-evaluation-primitives.ko.md)는 현재 core 전용
-applicability·oracle·aggregate 경계와 아직 남은 service, 격리, qualification, persistence 작업을
-설명합니다.
+[비모델 평가 primitive 가이드](docs/guides/non-model-evaluation-primitives.ko.md)는 승인된
+service-backed 체크포인트보다 앞선 core 전용 applicability·oracle·aggregate 경계를 설명합니다.
 [평가 저장소·유스케이스 가이드](docs/guides/evaluation-repository-and-use-cases.ko.md)는 불변 graph
 port, 권한 우선 server authorship, memory·PostgreSQL adapter conformance와 service 경계를
 설명합니다.
@@ -301,23 +302,31 @@ provider, model-worker, human-review, authority, failure, restart 흐름을 설�
 [모델 보조·인간 평가 감사 기록](docs/development/workflow-1-model-human-evaluation-audit.ko.md)은
 이 논쟁 가능한 assurance 체크포인트를 승인하지만 baseline/candidate 제품 비교, policy, approval,
 release, live-provider, production-readiness 주장은 승인하지 않습니다.
+완료된
+[baseline/candidate comparison 감사 기록](docs/development/workflow-1-baseline-candidate-comparison-audit.ko.md)은
+불변 설명형 comparison 경계를 승인하지만 policy, approval, release, causal,
+production-readiness 주장은 승인하지 않습니다. 현재 진행 중인
+[Workflow 1 종료 감사](docs/development/workflow-1-exit-entry-audit.ko.md)는 독립적인 단계 검토를
+기록하며 남은 finding이 모두 닫힐 때까지 Workflow 2를 차단합니다.
 
 ## 현재의 경계
 
 현재 빌드는 콘솔에 연동된 OIDC 로그인, 프로덕션 외부 artifact 키 공급자, 지속적으로
 스케줄된 artifact 워커, OTLP/gRPC 또는 trace 이외 신호 수집, 배포된 outbox 발행 서비스,
 상시 scheduling 프로덕션 replay-worker 배포, OS·container 격리 target·evaluator worker,
-프로덕션 live-provider model evaluation, baseline/candidate operator 비교, 정책 집행, 지속적인
-공급자별 재해 복구, 프로덕션 배포 artifact를 제공하지 않습니다. 불변
+프로덕션 live-provider model evaluation, 정책 집행, 지속적인 공급자별 재해 복구,
+프로덕션 배포 artifact를 제공하지 않습니다. 불변
 evidence-only 회귀 버전, fixture 소유 분류 상호작용 캡처, 기록 경계 replay, 별도 로컬
 프로세스를 사용하는 bounded 영속 replay job은 workload API key·OIDC browser 인증,
 artifact lifecycle, OTLP/HTTP trace profile과 함께 구현되고 검증되었습니다. 비모델 평가
 primitive와 model/human assurance contract, 권한 우선 불변 graph, 영속 PostgreSQL adapter,
 exact-version API·SDK, kind별 storage authority, 전용 worker, restart read-back도 구현되고
+검증되었습니다. Repository-backed exact comparison source 해석, 불변 comparison record,
+제한된 API·OpenAPI operation, workspace SDK method, 읽기 전용 operator projection도 구현되고
 검증되었습니다. 기준 흐름은 synthetic evidence와 결정적 local model provider를 사용할 뿐,
 OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer
-전문성을 검증하거나 operator surface에서 baseline·candidate를 비교하거나 release decision을
-내리지 않습니다.
+전문성을 검증하거나 workspace SDK를 package registry에 배포하거나 설명형 comparison을
+release decision으로 재해석하지 않습니다.
 Replay 결과는
 OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content
 inspector는 구조화된 자격증명 필드를 거부하고

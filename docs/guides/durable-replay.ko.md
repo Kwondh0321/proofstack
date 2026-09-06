@@ -271,10 +271,10 @@ store 계정을 가리키지 마세요. 고정된 승인 matrix는
 [영속 replay 감사 기록](../development/workflow-1-durable-replay-audit.ko.md)은 green 로컬·service
 gate와 대조해 해당 matrix를 닫고 승인된 제한사항을 기록합니다.
 
-## 다음 단계
+## 이 체크포인트 이후의 의존 순서
 
-영속 실행은 평가 증거를 생성할 뿐 정확성을 판단하지 않습니다. 의존 순서상 다음 Workflow 1
-체크포인트는 버전이 있는 criterion source, applicability, deterministic oracle, statistical
-evaluator, raw observation, interval, coverage, abstention, assessment를 도입합니다. Qualified
-model-assisted evaluator는 이 비모델 평가 기반이 독립적으로 승인된 다음에만 진행합니다.
-어떤 replay 결과도 자신의 프로덕션 릴리스를 승인할 수 없습니다.
+영속 실행은 평가 증거를 생성할 뿐 정확성을 판단하지 않습니다. 이 체크포인트 뒤에는 버전이
+있는 criterion source, applicability, deterministic oracle, statistical evaluator, raw
+observation, interval, coverage, abstention, assessment가 구현되었고, 그다음 qualified
+model-assisted evaluation이 이어졌습니다. 이 후속 체크포인트는 문서화된 기준 구현 경계에서
+현재 승인된 상태입니다. 어떤 replay 결과도 자신의 프로덕션 릴리스를 승인할 수 없습니다.
