@@ -1,0 +1,35 @@
+{
+  "name": "@proofstack/example-workflow-2-release-candidate",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository-backed Workflow 2 immutable release candidate example",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "default": "./dist/workflow.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf coverage dist",
+    "lint": "biome lint src",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/example-workflow-1-acceptance": "workspace:*",
+    "@proofstack/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
