@@ -9,6 +9,8 @@ export * from "./model-assurance-definition-digest.js";
 export * from "./regression-client.js";
 export * from "./release-candidate-client.js";
 export * from "./release-candidate-definition-digest.js";
+export * from "./release-policy-client.js";
+export * from "./release-policy-definition-digest.js";
 export * from "./replay-client.js";
 export * from "./replay-definition-digest.js";
 export * from "./transport.js";
