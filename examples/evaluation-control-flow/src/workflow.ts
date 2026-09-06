@@ -50,6 +50,7 @@ export interface RunEvaluationControlFlowOptions {
   readonly environmentId: string;
   readonly namespace: string;
   readonly projectId: string;
+  readonly tenantId: string;
   readonly worker: EvaluationWorkerOperations;
 }
 
@@ -98,6 +99,7 @@ function responseRecord<Kind extends EvaluationRecordKind>(
 }
 
 function workerPrincipal(
+  tenantId: string,
   projectId: string,
   environmentId: string,
   requestId: string,
@@ -117,7 +119,7 @@ function workerPrincipal(
       projects: [{ environmentIds: [environmentId], projectId }],
     },
     roles: ["member"],
-    tenantId: "ten_local",
+    tenantId,
   };
 }
 
@@ -133,6 +135,7 @@ function workerCommand<Kind extends WorkerKind>(
     environmentId: options.environmentId,
     kind,
     principal: workerPrincipal(
+      options.tenantId,
       options.projectId,
       options.environmentId,
       `req_${options.namespace}_worker_${sequence}`,

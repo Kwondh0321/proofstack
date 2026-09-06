@@ -127,6 +127,7 @@ describe("service-backed evaluation control flow", () => {
       environmentId,
       namespace: runKey,
       projectId,
+      tenantId: "ten_local",
       worker,
     });
 

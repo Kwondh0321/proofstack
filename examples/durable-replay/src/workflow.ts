@@ -194,9 +194,6 @@ async function preparePrivateDirectory(path: string): Promise<void> {
 }
 
 function exactScope(options: RunDurableReplayExampleOptions): EvidenceScope {
-  if (options.tenantId !== "ten_local") {
-    throw new TypeError("The development-authenticated example requires tenant ten_local");
-  }
   if (!SOURCE_REVISION_PATTERN.test(options.sourceRevision)) {
     throw new TypeError("sourceRevision must be an exact Git object identifier");
   }

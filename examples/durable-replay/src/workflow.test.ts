@@ -14,7 +14,7 @@ const options: RunDurableReplayExampleOptions = {
 
 describe("durable replay workflow input boundary", () => {
   it.each([
-    [{ tenantId: "ten_other" }, "tenant ten_local"],
+    [{ tenantId: "invalid tenant" }, /must match pattern/],
     [{ sourceRevision: "main" }, "exact Git object identifier"],
     [{ workerEntryPointPath: "worker.js" }, "absolute"],
     [{ workerEntryPointPath: "/tmp/worker\0.js" }, "absolute"],

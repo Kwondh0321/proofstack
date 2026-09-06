@@ -20,6 +20,7 @@ async function main(): Promise<void> {
   const environmentId = environment("PROOFSTACK_ENVIRONMENT_ID", "env_local");
   const namespace = environment("PROOFSTACK_EVALUATION_EXAMPLE_NAMESPACE", "reference");
   const projectId = environment("PROOFSTACK_PROJECT_ID", "prj_local");
+  const tenantId = environment("PROOFSTACK_TENANT_ID", "ten_local");
   let idleError: Error | undefined;
   const worker = await createPostgresEvaluationWorker({
     clock: new SystemClock(),
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
       environmentId,
       namespace,
       projectId,
+      tenantId,
       worker,
     });
     if (idleError) throw new Error("The evaluation worker lost an idle database connection");
