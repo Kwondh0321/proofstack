@@ -11,7 +11,11 @@ import type {
 import type { EvaluationDefinitionByKind, RecordEvaluationCommand } from "@proofstack/core";
 import type { EvaluationWorkerOperations } from "@proofstack/evaluation-worker";
 import type { ProofStackEvaluationClient } from "@proofstack/sdk";
-import { EvaluationScenario, type ReferenceVerdict } from "./scenario.js";
+import {
+  type EvaluationRunEvidenceSubject,
+  EvaluationScenario,
+  type ReferenceVerdict,
+} from "./scenario.js";
 
 type EvaluationClient = Pick<
   ProofStackEvaluationClient,
@@ -41,6 +45,7 @@ interface RecordReference {
 
 export interface RunEvaluationControlFlowOptions {
   readonly client: EvaluationClient;
+  readonly evidenceSubject?: EvaluationRunEvidenceSubject;
   readonly environmentId: string;
   readonly namespace: string;
   readonly projectId: string;
@@ -392,6 +397,7 @@ export async function runEvaluationControlFlow(
               criterionSet,
               evaluator,
               evaluatorQualification,
+              ...(options.evidenceSubject ? { evidenceSubject: options.evidenceSubject } : {}),
               oracle,
               oracleQualification,
               policy,

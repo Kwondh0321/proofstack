@@ -133,6 +133,12 @@ export interface EvaluationScenarioOptions {
   readonly namespace: string;
 }
 
+export interface EvaluationRunEvidenceSubject {
+  readonly dataset: EvaluationRunDefinition["dataset"];
+  readonly fixture: EvaluationRunDefinition["fixture"];
+  readonly replay: EvaluationRunDefinition["replay"];
+}
+
 export class EvaluationScenario {
   readonly ids: {
     readonly aggregate: string;
@@ -595,6 +601,7 @@ export class EvaluationScenario {
     readonly oracle: OracleSpec;
     readonly oracleQualification: QualificationReport;
     readonly policy: EvaluationAggregationPolicy;
+    readonly evidenceSubject?: EvaluationRunEvidenceSubject;
     readonly sourceReviews: readonly SourceReviewRecord[];
     readonly status: CriterionSetStatusRecord;
     readonly verdict: ReferenceVerdict;
@@ -664,19 +671,25 @@ export class EvaluationScenario {
               attemptSequence: 0,
             },
           ];
-    definition["dataset"] = {
-      datasetId: this.id("dts_reference"),
-      datasetVersionId: this.id("dtv_reference_v1"),
-      definitionSha256: "7".repeat(64),
-    };
-    definition["fixture"] = {
-      fixtureId: this.id(`fix_${input.verdict}`),
-      fixtureVersionId: this.id(`fxv_${input.verdict}_v1`),
-      definitionSha256: "c".repeat(64),
-    };
-    const replay = object(definition["replay"], "replay reference");
-    replay["jobId"] = this.id(`rjb_${input.verdict}`);
-    replay["attemptId"] = this.id(`rat_${input.verdict}`);
+    if (input.evidenceSubject) {
+      definition["dataset"] = structuredClone(input.evidenceSubject.dataset);
+      definition["fixture"] = structuredClone(input.evidenceSubject.fixture);
+      definition["replay"] = structuredClone(input.evidenceSubject.replay);
+    } else {
+      definition["dataset"] = {
+        datasetId: this.id("dts_reference"),
+        datasetVersionId: this.id("dtv_reference_v1"),
+        definitionSha256: "7".repeat(64),
+      };
+      definition["fixture"] = {
+        fixtureId: this.id(`fix_${input.verdict}`),
+        fixtureVersionId: this.id(`fxv_${input.verdict}_v1`),
+        definitionSha256: "c".repeat(64),
+      };
+      const replay = object(definition["replay"], "replay reference");
+      replay["jobId"] = this.id(`rjb_${input.verdict}`);
+      replay["attemptId"] = this.id(`rat_${input.verdict}`);
+    }
     return EvaluationRunDefinitionSchema.parse(definition);
   }
 

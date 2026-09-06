@@ -335,6 +335,40 @@ describe("contestable evaluation reference scenario", () => {
     );
     const firstRun = recordedRuns[0];
     if (!firstRun) throw new TypeError("Reference scenario omitted its first run");
+    const retainedSubject = {
+      dataset: {
+        datasetId: "dat_retained",
+        datasetVersionId: "datv_retained_v1",
+        definitionSha256: "1".repeat(64),
+      },
+      fixture: {
+        fixtureId: "fix_retained",
+        fixtureVersionId: "fixv_retained_v1",
+        definitionSha256: "2".repeat(64),
+      },
+      replay: {
+        ...structuredClone(firstRun.replay),
+        attemptId: "att_retained",
+        jobId: "job_retained",
+      },
+    };
+    const linkedRun = scenario.run({
+      criterionSet,
+      evaluator,
+      evaluatorQualification,
+      evidenceSubject: retainedSubject,
+      oracle,
+      oracleQualification,
+      policy,
+      sourceReviews: [conflictReview, primaryReview],
+      status: approvedStatus,
+      verdict: "pass",
+    });
+    expect({
+      dataset: linkedRun.dataset,
+      fixture: linkedRun.fixture,
+      replay: linkedRun.replay,
+    }).toEqual(retainedSubject);
     expect(() => scenario.aggregate(policy, criterionSet, [firstRun], [])).toThrow(
       `Missing result for ${firstRun.evaluationRunId}`,
     );
