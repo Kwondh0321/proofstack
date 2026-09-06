@@ -78,6 +78,10 @@
       "types": "./dist/release-candidate.d.ts",
       "import": "./dist/release-candidate.js"
     },
+    "./release-candidate-api": {
+      "types": "./dist/release-candidate-api.d.ts",
+      "import": "./dist/release-candidate-api.js"
+    },
     "./release-candidate-definition-encoding": {
       "types": "./dist/release-candidate-definition-encoding.d.ts",
       "import": "./dist/release-candidate-definition-encoding.js"

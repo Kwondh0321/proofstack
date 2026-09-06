@@ -25,6 +25,7 @@ export * from "./openapi.js";
 export * from "./primitives.js";
 export * from "./recovery.js";
 export * from "./release-candidate.js";
+export * from "./release-candidate-api.js";
 export * from "./release-candidate-definition-encoding.js";
 export * from "./replay.js";
 export * from "./replay-accounting.js";
