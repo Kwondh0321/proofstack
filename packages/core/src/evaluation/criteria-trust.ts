@@ -62,6 +62,7 @@ export const CRITERIA_TRUST_REASONS = [
   "source_reference_mismatch",
   "source_review_basis_unavailable",
   "source_review_not_current",
+  "source_review_relationship_disclosed",
   "source_review_requires_approval",
   "source_review_unavailable",
   "source_review_unverifiable",
@@ -162,6 +163,7 @@ const UNVERIFIABLE_REASONS = new Set<CriteriaTrustReason>([
 
 const REQUIRE_APPROVAL_REASONS = new Set<CriteriaTrustReason>([
   "requester_only_review",
+  "source_review_relationship_disclosed",
   "source_review_requires_approval",
 ]);
 
@@ -471,6 +473,9 @@ function addSourceReasons(
     }
     if (review.outcome === "require_approval") reasons.add("source_review_requires_approval");
     if (review.outcome === "unverifiable") reasons.add("source_review_unverifiable");
+    if (review.declaredRelationships.length > 0) {
+      reasons.add("source_review_relationship_disclosed");
+    }
     if (review.authorityConclusion !== "accepted" || review.outcome === "rejected") {
       reasons.add("source_authority_not_accepted");
     }

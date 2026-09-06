@@ -157,6 +157,14 @@ function fixture(): EvaluateCriteriaTrustInput {
   const source = record(records, "source_snapshot");
   const review = record(records, "source_review");
   review.reviewedByPrincipalId = "usr_source_reviewer";
+  review.declaredRelationships = [];
+  redigest("source_review", review);
+  const sourceReference = criterionSet.sources[0];
+  if (!sourceReference) throw new Error("Expected criterion source reference");
+  sourceReference.review.definitionSha256 = review.definitionSha256;
+  redigest("criterion_set", criterionSet);
+  criterionStatus.criterionSet.definitionSha256 = criterionSet.definitionSha256;
+  redigest("criterion_set_status", criterionStatus);
   const fixtureSet = record(records, "qualification_fixture_set");
   const evaluator = record(records, "evaluator_spec");
   evaluator.publishedByPrincipalId = "usr_evaluator_author";
@@ -337,6 +345,16 @@ describe("evaluateCriteriaTrust", () => {
       "ineligible",
     ],
     [
+      "disclosed reviewer relationship",
+      (input: MutableCriteriaTrustInput) => {
+        return replaceReview(input, (review) => {
+          review.declaredRelationships = ["member of criterion issuer"];
+        });
+      },
+      "source_review_relationship_disclosed",
+      "require_approval",
+    ],
+    [
       "missing evaluator qualification",
       (input: MutableCriteriaTrustInput) => {
         input.qualifications = input.qualifications.filter(
@@ -348,8 +366,8 @@ describe("evaluateCriteriaTrust", () => {
     ],
   ] as const)("fails closed for %s", (_name, mutate, reason, status) => {
     const input = structuredClone(fixture()) as MutableCriteriaTrustInput;
-    mutate(input);
-    const result = evaluateCriteriaTrust(input);
+    const mutated = mutate(input) ?? input;
+    const result = evaluateCriteriaTrust(mutated);
     expect(result.status).toBe(status);
     expect(result.reasons).toContain(reason);
   });
