@@ -84,10 +84,15 @@ import { EVIDENCE_SCHEMA_VERSION, IngestEvidenceRequestSchema } from "./evidence
 import { ExportRecordedInteractionFixtureContentRequestSchema } from "./interaction-export.js";
 import { OpaqueIdSchema, TraceIdSchema } from "./primitives.js";
 import { CreateReplayJobRequestSchema, RequestReplayCancellationSchema } from "./replay-job.js";
+import { PublishReleaseCandidateRequestSchema } from "./release-candidate.js";
+import {
+  PublishReleaseCandidateResponseSchema,
+  ReadReleaseCandidateResponseSchema,
+} from "./release-candidate-api.js";
 import { ReplayPlanDefinitionSchema, TargetReleaseDefinitionSchema } from "./replay-plan.js";
 
 export const PROOFSTACK_OPENAPI_VERSION = "3.2.0" as const;
-export const PROOFSTACK_API_VERSION = "0.9.0-workflow-1" as const;
+export const PROOFSTACK_API_VERSION = "0.10.0-workflow-2" as const;
 
 type JsonSchemaObject = Record<string, unknown>;
 type SchemaIo = "input" | "output";
@@ -330,6 +335,22 @@ const comparisonRecordKindParameter = {
   schema: schemaReference("ComparisonRecordKind"),
 } as const;
 
+const releaseCandidateParameter = {
+  description: "Opaque logical release candidate identifier within the authorized scope",
+  in: "path",
+  name: "candidateId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
+const releaseCandidateVersionParameter = {
+  description: "Exact immutable release candidate version identifier",
+  in: "path",
+  name: "candidateVersionId",
+  required: true,
+  schema: schemaReference("OpaqueId"),
+} as const;
+
 const modelAssuranceRecordParameter = {
   description: "Exact immutable model-assurance record identifier",
   in: "path",
@@ -549,6 +570,22 @@ const comparisonStorageUnavailableResponse = {
   description: "Comparison storage is unavailable or violated its repository contract",
 } as const;
 
+const releaseCandidateNotFoundResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "The exact release candidate does not exist in the authorized scope",
+} as const;
+
+const releaseCandidateConflictResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description:
+    "The immutable candidate conflicts with existing semantics, exact lineage, tenant resources, or authoritative source availability",
+} as const;
+
+const releaseCandidateStorageUnavailableResponse = {
+  content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+  description: "Release candidate storage is unavailable or violated its repository contract",
+} as const;
+
 const modelAssuranceNotFoundResponse = {
   content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
   description: "The exact model-assurance record does not exist in the authorized scope",
@@ -598,6 +635,22 @@ function comparisonJsonResponse(schemaName: string, description: string): Record
     headers: {
       "Cache-Control": {
         description: "Comparison control-plane responses are never cacheable",
+        schema: { const: "no-store", type: "string" },
+      },
+    },
+  };
+}
+
+function releaseCandidateJsonResponse(
+  schemaName: string,
+  description: string,
+): Record<string, unknown> {
+  return {
+    content: { "application/json": { schema: schemaReference(schemaName) } },
+    description,
+    headers: {
+      "Cache-Control": {
+        description: "Release candidate responses are never cacheable",
         schema: { const: "no-store", type: "string" },
       },
     },
@@ -675,6 +728,17 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
       "output",
     ),
     ...componentsFor("ReadComparisonRecordResponse", ReadComparisonRecordResponseSchema, "output"),
+    ...componentsFor(
+      "PublishReleaseCandidateRequest",
+      PublishReleaseCandidateRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "PublishReleaseCandidateResponse",
+      PublishReleaseCandidateResponseSchema,
+      "output",
+    ),
+    ...componentsFor("ReadReleaseCandidateResponse", ReadReleaseCandidateResponseSchema, "output"),
     ...componentsFor("ModelAssuranceRecordKind", ModelAssuranceRecordKindSchema, "input"),
     ...componentsFor(
       "PublishModelAssuranceDefinitionRequest",
@@ -831,7 +895,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     },
     info: {
       description:
-        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, immutable evaluation and evidence-comparison control, durable bounded replay control, workload credentials, and OIDC browser sessions.",
+        "API for authenticated tenant-scoped evidence, OTLP/HTTP trace ingestion, trace inspection, encrypted immutable interaction artifacts, exact recorded fixture versions, evidence-only regression versions, immutable evaluation, evidence-comparison, and release-candidate control, durable bounded replay control, workload credentials, and OIDC browser sessions.",
       license: { identifier: "Apache-2.0", name: "Apache License 2.0" },
       title: "ProofStack API",
       version: PROOFSTACK_API_VERSION,
@@ -2064,6 +2128,68 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             tags: ["Comparison"],
           },
         },
+      "/v1/projects/{projectId}/environments/{environmentId}/release-candidates/{candidateId}/versions/{candidateVersionId}":
+        {
+          get: {
+            description:
+              "Returns one exact immutable release candidate. Cross-scope and absent candidates share the same not-found response. Mutable branches, tags, and latest aliases are not accepted.",
+            operationId: "getReleaseCandidate",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              releaseCandidateParameter,
+              releaseCandidateVersionParameter,
+            ],
+            responses: {
+              "200": releaseCandidateJsonResponse(
+                "ReadReleaseCandidateResponse",
+                "The exact immutable release candidate",
+              ),
+              ...problemResponses,
+              "404": releaseCandidateNotFoundResponse,
+              "503": releaseCandidateStorageUnavailableResponse,
+            },
+            security: userOrWorkloadSecurity,
+            summary: "Read an exact release candidate",
+            tags: ["Release candidate"],
+          },
+          post: {
+            description:
+              "Publishes one exact immutable release candidate after resolving every code, artifact, prompt, tool, model, dataset, evaluation, comparison, and replay reference through an installer-supplied authoritative source boundary. The record carries no policy outcome, approval, decision, credential, or deployment action. Requires non-delegable release:manage authority.",
+            operationId: "publishReleaseCandidate",
+            parameters: [
+              projectParameter,
+              environmentParameter,
+              releaseCandidateParameter,
+              releaseCandidateVersionParameter,
+              ...browserMutationParameters,
+            ],
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: schemaReference("PublishReleaseCandidateRequest"),
+                },
+              },
+              required: true,
+            },
+            responses: {
+              "200": releaseCandidateJsonResponse(
+                "PublishReleaseCandidateResponse",
+                "An identical retry returned the existing immutable release candidate",
+              ),
+              "201": releaseCandidateJsonResponse(
+                "PublishReleaseCandidateResponse",
+                "A new immutable release candidate was published",
+              ),
+              ...problemResponses,
+              "409": releaseCandidateConflictResponse,
+              "503": releaseCandidateStorageUnavailableResponse,
+            },
+            security: browserSecurity,
+            summary: "Publish an exact release candidate",
+            tags: ["Release candidate"],
+          },
+        },
       "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/definitions/{recordId}":
         {
           post: {
@@ -2576,6 +2702,11 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         description:
           "Policy-independent exact baseline/candidate evidence snapshots and derived results",
         name: "Comparison",
+      },
+      {
+        description:
+          "Exact immutable release subjects with authoritative source resolution and no policy or deployment authority",
+        name: "Release candidate",
       },
       {
         description:

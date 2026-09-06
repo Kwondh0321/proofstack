@@ -3,6 +3,7 @@ import {
   MemoryEvaluationRepository,
   MemoryEvidenceRepository,
   MemoryModelAssuranceRepository,
+  MemoryReleaseCandidateRepository,
 } from "@proofstack/core";
 import {
   type createPostgresPool,
@@ -13,6 +14,7 @@ import {
   PostgresEvidenceRepository,
   PostgresModelAssuranceRepository,
   PostgresRegressionVersionRepository,
+  PostgresReleaseCandidateRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
 } from "@proofstack/postgres";
@@ -74,6 +76,7 @@ describe("createApiStorage", () => {
     expect(storage.evaluationRepository).toBeInstanceOf(MemoryEvaluationRepository);
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
     expect(storage.modelAssuranceRepository).toBeInstanceOf(MemoryModelAssuranceRepository);
+    expect(storage.releaseCandidateRepository).toBeInstanceOf(MemoryReleaseCandidateRepository);
     expect(storage.interactionFixtureVersionRepository).toBe(storage.regressionVersionRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(MemoryReplayDefinitionRepository);
     expect(storage.replayJobControlRepository).toBeInstanceOf(MemoryReplayJobRepository);
@@ -98,6 +101,7 @@ describe("createApiStorage", () => {
     expect(storage.evidenceRepository).toBeInstanceOf(PostgresEvidenceRepository);
     expect(storage.modelAssuranceRepository).toBeInstanceOf(PostgresModelAssuranceRepository);
     expect(storage.regressionVersionRepository).toBeInstanceOf(PostgresRegressionVersionRepository);
+    expect(storage.releaseCandidateRepository).toBeInstanceOf(PostgresReleaseCandidateRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(PostgresReplayDefinitionRepository);
     expect(storage.replayJobControlRepository).toBeInstanceOf(PostgresReplayJobControlRepository);
     expect(adapters.createPool).toHaveBeenCalledWith({

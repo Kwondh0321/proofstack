@@ -15,7 +15,9 @@ import {
   MemoryEvaluationRepository,
   MemoryEvidenceRepository,
   MemoryModelAssuranceRepository,
+  MemoryReleaseCandidateRepository,
   type ModelAssuranceRepository,
+  type ReleaseCandidateRepository,
 } from "@proofstack/core";
 import type {
   InteractionFixtureVersionRepository,
@@ -30,6 +32,7 @@ import {
   PostgresEvidenceRepository,
   PostgresModelAssuranceRepository,
   PostgresRegressionVersionRepository,
+  PostgresReleaseCandidateRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
 } from "@proofstack/postgres";
@@ -59,6 +62,7 @@ export interface ApiStorage {
   readonly interactionFixtureVersionRepository?: InteractionFixtureVersionRepository;
   readonly regressionVersionRepository: RegressionVersionRepository;
   readonly modelAssuranceRepository: ModelAssuranceRepository;
+  readonly releaseCandidateRepository: ReleaseCandidateRepository;
   readonly replayDefinitionRepository: ReplayDefinitionRepository;
   readonly replayJobControlRepository: ReplayJobControlRepository;
 }
@@ -114,6 +118,7 @@ export async function createApiStorage(
       interactionFixtureVersionRepository: interactionStorage.regressionVersionRepository,
       regressionVersionRepository: interactionStorage.regressionVersionRepository,
       modelAssuranceRepository: new MemoryModelAssuranceRepository(),
+      releaseCandidateRepository: new MemoryReleaseCandidateRepository(),
       replayDefinitionRepository,
       replayJobControlRepository: replayJobRepository,
     };
@@ -176,6 +181,7 @@ export async function createApiStorage(
     interactionFixtureVersionRepository: regressionVersionRepository,
     regressionVersionRepository,
     modelAssuranceRepository: new PostgresModelAssuranceRepository(pool),
+    releaseCandidateRepository: new PostgresReleaseCandidateRepository(pool),
     replayDefinitionRepository: new PostgresReplayDefinitionRepository(pool),
     replayJobControlRepository: new PostgresReplayJobControlRepository(pool),
   };

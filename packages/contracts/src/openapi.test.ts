@@ -20,7 +20,7 @@ describe("ProofStack OpenAPI document", () => {
     const document = createProofStackOpenApiDocument();
 
     expect(document).toMatchObject({
-      info: { version: "0.9.0-workflow-1" },
+      info: { version: "0.10.0-workflow-2" },
       openapi: "3.2.0",
       paths: {
         "/health/live": {},
@@ -61,6 +61,8 @@ describe("ProofStack OpenAPI document", () => {
         "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/human-reviews/{recordId}":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/model-assurance/records/{kind}/{recordId}":
+          {},
+        "/v1/projects/{projectId}/environments/{environmentId}/release-candidates/{candidateId}/versions/{candidateVersionId}":
           {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts": {},
         "/v1/projects/{projectId}/environments/{environmentId}/artifacts/{artifactId}": {},
@@ -192,6 +194,75 @@ describe("ProofStack OpenAPI document", () => {
     const comparisonPaths = Object.keys(paths).filter((path) => path.includes("/comparisons/"));
     expect(comparisonPaths).toHaveLength(4);
     expect(comparisonPaths.some((path) => /latest|approve|release/.test(path))).toBe(false);
+  });
+
+  it("documents exact release candidate publication without policy or deployment authority", () => {
+    const document = createProofStackOpenApiDocument();
+    const { components: rawComponents, paths: rawPaths } = document;
+    const components = (rawComponents as { schemas: Record<string, unknown> }).schemas;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          parameters: Array<{ name: string }>;
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+        post?: {
+          description: string;
+          parameters: Array<{ name: string }>;
+          requestBody: { content: { "application/json": { schema: { $ref: string } } } };
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          security: unknown;
+        };
+      }
+    >;
+    const route =
+      paths[
+        "/v1/projects/{projectId}/environments/{environmentId}/release-candidates/{candidateId}/versions/{candidateVersionId}"
+      ];
+
+    expect(route?.post?.security).toEqual([{ browserSession: [] }]);
+    expect(route?.get?.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+    expect(route?.post?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "candidateId",
+      "candidateVersionId",
+      "Origin",
+      "X-ProofStack-CSRF",
+    ]);
+    expect(route?.get?.parameters.map(({ name }) => name)).toEqual([
+      "projectId",
+      "environmentId",
+      "candidateId",
+      "candidateVersionId",
+    ]);
+    expect(route?.post?.requestBody.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/PublishReleaseCandidateRequest",
+    );
+    for (const status of ["200", "201", "409", "503"]) {
+      expect(route?.post?.responses).toHaveProperty(status);
+    }
+    expect(route?.post?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    expect(route?.get?.responses).toHaveProperty("404");
+    expect(route?.get?.responses).toHaveProperty("503");
+    expect(route?.get?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+    for (const schema of [
+      "PublishReleaseCandidateRequest",
+      "PublishReleaseCandidateResponse",
+      "ReadReleaseCandidateResponse",
+    ]) {
+      expect(components).toHaveProperty(schema);
+    }
+    expect(route?.post?.description).toContain("installer-supplied authoritative source boundary");
+    expect(route?.post?.description).toContain("carries no policy outcome");
+    expect(route?.post?.description).not.toMatch(/approved|released|safe/iu);
+    const candidatePaths = Object.keys(paths).filter((path) =>
+      path.includes("/release-candidates/"),
+    );
+    expect(candidatePaths).toHaveLength(1);
+    expect(candidatePaths.some((path) => /latest|approve|deploy/iu.test(path))).toBe(false);
   });
 
   it("documents separated exact model-assurance authority and no mutable aliases", () => {

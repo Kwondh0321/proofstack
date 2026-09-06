@@ -48,6 +48,7 @@ export interface PublishReleaseCandidateCommand extends ReleaseCandidateRoute {
 }
 
 export interface ReadReleaseCandidateCommand extends ReleaseCandidateRoute {
+  readonly candidateId: string;
   readonly candidateVersionId: string;
 }
 
@@ -126,6 +127,7 @@ function validateRepositoryCandidate(
 function validatePublicationResult(
   input: unknown,
   scope: ReleaseCandidate["scope"],
+  candidateId: string,
   candidateVersionId: string,
 ): PublishReleaseCandidateResult {
   if (typeof input !== "object" || input === null) {
@@ -156,7 +158,13 @@ function validatePublicationResult(
       "Release candidate repository returned an invalid publication result",
     );
   }
-  return { candidate: validateRepositoryCandidate(candidate, scope, candidateVersionId), created };
+  const validated = validateRepositoryCandidate(candidate, scope, candidateVersionId);
+  if (validated.candidateId !== candidateId) {
+    throw new ReleaseCandidateRepositoryContractError(
+      "Release candidate repository substituted a different logical candidate",
+    );
+  }
+  return { candidate: validated, created };
 }
 
 function serverTimestamp(clock: Clock): string {
@@ -205,7 +213,7 @@ async function resolveSources(
         { cause },
       );
     }
-    if (!available) {
+    if (available !== true) {
       throw new ReleaseCandidateSourceUnavailableError(
         reference.kind,
         releaseCandidateSourceReferenceId(reference),
@@ -264,6 +272,11 @@ export class PublishReleaseCandidate {
     );
     if (existingInput !== null) {
       const existing = validateRepositoryCandidate(existingInput, scope, candidateVersionId.data);
+      if (existing.candidateId !== candidateId.data) {
+        throw new ReleaseCandidateRepositoryContractError(
+          "Release candidate repository substituted a different logical candidate",
+        );
+      }
       if (existing.definitionSha256 !== definitionSha256) {
         throw new ReleaseCandidateVersionConflictError(candidateVersionId.data);
       }
@@ -282,6 +295,7 @@ export class PublishReleaseCandidate {
     const result = validatePublicationResult(
       await this.dependencies.repository.publishReleaseCandidate(structuredClone(candidate)),
       scope,
+      candidateId.data,
       candidateVersionId.data,
     );
     if (result.candidate.definitionSha256 !== definitionSha256) {
@@ -298,15 +312,23 @@ export class ReadReleaseCandidate {
 
   async execute(command: ReadReleaseCandidateCommand): Promise<ReleaseCandidate> {
     const { scope } = authorizedScope(command, "release:read");
+    const candidateId = OpaqueIdSchema.safeParse(command.candidateId);
     const candidateVersionId = OpaqueIdSchema.safeParse(command.candidateVersionId);
-    if (!candidateVersionId.success) {
-      throw invalidCommand("Release candidate route is invalid", candidateVersionId.error);
+    if (!candidateId.success || !candidateVersionId.success) {
+      throw invalidCommand(
+        "Release candidate route is invalid",
+        !candidateId.success ? candidateId.error : candidateVersionId.error,
+      );
     }
     const input = await this.repository.findReleaseCandidate(
       structuredClone(scope),
       candidateVersionId.data,
     );
     if (input === null) throw new ReleaseCandidateNotFoundError(candidateVersionId.data);
-    return structuredClone(validateRepositoryCandidate(input, scope, candidateVersionId.data));
+    const candidate = validateRepositoryCandidate(input, scope, candidateVersionId.data);
+    if (candidate.candidateId !== candidateId.data) {
+      throw new ReleaseCandidateNotFoundError(candidateVersionId.data);
+    }
+    return structuredClone(candidate);
   }
 }

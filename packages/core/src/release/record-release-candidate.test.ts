@@ -188,6 +188,13 @@ describe("release candidate use cases", () => {
       ReleaseCandidateSourceUnavailableError,
     );
     expect(failing.now).not.toHaveBeenCalled();
+
+    const malformed = setup("publisher_malformed_source_result");
+    malformed.isAvailable.mockResolvedValue("true" as never);
+    await expect(malformed.publisher.execute(malformed.command)).rejects.toBeInstanceOf(
+      ReleaseCandidateSourceUnavailableError,
+    );
+    expect(malformed.now).not.toHaveBeenCalled();
   });
 
   it("checks authority before parsing input or touching dependencies", async () => {
@@ -301,6 +308,7 @@ describe("release candidate use cases", () => {
     const published = await value.publisher.execute(value.command);
     const reader = new ReadReleaseCandidate(value.repository);
     const readCommand = {
+      candidateId: published.candidate.candidateId,
       candidateVersionId: published.candidate.candidateVersionId,
       environmentId: value.scope.environmentId,
       principal: { ...principal(["release:read"]), tenantId: value.scope.tenantId },
@@ -316,5 +324,11 @@ describe("release candidate use cases", () => {
     await expect(reader.execute({ ...readCommand, candidateVersionId: "" })).rejects.toBeInstanceOf(
       InvalidReleaseCandidateCommandError,
     );
+    await expect(reader.execute({ ...readCommand, candidateId: "" })).rejects.toBeInstanceOf(
+      InvalidReleaseCandidateCommandError,
+    );
+    await expect(
+      reader.execute({ ...readCommand, candidateId: "candidate_wrong_identity" }),
+    ).rejects.toBeInstanceOf(ReleaseCandidateNotFoundError);
   });
 });

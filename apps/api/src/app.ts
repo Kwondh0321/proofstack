@@ -53,6 +53,7 @@ import {
   InvalidComparisonRecordInputError,
   InvalidEvaluationRecordInputError,
   InvalidModelAssuranceRecordInputError,
+  InvalidReleaseCandidateCommandError,
   InvalidTraceCursorError,
   ListTraceEvidence,
   ModelAssuranceDependencyError,
@@ -64,14 +65,24 @@ import {
   PublishComparisonDefinition,
   PublishEvaluationDefinition,
   PublishModelAssuranceDefinition,
+  PublishReleaseCandidate,
   ReadComparisonRecord,
   ReadEvaluationRecord,
   ReadModelAssuranceRecord,
+  ReadReleaseCandidate,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
   RecordHumanReview,
   RecordModelAssuranceExecution,
   ResolveCriteriaTrust,
+  ReleaseCandidateLineageError,
+  ReleaseCandidateNotFoundError,
+  type ReleaseCandidateRepository,
+  ReleaseCandidateRepositoryContractError,
+  ReleaseCandidateResourceConflictError,
+  type ReleaseCandidateSourceResolver,
+  ReleaseCandidateSourceUnavailableError,
+  ReleaseCandidateVersionConflictError,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
@@ -150,6 +161,7 @@ import { createOidcRuntime, type OidcRuntime } from "./oidc-runtime.js";
 import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerInteractionFixtureRoutes, registerRegressionRoutes } from "./regression-routes.js";
+import { registerReleaseCandidateRoutes } from "./release-candidate-routes.js";
 import { registerReplayRoutes } from "./replay-routes.js";
 import {
   isExactEvidenceRepository,
@@ -173,6 +185,8 @@ export interface AppDependencies {
   readonly modelAssuranceRepository?: ModelAssuranceRepository;
   readonly oidcRuntime?: OidcRuntime;
   readonly regressionVersionRepository?: RegressionVersionRepository;
+  readonly releaseCandidateRepository?: ReleaseCandidateRepository;
+  readonly releaseCandidateSourceResolver?: ReleaseCandidateSourceResolver;
   readonly repository?: EvidenceRepository;
   readonly replayDefinitionRepository?: ReplayDefinitionRepository;
   readonly replayJobControlRepository?: ReplayJobControlRepository;
@@ -219,6 +233,7 @@ export async function createApp(
       dependencies.evaluationRepository ||
       dependencies.modelAssuranceRepository ||
       dependencies.regressionVersionRepository ||
+      dependencies.releaseCandidateRepository ||
       dependencies.artifactStorage ||
       dependencies.replayDefinitionRepository ||
       dependencies.replayJobControlRepository
@@ -239,6 +254,8 @@ export async function createApp(
                   regressionVersionRepository: dependencies.regressionVersionRepository,
                 }
               : {}),
+            releaseCandidateRepository:
+              dependencies.releaseCandidateRepository ?? defaultStorage.releaseCandidateRepository,
             replayDefinitionRepository:
               dependencies.replayDefinitionRepository ?? defaultStorage.replayDefinitionRepository,
             replayJobControlRepository:
@@ -392,6 +409,17 @@ export async function createApp(
         repository: storage.comparisonRepository,
       }),
       readRecord: new ReadComparisonRecord(storage.comparisonRepository),
+    });
+    await registerReleaseCandidateRoutes(app, {
+      authenticator,
+      publishCandidate: new PublishReleaseCandidate({
+        clock,
+        repository: storage.releaseCandidateRepository,
+        sourceResolver: dependencies.releaseCandidateSourceResolver ?? {
+          isAvailable: () => Promise.resolve(false),
+        },
+      }),
+      readCandidate: new ReadReleaseCandidate(storage.releaseCandidateRepository),
     });
     await registerModelAssuranceRoutes(app, {
       authenticator,
@@ -694,6 +722,55 @@ export async function createApp(
           status: 503,
           title: "Comparison storage unavailable",
           type: "https://proofstack.dev/problems/comparison-storage-unavailable",
+        });
+      }
+
+      if (error instanceof InvalidReleaseCandidateCommandError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The release candidate request does not match the required immutable contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid release candidate request",
+          type: "https://proofstack.dev/problems/release-candidate-command-invalid",
+        });
+      }
+
+      if (error instanceof ReleaseCandidateNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Release candidate not found",
+          type: "https://proofstack.dev/problems/release-candidate-not-found",
+        });
+      }
+
+      if (
+        error instanceof ReleaseCandidateLineageError ||
+        error instanceof ReleaseCandidateResourceConflictError ||
+        error instanceof ReleaseCandidateSourceUnavailableError ||
+        error instanceof ReleaseCandidateVersionConflictError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 409,
+          title: "Release candidate graph conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (error instanceof ReleaseCandidateRepositoryContractError) {
+        return sendProblem(reply, {
+          code: "release_candidate_storage_unavailable",
+          detail: "Release candidate storage is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Release candidate storage unavailable",
+          type: "https://proofstack.dev/problems/release-candidate-storage-unavailable",
         });
       }
 
