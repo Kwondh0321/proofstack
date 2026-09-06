@@ -1,4 +1,5 @@
 import type {
+  CriteriaTrustEvaluation,
   EvaluationAggregate,
   EvaluationRecordEnvelope,
   EvaluationRecordKind,
@@ -15,6 +16,7 @@ import { EvaluationScenario, type ReferenceVerdict } from "./scenario.js";
 type EvaluationClient = Pick<
   ProofStackEvaluationClient,
   | "createAssessment"
+  | "evaluateCriteriaTrust"
   | "publishDefinition"
   | "readRecord"
   | "recordCriterionSetStatus"
@@ -60,7 +62,10 @@ export interface EvaluationControlFlowSummary {
   };
   readonly criterion: {
     readonly criterionSetVersionId: string;
+    readonly criterionStatusRecordId: string;
+    readonly qualificationReportIds: readonly string[];
     readonly status: EnvelopeFor<"criterion_set_status">["record"]["status"];
+    readonly trust: CriteriaTrustEvaluation;
   };
   readonly readBack: {
     readonly kinds: readonly EvaluationRecordKind[];
@@ -353,6 +358,27 @@ export async function runEvaluationControlFlow(
   ).record;
   remember("qualification_report", evaluatorQualification.qualificationReportId);
 
+  const trust = (
+    await options.client.evaluateCriteriaTrust({
+      criterionSetVersionId: criterionSet.criterionSetVersionId,
+      request: {
+        context: {
+          environmentId: options.environmentId,
+          jurisdiction: "kr",
+          locale: "ko-kr",
+          populationTags: ["adult users"],
+          riskTier: "high",
+          taskKind: "task_support",
+        },
+        criterionStatusRecordId: approvedStatus.statusRecordId,
+        qualificationReportIds: [
+          evaluatorQualification.qualificationReportId,
+          oracleQualification.qualificationReportId,
+        ].sort(),
+      },
+    })
+  ).result;
+
   const runs: EvaluationRun[] = [];
   const observations: RawObservation[] = [];
   const results: EvaluationRunResult[] = [];
@@ -476,7 +502,13 @@ export async function runEvaluationControlFlow(
     },
     criterion: {
       criterionSetVersionId: criterionSet.criterionSetVersionId,
+      criterionStatusRecordId: approvedStatus.statusRecordId,
+      qualificationReportIds: [
+        evaluatorQualification.qualificationReportId,
+        oracleQualification.qualificationReportId,
+      ].sort(),
       status: approvedStatus.status,
+      trust,
     },
     readBack: { kinds, recordCount: references.length },
     sources: {

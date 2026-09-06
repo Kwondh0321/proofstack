@@ -163,6 +163,16 @@ describe("service-backed evaluation control flow", () => {
       freshnessConclusion: "expired",
       outcome: "require_approval",
     });
+    expect(summary.criterion.trust).toMatchObject({
+      reasons: expect.arrayContaining([
+        "qualification_evidence_unavailable",
+        "reviewer_qualification_unavailable",
+        "source_conflict_unresolved",
+        "source_content_unavailable",
+        "source_review_not_current",
+      ]),
+      status: "ineligible",
+    });
     expect(summary.verdicts).toEqual({
       abstain: 1,
       error: 1,
@@ -186,5 +196,23 @@ describe("service-backed evaluation control flow", () => {
       throw new TypeError("Persisted record changed kind after restart");
     }
     expect(persisted.result.record.eligibility).toEqual(summary.assessment.eligibility);
+
+    const trustAfterRestart = await client().evaluateCriteriaTrust({
+      criterionSetVersionId: summary.criterion.criterionSetVersionId,
+      request: {
+        context: {
+          environmentId,
+          jurisdiction: "kr",
+          locale: "ko-kr",
+          populationTags: ["adult users"],
+          riskTier: "high",
+          taskKind: "task_support",
+        },
+        criterionStatusRecordId: summary.criterion.criterionStatusRecordId,
+        qualificationReportIds: [...summary.criterion.qualificationReportIds],
+      },
+    });
+    expect(trustAfterRestart.result.status).toBe(summary.criterion.trust.status);
+    expect(trustAfterRestart.result.reasons).toEqual(summary.criterion.trust.reasons);
   });
 });
