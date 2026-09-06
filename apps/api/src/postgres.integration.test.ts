@@ -14,13 +14,17 @@ import {
   type PublishComparisonRecordResponse,
   type PublishRegressionDatasetVersionResponse,
   type PublishRegressionFixtureVersionResponse,
+  PublishReleaseCandidateRequestSchema,
+  type PublishReleaseCandidateResponse,
   type PublishReplayPlanResponse,
   type PublishTargetReleaseResponse,
   type RecordedInteractionFixtureVersionDefinition,
   RecordedInteractionFixtureVersionDefinitionSchema,
+  type ReleaseCandidate,
   ReplayPlanDefinitionSchema,
   TargetReleaseDefinitionSchema,
 } from "@proofstack/contracts";
+import { releaseCandidateFixture } from "@proofstack/core/testing";
 import { decodeOtlpJson, encodeOtlpProtobufRequest } from "@proofstack/otlp";
 import {
   bootstrapApiKey,
@@ -367,6 +371,74 @@ describe("PostgreSQL-backed API", () => {
         events: [{ evidence: { eventId: evidence.eventId }, scope: { tenantId: "ten_local" } }],
         traceId,
       });
+    } finally {
+      await restartedApp.close();
+    }
+  });
+
+  it("retains an exact release candidate and idempotency across an API restart", async () => {
+    const scope = {
+      environmentId: "env_release_restart",
+      projectId: "prj_release_restart",
+      tenantId: "ten_local",
+    } as const;
+    const candidate = releaseCandidateFixture("api_restart", scope);
+    const {
+      candidateId: _candidateId,
+      createdAt: _createdAt,
+      createdByPrincipalId: _createdByPrincipalId,
+      definitionSha256: _definitionSha256,
+      predecessor,
+      schemaVersion: _schemaVersion,
+      scope: _scope,
+      ...definition
+    } = candidate;
+    const request = PublishReleaseCandidateRequestSchema.parse({
+      ...definition,
+      ...(predecessor ? { predecessorVersionId: predecessor.candidateVersionId } : {}),
+    });
+    const url =
+      `/v1/projects/${scope.projectId}/environments/${scope.environmentId}` +
+      `/release-candidates/${candidate.candidateId}/versions/${candidate.candidateVersionId}`;
+    let published: PublishReleaseCandidateResponse;
+
+    const firstApp = await createApp(postgresConfig(), {
+      clock: { now: () => new Date(candidate.createdAt) },
+      releaseCandidateSourceResolver: { isAvailable: () => Promise.resolve(true) },
+    });
+    try {
+      const publication = await firstApp.inject({ body: request, method: "POST", url });
+      expect(publication.statusCode).toBe(201);
+      published = publication.json<PublishReleaseCandidateResponse>();
+      expect(published).toMatchObject({
+        candidate: {
+          candidateId: candidate.candidateId,
+          candidateVersionId: candidate.candidateVersionId,
+          definitionSha256: candidate.definitionSha256,
+        },
+        created: true,
+      });
+    } finally {
+      await firstApp.close();
+    }
+
+    const restartedApp = await createApp(postgresConfig());
+    try {
+      const read = await restartedApp.inject({ method: "GET", url });
+      const retry = await restartedApp.inject({ body: request, method: "POST", url });
+      const wrongLogicalIdentity = await restartedApp.inject({
+        method: "GET",
+        url:
+          `/v1/projects/${scope.projectId}/environments/${scope.environmentId}` +
+          `/release-candidates/candidate_wrong/versions/${candidate.candidateVersionId}`,
+      });
+
+      expect(read.statusCode).toBe(200);
+      expect(read.headers["cache-control"]).toBe("no-store");
+      expect(read.json<{ candidate: ReleaseCandidate }>().candidate).toEqual(published.candidate);
+      expect(retry.statusCode).toBe(200);
+      expect(retry.json()).toMatchObject({ candidate: published.candidate, created: false });
+      expect(wrongLogicalIdentity.statusCode).toBe(404);
     } finally {
       await restartedApp.close();
     }
