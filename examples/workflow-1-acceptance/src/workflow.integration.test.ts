@@ -465,6 +465,16 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
     expect(
       summary.snapshots.candidate.fixtures[0]?.assurance.map(({ kind }) => kind).sort(),
     ).toEqual(["assessment", "model_assurance"]);
+    expect(summary.snapshots.baseline.fixtures[0]?.evaluationOutcomes).toEqual([
+      expect.objectContaining({
+        counts: { abstain: 1, error: 0, fail: 1, notApplicable: 0, pass: 1, total: 3 },
+      }),
+    ]);
+    expect(summary.snapshots.candidate.fixtures[0]?.evaluationOutcomes).toEqual([
+      expect.objectContaining({
+        counts: { abstain: 0, error: 1, fail: 0, notApplicable: 1, pass: 0, total: 2 },
+      }),
+    ]);
     expect(summary.snapshots.baseline.omissions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
