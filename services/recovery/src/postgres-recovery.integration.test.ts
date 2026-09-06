@@ -37,6 +37,8 @@ import type {
   RegressionDatasetVersion,
   RegressionFixtureVersion,
   ReleaseCandidate,
+  ReleasePolicy,
+  ReleasePolicyLifecycleEvent,
   ReplayPlanDefinition,
   TargetReleaseDefinition,
 } from "@proofstack/contracts";
@@ -57,6 +59,7 @@ import {
 import {
   createComparisonRepositoryTestHarness,
   createModelAssuranceRepositoryTestHarness,
+  createReleasePolicyRepositoryTestHarness,
   FixedClock,
   publishComparisonFixture,
   publishEvaluationFixture,
@@ -1919,6 +1922,86 @@ async function seedRecoverableReleaseCandidateGraph(): Promise<void> {
   releaseCandidateRecoveryState = { candidate, successor };
 }
 
+async function publishReleasePolicyRecord(policy: ReleasePolicy): Promise<void> {
+  const client = await sourcePool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('proofstack.tenant_id', $1, true)", [
+      policy.scope.tenantId,
+    ]);
+    await client.query("SELECT set_config('proofstack.project_id', $1, true)", [
+      policy.scope.projectId,
+    ]);
+    await client.query("SELECT set_config('proofstack.environment_id', $1, true)", [
+      policy.scope.environmentId,
+    ]);
+    await client.query("SELECT public.proofstack_publish_release_policy($1::jsonb)", [
+      {
+        definitionSha256: policy.definitionSha256,
+        environmentId: policy.scope.environmentId,
+        policyId: policy.policyId,
+        policyVersionId: policy.policyVersionId,
+        projectId: policy.scope.projectId,
+        publishedAt: policy.publishedAt,
+        publishedByPrincipalId: policy.publishedByPrincipalId,
+        record: policy,
+        schemaVersion: policy.schemaVersion,
+        tenantId: policy.scope.tenantId,
+      },
+    ]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function publishReleasePolicyLifecycleRecord(
+  event: ReleasePolicyLifecycleEvent,
+): Promise<void> {
+  const client = await sourcePool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('proofstack.tenant_id', $1, true)", [
+      event.scope.tenantId,
+    ]);
+    await client.query("SELECT set_config('proofstack.project_id', $1, true)", [
+      event.scope.projectId,
+    ]);
+    await client.query("SELECT set_config('proofstack.environment_id', $1, true)", [
+      event.scope.environmentId,
+    ]);
+    await client.query("SELECT public.proofstack_publish_release_policy_lifecycle($1::jsonb)", [
+      {
+        actorPrincipalId: event.actorPrincipalId,
+        environmentId: event.scope.environmentId,
+        eventId: event.eventId,
+        occurredAt: event.occurredAt,
+        projectId: event.scope.projectId,
+        record: event,
+        schemaVersion: event.schemaVersion,
+        tenantId: event.scope.tenantId,
+      },
+    ]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function seedRecoverableReleasePolicyGraph(): Promise<void> {
+  const { policy, successor, supersession } =
+    createReleasePolicyRepositoryTestHarness("recovery_policy");
+  await publishReleasePolicyRecord(policy);
+  await publishReleasePolicyRecord(successor);
+  await publishReleasePolicyLifecycleRecord(supersession);
+}
+
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
   const roles = workflowRuntimeRoleOptions("source");
   await provisionRuntimeRoles(sourcePool, roles);
@@ -1997,6 +2080,7 @@ async function seedAuthoritativeState(): Promise<void> {
   await seedRecoverableEvaluationGraph();
   await seedRecoverableComparisonGraph();
   await seedRecoverableReleaseCandidateGraph();
+  await seedRecoverableReleasePolicyGraph();
   await seedRecoverableWorkflow1Graph();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
