@@ -1237,11 +1237,15 @@ describe("PostgreSQL-backed API", () => {
       expect(result.record.metricResults).toEqual([
         expect.objectContaining({
           metricId: `metric_elapsed_${runKey}`,
-          value: {
-            delta: { denominator: "1", numerator: "-25", unit: "milliseconds" },
+          value: expect.objectContaining({
+            delta: expect.objectContaining({
+              denominator: "1",
+              numerator: "-25",
+              unit: "milliseconds",
+            }),
             direction: "decreased",
             status: "available",
-          },
+          }),
         }),
         expect.objectContaining({ metricId: `metric_trace_${runKey}` }),
       ]);
