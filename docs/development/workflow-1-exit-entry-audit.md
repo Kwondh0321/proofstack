@@ -3,9 +3,9 @@
 [English](workflow-1-exit-entry-audit.md) |
 [한국어](workflow-1-exit-entry-audit.ko.md)
 
-- Status: accepted for independent Workflow 1 exit review; checkpoint remains open
+- Status: final repository gate in progress; checkpoint remains open
 - Reviewed: 2026-09-06
-- Dependency: seven accepted Workflow 1 capability checkpoints through `b5e2dca`
+- Dependency: seven accepted Workflow 1 capability checkpoints plus exit hardening through `7df28c6`
 - Production readiness: not approved
 - Workflow 2 entry: blocked
 
@@ -72,8 +72,9 @@ executable evidence, or retained as a reason that Workflow 1 cannot exit.
 
 ## Audit progress
 
-Findings 1 through 5 are now closed at their stated boundaries. Finding 6 remains open, so Workflow
-1 is not accepted and Workflow 2 remains blocked.
+Findings 1 through 6 are now closed at their stated boundaries. The final all-repository gate and
+independent stage decision remain open, so Workflow 1 is not accepted and Workflow 2 remains
+blocked.
 
 | Finding | State | Executable evidence |
 | --- | --- | --- |
@@ -82,7 +83,7 @@ Findings 1 through 5 are now closed at their stated boundaries. Finding 6 remain
 | 3. Complete restart and recovery coherence | Closed | Commits `ff81028`, `b219d22`, and `98a28f5` seed the complete Workflow 1 graph through the production API and separated workers, restart the API and evaluation workers before completion, include every available ciphertext and referenced key in a PostgreSQL custom-dump recovery set, restore into empty database and object targets, provision new runtime roles instead of copying credentials, and read the exact regression, replay, evaluation, model-assurance, comparison, artifact, and trace graph through public boundaries. CI run `34021924200` passed this recovery rehearsal, the clean-checkout acceptance, PostgreSQL, S3, artifact lifecycle, secret scan, and quality gates. |
 | 4. Criteria trust root | Closed | The focused [criteria trust-root audit](workflow-1-criteria-trust-root-audit.md) proves distinct fail-closed requester-only, search-only, stale, unavailable, conflicting, scope-mismatched, unretained, and unqualified-reviewer outcomes. |
 | 5. Clean-checkout contributor path | Closed | Commits `6b76751`, `034b216`, and `4df4748` add the English-primary [Workflow 1 acceptance guide](../guides/workflow-1-acceptance.md), linked Korean guidance, and one root command that owns random-port disposable services, frozen inputs, conservative failures, and cleanup. CI run `34020305732` independently followed that command from a clean checkout and passed the dedicated acceptance job in 3m50s. |
-| 6. Public claims and browser audit | Open | Public English and Korean claims, retained-state browser behavior, accessibility, hostile display text, and unsupported product claims still require an independent pass. |
+| 6. Public claims and browser audit | Closed | Commits `824c7f8`, `f99b3ef`, and `7df28c6` harden trace response and session verification, align English and Korean public claims, add a repository claim guard, and close a real 390-by-844 hostile-text overflow. The focused [public claims and browser audit](workflow-1-public-claims-browser-audit.md) records actual API-backed comparison and trace views, semantic and keyboard evidence, outage behavior, port ownership, and the explicit split between the visual memory-backed run and independently verified PostgreSQL persistence. |
 
 The accepted implementation, contributor-path, and recovery state at
 `98a28f50c0943d5db232380b2877b7f284039205` passed
@@ -91,7 +92,8 @@ including the complete PostgreSQL Workflow 1 acceptance flow, coordinated empty-
 quality gates, secret scan, S3, artifact lifecycle, PostgreSQL integration, and the dedicated
 clean-checkout command. The same SHA passed CodeQL in
 [Security run 34021924192](https://github.com/Kwondh0321/proofstack/actions/runs/34021924192). This
-evidence closes only findings 1 through 5; it is not a production-readiness or stage-exit approval.
+evidence closes only findings 1 through 5; the focused public-claims and browser audit closes
+finding 6 separately. Neither record is a production-readiness or stage-exit approval.
 
 ## Independent audit method
 
@@ -187,5 +189,5 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
 7. Only after those results are green, publish a final Workflow 1 audit and consider Workflow 2
    entry.
 
-The first five work items are accepted only at the boundaries recorded in the audit-progress
-table. Public-claims, browser, and final repository rows remain open.
+The first six work items are accepted only at the boundaries recorded in the audit-progress table.
+The final all-repository gate and independent Workflow 1 decision remain open.
