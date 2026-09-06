@@ -115,7 +115,7 @@ export const ReleaseCandidateBuildArtifactSchema = z
   })
   .strict();
 
-const ReleaseCandidateAdapterReferenceSchema = z
+export const ReleaseCandidateAdapterReferenceSchema = z
   .object({
     adapterId: OpaqueIdSchema,
     adapterVersionId: OpaqueIdSchema,
@@ -140,6 +140,14 @@ export const ReleaseCandidateModelResolutionSchema = z.discriminatedUnion("statu
     .strict(),
 ]);
 
+export const ReleaseCandidateModelDeclarationSchema = z
+  .object({
+    providerId: OpaqueIdSchema,
+    providerModelId: AssuranceSummarySchema,
+    resolution: ReleaseCandidateModelResolutionSchema,
+  })
+  .strict();
+
 export const ReleaseCandidateRuntimeComponentSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -159,9 +167,7 @@ export const ReleaseCandidateRuntimeComponentSchema = z.discriminatedUnion("kind
     .object({
       adapter: ReleaseCandidateAdapterReferenceSchema,
       kind: z.literal("model"),
-      providerId: OpaqueIdSchema,
-      providerModelId: AssuranceSummarySchema,
-      resolution: ReleaseCandidateModelResolutionSchema,
+      ...ReleaseCandidateModelDeclarationSchema.shape,
       role: OpaqueIdSchema,
     })
     .strict(),
@@ -400,11 +406,17 @@ export const PublishReleaseCandidateRequestSchema = z
 export type GitObjectDigest = z.infer<typeof GitObjectDigestSchema>;
 export type PublishReleaseCandidateRequest = z.infer<typeof PublishReleaseCandidateRequestSchema>;
 export type ReleaseCandidate = z.infer<typeof ReleaseCandidateSchema>;
+export type ReleaseCandidateAdapterReference = z.infer<
+  typeof ReleaseCandidateAdapterReferenceSchema
+>;
 export type ReleaseCandidateBuildArtifact = z.infer<typeof ReleaseCandidateBuildArtifactSchema>;
 export type ReleaseCandidateComparisonReference = z.infer<
   typeof ReleaseCandidateComparisonReferenceSchema
 >;
 export type ReleaseCandidateDefinition = z.infer<typeof ReleaseCandidateDefinitionSchema>;
+export type ReleaseCandidateModelDeclaration = z.infer<
+  typeof ReleaseCandidateModelDeclarationSchema
+>;
 export type ReleaseCandidateModelResolution = z.infer<typeof ReleaseCandidateModelResolutionSchema>;
 export type ReleaseCandidateOmission = z.infer<typeof ReleaseCandidateOmissionSchema>;
 export type ReleaseCandidateReference = z.infer<typeof ReleaseCandidateReferenceSchema>;

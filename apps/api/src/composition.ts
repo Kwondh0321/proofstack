@@ -12,3 +12,12 @@ export type {
   ReleaseCandidateRuntimeAuthority,
   ReleaseCandidateRuntimeReference,
 } from "./repository-release-candidate-source-resolver.js";
+export {
+  type LocalGitReleaseCandidateRevisionAuthorityOptions,
+  type LocalGitRepositoryRegistration,
+  LocalGitReleaseCandidateRevisionAuthority,
+  type StaticModelDeclarationRegistration,
+  type StaticReleaseCandidateRuntimeAuthorityOptions,
+  type StaticRuntimeAdapterRegistration,
+  StaticReleaseCandidateRuntimeAuthority,
+} from "./release-candidate-authorities.js";
