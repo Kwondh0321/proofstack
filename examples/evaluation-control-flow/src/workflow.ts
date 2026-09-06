@@ -43,6 +43,10 @@ interface RecordReference {
   readonly recordId: string;
 }
 
+export interface VerifiedEvaluationRecordReference extends RecordReference {
+  readonly definitionSha256: string;
+}
+
 export interface RunEvaluationControlFlowOptions {
   readonly client: EvaluationClient;
   readonly evidenceSubject?: EvaluationRunEvidenceSubject;
@@ -77,6 +81,7 @@ export interface EvaluationControlFlowSummary {
   readonly readBack: {
     readonly kinds: readonly EvaluationRecordKind[];
     readonly recordCount: number;
+    readonly records: readonly VerifiedEvaluationRecordReference[];
   };
   readonly sources: {
     readonly criticalConflictStatus: EnvelopeFor<"source_review">["record"]["criticalConflictStatus"];
@@ -148,18 +153,30 @@ function workerCommand<Kind extends WorkerKind>(
 async function verifyDurableReadBack(
   client: EvaluationClient,
   references: readonly RecordReference[],
-): Promise<EvaluationRecordKind[]> {
+): Promise<{
+  readonly kinds: readonly EvaluationRecordKind[];
+  readonly records: readonly VerifiedEvaluationRecordReference[];
+}> {
   const seen = new Set<string>();
   const kinds = new Set<EvaluationRecordKind>();
+  const records: VerifiedEvaluationRecordReference[] = [];
   for (const reference of references) {
     const key = `${reference.kind}:${reference.recordId}`;
     if (seen.has(key)) throw new TypeError(`Duplicate reference flow read-back target: ${key}`);
     seen.add(key);
     const response = await client.readRecord(reference);
-    responseRecord(response.result, reference.kind);
+    const record = responseRecord(response.result, reference.kind);
     kinds.add(reference.kind);
+    records.push({
+      definitionSha256: record.definitionSha256,
+      kind: reference.kind,
+      recordId: reference.recordId,
+    });
   }
-  return [...kinds].sort();
+  return {
+    kinds: [...kinds].sort(),
+    records,
+  };
 }
 
 /**
@@ -488,7 +505,7 @@ export async function runEvaluationControlFlow(
   );
   remember("assessment", assessment.assessmentId);
 
-  const kinds = await verifyDurableReadBack(options.client, references);
+  const readBack = await verifyDurableReadBack(options.client, references);
   const verdicts: Record<ReferenceVerdict, number> = {
     abstain: 0,
     error: 0,
@@ -521,7 +538,11 @@ export async function runEvaluationControlFlow(
       status: approvedStatus.status,
       trust,
     },
-    readBack: { kinds, recordCount: references.length },
+    readBack: {
+      kinds: readBack.kinds,
+      recordCount: references.length,
+      records: readBack.records,
+    },
     sources: {
       criticalConflictStatus: primaryReview.criticalConflictStatus,
       freshnessConclusion: primaryReview.freshnessConclusion,

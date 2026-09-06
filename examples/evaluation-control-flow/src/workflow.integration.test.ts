@@ -183,10 +183,16 @@ describe("service-backed evaluation control flow", () => {
     });
     expect(summary.readBack.recordCount).toBe(30);
     expect(summary.readBack.kinds).toHaveLength(15);
+    expect(summary.readBack.records).toHaveLength(summary.readBack.recordCount);
 
     await app?.close();
     app = await createApp(apiConfig);
     apiUrl = await app.listen({ host: "127.0.0.1", port: 0 });
+    for (const reference of summary.readBack.records) {
+      const record = await client().readRecord(reference);
+      expect(record.result.kind).toBe(reference.kind);
+      expect(record.result.record.definitionSha256).toBe(reference.definitionSha256);
+    }
     const persisted = await client().readRecord({
       kind: "assessment",
       recordId: summary.assessment.assessmentId,
