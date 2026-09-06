@@ -198,6 +198,11 @@ the API; and re-reads every digest. Follow the
 uses a deterministic local provider and synthetic reviewers, not a live model or production
 identity deployment.
 
+To run the complete retained Workflow 1 graph once in disposable infrastructure, follow the
+[Workflow 1 acceptance guide](docs/guides/workflow-1-acceptance.md). Its single root command chooses
+random loopback ports and removes its isolated PostgreSQL and object-storage volumes on success or
+failure; no long-lived site or fixed application port is required.
+
 ## Repository map
 
 ```text

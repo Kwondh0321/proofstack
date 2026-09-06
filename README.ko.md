@@ -196,6 +196,11 @@ counterevidence, provider failure, dissent signal을 보존하고, API 재시작
 따르세요. 결정적 local provider와 synthetic reviewer를 사용하며 live model이나 프로덕션 identity
 배포가 아닙니다.
 
+보존된 전체 Workflow 1 그래프를 일회성 인프라에서 한 번 실행하려면
+[Workflow 1 수용 가이드](docs/guides/workflow-1-acceptance.ko.md)를 따르세요. 단일 root 명령이
+무작위 loopback port를 선택하고 성공·실패 시 격리된 PostgreSQL·object-storage volume을
+삭제하므로, 장시간 실행되는 site나 고정 application port가 필요하지 않습니다.
+
 ## 저장소 구성
 
 ```text

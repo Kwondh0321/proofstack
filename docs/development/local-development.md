@@ -277,6 +277,11 @@ verification, stop, authority, and limitation procedure in the
 [durable replay guide](../guides/durable-replay.md); do not run it against the disposable memory
 profile.
 
+The complete retained Workflow 1 acceptance has a separate
+[single-command clean-checkout guide](../guides/workflow-1-acceptance.md). Its runner owns isolated
+PostgreSQL and object-storage services on random loopback ports and removes their volumes after the
+test, so it should not be mixed with this guide's long-lived development profiles.
+
 ### Verify OTLP/HTTP ingestion
 
 The API also accepts OTLP 1.11 trace requests at `POST /v1/traces`. The default loopback
