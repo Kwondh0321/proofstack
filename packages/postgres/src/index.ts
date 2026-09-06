@@ -49,6 +49,7 @@ export {
 export { PostgresComparisonRepository } from "./postgres-comparison-repository.js";
 export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
+export { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
 export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,

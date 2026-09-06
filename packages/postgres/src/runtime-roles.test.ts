@@ -173,6 +173,15 @@ describe("provisionRuntimeRoles", () => {
     expect(statements).toContain(
       'GRANT EXECUTE ON FUNCTION public.proofstack_publish_comparison_record(jsonb) TO "proofstack_api"',
     );
+    expect(statements).toContain(
+      'GRANT SELECT ON TABLE public.proofstack_release_candidate_registry, public.proofstack_release_candidate_resources, public.proofstack_release_candidate_lineage, public.proofstack_release_candidates TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_publish_release_candidate(jsonb) TO "proofstack_api"',
+    );
+    expect(statements).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_release_candidate_intent_status(text, text, jsonb, timestamp with time zone) TO "proofstack_api"',
+    );
     expect(statements).not.toContain(
       'GRANT INSERT, UPDATE, DELETE ON TABLE public.proofstack_comparison_records TO "proofstack_api"',
     );
@@ -194,6 +203,7 @@ describe("provisionRuntimeRoles", () => {
     for (const table of [
       "proofstack_api_key_credentials",
       "proofstack_comparison_records",
+      "proofstack_release_candidates",
       "proofstack_replay_jobs",
       "proofstack_replay_attempts",
       "proofstack_replay_attempt_events",

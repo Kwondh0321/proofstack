@@ -485,6 +485,13 @@ describe("runtime role provisioning", () => {
       readonly comparisonPublishExecute: boolean;
       readonly comparisonSelect: boolean;
       readonly comparisonUpdate: boolean;
+      readonly releaseCandidateDelete: boolean;
+      readonly releaseCandidateInsert: boolean;
+      readonly releaseCandidateIntentExecute: boolean;
+      readonly releaseCandidateInternalExecute: boolean;
+      readonly releaseCandidatePublishExecute: boolean;
+      readonly releaseCandidateSelect: boolean;
+      readonly releaseCandidateUpdate: boolean;
       readonly evidence_insert: boolean;
       readonly evidence_select: boolean;
       readonly evidence_update: boolean;
@@ -562,6 +569,41 @@ describe("runtime role provisioning", () => {
           'proofstack_publish_comparison_record(jsonb)',
           'EXECUTE'
         ) AS "comparisonPublishExecute",
+        has_table_privilege(
+          current_user,
+          'proofstack_release_candidates',
+          'SELECT'
+        ) AS "releaseCandidateSelect",
+        has_table_privilege(
+          current_user,
+          'proofstack_release_candidates',
+          'INSERT'
+        ) AS "releaseCandidateInsert",
+        has_table_privilege(
+          current_user,
+          'proofstack_release_candidates',
+          'UPDATE'
+        ) AS "releaseCandidateUpdate",
+        has_table_privilege(
+          current_user,
+          'proofstack_release_candidates',
+          'DELETE'
+        ) AS "releaseCandidateDelete",
+        has_function_privilege(
+          current_user,
+          'proofstack_insert_release_candidate(jsonb)',
+          'EXECUTE'
+        ) AS "releaseCandidateInternalExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_publish_release_candidate(jsonb)',
+          'EXECUTE'
+        ) AS "releaseCandidatePublishExecute",
+        has_function_privilege(
+          current_user,
+          'proofstack_release_candidate_intent_status(text, text, jsonb, timestamp with time zone)',
+          'EXECUTE'
+        ) AS "releaseCandidateIntentExecute",
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT') AS outbox_insert,
         has_table_privilege(current_user, 'proofstack_outbox', 'SELECT') AS outbox_select,
         has_table_privilege(
@@ -835,6 +877,13 @@ describe("runtime role provisioning", () => {
       regressionInsert: true,
       regressionSelect: true,
       regressionUpdate: false,
+      releaseCandidateDelete: false,
+      releaseCandidateInsert: false,
+      releaseCandidateIntentExecute: true,
+      releaseCandidateInternalExecute: false,
+      releaseCandidatePublishExecute: true,
+      releaseCandidateSelect: true,
+      releaseCandidateUpdate: false,
       replayDelete: false,
       replayInsert: true,
       replayIntentStatusExecute: true,
