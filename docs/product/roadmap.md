@@ -157,7 +157,7 @@ withholding policy, approval, deployment, release, and production-readiness clai
 
 Goal: make regression evidence enforceable in delivery pipelines.
 
-- [ ] Immutable candidate release linking exact code, build artifacts, prompts, tools, models,
+- [x] Immutable candidate release linking exact code, build artifacts, prompts, tools, models,
   datasets, evaluations, and comparisons.
 - [ ] Versioned policy model with exact applicability plus advisory and mandatory modes.
 - [ ] Deterministic policy evaluation with explicit thresholds, units, statistical guardrails,
@@ -177,6 +177,13 @@ fixed by the [Workflow 2 entry audit](../development/workflow-2-entry-audit.md) 
 [ADR-0021](../architecture/0021-separate-release-policy-authority.md). Entry is approved for
 dependency-ordered implementation only; no policy, approval, CI enforcement, deployment, or
 production-readiness capability is represented as complete.
+
+The completed
+[immutable release candidate audit](../development/workflow-2-release-candidate-audit.md) accepts
+the policy-independent exact subject, source authority, persistence, isolation, recovery, SDK, and
+clean-checkout acceptance boundaries. It opens versioned policy-definition development while
+withholding policy evaluation, approval, decision, attestation, CI enforcement, deployment,
+rollback, break-glass, and production-readiness claims.
 
 ## Scale and ecosystem
 

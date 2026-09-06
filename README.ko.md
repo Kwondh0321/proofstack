@@ -314,6 +314,8 @@ production-readiness 주장은 계속 승인하지 않습니다.
 [불변 release candidate 가이드](docs/guides/workflow-2-release-candidate.ko.md)는 policy,
 approval, decision, attestation, CI enforcement, deployment, production-readiness 주장을 승인하지
 않으면서 완전히 보존된 Workflow 1 graph에 대해 첫 번째 제한된 subject slice를 실행합니다.
+완료된 [release-candidate 감사](docs/development/workflow-2-release-candidate-audit.ko.md)는 이 첫
+번째 제한된 체크포인트를 승인하고 versioned policy-definition 개발 진입을 엽니다.
 
 ## 현재의 경계
 

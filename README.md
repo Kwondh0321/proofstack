@@ -313,7 +313,9 @@ deployment, release, and production-readiness claims. The
 seven dependency-ordered gates. The
 [immutable release-candidate guide](docs/guides/workflow-2-release-candidate.md) runs the first
 bounded subject slice against the complete retained Workflow 1 graph while withholding policy,
-approval, decision, attestation, CI-enforcement, deployment, and production-readiness claims.
+approval, decision, attestation, CI-enforcement, deployment, and production-readiness claims. The
+completed [release-candidate audit](docs/development/workflow-2-release-candidate-audit.md) accepts
+that first bounded checkpoint and opens versioned policy-definition development.
 
 ## Current boundaries
 

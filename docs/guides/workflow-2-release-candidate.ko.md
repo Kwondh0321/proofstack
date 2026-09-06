@@ -3,6 +3,10 @@
 [English](workflow-2-release-candidate.md) |
 [한국어](workflow-2-release-candidate.ko.md)
 
+체크포인트 승인 근거는
+[불변 release candidate 감사](../development/workflow-2-release-candidate-audit.ko.md)에 기록되어
+있습니다.
+
 이 가이드는 Workflow 2의 첫 번째 subject 경계를 실행합니다. 완전히 보존된 Workflow 1
 graph에서 시작해 모든 참조 record를 권위 있는 repository 경계로 해석하고, append-only
 release candidate 하나를 발행합니다. candidate는 이후 policy evaluation의 정확한 입력입니다.

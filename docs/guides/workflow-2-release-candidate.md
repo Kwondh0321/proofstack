@@ -3,6 +3,9 @@
 [English](workflow-2-release-candidate.md) |
 [한국어](workflow-2-release-candidate.ko.md)
 
+Checkpoint acceptance is recorded in the
+[immutable release candidate audit](../development/workflow-2-release-candidate-audit.md).
+
 This guide exercises the first Workflow 2 subject boundary. It starts from the complete retained
 Workflow 1 graph, resolves every referenced record through an authoritative repository boundary,
 and publishes one append-only release candidate. A candidate is an exact input to later policy
