@@ -24,3 +24,12 @@ export class InvalidReleasePolicyLifecycleInputError extends TypeError {
     this.name = "InvalidReleasePolicyLifecycleInputError";
   }
 }
+
+export class InvalidReleasePolicyAuthorityInputError extends TypeError {
+  readonly code = "release_policy_authority_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidReleasePolicyAuthorityInputError";
+  }
+}

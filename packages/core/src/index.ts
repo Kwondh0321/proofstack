@@ -47,6 +47,7 @@ export * from "./outbox/consumer-receipt-repository.js";
 export * from "./outbox/outbox-repository.js";
 export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
+export * from "./policy/release-policy-authority.js";
 export * from "./policy/release-policy-errors.js";
 export * from "./policy/release-policy-record-validation.js";
 export * from "./release/record-release-candidate.js";
