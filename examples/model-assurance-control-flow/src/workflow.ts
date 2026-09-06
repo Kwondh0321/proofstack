@@ -8,6 +8,7 @@ import type {
   ModelAssuranceRecordKind,
   ModelEvaluatorProfile,
   ModelQualificationReport,
+  OracleReference,
   PrincipalContext,
 } from "@proofstack/contracts";
 import {
@@ -116,6 +117,68 @@ export interface ModelAssuranceControlFlowSummary {
     readonly qualificationStatus: "unqualified";
     readonly reversalStatus: "disagreement";
   };
+}
+
+export async function resolveAssessmentOracleReferences(
+  client: Pick<EvaluationClient, "readRecord">,
+  assessment: Pick<Assessment, "observations">,
+): Promise<readonly OracleReference[]> {
+  const oracles = new Map<string, OracleReference>();
+  for (const reference of assessment.observations) {
+    const observationEnvelope = (
+      await client.readRecord({ kind: "raw_observation", recordId: reference.observationId })
+    ).result;
+    if (
+      observationEnvelope.kind !== "raw_observation" ||
+      observationEnvelope.record.definitionSha256 !== reference.definitionSha256
+    ) {
+      throw new TypeError(
+        `Assessment observation ${reference.observationId} did not resolve to its exact record`,
+      );
+    }
+
+    const runReference = observationEnvelope.record.run;
+    const runEnvelope = (
+      await client.readRecord({ kind: "evaluation_run", recordId: runReference.evaluationRunId })
+    ).result;
+    if (
+      runEnvelope.kind !== "evaluation_run" ||
+      runEnvelope.record.definitionSha256 !== runReference.definitionSha256
+    ) {
+      throw new TypeError(
+        `Assessment observation ${reference.observationId} did not resolve to its exact run`,
+      );
+    }
+
+    const oracleReference = structuredClone(runEnvelope.record.oracle);
+    const oracleEnvelope = (
+      await client.readRecord({
+        kind: "oracle_spec",
+        recordId: oracleReference.oracleVersionId,
+      })
+    ).result;
+    if (
+      oracleEnvelope.kind !== "oracle_spec" ||
+      oracleEnvelope.record.oracleId !== oracleReference.oracleId ||
+      oracleEnvelope.record.definitionSha256 !== oracleReference.definitionSha256
+    ) {
+      throw new TypeError(
+        `Evaluation run ${runReference.evaluationRunId} did not resolve to its exact oracle`,
+      );
+    }
+
+    const identity = `${oracleReference.oracleId}:${oracleReference.oracleVersionId}`;
+    const existing = oracles.get(identity);
+    if (existing && existing.definitionSha256 !== oracleReference.definitionSha256) {
+      throw new TypeError(`Conflicting oracle definitions were observed for ${identity}`);
+    }
+    oracles.set(identity, oracleReference);
+  }
+  return [...oracles.values()].sort((left, right) =>
+    `${left.oracleId}:${left.oracleVersionId}`.localeCompare(
+      `${right.oracleId}:${right.oracleVersionId}`,
+    ),
+  );
 }
 
 const evaluationWorkerKinds = new Set<EvaluationRecordKind>([
@@ -693,6 +756,9 @@ export async function runModelAssuranceControlFlow(
   finalDefinition.nonModelEvidence.observations = critical.record.observations.map((value) =>
     structuredClone(value),
   );
+  finalDefinition.nonModelEvidence.oracles = [
+    ...(await resolveAssessmentOracleReferences(options.evaluationClient, critical.record)),
+  ];
 
   options.selectApiPrincipal(
     userPrincipal(scope.tenantId, "usr_assurance_manager", `req_${options.namespace}_final`),
