@@ -47,6 +47,8 @@ export * from "./outbox/consumer-receipt-repository.js";
 export * from "./outbox/outbox-repository.js";
 export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
+export * from "./release/release-candidate-errors.js";
+export * from "./release/release-candidate-record-validation.js";
 export { MemoryComparisonRepository } from "./testing/memory-comparison-repository.js";
 export {
   type EvaluationRecordReference,
