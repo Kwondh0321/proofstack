@@ -72,26 +72,26 @@ executable evidence, or retained as a reason that Workflow 1 cannot exit.
 
 ## Audit progress
 
-Findings 1, 2, 4, and 5 are now closed at their stated boundaries. Findings 3 and 6 remain open, so
-Workflow 1 is not accepted and Workflow 2 remains blocked.
+Findings 1 through 5 are now closed at their stated boundaries. Finding 6 remains open, so Workflow
+1 is not accepted and Workflow 2 remains blocked.
 
 | Finding | State | Executable evidence |
 | --- | --- | --- |
 | 1. Repository-backed comparison projection | Closed | Commits `2fe3746`, `b20a8d4`, `058a5b1`, and `60f3833` resolve exact retained replay, evaluation, assessment, and model-assurance sources through the default API composition. Missing, nonterminal, scope-conflicting, lineage-conflicting, and digest-conflicting sources fail closed. |
 | 2. One retained failure-to-comparison graph | Closed | Commits `6f843a8`, `72dae86`, `6c5b549`, `130bfd3`, and `14c1b3f` compose and exercise one authenticated, PostgreSQL-backed Workflow 1 graph with normal API, SDK, replay worker, evaluation worker, model worker, runtime-role, S3 artifact, restart, exact read-back, and conservative comparability boundaries. |
-| 3. Complete restart and recovery coherence | Open | The reference graph survives the exercised API restarts, but coordinated empty-target restore of every new table, outbox, and exact graph edge plus applicable worker-restart evidence is still required. |
+| 3. Complete restart and recovery coherence | Closed | Commits `ff81028`, `b219d22`, and `98a28f5` seed the complete Workflow 1 graph through the production API and separated workers, restart the API and evaluation workers before completion, include every available ciphertext and referenced key in a PostgreSQL custom-dump recovery set, restore into empty database and object targets, provision new runtime roles instead of copying credentials, and read the exact regression, replay, evaluation, model-assurance, comparison, artifact, and trace graph through public boundaries. CI run `34021924200` passed this recovery rehearsal, the clean-checkout acceptance, PostgreSQL, S3, artifact lifecycle, secret scan, and quality gates. |
 | 4. Criteria trust root | Closed | The focused [criteria trust-root audit](workflow-1-criteria-trust-root-audit.md) proves distinct fail-closed requester-only, search-only, stale, unavailable, conflicting, scope-mismatched, unretained, and unqualified-reviewer outcomes. |
 | 5. Clean-checkout contributor path | Closed | Commits `6b76751`, `034b216`, and `4df4748` add the English-primary [Workflow 1 acceptance guide](../guides/workflow-1-acceptance.md), linked Korean guidance, and one root command that owns random-port disposable services, frozen inputs, conservative failures, and cleanup. CI run `34020305732` independently followed that command from a clean checkout and passed the dedicated acceptance job in 3m50s. |
 | 6. Public claims and browser audit | Open | Public English and Korean claims, retained-state browser behavior, accessibility, hostile display text, and unsupported product claims still require an independent pass. |
 
-The accepted implementation and contributor-path state at
-`4df474825db58ff083b2051f629e66394938a6a6` passed
-[CI run 34020305732](https://github.com/Kwondh0321/proofstack/actions/runs/34020305732),
-including the complete PostgreSQL Workflow 1 acceptance flow, quality gates, secret scan, S3,
-artifact lifecycle, recovery integration, and the dedicated clean-checkout command. The same SHA
-passed CodeQL in
-[Security run 34020305760](https://github.com/Kwondh0321/proofstack/actions/runs/34020305760). This
-evidence closes only the rows named above; it is not a production-readiness or stage-exit approval.
+The accepted implementation, contributor-path, and recovery state at
+`98a28f50c0943d5db232380b2877b7f284039205` passed
+[CI run 34021924200](https://github.com/Kwondh0321/proofstack/actions/runs/34021924200),
+including the complete PostgreSQL Workflow 1 acceptance flow, coordinated empty-target recovery,
+quality gates, secret scan, S3, artifact lifecycle, PostgreSQL integration, and the dedicated
+clean-checkout command. The same SHA passed CodeQL in
+[Security run 34021924192](https://github.com/Kwondh0321/proofstack/actions/runs/34021924192). This
+evidence closes only findings 1 through 5; it is not a production-readiness or stage-exit approval.
 
 ## Independent audit method
 
@@ -187,5 +187,5 @@ The final Workflow 1 roadmap checkbox remains open until every row is executable
 7. Only after those results are green, publish a final Workflow 1 audit and consider Workflow 2
    entry.
 
-The first three work items are accepted only at the boundaries recorded in the audit-progress
-table. Recovery, contributor, public-claims, browser, and final repository rows remain open.
+The first five work items are accepted only at the boundaries recorded in the audit-progress
+table. Public-claims, browser, and final repository rows remain open.
