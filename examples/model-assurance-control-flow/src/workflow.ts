@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
+  Assessment,
   EvaluationRecordKind,
   HumanReviewRecord,
   ModelAssuranceAssessment,
@@ -69,6 +70,7 @@ type ModelWorkerKind =
   | "model_qualification_report";
 
 export interface ModelAssuranceControlFlowOptions {
+  readonly baseAssessment?: Assessment;
   readonly evaluationClient: EvaluationClient;
   readonly evaluationWorker: EvaluationWorkerOperations;
   readonly modelClient: ModelClient;
@@ -80,6 +82,8 @@ export interface ModelAssuranceControlFlowOptions {
 export interface ModelAssuranceControlFlowSummary {
   readonly assessment: {
     readonly assessmentExtensionId: string;
+    readonly baseAssessmentId: string;
+    readonly baseAssessmentSha256: string;
     readonly definitionSha256: string;
     readonly eligibility: ModelAssuranceAssessment["eligibility"];
     readonly reasons: ModelAssuranceAssessment["reasons"];
@@ -454,11 +458,19 @@ export async function runModelAssuranceControlFlow(
     await publishEvaluationFixture(options, fixture);
   }
 
-  const baseAssessment = harness.evaluation.records.find(
+  const harnessBaseAssessment = harness.evaluation.records.find(
     (fixture): fixture is Extract<EvaluationRepositoryFixtureRecord, { kind: "assessment" }> =>
       fixture.kind === "assessment",
   );
-  if (!baseAssessment) throw new Error("Expected an evaluation assessment fixture");
+  if (!harnessBaseAssessment) throw new Error("Expected an evaluation assessment fixture");
+  const baseAssessment = options.baseAssessment ?? harnessBaseAssessment.record;
+  if (
+    baseAssessment.scope.tenantId !== scope.tenantId ||
+    baseAssessment.scope.projectId !== scope.projectId ||
+    baseAssessment.scope.environmentId !== scope.environmentId
+  ) {
+    throw new TypeError("The model-assurance base assessment must share the harness scope");
+  }
   options.selectApiPrincipal(
     userPrincipal(scope.tenantId, "usr_assurance_manager", `req_${options.namespace}_critical`),
   );
@@ -466,7 +478,7 @@ export async function runModelAssuranceControlFlow(
     await options.evaluationClient.createAssessment({
       recordId: `asm_${options.namespace}_critical`,
       request: {
-        definition: criticalBaseAssessmentDefinition(baseAssessment.record, options.namespace),
+        definition: criticalBaseAssessmentDefinition(baseAssessment, options.namespace),
         kind: "assessment",
       },
     })
@@ -699,6 +711,15 @@ export async function runModelAssuranceControlFlow(
       kind: fixture.kind,
       recordId: evaluationRecordId(fixture.kind, fixture.record),
     })),
+    ...(options.baseAssessment
+      ? [
+          {
+            definitionSha256: options.baseAssessment.definitionSha256,
+            kind: "assessment" as const,
+            recordId: options.baseAssessment.assessmentId,
+          },
+        ]
+      : []),
     {
       definitionSha256: critical.record.definitionSha256,
       kind: "assessment" as const,
@@ -771,6 +792,8 @@ export async function runModelAssuranceControlFlow(
   return {
     assessment: {
       assessmentExtensionId: assessment.result.record.assessmentExtensionId,
+      baseAssessmentId: critical.record.assessmentId,
+      baseAssessmentSha256: critical.record.definitionSha256,
       definitionSha256: assessment.result.record.definitionSha256,
       eligibility: assessment.result.record.eligibility,
       reasons: assessment.result.record.reasons,
