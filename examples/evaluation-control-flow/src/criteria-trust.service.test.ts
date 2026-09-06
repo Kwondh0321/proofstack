@@ -149,6 +149,14 @@ describe("criteria trust service boundary", () => {
         namespace: "trustservice",
       });
       const artifacts = new Map<string, RetainedArtifact>();
+      const unqualifiedIds = {
+        approvedStatus: "csr_unqualified_approved_trustservice",
+        criterionSet: "criteria_unqualified_trustservice",
+        criterionSetVersion: "csv_unqualified_trustservice",
+        draftStatus: "csr_unqualified_draft_trustservice",
+        qualification: "srq_unqualified_trustservice",
+        review: "srv_unqualified_trustservice",
+      } as const;
       const manager = (principalId: string): void => {
         activePrincipal = principal(principalId, ["evaluation:manage", "evaluation:read"]);
       };
@@ -277,6 +285,89 @@ describe("criteria trust service boundary", () => {
         "criterion_set_status",
       );
 
+      manager("usr_credential_authority");
+      const unqualifiedDefinition = structuredClone(scenario.sourceReviewerQualification());
+      Object.assign(unqualifiedDefinition, {
+        qualificationId: unqualifiedIds.qualification,
+        status: "unqualified",
+        statusReasons: ["Required source-domain expertise was not demonstrated"],
+      });
+      const unqualifiedReviewer = responseRecord(
+        await evaluation.publishDefinition({
+          recordId: unqualifiedIds.qualification,
+          request: {
+            definition: retainedDefinition(unqualifiedDefinition, artifacts),
+            kind: "source_reviewer_qualification",
+          },
+        }),
+        "source_reviewer_qualification",
+      );
+
+      manager("usr_source_reviewer");
+      const unqualifiedReviewDefinition = structuredClone(
+        scenario.qualifiedSourceReview(source, unqualifiedReviewer),
+      );
+      unqualifiedReviewDefinition.sourceReviewId = unqualifiedIds.review;
+      const unqualifiedReview = responseRecord(
+        await evaluation.publishDefinition({
+          recordId: unqualifiedIds.review,
+          request: {
+            definition: retainedDefinition(unqualifiedReviewDefinition, artifacts),
+            kind: "source_review",
+          },
+        }),
+        "source_review",
+      );
+
+      manager("usr_criterion_issuer");
+      const unqualifiedCriterionDefinition = structuredClone(
+        scenario.qualifiedCriterionSet({
+          evaluator,
+          oracle,
+          review: unqualifiedReview,
+          source,
+        }),
+      );
+      Object.assign(unqualifiedCriterionDefinition, {
+        criterionSetId: unqualifiedIds.criterionSet,
+        criterionSetVersionId: unqualifiedIds.criterionSetVersion,
+      });
+      const unqualifiedCriterionSet = responseRecord(
+        await evaluation.publishDefinition({
+          recordId: unqualifiedIds.criterionSetVersion,
+          request: { definition: unqualifiedCriterionDefinition, kind: "criterion_set" },
+        }),
+        "criterion_set",
+      );
+      const unqualifiedDraftDefinition = structuredClone(
+        scenario.draftStatus(unqualifiedCriterionSet),
+      );
+      unqualifiedDraftDefinition.statusRecordId = unqualifiedIds.draftStatus;
+      const unqualifiedDraft = responseRecord(
+        await evaluation.recordCriterionSetStatus({
+          recordId: unqualifiedIds.draftStatus,
+          request: {
+            definition: unqualifiedDraftDefinition,
+            kind: "criterion_set_status",
+          },
+        }),
+        "criterion_set_status",
+      );
+      const unqualifiedApprovedDefinition = structuredClone(
+        scenario.approvedStatus(unqualifiedCriterionSet, unqualifiedDraft),
+      );
+      unqualifiedApprovedDefinition.statusRecordId = unqualifiedIds.approvedStatus;
+      const unqualifiedApproved = responseRecord(
+        await evaluation.recordCriterionSetStatus({
+          recordId: unqualifiedIds.approvedStatus,
+          request: {
+            definition: unqualifiedApprovedDefinition,
+            kind: "criterion_set_status",
+          },
+        }),
+        "criterion_set_status",
+      );
+
       const qualificationPrincipal = principal("svc_qualification_executor", ["evaluation:run"], {
         authentication: {
           authenticatedAt: "2026-09-02T11:59:30.000Z",
@@ -376,6 +467,17 @@ describe("criteria trust service boundary", () => {
       });
       expect(scopeMismatch.result).toMatchObject({
         reasons: expect.arrayContaining(["source_scope_mismatch"]),
+        status: "ineligible",
+      });
+      const unqualified = await evaluation.evaluateCriteriaTrust({
+        criterionSetVersionId: unqualifiedCriterionSet.criterionSetVersionId,
+        request: {
+          ...trustRequest,
+          criterionStatusRecordId: unqualifiedApproved.statusRecordId,
+        },
+      });
+      expect(unqualified.result).toMatchObject({
+        reasons: expect.arrayContaining(["reviewer_unqualified"]),
         status: "ineligible",
       });
 
