@@ -165,6 +165,7 @@ describe("PostgreSQL evidence schema", () => {
       "0044_source_reviewer_qualifications",
       "0045_release_candidate_graph",
       "0046_policy_author_capabilities",
+      "0047_release_policy_graph",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -388,6 +389,21 @@ describe("PostgreSQL evidence schema", () => {
       ]) AS required(signature)
     `);
     expect(releaseCandidateFunctions.rows).toEqual([{ present: true }]);
+
+    const releasePolicyFunctions = await pool.query<{ readonly present: boolean }>(`
+      SELECT every(to_regprocedure(signature) IS NOT NULL) AS present
+      FROM unnest(ARRAY[
+        'public.proofstack_insert_release_policy(jsonb)',
+        'public.proofstack_insert_release_policy_lifecycle(jsonb)',
+        'public.proofstack_publish_release_policy(jsonb)',
+        'public.proofstack_publish_release_policy_lifecycle(jsonb)',
+        'public.proofstack_release_policy_intent_status(text,text,jsonb,timestamptz)',
+        'public.proofstack_release_policy_lifecycle_intent_status(text,text,jsonb,timestamptz)',
+        'public.proofstack_verify_release_policy_graph()',
+        'public.proofstack_verify_release_policy_lifecycle()'
+      ]) AS required(signature)
+    `);
+    expect(releasePolicyFunctions.rows).toEqual([{ present: true }]);
 
     const normalizedRetryColumns = await pool.query<{
       readonly column_name: string;
