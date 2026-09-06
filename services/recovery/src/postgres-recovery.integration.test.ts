@@ -131,12 +131,23 @@ function requiredTestEnvironment(name: string): string {
   return value;
 }
 
+function setEnvironment(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
 const databaseUrl = requiredTestEnvironment("PROOFSTACK_TEST_DATABASE_URL");
 const postgresToolImage = requiredTestEnvironment("PROOFSTACK_TEST_POSTGRES_TOOL_IMAGE");
 const s3AccessKeyId = requiredTestEnvironment("PROOFSTACK_TEST_S3_ACCESS_KEY_ID");
 const s3Endpoint = requiredTestEnvironment("PROOFSTACK_TEST_S3_ENDPOINT");
 const s3Region = requiredTestEnvironment("PROOFSTACK_TEST_S3_REGION");
 const s3SecretAccessKey = requiredTestEnvironment("PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY");
+const originalAwsEnvironment = new Map(
+  ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"].map((name) => [
+    name,
+    process.env[name],
+  ]),
+);
 
 const EXPECTED_TABLES = [
   "proofstack_api_key_credentials",
@@ -2189,6 +2200,9 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
 }
 
 beforeAll(async () => {
+  setEnvironment("AWS_ACCESS_KEY_ID", s3AccessKeyId);
+  setEnvironment("AWS_SECRET_ACCESS_KEY", s3SecretAccessKey);
+  setEnvironment("AWS_SESSION_TOKEN", undefined);
   for (const bucket of Object.values(recoveryBuckets)) {
     await bucketClient.send(new CreateBucketCommand({ Bucket: bucket }));
     createdBuckets.add(bucket);
@@ -2208,41 +2222,45 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await Promise.all(runtimePools.map((pool) => pool.end()));
-  if (restoredPool) {
-    for (const roleName of managedRoles) {
-      await restoredPool.query(`DROP OWNED BY ${quotedIdentifier(roleName)}`);
+  try {
+    await Promise.all(runtimePools.map((pool) => pool.end()));
+    if (restoredPool) {
+      for (const roleName of managedRoles) {
+        await restoredPool.query(`DROP OWNED BY ${quotedIdentifier(roleName)}`);
+      }
+      await restoredPool.end();
     }
-    await restoredPool.end();
+    for (const roleName of managedRoles) {
+      await sourcePool.query(`DROP OWNED BY ${quotedIdentifier(roleName)}`);
+      await sourcePool.query(`DROP ROLE IF EXISTS ${quotedIdentifier(roleName)}`);
+    }
+    await sourcePool.query(
+      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+      [restoredDatabaseName],
+    );
+    await sourcePool.query(`DROP DATABASE IF EXISTS ${quotedIdentifier(restoredDatabaseName)}`);
+    await sourcePool.end();
+    for (const objectKey of trackedObjectKeys) {
+      await Promise.all([
+        sourceObjects.delete(objectKey),
+        backupObjects.delete(objectKey),
+        restoredObjects.delete(objectKey),
+      ]);
+    }
+    sourceObjects.destroy();
+    backupObjects.destroy();
+    restoredObjects.destroy();
+    for (const bucket of createdBuckets) {
+      await emptyRecoveryBucket(bucket);
+      await bucketClient.send(new DeleteBucketCommand({ Bucket: bucket }));
+    }
+    bucketClient.destroy();
+    await Promise.all(
+      temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })),
+    );
+  } finally {
+    for (const [name, value] of originalAwsEnvironment) setEnvironment(name, value);
   }
-  for (const roleName of managedRoles) {
-    await sourcePool.query(`DROP OWNED BY ${quotedIdentifier(roleName)}`);
-    await sourcePool.query(`DROP ROLE IF EXISTS ${quotedIdentifier(roleName)}`);
-  }
-  await sourcePool.query(
-    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-    [restoredDatabaseName],
-  );
-  await sourcePool.query(`DROP DATABASE IF EXISTS ${quotedIdentifier(restoredDatabaseName)}`);
-  await sourcePool.end();
-  for (const objectKey of trackedObjectKeys) {
-    await Promise.all([
-      sourceObjects.delete(objectKey),
-      backupObjects.delete(objectKey),
-      restoredObjects.delete(objectKey),
-    ]);
-  }
-  sourceObjects.destroy();
-  backupObjects.destroy();
-  restoredObjects.destroy();
-  for (const bucket of createdBuckets) {
-    await emptyRecoveryBucket(bucket);
-    await bucketClient.send(new DeleteBucketCommand({ Bucket: bucket }));
-  }
-  bucketClient.destroy();
-  await Promise.all(
-    temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })),
-  );
 });
 
 describe("coordinated recovery rehearsal", () => {
