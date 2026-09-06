@@ -33,6 +33,18 @@ export { MemoryComparisonRepository } from "./memory-comparison-repository.js";
 export { MemoryEvaluationRepository } from "./memory-evaluation-repository.js";
 export { MemoryEvidenceRepository } from "./memory-evidence-repository.js";
 export { MemoryModelAssuranceRepository } from "./memory-model-assurance-repository.js";
+export { MemoryReleaseCandidateRepository } from "./memory-release-candidate-repository.js";
+export {
+  type ReleaseCandidateRepositoryConformanceCase,
+  type ReleaseCandidateRepositoryTestFactory,
+  releaseCandidateRepositoryConformanceCases,
+} from "./release-candidate-repository-conformance.js";
+export {
+  createReleaseCandidateRepositoryTestHarness,
+  releaseCandidateFixture,
+  releaseCandidateFixtureScope,
+  type ReleaseCandidateRepositoryTestHarness,
+} from "./release-candidate-repository-fixtures.js";
 export {
   createModelAssuranceRepositoryTestHarness,
   type ModelAssuranceRepositoryFixtureRecord,

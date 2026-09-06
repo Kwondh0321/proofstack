@@ -49,6 +49,7 @@ export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
 export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
+export * from "./release/release-candidate-repository.js";
 export { MemoryComparisonRepository } from "./testing/memory-comparison-repository.js";
 export {
   type EvaluationRecordReference,
@@ -58,3 +59,4 @@ export {
 } from "./testing/memory-evaluation-repository.js";
 export * from "./testing/memory-evidence-repository.js";
 export { MemoryModelAssuranceRepository } from "./testing/memory-model-assurance-repository.js";
+export { MemoryReleaseCandidateRepository } from "./testing/memory-release-candidate-repository.js";
