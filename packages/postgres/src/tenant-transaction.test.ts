@@ -1,6 +1,10 @@
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
-import { PostgresTransactionCleanupError, withTenantTransaction } from "./tenant-transaction.js";
+import {
+  PostgresTransactionCleanupError,
+  withExactScopeTransaction,
+  withTenantTransaction,
+} from "./tenant-transaction.js";
 
 class FakeClient {
   readonly queries: Array<{ readonly text: string; readonly values?: readonly unknown[] }> = [];
@@ -113,6 +117,42 @@ describe("withTenantTransaction", () => {
       withTenantTransaction(poolWith(client), "ten_local", async () => "result"),
     ).rejects.toThrow("COMMIT");
     expect(client.queries.map(({ text }) => text)).toContain("ROLLBACK");
+    expect(client.releaseArguments).toEqual([undefined]);
+  });
+});
+
+describe("withExactScopeTransaction", () => {
+  it("sets every scope dimension transaction-locally on one checked-out client", async () => {
+    const client = new FakeClient();
+
+    const result = await withExactScopeTransaction(
+      poolWith(client),
+      { environmentId: "env_local", projectId: "prj_local", tenantId: "ten_local" },
+      async (scoped) => {
+        expect(scoped).toBe(client);
+        await scoped.query("SELECT current_user");
+        return "scoped";
+      },
+    );
+
+    expect(result).toBe("scoped");
+    expect(client.queries).toEqual([
+      { text: "BEGIN" },
+      {
+        text: "SELECT set_config('proofstack.tenant_id', $1, true)",
+        values: ["ten_local"],
+      },
+      {
+        text: "SELECT set_config('proofstack.project_id', $1, true)",
+        values: ["prj_local"],
+      },
+      {
+        text: "SELECT set_config('proofstack.environment_id', $1, true)",
+        values: ["env_local"],
+      },
+      { text: "SELECT current_user" },
+      { text: "COMMIT" },
+    ]);
     expect(client.releaseArguments).toEqual([undefined]);
   });
 });

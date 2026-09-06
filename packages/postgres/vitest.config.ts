@@ -10,6 +10,7 @@ export default defineConfig({
         "src/postgres-comparison-repository.ts",
         "src/postgres-evaluation-repository.ts",
         "src/postgres-model-assurance-repository.ts",
+        "src/postgres-release-policy-repository.ts",
         "src/postgres-replay-definition-repository.ts",
       ],
       include: ["src/**/*.ts"],

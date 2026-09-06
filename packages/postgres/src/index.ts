@@ -50,6 +50,7 @@ export { PostgresComparisonRepository } from "./postgres-comparison-repository.j
 export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
 export { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
+export { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
 export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
@@ -78,4 +79,8 @@ export {
   type RuntimeRoleProvisioningOptions,
   type RuntimeRoleProvisioningResult,
 } from "./runtime-roles.js";
-export { PostgresTransactionCleanupError } from "./tenant-transaction.js";
+export {
+  type PostgresExactScope,
+  PostgresTransactionCleanupError,
+  withExactScopeTransaction,
+} from "./tenant-transaction.js";
