@@ -99,7 +99,14 @@ const modules = [
     ]),
     directory: "services/recovery/src",
     packageName: "@proofstack/recovery-operations",
-    testAllowed: new Set(["@proofstack/core"]),
+    testAllowed: new Set([
+      "@proofstack/api",
+      "@proofstack/core",
+      "@proofstack/evaluation-worker",
+      "@proofstack/example-workflow-1-acceptance",
+      "@proofstack/model-evaluation-worker",
+      "@proofstack/sdk",
+    ]),
   },
   {
     allowed: new Set([

@@ -1,8 +1,16 @@
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
-import { CreateBucketCommand, DeleteBucketCommand } from "@aws-sdk/client-s3";
+import { fileURLToPath } from "node:url";
+import {
+  CreateBucketCommand,
+  DeleteBucketCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
+import { type ApiConfig, createApp } from "@proofstack/api/composition";
 import {
   ArtifactCipher,
   ArtifactConflictError,
@@ -38,8 +46,13 @@ import {
   ReplayPlanSchema,
   ReplayWorkerMutationFenceSchema,
   TargetReleaseSchema,
+  TraceResponseSchema,
 } from "@proofstack/contracts";
-import { CreateModelAssuranceAssessment } from "@proofstack/core";
+import {
+  AuthoritySplitModelAssuranceRepository,
+  CreateModelAssuranceAssessment,
+  SystemClock,
+} from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
   createModelAssuranceRepositoryTestHarness,
@@ -59,9 +72,24 @@ import {
   SecureInteractionFixtureRevocationIdentityGenerator,
 } from "@proofstack/datasets";
 import {
+  createPostgresEvaluationWorker,
+  type PostgresEvaluationWorkerRuntime,
+} from "@proofstack/evaluation-worker";
+import {
+  completeWorkflow1Acceptance,
+  type PreparedWorkflow1Acceptance,
+  prepareWorkflow1Acceptance,
+  type Workflow1AcceptanceSummary,
+} from "@proofstack/example-workflow-1-acceptance/workflow";
+import {
+  createPostgresModelEvaluationWorker,
+  type PostgresModelEvaluationWorkerRuntime,
+} from "@proofstack/model-evaluation-worker";
+import {
   assertMigrationsCurrent,
   bootstrapApiKey,
   createOidcBinding,
+  createPostgresPool,
   inspectVerifiedMigrationLedger,
   loadBundledMigrations,
   MigrationIntegrityError,
@@ -80,6 +108,13 @@ import {
 } from "@proofstack/postgres";
 import { encodeRecoveryObjectInventory, verifyRecoverySet } from "@proofstack/recovery";
 import { createS3ArtifactObjectStore, createS3Client } from "@proofstack/s3";
+import {
+  ProofStackComparisonClient,
+  ProofStackEvaluationClient,
+  ProofStackModelAssuranceClient,
+  ProofStackRegressionClient,
+  ProofStackReplayClient,
+} from "@proofstack/sdk";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NativePostgresCommandRunner, type PostgresCommand } from "./postgres-command.js";
@@ -201,6 +236,12 @@ const scope: EvidenceScope = {
   projectId: "prj_recovery",
   tenantId: "ten_recovery",
 };
+const workflowNamespace = `recovery_${runKey}`;
+const workflowScope: EvidenceScope = {
+  environmentId: `env_${workflowNamespace}_primary`,
+  projectId: `prj_${workflowNamespace}_primary`,
+  tenantId: `ten_${workflowNamespace}`,
+};
 const traceId = "9bf92f3577b34da6a3ce929d0e0e4736";
 const availableArtifactId = "art_recovery_available";
 const purgedArtifactId = "art_recovery_purged";
@@ -208,6 +249,8 @@ const artifactKeyId = "key_recovery_primary";
 const rotatedArtifactKeyId = "key_recovery_rotated";
 const artifactKeyMaterial = Buffer.alloc(32, 29);
 const rotatedArtifactKeyMaterial = Buffer.alloc(32, 37);
+const workflowArtifactKeyId = `key_${workflowNamespace}`;
+const workflowArtifactKey = Buffer.alloc(32, 47).toString("base64url");
 const availableArtifactContent = Buffer.from(
   JSON.stringify({ evidence: "coordinated recovery", status: "available" }),
   "utf8",
@@ -240,6 +283,7 @@ const createdBuckets = new Set<string>();
 const trackedObjectKeys = new Set<string>();
 let restoredPool: Pool;
 let restoredDatabaseUrl: string;
+let workflowRecoverySummary: Workflow1AcceptanceSummary | undefined;
 let regressionCatalogState:
   | {
       readonly datasetChild: RegressionDatasetVersion;
@@ -319,6 +363,292 @@ class DockerPostgresCommandRunner extends NativePostgresCommandRunner {
       await unlink(environmentPath);
     }
   }
+}
+
+interface WorkflowRuntime {
+  readonly apiUrl: string;
+  readonly comparisonClient: ProofStackComparisonClient;
+  readonly evaluationClient: ProofStackEvaluationClient;
+  readonly evaluationWorker: PostgresEvaluationWorkerRuntime;
+  readonly modelClient: ProofStackModelAssuranceClient;
+  readonly modelWorker: PostgresModelEvaluationWorkerRuntime;
+  readonly regressionClient: ProofStackRegressionClient;
+  readonly replayClient: ProofStackReplayClient;
+  readonly selectApiPrincipal: (principal: PrincipalContext) => void;
+  close(): Promise<void>;
+}
+
+function workflowRuntimeRoleOptions(stage: "restored" | "source") {
+  const nonce = randomUUID().replaceAll("-", "").slice(0, 8);
+  const credentials = (purpose: string) => ({
+    name: `ps_w1_${stage}_${purpose}_${nonce}`,
+    password: randomUUID(),
+  });
+  const roles = {
+    api: credentials("api"),
+    artifact: credentials("artifact"),
+    consumer: credentials("consumer"),
+    evaluationWorker: credentials("evaluation"),
+    humanReviewer: credentials("human"),
+    identity: credentials("identity"),
+    modelEvaluationWorker: credentials("model"),
+    publisher: credentials("publisher"),
+    replayWorker: credentials("replay"),
+  } satisfies RuntimeRoleProvisioningOptions;
+  managedRoles.push(...Object.values(roles).map(({ name }) => name));
+  return roles;
+}
+
+function databaseUrlForRole(
+  administrativeUrl: string,
+  role: { readonly name: string; readonly password: string },
+): string {
+  const value = new URL(administrativeUrl);
+  value.username = role.name;
+  value.password = role.password;
+  return value.toString();
+}
+
+function workflowControlPrincipal(): PrincipalContext {
+  return {
+    authentication: { authenticatedAt: new Date().toISOString(), method: "development" },
+    capabilities: [
+      "project:read",
+      "project:manage",
+      "evidence:ingest",
+      "evidence:read",
+      "artifact:write",
+      "artifact:read",
+      "artifact:read:restricted",
+      "artifact:delete",
+      "dataset:read",
+      "dataset:manage",
+      "replay:read",
+      "replay:run",
+      "replay:cancel",
+      "replay:manage",
+      "evaluation:read",
+      "evaluation:run",
+      "evaluation:model:run",
+      "evaluation:human:review",
+      "evaluation:manage",
+      "comparison:read",
+      "comparison:manage",
+    ],
+    principalId: `usr_${workflowNamespace}`,
+    principalType: "user",
+    requestId: `req_${workflowNamespace}`,
+    resourceScope: {
+      mode: "restricted",
+      projects: [
+        { environmentIds: [workflowScope.environmentId], projectId: workflowScope.projectId },
+      ],
+    },
+    roles: ["owner"],
+    tenantId: workflowScope.tenantId,
+  };
+}
+
+async function createWorkflowRuntime(
+  administrativeUrl: string,
+  roles: RuntimeRoleProvisioningOptions,
+  artifactBucket: string,
+  runtimeName: string,
+): Promise<WorkflowRuntime> {
+  const clock = new SystemClock();
+  const controlPrincipal = workflowControlPrincipal();
+  let selectedPrincipal = controlPrincipal;
+  const controlPool = createPostgresPool({
+    applicationName: `proofstack-recovery-${runtimeName}-assurance-control`,
+    connectionString: databaseUrlForRole(administrativeUrl, roles.api),
+    maxConnections: 2,
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  const executionPool = createPostgresPool({
+    applicationName: `proofstack-recovery-${runtimeName}-assurance-execution`,
+    connectionString: databaseUrlForRole(administrativeUrl, roles.modelEvaluationWorker),
+    maxConnections: 2,
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  const humanPool = createPostgresPool({
+    applicationName: `proofstack-recovery-${runtimeName}-assurance-human`,
+    connectionString: databaseUrlForRole(administrativeUrl, roles.humanReviewer),
+    maxConnections: 2,
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  const assuranceRepository = new AuthoritySplitModelAssuranceRepository({
+    control: new PostgresModelAssuranceRepository(controlPool),
+    execution: new PostgresModelAssuranceRepository(executionPool),
+    humanReview: new PostgresModelAssuranceRepository(humanPool),
+  });
+  const apiConfig: ApiConfig = {
+    authMode: "development",
+    environment: "test",
+    host: "127.0.0.1",
+    logLevel: "silent",
+    otlp: { compressedBodyLimitBytes: 1_048_576, decompressedBodyLimitBytes: 1_048_576 },
+    port: 4318,
+    storage: {
+      artifacts: {
+        activeKeyId: workflowArtifactKeyId,
+        allowInsecureLoopback: true,
+        bucket: artifactBucket,
+        endpoint: s3Endpoint,
+        forcePathStyle: true,
+        keys: { [workflowArtifactKeyId]: workflowArtifactKey },
+        mode: "s3_local_keyring",
+        region: s3Region,
+      },
+      databaseUrl: databaseUrlForRole(administrativeUrl, roles.api),
+      mode: "postgres",
+    },
+  };
+  const app = await createApp(apiConfig, {
+    authenticator: { authenticate: async () => structuredClone(selectedPrincipal) },
+    clock,
+    modelAssuranceRepository: assuranceRepository,
+  });
+  let evaluationWorker: PostgresEvaluationWorkerRuntime | undefined;
+  let modelWorker: PostgresModelEvaluationWorkerRuntime | undefined;
+  try {
+    const apiUrl = await app.listen({ host: "127.0.0.1", port: 0 });
+    evaluationWorker = await createPostgresEvaluationWorker({
+      clock,
+      databaseUrl: databaseUrlForRole(administrativeUrl, roles.evaluationWorker),
+      onIdleError: (error) => {
+        throw error;
+      },
+    });
+    modelWorker = await createPostgresModelEvaluationWorker({
+      clock,
+      databaseUrl: databaseUrlForRole(administrativeUrl, roles.modelEvaluationWorker),
+      onIdleError: (error) => {
+        throw error;
+      },
+    });
+    const clientOptions = {
+      authentication: { mode: "development" as const },
+      endpoint: apiUrl,
+      environmentId: workflowScope.environmentId,
+      projectId: workflowScope.projectId,
+      timeoutMs: 20_000,
+    };
+    return {
+      apiUrl,
+      close: async () => {
+        await Promise.all([
+          app.close(),
+          evaluationWorker?.close(),
+          modelWorker?.close(),
+          controlPool.end(),
+          executionPool.end(),
+          humanPool.end(),
+        ]);
+      },
+      comparisonClient: new ProofStackComparisonClient(clientOptions),
+      evaluationClient: new ProofStackEvaluationClient(clientOptions),
+      evaluationWorker,
+      modelClient: new ProofStackModelAssuranceClient(clientOptions),
+      modelWorker,
+      regressionClient: new ProofStackRegressionClient(clientOptions),
+      replayClient: new ProofStackReplayClient(clientOptions),
+      selectApiPrincipal: (principal) => {
+        selectedPrincipal = principal;
+      },
+    };
+  } catch (error) {
+    await Promise.allSettled([
+      app.close(),
+      evaluationWorker?.close(),
+      modelWorker?.close(),
+      controlPool.end(),
+      executionPool.end(),
+      humanPool.end(),
+    ]);
+    throw error;
+  }
+}
+
+async function verifyWorkflowReadBack(
+  summary: Workflow1AcceptanceSummary,
+  runtime: WorkflowRuntime,
+): Promise<void> {
+  const predecessor = await runtime.regressionClient.readFixtureVersion(
+    summary.durableReplay.predecessor,
+  );
+  expect(predecessor.version.definitionSha256).toBe(
+    summary.durableReplay.predecessor.definitionSha256,
+  );
+  const fixture = await runtime.regressionClient.readRecordedInteractionFixtureMetadata(
+    summary.durableReplay.fixture,
+  );
+  expect(fixture.version.definitionSha256).toBe(summary.durableReplay.fixture.definitionSha256);
+  const dataset = await runtime.regressionClient.readDatasetVersion(summary.durableReplay.dataset);
+  expect(dataset.version.definitionSha256).toBe(summary.durableReplay.dataset.definitionSha256);
+
+  for (const job of Object.values(summary.durableReplay.jobs)) {
+    const persisted = await runtime.replayClient.readReplayJob({ jobId: job.jobId });
+    expect(persisted.snapshot.job.status).toBe(job.status);
+  }
+  const plan = await runtime.replayClient.readReplayPlan(summary.durableReplay.replayPlan);
+  expect(plan.plan.definitionSha256).toBe(summary.durableReplay.replayPlan.definitionSha256);
+  const release = await runtime.replayClient.readTargetRelease(summary.durableReplay.targetRelease);
+  expect(release.release.definitionSha256).toBe(
+    summary.durableReplay.targetRelease.definitionSha256,
+  );
+
+  for (const reference of summary.evaluation.readBack.records) {
+    const persisted = await runtime.evaluationClient.readRecord(reference);
+    expect(persisted.result.kind).toBe(reference.kind);
+    expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+  }
+  for (const reference of summary.modelAssurance.readBack.evaluationRecords) {
+    const persisted = await runtime.evaluationClient.readRecord(reference);
+    expect(persisted.result.kind).toBe(reference.kind);
+    expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+  }
+  for (const reference of summary.modelAssurance.readBack.modelRecords) {
+    const persisted = await runtime.modelClient.readRecord(reference);
+    expect(persisted.result.kind).toBe(reference.kind);
+    expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+  }
+  for (const reference of summary.verifiedComparisonRecords) {
+    const persisted = await runtime.comparisonClient.readRecord(reference);
+    expect(persisted.result.kind).toBe(reference.kind);
+    expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+  }
+
+  const resultArtifact = summary.durableReplay.jobs.success.evidenceReference.result;
+  const content = await runtime.regressionClient.readArtifactContent({
+    artifactId: resultArtifact.artifactId,
+  });
+  expect(content.content.byteLength).toBe(resultArtifact.sizeBytes);
+  expect(content.sha256).toBe(resultArtifact.sha256);
+
+  const traceResponse = await fetch(
+    new URL(
+      `/v1/projects/${workflowScope.projectId}/environments/${workflowScope.environmentId}/traces/${summary.durableReplay.traceId}`,
+      runtime.apiUrl,
+    ),
+    { headers: { accept: "application/json" }, redirect: "manual" },
+  );
+  expect(traceResponse.status).toBe(200);
+  const trace = TraceResponseSchema.parse(await traceResponse.json());
+  expect(trace.events.map(({ evidence }) => evidence.kind).sort()).toEqual([
+    "agent.run",
+    "model.generate",
+    "tool.execute",
+  ]);
+  expect(summary.result.comparability).toEqual({
+    reasons: ["unresolved_critical_counterevidence"],
+    status: "incomparable",
+  });
 }
 
 function sha256(value: Uint8Array): string {
@@ -1533,6 +1863,72 @@ async function seedRecoverableComparisonGraph(): Promise<void> {
   }
 }
 
+async function seedRecoverableWorkflow1Graph(): Promise<void> {
+  const roles = workflowRuntimeRoleOptions("source");
+  await provisionRuntimeRoles(sourcePool, roles);
+  const outputRoot = await mkdtemp(join(tmpdir(), "proofstack-recovery-workflow-1-"));
+  temporaryDirectories.push(outputRoot);
+  const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: fileURLToPath(new URL("../../..", import.meta.url)),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+  const assessmentValidUntil = new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString();
+  const controlPrincipal = workflowControlPrincipal();
+  let runtime = await createWorkflowRuntime(
+    databaseUrl,
+    roles,
+    recoveryBuckets.source,
+    "source-before-restart",
+  );
+  let prepared: PreparedWorkflow1Acceptance;
+  try {
+    prepared = await prepareWorkflow1Acceptance({
+      assessmentValidUntil,
+      comparisonClient: runtime.comparisonClient,
+      controlPrincipal,
+      durableReplay: {
+        apiUrl: runtime.apiUrl,
+        environmentId: workflowScope.environmentId,
+        outputRoot,
+        projectId: workflowScope.projectId,
+        sourceRevision,
+        tenantId: workflowScope.tenantId,
+        workerDatabaseUrl: databaseUrlForRole(databaseUrl, roles.replayWorker),
+        workerEntryPointPath: fileURLToPath(
+          import.meta.resolve("@proofstack/example-durable-replay/worker"),
+        ),
+      },
+      evaluationClient: runtime.evaluationClient,
+      evaluationWorker: runtime.evaluationWorker,
+      modelClient: runtime.modelClient,
+      modelWorker: runtime.modelWorker,
+      namespace: workflowNamespace,
+      selectApiPrincipal: runtime.selectApiPrincipal,
+    });
+  } finally {
+    await runtime.close();
+  }
+
+  runtime = await createWorkflowRuntime(
+    databaseUrl,
+    roles,
+    recoveryBuckets.source,
+    "source-after-restart",
+  );
+  try {
+    await Promise.all([
+      runtime.evaluationWorker.checkReadiness(),
+      runtime.modelWorker.checkReadiness(),
+    ]);
+    const summary = await completeWorkflow1Acceptance(runtime.comparisonClient, prepared);
+    await verifyWorkflowReadBack(summary, runtime);
+    workflowRecoverySummary = summary;
+  } finally {
+    await runtime.close();
+  }
+}
+
 async function seedAuthoritativeState(): Promise<void> {
   await migrateDatabase(sourcePool);
 
@@ -1544,6 +1940,7 @@ async function seedAuthoritativeState(): Promise<void> {
   await seedRecoverableReplayState();
   await seedRecoverableEvaluationGraph();
   await seedRecoverableComparisonGraph();
+  await seedRecoverableWorkflow1Graph();
   await new PostgresProjectionCursorRepository(sourcePool).advance(scope.tenantId, {
     consumerName: "trace.projector",
     generation: 1,
@@ -1639,6 +2036,23 @@ function requiredRecordedRecoveryState(): NonNullable<typeof recordedRecoverySta
 function requiredReplayRecoveryState(): NonNullable<typeof replayRecoveryState> {
   if (!replayRecoveryState) throw new Error("Replay recovery authority was not seeded");
   return replayRecoveryState;
+}
+
+function requiredWorkflowRecoverySummary(): Workflow1AcceptanceSummary {
+  if (!workflowRecoverySummary) throw new Error("Workflow 1 recovery graph was not seeded");
+  return workflowRecoverySummary;
+}
+
+async function emptyRecoveryBucket(bucket: string): Promise<void> {
+  while (true) {
+    const page = await bucketClient.send(new ListObjectsV2Command({ Bucket: bucket }));
+    const objects = (page.Contents ?? []).flatMap(({ Key }) => (Key ? [{ Key }] : []));
+    if (objects.length === 0) return;
+    const deleted = await bucketClient.send(
+      new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: objects } }),
+    );
+    expect(deleted.Errors ?? []).toEqual([]);
+  }
 }
 
 function intentOrderKey(intent: RegressionVersionPublishedOutboxIntent): Buffer {
@@ -1802,6 +2216,7 @@ afterAll(async () => {
     await restoredPool.end();
   }
   for (const roleName of managedRoles) {
+    await sourcePool.query(`DROP OWNED BY ${quotedIdentifier(roleName)}`);
     await sourcePool.query(`DROP ROLE IF EXISTS ${quotedIdentifier(roleName)}`);
   }
   await sourcePool.query(
@@ -1821,6 +2236,7 @@ afterAll(async () => {
   backupObjects.destroy();
   restoredObjects.destroy();
   for (const bucket of createdBuckets) {
+    await emptyRecoveryBucket(bucket);
     await bucketClient.send(new DeleteBucketCommand({ Bucket: bucket }));
   }
   bucketClient.destroy();
@@ -1866,12 +2282,13 @@ describe("coordinated recovery rehearsal", () => {
     const availableObjectRows = await sourcePool.query<{ readonly object_key: string }>(`
       SELECT object_key
       FROM public.proofstack_artifact_catalog
-      WHERE tenant_id = 'ten_recovery' AND state = 'available'
+      WHERE state = 'available'
       ORDER BY object_key COLLATE "C"
     `);
     const sourceCiphertexts = new Map<string, Uint8Array>();
     const inventory = [];
     for (const { object_key: objectKey } of availableObjectRows.rows) {
+      trackedObjectKeys.add(objectKey);
       const ciphertext = await sourceObjects.get(objectKey);
       if (!ciphertext) throw new Error(`Available recovery ciphertext ${objectKey} is missing`);
       sourceCiphertexts.set(objectKey, ciphertext);
@@ -1900,6 +2317,7 @@ describe("coordinated recovery rehearsal", () => {
     const keySnapshot = {
       [artifactKeyId]: Uint8Array.from(artifactKeyMaterial),
       [rotatedArtifactKeyId]: Uint8Array.from(rotatedArtifactKeyMaterial),
+      [workflowArtifactKeyId]: Uint8Array.from(Buffer.from(workflowArtifactKey, "base64url")),
     };
     const configuration = Buffer.from(
       `${JSON.stringify({
@@ -1935,7 +2353,7 @@ describe("coordinated recovery rehearsal", () => {
       keyProvider: {
         provider: "test-keyring",
         reference: "provider:test-key-snapshot",
-        referencedKeyIds: [artifactKeyId, rotatedArtifactKeyId].sort(),
+        referencedKeyIds: [artifactKeyId, rotatedArtifactKeyId, workflowArtifactKeyId].sort(),
       },
       objectSnapshot: {
         bucketPolicySha256: sha256(bucketPolicy),
@@ -2137,9 +2555,13 @@ describe("coordinated recovery rehearsal", () => {
       expectedRegressionPublicationIntents(),
     );
     const restoredCatalog = new PostgresArtifactCatalogRepository(restoredPool);
-    const restoredKeyIds = (await restoredCatalog.listKeyReferences(scope)).map(
-      ({ keyId }) => keyId,
-    );
+    const restoredKeyIds = [
+      ...(await restoredCatalog.listKeyReferences(scope)),
+      ...(await restoredCatalog.listKeyReferences(workflowScope)),
+    ]
+      .map(({ keyId }) => keyId)
+      .filter((keyId, index, keyIds) => keyIds.indexOf(keyId) === index)
+      .sort();
     expect(
       verifyRecoverySet({
         configuration,
@@ -2152,7 +2574,7 @@ describe("coordinated recovery rehearsal", () => {
       }),
     ).toEqual({
       databaseBytes: databaseDump.byteLength,
-      keyCount: 2,
+      keyCount: 3,
       migrationCount: sourceLedger.length,
       objectCount: inventory.length,
       recoverySetId: "rec_foundation_two_rehearsal",
@@ -2163,6 +2585,24 @@ describe("coordinated recovery rehearsal", () => {
     await expect(
       assertMigrationsCurrent(restoredPool, migrations.slice(0, -1)),
     ).rejects.toBeInstanceOf(MigrationIntegrityError);
+
+    const restoredWorkflowRoles = workflowRuntimeRoleOptions("restored");
+    await provisionRuntimeRoles(restoredPool, restoredWorkflowRoles);
+    const restoredWorkflowRuntime = await createWorkflowRuntime(
+      restoredDatabaseUrl,
+      restoredWorkflowRoles,
+      recoveryBuckets.restored,
+      "restored",
+    );
+    try {
+      await Promise.all([
+        restoredWorkflowRuntime.evaluationWorker.checkReadiness(),
+        restoredWorkflowRuntime.modelWorker.checkReadiness(),
+      ]);
+      await verifyWorkflowReadBack(requiredWorkflowRecoverySummary(), restoredWorkflowRuntime);
+    } finally {
+      await restoredWorkflowRuntime.close();
+    }
 
     const roles = runtimeRoleOptions();
     await provisionRuntimeRoles(restoredPool, roles);
