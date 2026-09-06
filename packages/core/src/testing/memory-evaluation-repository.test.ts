@@ -186,6 +186,15 @@ describe("MemoryEvaluationRepository", () => {
     await expect(repository.publishSourceReview(review)).rejects.toBeInstanceOf(
       EvaluationLineageError,
     );
+
+    const borrowedQualification = sourceReviewerQualification("borrowed", expectedScope);
+    const borrowedReview = sourceReview("borrowed", expectedScope, source, borrowedQualification);
+    borrowedReview.reviewedByPrincipalId = review.reviewedByPrincipalId;
+    await repository.publishSourceReviewerQualification(borrowedQualification);
+    await expect(repository.publishSourceReview(borrowedReview)).rejects.toBeInstanceOf(
+      EvaluationLineageError,
+    );
+
     await repository.publishSourceReviewerQualification(reviewerQualification);
     await repository.publishSourceReview(review);
 

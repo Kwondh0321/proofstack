@@ -214,6 +214,7 @@ function evaluationDefinition(fixture: EvaluationRepositoryFixtureRecord): objec
     qualification_report: ["executedByPrincipalId", "recordedAt"],
     raw_observation: ["recordedAt"],
     source_review: ["reviewedAt", "reviewedByPrincipalId", "reviewerRole"],
+    source_reviewer_qualification: ["recordedAt", "verifiedByPrincipalId"],
     source_snapshot: ["publishedByPrincipalId", "recordedAt"],
   };
   return withoutKeys(fixture.record, [...common, ...receipts[fixture.kind]]);

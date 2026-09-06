@@ -52,6 +52,7 @@ interface MutableObject {
   query?: unknown;
   resultId?: unknown;
   reviewerPrincipalId?: unknown;
+  reviewedByPrincipalId?: unknown;
   reviewedConflicts?: unknown;
   run?: unknown;
   source?: unknown;
@@ -144,7 +145,7 @@ function receipt(kind: EvaluationRecordKind): Record<string, unknown> {
         reviewerRole: "Independent repository conformance reviewer",
       };
     case "source_reviewer_qualification":
-      return { recordedAt: timestamp, verifiedByPrincipalId: principal };
+      return { recordedAt: timestamp, verifiedByPrincipalId: "usr_credential_authority" };
     case "source_snapshot":
       return { publishedByPrincipalId: principal, recordedAt: timestamp };
   }
@@ -259,7 +260,7 @@ export function createEvaluationRepositoryTestHarness(
 
   const reviewerQualificationBody = template("source_reviewer_qualification");
   reviewerQualificationBody.qualificationId = "srq_primary";
-  reviewerQualificationBody.reviewerPrincipalId = "usr_source_reviewer";
+  reviewerQualificationBody.reviewerPrincipalId = "usr_repository_conformance";
   delete reviewerQualificationBody.predecessor;
   const reviewerQualification = add("source_reviewer_qualification", reviewerQualificationBody);
 
@@ -462,6 +463,20 @@ export function createEvaluationRepositoryTestHarness(
     record: materialize("aggregation_policy", resourceBody, otherScope),
   } as unknown as EvaluationRepositoryFixtureRecord;
 
+  const reviewerQualificationConflictBody = definitionFromRecord("source_review", review);
+  reviewerQualificationConflictBody.sourceReviewId = `srv_${namespace}_borrowed_qualification`;
+  const reviewerQualificationConflictRecord = materialize(
+    "source_review",
+    reviewerQualificationConflictBody,
+    graphScope,
+  );
+  (reviewerQualificationConflictRecord as unknown as MutableObject).reviewedByPrincipalId =
+    "usr_unqualified_reviewer";
+  const reviewerQualificationConflict = {
+    kind: "source_review",
+    record: reviewerQualificationConflictRecord,
+  } as unknown as EvaluationRepositoryFixtureRecord;
+
   const observationConflictBody = definitionFromRecord("raw_observation", observation0);
   observationConflictBody.observationId = `obs_${namespace}_duplicate_attempt`;
   const resultConflictBody = definitionFromRecord("evaluation_run_result", result0);
@@ -482,6 +497,7 @@ export function createEvaluationRepositoryTestHarness(
     recordConflict,
     records,
     repository: new MemoryEvaluationRepository(),
+    reviewerQualificationConflict,
     resourceConflict,
     scope: graphScope,
     uniquenessConflicts,

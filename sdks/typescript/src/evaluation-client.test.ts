@@ -82,6 +82,8 @@ function receipt(kind: EvaluationRecordKind): Record<string, unknown> {
         reviewedByPrincipalId: principalId,
         reviewerRole: "Independent SDK verification reviewer",
       };
+    case "source_reviewer_qualification":
+      return { recordedAt: timestamp, verifiedByPrincipalId: principalId };
     case "source_snapshot":
       return { publishedByPrincipalId: principalId, recordedAt: timestamp };
   }
@@ -114,6 +116,7 @@ function storedRecordId(kind: EvaluationRecordKind, record: Record<string, unkno
     qualification_report: "qualificationReportId",
     raw_observation: "observationId",
     source_review: "sourceReviewId",
+    source_reviewer_qualification: "qualificationId",
     source_snapshot: "sourceSnapshotId",
   };
   const value = record[keys[kind]];
@@ -192,7 +195,7 @@ function developmentClient(fetch: typeof globalThis.fetch, overrides = {}) {
 }
 
 describe("ProofStackEvaluationClient", () => {
-  it("reads and verifies all 16 immutable record kinds", async () => {
+  it("reads and verifies all 17 immutable record kinds", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     for (const item of vectors) {
       fetch.mockResolvedValueOnce(
@@ -208,7 +211,7 @@ describe("ProofStackEvaluationClient", () => {
         item.kind,
       ).resolves.toMatchObject({ result: { kind: item.kind } });
     }
-    expect(fetch).toHaveBeenCalledTimes(16);
+    expect(fetch).toHaveBeenCalledTimes(17);
   });
 
   it("crosses every public exact route and independently verifies responses", async () => {

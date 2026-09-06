@@ -15,6 +15,7 @@ import type {
   QualificationFixtureSet,
   QualificationReport,
   RawObservation,
+  SourceReviewerQualification,
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
@@ -230,6 +231,16 @@ function projection(
         runId: null,
         verdict: null,
       };
+    case "source_reviewer_qualification":
+      return {
+        actorPrincipalId: stringValue(record, "verifiedByPrincipalId"),
+        attemptId: null,
+        attemptSequence: null,
+        lifecycleState: stringValue(record, "status"),
+        recordedAt: stringValue(record, "recordedAt"),
+        runId: null,
+        verdict: null,
+      };
     case "source_snapshot":
       return {
         actorPrincipalId: stringValue(record, "publishedByPrincipalId"),
@@ -253,6 +264,7 @@ const definitionKinds = new Set<EvaluationRecordKind>([
 const sourceKinds = new Set<EvaluationRecordKind>([
   "discovery_record",
   "source_review",
+  "source_reviewer_qualification",
   "source_snapshot",
 ]);
 const runKinds = new Set<EvaluationRecordKind>(["evaluation_run", "evaluation_run_rejection"]);
@@ -589,6 +601,9 @@ export class PostgresEvaluationRepository implements EvaluationRepository {
   async findSourceReview(scope: EvidenceScope, id: string) {
     return this.find<SourceReviewRecord>("source_review", scope, id);
   }
+  async findSourceReviewerQualification(scope: EvidenceScope, id: string) {
+    return this.find<SourceReviewerQualification>("source_reviewer_qualification", scope, id);
+  }
   async findSourceSnapshot(scope: EvidenceScope, id: string) {
     return this.find<SourceSnapshot>("source_snapshot", scope, id);
   }
@@ -637,6 +652,9 @@ export class PostgresEvaluationRepository implements EvaluationRepository {
   }
   async publishSourceReview(candidate: SourceReviewRecord) {
     return this.publish("source_review", candidate);
+  }
+  async publishSourceReviewerQualification(candidate: SourceReviewerQualification) {
+    return this.publish("source_reviewer_qualification", candidate);
   }
   async publishSourceSnapshot(candidate: SourceSnapshot) {
     return this.publish("source_snapshot", candidate);

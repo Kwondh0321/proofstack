@@ -221,6 +221,8 @@ function receiptKeys(kind: EvaluationRecordKind): readonly string[] {
       return [...commonReceiptKeys, "recordedAt"];
     case "source_review":
       return [...commonReceiptKeys, "reviewedAt", "reviewedByPrincipalId", "reviewerRole"];
+    case "source_reviewer_qualification":
+      return [...commonReceiptKeys, "recordedAt", "verifiedByPrincipalId"];
     case "source_snapshot":
       return [...commonReceiptKeys, "publishedByPrincipalId", "recordedAt"];
   }
@@ -262,6 +264,8 @@ function recordId(kind: EvaluationRecordKind, record: Record<string, unknown>): 
       return field(record, "observationId");
     case "source_review":
       return field(record, "sourceReviewId");
+    case "source_reviewer_qualification":
+      return field(record, "qualificationId");
     case "source_snapshot":
       return field(record, "sourceSnapshotId");
   }

@@ -36,7 +36,7 @@ const vectors = [
 
 describe("evaluation definition digest", () => {
   it("reproduces every language-independent contract vector", async () => {
-    expect(vectors).toHaveLength(16);
+    expect(vectors).toHaveLength(17);
     for (const vector of vectors) {
       await expect(
         digestEvaluationDefinition(vector.kind, vector.input.scope, vector.input.definition),

@@ -507,6 +507,23 @@ export class MemoryEvaluationRepository implements EvaluationRepository {
       }
     }
 
+    if (kind === "source_review") {
+      const review = validated as SourceReviewRecord;
+      if (review.reviewerQualification) {
+        const qualification = current.records.get(
+          recordKey("source_reviewer_qualification", review.reviewerQualification.qualificationId),
+        ) as SourceReviewerQualification | undefined;
+        if (qualification?.reviewerPrincipalId !== review.reviewedByPrincipalId) {
+          throw new EvaluationLineageError(
+            kind,
+            id,
+            "source_reviewer_qualification",
+            review.reviewerQualification.qualificationId,
+          );
+        }
+      }
+    }
+
     const binding = evaluationRecordUniqueBinding(kind, validated);
     if (binding) {
       const existingId = current.uniqueBindings.get(binding.key);

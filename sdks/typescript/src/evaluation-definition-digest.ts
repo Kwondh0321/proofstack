@@ -16,6 +16,7 @@ import {
   encodeQualificationReportDefinition,
   encodeRawObservationDefinition,
   encodeSourceReviewDefinition,
+  encodeSourceReviewerQualificationDefinition,
   encodeSourceSnapshotDefinition,
 } from "@proofstack/contracts";
 
@@ -63,6 +64,8 @@ function encodeDefinition(
       return encodeRawObservationDefinition(input as never);
     case "source_review":
       return encodeSourceReviewDefinition(input as never);
+    case "source_reviewer_qualification":
+      return encodeSourceReviewerQualificationDefinition(input as never);
     case "source_snapshot":
       return encodeSourceSnapshotDefinition(input as never);
   }

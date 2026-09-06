@@ -65,6 +65,7 @@ export interface EvaluationRepositoryTestHarness {
   readonly otherScope: EvidenceScope;
   readonly records: readonly EvaluationRepositoryFixtureRecord[];
   readonly repository: EvaluationRepository;
+  readonly reviewerQualificationConflict: EvaluationRepositoryFixtureRecord;
   readonly resourceConflict: EvaluationRepositoryFixtureRecord;
   readonly scope: EvidenceScope;
   readonly uniquenessConflicts: readonly EvaluationRepositoryFixtureRecord[];
@@ -331,6 +332,18 @@ export const evaluationRepositoryConformanceCases: readonly EvaluationRepository
               harness.repository,
               harness.resourceConflict.record.scope,
               harness.resourceConflict,
+            ),
+            null,
+          );
+          await assert.rejects(
+            publishEvaluationFixture(harness.repository, harness.reviewerQualificationConflict),
+            EvaluationLineageError,
+          );
+          assert.equal(
+            await findFixture(
+              harness.repository,
+              harness.scope,
+              harness.reviewerQualificationConflict,
             ),
             null,
           );

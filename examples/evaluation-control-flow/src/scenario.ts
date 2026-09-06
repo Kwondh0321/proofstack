@@ -242,6 +242,9 @@ export class EvaluationScenario {
     object(approvedScope["environments"], "approved environments")["values"] = [this.environmentId];
     definition["rationale"] =
       "The conflicting primary source is current and retained as explicit counterevidence.";
+    // This intentionally contested flow has no independently verified reviewer qualification.
+    // Qualification-aware examples must publish an exact qualification from a different verifier.
+    delete definition["reviewerQualification"];
     delete definition["supersedesReview"];
     return SourceReviewDefinitionSchema.parse(definition);
   }
@@ -263,6 +266,8 @@ export class EvaluationScenario {
     definition["rationale"] =
       "The review is expired and the conflicting primary source remains unresolved.";
     definition["validUntil"] = "2026-09-01T00:00:00Z";
+    // Keep the negative example explicitly unqualified instead of inheriting a fixture identity.
+    delete definition["reviewerQualification"];
     delete definition["supersedesReview"];
     return SourceReviewDefinitionSchema.parse(definition);
   }

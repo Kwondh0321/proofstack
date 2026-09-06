@@ -98,6 +98,7 @@ const TENANT_TABLES = [
   "proofstack_evaluation_run_results",
   "proofstack_evaluation_runs",
   "proofstack_evaluation_source_reviews",
+  "proofstack_evaluation_source_reviewer_qualifications",
   "proofstack_evaluation_source_snapshots",
   "proofstack_evaluation_unique_bindings",
   "proofstack_evidence_events",
