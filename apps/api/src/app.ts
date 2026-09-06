@@ -54,6 +54,7 @@ import {
   InvalidEvaluationRecordInputError,
   InvalidModelAssuranceRecordInputError,
   InvalidReleaseCandidateCommandError,
+  InvalidReleasePolicyCommandError,
   InvalidTraceCursorError,
   ListTraceEvidence,
   ModelAssuranceDependencyError,
@@ -66,10 +67,14 @@ import {
   PublishEvaluationDefinition,
   PublishModelAssuranceDefinition,
   PublishReleaseCandidate,
+  PublishReleasePolicy,
+  PublishReleasePolicyLifecycle,
   ReadComparisonRecord,
   ReadEvaluationRecord,
   ReadModelAssuranceRecord,
   ReadReleaseCandidate,
+  ReadReleasePolicy,
+  ReadReleasePolicyLifecycle,
   RecordCriterionSetStatus,
   RecordEvaluationRunDecision,
   RecordHumanReview,
@@ -82,7 +87,23 @@ import {
   type ReleaseCandidateSourceResolver,
   ReleaseCandidateSourceUnavailableError,
   ReleaseCandidateVersionConflictError,
+  type PolicyInstallationBindingResolver,
+  RepositoryReleasePolicyAuthorityResolver,
+  ReleasePolicyAuthorityRejectedError,
+  type ReleasePolicyAuthorityEvidenceResolver,
+  ReleasePolicyAuthorityResolutionError,
+  ReleasePolicyAuthorityResolverContractError,
+  ReleasePolicyLifecycleEventConflictError,
+  ReleasePolicyLifecycleEventNotFoundError,
+  ReleasePolicyLifecycleStateConflictError,
+  ReleasePolicyLineageError,
+  ReleasePolicyNotFoundError,
+  type ReleasePolicyRepository,
+  ReleasePolicyRepositoryContractError,
+  ReleasePolicyResourceConflictError,
+  ReleasePolicyVersionConflictError,
   ResolveCriteriaTrust,
+  StaticPolicyInstallationBindingResolver,
   SystemClock,
   TraceNotFoundError,
 } from "@proofstack/core";
@@ -162,6 +183,7 @@ import { registerOtlpRoutes } from "./otlp-routes.js";
 import { sendProblem } from "./problem.js";
 import { registerInteractionFixtureRoutes, registerRegressionRoutes } from "./regression-routes.js";
 import { registerReleaseCandidateRoutes } from "./release-candidate-routes.js";
+import { registerReleasePolicyRoutes } from "./release-policy-routes.js";
 import { registerReplayRoutes } from "./replay-routes.js";
 import {
   isExactEvidenceRepository,
@@ -189,11 +211,14 @@ export interface AppDependencies {
   readonly identityStorage?: IdentityStorage;
   readonly modelAssuranceRepository?: ModelAssuranceRepository;
   readonly oidcRuntime?: OidcRuntime;
+  readonly policyInstallationBindingResolver?: PolicyInstallationBindingResolver;
   readonly regressionVersionRepository?: RegressionVersionRepository;
   readonly releaseCandidateRepository?: ReleaseCandidateRepository;
   readonly releaseCandidateRevisionAuthority?: ReleaseCandidateRevisionAuthority;
   readonly releaseCandidateRuntimeAuthority?: ReleaseCandidateRuntimeAuthority;
   readonly releaseCandidateSourceResolver?: ReleaseCandidateSourceResolver;
+  readonly releasePolicyAuthorityResolver?: ReleasePolicyAuthorityEvidenceResolver;
+  readonly releasePolicyRepository?: ReleasePolicyRepository;
   readonly repository?: EvidenceRepository;
   readonly replayDefinitionRepository?: ReplayDefinitionRepository;
   readonly replayJobControlRepository?: ReplayJobControlRepository;
@@ -241,6 +266,7 @@ export async function createApp(
       dependencies.modelAssuranceRepository ||
       dependencies.regressionVersionRepository ||
       dependencies.releaseCandidateRepository ||
+      dependencies.releasePolicyRepository ||
       dependencies.artifactStorage ||
       dependencies.replayDefinitionRepository ||
       dependencies.replayJobControlRepository
@@ -263,6 +289,8 @@ export async function createApp(
               : {}),
             releaseCandidateRepository:
               dependencies.releaseCandidateRepository ?? defaultStorage.releaseCandidateRepository,
+            releasePolicyRepository:
+              dependencies.releasePolicyRepository ?? defaultStorage.releasePolicyRepository,
             replayDefinitionRepository:
               dependencies.replayDefinitionRepository ?? defaultStorage.replayDefinitionRepository,
             replayJobControlRepository:
@@ -352,6 +380,15 @@ export async function createApp(
         ...(dependencies.releaseCandidateRuntimeAuthority
           ? { runtimeAuthority: dependencies.releaseCandidateRuntimeAuthority }
           : {}),
+      });
+    const releasePolicyAuthorityResolver =
+      dependencies.releasePolicyAuthorityResolver ??
+      new RepositoryReleasePolicyAuthorityResolver({
+        artifactResolver: criteriaTrustArtifactResolver,
+        installationBindingResolver:
+          dependencies.policyInstallationBindingResolver ??
+          new StaticPolicyInstallationBindingResolver([]),
+        sourceRepository: storage.evaluationRepository,
       });
 
     await app.register(helmet, {
@@ -448,6 +485,20 @@ export async function createApp(
         sourceResolver: releaseCandidateSourceResolver,
       }),
       readCandidate: new ReadReleaseCandidate(storage.releaseCandidateRepository),
+    });
+    await registerReleasePolicyRoutes(app, {
+      authenticator,
+      publishLifecycle: new PublishReleasePolicyLifecycle({
+        clock,
+        repository: storage.releasePolicyRepository,
+      }),
+      publishPolicy: new PublishReleasePolicy({
+        authorityResolver: releasePolicyAuthorityResolver,
+        clock,
+        repository: storage.releasePolicyRepository,
+      }),
+      readLifecycle: new ReadReleasePolicyLifecycle(storage.releasePolicyRepository),
+      readPolicy: new ReadReleasePolicy(storage.releasePolicyRepository),
     });
     await registerModelAssuranceRoutes(app, {
       authenticator,
@@ -799,6 +850,84 @@ export async function createApp(
           status: 503,
           title: "Release candidate storage unavailable",
           type: "https://proofstack.dev/problems/release-candidate-storage-unavailable",
+        });
+      }
+
+      if (error instanceof InvalidReleasePolicyCommandError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The release policy request does not match the required immutable contract",
+          requestId: request.id,
+          status: 400,
+          title: "Invalid release policy request",
+          type: "https://proofstack.dev/problems/release-policy-command-invalid",
+        });
+      }
+
+      if (
+        error instanceof ReleasePolicyNotFoundError ||
+        error instanceof ReleasePolicyLifecycleEventNotFoundError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: error.message,
+          requestId: request.id,
+          status: 404,
+          title: "Release policy resource not found",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (error instanceof ReleasePolicyAuthorityRejectedError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "Release policy publication authority was rejected",
+          requestId: request.id,
+          status: 409,
+          title: "Release policy authority rejected",
+          type: "https://proofstack.dev/problems/release-policy-authority-rejected",
+        });
+      }
+
+      if (
+        error instanceof ReleasePolicyLifecycleEventConflictError ||
+        error instanceof ReleasePolicyLifecycleStateConflictError ||
+        error instanceof ReleasePolicyLineageError ||
+        error instanceof ReleasePolicyResourceConflictError ||
+        error instanceof ReleasePolicyVersionConflictError
+      ) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The release policy operation conflicts with existing immutable state",
+          requestId: request.id,
+          status: 409,
+          title: "Release policy graph conflict",
+          type: `https://proofstack.dev/problems/${error.code.replaceAll("_", "-")}`,
+        });
+      }
+
+      if (
+        error instanceof ReleasePolicyAuthorityResolutionError ||
+        error instanceof ReleasePolicyAuthorityResolverContractError
+      ) {
+        return sendProblem(reply, {
+          code: "release_policy_authority_unavailable",
+          detail: "Release policy authority resolution is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Release policy authority unavailable",
+          type: "https://proofstack.dev/problems/release-policy-authority-unavailable",
+        });
+      }
+
+      if (error instanceof ReleasePolicyRepositoryContractError) {
+        return sendProblem(reply, {
+          code: "release_policy_storage_unavailable",
+          detail: "Release policy storage is unavailable",
+          requestId: request.id,
+          status: 503,
+          title: "Release policy storage unavailable",
+          type: "https://proofstack.dev/problems/release-policy-storage-unavailable",
         });
       }
 

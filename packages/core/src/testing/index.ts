@@ -63,3 +63,9 @@ export {
   releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
 } from "./release-policy-repository-fixtures.js";
+export {
+  anyPolicySourceScope,
+  type PolicyAuthorityFixture,
+  type PolicyAuthorityFixtureOptions,
+  policyAuthorityFixture,
+} from "./release-policy-fixtures.js";
