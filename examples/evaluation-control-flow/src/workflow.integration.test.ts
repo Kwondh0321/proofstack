@@ -73,6 +73,7 @@ const apiConfig: ApiConfig = {
     artifacts: { mode: "disabled" },
     databaseUrl: roleDatabaseUrl(runtimeRoles.api),
     mode: "postgres",
+    policyAuthorDatabaseUrl: roleDatabaseUrl(runtimeRoles.policyAuthor),
   },
 };
 

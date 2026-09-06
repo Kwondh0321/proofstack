@@ -551,6 +551,7 @@ async function createWorkflowRuntime(
       },
       databaseUrl: databaseUrlForRole(administrativeUrl, roles.api),
       mode: "postgres",
+      policyAuthorDatabaseUrl: databaseUrlForRole(administrativeUrl, roles.policyAuthor),
     },
   };
   const app = await createApp(apiConfig, {

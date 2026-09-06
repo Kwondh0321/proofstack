@@ -112,6 +112,7 @@ const apiConfig: ApiConfig = {
     },
     databaseUrl: roleDatabaseUrl(runtimeRoles.api),
     mode: "postgres",
+    policyAuthorDatabaseUrl: roleDatabaseUrl(runtimeRoles.policyAuthor),
   },
 };
 

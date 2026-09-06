@@ -16,8 +16,10 @@ import {
   MemoryEvidenceRepository,
   MemoryModelAssuranceRepository,
   MemoryReleaseCandidateRepository,
+  MemoryReleasePolicyRepository,
   type ModelAssuranceRepository,
   type ReleaseCandidateRepository,
+  type ReleasePolicyRepository,
 } from "@proofstack/core";
 import type {
   InteractionFixtureVersionRepository,
@@ -33,6 +35,7 @@ import {
   PostgresModelAssuranceRepository,
   PostgresRegressionVersionRepository,
   PostgresReleaseCandidateRepository,
+  PostgresReleasePolicyRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
 } from "@proofstack/postgres";
@@ -63,6 +66,7 @@ export interface ApiStorage {
   readonly regressionVersionRepository: RegressionVersionRepository;
   readonly modelAssuranceRepository: ModelAssuranceRepository;
   readonly releaseCandidateRepository: ReleaseCandidateRepository;
+  readonly releasePolicyRepository: ReleasePolicyRepository;
   readonly replayDefinitionRepository: ReplayDefinitionRepository;
   readonly replayJobControlRepository: ReplayJobControlRepository;
 }
@@ -119,6 +123,7 @@ export async function createApiStorage(
       regressionVersionRepository: interactionStorage.regressionVersionRepository,
       modelAssuranceRepository: new MemoryModelAssuranceRepository(),
       releaseCandidateRepository: new MemoryReleaseCandidateRepository(),
+      releasePolicyRepository: new MemoryReleasePolicyRepository(),
       replayDefinitionRepository,
       replayJobControlRepository: replayJobRepository,
     };
@@ -129,10 +134,17 @@ export async function createApiStorage(
     connectionString: config.databaseUrl,
     onIdleError,
   });
+  let policyAuthorPool: ReturnType<typeof createPostgresPool> | undefined;
   let persistentObjects: ManagedArtifactObjectStore | undefined;
   let artifacts: ApiArtifactStorage | undefined;
   try {
+    policyAuthorPool = dependencies.createPool({
+      applicationName: "proofstack-api-policy-author",
+      connectionString: config.policyAuthorDatabaseUrl,
+      onIdleError,
+    });
     await dependencies.assertCurrent(pool);
+    await dependencies.assertCurrent(policyAuthorPool);
     if (config.artifacts.mode === "s3_local_keyring") {
       const keys = Object.fromEntries(
         Object.entries(config.artifacts.keys).map(([keyId, encoded]) => [
@@ -163,17 +175,29 @@ export async function createApiStorage(
     }
   } catch (error) {
     persistentObjects?.destroy();
-    await pool.end();
+    await Promise.all([pool.end(), ...(policyAuthorPool ? [policyAuthorPool.end()] : [])]);
     throw error;
   }
 
+  if (!policyAuthorPool) {
+    persistentObjects?.destroy();
+    await pool.end();
+    throw new Error("Policy-author PostgreSQL connection was not initialized");
+  }
+
   const regressionVersionRepository = new PostgresRegressionVersionRepository(pool);
+  const releasePolicyRepository = new PostgresReleasePolicyRepository(policyAuthorPool);
   return {
     ...(artifacts ? { artifacts } : {}),
-    checkReadiness: () => dependencies.assertCurrent(pool),
+    checkReadiness: async () => {
+      await Promise.all([
+        dependencies.assertCurrent(pool),
+        dependencies.assertCurrent(policyAuthorPool),
+      ]);
+    },
     close: async () => {
       persistentObjects?.destroy();
-      await pool.end();
+      await Promise.all([pool.end(), policyAuthorPool.end()]);
     },
     comparisonRepository: new PostgresComparisonRepository(pool),
     evaluationRepository: new PostgresEvaluationRepository(pool),
@@ -182,6 +206,7 @@ export async function createApiStorage(
     regressionVersionRepository,
     modelAssuranceRepository: new PostgresModelAssuranceRepository(pool),
     releaseCandidateRepository: new PostgresReleaseCandidateRepository(pool),
+    releasePolicyRepository,
     replayDefinitionRepository: new PostgresReplayDefinitionRepository(pool),
     replayJobControlRepository: new PostgresReplayJobControlRepository(pool),
   };

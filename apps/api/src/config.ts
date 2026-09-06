@@ -65,6 +65,7 @@ const StorageConfigSchema = z.discriminatedUnion("mode", [
       artifacts: PostgresArtifactStorageConfigSchema,
       databaseUrl: z.string().min(1),
       mode: z.literal("postgres"),
+      policyAuthorDatabaseUrl: z.string().min(1),
     })
     .strict(),
 ]);
@@ -220,14 +221,51 @@ const ApiConfigSchema = z
         });
       }
 
+      try {
+        validatePostgresConnectionString(value.storage.policyAuthorDatabaseUrl, {
+          allowPlaintextLoopback: value.environment !== "production",
+        });
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          message:
+            error instanceof PostgresConnectionStringError
+              ? error.message
+              : "Policy-author PostgreSQL connection settings are invalid",
+          path: ["storage", "policyAuthorDatabaseUrl"],
+        });
+      }
+
+      try {
+        const evidenceRole = new URL(value.storage.databaseUrl).username;
+        const policyAuthorRole = new URL(value.storage.policyAuthorDatabaseUrl).username;
+        if (evidenceRole === policyAuthorRole) {
+          context.addIssue({
+            code: "custom",
+            message: "Evidence and policy-author PostgreSQL connections must use distinct roles",
+            path: ["storage", "policyAuthorDatabaseUrl"],
+          });
+        }
+      } catch {
+        // The connection validators above report malformed URLs with their canonical messages.
+      }
+
       if (value.identityDatabaseUrl) {
         try {
           const evidenceRole = new URL(value.storage.databaseUrl).username;
           const identityRole = new URL(value.identityDatabaseUrl).username;
+          const policyAuthorRole = new URL(value.storage.policyAuthorDatabaseUrl).username;
           if (evidenceRole === identityRole) {
             context.addIssue({
               code: "custom",
               message: "Evidence and identity PostgreSQL connections must use distinct roles",
+              path: ["identityDatabaseUrl"],
+            });
+          }
+          if (policyAuthorRole === identityRole) {
+            context.addIssue({
+              code: "custom",
+              message: "Policy-author and identity PostgreSQL connections must use distinct roles",
               path: ["identityDatabaseUrl"],
             });
           }
@@ -264,6 +302,7 @@ interface ProofStackEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_OIDC_TRANSACTION_SECRET?: string;
   readonly PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES?: string;
   readonly PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES?: string;
+  readonly PROOFSTACK_POLICY_AUTHOR_DATABASE_URL?: string;
   readonly PROOFSTACK_PORT?: string;
   readonly PROOFSTACK_STORAGE_MODE?: string;
 }
@@ -338,6 +377,12 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
   ].some((value) => value !== undefined);
   const storageMode = environment.PROOFSTACK_STORAGE_MODE ?? "memory";
   const deploymentEnvironment = environment.PROOFSTACK_ENV ?? "development";
+  if (storageMode === "postgres" && !environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_URL) {
+    throw new Error("PostgreSQL storage requires PROOFSTACK_POLICY_AUTHOR_DATABASE_URL");
+  }
+  if (storageMode !== "postgres" && environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_URL) {
+    throw new Error("PROOFSTACK_POLICY_AUTHOR_DATABASE_URL requires PostgreSQL storage mode");
+  }
   const artifacts = artifactStorageConfig(environment, storageMode, deploymentEnvironment);
   return ApiConfigSchema.parse({
     authMode: environment.PROOFSTACK_AUTH_MODE ?? "development",
@@ -373,6 +418,7 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
             artifacts,
             databaseUrl: environment.PROOFSTACK_DATABASE_URL,
             mode: "postgres",
+            policyAuthorDatabaseUrl: environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_URL,
           }
         : { mode: storageMode },
   });

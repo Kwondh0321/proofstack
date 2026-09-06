@@ -251,6 +251,9 @@ runtimeDatabaseUrl.password = runtimeRoles.api.password;
 const identityDatabaseUrl = new URL(databaseUrl);
 identityDatabaseUrl.username = runtimeRoles.identity.name;
 identityDatabaseUrl.password = runtimeRoles.identity.password;
+const policyAuthorDatabaseUrl = new URL(databaseUrl);
+policyAuthorDatabaseUrl.username = runtimeRoles.policyAuthor.name;
+policyAuthorDatabaseUrl.password = runtimeRoles.policyAuthor.password;
 const replayWorkerDatabaseUrl = new URL(databaseUrl);
 replayWorkerDatabaseUrl.username = runtimeRoles.replayWorker.name;
 replayWorkerDatabaseUrl.password = runtimeRoles.replayWorker.password;
@@ -300,6 +303,7 @@ function postgresConfig() {
     PROOFSTACK_DATABASE_URL: runtimeDatabaseUrl.toString(),
     PROOFSTACK_ENV: "test",
     PROOFSTACK_LOG_LEVEL: "silent",
+    PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: policyAuthorDatabaseUrl.toString(),
     PROOFSTACK_STORAGE_MODE: "postgres",
   });
 }
@@ -317,6 +321,7 @@ function persistentArtifactConfig() {
     PROOFSTACK_DATABASE_URL: runtimeDatabaseUrl.toString(),
     PROOFSTACK_ENV: "test",
     PROOFSTACK_LOG_LEVEL: "silent",
+    PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: policyAuthorDatabaseUrl.toString(),
     PROOFSTACK_STORAGE_MODE: "postgres",
   });
 }
@@ -328,6 +333,7 @@ function apiKeyConfig() {
     PROOFSTACK_ENV: "test",
     PROOFSTACK_IDENTITY_DATABASE_URL: identityDatabaseUrl.toString(),
     PROOFSTACK_LOG_LEVEL: "silent",
+    PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: policyAuthorDatabaseUrl.toString(),
     PROOFSTACK_STORAGE_MODE: "postgres",
   });
 }

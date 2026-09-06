@@ -4,6 +4,7 @@ import {
   MemoryEvidenceRepository,
   MemoryModelAssuranceRepository,
   MemoryReleaseCandidateRepository,
+  MemoryReleasePolicyRepository,
 } from "@proofstack/core";
 import {
   type createPostgresPool,
@@ -15,6 +16,7 @@ import {
   PostgresModelAssuranceRepository,
   PostgresRegressionVersionRepository,
   PostgresReleaseCandidateRepository,
+  PostgresReleasePolicyRepository,
   PostgresReplayDefinitionRepository,
   PostgresReplayJobControlRepository,
 } from "@proofstack/postgres";
@@ -30,6 +32,7 @@ function postgresConfig() {
     artifacts: { mode: "disabled" as const },
     databaseUrl: "postgresql://runtime@127.0.0.1:5432/proofstack",
     mode: "postgres" as const,
+    policyAuthorDatabaseUrl: "postgresql://policy-author@127.0.0.1:5432/proofstack",
   };
 }
 
@@ -47,14 +50,21 @@ function persistentPostgresConfig() {
     },
     databaseUrl: "postgresql://runtime@127.0.0.1:5432/proofstack",
     mode: "postgres" as const,
+    policyAuthorDatabaseUrl: "postgresql://policy-author@127.0.0.1:5432/proofstack",
   };
 }
 
 function fakeDependencies(options: { readonly assertCurrent?: () => Promise<void> } = {}) {
   const end = vi.fn(async () => undefined);
+  const policyAuthorEnd = vi.fn(async () => undefined);
   const pool = { end } as unknown as ReturnType<typeof createPostgresPool>;
+  const policyAuthorPool = {
+    end: policyAuthorEnd,
+  } as unknown as ReturnType<typeof createPostgresPool>;
   const assertCurrent = vi.fn(options.assertCurrent ?? (async () => undefined));
-  const createPool = vi.fn(() => pool);
+  const createPool = vi.fn((value: Parameters<typeof createPostgresPool>[0]) =>
+    value.applicationName === "proofstack-api-policy-author" ? policyAuthorPool : pool,
+  );
   const objects = {
     delete: vi.fn(async () => ({ deleted: false })),
     destroy: vi.fn(),
@@ -65,7 +75,16 @@ function fakeDependencies(options: { readonly assertCurrent?: () => Promise<void
     })),
   };
   const createObjectStore = vi.fn(() => objects);
-  return { assertCurrent, createObjectStore, createPool, end, objects, pool };
+  return {
+    assertCurrent,
+    createObjectStore,
+    createPool,
+    end,
+    objects,
+    policyAuthorEnd,
+    policyAuthorPool,
+    pool,
+  };
 }
 
 describe("createApiStorage", () => {
@@ -77,6 +96,7 @@ describe("createApiStorage", () => {
     expect(storage.evidenceRepository).toBeInstanceOf(MemoryEvidenceRepository);
     expect(storage.modelAssuranceRepository).toBeInstanceOf(MemoryModelAssuranceRepository);
     expect(storage.releaseCandidateRepository).toBeInstanceOf(MemoryReleaseCandidateRepository);
+    expect(storage.releasePolicyRepository).toBeInstanceOf(MemoryReleasePolicyRepository);
     expect(storage.interactionFixtureVersionRepository).toBe(storage.regressionVersionRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(MemoryReplayDefinitionRepository);
     expect(storage.replayJobControlRepository).toBeInstanceOf(MemoryReplayJobRepository);
@@ -102,6 +122,7 @@ describe("createApiStorage", () => {
     expect(storage.modelAssuranceRepository).toBeInstanceOf(PostgresModelAssuranceRepository);
     expect(storage.regressionVersionRepository).toBeInstanceOf(PostgresRegressionVersionRepository);
     expect(storage.releaseCandidateRepository).toBeInstanceOf(PostgresReleaseCandidateRepository);
+    expect(storage.releasePolicyRepository).toBeInstanceOf(PostgresReleasePolicyRepository);
     expect(storage.replayDefinitionRepository).toBeInstanceOf(PostgresReplayDefinitionRepository);
     expect(storage.replayJobControlRepository).toBeInstanceOf(PostgresReplayJobControlRepository);
     expect(adapters.createPool).toHaveBeenCalledWith({
@@ -109,12 +130,19 @@ describe("createApiStorage", () => {
       connectionString: postgresConfig().databaseUrl,
       onIdleError,
     });
-    expect(adapters.assertCurrent).toHaveBeenCalledOnce();
+    expect(adapters.createPool).toHaveBeenCalledWith({
+      applicationName: "proofstack-api-policy-author",
+      connectionString: postgresConfig().policyAuthorDatabaseUrl,
+      onIdleError,
+    });
+    expect(adapters.assertCurrent).toHaveBeenNthCalledWith(1, adapters.pool);
+    expect(adapters.assertCurrent).toHaveBeenNthCalledWith(2, adapters.policyAuthorPool);
 
     await storage.checkReadiness();
-    expect(adapters.assertCurrent).toHaveBeenCalledTimes(2);
+    expect(adapters.assertCurrent).toHaveBeenCalledTimes(4);
     await storage.close();
     expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
   });
 
   it("composes a persistent PostgreSQL catalog, S3 object store, and stable keyring", async () => {
@@ -138,6 +166,7 @@ describe("createApiStorage", () => {
     await storage.close();
     expect(adapters.objects.destroy).toHaveBeenCalledOnce();
     expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
   });
 
   it("closes PostgreSQL if persistent object storage construction fails", async () => {
@@ -151,6 +180,7 @@ describe("createApiStorage", () => {
       failure,
     );
     expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
   });
 
   it("closes the pool when startup migration verification fails", async () => {
@@ -163,5 +193,6 @@ describe("createApiStorage", () => {
 
     await expect(createApiStorage(postgresConfig(), vi.fn(), adapters)).rejects.toBe(failure);
     expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
   });
 });
