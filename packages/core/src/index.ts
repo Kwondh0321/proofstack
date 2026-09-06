@@ -47,11 +47,13 @@ export * from "./outbox/consumer-receipt-repository.js";
 export * from "./outbox/outbox-repository.js";
 export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
+export * from "./policy/release-policy-errors.js";
+export * from "./policy/release-policy-record-validation.js";
+export * from "./release/record-release-candidate.js";
 export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";
 export * from "./release/release-candidate-source-references.js";
-export * from "./release/record-release-candidate.js";
 export { MemoryComparisonRepository } from "./testing/memory-comparison-repository.js";
 export {
   type EvaluationRecordReference,

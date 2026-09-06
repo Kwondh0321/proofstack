@@ -1,0 +1,26 @@
+export class InvalidPolicyInstallationBindingInputError extends TypeError {
+  readonly code = "policy_installation_binding_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidPolicyInstallationBindingInputError";
+  }
+}
+
+export class InvalidReleasePolicyRecordInputError extends TypeError {
+  readonly code = "release_policy_record_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidReleasePolicyRecordInputError";
+  }
+}
+
+export class InvalidReleasePolicyLifecycleInputError extends TypeError {
+  readonly code = "release_policy_lifecycle_input_invalid";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidReleasePolicyLifecycleInputError";
+  }
+}
