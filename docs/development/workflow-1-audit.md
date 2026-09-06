@@ -104,11 +104,10 @@ PostgreSQL.
 
 ## Port and operator-surface decision
 
-Port `3010` is not a ProofStack requirement. The supported local operator console defaults to
-`3000`; a contributor may select another free port such as `3011` only when the default is already
-occupied. The acceptance command owns disposable random ports internally, so it does not require
-the user to reserve `3010`. No standalone comparison laboratory or second product site is part of
-the accepted workflow.
+The supported local operator console defaults to `3000`; a contributor may select any other free
+port only when the default is already occupied. The acceptance command owns disposable random
+ports internally and requires no separately reserved port. No standalone comparison laboratory or
+second product site is part of the accepted workflow.
 
 ## Accepted limits
 

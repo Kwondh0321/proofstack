@@ -38,8 +38,8 @@ PostgreSQL·SeaweedFS image를 사용합니다. 테스트 대상 경계에서 in
 - Docker Compose v2를 제공하는 실행 중인 Docker daemon.
 - 최초 dependency 설치와 container image pull을 위한 network 연결.
 
-runner는 무작위 loopback port만 사용합니다. 3000, 3010, 3011, 4318, 5432, 8333번 port를
-비워 둘 필요가 없으며, `.env`를 읽거나 외부 database·bucket target을 받지 않습니다.
+runner는 무작위 loopback port만 사용합니다. 고정된 application·dependency port를 비워 둘
+필요가 없으며, `.env`를 읽거나 외부 database·bucket target을 받지 않습니다.
 
 ## 깨끗한 checkout에서 실행하는 정확한 절차
 

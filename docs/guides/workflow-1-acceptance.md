@@ -38,8 +38,8 @@ otherwise exactly paired comparison `incomparable`.
 - A running Docker daemon with Docker Compose v2.
 - Network access during the first dependency install and container-image pull.
 
-The runner uses only random loopback ports. It does not need ports 3000, 3010, 3011, 4318, 5432,
-or 8333 to be free, and it does not read `.env` or accept an external database or bucket target.
+The runner uses only random loopback ports. It does not require any fixed application or dependency
+port to be free, and it does not read `.env` or accept an external database or bucket target.
 
 ## Exact clean-checkout procedure
 
