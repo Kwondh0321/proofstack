@@ -312,6 +312,7 @@ describe("evidence routes", () => {
     });
 
     expect(trace.statusCode).toBe(200);
+    expect(trace.headers["cache-control"]).toBe("no-store");
     expect(trace.json()).toMatchObject({
       events: [
         {

@@ -1118,6 +1118,12 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             "200": {
               content: { "application/json": { schema: schemaReference("TraceResponse") } },
               description: "Tenant-scoped evidence for the trace",
+              headers: {
+                "Cache-Control": {
+                  description: "Trace evidence responses are never cacheable",
+                  schema: { const: "no-store", type: "string" },
+                },
+              },
             },
             "404": {
               content: {
@@ -1128,7 +1134,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
             ...problemResponses,
           },
           security: userOrWorkloadSecurity,
-          summary: "Read a causal trace",
+          summary: "Read an ordered trace",
           tags: ["Evidence"],
         },
       },

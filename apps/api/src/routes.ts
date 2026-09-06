@@ -111,7 +111,7 @@ export async function registerRoutes(
         },
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const principal = await dependencies.authenticator.authenticate(request);
       const path = TracePathSchema.parse(request.params);
       const query = TraceQuerySchema.parse(request.query);
@@ -126,13 +126,15 @@ export async function registerRoutes(
       const lastEvent = result.events.at(-1);
       const nextCursor = result.hasMore && lastEvent ? encodeTraceCursor(lastEvent) : undefined;
 
-      return TraceResponseSchema.parse({
-        events: result.events,
-        ...(nextCursor ? { nextCursor } : {}),
-        requestId: request.id,
-        schemaVersion: EVIDENCE_SCHEMA_VERSION,
-        traceId: path.traceId,
-      });
+      return reply.header("cache-control", "no-store").send(
+        TraceResponseSchema.parse({
+          events: result.events,
+          ...(nextCursor ? { nextCursor } : {}),
+          requestId: request.id,
+          schemaVersion: EVIDENCE_SCHEMA_VERSION,
+          traceId: path.traceId,
+        }),
+      );
     },
   );
 }

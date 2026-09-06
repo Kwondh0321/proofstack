@@ -96,6 +96,25 @@ describe("ProofStack OpenAPI document", () => {
     });
   });
 
+  it("documents the non-cacheable ordered trace read boundary", () => {
+    const document = createProofStackOpenApiDocument();
+    const { paths: rawPaths } = document;
+    const paths = rawPaths as Record<
+      string,
+      {
+        get?: {
+          responses: Record<string, { headers?: Record<string, unknown> }>;
+          summary: string;
+        };
+      }
+    >;
+    const read =
+      paths["/v1/projects/{projectId}/environments/{environmentId}/traces/{traceId}"]?.get;
+
+    expect(read?.summary).toBe("Read an ordered trace");
+    expect(read?.responses["200"]?.headers).toHaveProperty("Cache-Control");
+  });
+
   it("documents policy-independent exact comparison control without mutable aliases", () => {
     const document = createProofStackOpenApiDocument();
     const { components: rawComponents, paths: rawPaths } = document;

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { TraceEventCard } from "../../../components/trace-event-card";
 import { getTrace } from "../../../lib/proofstack-api";
 
 export const metadata: Metadata = { title: "Trace detail" };
@@ -13,7 +15,12 @@ export default async function TraceDetailPage({
 }) {
   const { traceId } = await params;
   const { cursor } = await searchParams;
-  const result = await getTrace(traceId, globalThis.fetch, cursor ? { cursor } : {});
+  const cookieStore = await cookies();
+  const browserSessionToken = cookieStore.get("__Host-proofstack_session")?.value;
+  const result = await getTrace(traceId, globalThis.fetch, {
+    ...(browserSessionToken ? { browserSessionToken } : {}),
+    ...(cursor ? { cursor } : {}),
+  });
 
   if (!result.ok) {
     return (
@@ -53,40 +60,7 @@ export default async function TraceDetailPage({
 
       <section aria-label="Trace events" className="timeline">
         {result.data.events.map((event) => (
-          <article className="timeline-event" key={event.evidence.eventId}>
-            <div className="timeline-rail">
-              <span />
-            </div>
-            <div className="event-card">
-              <header>
-                <div>
-                  <p>{event.evidence.kind}</p>
-                  <h2>{event.evidence.name}</h2>
-                </div>
-                <span className={`event-status ${event.evidence.status}`}>
-                  {event.evidence.status}
-                </span>
-              </header>
-              <dl>
-                <div>
-                  <dt>Span</dt>
-                  <dd>{event.evidence.spanId}</dd>
-                </div>
-                <div>
-                  <dt>Started</dt>
-                  <dd>{event.evidence.startedAt}</dd>
-                </div>
-                <div>
-                  <dt>Service</dt>
-                  <dd>{event.evidence.source.serviceName}</dd>
-                </div>
-                <div>
-                  <dt>Received</dt>
-                  <dd>{event.receivedAt}</dd>
-                </div>
-              </dl>
-            </div>
-          </article>
+          <TraceEventCard event={event} key={event.evidence.eventId} />
         ))}
       </section>
 

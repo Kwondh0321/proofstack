@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiHealth, getTrace } from "./proofstack-api.js";
+import { apiHealth, getTrace, MAX_TRACE_RESPONSE_BYTES } from "./proofstack-api.js";
 
 const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
 const traceEvent = {
@@ -28,6 +28,23 @@ const traceEvent = {
     tenantId: "ten_local",
   },
 };
+const traceResponseHeaders = {
+  "cache-control": "private, no-store",
+  "content-type": "application/json; charset=utf-8",
+};
+
+function traceResponse(overrides: Record<string, unknown> = {}): Response {
+  return Response.json(
+    {
+      events: [traceEvent],
+      requestId: "req_test_001",
+      schemaVersion: "0.1",
+      traceId,
+      ...overrides,
+    },
+    { headers: traceResponseHeaders },
+  );
+}
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -142,14 +159,7 @@ describe("getTrace", () => {
   });
 
   it("validates a trace response", async () => {
-    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      Response.json({
-        events: [traceEvent],
-        requestId: "req_test_001",
-        schemaVersion: "0.1",
-        traceId,
-      }),
-    );
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(traceResponse());
 
     await expect(getTrace(traceId, fetcher)).resolves.toMatchObject({
       data: { events: [traceEvent], traceId },
@@ -157,20 +167,37 @@ describe("getTrace", () => {
     });
   });
 
-  it("requests the next trace page with an opaque cursor", async () => {
+  it("forwards an opaque cursor and validated server-only browser session", async () => {
     const cursor = "cursor_page_2";
-    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      Response.json({
-        events: [traceEvent],
-        requestId: "req_test_001",
-        schemaVersion: "0.1",
-        traceId,
-      }),
-    );
+    const browserSessionToken = `pss_v1_${"A".repeat(42)}E`;
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(traceResponse());
 
-    await getTrace(traceId, fetcher, { cursor });
+    await getTrace(traceId, fetcher, { browserSessionToken, cursor });
 
     expect(String(fetcher.mock.calls[0]?.[0])).toContain(`?cursor=${cursor}`);
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
+      cache: "no-store",
+      headers: { cookie: `__Host-proofstack_session=${browserSessionToken}` },
+    });
+  });
+
+  it("rejects malformed sessions, cursors, and configured scopes before issuing a request", async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>();
+
+    await expect(
+      getTrace(traceId, fetcher, { browserSessionToken: "invalid" }),
+    ).resolves.toMatchObject({ kind: "invalid_response", ok: false });
+    await expect(getTrace(traceId, fetcher, { cursor: "invalid cursor" })).resolves.toMatchObject({
+      kind: "invalid_response",
+      ok: false,
+    });
+    vi.stubEnv("PROOFSTACK_PROJECT_ID", "INVALID");
+    await expect(getTrace(traceId, fetcher)).resolves.toMatchObject({
+      kind: "unavailable",
+      message: "Configured project or environment ID is invalid",
+      ok: false,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("distinguishes missing, invalid, and unavailable traces", async () => {
@@ -179,7 +206,7 @@ describe("getTrace", () => {
       .mockResolvedValue(new Response(null, { status: 404 }));
     const invalid = vi
       .fn<typeof globalThis.fetch>()
-      .mockResolvedValue(Response.json({ traceId: "wrong" }));
+      .mockResolvedValue(Response.json({ traceId: "wrong" }, { headers: traceResponseHeaders }));
     const unavailable = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValue(new Response(null, { status: 503 }));
@@ -209,5 +236,85 @@ describe("getTrace", () => {
       kind: "unavailable",
       message: "ProofStack API request timed out after 10ms",
     });
+  });
+
+  it.each([
+    [
+      "an unsafe media type",
+      new Response("{}", {
+        headers: { "cache-control": "no-store", "content-type": "text/plain" },
+      }),
+      "unexpected media type",
+    ],
+    [
+      "a cacheable response",
+      new Response("{}", { headers: { "content-type": "application/json" } }),
+      "no-store",
+    ],
+    ["an empty response", new Response(null, { headers: traceResponseHeaders }), "empty"],
+    ["invalid JSON", new Response("not-json", { headers: traceResponseHeaders }), "invalid JSON"],
+    [
+      "an oversized declared response",
+      new Response("{}", {
+        headers: {
+          ...traceResponseHeaders,
+          "content-length": String(MAX_TRACE_RESPONSE_BYTES + 1),
+        },
+      }),
+      "too large",
+    ],
+  ])("fails closed on %s", async (_name, response, message) => {
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response);
+
+    await expect(getTrace(traceId, fetcher)).resolves.toMatchObject({
+      kind: "invalid_response",
+      message: expect.stringContaining(message),
+      ok: false,
+    });
+  });
+
+  it("bounds a streamed trace response without trusting content length", async () => {
+    const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response("x".repeat(MAX_TRACE_RESPONSE_BYTES + 1), {
+        headers: traceResponseHeaders,
+      }),
+    );
+
+    await expect(getTrace(traceId, fetcher)).resolves.toMatchObject({
+      kind: "invalid_response",
+      message: "Trace API response is too large",
+      ok: false,
+    });
+  });
+
+  it("rejects valid contracts with substituted trace identity or configured scope", async () => {
+    const otherTraceId = "0bf92f3577b34da6a3ce929d0e0e4736";
+    const variants = [
+      traceResponse({ traceId: otherTraceId }),
+      traceResponse({
+        events: [{ ...traceEvent, evidence: { ...traceEvent.evidence, traceId: otherTraceId } }],
+      }),
+      traceResponse({
+        events: [{ ...traceEvent, scope: { ...traceEvent.scope, projectId: "prj_other" } }],
+      }),
+      traceResponse({
+        events: [{ ...traceEvent, scope: { ...traceEvent.scope, environmentId: "env_other" } }],
+      }),
+      traceResponse({
+        events: [
+          traceEvent,
+          { ...traceEvent, scope: { ...traceEvent.scope, tenantId: "ten_other" } },
+        ],
+      }),
+    ];
+
+    for (const response of variants) {
+      const fetcher = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response);
+      await expect(getTrace(traceId, fetcher)).resolves.toMatchObject({
+        kind: "invalid_response",
+        message: "Trace response failed identity or scope verification",
+        ok: false,
+      });
+    }
   });
 });

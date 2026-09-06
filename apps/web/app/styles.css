@@ -385,6 +385,7 @@ h2 {
 }
 
 .trace-heading h1 {
+  overflow-wrap: anywhere;
   font-size: clamp(24px, 4vw, 44px);
 }
 
@@ -454,6 +455,7 @@ h2 {
 }
 
 .event-card h2 {
+  overflow-wrap: anywhere;
   margin-bottom: 20px;
   font-size: 20px;
 }
@@ -462,6 +464,7 @@ h2 {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
+  flex-shrink: 0;
   font-size: 11px;
   padding: 5px 8px;
   text-transform: uppercase;

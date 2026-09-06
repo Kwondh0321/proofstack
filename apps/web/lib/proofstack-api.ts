@@ -19,6 +19,7 @@ import {
 
 const DEFAULT_API_TIMEOUT_MS = 3_000;
 export const MAX_COMPARISON_RESPONSE_BYTES = 1024 * 1024;
+export const MAX_TRACE_RESPONSE_BYTES = 4 * 1024 * 1024;
 const BROWSER_SESSION_TOKEN_PATTERN = /^pss_v1_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 
 class ApiRequestTimeoutError extends Error {
@@ -44,6 +45,7 @@ export type ApiResult<T> =
     };
 
 export interface TraceRequestOptions {
+  readonly browserSessionToken?: string;
   readonly cursor?: TracePageCursor;
   readonly timeoutMs?: number;
 }
@@ -138,14 +140,14 @@ async function fetchApi(
   }
 }
 
-class ComparisonViewError extends Error {
+class ApiResponseError extends Error {
   constructor(
     readonly kind: "invalid_response" | "not_found" | "unavailable",
     message: string,
     options?: ErrorOptions,
   ) {
     super(message, options);
-    this.name = "ComparisonViewError";
+    this.name = "ApiResponseError";
   }
 }
 
@@ -203,29 +205,33 @@ function hasNoStore(response: Response): boolean {
   );
 }
 
-async function boundedComparisonJson(response: Response): Promise<unknown> {
+async function boundedApiJson(
+  response: Response,
+  maximumBytes: number,
+  surface: "Comparison" | "Trace",
+): Promise<unknown> {
   if (response.headers.get("content-type")?.split(";", 1)[0]?.trim() !== "application/json") {
-    throw new ComparisonViewError(
+    throw new ApiResponseError(
       "invalid_response",
-      "Comparison API returned an unexpected media type",
+      `${surface} API returned an unexpected media type`,
     );
   }
   if (!hasNoStore(response)) {
-    throw new ComparisonViewError(
+    throw new ApiResponseError(
       "invalid_response",
-      "Comparison API response omitted the required no-store boundary",
+      `${surface} API response omitted the required no-store boundary`,
     );
   }
   const declaredLength = response.headers.get("content-length");
   if (declaredLength !== null) {
     const parsedLength = Number(declaredLength);
-    if (Number.isSafeInteger(parsedLength) && parsedLength > MAX_COMPARISON_RESPONSE_BYTES) {
+    if (Number.isSafeInteger(parsedLength) && parsedLength > maximumBytes) {
       await response.body?.cancel();
-      throw new ComparisonViewError("invalid_response", "Comparison API response is too large");
+      throw new ApiResponseError("invalid_response", `${surface} API response is too large`);
     }
   }
   if (!response.body) {
-    throw new ComparisonViewError("invalid_response", "Comparison API response is empty");
+    throw new ApiResponseError("invalid_response", `${surface} API response is empty`);
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -236,9 +242,9 @@ async function boundedComparisonJson(response: Response): Promise<unknown> {
       const chunk = await reader.read();
       if (chunk.done) break;
       receivedBytes += chunk.value.byteLength;
-      if (receivedBytes > MAX_COMPARISON_RESPONSE_BYTES) {
+      if (receivedBytes > maximumBytes) {
         await reader.cancel();
-        throw new ComparisonViewError("invalid_response", "Comparison API response is too large");
+        throw new ApiResponseError("invalid_response", `${surface} API response is too large`);
       }
       chunks.push(decoder.decode(chunk.value, { stream: true }));
     }
@@ -249,10 +255,14 @@ async function boundedComparisonJson(response: Response): Promise<unknown> {
   try {
     return JSON.parse(chunks.join(""));
   } catch (error) {
-    throw new ComparisonViewError("invalid_response", "Comparison API returned invalid JSON", {
+    throw new ApiResponseError("invalid_response", `${surface} API returned invalid JSON`, {
       cause: error,
     });
   }
+}
+
+async function boundedComparisonJson(response: Response): Promise<unknown> {
+  return boundedApiJson(response, MAX_COMPARISON_RESPONSE_BYTES, "Comparison");
 }
 
 function sameScope(
@@ -357,7 +367,7 @@ function assertComparisonBundle(view: ComparisonView): void {
     !sameScope(view.result.scope, view.candidate.scope) ||
     !hasConsistentDerivedMetadata(view)
   ) {
-    throw new ComparisonViewError(
+    throw new ApiResponseError(
       "invalid_response",
       "Comparison records have contradictory immutable lineage",
     );
@@ -379,19 +389,19 @@ async function readComparisonRecord(
   );
   const response = await fetchApi(fetcher, url, timeoutMs, headers);
   if (response.status === 404) {
-    throw new ComparisonViewError(
+    throw new ApiResponseError(
       primary ? "not_found" : "invalid_response",
       primary ? "Comparison result was not found" : "A referenced comparison record is unavailable",
     );
   }
   if (!response.ok) {
-    throw new ComparisonViewError("unavailable", `Comparison API returned HTTP ${response.status}`);
+    throw new ApiResponseError("unavailable", `Comparison API returned HTTP ${response.status}`);
   }
   const parsed = ReadComparisonRecordResponseSchema.safeParse(
     await boundedComparisonJson(response),
   );
   if (!parsed.success) {
-    throw new ComparisonViewError(
+    throw new ApiResponseError(
       "invalid_response",
       "Comparison API response failed contract validation",
       { cause: parsed.error },
@@ -405,7 +415,7 @@ async function readComparisonRecord(
     result.record.scope.environmentId !== settings.environmentId ||
     (await comparisonDigest(result)) !== result.record.definitionSha256
   ) {
-    throw new ComparisonViewError(
+    throw new ApiResponseError(
       "invalid_response",
       "Comparison API response failed identity, scope, or digest verification",
     );
@@ -449,7 +459,7 @@ export async function getComparisonView(
       true,
     );
     if (resultEnvelope.kind !== "comparison_result") {
-      throw new ComparisonViewError("invalid_response", "Comparison result kind is invalid");
+      throw new ApiResponseError("invalid_response", "Comparison result kind is invalid");
     }
     const result = resultEnvelope.record;
     const [definitionEnvelope, baselineEnvelope, candidateEnvelope] = await Promise.all([
@@ -486,7 +496,7 @@ export async function getComparisonView(
       baselineEnvelope.kind !== "comparison_evidence_snapshot" ||
       candidateEnvelope.kind !== "comparison_evidence_snapshot"
     ) {
-      throw new ComparisonViewError("invalid_response", "Comparison source kinds are invalid");
+      throw new ApiResponseError("invalid_response", "Comparison source kinds are invalid");
     }
     const view = {
       baseline: baselineEnvelope.record,
@@ -497,7 +507,7 @@ export async function getComparisonView(
     assertComparisonBundle(view);
     return { data: view, ok: true };
   } catch (error) {
-    if (error instanceof ComparisonViewError) {
+    if (error instanceof ApiResponseError) {
       return { kind: error.kind, message: error.message, ok: false };
     }
     return { kind: "unavailable", message: unavailableMessage(error), ok: false };
@@ -538,15 +548,35 @@ export async function getTrace(
   if (!TraceIdSchema.safeParse(traceId).success) {
     return { kind: "invalid_response", message: "Trace ID is not valid", ok: false };
   }
+  if (
+    options.browserSessionToken !== undefined &&
+    !BROWSER_SESSION_TOKEN_PATTERN.test(options.browserSessionToken)
+  ) {
+    return { kind: "invalid_response", message: "Browser session token is not valid", ok: false };
+  }
   if (options.cursor && !TracePageCursorSchema.safeParse(options.cursor).success) {
     return { kind: "invalid_response", message: "Trace cursor is not valid", ok: false };
   }
 
   try {
     const settings = connection();
+    if (
+      !OpaqueIdSchema.safeParse(settings.projectId).success ||
+      !OpaqueIdSchema.safeParse(settings.environmentId).success
+    ) {
+      throw new ApiConfigurationError("Configured project or environment ID is invalid");
+    }
     const url = scopedUrl(`/traces/${traceId}`, settings);
     if (options.cursor) url.searchParams.set("cursor", options.cursor);
-    const response = await fetchApi(fetcher, url, options.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
+    const headers = options.browserSessionToken
+      ? { cookie: `__Host-proofstack_session=${options.browserSessionToken}` }
+      : undefined;
+    const response = await fetchApi(
+      fetcher,
+      url,
+      options.timeoutMs ?? DEFAULT_API_TIMEOUT_MS,
+      headers,
+    );
     if (response.status === 404) {
       return { kind: "not_found", message: "Trace was not found", ok: false };
     }
@@ -554,12 +584,34 @@ export async function getTrace(
       return { kind: "unavailable", message: `API returned HTTP ${response.status}`, ok: false };
     }
 
-    const parsed = TraceResponseSchema.safeParse(await response.json());
+    const parsed = TraceResponseSchema.safeParse(
+      await boundedApiJson(response, MAX_TRACE_RESPONSE_BYTES, "Trace"),
+    );
     if (!parsed.success) {
       return { kind: "invalid_response", message: "Trace response failed validation", ok: false };
     }
+    const tenantId = parsed.data.events[0]?.scope.tenantId;
+    if (
+      parsed.data.traceId !== traceId ||
+      parsed.data.events.some(
+        ({ evidence, scope }) =>
+          evidence.traceId !== traceId ||
+          scope.projectId !== settings.projectId ||
+          scope.environmentId !== settings.environmentId ||
+          scope.tenantId !== tenantId,
+      )
+    ) {
+      return {
+        kind: "invalid_response",
+        message: "Trace response failed identity or scope verification",
+        ok: false,
+      };
+    }
     return { data: parsed.data, ok: true };
   } catch (error) {
+    if (error instanceof ApiResponseError) {
+      return { kind: error.kind, message: error.message, ok: false };
+    }
     return {
       kind: "unavailable",
       message: unavailableMessage(error),
