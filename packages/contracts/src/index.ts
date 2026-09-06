@@ -27,6 +27,8 @@ export * from "./recovery.js";
 export * from "./release-candidate.js";
 export * from "./release-candidate-api.js";
 export * from "./release-candidate-definition-encoding.js";
+export * from "./release-policy.js";
+export * from "./release-policy-definition-encoding.js";
 export * from "./replay.js";
 export * from "./replay-accounting.js";
 export * from "./replay-boundary-execution.js";

@@ -86,6 +86,14 @@
       "types": "./dist/release-candidate-definition-encoding.d.ts",
       "import": "./dist/release-candidate-definition-encoding.js"
     },
+    "./release-policy": {
+      "types": "./dist/release-policy.d.ts",
+      "import": "./dist/release-policy.js"
+    },
+    "./release-policy-definition-encoding": {
+      "types": "./dist/release-policy-definition-encoding.d.ts",
+      "import": "./dist/release-policy-definition-encoding.js"
+    },
     "./replay-plan": {
       "types": "./dist/replay-plan.d.ts",
       "import": "./dist/replay-plan.js"

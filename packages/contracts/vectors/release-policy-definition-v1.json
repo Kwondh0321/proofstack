@@ -1,0 +1,340 @@
+{
+  "format": "proofstack.release-policy-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 889,
+      "input": {
+        "definition": {
+          "allowedModes": ["advisory", "mandatory"],
+          "authorityEvidence": {
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          },
+          "authorizedIssuerPrincipalIds": ["principal_policy_author"],
+          "bindingVersionId": "binding_checkout_v1",
+          "effectiveAt": "2026-09-06T00:00:00.000Z",
+          "expiresAt": "2027-09-06T00:00:00.000Z",
+          "installationId": "installation_checkout",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          }
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "kind": "policy_installation_binding",
+      "name": "checkout policy installation authority",
+      "sha256": "29662bef18638cb11595a9c277faf6eaae84a414022a4cf5a0fcde44106734a8"
+    },
+    {
+      "encodedByteLength": 7879,
+      "input": {
+        "definition": {
+          "applicability": {
+            "jurisdiction": {
+              "operator": "equals",
+              "value": "us"
+            },
+            "locale": {
+              "operator": "one_of",
+              "values": ["en-us", "ko-kr"]
+            },
+            "maximumDataClassification": {
+              "operator": "equals",
+              "value": "confidential"
+            },
+            "populationTags": {
+              "operator": "contains_all",
+              "values": ["business", "checkout"]
+            },
+            "purpose": {
+              "operator": "equals",
+              "value": "Evaluate an exact checkout-agent candidate before staging release."
+            },
+            "riskTier": {
+              "operator": "equals",
+              "value": "high"
+            },
+            "taskKind": {
+              "operator": "equals",
+              "value": "checkout_agent"
+            }
+          },
+          "assumptions": [
+            "The retained comparison population represents the intended staging population."
+          ],
+          "changeRationale": "Create the first immutable release policy version for the checkout agent.",
+          "contentProjection": "references_and_bounded_metadata_only",
+          "counterevidence": [
+            {
+              "review": {
+                "definitionSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                "sourceReviewId": "review_checkout_counterevidence"
+              },
+              "source": {
+                "definitionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "sourceSnapshotId": "source_checkout_counterevidence"
+              }
+            }
+          ],
+          "description": "Bounded declarative rules for one staging release class.",
+          "effectiveAt": "2026-09-07T00:00:00.000Z",
+          "exclusions": ["Production deployment is outside this policy version."],
+          "expiresAt": "2027-03-07T00:00:00.000Z",
+          "installationBinding": {
+            "bindingVersionId": "binding_checkout_v1",
+            "definitionSha256": "29662bef18638cb11595a9c277faf6eaae84a414022a4cf5a0fcde44106734a8",
+            "installationId": "installation_checkout"
+          },
+          "issuerPrincipalId": "principal_policy_author",
+          "knownLimitations": [
+            "Publication does not establish that the selected thresholds are sufficient."
+          ],
+          "mode": "mandatory",
+          "name": "Checkout staging release policy",
+          "policyId": "policy_checkout_staging",
+          "policyVersionId": "policy_checkout_staging_v1",
+          "rationale": "Require retained evidence and independent review before a later release decision.",
+          "rules": [
+            {
+              "nonWaivable": true,
+              "predicate": {
+                "conflictRule": "reject_declared_conflict",
+                "excludeCandidateAuthor": true,
+                "excludePolicyAuthor": true,
+                "humanReviewerGroupIds": ["group_release_review"],
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "kind": "approval_required",
+                "quorum": 2,
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+              },
+              "rationale": "A later high-risk decision requires two independent reviewers.",
+              "ruleId": "approval_gate",
+              "severity": "critical",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            {
+              "nonWaivable": true,
+              "predicate": {
+                "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+                "componentKind": "build_artifact",
+                "kind": "artifact_required",
+                "maximumDataClassification": "internal",
+                "requireDigest": true,
+                "role": "agent_bundle"
+              },
+              "rationale": "The evaluated bundle must be the exact retained build artifact.",
+              "ruleId": "artifact_bundle",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            {
+              "nonWaivable": false,
+              "predicate": {
+                "comparator": "less_than_or_equal",
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "kind": "comparison_threshold",
+                "metricId": "metric_regression_errors",
+                "metricKind": "trace_event_count",
+                "operand": "candidate",
+                "threshold": "0",
+                "unit": "events"
+              },
+              "rationale": "The retained candidate comparison must not contain regression errors.",
+              "ruleId": "comparison_regression",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            {
+              "nonWaivable": false,
+              "predicate": {
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "denominator": "paired_total",
+                "kind": "coverage_floor",
+                "metricId": "metric_regression_errors",
+                "minimumBasisPoints": 9500,
+                "numerator": "paired_observed",
+                "sourceKind": "comparison_metric_ratio",
+                "unit": "basis_points"
+              },
+              "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+              "ruleId": "coverage_floor",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            {
+              "nonWaivable": true,
+              "predicate": {
+                "assessment": {
+                  "assessmentId": "assessment_checkout_safety",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                },
+                "assessmentClass": "evaluation",
+                "expected": "eligible",
+                "kind": "eligibility_required"
+              },
+              "rationale": "The exact policy-independent safety assessment must remain eligible.",
+              "ruleId": "eligibility_base",
+              "severity": "critical",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            {
+              "nonWaivable": true,
+              "predicate": {
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "eventClass": "uncertain_side_effect",
+                "kind": "safety_event_ceiling",
+                "maximumCount": 0,
+                "metricId": "metric_uncertain_side_effects",
+                "unit": "events"
+              },
+              "rationale": "The retained replay must contain no uncertain side-effect event.",
+              "ruleId": "safety_ceiling",
+              "severity": "critical",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            {
+              "nonWaivable": false,
+              "predicate": {
+                "assessment": {
+                  "assessmentId": "assessment_checkout_safety",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                },
+                "bound": "lower",
+                "comparator": "at_least",
+                "confidenceLevelBasisPoints": 9500,
+                "intervalMethod": "wilson_score_interval",
+                "intervalMethodVersion": "1.0.0",
+                "kind": "uncertainty_bound",
+                "thresholdBasisPoints": 9000,
+                "unit": "basis_points"
+              },
+              "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+              "ruleId": "uncertainty_floor",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            }
+          ],
+          "semanticVersion": "1.0.0",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "kind": "release_policy",
+      "name": "checkout staging release policy",
+      "sha256": "f863673a78cd25e0ec6592259f135ad7690b0396e7a8565e590e7c11d88ea351"
+    }
+  ]
+}
