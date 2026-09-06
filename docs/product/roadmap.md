@@ -157,15 +157,26 @@ withholding policy, approval, deployment, release, and production-readiness clai
 
 Goal: make regression evidence enforceable in delivery pipelines.
 
-- Versioned policy model with advisory and mandatory modes.
-- Candidate release entity linking code, prompts, tools, models, datasets, and evaluations.
-- Statistical comparison with explicit thresholds and guardrails.
-- Human approval records for high-impact exceptions.
-- GitHub check and generic CI webhook integrations.
-- Signed decision artifact, immutable audit trail, rollback target, and break-glass procedure.
+- [ ] Immutable candidate release linking exact code, build artifacts, prompts, tools, models,
+  datasets, evaluations, and comparisons.
+- [ ] Versioned policy model with exact applicability plus advisory and mandatory modes.
+- [ ] Deterministic policy evaluation with explicit thresholds, units, statistical guardrails,
+  missingness, and indeterminate outcomes.
+- [ ] Accountable release decisions and scoped human approval records for high-impact exceptions.
+- [ ] Verifiable signed decision attestations with exact subjects, trust roots, validity, and
+  revocation.
+- [ ] Least-privilege GitHub Check and generic CI webhook adapters with immutable delivery receipts.
+- [ ] Rollback targets, break-glass procedure, measured operations, contributor acceptance, and an
+  independent end-to-end stage audit.
 
 The policy service fails closed only for policies explicitly configured as mandatory. Its
 availability and latency targets must be measured before inline runtime enforcement is offered.
+
+The authority boundary, open findings, ordered checkpoints, threat matrix, and executable gates are
+fixed by the [Workflow 2 entry audit](../development/workflow-2-entry-audit.md) and
+[ADR-0021](../architecture/0021-separate-release-policy-authority.md). Entry is approved for
+dependency-ordered implementation only; no policy, approval, CI enforcement, deployment, or
+production-readiness capability is represented as complete.
 
 ## Scale and ecosystem
 

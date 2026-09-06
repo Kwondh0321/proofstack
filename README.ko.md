@@ -309,6 +309,9 @@ production-readiness 주장은 승인하지 않습니다. 완료된
 [Workflow 1 엔드투엔드 감사](docs/development/workflow-1-audit.ko.md)는 제한된 참조
 사고→비교 단계를 승인하고 워크플로 2 개발 진입을 열지만 정책, 승인, 배포, 릴리스,
 production-readiness 주장은 계속 승인하지 않습니다.
+[Workflow 2 진입 감사](docs/development/workflow-2-entry-audit.ko.md)는 이 후속 작업의 권한
+분리와 의존성 순서가 고정된 7개 gate를 정의하며, release-gate 기능이 구현됐다고 표시하지
+않습니다.
 
 ## 현재의 경계
 

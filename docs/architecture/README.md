@@ -43,3 +43,4 @@ invalidate an ADR present in this directory.
 - [ADR-0018: Separate replay control-plane and worker persistence authority](0018-separate-replay-control-worker-authority.md)
 - [ADR-0019: Persist the contestable evaluation graph with separated authority](0019-persist-contestable-evaluation-graph.md)
 - [ADR-0020: Compare exact evidence without making release decisions](0020-exact-evidence-comparison.md)
+- [ADR-0021: Separate release policy, decision, attestation, and enforcement authority](0021-separate-release-policy-authority.md)

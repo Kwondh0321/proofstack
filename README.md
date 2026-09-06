@@ -308,7 +308,10 @@ accepts the immutable descriptive comparison boundary while withholding policy, 
 release, causal, and production-readiness claims. The completed
 [Workflow 1 end-to-end audit](docs/development/workflow-1-audit.md) accepts the bounded reference
 incident-to-comparison stage and opens Workflow 2 development while withholding policy, approval,
-deployment, release, and production-readiness claims.
+deployment, release, and production-readiness claims. The
+[Workflow 2 entry audit](docs/development/workflow-2-entry-audit.md) fixes the authority split and
+seven dependency-ordered gates for that future work; it does not represent any release-gate
+capability as implemented.
 
 ## Current boundaries
 
