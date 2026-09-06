@@ -72,8 +72,8 @@ executable evidence, or retained as a reason that Workflow 1 cannot exit.
 
 ## Audit progress
 
-Findings 1, 2, and 4 are now closed at their stated boundaries. Findings 3, 5, and 6 remain open,
-so Workflow 1 is not accepted and Workflow 2 remains blocked.
+Findings 1, 2, 4, and 5 are now closed at their stated boundaries. Findings 3 and 6 remain open, so
+Workflow 1 is not accepted and Workflow 2 remains blocked.
 
 | Finding | State | Executable evidence |
 | --- | --- | --- |
@@ -81,16 +81,17 @@ so Workflow 1 is not accepted and Workflow 2 remains blocked.
 | 2. One retained failure-to-comparison graph | Closed | Commits `6f843a8`, `72dae86`, `6c5b549`, `130bfd3`, and `14c1b3f` compose and exercise one authenticated, PostgreSQL-backed Workflow 1 graph with normal API, SDK, replay worker, evaluation worker, model worker, runtime-role, S3 artifact, restart, exact read-back, and conservative comparability boundaries. |
 | 3. Complete restart and recovery coherence | Open | The reference graph survives the exercised API restarts, but coordinated empty-target restore of every new table, outbox, and exact graph edge plus applicable worker-restart evidence is still required. |
 | 4. Criteria trust root | Closed | The focused [criteria trust-root audit](workflow-1-criteria-trust-root-audit.md) proves distinct fail-closed requester-only, search-only, stale, unavailable, conflicting, scope-mismatched, unretained, and unqualified-reviewer outcomes. |
-| 5. Clean-checkout contributor path | Open | One bounded end-to-end guide must still be written and independently followed. |
+| 5. Clean-checkout contributor path | Closed | Commits `6b76751`, `034b216`, and `4df4748` add the English-primary [Workflow 1 acceptance guide](../guides/workflow-1-acceptance.md), linked Korean guidance, and one root command that owns random-port disposable services, frozen inputs, conservative failures, and cleanup. CI run `34020305732` independently followed that command from a clean checkout and passed the dedicated acceptance job in 3m50s. |
 | 6. Public claims and browser audit | Open | Public English and Korean claims, retained-state browser behavior, accessibility, hostile display text, and unsupported product claims still require an independent pass. |
 
-The accepted implementation state at `14c1b3f8e7a3b163626f64cbaf3854ed56c25f1b` passed
-[CI run 34019348279](https://github.com/Kwondh0321/proofstack/actions/runs/34019348279),
+The accepted implementation and contributor-path state at
+`4df474825db58ff083b2051f629e66394938a6a6` passed
+[CI run 34020305732](https://github.com/Kwondh0321/proofstack/actions/runs/34020305732),
 including the complete PostgreSQL Workflow 1 acceptance flow, quality gates, secret scan, S3,
-artifact lifecycle, and recovery integration. The same SHA passed CodeQL in
-[Security run 34019348271](https://github.com/Kwondh0321/proofstack/actions/runs/34019348271).
-This evidence closes only the rows named above; it is not a production-readiness or stage-exit
-approval.
+artifact lifecycle, recovery integration, and the dedicated clean-checkout command. The same SHA
+passed CodeQL in
+[Security run 34020305760](https://github.com/Kwondh0321/proofstack/actions/runs/34020305760). This
+evidence closes only the rows named above; it is not a production-readiness or stage-exit approval.
 
 ## Independent audit method
 
