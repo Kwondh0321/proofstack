@@ -329,7 +329,11 @@ release authority. The
 [immutable release-policy guide](docs/guides/workflow-2-release-policy.md) runs the retained
 source, reviewer, installation, publication, withdrawal, and restart path while withholding
 policy-evaluation, approval, decision, attestation, CI-enforcement, deployment, and
-production-readiness claims.
+production-readiness claims. The completed
+[policy-definition audit](docs/development/workflow-2-policy-definition-audit.md) records the second
+Workflow 2 checkpoint's acceptance, closed cross-check findings, exact-commit publication gate,
+and retained limits. Deterministic policy-evaluation entry review is next; definition acceptance
+does not establish that a policy is correct, satisfied, or authorized for a release.
 
 ## Current boundaries
 

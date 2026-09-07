@@ -5,6 +5,8 @@
 
 The frozen contract and exit gates for this checkpoint are recorded in the
 [versioned policy-definition entry audit](../development/workflow-2-policy-definition-entry-audit.md).
+The [completion audit](../development/workflow-2-policy-definition-audit.md) records the accepted
+implementation, verified jobs, closed findings, publication gate, and remaining boundaries.
 
 This guide exercises ProofStack's bounded policy-definition boundary. It builds the complete
 retained Workflow 1 graph and an immutable release candidate, publishes independently authored and

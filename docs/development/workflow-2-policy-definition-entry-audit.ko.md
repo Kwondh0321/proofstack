@@ -3,13 +3,17 @@
 [English](workflow-2-policy-definition-entry-audit.md) |
 [한국어](workflow-2-policy-definition-entry-audit.ko.md)
 
-- 상태: 구현 진입 승인, 체크포인트는 미완료
+- 상태: 승인된 진입 기준이며 완료 판정은 연결된 감사에 기록함
 - 검토일: 2026-09-06
 - 의존성: `56b56bd`까지 승인된 불변 release candidate
 - 아키텍처: [ADR-0014](../architecture/0014-contestable-evaluation-assurance.md),
   [ADR-0021](../architecture/0021-separate-release-policy-authority.md)
 - 정책 평가, 승인, 결정, attestation, CI 집행, 배포, rollback, break-glass,
   production readiness: 포함하지 않음
+
+이 문서는 고정된 진입 요구사항을 보존한다. 이후의
+[정책 정의 완료 감사](workflow-2-policy-definition-audit.ko.md)에 구현 근거, 승인 판정,
+발행 gate, 유지하는 한계를 기록한다.
 
 ## 진입 결정
 

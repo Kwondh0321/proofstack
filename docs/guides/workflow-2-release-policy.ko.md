@@ -6,6 +6,8 @@
 이 체크포인트의 고정 contract와 종료 gate는
 [버전 정책 정의 진입 감사](../development/workflow-2-policy-definition-entry-audit.ko.md)에 기록되어
 있습니다.
+완료된 [정책 정의 감사](../development/workflow-2-policy-definition-audit.ko.md)는 승인한 구현,
+검증한 작업, 해결한 발견 사항, 발행 gate, 남은 경계를 기록합니다.
 
 이 가이드는 ProofStack의 제한된 정책 정의 경계를 실행합니다. 완전히 보존된 Workflow 1 graph와
 불변 release candidate를 만들고, 서로 독립적으로 작성·검토된 source record를 발행하고,

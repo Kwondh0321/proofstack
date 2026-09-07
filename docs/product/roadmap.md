@@ -1,7 +1,7 @@
 # Capability roadmap
 
 Status: working sequence  
-Last reviewed: 2026-09-02
+Last reviewed: 2026-09-07
 
 This roadmap is ordered by dependency and risk, not calendar promises. A later capability must not
 pull an earlier one into production before its acceptance gates pass.
@@ -159,7 +159,7 @@ Goal: make regression evidence enforceable in delivery pipelines.
 
 - [x] Immutable candidate release linking exact code, build artifacts, prompts, tools, models,
   datasets, evaluations, and comparisons.
-- [ ] Versioned policy model with exact applicability plus advisory and mandatory modes.
+- [x] Versioned policy model with exact applicability plus advisory and mandatory modes.
 - [ ] Deterministic policy evaluation with explicit thresholds, units, statistical guardrails,
   missingness, and indeterminate outcomes.
 - [ ] Accountable release decisions and scoped human approval records for high-impact exceptions.
@@ -188,7 +188,11 @@ The contract vocabulary, installation and source authority, applicability, immut
 dedicated author capability and database role, adversarial matrix, and executable exit gates for
 the second checkpoint are fixed by the
 [versioned policy definition entry audit](../development/workflow-2-policy-definition-entry-audit.md).
-The checkpoint remains open; no policy evaluation or release authority is implied.
+The completed [policy-definition audit](../development/workflow-2-policy-definition-audit.md)
+accepts the bounded definition, source and installation authority, immutable lifecycle, dedicated
+author role, exact API/SDK, isolation, recovery, and contributor flow. Its exact-commit publication
+gate must pass before deterministic policy-evaluation entry review begins. Policy evaluation,
+approval, decision, attestation, CI enforcement, deployment, and production readiness remain open.
 
 ## Scale and ecosystem
 

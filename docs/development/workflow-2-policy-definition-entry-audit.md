@@ -3,13 +3,17 @@
 [English](workflow-2-policy-definition-entry-audit.md) |
 [한국어](workflow-2-policy-definition-entry-audit.ko.md)
 
-- Status: accepted for implementation entry; checkpoint remains open
+- Status: accepted entry baseline; completion decision is recorded in the linked audit
 - Reviewed: 2026-09-06
 - Dependency: accepted immutable release candidate through `56b56bd`
 - Architecture: [ADR-0014](../architecture/0014-contestable-evaluation-assurance.md) and
   [ADR-0021](../architecture/0021-separate-release-policy-authority.md)
 - Policy evaluation, approval, decision, attestation, CI enforcement, deployment, rollback,
   break-glass, and production readiness: not included
+
+This document preserves the frozen entry requirements. The later
+[policy-definition completion audit](workflow-2-policy-definition-audit.md) records their
+implementation evidence, acceptance decision, publication gate, and retained limitations.
 
 ## Entry decision
 

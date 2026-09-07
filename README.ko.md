@@ -328,6 +328,10 @@ authority, 불변 lifecycle, 전용 author boundary, 실행 가능한 exit gate�
 [불변 release-policy 가이드](docs/guides/workflow-2-release-policy.ko.md)는 policy-evaluation,
 approval, decision, attestation, CI enforcement, deployment, production-readiness 주장을 승인하지
 않으면서 보존 source, reviewer, installation, 발행, 철회, restart 경로를 실행합니다.
+완료된 [정책 정의 감사](docs/development/workflow-2-policy-definition-audit.ko.md)는 Workflow 2
+두 번째 체크포인트의 승인, 해결한 교차검증 발견 사항, 정확한 커밋의 발행 gate, 유지하는
+한계를 기록합니다. 다음은 결정론적 정책 평가의 진입 검토이며, 정의 승인이 정책의 올바름,
+충족 여부, 출시 권한을 증명하지는 않습니다.
 
 ## 현재의 경계
 
