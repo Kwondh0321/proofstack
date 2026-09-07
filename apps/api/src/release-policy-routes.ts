@@ -13,7 +13,7 @@ import type {
   ReadReleasePolicy,
   ReadReleasePolicyLifecycle,
 } from "@proofstack/core";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, onSendAsyncHookHandler } from "fastify";
 import { z } from "zod";
 import type { Authenticator } from "./auth.js";
 
@@ -41,9 +41,13 @@ export interface ReleasePolicyRouteDependencies {
 const mutationRateLimit = { max: 60, timeWindow: "1 minute" } as const;
 const readRateLimit = { max: 600, timeWindow: "1 minute" } as const;
 
-function preventCaching(reply: { header(name: string, value: string): unknown }): void {
+const preventCaching: onSendAsyncHookHandler = async (_request, reply, payload) => {
   reply.header("cache-control", "no-store");
-}
+  return payload;
+};
+
+const mutationOptions = { config: { rateLimit: mutationRateLimit }, onSend: preventCaching };
+const readOptions = { config: { rateLimit: readRateLimit }, onSend: preventCaching };
 
 function validatedResponse<Schema extends z.ZodType>(
   schema: Schema,
@@ -67,7 +71,7 @@ export async function registerReleasePolicyRoutes(
   const lifecycleRoute = `${policyRoute}/lifecycle-events`;
   const exactLifecycleRoute = `${lifecycleRoute}/:eventId`;
 
-  app.post(policyRoute, { config: { rateLimit: mutationRateLimit } }, async (request, reply) => {
+  app.post(policyRoute, mutationOptions, async (request, reply) => {
     const principal = await dependencies.authenticator.authenticate(request);
     const path = ReleasePolicyPathSchema.parse(request.params);
     const input = PublishReleasePolicyRequestSchema.parse(request.body);
@@ -79,7 +83,6 @@ export async function registerReleasePolicyRoutes(
       principal,
       projectId: path.projectId,
     });
-    preventCaching(reply);
     return reply.status(result.created ? 201 : 200).send(
       validatedResponse(PublishReleasePolicyResponseSchema, {
         created: result.created,
@@ -89,7 +92,7 @@ export async function registerReleasePolicyRoutes(
     );
   });
 
-  app.get(policyRoute, { config: { rateLimit: readRateLimit } }, async (request, reply) => {
+  app.get(policyRoute, readOptions, async (request) => {
     const principal = await dependencies.authenticator.authenticate(request);
     const path = ReleasePolicyPathSchema.parse(request.params);
     const policy = await dependencies.readPolicy.execute({
@@ -99,14 +102,13 @@ export async function registerReleasePolicyRoutes(
       principal,
       projectId: path.projectId,
     });
-    preventCaching(reply);
     return validatedResponse(ReadReleasePolicyResponseSchema, {
       policy,
       requestId: request.id,
     });
   });
 
-  app.post(lifecycleRoute, { config: { rateLimit: mutationRateLimit } }, async (request, reply) => {
+  app.post(lifecycleRoute, mutationOptions, async (request, reply) => {
     const principal = await dependencies.authenticator.authenticate(request);
     const path = ReleasePolicyPathSchema.parse(request.params);
     const input = PublishReleasePolicyLifecycleRequestSchema.parse(request.body);
@@ -118,7 +120,6 @@ export async function registerReleasePolicyRoutes(
       principal,
       projectId: path.projectId,
     });
-    preventCaching(reply);
     return reply.status(result.created ? 201 : 200).send(
       validatedResponse(PublishReleasePolicyLifecycleResponseSchema, {
         created: result.created,
@@ -128,7 +129,7 @@ export async function registerReleasePolicyRoutes(
     );
   });
 
-  app.get(exactLifecycleRoute, { config: { rateLimit: readRateLimit } }, async (request, reply) => {
+  app.get(exactLifecycleRoute, readOptions, async (request) => {
     const principal = await dependencies.authenticator.authenticate(request);
     const path = ReleasePolicyLifecyclePathSchema.parse(request.params);
     const event = await dependencies.readLifecycle.execute({
@@ -139,7 +140,6 @@ export async function registerReleasePolicyRoutes(
       principal,
       projectId: path.projectId,
     });
-    preventCaching(reply);
     return validatedResponse(ReadReleasePolicyLifecycleResponseSchema, {
       event,
       requestId: request.id,

@@ -197,6 +197,9 @@ describe("release policy routes", () => {
       app.inject({ method: "GET", url: `${malformedPolicyUrl}/lifecycle-events/bad!` }),
     ]);
     expect(responses.map((response) => response.statusCode)).toEqual([500, 500, 500, 500]);
+    for (const response of responses) {
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
     expect(authenticator.authenticate).toHaveBeenCalledTimes(4);
     for (const useCase of [
       value.publishPolicy,
@@ -229,6 +232,9 @@ describe("release policy routes", () => {
       app.inject({ method: "GET", url: `${lifecycleUrl}/bad!` }),
     ]);
     expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400, 400]);
+    for (const response of responses) {
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
     for (const useCase of [
       value.publishPolicy,
       value.readPolicy,
@@ -262,6 +268,9 @@ describe("release policy routes", () => {
       app.inject({ method: "GET", url: exactLifecycleUrl }),
     ]);
     expect(responses.map((response) => response.statusCode)).toEqual([500, 500, 500, 500]);
+    for (const response of responses) {
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
     expect(responses.map((response) => response.json())).toEqual([
       { error: "Error" },
       { error: "Error" },

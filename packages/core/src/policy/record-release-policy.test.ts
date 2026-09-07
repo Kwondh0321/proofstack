@@ -232,6 +232,44 @@ describe("release policy publication", () => {
     expect(value.resolve).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["2025-01-01T00:00:00.000Z", "2026-09-06T23:00:00.001Z"])(
+    "rejects a first-publication receipt substituted with %s",
+    async (publishedAt) => {
+      const value = setup();
+      value.port.publishReleasePolicy.mockImplementation(async (policy) => ({
+        created: true,
+        policy: { ...policy, publishedAt },
+      }));
+
+      await expect(value.publisher.execute(value.command)).rejects.toBeInstanceOf(
+        ReleasePolicyRepositoryContractError,
+      );
+      expect(value.port.publishReleasePolicy).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ publishedAt: value.fixture.input.at }),
+      );
+    },
+  );
+
+  it("preserves the winning receipt when a concurrent publication follows a stale read", async () => {
+    const value = setup();
+    const first = await value.publisher.execute(value.command);
+    const retryAt = "2026-09-07T02:00:00.000Z";
+    value.now.mockReturnValue(new Date(retryAt));
+    value.port.findReleasePolicy.mockResolvedValueOnce(null);
+
+    await expect(value.publisher.execute(value.command)).resolves.toEqual({
+      created: false,
+      policy: first.policy,
+    });
+    expect(value.resolve).toHaveBeenCalledTimes(2);
+    expect(value.now).toHaveBeenCalledTimes(2);
+    expect(value.port.publishReleasePolicy).toHaveBeenCalledTimes(2);
+    expect(value.port.publishReleasePolicy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ publishedAt: retryAt }),
+    );
+    expect(value.port.policies.get(value.command.policyVersionId)).toEqual(first.policy);
+  });
+
   it("fails closed on rejected authority without persisting a policy", async () => {
     const value = setup();
     value.resolve.mockResolvedValue({

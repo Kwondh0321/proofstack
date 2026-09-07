@@ -11,8 +11,8 @@ import {
 } from "@proofstack/core";
 import { policyAuthorityFixture } from "@proofstack/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createApp, type AppDependencies } from "./app.js";
-import type { Authenticator } from "./auth.js";
+import { type AppDependencies, createApp } from "./app.js";
+import { AuthenticationRequiredError, type Authenticator } from "./auth.js";
 import { loadConfig } from "./config.js";
 
 const fixture = policyAuthorityFixture();
@@ -181,7 +181,7 @@ describe("release policy control-plane API", () => {
       detail: "The release policy operation conflicts with existing immutable state",
       status: 409,
     });
-    for (const response of [lifecycle, retry, read]) {
+    for (const response of [lifecycle, retry, read, missing, conflict]) {
       expect(response.headers["cache-control"]).toBe("no-store");
     }
   });
@@ -198,6 +198,7 @@ describe("release policy control-plane API", () => {
     });
     expect(response.body).not.toContain("findings");
     expect(response.body).not.toContain("installation_binding_unavailable");
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 
   it("maps route mismatches, missing records, and semantic rebinding without leaking state", async () => {
@@ -226,6 +227,9 @@ describe("release policy control-plane API", () => {
       status: 409,
     });
     expect(conflict.body).not.toContain(fixture.policy.policyVersionId);
+    for (const response of [routeMismatch, missing, conflict]) {
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
     expect(authority.resolve).toHaveBeenCalledOnce();
   });
 
@@ -279,7 +283,86 @@ describe("release policy control-plane API", () => {
       status: 503,
     });
     expect(storageFailure.body).not.toContain("corrupt");
+    for (const response of [authorityFailure, contractFailure, storageFailure]) {
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
   });
+
+  it("prevents caching errors emitted before protected policy handlers complete", async () => {
+    const authority = authorityResolver();
+    const denied = await testApp({
+      authenticator: {
+        authenticate: async () => {
+          throw new AuthenticationRequiredError();
+        },
+      },
+      releasePolicyAuthorityResolver: authority,
+    });
+    for (const url of [policyUrl, `${lifecycleUrl}/policy_event_missing`]) {
+      const response = await denied.inject({ method: "GET", url });
+      expect(response.statusCode).toBe(401);
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
+    for (const url of [policyUrl, lifecycleUrl]) {
+      const response = await denied.inject({ body: {}, method: "POST", url });
+      expect(response.statusCode).toBe(401);
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
+
+    const app = await testApp({ releasePolicyAuthorityResolver: authority });
+    for (const url of [policyUrl, lifecycleUrl]) {
+      for (const invalidBody of [
+        { body: "{", headers: { "content-type": "application/json" }, status: 400 },
+        { body: "x", headers: { "content-type": "application/xml" }, status: 415 },
+        {
+          body: "x".repeat(1024 * 1024 + 1),
+          headers: { "content-type": "application/json" },
+          status: 413,
+        },
+      ]) {
+        const { status, ...payload } = invalidBody;
+        const response = await app.inject({ ...payload, method: "POST", url });
+        expect(response.statusCode).toBe(status);
+        expect(response.headers["cache-control"]).toBe("no-store");
+        expect(response.headers["content-type"]).toContain("application/problem+json");
+      }
+    }
+    expect(authority.resolve).not.toHaveBeenCalled();
+  });
+
+  it.each(["2025-01-01T00:00:00.000Z", "2026-09-06T23:00:00.001Z"])(
+    "never exposes a successful first-publication receipt with substituted time %s",
+    async (publishedAt) => {
+      const repository = new MemoryReleasePolicyRepository();
+      const publish = vi
+        .spyOn(repository, "publishReleasePolicy")
+        .mockImplementation(async (policy) => ({
+          created: true,
+          policy: { ...policy, publishedAt },
+        }));
+      const app = await testApp({
+        releasePolicyAuthorityResolver: authorityResolver(),
+        releasePolicyRepository: repository,
+      });
+
+      const response = await app.inject({ body: request, method: "POST", url: policyUrl });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toMatchObject({
+        code: "release_policy_storage_unavailable",
+        detail: "Release policy storage is unavailable",
+        status: 503,
+      });
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(response.headers["content-type"]).toContain("application/problem+json");
+      expect(response.body).not.toContain(publishedAt);
+      expect(response.body).not.toContain("substituted");
+      expect(response.json()).not.toHaveProperty("policy");
+      expect(publish).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ publishedAt: fixture.input.at }),
+      );
+    },
+  );
 
   it("denies policy publication to workload identities before authority or storage mutation", async () => {
     const authority = authorityResolver();
@@ -296,6 +379,7 @@ describe("release policy control-plane API", () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ code: "forbidden", status: 403 });
+    expect(response.headers["cache-control"]).toBe("no-store");
     expect(find).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(authority.resolve).not.toHaveBeenCalled();

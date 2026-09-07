@@ -201,12 +201,18 @@ function validatePolicyPublicationResult(
   policyId: string,
   policyVersionId: string,
   definitionSha256: string,
+  publishedAt: string,
 ): PublishReleasePolicyResult {
   const result = resultObject(input, "policy");
   const policy = validateRepositoryPolicy(result.record, scope, policyVersionId);
   if (policy.policyId !== policyId || policy.definitionSha256 !== definitionSha256) {
     throw new ReleasePolicyRepositoryContractError(
       "Release policy publication substituted immutable semantics",
+    );
+  }
+  if (result.created && policy.publishedAt !== publishedAt) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Release policy publication substituted its server receipt",
     );
   }
   return { created: result.created, policy };
@@ -438,6 +444,7 @@ export class PublishReleasePolicy {
       policyId.data,
       policyVersionId.data,
       definitionSha256,
+      publishedAt,
     );
     return { created: result.created, policy: structuredClone(result.policy) };
   }
