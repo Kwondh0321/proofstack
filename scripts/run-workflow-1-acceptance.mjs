@@ -8,13 +8,24 @@ import { resolve } from "node:path";
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const composeFile = resolve(repositoryRoot, "compose.yaml");
 const arguments_ = process.argv.slice(2);
-const unknownArguments = arguments_.filter((argument) => argument !== "--release-candidate");
+const allowedArguments = new Set(["--release-candidate", "--release-policy"]);
+const unknownArguments = arguments_.filter((argument) => !allowedArguments.has(argument));
 if (unknownArguments.length > 0) {
   throw new TypeError(`Unknown acceptance argument: ${unknownArguments.join(", ")}`);
 }
-const releaseCandidateMode = arguments_.includes("--release-candidate");
-const workflowLabel = releaseCandidateMode ? "Workflow 2 candidate" : "Workflow 1";
-const projectName = `proofstack-${releaseCandidateMode ? "workflow-2-candidate" : "workflow-1"}-${process.pid}-${randomBytes(4).toString("hex")}`;
+const releasePolicyMode = arguments_.includes("--release-policy");
+const releaseCandidateMode = releasePolicyMode || arguments_.includes("--release-candidate");
+const workflowLabel = releasePolicyMode
+  ? "Workflow 2 policy"
+  : releaseCandidateMode
+    ? "Workflow 2 candidate"
+    : "Workflow 1";
+const workflowSlug = releasePolicyMode
+  ? "workflow-2-policy"
+  : releaseCandidateMode
+    ? "workflow-2-candidate"
+    : "workflow-1";
+const projectName = `proofstack-${workflowSlug}-${process.pid}-${randomBytes(4).toString("hex")}`;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 let activeChild;
 let receivedSignal;
@@ -103,6 +114,7 @@ try {
     PROOFSTACK_TEST_S3_REGION: "us-east-1",
     PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY: "proofstack-local-secret",
     PROOFSTACK_ACCEPT_RELEASE_CANDIDATE: releaseCandidateMode ? "true" : "false",
+    PROOFSTACK_ACCEPT_RELEASE_POLICY: releasePolicyMode ? "true" : "false",
   };
 
   console.log(`Starting isolated ${workflowLabel} services as ${projectName}.`);

@@ -402,6 +402,9 @@ importers:
       '@proofstack/example-workflow-2-release-candidate':
         specifier: workspace:*
         version: link:../workflow-2-release-candidate
+      '@proofstack/example-workflow-2-release-policy':
+        specifier: workspace:*
+        version: link:../workflow-2-release-policy
       '@proofstack/model-evaluation-worker':
         specifier: workspace:*
         version: link:../../services/model-evaluation-worker

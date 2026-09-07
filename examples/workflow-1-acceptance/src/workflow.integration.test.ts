@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,12 +17,32 @@ import {
   StaticReleaseCandidateRuntimeAuthority,
 } from "@proofstack/api/composition";
 import {
+  ArtifactContentReferenceSchema,
+  type PolicyInstallationBindingDefinition,
   type PrincipalContext,
+  type PublishReleasePolicyLifecycleRequest,
+  PublishReleasePolicyLifecycleRequestSchema,
+  type PublishReleasePolicyRequest,
+  PublishReleasePolicyRequestSchema,
   type ReleaseCandidateSource,
   ReleaseCandidateSourceSchema,
+  type ReleasePolicy,
+  type ReleasePolicyDefinition,
+  type ReleasePolicyLifecycleEvent,
+  type SourceReviewDefinition,
+  SourceReviewDefinitionSchema,
+  type SourceReviewerQualificationDefinition,
+  SourceReviewerQualificationDefinitionSchema,
+  type SourceSnapshotDefinition,
+  SourceSnapshotDefinitionSchema,
   TraceResponseSchema,
 } from "@proofstack/contracts";
-import { AuthoritySplitModelAssuranceRepository, SystemClock } from "@proofstack/core";
+import {
+  AuthoritySplitModelAssuranceRepository,
+  StaticPolicyInstallationBindingResolver,
+  SystemClock,
+} from "@proofstack/core";
+import { type PolicyAuthorityFixture, policyAuthorityFixture } from "@proofstack/core/testing";
 import {
   createPostgresEvaluationWorker,
   type PostgresEvaluationWorkerRuntime,
@@ -33,6 +53,10 @@ import {
   WORKFLOW_2_REFERENCE_MODEL_DECLARATION,
   type Workflow2ReleaseCandidateSummary,
 } from "@proofstack/example-workflow-2-release-candidate/workflow";
+import {
+  runWorkflow2ReleasePolicy,
+  type Workflow2ReleasePolicySummary,
+} from "@proofstack/example-workflow-2-release-policy/workflow";
 import {
   createPostgresModelEvaluationWorker,
   type PostgresModelEvaluationWorkerRuntime,
@@ -51,6 +75,7 @@ import {
   ProofStackModelAssuranceClient,
   ProofStackRegressionClient,
   ProofStackReleaseCandidateClient,
+  ProofStackReleasePolicyClient,
   ProofStackReplayClient,
 } from "@proofstack/sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -59,6 +84,8 @@ import {
   prepareWorkflow1Acceptance,
   type Workflow1AcceptanceSummary,
 } from "./workflow.js";
+
+type ArtifactContentReference = ReturnType<typeof ArtifactContentReferenceSchema.parse>;
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -78,7 +105,9 @@ const s3Endpoint = requiredEnvironment("PROOFSTACK_TEST_S3_ENDPOINT");
 const s3Region = requiredEnvironment("PROOFSTACK_TEST_S3_REGION");
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const repositoryUrl = "https://github.com/Kwondh0321/proofstack";
-const acceptReleaseCandidate = process.env["PROOFSTACK_ACCEPT_RELEASE_CANDIDATE"] === "true";
+const acceptReleasePolicy = process.env["PROOFSTACK_ACCEPT_RELEASE_POLICY"] === "true";
+const acceptReleaseCandidate =
+  acceptReleasePolicy || process.env["PROOFSTACK_ACCEPT_RELEASE_CANDIDATE"] === "true";
 const runKey = randomUUID().replaceAll("-", "").slice(0, 12);
 const scope = {
   environmentId: `env_${runKey}_primary`,
@@ -214,6 +243,7 @@ const controlPrincipal: PrincipalContext = {
     "comparison:manage",
     "release:read",
     "release:manage",
+    "policy:read",
   ],
   principalId: `usr_acceptance_${runKey}`,
   principalType: "user",
@@ -229,6 +259,203 @@ let selectedPrincipal = controlPrincipal;
 const authenticator = { authenticate: async () => structuredClone(selectedPrincipal) };
 const clock = new SystemClock();
 
+interface RetainedPolicyArtifact {
+  readonly bytes: Uint8Array;
+  readonly reference: ArtifactContentReference;
+}
+
+interface ReleasePolicyAcceptanceScenario {
+  readonly artifacts: ReadonlyMap<string, RetainedPolicyArtifact>;
+  readonly fixture: PolicyAuthorityFixture;
+  readonly lifecycleRequest: PublishReleasePolicyLifecycleRequest;
+  readonly principals: {
+    readonly artifactCustodian: PrincipalContext;
+    readonly credentialAuthority: PrincipalContext;
+    readonly policyIssuer: PrincipalContext;
+    readonly sourcePublisher: PrincipalContext;
+    readonly sourceReviewer: PrincipalContext;
+  };
+  readonly request: PublishReleasePolicyRequest;
+}
+
+interface PolicyAuthorityRecordReference {
+  readonly definitionSha256: string;
+  readonly kind: "source_review" | "source_reviewer_qualification" | "source_snapshot";
+  readonly recordId: string;
+}
+
+function scopedPrincipal(
+  principalId: string,
+  capabilities: PrincipalContext["capabilities"],
+): PrincipalContext {
+  return {
+    ...structuredClone(controlPrincipal),
+    authentication: { authenticatedAt: clock.now().toISOString(), method: "development" },
+    capabilities: [...capabilities],
+    principalId,
+    requestId: `req_${principalId}`,
+    roles: ["member"],
+  };
+}
+
+function offsetTimestamp(from: Date, milliseconds: number): string {
+  return new Date(from.getTime() + milliseconds).toISOString();
+}
+
+function retainedPolicyDefinition<Definition>(
+  input: Definition,
+  artifacts: Map<string, RetainedPolicyArtifact>,
+): Definition {
+  const definition = structuredClone(input);
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (typeof value !== "object" || value === null) return;
+    const candidate = value as Record<string, unknown>;
+    const parsed = ArtifactContentReferenceSchema.safeParse(candidate);
+    if (parsed.success) {
+      const artifactId = `${parsed.data.artifactId}_${runKey}`;
+      const bytes = Buffer.from(
+        JSON.stringify({ artifactId, evidence: "retained Workflow 2 policy authority bytes" }),
+        "utf8",
+      );
+      Object.assign(candidate, {
+        artifactId,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sizeBytes: bytes.byteLength,
+      });
+      const reference = ArtifactContentReferenceSchema.parse(candidate);
+      const existing = artifacts.get(reference.artifactId);
+      if (
+        existing &&
+        (existing.reference.sha256 !== reference.sha256 ||
+          existing.reference.sizeBytes !== reference.sizeBytes)
+      ) {
+        throw new TypeError(`Artifact ${reference.artifactId} has contradictory content bindings`);
+      }
+      artifacts.set(reference.artifactId, { bytes, reference: structuredClone(reference) });
+    }
+    for (const child of Object.values(candidate)) visit(child);
+  };
+  visit(definition);
+  return definition;
+}
+
+function releasePolicyRequest(fixture: PolicyAuthorityFixture): PublishReleasePolicyRequest {
+  const {
+    definitionSha256: _definitionSha256,
+    issuerPrincipalId: _issuerPrincipalId,
+    policyId: _policyId,
+    predecessor,
+    publishedAt: _publishedAt,
+    publishedByPrincipalId: _publishedByPrincipalId,
+    schemaVersion: _schemaVersion,
+    scope: _scope,
+    ...definition
+  } = structuredClone(fixture.policy);
+  return PublishReleasePolicyRequestSchema.parse({
+    ...definition,
+    ...(predecessor ? { predecessorVersionId: predecessor.policyVersionId } : {}),
+  });
+}
+
+function buildReleasePolicyAcceptanceScenario(
+  workflow1: Workflow1AcceptanceSummary,
+): ReleasePolicyAcceptanceScenario {
+  const now = clock.now();
+  const day = 24 * 60 * 60 * 1_000;
+  const authorityFrom = offsetTimestamp(now, -2 * day);
+  const policyFrom = offsetTimestamp(now, -day);
+  const policyUntil = offsetTimestamp(now, 30 * day);
+  const authorityUntil = offsetTimestamp(now, 31 * day);
+  const artifacts = new Map<string, RetainedPolicyArtifact>();
+  const ids = {
+    credentialAuthority: `usr_policy_credential_authority_${runKey}`,
+    identityVerifier: `usr_policy_identity_verifier_${runKey}`,
+    issuer: `usr_policy_issuer_${runKey}`,
+    sourcePublisher: `usr_policy_source_publisher_${runKey}`,
+    sourceReviewer: `usr_policy_source_reviewer_${runKey}`,
+  } as const;
+  const fixture = policyAuthorityFixture({
+    mutateBinding: (definition: PolicyInstallationBindingDefinition) => {
+      definition.authorizedIssuerPrincipalIds = [ids.issuer];
+      definition.bindingVersionId = `binding_${runKey}_v1`;
+      definition.effectiveAt = authorityFrom;
+      definition.expiresAt = authorityUntil;
+      definition.installationId = `installation_${runKey}`;
+      Object.assign(definition, retainedPolicyDefinition(definition, artifacts));
+    },
+    mutatePolicy: (definition: ReleasePolicyDefinition) => {
+      definition.effectiveAt = policyFrom;
+      definition.expiresAt = policyUntil;
+      definition.issuerPrincipalId = ids.issuer;
+      definition.policyId = `policy_${runKey}_staging`;
+      definition.policyVersionId = `policy_${runKey}_staging_v1`;
+      const assessment = {
+        assessmentId: workflow1.modelAssurance.assessment.baseAssessmentId,
+        definitionSha256: workflow1.modelAssurance.assessment.baseAssessmentSha256,
+      };
+      for (const rule of definition.rules) {
+        if ("comparison" in rule.predicate) {
+          rule.predicate.comparison = structuredClone(workflow1.comparison);
+        } else if ("assessment" in rule.predicate) {
+          rule.predicate.assessment = structuredClone(assessment);
+        }
+      }
+    },
+    mutateReview: (definition: SourceReviewDefinition) => {
+      definition.sourceReviewId = `review_${runKey}_release_standard`;
+      definition.validFrom = authorityFrom;
+      definition.validUntil = authorityUntil;
+      Object.assign(definition, retainedPolicyDefinition(definition, artifacts));
+    },
+    mutateReviewer: (definition: SourceReviewerQualificationDefinition) => {
+      definition.qualificationId = `qualification_${runKey}_release_reviewer`;
+      definition.reviewerPrincipalId = ids.sourceReviewer;
+      definition.validFrom = authorityFrom;
+      definition.validUntil = authorityUntil;
+      Object.assign(definition, retainedPolicyDefinition(definition, artifacts));
+    },
+    mutateSource: (definition: SourceSnapshotDefinition) => {
+      definition.effectiveAt = authorityFrom;
+      definition.expiresAt = authorityUntil;
+      definition.sourceSnapshotId = `source_${runKey}_release_standard`;
+      if (definition.identityVerification.status !== "verified") {
+        throw new TypeError("Policy acceptance source identity must be independently verified");
+      }
+      definition.identityVerification = {
+        ...definition.identityVerification,
+        verifiedAt: authorityFrom,
+        verifierPrincipalId: ids.identityVerifier,
+      };
+      Object.assign(definition, retainedPolicyDefinition(definition, artifacts));
+    },
+    scope,
+  });
+
+  return {
+    artifacts,
+    fixture,
+    lifecycleRequest: PublishReleasePolicyLifecycleRequestSchema.parse({
+      eventId: `policy_event_${runKey}_withdrawal`,
+      kind: "withdrawn",
+      reason: "This disposable policy version completed its immutable publication exercise.",
+    }),
+    principals: {
+      artifactCustodian: scopedPrincipal(`usr_policy_artifact_custodian_${runKey}`, [
+        "artifact:write",
+      ]),
+      credentialAuthority: scopedPrincipal(ids.credentialAuthority, ["evaluation:manage"]),
+      policyIssuer: scopedPrincipal(ids.issuer, ["policy:author", "policy:read"]),
+      sourcePublisher: scopedPrincipal(ids.sourcePublisher, ["evaluation:manage"]),
+      sourceReviewer: scopedPrincipal(ids.sourceReviewer, ["evaluation:manage"]),
+    },
+    request: releasePolicyRequest(fixture),
+  };
+}
+
 let apiUrl: string;
 let app: Awaited<ReturnType<typeof createApp>> | undefined;
 let evaluationWorker: PostgresEvaluationWorkerRuntime | undefined;
@@ -236,6 +463,7 @@ let modelWorker: PostgresModelEvaluationWorkerRuntime | undefined;
 let outputRoot: string | undefined;
 let bucketCreated = false;
 let rolesCreated = false;
+let releasePolicyScenario: ReleasePolicyAcceptanceScenario | undefined;
 
 function comparisonClient(): ProofStackComparisonClient {
   return new ProofStackComparisonClient({
@@ -297,6 +525,16 @@ function releaseCandidateClient(): ProofStackReleaseCandidateClient {
   });
 }
 
+function releasePolicyClient(): ProofStackReleasePolicyClient {
+  return new ProofStackReleasePolicyClient({
+    authentication: { mode: "development" },
+    endpoint: apiUrl,
+    environmentId: scope.environmentId,
+    projectId: scope.projectId,
+    timeoutMs: 20_000,
+  });
+}
+
 function gitOutput(arguments_: readonly string[]): string {
   return execFileSync("git", arguments_, {
     cwd: repositoryRoot,
@@ -322,6 +560,9 @@ async function startApi(): Promise<void> {
     authenticator,
     clock,
     modelAssuranceRepository: assuranceRepository,
+    policyInstallationBindingResolver: new StaticPolicyInstallationBindingResolver(
+      releasePolicyScenario ? [releasePolicyScenario.fixture.binding] : [],
+    ),
     releaseCandidateRevisionAuthority: new LocalGitReleaseCandidateRevisionAuthority({
       repositories: [{ checkoutPath: repositoryRoot, repositoryUrl, scope }],
     }),
@@ -435,6 +676,133 @@ async function verifyCompleteReadBack(summary: Workflow1AcceptanceSummary): Prom
     "model.generate",
     "tool.execute",
   ]);
+}
+
+async function publishPolicyAuthorityInputs(
+  scenario: ReleasePolicyAcceptanceScenario,
+): Promise<readonly PolicyAuthorityRecordReference[]> {
+  const regression = regressionClient();
+  selectedPrincipal = scenario.principals.artifactCustodian;
+  for (const { bytes, reference } of scenario.artifacts.values()) {
+    const reservation = await regression.reserveArtifact({
+      request: {
+        artifactId: reference.artifactId,
+        classification: reference.classification,
+        mediaType: reference.mediaType,
+        redaction: { status: "not_required" },
+        retention: { mode: "retain" },
+        sha256: reference.sha256,
+        sizeBytes: reference.sizeBytes,
+      },
+    });
+    expect(reservation.created).toBe(true);
+    const upload = await regression.uploadArtifactContent({
+      artifactId: reference.artifactId,
+      content: bytes,
+    });
+    expect(upload.metadata.state).toBe("available");
+    expect(upload.metadata.contentReference).toEqual(reference);
+  }
+
+  const evaluation = evaluationClient();
+  const {
+    definitionSha256: _sourceDigest,
+    publishedByPrincipalId: _sourcePublisher,
+    recordedAt: _sourceRecordedAt,
+    schemaVersion: _sourceSchemaVersion,
+    scope: _sourceScope,
+    ...sourceDefinition
+  } = structuredClone(scenario.fixture.source);
+  selectedPrincipal = scenario.principals.sourcePublisher;
+  const source = await evaluation.publishDefinition({
+    recordId: scenario.fixture.source.sourceSnapshotId,
+    request: {
+      definition: SourceSnapshotDefinitionSchema.parse(sourceDefinition),
+      kind: "source_snapshot",
+    },
+  });
+  if (source.result.kind !== "source_snapshot") {
+    throw new TypeError("Policy source publication changed record kind");
+  }
+  expect(source.created).toBe(true);
+  expect(source.result.record.definitionSha256).toBe(scenario.fixture.source.definitionSha256);
+
+  const {
+    definitionSha256: _qualificationDigest,
+    recordedAt: _qualificationRecordedAt,
+    schemaVersion: _qualificationSchemaVersion,
+    scope: _qualificationScope,
+    verifiedByPrincipalId: _qualificationVerifier,
+    ...qualificationDefinition
+  } = structuredClone(scenario.fixture.reviewer);
+  selectedPrincipal = scenario.principals.credentialAuthority;
+  const qualification = await evaluation.publishDefinition({
+    recordId: scenario.fixture.reviewer.qualificationId,
+    request: {
+      definition: SourceReviewerQualificationDefinitionSchema.parse(qualificationDefinition),
+      kind: "source_reviewer_qualification",
+    },
+  });
+  if (qualification.result.kind !== "source_reviewer_qualification") {
+    throw new TypeError("Policy reviewer qualification publication changed record kind");
+  }
+  expect(qualification.created).toBe(true);
+  expect(qualification.result.record.definitionSha256).toBe(
+    scenario.fixture.reviewer.definitionSha256,
+  );
+
+  const {
+    definitionSha256: _reviewDigest,
+    reviewedAt: _reviewedAt,
+    reviewedByPrincipalId: _reviewerPrincipalId,
+    reviewerRole: _reviewerRole,
+    schemaVersion: _reviewSchemaVersion,
+    scope: _reviewScope,
+    ...reviewDefinition
+  } = structuredClone(scenario.fixture.review);
+  selectedPrincipal = scenario.principals.sourceReviewer;
+  const review = await evaluation.publishDefinition({
+    recordId: scenario.fixture.review.sourceReviewId,
+    request: {
+      definition: SourceReviewDefinitionSchema.parse(reviewDefinition),
+      kind: "source_review",
+    },
+  });
+  if (review.result.kind !== "source_review") {
+    throw new TypeError("Policy source review publication changed record kind");
+  }
+  expect(review.created).toBe(true);
+  expect(review.result.record.definitionSha256).toBe(scenario.fixture.review.definitionSha256);
+
+  return [
+    {
+      definitionSha256: source.result.record.definitionSha256,
+      kind: "source_snapshot",
+      recordId: source.result.record.sourceSnapshotId,
+    },
+    {
+      definitionSha256: qualification.result.record.definitionSha256,
+      kind: "source_reviewer_qualification",
+      recordId: qualification.result.record.qualificationId,
+    },
+    {
+      definitionSha256: review.result.record.definitionSha256,
+      kind: "source_review",
+      recordId: review.result.record.sourceReviewId,
+    },
+  ];
+}
+
+async function verifyPolicyAuthorityReadBack(
+  references: readonly PolicyAuthorityRecordReference[],
+): Promise<void> {
+  selectedPrincipal = controlPrincipal;
+  const evaluation = evaluationClient();
+  for (const reference of references) {
+    const persisted = await evaluation.readRecord(reference);
+    expect(persisted.result.kind).toBe(reference.kind);
+    expect(persisted.result.record.definitionSha256).toBe(reference.definitionSha256);
+  }
 }
 
 beforeAll(async () => {
@@ -582,6 +950,10 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
     expect(summary.verifiedComparisonRecords).toHaveLength(4);
 
     let releaseCandidate: Workflow2ReleaseCandidateSummary | undefined;
+    let releasePolicy: Workflow2ReleasePolicySummary | undefined;
+    let releasePolicyBeforeRestart: ReleasePolicy | undefined;
+    let releasePolicyLifecycleBeforeRestart: ReleasePolicyLifecycleEvent | undefined;
+    let policyAuthorityReferences: readonly PolicyAuthorityRecordReference[] = [];
     if (acceptReleaseCandidate) {
       releaseCandidate = await runWorkflow2ReleaseCandidate({
         candidateClient: releaseCandidateClient(),
@@ -600,6 +972,53 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
       });
     }
 
+    if (acceptReleasePolicy) {
+      if (!releaseCandidate) {
+        throw new Error("Workflow 2 policy acceptance requires a retained release candidate");
+      }
+      releasePolicyScenario = buildReleasePolicyAcceptanceScenario(summary);
+      policyAuthorityReferences = await publishPolicyAuthorityInputs(releasePolicyScenario);
+
+      // Recompose the API from durable authority records and the operator-owned installation
+      // binding before policy publication. This proves that publication does not depend on the
+      // in-process objects used to write the source, reviewer qualification, or review.
+      await restartApi();
+      selectedPrincipal = releasePolicyScenario.principals.policyIssuer;
+      releasePolicy = await runWorkflow2ReleasePolicy({
+        client: releasePolicyClient(),
+        lifecycleRequest: releasePolicyScenario.lifecycleRequest,
+        policyId: releasePolicyScenario.fixture.policy.policyId,
+        request: releasePolicyScenario.request,
+      });
+      expect(releasePolicy.immutableHistoryVerified).toBe(true);
+      expect(releasePolicy.policy).toMatchObject({
+        definitionSha256: releasePolicyScenario.fixture.policy.definitionSha256,
+        policyId: releasePolicyScenario.fixture.policy.policyId,
+        policyVersionId: releasePolicyScenario.fixture.policy.policyVersionId,
+        retryCreated: false,
+      });
+      expect(releasePolicy.lifecycle).toEqual({
+        eventId: releasePolicyScenario.lifecycleRequest.eventId,
+        kind: "withdrawn",
+        retryCreated: false,
+      });
+
+      const policyClient = releasePolicyClient();
+      releasePolicyBeforeRestart = (
+        await policyClient.readPolicy({
+          policyId: releasePolicy.policy.policyId,
+          policyVersionId: releasePolicy.policy.policyVersionId,
+        })
+      ).policy;
+      releasePolicyLifecycleBeforeRestart = (
+        await policyClient.readLifecycleEvent({
+          eventId: releasePolicy.lifecycle.eventId,
+          policyId: releasePolicy.policy.policyId,
+          policyVersionId: releasePolicy.policy.policyVersionId,
+        })
+      ).event;
+    }
+
     await restartApi();
     await verifyCompleteReadBack(summary);
     if (releaseCandidate) {
@@ -608,6 +1027,37 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
         candidateVersionId: releaseCandidate.candidate.candidateVersionId,
       });
       expect(restored.candidate).toEqual(releaseCandidate.candidate);
+    }
+    if (
+      releasePolicy &&
+      releasePolicyScenario &&
+      releasePolicyBeforeRestart &&
+      releasePolicyLifecycleBeforeRestart
+    ) {
+      await verifyPolicyAuthorityReadBack(policyAuthorityReferences);
+      selectedPrincipal = controlPrincipal;
+      const policyClient = releasePolicyClient();
+      const restoredPolicy = await policyClient.readPolicy({
+        policyId: releasePolicy.policy.policyId,
+        policyVersionId: releasePolicy.policy.policyVersionId,
+      });
+      const restoredLifecycle = await policyClient.readLifecycleEvent({
+        eventId: releasePolicy.lifecycle.eventId,
+        policyId: releasePolicy.policy.policyId,
+        policyVersionId: releasePolicy.policy.policyVersionId,
+      });
+      expect(restoredPolicy.policy).toEqual(releasePolicyBeforeRestart);
+      expect(restoredLifecycle.event).toEqual(releasePolicyLifecycleBeforeRestart);
+      expect(restoredPolicy.policy.rules).toEqual(releasePolicyScenario.fixture.policy.rules);
+      expect(restoredPolicy.policy.sources).toEqual(releasePolicyScenario.fixture.policy.sources);
+      expect(restoredPolicy.policy.installationBinding).toEqual(
+        releasePolicyScenario.fixture.policy.installationBinding,
+      );
+      expect(restoredLifecycle.event.policy).toEqual({
+        definitionSha256: restoredPolicy.policy.definitionSha256,
+        policyId: restoredPolicy.policy.policyId,
+        policyVersionId: restoredPolicy.policy.policyVersionId,
+      });
     }
   });
 });

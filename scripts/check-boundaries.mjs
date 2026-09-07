@@ -207,6 +207,7 @@ const modules = [
       "@proofstack/core",
       "@proofstack/evaluation-worker",
       "@proofstack/example-workflow-2-release-candidate",
+      "@proofstack/example-workflow-2-release-policy",
       "@proofstack/model-evaluation-worker",
       "@proofstack/postgres",
       "@proofstack/s3",

@@ -48,6 +48,7 @@
     "test": "turbo run test",
     "test:acceptance:workflow-1": "node scripts/run-workflow-1-acceptance.mjs",
     "test:acceptance:workflow-2-candidate": "node scripts/run-workflow-1-acceptance.mjs --release-candidate",
+    "test:acceptance:workflow-2-policy": "node scripts/run-workflow-1-acceptance.mjs --release-policy",
     "test:integration:artifacts": "turbo run test:integration --concurrency=1 --filter=@proofstack/artifact-maintenance",
     "test:integration:postgres": "turbo run test:integration --concurrency=1 --filter=@proofstack/postgres --filter=@proofstack/api --filter=@proofstack/web --filter=@proofstack/example-durable-replay --filter=@proofstack/example-evaluation-control-flow --filter=@proofstack/example-model-assurance-control-flow --filter=@proofstack/example-workflow-1-acceptance",
     "test:integration:recovery": "turbo run test:integration --concurrency=1 --filter=@proofstack/recovery-operations",
