@@ -5,11 +5,11 @@ import {
   ArtifactOwnershipSchema,
   type ArtifactTombstone,
   ArtifactTombstoneSchema,
+  type EvidenceScope,
   EvidenceScopeSchema,
   type InteractionFixtureContentRevocation,
   InteractionFixtureContentRevocationSchema,
   OpaqueIdSchema,
-  type EvidenceScope,
   type RecordedInteractionFixtureVersion,
   type RegressionDatasetVersion,
   type RegressionFixtureVersion,
@@ -27,17 +27,17 @@ import {
   buildRegressionFixtureVersionPublishedOutboxIntent,
   type InteractionFixtureVersionRepository,
   type PublishRecordedInteractionFixtureVersionResult,
-  RegressionRepositoryContractError,
+  type PublishRegressionVersionResult,
   RegressionArtifactBindingError,
   RegressionFixtureContentRevocationConflictError,
+  RegressionRepositoryContractError,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
   RegressionVersionNotFoundError,
-  type PublishRegressionVersionResult,
   type RegressionVersionPublishedOutboxIntent,
+  type ResolveRegressionFixtureVersionReferencesResult,
   type RevokeInteractionFixtureContentCandidate,
   type RevokeInteractionFixtureContentResult,
-  type ResolveRegressionFixtureVersionReferencesResult,
   type StoredInteractionFixtureContent,
   type StoredRecordedInteractionFixtureVersion,
   validateAndProjectRecordedInteractionFixtureVersion,
@@ -1099,13 +1099,19 @@ async function loadRecordedFixtureVersions(
   ]);
   const headerIds = headers.rows.map(({ fixture_version_id }) => fixture_version_id);
   if (headerIds.length === 0) return new Map();
-  const [events, manifests, ownerships] = await Promise.all([
-    client.query<FixtureEventRow>(SELECT_FIXTURE_EVENTS_SQL, [tenantId, headerIds]),
-    client.query<RecordedFixtureManifestRow>(SELECT_RECORDED_FIXTURE_MANIFESTS_SQL, [
-      tenantId,
-      headerIds,
-    ]),
-    client.query<ArtifactOwnershipRow>(SELECT_INTERACTION_OWNERSHIPS_SQL, [tenantId, headerIds]),
+  // One transaction owns this connection. Await each query before issuing the next so
+  // failures cannot leave sibling reads running past rollback or connection release.
+  const events = await client.query<FixtureEventRow>(SELECT_FIXTURE_EVENTS_SQL, [
+    tenantId,
+    headerIds,
+  ]);
+  const manifests = await client.query<RecordedFixtureManifestRow>(
+    SELECT_RECORDED_FIXTURE_MANIFESTS_SQL,
+    [tenantId, headerIds],
+  );
+  const ownerships = await client.query<ArtifactOwnershipRow>(SELECT_INTERACTION_OWNERSHIPS_SQL, [
+    tenantId,
+    headerIds,
   ]);
 
   const eventsByVersion = new Map<string, FixtureEventRow[]>();
@@ -1175,10 +1181,8 @@ async function loadAnyFixtureVersions(
   tenantId: string,
   versionIds: readonly string[],
 ): Promise<Map<string, StoredAnyFixtureRecord>> {
-  const [evidence, recorded] = await Promise.all([
-    loadFixtureVersions(client, tenantId, versionIds),
-    loadRecordedFixtureVersions(client, tenantId, versionIds),
-  ]);
+  const evidence = await loadFixtureVersions(client, tenantId, versionIds);
+  const recorded = await loadRecordedFixtureVersions(client, tenantId, versionIds);
   const result = new Map<string, StoredAnyFixtureRecord>(evidence);
   for (const [versionId, value] of recorded) {
     if (result.has(versionId)) {
@@ -1221,9 +1225,13 @@ async function loadDatasetVersions(
 ): Promise<Map<string, StoredDatasetRecord>> {
   if (versionIds.length === 0) return new Map();
   const uniqueIds = [...new Set(versionIds)];
-  const [headers, members] = await Promise.all([
-    client.query<DatasetVersionRow>(SELECT_DATASET_VERSIONS_SQL, [tenantId, uniqueIds]),
-    client.query<DatasetMemberRow>(SELECT_DATASET_MEMBERS_SQL, [tenantId, uniqueIds]),
+  const headers = await client.query<DatasetVersionRow>(SELECT_DATASET_VERSIONS_SQL, [
+    tenantId,
+    uniqueIds,
+  ]);
+  const members = await client.query<DatasetMemberRow>(SELECT_DATASET_MEMBERS_SQL, [
+    tenantId,
+    uniqueIds,
   ]);
 
   const membersByVersion = new Map<string, DatasetMemberRow[]>();
@@ -1825,11 +1833,9 @@ async function storedInteractionFixtureContent(
   client: PoolClient,
   stored: StoredRecordedFixtureRecord,
 ): Promise<StoredInteractionFixtureContent> {
-  const [revocation, availability, tombstonesByArtifact] = await Promise.all([
-    loadInteractionFixtureRevocation(client, stored),
-    loadInteractionArtifactAvailability(client, stored),
-    loadInteractionFixtureTombstones(client, stored),
-  ]);
+  const revocation = await loadInteractionFixtureRevocation(client, stored);
+  const availability = await loadInteractionArtifactAvailability(client, stored);
+  const tombstonesByArtifact = await loadInteractionFixtureTombstones(client, stored);
   if (!revocation) {
     if (tombstonesByArtifact.size > 0) {
       contractViolation("Fixture-owned content was tombstoned without an immutable revocation");

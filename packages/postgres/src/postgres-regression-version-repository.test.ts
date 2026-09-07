@@ -6,15 +6,15 @@ import {
   type ArtifactTombstone,
   type EvidenceScope,
   type InteractionFixtureContentRevocation,
+  type RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinitionSchema,
   RecordedInteractionFixtureVersionSchema,
-  type RecordedInteractionFixtureVersion,
+  type RegressionDatasetVersion,
   RegressionDatasetVersionDefinitionSchema,
   RegressionDatasetVersionSchema,
-  type RegressionDatasetVersion,
+  type RegressionFixtureVersion,
   RegressionFixtureVersionDefinitionSchema,
   RegressionFixtureVersionSchema,
-  type RegressionFixtureVersion,
 } from "@proofstack/contracts";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -44,23 +44,35 @@ type QueryHandler = (
 class FakeClient {
   readonly queries: Array<{ readonly text: string; readonly values?: readonly unknown[] }> = [];
   readonly releaseArguments: Array<boolean | undefined> = [];
+  private queryInFlight = false;
 
   constructor(private readonly handler: QueryHandler) {}
 
   async query(text: string, values?: readonly unknown[]) {
-    this.queries.push({ text, ...(values ? { values } : {}) });
-    if (
-      text === "BEGIN" ||
-      text === "COMMIT" ||
-      text === "ROLLBACK" ||
-      text.includes("set_config")
-    ) {
-      return { rows: [] };
+    if (this.queryInFlight) throw new Error("Queries must not overlap on one transaction client");
+    this.queryInFlight = true;
+    try {
+      // A real connection stays busy until its asynchronous query completes.
+      await Promise.resolve();
+      this.queries.push({ text, ...(values ? { values } : {}) });
+      if (
+        text === "BEGIN" ||
+        text === "COMMIT" ||
+        text === "ROLLBACK" ||
+        text.includes("set_config")
+      ) {
+        return { rows: [] };
+      }
+      return this.handler(text, values);
+    } finally {
+      this.queryInFlight = false;
     }
-    return this.handler(text, values);
   }
 
   release(argument?: boolean): void {
+    if (this.queryInFlight && argument !== true) {
+      throw new Error("Cannot return a busy transaction client to the pool");
+    }
     this.releaseArguments.push(argument);
   }
 }
@@ -600,6 +612,91 @@ function rowsForRecordedReads(
 }
 
 describe("PostgresRegressionVersionRepository scoped reads", () => {
+  it.each([
+    {
+      mode: "dataset",
+      needle: "FROM public.proofstack_regression_dataset_versions",
+      qualifier: "created_at_lexical",
+    },
+    {
+      mode: "mixed",
+      needle: "FROM public.proofstack_regression_fixture_versions",
+      qualifier: "replayability = 'evidence_only'",
+    },
+    { mode: "recorded", needle: "FROM public.proofstack_regression_fixture_events", qualifier: "" },
+    {
+      mode: "recorded",
+      needle: "FROM public.proofstack_recorded_interaction_fixture_versions",
+      qualifier: "",
+    },
+    {
+      mode: "content",
+      needle: "FROM public.proofstack_interaction_fixture_content_revocations",
+      qualifier: "",
+    },
+    {
+      mode: "content",
+      needle: "FROM public.proofstack_artifact_catalog",
+      qualifier: "tombstoned_at",
+    },
+    { mode: "content", needle: "FROM public.proofstack_artifact_tombstones", qualifier: "" },
+  ] as const)(
+    "finishes $mode rollback before reusing the connection after $needle fails",
+    async ({ mode, needle, qualifier }) => {
+      const predecessor = fixture();
+      const stored = recordedFixture(predecessor);
+      const storedDataset = dataset(predecessor);
+      const failure = new Error("injected read failure");
+      const matches = (text: string) => text.includes(needle) && text.includes(qualifier);
+      const testHarness = harness((text, values) => {
+        if (matches(text)) throw failure;
+        if (text.includes("SELECT EXISTS")) return { rows: [{ present: false }] };
+        if (text.includes("FROM public.proofstack_regression_dataset_versions"))
+          return { rows: [datasetHeader(storedDataset)] };
+        if (text.includes("FROM public.proofstack_regression_dataset_members"))
+          return { rows: datasetMembers(storedDataset) };
+        return (
+          rowsForRecordedReads(text, values, {
+            candidate: stored,
+            candidateStored: true,
+            predecessor,
+          }) ?? { rows: [] }
+        );
+      });
+      const operation =
+        mode === "dataset"
+          ? testHarness.repository.findDatasetVersion(scope, storedDataset.datasetVersionId)
+          : mode === "mixed"
+            ? testHarness.repository.resolveFixtureVersionReferences(scope, [
+                { fixtureId: stored.fixtureId, fixtureVersionId: stored.fixtureVersionId },
+              ])
+            : mode === "recorded"
+              ? testHarness.repository.findRecordedInteractionFixtureVersion(
+                  scope,
+                  stored.fixtureVersionId,
+                )
+              : testHarness.repository.findRecordedInteractionFixtureContent(
+                  scope,
+                  stored.fixtureVersionId,
+                );
+      await expect(operation).rejects.toBe(failure);
+      // Flush continuations: no abandoned sibling query may start after transaction cleanup.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const failedIndex = testHarness.client.queries.findIndex(({ text }) => matches(text));
+      expect(failedIndex).toBeGreaterThanOrEqual(0);
+      expect(
+        testHarness.client.queries.slice(failedIndex + 1).map(({ text }) => text.trim()),
+      ).toEqual(["ROLLBACK"]);
+      expect(testHarness.client.releaseArguments).toEqual([undefined]);
+      await expect(
+        testHarness.repository.datasetResourceExists(scope, storedDataset.datasetId),
+      ).resolves.toBe(false);
+      expect(testHarness.connections.count).toBe(2);
+      expect(testHarness.client.queries.at(-1)?.text).toBe("COMMIT");
+      expect(testHarness.client.releaseArguments).toEqual([undefined, undefined]);
+    },
+  );
+
   it("implements resource presence reads with exact scope and validates the scalar result", async () => {
     const testHarness = harness((text) => {
       if (text.includes("proofstack_regression_fixtures")) return { rows: [{ present: true }] };
