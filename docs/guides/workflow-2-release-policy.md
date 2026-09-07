@@ -90,6 +90,13 @@ embed classified content. The focused local transport tests use synthetic author
 memory storage; the clean-checkout acceptance below separately exercises the retained database and
 object-storage flow.
 
+Withdrawal and supersession reasons allow 1–4,096 Unicode scalar values, independently of UTF-8
+byte length. Migration `0049_align_policy_lifecycle_reason_bounds` aligns PostgreSQL with that
+existing contract; it preserves all prior migration checksums, policy records, lifecycle history,
+and outbox intent. Installations on older migrations must apply the forward migration through the
+normal administrative migration procedure before running this version. No history rewrite or
+automatic destructive rollback is required.
+
 ## Requirements
 
 - A clean checkout of this repository.

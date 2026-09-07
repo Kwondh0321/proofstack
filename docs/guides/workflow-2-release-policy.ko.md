@@ -87,6 +87,12 @@ timestamp, digest, 정확한 lineage와 JSON 정수 표기 확장을 위한 제�
 않습니다. 집중 로컬 전송 테스트는 synthetic authority fixture와 메모리 저장소를 사용합니다.
 아래 clean-checkout 수용 검증은 별도로 보존 database와 object-storage 흐름을 실행합니다.
 
+철회와 후속 버전 대체 사유는 UTF-8 바이트 길이와 별도로 1–4,096개의 Unicode scalar value를
+허용합니다. `0049_align_policy_lifecycle_reason_bounds` 마이그레이션이 PostgreSQL을 기존 contract에
+맞추며, 이전 마이그레이션 checksum, 정책 record, lifecycle 이력, outbox intent를 보존합니다.
+이전 스키마를 쓰는 설치는 이 버전을 실행하기 전에 정상적인 관리자 마이그레이션 절차로 새
+마이그레이션을 적용해야 합니다. 이력을 다시 쓰거나 자동으로 파괴적 rollback을 할 필요는 없습니다.
+
 ## 요구 사항
 
 - 이 repository의 깨끗한 checkout.

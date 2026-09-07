@@ -69,6 +69,63 @@ async function publishPolicyGraph(harness: ReleasePolicyRepositoryTestHarness): 
 
 export const releasePolicyRepositoryConformanceCases: readonly ReleasePolicyRepositoryConformanceCase[] =
   [
+    ...(["withdrawn", "superseded"] as const).flatMap((kind) =>
+      [
+        { character: "a", label: "ascii" },
+        { character: "가", label: "bmp" },
+        { character: "😀", label: "astral" },
+      ].flatMap(({ character, label }) =>
+        [0, 1, 2048, 2049, 4096, 4097].map((length) => ({
+          name: `preserves ${kind} reason bounds at ${length} ${label} Unicode scalars`,
+          async run(factory: ReleasePolicyRepositoryTestFactory) {
+            await withHarness(factory, `reason_${kind}_${label}_${length}`, async (harness) => {
+              await publishPolicyGraph(harness);
+              const event = {
+                ...(kind === "withdrawn" ? harness.withdrawal : harness.supersession),
+                reason: character.repeat(length),
+              };
+              if (length === 0 || length > 4096) {
+                await assert.rejects(
+                  harness.repository.publishReleasePolicyLifecycleEvent(event),
+                  InvalidReleasePolicyLifecycleInputError,
+                );
+                await assertEventAbsent(harness.repository, harness, event.eventId);
+                assert.deepEqual(
+                  await harness.repository.listReleasePolicyLifecycleEvents(
+                    harness.scope,
+                    harness.policy.policyVersionId,
+                  ),
+                  [],
+                );
+                return;
+              }
+              assert.deepEqual(await harness.repository.publishReleasePolicyLifecycleEvent(event), {
+                created: true,
+                event,
+              });
+              assert.deepEqual(await harness.repository.publishReleasePolicyLifecycleEvent(event), {
+                created: false,
+                event,
+              });
+              assert.deepEqual(
+                await harness.repository.findReleasePolicyLifecycleEvent(
+                  harness.scope,
+                  event.eventId,
+                ),
+                event,
+              );
+              assert.deepEqual(
+                await harness.repository.listReleasePolicyLifecycleEvents(
+                  harness.scope,
+                  harness.policy.policyVersionId,
+                ),
+                [event],
+              );
+            });
+          },
+        })),
+      ),
+    ),
     {
       name: "publishes and reads exact immutable policy lineage",
       async run(factory) {

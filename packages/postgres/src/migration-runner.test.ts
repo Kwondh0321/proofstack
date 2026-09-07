@@ -134,6 +134,7 @@ describe("migration inspection", () => {
         "0046_policy_author_capabilities",
         "0047_release_policy_graph",
         "0048_allow_policy_withdrawal",
+        "0049_align_policy_lifecycle_reason_bounds",
       ],
     });
   });
