@@ -204,4 +204,22 @@ describe("exact comparison arithmetic", () => {
       "result_out_of_bounds",
     );
   });
+
+  it.each([rational("bad", "1"), rational("1", "bad"), rational("9".repeat(129), "1")])(
+    "returns a stable invalid-value error for a malformed exact input: %j",
+    (input) => {
+      expectArithmeticError(
+        () => compareComparisonExactValues(input, decimal("1")),
+        "invalid_value",
+      );
+      expectArithmeticError(
+        () => subtractComparisonExactValues(input, decimal("1")),
+        "invalid_value",
+      );
+      expectArithmeticError(
+        () => aggregateComparisonExactValues([input], { method: "sum", methodVersion: "1.0.0" }),
+        "invalid_value",
+      );
+    },
+  );
 });

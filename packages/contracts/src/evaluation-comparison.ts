@@ -535,6 +535,8 @@ export const ComparisonExactValueSchema = z.discriminatedUnion("representation",
     })
     .strict()
     .superRefine((value, context) => {
+      // String format/size issues are non-aborting; never convert rejected input to BigInt.
+      if (context.issues.length > 0) return;
       const numerator = BigInt(value.numerator);
       const denominator = BigInt(value.denominator);
       if (

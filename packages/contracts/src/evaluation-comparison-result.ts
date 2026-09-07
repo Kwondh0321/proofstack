@@ -354,6 +354,8 @@ export const ComparisonMetricValueSchema = z.discriminatedUnion("status", [
     })
     .strict()
     .superRefine((value, context) => {
+      // Nested exact-value issues must prevent delta arithmetic as well as fail validation.
+      if (context.issues.length > 0) return;
       if (
         value.baseline.unit !== value.candidate.unit ||
         value.baseline.unit !== value.delta.unit

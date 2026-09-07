@@ -258,6 +258,8 @@ export const WilsonIntervalSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    // Bounds must satisfy their decimal format/size contract before exact comparison.
+    if (context.issues.length > 0) return;
     if (value.successCount > value.trialCount) {
       context.addIssue({
         code: "custom",
