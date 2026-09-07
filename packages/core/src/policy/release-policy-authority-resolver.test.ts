@@ -285,12 +285,10 @@ describe("static policy installation binding registry", () => {
   it("isolates identical installation identifiers by exact tenant scope and returned value", async () => {
     const primary = policyAuthorityFixture();
     const secondary = policyAuthorityFixture({
-      mutateBinding: (binding) => {
-        binding.scope = {
-          environmentId: "env_secondary",
-          projectId: "project_secondary",
-          tenantId: "tenant_secondary",
-        };
+      scope: {
+        environmentId: "env_secondary",
+        projectId: "project_secondary",
+        tenantId: "tenant_secondary",
       },
     });
     const registry = new StaticPolicyInstallationBindingResolver([
@@ -302,6 +300,11 @@ describe("static policy installation binding registry", () => {
     const second = await registry.resolve({ reference, scope: secondary.binding.scope });
     expect(first).toEqual(primary.binding);
     expect(second).toEqual(secondary.binding);
+    expect(secondary.input.scope).toEqual(secondary.binding.scope);
+    expect(secondary.source.scope).toEqual(secondary.binding.scope);
+    expect(secondary.review.scope).toEqual(secondary.binding.scope);
+    expect(secondary.reviewer.scope).toEqual(secondary.binding.scope);
+    expect(secondary.policy.scope).toEqual(secondary.binding.scope);
     if (!first) throw new Error("Expected registered binding");
     (first as { authorizedIssuerPrincipalIds: string[] }).authorizedIssuerPrincipalIds.push(
       "principal_mutation",

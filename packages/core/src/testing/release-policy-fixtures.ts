@@ -14,6 +14,7 @@ import type {
   SourceSnapshotDefinition,
 } from "@proofstack/contracts";
 import {
+  EvidenceScopeSchema,
   POLICY_INSTALLATION_BINDING_SCHEMA_VERSION,
   RELEASE_POLICY_SCHEMA_VERSION,
   SOURCE_REVIEW_SCHEMA_VERSION,
@@ -111,6 +112,7 @@ export interface PolicyAuthorityFixtureOptions {
   readonly mutateReview?: (definition: SourceReviewDefinition) => void;
   readonly mutateReviewer?: (definition: SourceReviewerQualificationDefinition) => void;
   readonly mutateSource?: (definition: SourceSnapshotDefinition) => void;
+  readonly scope?: EvidenceScope;
 }
 
 export interface PolicyAuthorityFixture {
@@ -125,11 +127,13 @@ export interface PolicyAuthorityFixture {
 export function policyAuthorityFixture(
   options: PolicyAuthorityFixtureOptions = {},
 ): PolicyAuthorityFixture {
-  const scope: EvidenceScope = {
-    environmentId: "env_staging",
-    projectId: "project_checkout",
-    tenantId: "tenant_example",
-  };
+  const scope = EvidenceScopeSchema.parse(
+    options.scope ?? {
+      environmentId: "env_staging",
+      projectId: "project_checkout",
+      tenantId: "tenant_example",
+    },
+  );
 
   const sourceDefinition = definition<SourceSnapshotDefinition>(sourceVectors, "source_snapshot");
   sourceDefinition.applicabilityScope = anyPolicySourceScope();
