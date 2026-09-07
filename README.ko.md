@@ -335,6 +335,9 @@ approval, decision, attestation, CI enforcement, deployment, production-readines
 [정책 평가 진입 감사](docs/development/workflow-2-policy-evaluation-entry-audit.ko.md)는 고정 입력
 선택, 정확한 연산, 누락 처리, 선언적 승인 전제조건, 별도 worker 권한, 영속 실행과 acceptance
 gate를 고정합니다. 구현 진입만 승인하며 구현된 evaluator나 출시 결정을 주장하지 않습니다.
+[comparison 선택 기반 기능](docs/development/workflow-2-policy-evaluation-comparison-selection.ko.md)은
+candidate가 선언한 전체 comparison 집합을 조사해 `unique`, `missing`, `ambiguous`, `unresolved`를
+보존하지만 전체 계보 검증이나 봉인된 입력을 주장하지 않습니다.
 
 ## 현재의 경계
 

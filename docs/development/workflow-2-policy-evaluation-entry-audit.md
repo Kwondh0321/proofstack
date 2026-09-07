@@ -66,6 +66,12 @@ implements typed source inventories, complete fixed pages, canonical root/page d
 against a separately supplied expected closure. Authoritative closure derivation, guarded sealing,
 and policy evaluation remain unimplemented; the remaining record boundaries below stay open.
 
+The [complete comparison-selection building block](workflow-2-policy-evaluation-comparison-selection.md)
+validates the exact request/candidate/policy roots, accounts for every candidate-declared result,
+and distinguishes unique, missing, ambiguous, and unresolved definition-to-result mappings without
+dropping unreadable members. Complete upstream result lineage, authoritative closure derivation,
+guarded sealing, rule evidence and policy evaluation remain unimplemented.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

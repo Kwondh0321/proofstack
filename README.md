@@ -337,7 +337,10 @@ does not establish that a policy is correct, satisfied, or authorized for a rele
 The [policy-evaluation entry audit](docs/development/workflow-2-policy-evaluation-entry-audit.md)
 fixes sealed input selection, exact arithmetic, missingness, declarative approval prerequisites,
 separate worker authority, durable execution, and acceptance gates. It approves implementation
-entry only, not an implemented evaluator or a release decision.
+entry only, not an implemented evaluator or a release decision. The
+[comparison-selection building block](docs/development/workflow-2-policy-evaluation-comparison-selection.md)
+now accounts for the candidate's complete declared comparison set and preserves unique, missing,
+ambiguous, and unresolved mappings without claiming complete lineage validation or a sealed input.
 
 ## Current boundaries
 

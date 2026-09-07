@@ -94,9 +94,11 @@ These are representation headroom tests, not HTTP streaming enforcement, a memor
 benchmark or production SLO. Acquisition byte budgets and concurrency still need job enforcement;
 full inventories must not become one unbounded HTTP response.
 
-Still required: authoritative closure derivation, every candidate comparison result binding
-(including unreadable/ambiguous sets), source verification, typed rule evidence, artifact/lifecycle
-observations, guarded capture/sealing, snapshot/result contracts and durable jobs with separate
-worker authority. HTTP/SDK implementation must test just-below/exact/over-limit streamed bytes,
-immutable identity and complete pagination. Response schemas do not expose endpoints. This slice
-does not change the roadmap's completed item count.
+The separate
+[comparison-selection building block](workflow-2-policy-evaluation-comparison-selection.md) now
+accounts for every candidate comparison result and preserves unreadable and ambiguous sets. Still
+required here are authoritative closure derivation, complete selected-result lineage verification,
+typed rule evidence, artifact/lifecycle observations, guarded capture/sealing, snapshot/result
+contracts and durable jobs with separate worker authority. HTTP/SDK implementation must test
+just-below/exact/over-limit streamed bytes, immutable identity and complete pagination. Response
+schemas do not expose endpoints. This slice does not change the roadmap's completed item count.
