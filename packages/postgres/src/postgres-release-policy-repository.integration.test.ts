@@ -290,61 +290,86 @@ describe("PostgresReleasePolicyRepository conformance", () => {
     ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
   });
 
-  it("isolates every policy table by tenant, project, and environment on pooled connections", async () => {
-    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
-    const sharedTenant = `ten_policy_matrix_${runKey}`;
-    const scopes: readonly EvidenceScope[] = [
-      {
-        environmentId: `env_policy_matrix_a_${runKey}`,
-        projectId: `prj_policy_matrix_a_${runKey}`,
-        tenantId: sharedTenant,
-      },
-      {
-        environmentId: `env_policy_matrix_a_${runKey}`,
-        projectId: `prj_policy_matrix_b_${runKey}`,
-        tenantId: sharedTenant,
-      },
-      {
-        environmentId: `env_policy_matrix_b_${runKey}`,
-        projectId: `prj_policy_matrix_a_${runKey}`,
-        tenantId: sharedTenant,
-      },
-      {
-        environmentId: `env_policy_matrix_a_${runKey}`,
-        projectId: `prj_policy_matrix_a_${runKey}`,
-        tenantId: `ten_policy_matrix_other_${runKey}`,
-      },
-    ];
-    const events: ReleasePolicyLifecycleEvent[] = [];
-    for (const [index, scope] of scopes.entries()) {
-      const namespace = `matrix_${runKey}_${index}`;
-      const policy = releasePolicyRepositoryFixture(namespace, scope);
-      const successor = releasePolicyRepositoryFixture(namespace, scope, {
-        predecessor: policyReference(policy),
-        publishedAt: "2026-09-07T02:00:00.000Z",
-        semanticVersion: "1.0.1",
-      });
-      const event = releasePolicyLifecycleFixture(namespace, policy);
-      events.push(event);
-      await repository.publishReleasePolicy(policy);
-      await repository.publishReleasePolicy(successor);
-      await repository.publishReleasePolicyLifecycleEvent(event);
-    }
+  it("isolates colliding graphs across three tenants and reuses one clean scoped connection", async () => {
+    const scopedPool = new Pool({
+      connectionString: connectionStringFor(credentials.policyAuthor),
+      max: 1,
+    });
+    try {
+      const repository = new PostgresReleasePolicyRepository(scopedPool);
+      const connection = await scopedPool.query<{ readonly backend_pid: number }>(
+        "SELECT pg_backend_pid() AS backend_pid",
+      );
+      const backendPid = connection.rows[0]?.backend_pid;
+      expect(backendPid).toEqual(expect.any(Number));
+      const sharedTenant = `ten_policy_matrix_${runKey}`;
+      const scopes: readonly EvidenceScope[] = [
+        {
+          environmentId: `env_policy_matrix_a_${runKey}`,
+          projectId: `prj_policy_matrix_a_${runKey}`,
+          tenantId: sharedTenant,
+        },
+        {
+          environmentId: `env_policy_matrix_a_${runKey}`,
+          projectId: `prj_policy_matrix_b_${runKey}`,
+          tenantId: sharedTenant,
+        },
+        {
+          environmentId: `env_policy_matrix_b_${runKey}`,
+          projectId: `prj_policy_matrix_a_${runKey}`,
+          tenantId: sharedTenant,
+        },
+        {
+          environmentId: `env_policy_matrix_a_${runKey}`,
+          projectId: `prj_policy_matrix_a_${runKey}`,
+          tenantId: `ten_policy_matrix_other_${runKey}`,
+        },
+        {
+          environmentId: `env_policy_matrix_a_${runKey}`,
+          projectId: `prj_policy_matrix_a_${runKey}`,
+          tenantId: `ten_policy_matrix_third_${runKey}`,
+        },
+      ];
+      const events: ReleasePolicyLifecycleEvent[] = [];
+      const policies: ReleasePolicy[] = [];
+      for (const [index, scope] of scopes.entries()) {
+        const namespace = `matrix_${runKey}_${index < 3 ? index : 0}`;
+        const policy = releasePolicyRepositoryFixture(namespace, scope);
+        const successor = releasePolicyRepositoryFixture(namespace, scope, {
+          predecessor: policyReference(policy),
+          publishedAt: "2026-09-07T02:00:00.000Z",
+          semanticVersion: "1.0.1",
+        });
+        const event = releasePolicyLifecycleFixture(namespace, policy);
+        events.push(event);
+        policies.push(policy);
+        await repository.publishReleasePolicy(policy);
+        await repository.publishReleasePolicy(successor);
+        await repository.publishReleasePolicyLifecycleEvent(event);
+      }
 
-    for (const [index, scope] of scopes.entries()) {
-      const expected = `${scope.tenantId}|${scope.projectId}|${scope.environmentId}`;
-      const visible = await withExactScopeTransaction(policyAuthorPool, scope, (client) =>
-        client.query<{
-          readonly contexts: readonly string[];
-          readonly lifecycle_scopes: readonly string[];
-          readonly lineage_scopes: readonly string[];
-          readonly policy_scopes: readonly string[];
-          readonly registry_scopes: readonly string[];
-          readonly resource_scopes: readonly string[];
-          readonly rule_scopes: readonly string[];
-          readonly rule_source_scopes: readonly string[];
-          readonly source_scopes: readonly string[];
-        }>(`SELECT
+      expect(policies).toHaveLength(5);
+      expect(policies[3]?.policyVersionId).toBe(policies[0]?.policyVersionId);
+      expect(policies[4]?.policyVersionId).toBe(policies[0]?.policyVersionId);
+      expect(events[3]?.eventId).toBe(events[0]?.eventId);
+      expect(events[4]?.eventId).toBe(events[0]?.eventId);
+
+      for (const [index, scope] of scopes.entries()) {
+        const expected = `${scope.tenantId}|${scope.projectId}|${scope.environmentId}`;
+        const visible = await withExactScopeTransaction(scopedPool, scope, (client) =>
+          client.query<{
+            readonly backend_pid: number;
+            readonly contexts: readonly string[];
+            readonly lifecycle_scopes: readonly string[];
+            readonly lineage_scopes: readonly string[];
+            readonly policy_scopes: readonly string[];
+            readonly registry_scopes: readonly string[];
+            readonly resource_scopes: readonly string[];
+            readonly rule_scopes: readonly string[];
+            readonly rule_source_scopes: readonly string[];
+            readonly source_scopes: readonly string[];
+          }>(`SELECT
+          pg_backend_pid() AS backend_pid,
           ARRAY[
             current_setting('proofstack.tenant_id'),
             current_setting('proofstack.project_id'),
@@ -366,23 +391,66 @@ describe("PostgresReleasePolicyRepository conformance", () => {
                 FROM public.proofstack_release_policy_rule_sources ORDER BY 1) AS rule_source_scopes,
           ARRAY(SELECT DISTINCT concat_ws('|', tenant_id, project_id, environment_id)
                 FROM public.proofstack_release_policy_lifecycle_events ORDER BY 1) AS lifecycle_scopes`),
-      );
-      expect(visible.rows).toEqual([
-        {
-          contexts: [scope.tenantId, scope.projectId, scope.environmentId],
-          lifecycle_scopes: [expected],
-          lineage_scopes: [expected],
-          policy_scopes: [expected],
-          registry_scopes: [expected],
-          resource_scopes: [expected],
-          rule_scopes: [expected],
-          rule_source_scopes: [expected],
-          source_scopes: [expected],
-        },
-      ]);
-      await expect(
-        repository.findReleasePolicyLifecycleEvent(scope, events[index]?.eventId ?? "missing"),
-      ).resolves.toEqual(events[index]);
+        );
+        expect(visible.rows).toEqual([
+          {
+            backend_pid: backendPid,
+            contexts: [scope.tenantId, scope.projectId, scope.environmentId],
+            lifecycle_scopes: [expected],
+            lineage_scopes: [expected],
+            policy_scopes: [expected],
+            registry_scopes: [expected],
+            resource_scopes: [expected],
+            rule_scopes: [expected],
+            rule_source_scopes: [expected],
+            source_scopes: [expected],
+          },
+        ]);
+        await expect(
+          repository.findReleasePolicyLifecycleEvent(scope, events[index]?.eventId ?? "missing"),
+        ).resolves.toEqual(events[index]);
+        const policy = policies[index];
+        if (!policy) throw new Error("Expected a retained policy for every matrix scope");
+        await expect(repository.findReleasePolicy(scope, policy.policyVersionId)).resolves.toEqual(
+          policy,
+        );
+
+        const unscopedQuery = `SELECT
+        pg_backend_pid() AS backend_pid,
+        ARRAY[
+          NULLIF(current_setting('proofstack.tenant_id', true), ''),
+          NULLIF(current_setting('proofstack.project_id', true), ''),
+          NULLIF(current_setting('proofstack.environment_id', true), '')
+        ] AS contexts,
+        (SELECT count(*)::integer FROM (
+          SELECT tenant_id FROM public.proofstack_release_policy_registry
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policy_resources
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policy_lineage
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policies
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policy_sources
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policy_rules
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policy_rule_sources
+          UNION ALL SELECT tenant_id FROM public.proofstack_release_policy_lifecycle_events
+        ) AS visible_policy_rows) AS visible_rows`;
+        const cleanConnection = {
+          rows: [{ backend_pid: backendPid, contexts: [null, null, null], visible_rows: 0 }],
+        };
+        await expect(scopedPool.query(unscopedQuery)).resolves.toMatchObject(cleanConnection);
+
+        await expect(
+          withExactScopeTransaction(
+            scopedPool,
+            { ...scope, projectId: `prj_policy_rejected_${runKey}` },
+            (client) =>
+              client.query("SELECT public.proofstack_publish_release_policy($1::jsonb)", [
+                JSON.stringify(publicationCommand(policy)),
+              ]),
+          ),
+        ).rejects.toMatchObject({ code: "42501" });
+        await expect(scopedPool.query(unscopedQuery)).resolves.toMatchObject(cleanConnection);
+      }
+    } finally {
+      await scopedPool.end();
     }
   });
 });

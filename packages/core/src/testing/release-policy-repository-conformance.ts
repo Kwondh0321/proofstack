@@ -189,6 +189,137 @@ export const releasePolicyRepositoryConformanceCases: readonly ReleasePolicyRepo
       },
     },
     {
+      name: "isolates colliding policy and lifecycle identities across three tenants",
+      async run(factory) {
+        await withHarness(factory, "policy_tenant_collision", async (harness) => {
+          const repository = harness.repository;
+          const graphs = ["alpha", "beta", "gamma"].map((label) => {
+            const scope = { ...harness.scope, tenantId: `${harness.scope.tenantId}_${label}` };
+            const policy = releasePolicyRepositoryFixture("shared_collision", scope);
+            const successor = releasePolicyRepositoryFixture("shared_collision", scope, {
+              predecessor: reference(policy),
+              publishedAt: "2026-09-07T02:00:00.000Z",
+              semanticVersion: "1.0.1",
+            });
+            const event = releasePolicyLifecycleFixture("shared_collision", policy, {
+              kind: "superseded",
+              successor,
+            });
+            return { event, policy, scope, successor };
+          });
+          assert.equal(new Set(graphs.map(({ policy }) => policy.policyId)).size, 1);
+          assert.equal(new Set(graphs.map(({ policy }) => policy.policyVersionId)).size, 1);
+          assert.equal(new Set(graphs.map(({ event }) => event.eventId)).size, 1);
+          assert.equal(new Set(graphs.map(({ policy }) => policy.definitionSha256)).size, 3);
+
+          for (const { policy, successor } of graphs) {
+            assert.deepEqual(await repository.publishReleasePolicy(policy), {
+              created: true,
+              policy,
+            });
+            assert.deepEqual(await repository.publishReleasePolicy(successor), {
+              created: true,
+              policy: successor,
+            });
+          }
+
+          for (const graph of graphs) {
+            const { event, policy, scope, successor } = graph;
+            for (const foreign of graphs.filter((value) => value !== graph)) {
+              const forgedPredecessor = releasePolicyRepositoryFixture("shared_collision", scope, {
+                predecessor: reference(foreign.policy),
+                semanticVersion: "1.0.2",
+              });
+              await assert.rejects(
+                repository.publishReleasePolicy(forgedPredecessor),
+                ReleasePolicyLineageError,
+              );
+              assert.equal(
+                await repository.findReleasePolicy(scope, forgedPredecessor.policyVersionId),
+                null,
+              );
+
+              const forgedTarget = {
+                ...event,
+                eventId: "policy_collision_foreign_target",
+                policy: reference(foreign.policy),
+              };
+              const forgedSuccessor = releasePolicyLifecycleFixture("foreign_successor", policy, {
+                kind: "superseded",
+                successor: foreign.successor,
+              });
+              for (const forged of [forgedTarget, forgedSuccessor]) {
+                await assert.rejects(
+                  repository.publishReleasePolicyLifecycleEvent(forged),
+                  ReleasePolicyLineageError,
+                );
+                assert.equal(
+                  await repository.findReleasePolicyLifecycleEvent(scope, forged.eventId),
+                  null,
+                );
+              }
+            }
+            assert.deepEqual(
+              await repository.listReleasePolicyLifecycleEvents(scope, policy.policyVersionId),
+              [],
+            );
+            assert.deepEqual(await repository.publishReleasePolicyLifecycleEvent(event), {
+              created: true,
+              event,
+            });
+            assert.deepEqual(await repository.publishReleasePolicy(successor), {
+              created: false,
+              policy: successor,
+            });
+          }
+
+          for (const { event, policy, scope, successor } of [...graphs].reverse()) {
+            assert.deepEqual(
+              await repository.findReleasePolicy(scope, policy.policyVersionId),
+              policy,
+            );
+            assert.deepEqual(
+              await repository.findReleasePolicy(scope, successor.policyVersionId),
+              successor,
+            );
+            assert.deepEqual(
+              await repository.findReleasePolicyLifecycleEvent(scope, event.eventId),
+              event,
+            );
+            assert.deepEqual(
+              await repository.listReleasePolicyLifecycleEvents(scope, policy.policyVersionId),
+              [event],
+            );
+            assert.deepEqual(await repository.publishReleasePolicyLifecycleEvent(event), {
+              created: false,
+              event,
+            });
+            for (const hiddenScope of [
+              { ...scope, tenantId: `${harness.scope.tenantId}_absent` },
+              { ...scope, projectId: `${scope.projectId}_absent` },
+              { ...scope, environmentId: `${scope.environmentId}_absent` },
+            ]) {
+              assert.equal(
+                await repository.findReleasePolicy(hiddenScope, policy.policyVersionId),
+                null,
+              );
+              assert.equal(
+                await repository.findReleasePolicyLifecycleEvent(hiddenScope, event.eventId),
+                null,
+              );
+              assert.deepEqual(
+                await repository.listReleasePolicyLifecycleEvents(
+                  hiddenScope,
+                  policy.policyVersionId,
+                ),
+                [],
+              );
+            }
+          }
+        });
+      },
+    },
+    {
       name: "linearizes concurrent identical and conflicting policy publication",
       async run(factory) {
         await withHarness(factory, "policy_concurrency", async (harness) => {
