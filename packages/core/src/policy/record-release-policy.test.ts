@@ -9,7 +9,10 @@ import type {
 import { RELEASE_POLICY_LIFECYCLE_SCHEMA_VERSION } from "@proofstack/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "../errors.js";
-import { policyAuthorityFixture } from "../testing/release-policy-fixtures.js";
+import {
+  type PolicyAuthorityFixtureOptions,
+  policyAuthorityFixture,
+} from "../testing/release-policy-fixtures.js";
 import {
   PublishReleasePolicy,
   PublishReleasePolicyLifecycle,
@@ -143,8 +146,8 @@ function sameScope(left: EvidenceScope, right: EvidenceScope): boolean {
   );
 }
 
-function setup() {
-  const fixture = policyAuthorityFixture();
+function setup(options: PolicyAuthorityFixtureOptions = {}) {
+  const fixture = policyAuthorityFixture(options);
   const port = memoryPort();
   const resolve = vi.fn<ReleasePolicyAuthorityEvidenceResolver["resolve"]>(async () => ({
     artifacts: clone(fixture.input.artifacts),
@@ -287,6 +290,33 @@ describe("release policy publication", () => {
       ReleasePolicyAuthorityRejectedError,
     );
     expect(value.port.publishReleasePolicy).not.toHaveBeenCalled();
+  });
+
+  it("publishes a source without a declared expiry only under complete finite review authority", async () => {
+    const mutateSource: NonNullable<PolicyAuthorityFixtureOptions["mutateSource"]> = (source) => {
+      delete source.expiresAt;
+    };
+    const value = setup({ mutateSource });
+    const result = await value.publisher.execute(value.command);
+    expect(result.created).toBe(true);
+    expect(result.policy.sources).toEqual(value.fixture.policy.sources);
+    expect(value.fixture.source).not.toHaveProperty("expiresAt");
+    expect(value.resolve).toHaveBeenCalledOnce();
+    expect(value.port.publishReleasePolicy).toHaveBeenCalledOnce();
+
+    const expiredReview = setup({
+      mutateSource,
+      mutateReview(review) {
+        review.validUntil = "2027-01-01T00:00:00Z";
+      },
+    });
+    await expect(expiredReview.publisher.execute(expiredReview.command)).rejects.toMatchObject({
+      code: "release_policy_authority_rejected",
+      findings: expect.arrayContaining([
+        expect.objectContaining({ reason: "source_review_not_current" }),
+      ]),
+    });
+    expect(expiredReview.port.publishReleasePolicy).not.toHaveBeenCalled();
   });
 
   it("resolves exact predecessor lineage and rejects missing lineage", async () => {

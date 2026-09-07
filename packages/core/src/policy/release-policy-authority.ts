@@ -433,7 +433,7 @@ function addSourceFindings(
     ) {
       add("source_not_effective", reference);
     }
-    if (source.expiresAt === undefined || before(source.expiresAt, input.definition.expiresAt)) {
+    if (source.expiresAt !== undefined && before(source.expiresAt, input.definition.expiresAt)) {
       add("source_not_current", reference);
     }
     if (source.license.status !== "declared" || review.licensingConclusion !== "usable") {

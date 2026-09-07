@@ -62,6 +62,13 @@ actor did not silently perform every authority role. Those IDs do not prove that
 that the reviewer has real expertise, or that the source is correct. Cryptographic digests prove
 integrity and exact identity, not semantic truth.
 
+The source snapshot may omit its own `expiresAt` when the source declares no expiry. Publication
+does not invent one or treat that absence as unlimited freshness: an approved, current source
+review, the required reviewer qualification, and the installation binding must still cover the
+policy's entire finite validity interval. A declared source expiry is an additional upper bound;
+it may equal the policy expiry but must not precede it, including by one microsecond. Missing
+retained content or an unknown freshness conclusion still prevents publication.
+
 ## Requirements
 
 - A clean checkout of this repository.

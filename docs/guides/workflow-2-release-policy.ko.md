@@ -61,6 +61,13 @@ mechanism이 아닙니다. policy 발행 요청으로 만들거나 변경할 수
 전문성, source의 정확성을 증명하지 않습니다. 암호학적 digest는 integrity와 정확한 identity를
 증명하지만 의미적 진실을 증명하지 않습니다.
 
+원본이 만료일을 선언하지 않았다면 source snapshot의 `expiresAt`은 생략할 수 있습니다. 발행 과정은
+만료일을 임의로 만들거나 그 부재를 무기한 최신성으로 해석하지 않습니다. 승인되고 현재 유효한
+source review, 필요한 reviewer qualification, installation binding은 정책의 전체 유한 유효 기간을
+여전히 포함해야 합니다. 원본에 만료일이 선언되어 있다면 추가 상한으로 적용하며, 정책 만료일과
+같을 수 있지만 1마이크로초라도 앞설 수 없습니다. 보존 content가 없거나 freshness 결론이 unknown인
+경우에는 여전히 발행할 수 없습니다.
+
 ## 요구 사항
 
 - 이 repository의 깨끗한 checkout.

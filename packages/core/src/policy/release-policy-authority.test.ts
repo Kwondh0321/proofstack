@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   anyPolicySourceScope,
   policyAuthorityFixture as authorityFixture,
+  type PolicyAuthorityFixtureOptions,
 } from "../testing/release-policy-fixtures.js";
 import {
   type ReleasePolicyAuthorityReason,
@@ -274,6 +275,67 @@ describe("release policy publication authority", () => {
       },
     }).input;
     expect(reasons(qualificationExpired)).toContain("reviewer_qualification_not_current");
+  });
+
+  it.each([
+    { expiry: undefined, name: "no declared expiry", valid: true },
+    { expiry: "2027-03-06T23:59:59.999999Z", name: "one microsecond too early", valid: false },
+    { expiry: "2027-03-07T00:00:00Z", name: "the exact policy expiry", valid: true },
+    { expiry: "2027-03-07T00:00:00.000001Z", name: "one microsecond later", valid: true },
+  ])("respects a source with $name without inventing an expiry", ({ expiry, valid }) => {
+    const fixture = authorityFixture({
+      mutateSource(source) {
+        if (expiry === undefined) delete source.expiresAt;
+        else source.expiresAt = expiry;
+      },
+    });
+    const result = validateReleasePolicyAuthority(fixture.input);
+    expect(result.status).toBe(valid ? "valid" : "invalid");
+    expect(result.findings.map(({ reason }) => reason)).toEqual(
+      valid ? [] : ["source_not_current"],
+    );
+    expect(fixture.source.expiresAt).toBe(expiry);
+  });
+
+  it("keeps finite authority and freshness requirements when the source declares no expiry", () => {
+    const mutateSource: NonNullable<PolicyAuthorityFixtureOptions["mutateSource"]> = (source) => {
+      delete source.expiresAt;
+    };
+    const reviewExpired = authorityFixture({
+      mutateSource,
+      mutateReview(review) {
+        review.validUntil = "2027-01-01T00:00:00Z";
+      },
+    });
+    expect(reasons(reviewExpired.input)).toContain("source_review_not_current");
+    const reviewUnknown = authorityFixture({
+      mutateSource,
+      mutateReview(review) {
+        review.freshnessConclusion = "unknown";
+        review.outcome = "unverifiable";
+      },
+    });
+    expect(reasons(reviewUnknown.input)).toEqual(
+      expect.arrayContaining(["source_review_not_current", "source_review_not_approved"]),
+    );
+    const qualificationExpired = authorityFixture({
+      mutateSource,
+      mutateReviewer(reviewer) {
+        reviewer.validUntil = "2027-01-01T00:00:00Z";
+      },
+    });
+    expect(reasons(qualificationExpired.input)).toContain("reviewer_qualification_not_current");
+    const bindingExpired = authorityFixture({
+      mutateSource,
+      mutateBinding(binding) {
+        binding.expiresAt = "2027-01-01T00:00:00.000Z";
+      },
+    });
+    expect(reasons(bindingExpired.input)).toContain("installation_binding_interval_mismatch");
+    const unavailable = authorityFixture({ mutateSource });
+    expect(reasons({ ...unavailable.input, artifacts: [] })).toContain(
+      "source_content_unavailable",
+    );
   });
 
   it("rejects stale or adverse review conclusions and insufficient reviewer authority", () => {
