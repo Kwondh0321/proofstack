@@ -222,6 +222,8 @@ function validateLifecyclePublicationResult(
   input: unknown,
   scope: ReleasePolicy["scope"],
   expected: ReleasePolicyLifecycleEvent,
+  target: ReleasePolicy,
+  successor?: ReleasePolicy,
 ): PublishReleasePolicyLifecycleResult {
   const result = resultObject(input, "event");
   const event = validateRepositoryLifecycleEvent(result.record, scope, expected.eventId);
@@ -235,6 +237,7 @@ function validateLifecyclePublicationResult(
       "Release policy lifecycle publication substituted its server receipt",
     );
   }
+  validateLifecyclePolicyRecords(event, target, successor);
   return { created: result.created, event };
 }
 
@@ -282,23 +285,77 @@ async function predecessorReference(
   }
 }
 
-function lifecycleOrderKey(event: ReleasePolicyLifecycleEvent): string {
-  return `${evidenceTimestampOrderKey(event.occurredAt)}:${event.eventId}`;
+function validateLifecyclePolicyRecords(
+  event: ReleasePolicyLifecycleEvent,
+  target: ReleasePolicy,
+  successor?: ReleasePolicy,
+): void {
+  if (
+    !sameScope(event.scope, target.scope) ||
+    !samePolicyReference(event.policy, releasePolicyReference(target)) ||
+    (event.kind === "superseded" &&
+      (!successor ||
+        !sameScope(successor.scope, target.scope) ||
+        !samePolicyReference(event.successor, releasePolicyReference(successor)) ||
+        !successor.predecessor ||
+        !samePolicyReference(successor.predecessor, releasePolicyReference(target))))
+  ) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Release policy lifecycle history references non-exact policy records",
+    );
+  }
+  const occurredAt = evidenceTimestampOrderKey(event.occurredAt);
+  if (
+    occurredAt < evidenceTimestampOrderKey(target.publishedAt) ||
+    (successor && occurredAt < evidenceTimestampOrderKey(successor.publishedAt))
+  ) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Release policy lifecycle history predates an authoritative policy receipt",
+    );
+  }
 }
 
-function validateLifecycleHistory(
+async function validateRetainedLifecycle(
+  repository: ReleasePolicyRepository,
+  event: ReleasePolicyLifecycleEvent,
+  target: ReleasePolicy,
+): Promise<void> {
+  let successor: ReleasePolicy | undefined;
+  if (event.kind === "superseded") {
+    try {
+      successor = await exactPolicy(
+        repository,
+        target.scope,
+        target.policyId,
+        event.successor.policyVersionId,
+      );
+    } catch (cause) {
+      if (cause instanceof ReleasePolicyNotFoundError) {
+        throw new ReleasePolicyRepositoryContractError(
+          "Release policy lifecycle history references an unavailable successor",
+          { cause },
+        );
+      }
+      throw cause;
+    }
+  }
+  validateLifecyclePolicyRecords(event, target, successor);
+}
+
+async function validateLifecycleHistory(
+  repository: ReleasePolicyRepository,
   input: unknown,
   scope: ReleasePolicy["scope"],
   target: ReleasePolicy,
-): readonly ReleasePolicyLifecycleEvent[] {
-  if (!Array.isArray(input)) {
+): Promise<readonly ReleasePolicyLifecycleEvent[]> {
+  // This version permits one terminal event only; multiple individually valid events are corrupt.
+  if (!Array.isArray(input) || input.length > 1) {
     throw new ReleasePolicyRepositoryContractError(
       "Release policy repository returned invalid lifecycle history",
     );
   }
-  let previous: string | undefined;
-  const seen = new Set<string>();
-  return input.map((candidate) => {
+  const history: ReleasePolicyLifecycleEvent[] = [];
+  for (const candidate of input) {
     let event: ReleasePolicyLifecycleEvent;
     try {
       event = validateReleasePolicyLifecycleEvent(candidate);
@@ -308,21 +365,18 @@ function validateLifecycleHistory(
         { cause },
       );
     }
-    const key = lifecycleOrderKey(event);
     if (
       !sameScope(event.scope, scope) ||
-      !samePolicyReference(event.policy, releasePolicyReference(target)) ||
-      seen.has(event.eventId) ||
-      (previous !== undefined && key <= previous)
+      !samePolicyReference(event.policy, releasePolicyReference(target))
     ) {
       throw new ReleasePolicyRepositoryContractError(
         "Release policy repository returned non-exact lifecycle history",
       );
     }
-    seen.add(event.eventId);
-    previous = key;
-    return event;
-  });
+    await validateRetainedLifecycle(repository, event, target);
+    history.push(event);
+  }
+  return history;
 }
 
 function sameLifecycleRequest(
@@ -498,6 +552,7 @@ export class ReadReleasePolicyLifecycle {
     if (!samePolicyReference(event.policy, releasePolicyReference(policy))) {
       throw new ReleasePolicyLifecycleEventNotFoundError(eventId.data);
     }
+    await validateRetainedLifecycle(this.repository, event, policy);
     return structuredClone(event);
   }
 }
@@ -547,28 +602,7 @@ export class PublishReleasePolicyLifecycle {
         policyId.data,
         policyVersionId.data,
       );
-      if (!samePolicyReference(existing.policy, releasePolicyReference(retryTarget))) {
-        throw new ReleasePolicyRepositoryContractError(
-          "Release policy lifecycle retry references a non-exact target",
-        );
-      }
-      if (existing.kind === "superseded") {
-        const retrySuccessor = await exactPolicy(
-          this.dependencies.repository,
-          scope,
-          policyId.data,
-          existing.successor.policyVersionId,
-        );
-        if (
-          !samePolicyReference(existing.successor, releasePolicyReference(retrySuccessor)) ||
-          !retrySuccessor.predecessor ||
-          !samePolicyReference(retrySuccessor.predecessor, releasePolicyReference(retryTarget))
-        ) {
-          throw new ReleasePolicyRepositoryContractError(
-            "Release policy lifecycle retry references a non-exact successor",
-          );
-        }
-      }
+      await validateRetainedLifecycle(this.dependencies.repository, existing, retryTarget);
       return { created: false, event: structuredClone(existing) };
     }
 
@@ -578,7 +612,8 @@ export class PublishReleasePolicyLifecycle {
       policyId.data,
       policyVersionId.data,
     );
-    const history = validateLifecycleHistory(
+    const history = await validateLifecycleHistory(
+      this.dependencies.repository,
       await this.dependencies.repository.listReleasePolicyLifecycleEvents(
         structuredClone(scope),
         policyVersionId.data,
@@ -642,6 +677,8 @@ export class PublishReleasePolicyLifecycle {
       await this.dependencies.repository.publishReleasePolicyLifecycleEvent(structuredClone(event)),
       scope,
       event,
+      target,
+      successor,
     );
     return { created: result.created, event: structuredClone(result.event) };
   }

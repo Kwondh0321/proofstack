@@ -4,6 +4,7 @@ import {
   type PublishReleasePolicyRequest,
   PublishReleasePolicyRequestSchema,
   type ReleasePolicy,
+  type ReleasePolicyLifecycleEvent,
 } from "@proofstack/contracts";
 import {
   MemoryReleasePolicyRepository,
@@ -387,6 +388,89 @@ describe("release policy control-plane API", () => {
       expect(response.headers["cache-control"]).toBe("no-store");
     }
   });
+
+  it.each(["withdrawn", "superseded"] as const)(
+    "returns a bounded unavailable problem for corrupt retained %s history",
+    async (kind) => {
+      const repository = new MemoryReleasePolicyRepository();
+      const now = vi.fn(() => new Date(fixture.input.at));
+      const app = await testApp({
+        clock: { now },
+        releasePolicyAuthorityResolver: authorityResolver(),
+        releasePolicyRepository: repository,
+      });
+      const policyResponse = await app.inject({ body: request, method: "POST", url: policyUrl });
+      expect(policyResponse.statusCode).toBe(201);
+      const policy = policyResponse.json<{ policy: ReleasePolicy }>().policy;
+      let successor: ReleasePolicy | undefined;
+      if (kind === "superseded") {
+        now.mockReturnValue(new Date(Date.parse(fixture.input.at) + 60_000));
+        const successorRequest = {
+          ...request,
+          changeRationale: "Retain the exact successor for the lifecycle integrity check.",
+          policyVersionId: "policy_api_history_successor",
+          predecessorVersionId: request.policyVersionId,
+          semanticVersion: "1.0.1",
+        };
+        const successorResponse = await app.inject({
+          body: successorRequest,
+          method: "POST",
+          url: policyUrl.replace(request.policyVersionId, successorRequest.policyVersionId),
+        });
+        expect(successorResponse.statusCode).toBe(201);
+        successor = successorResponse.json<{ policy: ReleasePolicy }>().policy;
+      }
+      now.mockReturnValue(new Date(Date.parse(fixture.input.at) + 120_000));
+      const input = {
+        eventId: "policy_event_api_history_integrity",
+        kind,
+        reason: "Private lifecycle context must not appear in storage-error responses.",
+        ...(successor ? { successorPolicyVersionId: successor.policyVersionId } : {}),
+      };
+      const publication = await app.inject({ body: input, method: "POST", url: lifecycleUrl });
+      expect(publication.statusCode).toBe(201);
+      const event = publication.json<{ event: ReleasePolicyLifecycleEvent }>().event;
+      const corruptEvents: ReleasePolicyLifecycleEvent[] = [
+        { ...event, occurredAt: new Date(Date.parse(policy.publishedAt) - 1).toISOString() },
+        ...(successor
+          ? [
+              {
+                ...event,
+                occurredAt: new Date(Date.parse(successor.publishedAt) - 1).toISOString(),
+              },
+            ]
+          : []),
+        ...(event.kind === "superseded"
+          ? [{ ...event, successor: { ...event.successor, definitionSha256: "f".repeat(64) } }]
+          : []),
+      ];
+      const find = vi.spyOn(repository, "findReleasePolicyLifecycleEvent");
+      const publish = vi.spyOn(repository, "publishReleasePolicyLifecycleEvent");
+      now.mockClear();
+      for (const corrupt of corruptEvents) {
+        find.mockResolvedValue(corrupt);
+        for (const response of [
+          await app.inject({ method: "GET", url: `${lifecycleUrl}/${input.eventId}` }),
+          await app.inject({ body: input, method: "POST", url: lifecycleUrl }),
+        ]) {
+          expect(response.statusCode).toBe(503);
+          expect(response.json()).toMatchObject({
+            code: "release_policy_storage_unavailable",
+            detail: "Release policy storage is unavailable",
+            status: 503,
+          });
+          expect(response.headers["cache-control"]).toBe("no-store");
+          expect(response.headers["content-type"]).toContain("application/problem+json");
+          expect(response.json()).not.toHaveProperty("event");
+          expect(response.body).not.toContain(input.reason);
+          expect(response.body).not.toContain(corrupt.occurredAt);
+          expect(response.body).not.toContain("f".repeat(64));
+        }
+      }
+      expect(now).not.toHaveBeenCalled();
+      expect(publish).not.toHaveBeenCalled();
+    },
+  );
 
   it("fails closed without installation-owned authority and never exposes findings", async () => {
     const app = await testApp();
