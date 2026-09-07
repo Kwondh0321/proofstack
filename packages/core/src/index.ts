@@ -48,6 +48,7 @@ export * from "./outbox/outbox-repository.js";
 export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
 export * from "./policy/policy-exact-arithmetic.js";
+export * from "./policy/policy-evaluation-manifest.js";
 export * from "./policy/record-release-policy.js";
 export * from "./policy/release-policy-authority.js";
 export * from "./policy/release-policy-authority-resolver.js";

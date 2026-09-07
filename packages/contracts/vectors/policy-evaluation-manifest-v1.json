@@ -1,0 +1,82 @@
+{
+  "format": "proofstack.policy-evaluation-manifest.v1",
+  "vectors": [
+    {
+      "kind": "page",
+      "input": {
+        "definition": {
+          "entries": [
+            {
+              "observation": {
+                "status": "verified",
+                "recordSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "source": {
+                "kind": "assessment",
+                "reference": {
+                  "assessmentId": "assessment_manifest",
+                  "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                }
+              }
+            },
+            {
+              "observation": {
+                "status": "missing"
+              },
+              "source": {
+                "kind": "comparison_result",
+                "reference": {
+                  "resultId": "result_manifest",
+                  "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                }
+              }
+            }
+          ],
+          "entryCount": 2,
+          "manifestId": "manifest_vector",
+          "pageIndex": 0,
+          "request": {
+            "evaluationRequestId": "request_manifest",
+            "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_manifest",
+          "projectId": "project_manifest",
+          "environmentId": "environment_manifest"
+        }
+      },
+      "encodedByteLength": 982,
+      "sha256": "2fc339b5ba692ae9f457b4bb9aa66e7ac2b2a2f4e8149def4fe9a84bc63e13fc"
+    },
+    {
+      "kind": "manifest",
+      "input": {
+        "definition": {
+          "entryCount": 2,
+          "manifestId": "manifest_vector",
+          "pages": [
+            {
+              "definitionSha256": "2fc339b5ba692ae9f457b4bb9aa66e7ac2b2a2f4e8149def4fe9a84bc63e13fc",
+              "entryCount": 2,
+              "firstKey": "assessment:assessment_manifest",
+              "lastKey": "comparison_result:result_manifest",
+              "pageIndex": 0
+            }
+          ],
+          "request": {
+            "evaluationRequestId": "request_manifest",
+            "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_manifest",
+          "projectId": "project_manifest",
+          "environmentId": "environment_manifest"
+        }
+      },
+      "encodedByteLength": 676,
+      "sha256": "b88de1f231975fa1c5d5338355977af0890db9dbe1a54879f4b27d62436d1504"
+    }
+  ]
+}

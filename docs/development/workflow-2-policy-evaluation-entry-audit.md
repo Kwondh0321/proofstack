@@ -61,6 +61,11 @@ exact request, scoped canonical vector, full-precision semantic time, finite exe
 and request-only transport headroom. It does not yet implement the scheduler, source capture,
 snapshot/result contracts, runtime budget enforcement, public routes, or the checkpoint exit gate.
 
+The [dependency manifest building block](workflow-2-policy-evaluation-manifest-contract.md)
+implements typed source inventories, complete fixed pages, canonical root/page digests, and checks
+against a separately supplied expected closure. Authoritative closure derivation, guarded sealing,
+and policy evaluation remain unimplemented; the remaining record boundaries below stay open.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

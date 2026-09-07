@@ -3,6 +3,10 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
+[의존 증거 목록 기반 기능](workflow-2-policy-evaluation-manifest-contract.ko.md)은 정확한 참조,
+전체 고정 페이지, 루트·페이지 해시와 별도 기대 목록 대조를 구현합니다. 실제 출처 그래프에서의
+기대 목록 도출, 보호된 봉인과 정책 평가는 아직 구현하지 않았으며 체크포인트는 미완료입니다.
+
 - 상태: 구현 진입 승인, 체크포인트는 미완료
 - 검토일: 2026-09-07
 - 의존성: `4f6372c48013c7136eb2b46585c99f926bc95729`의 정책 정의 승인
