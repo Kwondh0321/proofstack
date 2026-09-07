@@ -64,6 +64,8 @@ import {
   publishComparisonFixture,
   publishEvaluationFixture,
   releaseCandidateFixture,
+  releasePolicyLifecycleFixture,
+  releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -2211,6 +2213,203 @@ function requiredReleasePolicyRecoveryState(): NonNullable<typeof releasePolicyR
   return releasePolicyRecoveryState;
 }
 
+async function verifyRestoredPolicyRuntimeAuthority(
+  roles: RuntimeRoleProvisioningOptions,
+): Promise<void> {
+  const graph = requiredReleasePolicyRecoveryState();
+  const policyScope = graph.policy.scope;
+  const policyPool = new Pool({
+    connectionString: databaseUrlForRole(restoredDatabaseUrl, roles.policyAuthor),
+    max: 1,
+  });
+  const substitutePool = new Pool({
+    connectionString: databaseUrlForRole(restoredDatabaseUrl, roles.api),
+    max: 1,
+  });
+  const repository = new PostgresReleasePolicyRepository(policyPool);
+  const counts = async () => {
+    const result = await restoredPool.query<{
+      readonly lifecycle_count: number;
+      readonly outbox_count: number;
+      readonly policy_count: number;
+    }>(
+      `SELECT
+         (SELECT count(*)::integer FROM public.proofstack_release_policies
+          WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3) AS policy_count,
+         (SELECT count(*)::integer FROM public.proofstack_release_policy_lifecycle_events
+          WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3) AS lifecycle_count,
+         (SELECT count(*)::integer FROM public.proofstack_outbox
+          WHERE tenant_id = $1
+            AND payload #>> '{record,scope,projectId}' = $2
+            AND payload #>> '{record,scope,environmentId}' = $3
+            AND aggregate_type IN ('release_policy', 'release_policy_lifecycle')) AS outbox_count`,
+      [policyScope.tenantId, policyScope.projectId, policyScope.environmentId],
+    );
+    const value = result.rows[0];
+    if (!value) throw new Error("Expected restored policy graph counts");
+    return value;
+  };
+
+  try {
+    const privileges = await restoredPool.query<{
+      readonly lifecycle_intent: boolean;
+      readonly lifecycle_publish: boolean;
+      readonly policy_intent: boolean;
+      readonly policy_publish: boolean;
+      readonly private_lifecycle: boolean;
+      readonly private_policy: boolean;
+      readonly role_name: string;
+    }>(
+      `SELECT role_name,
+         has_function_privilege(role_name, 'public.proofstack_publish_release_policy(jsonb)', 'EXECUTE')
+           AS policy_publish,
+         has_function_privilege(role_name, 'public.proofstack_publish_release_policy_lifecycle(jsonb)', 'EXECUTE')
+           AS lifecycle_publish,
+         has_function_privilege(role_name, 'public.proofstack_release_policy_intent_status(text,text,jsonb,timestamptz)', 'EXECUTE')
+           AS policy_intent,
+         has_function_privilege(role_name, 'public.proofstack_release_policy_lifecycle_intent_status(text,text,jsonb,timestamptz)', 'EXECUTE')
+           AS lifecycle_intent,
+         has_function_privilege(role_name, 'public.proofstack_insert_release_policy(jsonb)', 'EXECUTE')
+           AS private_policy,
+         has_function_privilege(role_name, 'public.proofstack_insert_release_policy_lifecycle(jsonb)', 'EXECUTE')
+           AS private_lifecycle
+       FROM unnest($1::text[]) AS runtime_role(role_name)
+       ORDER BY role_name COLLATE "C"`,
+      [Object.values(roles).map(({ name }) => name)],
+    );
+    expect(privileges.rows).toEqual(
+      Object.entries(roles)
+        .map(([kind, { name }]) => ({
+          lifecycle_intent: kind === "policyAuthor",
+          lifecycle_publish: kind === "policyAuthor",
+          policy_intent: kind === "policyAuthor",
+          policy_publish: kind === "policyAuthor",
+          private_lifecycle: false,
+          private_policy: false,
+          role_name: name,
+        }))
+        .sort((left, right) =>
+          Buffer.compare(Buffer.from(left.role_name, "utf8"), Buffer.from(right.role_name, "utf8")),
+        ),
+    );
+    await expect(
+      policyPool.query(`SELECT rolname, rolsuper, rolbypassrls, rolinherit,
+        EXISTS (SELECT 1 FROM pg_auth_members WHERE member = pg_roles.oid) AS has_memberships
+        FROM pg_roles WHERE rolname = current_user`),
+    ).resolves.toMatchObject({
+      rows: [
+        {
+          has_memberships: false,
+          rolbypassrls: false,
+          rolinherit: false,
+          rolname: roles.policyAuthor.name,
+          rolsuper: false,
+        },
+      ],
+    });
+
+    const before = await counts();
+    for (const policy of [graph.policy, graph.successor]) {
+      await expect(
+        repository.findReleasePolicy(policyScope, policy.policyVersionId),
+      ).resolves.toEqual(policy);
+      await expect(repository.publishReleasePolicy(structuredClone(policy))).resolves.toEqual({
+        created: false,
+        policy,
+      });
+    }
+    await expect(
+      repository.findReleasePolicyLifecycleEvent(policyScope, graph.supersession.eventId),
+    ).resolves.toEqual(graph.supersession);
+    await expect(
+      repository.listReleasePolicyLifecycleEvents(policyScope, graph.policy.policyVersionId),
+    ).resolves.toEqual([graph.supersession]);
+    await expect(
+      repository.publishReleasePolicyLifecycleEvent(structuredClone(graph.supersession)),
+    ).resolves.toEqual({ created: false, event: graph.supersession });
+    await expect(counts()).resolves.toEqual(before);
+
+    for (const hiddenScope of [
+      { ...policyScope, tenantId: "ten_policy_restore_hidden" },
+      { ...policyScope, projectId: "prj_policy_restore_hidden" },
+      { ...policyScope, environmentId: "env_policy_restore_hidden" },
+    ]) {
+      await expect(
+        repository.findReleasePolicy(hiddenScope, graph.policy.policyVersionId),
+      ).resolves.toBeNull();
+      await expect(
+        repository.findReleasePolicyLifecycleEvent(hiddenScope, graph.supersession.eventId),
+      ).resolves.toBeNull();
+      await expect(
+        repository.listReleasePolicyLifecycleEvents(hiddenScope, graph.policy.policyVersionId),
+      ).resolves.toEqual([]);
+    }
+    await expect(
+      policyPool.query(`SELECT
+        (SELECT count(*)::integer FROM public.proofstack_release_policies) AS policy_count,
+        (SELECT count(*)::integer FROM public.proofstack_release_policy_lifecycle_events) AS lifecycle_count`),
+    ).resolves.toMatchObject({ rows: [{ lifecycle_count: 0, policy_count: 0 }] });
+    await expect(
+      substitutePool.query("SELECT public.proofstack_publish_release_policy(NULL::jsonb)"),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      substitutePool.query(
+        "SELECT public.proofstack_publish_release_policy_lifecycle(NULL::jsonb)",
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    const appended = releasePolicyRepositoryFixture("recovery_policy_append", policyScope, {
+      policyId: graph.policy.policyId,
+      policyVersionId: "policy_recovery_post_restore_v3",
+      predecessor: {
+        definitionSha256: graph.successor.definitionSha256,
+        policyId: graph.successor.policyId,
+        policyVersionId: graph.successor.policyVersionId,
+      },
+      publishedAt: "2026-09-07T04:00:00.000Z",
+      semanticVersion: "1.0.2",
+    });
+    const withdrawal = releasePolicyLifecycleFixture("recovery_policy_append", appended, {
+      occurredAt: "2026-09-07T05:00:00.000Z",
+    });
+    await expect(repository.publishReleasePolicy(appended)).resolves.toEqual({
+      created: true,
+      policy: appended,
+    });
+    await expect(repository.publishReleasePolicyLifecycleEvent(withdrawal)).resolves.toEqual({
+      created: true,
+      event: withdrawal,
+    });
+    await expect(repository.publishReleasePolicy(appended)).resolves.toEqual({
+      created: false,
+      policy: appended,
+    });
+    await expect(repository.publishReleasePolicyLifecycleEvent(withdrawal)).resolves.toEqual({
+      created: false,
+      event: withdrawal,
+    });
+    await expect(
+      repository.findReleasePolicy(policyScope, appended.policyVersionId),
+    ).resolves.toEqual(appended);
+    await expect(
+      repository.findReleasePolicyLifecycleEvent(policyScope, withdrawal.eventId),
+    ).resolves.toEqual(withdrawal);
+    await expect(counts()).resolves.toEqual({
+      lifecycle_count: before.lifecycle_count + 1,
+      outbox_count: before.outbox_count + 2,
+      policy_count: before.policy_count + 1,
+    });
+    await expect(
+      repository.findReleasePolicy(policyScope, graph.policy.policyVersionId),
+    ).resolves.toEqual(graph.policy);
+    await expect(
+      repository.listReleasePolicyLifecycleEvents(policyScope, graph.policy.policyVersionId),
+    ).resolves.toEqual([graph.supersession]);
+  } finally {
+    await Promise.all([policyPool.end(), substitutePool.end()]);
+  }
+}
+
 async function emptyRecoveryBucket(bucket: string): Promise<void> {
   while (true) {
     const page = await bucketClient.send(new ListObjectsV2Command({ Bucket: bucket }));
@@ -2879,6 +3078,7 @@ describe("coordinated recovery rehearsal", () => {
 
     const roles = runtimeRoleOptions();
     await provisionRuntimeRoles(restoredPool, roles);
+    await verifyRestoredPolicyRuntimeAuthority(roles);
     const restoredPublicFunctionPrivileges = await restoredPool.query<{ readonly count: number }>(`
       SELECT count(*)::integer AS count
       FROM pg_proc AS procedure
