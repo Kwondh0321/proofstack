@@ -342,12 +342,14 @@ describe("generated release policy contract invariants", () => {
     }
   });
 
-  it("requires unique canonical rule order throughout the allowed rule-count range", () => {
-    const base = definition();
-    base.applicability.riskTier = { operator: "equals", value: "low" };
-    const rule = base.rules.find(({ predicate }) => predicate.kind === "safety_event_ceiling");
-    if (!rule) throw new Error("Missing safety rule");
-    for (let count = 0; count <= 129; count += 1) {
+  // Keep each generated count independently timed and reported on shared, coverage-enabled CI.
+  it.each(Array.from({ length: 130 }, (_, count) => count))(
+    "requires unique canonical rule order for %i rules",
+    (count) => {
+      const base = definition();
+      base.applicability.riskTier = { operator: "equals", value: "low" };
+      const rule = base.rules.find(({ predicate }) => predicate.kind === "safety_event_ceiling");
+      if (!rule) throw new Error("Missing safety rule");
       const rules = labels(count, "rule").map((ruleId) => ({ ...rule, ruleId }));
       expect(ReleasePolicyDefinitionSchema.safeParse({ ...base, rules }).success).toBe(
         count >= 1 && count <= 128,
@@ -363,8 +365,8 @@ describe("generated release policy contract invariants", () => {
           }).success,
         ).toBe(false);
       }
-    }
-  });
+    },
+  );
 
   it.each(["assumptions", "exclusions", "knownLimitations"] as const)(
     "bounds and orders every %s collection",
