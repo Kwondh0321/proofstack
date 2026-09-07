@@ -29,6 +29,11 @@ pnpm check
 `pnpm check` is the local equivalent of the required CI quality gate: formatting, linting, type
 checking, unit tests with coverage, and production builds.
 
+`pnpm test` schedules one package task at a time, while preserving each suite's own worker settings,
+per-test timeouts, and coverage thresholds. This avoids multiplying CPU-sized test-worker pools
+across packages on shared CI runners. Generated Cartesian matrices should register independently
+reported cases instead of sharing one test's timeout; do not sample away combinations to save time.
+
 ## Change discipline
 
 - Keep each commit to one coherent engineering decision or behavior change.

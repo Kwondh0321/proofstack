@@ -45,7 +45,7 @@
     "lint": "biome lint . && turbo run lint",
     "recovery:database:backup": "pnpm --filter @proofstack/recovery-operations recovery:database:backup",
     "recovery:database:restore": "pnpm --filter @proofstack/recovery-operations recovery:database:restore",
-    "test": "turbo run test",
+    "test": "turbo run test --concurrency=1",
     "test:acceptance:workflow-1": "node scripts/run-workflow-1-acceptance.mjs",
     "test:acceptance:workflow-2-candidate": "node scripts/run-workflow-1-acceptance.mjs --release-candidate",
     "test:acceptance:workflow-2-policy": "node scripts/run-workflow-1-acceptance.mjs --release-policy",

@@ -113,6 +113,22 @@ const selectorVariants = {
   [Key in keyof ReleasePolicyApplicability]: readonly ReleasePolicyApplicability[Key][];
 };
 
+const selectorDimensions = Object.entries(selectorVariants);
+const applicabilityCases = Array.from(
+  { length: selectorDimensions.reduce((count, [, choices]) => count * choices.length, 1) },
+  (_, sample) => {
+    let position = sample;
+    const applicability = Object.fromEntries(
+      selectorDimensions.map(([name, choices]) => {
+        const choice = choices[position % choices.length];
+        position = Math.floor(position / choices.length);
+        return [name, choice];
+      }),
+    );
+    return { applicability, sample };
+  },
+);
+
 describe("generated release policy contract invariants", () => {
   it("keeps the reviewed collection limits fixed", () => {
     expect({
@@ -300,26 +316,25 @@ describe("generated release policy contract invariants", () => {
     }
   });
 
-  it("accepts the complete Cartesian product of explicit finite selector variants", () => {
-    const dimensions = Object.entries(selectorVariants);
-    const total = dimensions.reduce((count, [, choices]) => count * choices.length, 1);
-    expect(total).toBe(3_888);
-    for (let sample = 0; sample < total; sample += 1) {
-      let position = sample;
-      const applicability = Object.fromEntries(
-        dimensions.map(([name, choices]) => {
-          const choice = choices[position % choices.length];
-          position = Math.floor(position / choices.length);
-          return [name, choice];
-        }),
-      );
-      expect(ReleasePolicyApplicabilitySchema.parse(applicability)).toEqual(applicability);
-    }
+  it("enumerates the complete selector Cartesian product without duplicates", () => {
+    expect(applicabilityCases).toHaveLength(3_888);
+    expect(
+      new Set(applicabilityCases.map(({ applicability }) => JSON.stringify(applicability))).size,
+    ).toBe(3_888);
   });
 
-  it("rejects omissions and nested executable structure at every applicability dimension", () => {
-    const applicability = definition().applicability;
-    for (const dimension of Object.keys(selectorVariants)) {
+  // Every combination retains its own default timeout and identifies failures without sampling.
+  it.each(applicabilityCases)(
+    "accepts explicit finite selector combination $sample",
+    ({ applicability }) => {
+      expect(ReleasePolicyApplicabilitySchema.parse(applicability)).toEqual(applicability);
+    },
+  );
+
+  it.each(Object.keys(selectorVariants))(
+    "rejects omissions and nested executable structure at the %s dimension",
+    (dimension) => {
+      const applicability = definition().applicability;
       const omitted = { ...applicability } as Record<string, unknown>;
       delete omitted[dimension];
       expect(ReleasePolicyApplicabilitySchema.safeParse(omitted).success).toBe(false);
@@ -339,8 +354,8 @@ describe("generated release policy contract invariants", () => {
           ).toBe(false);
         }
       }
-    }
-  });
+    },
+  );
 
   // Keep each generated count independently timed and reported on shared, coverage-enabled CI.
   it.each(Array.from({ length: 130 }, (_, count) => count))(
