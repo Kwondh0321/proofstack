@@ -1,5 +1,7 @@
 import {
   OpaqueIdSchema,
+  type PrincipalContext,
+  PrincipalContextSchema,
   PublishReleasePolicyLifecycleRequestSchema,
   PublishReleasePolicyLifecycleResponseSchema,
   PublishReleasePolicyRequestSchema,
@@ -7,13 +9,21 @@ import {
   ReadReleasePolicyLifecycleResponseSchema,
   ReadReleasePolicyResponseSchema,
 } from "@proofstack/contracts";
-import type {
-  PublishReleasePolicy,
-  PublishReleasePolicyLifecycle,
-  ReadReleasePolicy,
-  ReadReleasePolicyLifecycle,
+import {
+  ForbiddenError,
+  type PublishReleasePolicy,
+  type PublishReleasePolicyLifecycle,
+  type ReadReleasePolicy,
+  type ReadReleasePolicyLifecycle,
+  requireCapability,
+  requireEnvironmentAccess,
 } from "@proofstack/core";
-import type { FastifyInstance, onSendAsyncHookHandler } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyRequest,
+  onRequestAsyncHookHandler,
+  onSendAsyncHookHandler,
+} from "fastify";
 import { z } from "zod";
 import type { Authenticator } from "./auth.js";
 
@@ -46,9 +56,6 @@ const preventCaching: onSendAsyncHookHandler = async (_request, reply, payload) 
   return payload;
 };
 
-const mutationOptions = { config: { rateLimit: mutationRateLimit }, onSend: preventCaching };
-const readOptions = { config: { rateLimit: readRateLimit }, onSend: preventCaching };
-
 function validatedResponse<Schema extends z.ZodType>(
   schema: Schema,
   input: unknown,
@@ -70,9 +77,51 @@ export async function registerReleasePolicyRoutes(
     "/v1/projects/:projectId/environments/:environmentId/release-policies/:policyId/versions/:policyVersionId";
   const lifecycleRoute = `${policyRoute}/lifecycle-events`;
   const exactLifecycleRoute = `${lifecycleRoute}/:eventId`;
+  const principals = new WeakMap<FastifyRequest, PrincipalContext>();
+
+  function authorize(capability: "policy:author" | "policy:read"): onRequestAsyncHookHandler {
+    return async (request) => {
+      const parsed = PrincipalContextSchema.safeParse(
+        await dependencies.authenticator.authenticate(request),
+      );
+      if (!parsed.success) {
+        throw new Error("Release policy authenticator returned an invalid principal", {
+          cause: parsed.error,
+        });
+      }
+      const principal = parsed.data;
+      requireCapability(principal, capability);
+      if (capability === "policy:author" && principal.principalType === "workload") {
+        throw new ForbiddenError(
+          "Workload principals cannot exercise non-delegable policy authority",
+        );
+      }
+      // Routing supplies these strings; access is checked before their contract or body is parsed.
+      const path = request.params as { environmentId: string; projectId: string };
+      requireEnvironmentAccess(principal, path.projectId, path.environmentId);
+      principals.set(request, principal);
+    };
+  }
+
+  function authorizedPrincipal(request: FastifyRequest): PrincipalContext {
+    const principal = principals.get(request);
+    if (!principal) throw new Error("Release policy request did not pass its authority guard");
+    return principal;
+  }
+
+  const mutationOptions = {
+    config: { rateLimit: mutationRateLimit },
+    onRequest: authorize("policy:author"),
+    onSend: preventCaching,
+  };
+  const readOptions = {
+    config: { rateLimit: readRateLimit },
+    onRequest: authorize("policy:read"),
+    onSend: preventCaching,
+  };
 
   app.post(policyRoute, mutationOptions, async (request, reply) => {
-    const principal = await dependencies.authenticator.authenticate(request);
+    const principal = authorizedPrincipal(request);
     const path = ReleasePolicyPathSchema.parse(request.params);
     const input = PublishReleasePolicyRequestSchema.parse(request.body);
     const result = await dependencies.publishPolicy.execute({
@@ -93,7 +142,7 @@ export async function registerReleasePolicyRoutes(
   });
 
   app.get(policyRoute, readOptions, async (request) => {
-    const principal = await dependencies.authenticator.authenticate(request);
+    const principal = authorizedPrincipal(request);
     const path = ReleasePolicyPathSchema.parse(request.params);
     const policy = await dependencies.readPolicy.execute({
       environmentId: path.environmentId,
@@ -109,7 +158,7 @@ export async function registerReleasePolicyRoutes(
   });
 
   app.post(lifecycleRoute, mutationOptions, async (request, reply) => {
-    const principal = await dependencies.authenticator.authenticate(request);
+    const principal = authorizedPrincipal(request);
     const path = ReleasePolicyPathSchema.parse(request.params);
     const input = PublishReleasePolicyLifecycleRequestSchema.parse(request.body);
     const result = await dependencies.publishLifecycle.execute({
@@ -130,7 +179,7 @@ export async function registerReleasePolicyRoutes(
   });
 
   app.get(exactLifecycleRoute, readOptions, async (request) => {
-    const principal = await dependencies.authenticator.authenticate(request);
+    const principal = authorizedPrincipal(request);
     const path = ReleasePolicyLifecyclePathSchema.parse(request.params);
     const event = await dependencies.readLifecycle.execute({
       environmentId: path.environmentId,

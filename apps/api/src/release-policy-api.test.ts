@@ -1,4 +1,5 @@
 import {
+  type PrincipalContext,
   PrincipalContextSchema,
   type PublishReleasePolicyRequest,
   PublishReleasePolicyRequestSchema,
@@ -47,6 +48,7 @@ const request = requestFor(fixture.policy);
 function authenticator(
   principalType: "user" | "workload" = "user",
   capabilities: readonly ("policy:author" | "policy:read")[] = ["policy:author", "policy:read"],
+  resourceScope: PrincipalContext["resourceScope"] = { mode: "tenant" },
 ): Authenticator {
   return {
     authenticate: async (fastifyRequest) =>
@@ -59,7 +61,7 @@ function authenticator(
         principalId: fixture.policy.issuerPrincipalId,
         principalType,
         requestId: fastifyRequest.id,
-        resourceScope: { mode: "tenant" },
+        resourceScope,
         roles: ["admin"],
         tenantId: scope.tenantId,
       }),
@@ -89,7 +91,207 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
+const protectedRoutes = [
+  { method: "POST", url: policyUrl },
+  { method: "GET", url: policyUrl },
+  { method: "POST", url: lifecycleUrl },
+  { method: "GET", url: `${lifecycleUrl}/policy_event_guard` },
+] as const;
+
+const deniedAuthorities: readonly {
+  readonly capabilities: readonly ("policy:author" | "policy:read")[];
+  readonly methods: readonly ("GET" | "POST")[];
+  readonly name: string;
+  readonly principalType: "user" | "workload";
+  readonly resourceScope: PrincipalContext["resourceScope"];
+}[] = [
+  {
+    capabilities: [],
+    methods: ["GET", "POST"],
+    name: "missing capabilities",
+    principalType: "user",
+    resourceScope: { mode: "tenant" },
+  },
+  {
+    capabilities: ["policy:read"],
+    methods: ["POST"],
+    name: "read-only user",
+    principalType: "user",
+    resourceScope: { mode: "tenant" },
+  },
+  {
+    capabilities: ["policy:author"],
+    methods: ["GET"],
+    name: "author without read capability",
+    principalType: "user",
+    resourceScope: { mode: "tenant" },
+  },
+  {
+    capabilities: ["policy:author", "policy:read"],
+    methods: ["POST"],
+    name: "workload with non-delegable author capability",
+    principalType: "workload",
+    resourceScope: { mode: "tenant" },
+  },
+  {
+    capabilities: ["policy:author", "policy:read"],
+    methods: ["GET", "POST"],
+    name: "different project",
+    principalType: "user",
+    resourceScope: { mode: "restricted", projects: [{ projectId: "project_other" }] },
+  },
+  {
+    capabilities: ["policy:author", "policy:read"],
+    methods: ["GET", "POST"],
+    name: "different environment",
+    principalType: "user",
+    resourceScope: {
+      mode: "restricted",
+      projects: [{ projectId: scope.projectId, environmentIds: ["env_other"] }],
+    },
+  },
+];
+
 describe("release policy control-plane API", () => {
+  it("rejects malformed authenticator output before protected request validation", async () => {
+    const authority = authorityResolver();
+    const app = await testApp({
+      authenticator: { authenticate: async () => ({ sensitive: "invalid principal" }) as never },
+      releasePolicyAuthorityResolver: authority,
+    });
+    const response = await app.inject({
+      body: "{",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+      url: policyUrl,
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toMatchObject({ code: "internal_error", status: 500 });
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).not.toContain("invalid principal");
+    expect(response.body).not.toContain("sensitive");
+    expect(authority.resolve).not.toHaveBeenCalled();
+  });
+
+  it("preserves exact scoped workload reads without delegating policy mutation", async () => {
+    const repository = new MemoryReleasePolicyRepository();
+    const author = await testApp({
+      releasePolicyAuthorityResolver: authorityResolver(),
+      releasePolicyRepository: repository,
+    });
+    const publication = await author.inject({ body: request, method: "POST", url: policyUrl });
+    expect(publication.statusCode).toBe(201);
+    const event = await author.inject({
+      body: {
+        eventId: "policy_event_guard",
+        kind: "withdrawn",
+        reason: "Verify read-only access to immutable history.",
+      },
+      method: "POST",
+      url: lifecycleUrl,
+    });
+    expect(event.statusCode).toBe(201);
+
+    const authenticate = vi.fn(
+      authenticator("workload", ["policy:read"], {
+        mode: "restricted",
+        projects: [{ projectId: scope.projectId, environmentIds: [scope.environmentId] }],
+      }).authenticate,
+    );
+    const reader = await testApp({
+      authenticator: { authenticate },
+      releasePolicyRepository: repository,
+    });
+    const read = await reader.inject({ method: "GET", url: policyUrl });
+    const history = await reader.inject({
+      method: "GET",
+      url: `${lifecycleUrl}/policy_event_guard`,
+    });
+
+    expect(read.statusCode).toBe(200);
+    expect(read.json().policy).toEqual(publication.json().policy);
+    expect(history.statusCode).toBe(200);
+    expect(history.json().event).toEqual(event.json().event);
+    expect(authenticate).toHaveBeenCalledTimes(2);
+    for (const url of [policyUrl, lifecycleUrl]) {
+      const response = await reader.inject({ body: {}, method: "POST", url });
+      expect(response.statusCode).toBe(403);
+    }
+  });
+
+  it("authenticates before parsing malformed JSON and rejecting unsupported or oversized bodies", async () => {
+    const authenticate = vi.fn<Authenticator["authenticate"]>(async () => {
+      throw new AuthenticationRequiredError();
+    });
+    const authority = authorityResolver();
+    const app = await testApp({
+      authenticator: { authenticate },
+      releasePolicyAuthorityResolver: authority,
+    });
+
+    for (const url of [policyUrl, lifecycleUrl]) {
+      for (const payload of [
+        { body: "{", headers: { "content-type": "application/json" } },
+        { body: "x", headers: { "content-type": "application/xml" } },
+        { body: "x".repeat(1024 * 1024 + 1), headers: { "content-type": "application/json" } },
+      ]) {
+        const response = await app.inject({ ...payload, method: "POST", url });
+        expect(response.statusCode).toBe(401);
+        expect(response.json()).toMatchObject({ code: "unauthenticated", status: 401 });
+        expect(response.headers["cache-control"]).toBe("no-store");
+      }
+    }
+    expect(authenticate).toHaveBeenCalledTimes(6);
+    expect(authority.resolve).not.toHaveBeenCalled();
+  });
+
+  it.each(deniedAuthorities)(
+    "denies $name before route and body validation or dependencies",
+    async (denied) => {
+      const repository = new MemoryReleasePolicyRepository();
+      const storageCalls = [
+        vi.spyOn(repository, "findReleasePolicy"),
+        vi.spyOn(repository, "findReleasePolicyLifecycleEvent"),
+        vi.spyOn(repository, "listReleasePolicyLifecycleEvents"),
+        vi.spyOn(repository, "publishReleasePolicy"),
+        vi.spyOn(repository, "publishReleasePolicyLifecycleEvent"),
+      ];
+      const authority = authorityResolver();
+      const now = vi.fn(() => new Date(fixture.input.at));
+      const app = await testApp({
+        authenticator: authenticator(
+          denied.principalType,
+          denied.capabilities,
+          denied.resourceScope,
+        ),
+        clock: { now },
+        releasePolicyAuthorityResolver: authority,
+        releasePolicyRepository: repository,
+      });
+
+      for (const route of protectedRoutes.filter(({ method }) => denied.methods.includes(method))) {
+        for (const url of [route.url, route.url.replace("/versions/", "/versions/bad!")]) {
+          for (const body of route.method === "POST" ? ["{}", "{"] : [undefined]) {
+            const response = await app.inject({
+              method: route.method,
+              url,
+              ...(body === undefined
+                ? {}
+                : { body, headers: { "content-type": "application/json" } }),
+            });
+            expect(response.statusCode).toBe(403);
+            expect(response.json()).toMatchObject({ code: "forbidden", status: 403 });
+            expect(response.headers["cache-control"]).toBe("no-store");
+          }
+        }
+      }
+      expect(now).not.toHaveBeenCalled();
+      expect(authority.resolve).not.toHaveBeenCalled();
+      for (const call of storageCalls) expect(call).not.toHaveBeenCalled();
+    },
+  );
+
   it("publishes once, reads the exact policy, and preserves the retry receipt", async () => {
     const authority = authorityResolver();
     const app = await testApp({ releasePolicyAuthorityResolver: authority });

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   type PrincipalContext,
   PublishReleasePolicyLifecycleRequestSchema,
@@ -83,7 +84,7 @@ function dependencies(
 const apps: ReturnType<typeof Fastify>[] = [];
 
 async function testApp(value = dependencies()) {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ genReqId: () => randomUUID(), logger: false });
   app.setErrorHandler((error, _request, reply) => {
     const errorName = error instanceof Error ? error.name : "UnknownError";
     reply.status(errorName === "ZodError" ? 400 : 500).send({ error: errorName });
@@ -98,6 +99,32 @@ afterEach(async () => {
 });
 
 describe("release policy routes", () => {
+  it("authenticates once per request and isolates principals across concurrent reads", async () => {
+    const authenticate = vi.fn<Authenticator["authenticate"]>(async (request) => ({
+      ...principal(),
+      principalId: `principal_${request.id.replaceAll("-", "_")}`,
+      requestId: request.id,
+    }));
+    const { app, value } = await testApp(dependencies({ authenticator: { authenticate } }));
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, () => app.inject({ method: "GET", url: policyUrl })),
+    );
+
+    expect(responses.map(({ statusCode }) => statusCode)).toEqual(Array(8).fill(200));
+    expect(authenticate).toHaveBeenCalledTimes(8);
+    const calls = vi.mocked(value.readPolicy.execute).mock.calls;
+    expect(calls).toHaveLength(8);
+    expect(new Set(calls.map(([command]) => command.principal.principalId)).size).toBe(8);
+    expect(calls.map(([command]) => command.principal.requestId).sort()).toEqual(
+      responses.map((response) => response.json().requestId).sort(),
+    );
+    for (const [command] of calls) {
+      expect(command.principal.principalId).toBe(
+        `principal_${command.principal.requestId.replaceAll("-", "_")}`,
+      );
+    }
+  });
+
   it("publishes and reads exact immutable policy and lifecycle records", async () => {
     const { app, value } = await testApp();
     const responses = await Promise.all([
