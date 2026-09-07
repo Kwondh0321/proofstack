@@ -28,7 +28,7 @@
     "@proofstack/sdk": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.5",
+    "@types/react-dom": "19.2.7",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
