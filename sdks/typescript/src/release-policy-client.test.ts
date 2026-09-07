@@ -129,6 +129,45 @@ function developmentClient(fetch: typeof globalThis.fetch, overrides = {}) {
 }
 
 describe("ProofStackReleasePolicyClient", () => {
+  it.each([0, 1])("enforces streamed response bytes at the hard limit plus %i", async (excess) => {
+    const json = JSON.stringify({ policy, requestId: "검".repeat(128) });
+    const bytes = new TextEncoder().encode(
+      json +
+        " ".repeat(
+          MAX_RELEASE_POLICY_RESPONSE_BYTES + excess - new TextEncoder().encode(json).byteLength,
+        ),
+    );
+    const chunks = [bytes.subarray(0, bytes.length - 1), bytes.subarray(bytes.length - 1)];
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>(
+      {
+        cancel,
+        pull(controller) {
+          const chunk = chunks.shift();
+          if (chunk) controller.enqueue(chunk);
+          else controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const response = new Response(body, {
+      // A false low declared size must never bypass the actual stream-byte limit.
+      headers: { ...successHeaders, "content-length": "1" },
+    });
+    const client = developmentClient(
+      vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response),
+    );
+    const result = client.readPolicy({ policyId, policyVersionId });
+    if (excess === 0) {
+      await expect(result).resolves.toMatchObject({ policy });
+      expect(cancel).not.toHaveBeenCalled();
+    } else {
+      await expect(result).rejects.toThrow(`exceeded ${MAX_RELEASE_POLICY_RESPONSE_BYTES} bytes`);
+      expect(cancel).toHaveBeenCalledOnce();
+    }
+    expect(body.locked).toBe(false);
+  });
+
   it("publishes, retries, and reads exact policy and lifecycle records", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()

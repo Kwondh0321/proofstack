@@ -1,12 +1,17 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  MAX_POLICY_RULES,
+  PublishReleasePolicyLifecycleRequestSchema,
+  PublishReleasePolicyRequestSchema,
   RELEASE_POLICY_LIFECYCLE_SCHEMA_VERSION,
   RELEASE_POLICY_SCHEMA_VERSION,
   type ReleasePolicy,
   type ReleasePolicyLifecycleEvent,
 } from "./release-policy.js";
 import {
+  MAX_RELEASE_POLICY_REQUEST_BYTES,
+  MAX_RELEASE_POLICY_RESPONSE_BYTES,
   PublishReleasePolicyLifecycleResponseSchema,
   PublishReleasePolicyResponseSchema,
   ReadReleasePolicyLifecycleResponseSchema,
@@ -58,6 +63,98 @@ function lifecycleEvent(policy: ReleasePolicy): ReleasePolicyLifecycleEvent {
 }
 
 describe("release policy API contracts", () => {
+  it.each([false, true])(
+    "bounds maximum policy receipt metadata with predecessor=%s",
+    (lineage) => {
+      const id = "a".repeat(64);
+      const policy: ReleasePolicy = {
+        ...policyRecord(),
+        issuerPrincipalId: id,
+        policyId: id,
+        policyVersionId: id,
+        publishedByPrincipalId: id,
+        scope: { environmentId: id, projectId: id, tenantId: id },
+        ...(lineage
+          ? {
+              predecessor: {
+                definitionSha256: "f".repeat(64),
+                policyId: id,
+                policyVersionId: "b".repeat(64),
+              },
+            }
+          : {}),
+      };
+      const {
+        definitionSha256: _digest,
+        issuerPrincipalId: _issuer,
+        policyId: _id,
+        predecessor,
+        publishedAt: _at,
+        publishedByPrincipalId: _publisher,
+        schemaVersion: _version,
+        scope: _scope,
+        ...fields
+      } = policy;
+      const request = PublishReleasePolicyRequestSchema.parse({
+        ...fields,
+        ...(predecessor ? { predecessorVersionId: predecessor.policyVersionId } : {}),
+      });
+      // Request IDs permit 128 UTF-16 code units. JSON's six-byte control-character escape
+      // costs more per unit than either ASCII, BMP text, or a supplementary Unicode scalar.
+      const requestId = "\u0000".repeat(128);
+      const responses = [
+        PublishReleasePolicyResponseSchema.parse({ created: false, policy, requestId }),
+        ReadReleasePolicyResponseSchema.parse({ policy, requestId }),
+      ];
+      expect(MAX_RELEASE_POLICY_REQUEST_BYTES).toBe(1_048_576);
+      for (const response of responses) {
+        const overhead =
+          Buffer.byteLength(JSON.stringify(response)) - Buffer.byteLength(JSON.stringify(request));
+        expect(overhead).toBeGreaterThan(0);
+        // Each finite predicate can expand by at most 12 bytes: 1e15 -> 1000000000000000.
+        // The two bounded basis-point operands together expand less than that single count.
+        expect(overhead + MAX_POLICY_RULES * 12).toBeLessThanOrEqual(
+          MAX_RELEASE_POLICY_RESPONSE_BYTES - MAX_RELEASE_POLICY_REQUEST_BYTES,
+        );
+      }
+    },
+  );
+
+  it.each(["withdrawn", "superseded"] as const)("bounds maximum %s receipt metadata", (kind) => {
+    const id = "a".repeat(64);
+    const reference = { definitionSha256: "f".repeat(64), policyId: id, policyVersionId: id };
+    const event = {
+      ...lifecycleEvent(policyRecord()),
+      actorPrincipalId: id,
+      eventId: id,
+      kind,
+      policy: reference,
+      scope: { environmentId: id, projectId: id, tenantId: id },
+      ...(kind === "superseded"
+        ? { successor: { ...reference, policyVersionId: "b".repeat(64) } }
+        : {}),
+    };
+    const request = PublishReleasePolicyLifecycleRequestSchema.parse({
+      eventId: event.eventId,
+      kind,
+      reason: event.reason,
+      ...(kind === "superseded" ? { successorPolicyVersionId: "b".repeat(64) } : {}),
+    });
+    const requestId = "\u0000".repeat(128);
+    const responses = [
+      PublishReleasePolicyLifecycleResponseSchema.parse({ created: false, event, requestId }),
+      ReadReleasePolicyLifecycleResponseSchema.parse({ event, requestId }),
+    ];
+    for (const response of responses) {
+      const overhead =
+        Buffer.byteLength(JSON.stringify(response)) - Buffer.byteLength(JSON.stringify(request));
+      expect(overhead).toBeGreaterThan(0);
+      expect(overhead).toBeLessThanOrEqual(
+        MAX_RELEASE_POLICY_RESPONSE_BYTES - MAX_RELEASE_POLICY_REQUEST_BYTES,
+      );
+    }
+  });
+
   it("accepts exact policy publication and read receipts", () => {
     const policy = policyRecord();
     expect(

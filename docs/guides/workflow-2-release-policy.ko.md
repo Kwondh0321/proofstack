@@ -68,6 +68,25 @@ source review, 필요한 reviewer qualification, installation binding은 정책�
 같을 수 있지만 1마이크로초라도 앞설 수 없습니다. 보존 content가 없거나 freshness 결론이 unknown인
 경우에는 여전히 발행할 수 없습니다.
 
+## 전송 크기 경계
+
+정책 및 lifecycle 변경 요청은 UTF-8 JSON 기준 최대 1,048,576바이트(1 MiB)까지 허용합니다.
+TypeScript SDK는 직렬화한 요청을 보내기 전에 크기를 확인합니다. HTTP API도 인증과 인가 후,
+source 해석이나 저장 전에 같은 바이트 한도를 독립적으로 적용합니다. 글자 수와 바이트 수는
+다릅니다. 보조 평면 Unicode 문자 하나는 UTF-8에서 4바이트이며, JSON escape 표기는 더 클 수 있습니다.
+
+공유 기본 응답 한도는 1,052,672바이트(1 MiB + 4 KiB)입니다. 서버가 추가하는 식별자, scope,
+timestamp, digest, 정확한 lineage와 JSON 정수 표기 확장을 위한 제한된 여유 공간입니다. 따라서
+허용 한도에 맞는 요청은 서버가 metadata를 덧붙였다는 이유만으로 정상 receipt가 거절되지 않고
+발행·조회·재시도할 수 있습니다. API는 내부에서 한도를 넘는 응답을 받으면 작고 캐시되지 않는
+오류로 반환합니다. SDK는 선언된 응답 크기와 실제 stream 바이트를 모두 확인하며 초과 stream을
+취소합니다. 호출자가 SDK `maxResponseBytes`를 의도적으로 더 작게 설정할 수 있지만 공유 응답
+상한을 넘길 수는 없습니다.
+
+이 한도는 전송 예산이며 정책의 의미적 제한을 바꾸거나 분류된 content를 포함하도록 허용하지
+않습니다. 집중 로컬 전송 테스트는 synthetic authority fixture와 메모리 저장소를 사용합니다.
+아래 clean-checkout 수용 검증은 별도로 보존 database와 object-storage 흐름을 실행합니다.
+
 ## 요구 사항
 
 - 이 repository의 깨끗한 checkout.

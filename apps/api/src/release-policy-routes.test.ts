@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  MAX_RELEASE_POLICY_RESPONSE_BYTES,
   type PrincipalContext,
   PublishReleasePolicyLifecycleRequestSchema,
   PublishReleasePolicyRequestSchema,
   type ReleasePolicy,
+  ReleasePolicySchema,
 } from "@proofstack/contracts";
 import { createReleasePolicyRepositoryTestHarness } from "@proofstack/core/testing";
 import Fastify from "fastify";
@@ -99,6 +101,34 @@ afterEach(async () => {
 });
 
 describe("release policy routes", () => {
+  it("returns a bounded non-cacheable error for an oversized internal policy response", async () => {
+    const threshold = policy.rules.find(
+      ({ predicate }) => predicate.kind === "comparison_threshold",
+    );
+    const approval = policy.rules.find(({ predicate }) => predicate.kind === "approval_required");
+    if (!threshold || !approval) throw new Error("Expected threshold and approval rules");
+    const oversized = ReleasePolicySchema.parse({
+      ...policy,
+      rules: [
+        ...Array.from({ length: 100 }, (_, index) => ({
+          ...threshold,
+          rationale: "😀".repeat(4096),
+          ruleId: `rule_${String(index).padStart(3, "0")}`,
+        })),
+        { ...approval, ruleId: "rule_999" },
+      ],
+    });
+    expect(Buffer.byteLength(JSON.stringify(oversized))).toBeGreaterThan(
+      MAX_RELEASE_POLICY_RESPONSE_BYTES,
+    );
+    const { app } = await testApp(dependencies({ readPolicy: { execute: async () => oversized } }));
+    const response = await app.inject({ method: "GET", url: policyUrl });
+    expect(response.statusCode).toBe(500);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(Buffer.byteLength(response.body)).toBeLessThan(1024);
+    expect(response.body).not.toContain("😀");
+  });
+
   it("authenticates once per request and isolates principals across concurrent reads", async () => {
     const authenticate = vi.fn<Authenticator["authenticate"]>(async (request) => ({
       ...principal(),

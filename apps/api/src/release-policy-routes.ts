@@ -1,4 +1,6 @@
 import {
+  MAX_RELEASE_POLICY_REQUEST_BYTES,
+  MAX_RELEASE_POLICY_RESPONSE_BYTES,
   OpaqueIdSchema,
   type PrincipalContext,
   PrincipalContextSchema,
@@ -66,6 +68,9 @@ function validatedResponse<Schema extends z.ZodType>(
       cause: parsed.error,
     });
   }
+  if (Buffer.byteLength(JSON.stringify(parsed.data), "utf8") > MAX_RELEASE_POLICY_RESPONSE_BYTES) {
+    throw new Error("Release policy route response exceeds the public transport budget");
+  }
   return parsed.data;
 }
 
@@ -110,6 +115,7 @@ export async function registerReleasePolicyRoutes(
   }
 
   const mutationOptions = {
+    bodyLimit: MAX_RELEASE_POLICY_REQUEST_BYTES,
     config: { rateLimit: mutationRateLimit },
     onRequest: authorize("policy:author"),
     onSend: preventCaching,

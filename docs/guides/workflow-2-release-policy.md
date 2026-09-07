@@ -69,6 +69,27 @@ policy's entire finite validity interval. A declared source expiry is an additio
 it may equal the policy expiry but must not precede it, including by one microsecond. Missing
 retained content or an unknown freshness conclusion still prevents publication.
 
+## Transport size boundary
+
+Policy and lifecycle mutation requests permit at most 1,048,576 bytes (1 MiB) of UTF-8 JSON.
+The TypeScript SDK checks its serialized request before sending; the HTTP API independently
+enforces the same byte limit after authentication and authorization, before source resolution or
+storage. Character count is not byte count: a supplementary Unicode character uses four UTF-8
+bytes, while an escaped JSON representation may use more.
+
+The shared default response limit is 1,052,672 bytes (1 MiB + 4 KiB). This reserves bounded space for
+server-added identifiers, scope, timestamps, digests, exact lineage, and JSON integer expansion.
+A request at the supported limit can therefore be published, read, and retried without its valid
+receipt being rejected solely because the server added metadata. The API rejects an oversized
+internal response with a bounded, non-cacheable error; the SDK checks both declared and actual
+streamed response bytes and cancels an oversized stream. A caller may deliberately set a smaller
+SDK `maxResponseBytes`, but not exceed the shared response ceiling.
+
+These are transport budgets, not changes to the policy's semantic limits or an authorization to
+embed classified content. The focused local transport tests use synthetic authority fixtures and
+memory storage; the clean-checkout acceptance below separately exercises the retained database and
+object-storage flow.
+
 ## Requirements
 
 - A clean checkout of this repository.

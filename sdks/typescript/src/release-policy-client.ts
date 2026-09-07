@@ -1,6 +1,8 @@
 import {
   ApiKeyValueSchema,
   type EvidenceScope,
+  MAX_RELEASE_POLICY_REQUEST_BYTES,
+  MAX_RELEASE_POLICY_RESPONSE_BYTES,
   OpaqueIdSchema,
   ProblemDocumentSchema,
   type PublishReleasePolicyLifecycleRequest,
@@ -22,7 +24,10 @@ import {
 import { ProofStackApiError, ProofStackProblemError } from "./regression-client.js";
 import { digestReleasePolicyDefinition } from "./release-policy-definition-digest.js";
 
-export const MAX_RELEASE_POLICY_RESPONSE_BYTES = 1024 * 1024;
+export {
+  MAX_RELEASE_POLICY_REQUEST_BYTES,
+  MAX_RELEASE_POLICY_RESPONSE_BYTES,
+} from "@proofstack/contracts";
 export const MAX_RELEASE_POLICY_REDIRECTS = 0;
 
 const BROWSER_CSRF_TOKEN_PATTERN = /^psc_v1_[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
@@ -485,6 +490,15 @@ export class ProofStackReleasePolicyClient {
     responseSchema: ResponseSchema<Output>,
     expectedStatuses: readonly number[],
   ): Promise<{ readonly status: number; readonly value: Output }> {
+    const encodedBody = body === undefined ? undefined : JSON.stringify(body);
+    if (
+      encodedBody !== undefined &&
+      new TextEncoder().encode(encodedBody).byteLength > MAX_RELEASE_POLICY_REQUEST_BYTES
+    ) {
+      throw new ProofStackApiError(
+        `ProofStack release policy request exceeded ${MAX_RELEASE_POLICY_REQUEST_BYTES} bytes`,
+      );
+    }
     const url = scopedUrl(this.baseUrl, [
       "v1",
       "projects",
@@ -497,7 +511,7 @@ export class ProofStackReleasePolicyClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImplementation(url, {
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(encodedBody === undefined ? {} : { body: encodedBody }),
         credentials: this.authentication.mode === "browser" ? "include" : "omit",
         headers: {
           accept: "application/json",
