@@ -29,9 +29,13 @@ evaluating, governing, and safely releasing AI agents.
 > comparison reference now resolves exact retained upstream records in the default
 > repository-backed composition and exposes immutable definitions, snapshots, and results through
 > PostgreSQL, bounded HTTP/OpenAPI routes, the workspace TypeScript SDK, and a digest- and
-> lineage-verifying operator view. Its examples remain synthetic, and the SDK is not published to
-> a package registry. Console sign-in integration, policy, approval, and release gates are
-> intentionally not represented as complete.
+> lineage-verifying operator view. Immutable release candidates and versioned release policy
+> definitions now cross strict contracts, authority resolution, dedicated PostgreSQL roles,
+> append-only storage, HTTP/OpenAPI, SDK, recovery, and clean-checkout restart boundaries. Policy
+> source and reviewer records and the installation registry in the reference flow remain
+> synthetic; publication does not evaluate a candidate or approve, enforce, or release anything.
+> The SDK is not published to a package registry. Console sign-in integration, policy evaluation,
+> approval, decision, and release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -77,9 +81,11 @@ block a release. Policy enforcement and accountable release decisions remain Wor
 | Model and human assurance | Thirteen strict record kinds, exact model/prompt/tool lineage, mandatory-slice qualification, calibration compatibility, blinded order swaps, independent critique, reviewer accountability, and conservative assessment |
 | Assurance authority | Kind-routed control, model-worker, and human-review PostgreSQL roles backed by API capability checks, RLS, append-only lineage, recovery, and complete restart read-back |
 | Exact evidence comparison | Repository-backed retained-source resolution, strict definitions and snapshots, exact case pairing and arithmetic, immutable memory/PostgreSQL repositories, HTTP/OpenAPI, workspace SDK, and a digest-verifying operator view |
-| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, evaluation, model-assurance, and comparison clients with explicit authentication modes |
+| Release candidates | Exact checked-out commit/tree, runtime identity, retained Workflow 1 lineage, immutable memory/PostgreSQL records, API/SDK, restart read-back, and recovery |
+| Release policy definitions | Finite non-executable rules, exact applicability and authority references, independent source-review lineage, dedicated author storage authority, immutable lifecycle, API/SDK, restart read-back, and recovery |
+| TypeScript SDK | Generated IDs, bounded telemetry delivery, and fail-closed exact-version regression, replay, evaluation, model-assurance, comparison, release-candidate, and release-policy clients with explicit authentication modes |
 | Console | API health, exact linked-trace inspection, and digest- and lineage-verified comparison reads without placeholder telemetry, classified plaintext, or release controls |
-| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested evaluation/assurance, exact synthetic comparison, and a disposable retained Workflow 1 acceptance path |
+| Examples | Runnable trace, evidence-only regression, capture-to-recorded replay, durable success/cancellation/stale-fence recovery, contested evaluation/assurance, exact synthetic comparison, and disposable retained Workflow 1, release-candidate, and policy-publication acceptance paths |
 | Engineering | Monorepo boundaries, strict TypeScript, coverage, production builds, pinned CI actions |
 | Security | Explicit threat model, safe production startup refusal, dependency and secret scanning |
 
@@ -319,7 +325,11 @@ that first bounded checkpoint and opens versioned policy-definition development.
 [versioned policy-definition entry audit](docs/development/workflow-2-policy-definition-entry-audit.md)
 fixes the finite non-executable rule vocabulary, installation and source authority, immutable
 lifecycle, dedicated author boundary, and executable exit gates without claiming evaluation or
-release authority.
+release authority. The
+[immutable release-policy guide](docs/guides/workflow-2-release-policy.md) runs the retained
+source, reviewer, installation, publication, withdrawal, and restart path while withholding
+policy-evaluation, approval, decision, attestation, CI-enforcement, deployment, and
+production-readiness claims.
 
 ## Current boundaries
 
@@ -340,12 +350,17 @@ and OpenAPI operations, workspace SDK methods, and the read-only operator projec
 implemented and tested. Strict release-candidate contracts, exact source resolution, append-only
 memory and PostgreSQL storage, bounded API and SDK operations, restart read-back, and empty-target
 predecessor recovery are implemented and tested as a policy-independent Workflow 2 subject.
+Versioned release-policy contracts, finite non-executable rules, exact installation and qualified
+source authority, append-only memory and PostgreSQL storage, a dedicated policy-author role,
+bounded HTTP/OpenAPI and SDK operations, immutable withdrawal history, restart read-back, recovery,
+and clean-checkout acceptance are implemented and tested as a definition-only Workflow 2 boundary.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
 The reference flows record synthetic evidence and use a deterministic local model provider;
 ProofStack does not yet execute arbitrary evaluators in an OS sandbox, determine source authority
 automatically, validate real reviewer expertise, publish its workspace SDK to a package registry,
-or reinterpret a descriptive comparison as a release decision.
+select or evaluate a release policy for a candidate, or reinterpret a descriptive comparison as a
+release decision.
 Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
 built-in content inspector rejects structured credential fields and supports configured scanners,
 but no scanner proves arbitrary opaque bytes secret-free; scanner

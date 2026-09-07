@@ -28,8 +28,12 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > baseline/candidate comparison 기준 구현은 이제 기본 repository-backed composition에서 정확히
 > 보존된 upstream record를 해석하고 불변 definition·snapshot·result를 PostgreSQL, 제한된
 > HTTP/OpenAPI route, workspace TypeScript SDK, digest·lineage 검증 operator view로 노출합니다.
-> 예제는 synthetic이며 SDK는 package registry에 배포되지 않았습니다. 콘솔 로그인 연동,
-> policy, approval, release gate도 완성된 기능으로 표시하지 않습니다.
+> 불변 release candidate와 versioned release policy definition도 엄격한 contract, authority
+> 해석, 전용 PostgreSQL role, append-only storage, HTTP/OpenAPI, SDK, recovery, clean-checkout
+> restart 경계를 통과합니다. 기준 흐름의 policy source·reviewer record와 installation registry는
+> synthetic이며, 발행은 candidate를 평가하거나 무엇을 승인·집행·release하지 않습니다. SDK는
+> package registry에 배포되지 않았습니다. 콘솔 로그인 연동, policy evaluation, approval,
+> decision, release gate도 완성된 기능으로 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -77,9 +81,11 @@ evidence trace를 검사하고, 실패를 불변 회귀 fixture로 전환하고,
 | 모델·인간 assurance | 엄격한 record 13종, 정확한 model/prompt/tool lineage, 필수 slice qualification, calibration 호환성, blinded order swap, 독립 critique, reviewer 책임성, 보수적 assessment |
 | Assurance 권한 | API capability 검사, RLS, append-only lineage, recovery, 전체 restart read-back을 갖춘 kind별 control·model-worker·human-review PostgreSQL role |
 | 정확 evidence comparison | Repository-backed 보존 source 해석, 엄격한 definition·snapshot, 정확 case pairing·산술, 불변 memory·PostgreSQL repository, HTTP/OpenAPI, workspace SDK, digest 검증 operator view |
-| TypeScript SDK | 식별자 생성, 제한된 telemetry 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 regression·replay·evaluation·model-assurance·comparison client |
+| Release candidate | 정확한 checkout commit·tree, runtime identity, 보존 Workflow 1 lineage, 불변 memory·PostgreSQL record, API·SDK, restart read-back, recovery |
+| Release policy definition | 유한 non-executable rule, 정확한 applicability·authority reference, 독립 source-review lineage, 전용 author storage authority, 불변 lifecycle, API·SDK, restart read-back, recovery |
+| TypeScript SDK | 식별자 생성, 제한된 telemetry 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 regression·replay·evaluation·model-assurance·comparison·release-candidate·release-policy client |
 | 콘솔 | 임시 telemetry, 분류된 평문, release control 없이 실제 API 상태, 정확 linked trace, digest·lineage 검증 comparison 조회 |
-| 예제 | 실제 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 evaluation·assurance, 정확 synthetic comparison, 일회성 보존 Workflow 1 acceptance 경로 |
+| 예제 | 실제 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 evaluation·assurance, 정확 synthetic comparison, 일회성 보존 Workflow 1·release-candidate·policy-publication acceptance 경로 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |
 | 보안 | 명시적 위협 모델, 안전하지 않은 프로덕션 시작 거부, 의존성·비밀·CodeQL 검사 |
 
@@ -319,6 +325,9 @@ approval, decision, attestation, CI enforcement, deployment, production-readines
 [버전 정책 정의 진입 감사](docs/development/workflow-2-policy-definition-entry-audit.ko.md)는 평가나
 release authority를 주장하지 않은 채 유한 non-executable rule vocabulary, installation·source
 authority, 불변 lifecycle, 전용 author boundary, 실행 가능한 exit gate를 고정합니다.
+[불변 release-policy 가이드](docs/guides/workflow-2-release-policy.ko.md)는 policy-evaluation,
+approval, decision, attestation, CI enforcement, deployment, production-readiness 주장을 승인하지
+않으면서 보존 source, reviewer, installation, 발행, 철회, restart 경로를 실행합니다.
 
 ## 현재의 경계
 
@@ -336,11 +345,15 @@ exact-version API·SDK, kind별 storage authority, 전용 worker, restart read-b
 제한된 API·OpenAPI operation, workspace SDK method, 읽기 전용 operator projection도 구현되고
 검증되었습니다. 엄격한 release-candidate contract, exact source 해석, append-only memory·
 PostgreSQL storage, bounded API·SDK operation, restart read-back, 빈 target predecessor recovery도
-policy와 독립적인 Workflow 2 subject로 구현되고 검증되었습니다. 기준 흐름은 synthetic
+policy와 독립적인 Workflow 2 subject로 구현되고 검증되었습니다. Versioned release-policy
+contract, 유한 non-executable rule, 정확한 installation·qualified source authority, append-only
+memory·PostgreSQL storage, 전용 policy-author role, 제한된 HTTP/OpenAPI·SDK operation, 불변
+withdrawal history, restart read-back, recovery, clean-checkout acceptance도 definition-only
+Workflow 2 경계로 구현되고 검증되었습니다. 기준 흐름은 synthetic
 evidence와 결정적 local model provider를 사용할 뿐,
 OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer
-전문성을 검증하거나 workspace SDK를 package registry에 배포하거나 설명형 comparison을
-release decision으로 재해석하지 않습니다.
+전문성을 검증하거나 workspace SDK를 package registry에 배포하거나 candidate를 위한 release
+policy를 선택·평가하거나 설명형 comparison을 release decision으로 재해석하지 않습니다.
 Replay 결과는
 OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content
 inspector는 구조화된 자격증명 필드를 거부하고
