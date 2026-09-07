@@ -39,6 +39,21 @@ calculator or a mock worker.
 
 These are findings for the new checkpoint, not reversals of the accepted definition boundary.
 
+## Partial implementation: numeric primitives
+
+The [bounded arithmetic module](../../packages/core/src/policy/policy-exact-arithmetic.ts) compares
+exact decimal/rational thresholds, safe-integer count floors/ceilings, complete-population coverage
+ratios, and retained probability bounds. It reuses the published numeric contracts and preserves
+source representations. Zero denominator is explicitly undefined; malformed inputs and impossible
+populations are typed errors, not successful numeric evidence. Its
+[tests](../../packages/core/src/policy/policy-exact-arithmetic.test.ts) use a separate continued-fraction
+ordering oracle, every comparator, signed and large values, and exact basis-point boundaries.
+
+These functions return only numeric order and whether a comparator matches. They do not resolve
+evidence, establish applicability or qualification, validate a statistical method, seal a snapshot,
+publish an evaluation, or grant approval. Request/result/worker and whole-checkpoint acceptance
+remain open; this slice does not change the roadmap completion count.
+
 ## Frozen input and record boundary
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:

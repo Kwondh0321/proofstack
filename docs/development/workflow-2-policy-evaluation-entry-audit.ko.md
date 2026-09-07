@@ -37,6 +37,19 @@ CodeQL을 통과했다. Pull request 전용 dependency review는 push에서 건�
 
 새 체크포인트의 발견 사항이지 승인된 정책 정의 경계를 뒤집는 것은 아니다.
 
+## 부분 구현: 숫자 비교 함수
+
+[한도가 있는 계산 모듈](../../packages/core/src/policy/policy-exact-arithmetic.ts)은 정확한
+소수·분수 임계값, 안전한 정수 개수의 하한·상한, 전체 표본을 유지하는 관측 비율, 보존된 확률
+구간 경계를 비교한다. 공개 숫자 contract를 재사용하며 원본 표현을 바꾸지 않는다. 분모가 0이면
+명시적으로 계산 불가를 반환하고, 잘못된 입력이나 불가능한 표본 개수는 숫자 조건 성공이 아닌
+타입이 있는 오류로 반환한다. [테스트](../../packages/core/src/policy/policy-exact-arithmetic.test.ts)는
+별도의 연분수 비교 oracle, 모든 comparator, 음수·큰 수와 정확한 basis-point 경계를 사용한다.
+
+이 함수는 숫자의 대소 관계와 비교 조건 충족 여부만 반환한다. 증거 참조를 해석하거나 적용성·적격성,
+통계 방법을 검증하지 않으며 snapshot 고정, 평가 발행, 승인 권한도 제공하지 않는다.
+Request·result·worker와 전체 체크포인트 승인은 여전히 미완료이고 로드맵 완료 항목 수는 바뀌지 않는다.
+
 ## 고정할 입력과 record 경계
 
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.

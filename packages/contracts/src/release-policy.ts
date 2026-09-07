@@ -283,16 +283,18 @@ const allowedUnitsByMetricKind: Readonly<
   trace_event_count: new Set([COMPARISON_COUNT_METRIC_UNITS.trace_event_count]),
 };
 
+export const ReleasePolicyComparatorSchema = z.enum([
+  "equal",
+  "greater_than",
+  "greater_than_or_equal",
+  "less_than",
+  "less_than_or_equal",
+  "not_equal",
+]);
+
 const PolicyComparisonThresholdPredicateSchema = z
   .object({
-    comparator: z.enum([
-      "equal",
-      "greater_than",
-      "greater_than_or_equal",
-      "less_than",
-      "less_than_or_equal",
-      "not_equal",
-    ]),
+    comparator: ReleasePolicyComparatorSchema,
     comparison: ComparisonDefinitionReferenceSchema,
     kind: z.literal("comparison_threshold"),
     metricId: OpaqueIdSchema,
@@ -769,6 +771,7 @@ export type PublishReleasePolicyLifecycleRequest = z.infer<
 >;
 export type ReleasePolicy = z.infer<typeof ReleasePolicySchema>;
 export type ReleasePolicyApplicability = z.infer<typeof ReleasePolicyApplicabilitySchema>;
+export type ReleasePolicyComparator = z.infer<typeof ReleasePolicyComparatorSchema>;
 export type ReleasePolicyDefinition = z.infer<typeof ReleasePolicyDefinitionSchema>;
 export type ReleasePolicyPredicate = z.infer<typeof ReleasePolicyPredicateSchema>;
 export type ReleasePolicyReference = z.infer<typeof ReleasePolicyReferenceSchema>;

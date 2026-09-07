@@ -100,9 +100,9 @@ function exactEvidenceReferences(minimum: number, maximum: number, label: string
     });
 }
 
-function unitIntervalDecimal() {
-  return z.string().regex(/^(?:0(?:\.[0-9]{1,18})?|1(?:\.0{1,18})?)$/);
-}
+export const UnitIntervalDecimalSchema = z
+  .string()
+  .regex(/^(?:0(?:\.[0-9]{1,18})?|1(?:\.0{1,18})?)$/);
 
 function compareUnitDecimals(left: string, right: string): number {
   const scale = 18;
@@ -247,14 +247,14 @@ export const EvaluationSamplingAssumptionSchema = z.discriminatedUnion("status",
 export const WilsonIntervalSchema = z
   .object({
     confidenceLevelBasisPoints: z.number().int().min(5_000).max(9_999),
-    lowerBound: unitIntervalDecimal(),
+    lowerBound: UnitIntervalDecimalSchema,
     method: z.literal("wilson_score_interval"),
     methodVersion: z.literal(WILSON_INTERVAL_METHOD_VERSION),
     successCount: SafeCountSchema,
     trialCount: SafeCountSchema.refine((value) => value > 0, {
       message: "A Wilson interval requires a positive trial count",
     }),
-    upperBound: unitIntervalDecimal(),
+    upperBound: UnitIntervalDecimalSchema,
   })
   .strict()
   .superRefine((value, context) => {
