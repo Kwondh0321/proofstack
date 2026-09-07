@@ -52,6 +52,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 
 ## 고정할 입력과 record 경계
 
+[요청 contract 구현](workflow-2-policy-evaluation-request-contract.ko.md)은 정확한 요청, scope를
+결속한 canonical vector, 원본 정밀도를 유지하는 의미 시각, 유한한 실행 상한과 요청 전용 전송 크기
+여유를 고정한다. Scheduler, source capture, snapshot·result contract, runtime budget 강제,
+공개 route, 체크포인트 종료 승인은 아직 구현하지 않았다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

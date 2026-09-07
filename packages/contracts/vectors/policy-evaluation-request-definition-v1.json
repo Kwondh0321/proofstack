@@ -1,0 +1,51 @@
+{
+  "format": "proofstack.policy-evaluation-request-definition.v1",
+  "vectors": [
+    {
+      "encodedByteLength": 1265,
+      "input": {
+        "definition": {
+          "algorithm": { "id": "proofstack.deterministic-policy", "version": "1.0.0" },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "evaluationRequestId": "policy_evaluation_request_example",
+          "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+          "limits": {
+            "heartbeatIntervalMilliseconds": 5000,
+            "leaseDurationMilliseconds": 30000,
+            "maxAcquisitionRecordBytes": 16777216,
+            "maxAcquisitionRecords": 10000,
+            "maxArtifactReadBytes": 67108864,
+            "maxAttempts": 3,
+            "maxRuleEvaluations": 384,
+            "perAttemptTimeoutMilliseconds": 120000,
+            "retryBackoffMilliseconds": 1000,
+            "retryableErrors": [
+              "lease_expired",
+              "source_revision_changed",
+              "source_temporarily_unavailable",
+              "worker_interrupted"
+            ],
+            "totalDeadlineMilliseconds": 600000
+          },
+          "policy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "policy_reference",
+            "policyVersionId": "policy_reference_v1"
+          }
+        },
+        "scope": {
+          "environmentId": "env_example",
+          "projectId": "project_example",
+          "tenantId": "tenant_example"
+        }
+      },
+      "kind": "policy_evaluation_request",
+      "name": "bounded UTC request with explicit operational retries",
+      "sha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+    }
+  ]
+}

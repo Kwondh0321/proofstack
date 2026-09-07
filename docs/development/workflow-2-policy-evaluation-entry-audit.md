@@ -56,6 +56,11 @@ remain open; this slice does not change the roadmap completion count.
 
 ## Frozen input and record boundary
 
+The [request-contract implementation](workflow-2-policy-evaluation-request-contract.md) fixes the
+exact request, scoped canonical vector, full-precision semantic time, finite execution ceilings,
+and request-only transport headroom. It does not yet implement the scheduler, source capture,
+snapshot/result contracts, runtime budget enforcement, public routes, or the checkpoint exit gate.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
