@@ -394,30 +394,57 @@ export const releasePolicyRepositoryConformanceCases: readonly ReleasePolicyRepo
       async run(factory) {
         await withHarness(factory, "policy_lifecycle_timeline", async (harness) => {
           await harness.repository.publishReleasePolicy(harness.policy);
-          const early = releasePolicyLifecycleFixture("policy_lifecycle_early", harness.policy, {
-            occurredAt: "2026-09-07T00:59:59.999Z",
-          });
-          await assert.rejects(
-            harness.repository.publishReleasePolicyLifecycleEvent(early),
-            InvalidReleasePolicyLifecycleInputError,
-          );
-          await assertEventAbsent(harness.repository, harness, early.eventId);
+          const offsets = [1, 2, 16, 1_024, 65_536, 86_400_000];
+          for (const offset of offsets) {
+            const early = releasePolicyLifecycleFixture(
+              `timeline_early_${offset}`,
+              harness.policy,
+              {
+                occurredAt: new Date(Date.parse(harness.policy.publishedAt) - offset).toISOString(),
+              },
+            );
+            await assert.rejects(
+              harness.repository.publishReleasePolicyLifecycleEvent(early),
+              InvalidReleasePolicyLifecycleInputError,
+            );
+            await assertEventAbsent(harness.repository, harness, early.eventId);
+          }
 
           await harness.repository.publishReleasePolicy(harness.successor);
-          const earlySupersession = releasePolicyLifecycleFixture(
-            "policy_lifecycle_early_successor",
-            harness.policy,
-            {
-              kind: "superseded",
-              occurredAt: "2026-09-07T01:30:00.000Z",
-              successor: harness.successor,
-            },
+          for (const offset of offsets) {
+            const earlySupersession = releasePolicyLifecycleFixture(
+              `timeline_successor_${offset}`,
+              harness.policy,
+              {
+                kind: "superseded",
+                occurredAt: new Date(
+                  Date.parse(harness.successor.publishedAt) - offset,
+                ).toISOString(),
+                successor: harness.successor,
+              },
+            );
+            await assert.rejects(
+              harness.repository.publishReleasePolicyLifecycleEvent(earlySupersession),
+              InvalidReleasePolicyLifecycleInputError,
+            );
+            await assertEventAbsent(harness.repository, harness, earlySupersession.eventId);
+          }
+          assert.deepEqual(
+            await harness.repository.listReleasePolicyLifecycleEvents(
+              harness.scope,
+              harness.policy.policyVersionId,
+            ),
+            [],
           );
-          await assert.rejects(
-            harness.repository.publishReleasePolicyLifecycleEvent(earlySupersession),
-            InvalidReleasePolicyLifecycleInputError,
-          );
-          await assertEventAbsent(harness.repository, harness, earlySupersession.eventId);
+          const boundary = releasePolicyLifecycleFixture("timeline_inclusive", harness.policy, {
+            kind: "superseded",
+            occurredAt: harness.successor.publishedAt,
+            successor: harness.successor,
+          });
+          assert.deepEqual(await harness.repository.publishReleasePolicyLifecycleEvent(boundary), {
+            created: true,
+            event: boundary,
+          });
         });
       },
     },

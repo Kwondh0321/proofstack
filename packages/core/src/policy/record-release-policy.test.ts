@@ -516,6 +516,50 @@ describe("release policy exact reads", () => {
 });
 
 describe("release policy lifecycle publication", () => {
+  it.each(["withdrawn", "superseded"] as const)(
+    "preserves the inclusive %s time boundary across generated clock offsets",
+    async (kind) => {
+      const magnitudes = Array.from({ length: 6 }, (_, index) => 2 ** index);
+      const offsets = [...magnitudes.map((value) => -value), 0, ...magnitudes];
+      for (const offset of offsets) {
+        const value = setup();
+        const target = await value.publisher.execute(value.command);
+        const successor = kind === "superseded" ? await publishSuccessor(value) : undefined;
+        const lowerBound = successor?.policy.publishedAt ?? target.policy.publishedAt;
+        const occurredAt = new Date(Date.parse(lowerBound) + offset).toISOString();
+        value.now.mockReturnValue(new Date(occurredAt));
+        const lifecycle = new PublishReleasePolicyLifecycle({
+          clock: { now: value.now },
+          repository: value.port.repository,
+        });
+        const event = {
+          eventId: "policy_event_generated_boundary",
+          reason: "Verify the server clock against every policy receipt in the transition.",
+        };
+        const input = successor
+          ? {
+              ...event,
+              kind: "superseded" as const,
+              successorPolicyVersionId: successor.policy.policyVersionId,
+            }
+          : { ...event, kind: "withdrawn" as const };
+        if (offset < 0) {
+          await expect(lifecycle.execute({ ...value.command, input })).rejects.toBeInstanceOf(
+            InvalidReleasePolicyCommandError,
+          );
+          expect(value.port.publishReleasePolicyLifecycleEvent).not.toHaveBeenCalled();
+          expect(value.port.events.size).toBe(0);
+        } else {
+          await expect(lifecycle.execute({ ...value.command, input })).resolves.toMatchObject({
+            created: true,
+            event: { kind, occurredAt },
+          });
+          expect(value.port.publishReleasePolicyLifecycleEvent).toHaveBeenCalledOnce();
+        }
+      }
+    },
+  );
+
   it("withdraws once, preserves the first receipt on retry, and blocks another terminal event", async () => {
     const value = setup();
     const published = await value.publisher.execute(value.command);
