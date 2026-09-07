@@ -206,10 +206,23 @@ const modules = [
       "@proofstack/api",
       "@proofstack/core",
       "@proofstack/evaluation-worker",
+      "@proofstack/example-workflow-2-release-candidate",
       "@proofstack/model-evaluation-worker",
       "@proofstack/postgres",
       "@proofstack/s3",
     ]),
+  },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/sdk"]),
+    productionExternalAllowlist: new Set(["node:crypto"]),
+    directory: "examples/workflow-2-release-candidate/src",
+    packageName: "@proofstack/example-workflow-2-release-candidate",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/sdk"]),
+    directory: "examples/workflow-2-release-policy/src",
+    packageName: "@proofstack/example-workflow-2-release-policy",
+    testAllowed: new Set(["@proofstack/api", "@proofstack/core"]),
   },
 ];
 
