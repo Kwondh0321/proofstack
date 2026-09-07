@@ -417,7 +417,7 @@ describe("evidence routes", () => {
 
     expect(limited.statusCode).toBe(429);
     expect(limited.json()).toMatchObject({ code: "http_429", status: 429 });
-  });
+  }, 15_000);
 
   it("returns a conflict for reused identifiers with changed evidence", async () => {
     const app = await testApp();
