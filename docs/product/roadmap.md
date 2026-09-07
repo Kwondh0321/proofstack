@@ -193,6 +193,12 @@ accepts the bounded definition, source and installation authority, immutable lif
 author role, exact API/SDK, isolation, recovery, and contributor flow. Its exact-commit publication
 gate must pass before deterministic policy-evaluation entry review begins. Policy evaluation,
 approval, decision, attestation, CI enforcement, deployment, and production readiness remain open.
+The exact input cut, definition-to-result binding, arithmetic, missingness, prerequisite handling,
+separate control/worker authority, durable jobs, race matrix, and exit gates for the third
+checkpoint are fixed by the
+[policy-evaluation entry audit](../development/workflow-2-policy-evaluation-entry-audit.md) and
+[ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md). This checkpoint remains open;
+entry approval does not claim implemented policy evaluation or release authority.
 
 ## Scale and ecosystem
 

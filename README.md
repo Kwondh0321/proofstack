@@ -334,6 +334,10 @@ production-readiness claims. The completed
 Workflow 2 checkpoint's acceptance, closed cross-check findings, exact-commit publication gate,
 and retained limits. Deterministic policy-evaluation entry review is next; definition acceptance
 does not establish that a policy is correct, satisfied, or authorized for a release.
+The [policy-evaluation entry audit](docs/development/workflow-2-policy-evaluation-entry-audit.md)
+fixes sealed input selection, exact arithmetic, missingness, declarative approval prerequisites,
+separate worker authority, durable execution, and acceptance gates. It approves implementation
+entry only, not an implemented evaluator or a release decision.
 
 ## Current boundaries
 

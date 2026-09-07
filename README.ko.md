@@ -332,6 +332,9 @@ approval, decision, attestation, CI enforcement, deployment, production-readines
 두 번째 체크포인트의 승인, 해결한 교차검증 발견 사항, 정확한 커밋의 발행 gate, 유지하는
 한계를 기록합니다. 다음은 결정론적 정책 평가의 진입 검토이며, 정의 승인이 정책의 올바름,
 충족 여부, 출시 권한을 증명하지는 않습니다.
+[정책 평가 진입 감사](docs/development/workflow-2-policy-evaluation-entry-audit.ko.md)는 고정 입력
+선택, 정확한 연산, 누락 처리, 선언적 승인 전제조건, 별도 worker 권한, 영속 실행과 acceptance
+gate를 고정합니다. 구현 진입만 승인하며 구현된 evaluator나 출시 결정을 주장하지 않습니다.
 
 ## 현재의 경계
 

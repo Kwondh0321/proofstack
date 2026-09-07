@@ -44,3 +44,4 @@ invalidate an ADR present in this directory.
 - [ADR-0019: Persist the contestable evaluation graph with separated authority](0019-persist-contestable-evaluation-graph.md)
 - [ADR-0020: Compare exact evidence without making release decisions](0020-exact-evidence-comparison.md)
 - [ADR-0021: Separate release policy, decision, attestation, and enforcement authority](0021-separate-release-policy-authority.md)
+- [ADR-0022: Evaluate policies against sealed evidence with separate worker authority](0022-snapshot-bound-policy-evaluation.md)
