@@ -154,6 +154,95 @@ const deniedAuthorities: readonly {
 ];
 
 describe("release policy control-plane API", () => {
+  it.each(["withdrawn", "superseded"] as const)(
+    "returns a stable conflict for concurrent %s requests from different actors",
+    async (kind) => {
+      const repository = new MemoryReleasePolicyRepository();
+      const baseAuthenticator = authenticator();
+      const app = await testApp({
+        authenticator: {
+          authenticate: async (request) => ({
+            ...(await baseAuthenticator.authenticate(request)),
+            principalId:
+              request.headers["x-test-actor"] === "second"
+                ? "principal_second_operator"
+                : fixture.policy.issuerPrincipalId,
+          }),
+        },
+        releasePolicyAuthorityResolver: authorityResolver(),
+        releasePolicyRepository: repository,
+      });
+      expect((await app.inject({ body: request, method: "POST", url: policyUrl })).statusCode).toBe(
+        201,
+      );
+      const successorPolicyVersionId = "policy_actor_race_successor";
+      if (kind === "superseded") {
+        const successor = await app.inject({
+          body: {
+            ...request,
+            policyVersionId: successorPolicyVersionId,
+            predecessorVersionId: fixture.policy.policyVersionId,
+            semanticVersion: "1.0.1",
+          },
+          method: "POST",
+          url: policyUrl.replace(fixture.policy.policyVersionId, successorPolicyVersionId),
+        });
+        expect(successor.statusCode).toBe(201);
+      }
+      const list = repository.listReleasePolicyLifecycleEvents.bind(repository);
+      const arrivals: Array<() => void> = [];
+      const listSpy = vi
+        .spyOn(repository, "listReleasePolicyLifecycleEvents")
+        .mockImplementation(async (...args) => {
+          const history = await list(...args);
+          await new Promise<void>((resolve) => {
+            arrivals.push(resolve);
+            if (arrivals.length === 2) for (const release of arrivals) release();
+          });
+          return history;
+        });
+      const body = {
+        eventId: "policy_event_actor_race",
+        kind,
+        reason: "Concurrent authors cannot adopt another actor's immutable lifecycle receipt.",
+        ...(kind === "superseded" ? { successorPolicyVersionId } : {}),
+      };
+      const responses = await Promise.all(
+        ["first", "second"].map((actor) =>
+          app.inject({
+            body,
+            headers: { "x-test-actor": actor },
+            method: "POST",
+            url: lifecycleUrl,
+          }),
+        ),
+      );
+      listSpy.mockRestore();
+      expect(responses.map(({ statusCode }) => statusCode).sort()).toEqual([201, 409]);
+      const conflict = responses.find(({ statusCode }) => statusCode === 409);
+      expect(conflict?.json()).toMatchObject({
+        code: "release_policy_lifecycle_event_conflict",
+        status: 409,
+      });
+      for (const response of responses) expect(response.headers["cache-control"]).toBe("no-store");
+      const winner = responses.find(({ statusCode }) => statusCode === 201)?.json().event;
+      expect(await list(scope, fixture.policy.policyVersionId)).toEqual([winner]);
+      const losingActor =
+        winner.actorPrincipalId === fixture.policy.issuerPrincipalId ? "second" : "first";
+      const retry = await app.inject({
+        body,
+        headers: { "x-test-actor": losingActor },
+        method: "POST",
+        url: lifecycleUrl,
+      });
+      expect(retry.statusCode).toBe(409);
+      expect(retry.json().code).toBe("release_policy_lifecycle_event_conflict");
+      const read = await app.inject({ method: "GET", url: `${lifecycleUrl}/${body.eventId}` });
+      expect(read.statusCode).toBe(200);
+      expect(read.json().event).toEqual(winner);
+    },
+  );
+
   it("rejects malformed authenticator output before protected request validation", async () => {
     const authority = authorityResolver();
     const app = await testApp({

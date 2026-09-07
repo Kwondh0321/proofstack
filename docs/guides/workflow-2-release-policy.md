@@ -49,7 +49,8 @@ The clean-checkout reference keeps these responsibilities separate:
 | Source identity verification | A separately named identity verifier in the source record | The claimed verification method, time, verifier, and retained evidence; not real-world truth by itself |
 | Reviewer qualification | Distinct credential-authority principal | The exact qualification, competence declaration, limits, validity, and retained credential evidence |
 | Source review | Distinct reviewer principal bound to the qualification | Approved scope, licensing, freshness, conflicts, relationships, rationale, and retained review basis |
-| Policy publication and withdrawal | Installation-authorized, non-workload policy issuer | The exact finite policy vocabulary, source lineage, applicability, assumptions, limitations, and lifecycle history |
+| New policy publication | Installation-authorized, non-workload policy issuer with current scoped `policy:author` capability | The exact finite policy vocabulary, source lineage, applicability, assumptions, and limitations |
+| Withdrawal and supersession | Current non-workload `policy:author` principal authorized for the exact project and environment | An accountable terminal event under that actor's identity, without requiring the original publisher or revalidating historical source authority |
 | Durable records | Forced-RLS PostgreSQL plus S3-compatible immutable content | Exact-scope persistence and read-back across API restarts |
 
 The static installation registry is configuration owned by an operator, not a policy-author input or
@@ -57,17 +58,40 @@ a public discovery mechanism. It cannot be created or changed through the policy
 request. Production installations need their own reviewed configuration distribution and change
 control.
 
+The registry itself is not reconstructed from policy tables or an evidence backup. Recovery must
+receive the reviewed operator configuration separately and reprovision runtime database roles from
+operator-supplied credentials. A retained binding reference does not grant current issuer authority.
+
 The example uses separate synthetic principal IDs so the reference architecture can prove that one
 actor did not silently perform every authority role. Those IDs do not prove that a human exists,
 that the reviewer has real expertise, or that the source is correct. Cryptographic digests prove
 integrity and exact identity, not semantic truth.
 
-The source snapshot may omit its own `expiresAt` when the source declares no expiry. Publication
+The source snapshot may omit its own `expiresAt` when the source declares no expiry. New publication
 does not invent one or treat that absence as unlimited freshness: an approved, current source
 review, the required reviewer qualification, and the installation binding must still cover the
 policy's entire finite validity interval. A declared source expiry is an additional upper bound;
 it may equal the policy expiry but must not precede it, including by one microsecond. Missing
 retained content or an unknown freshness conclusion still prevents publication.
+
+## Historical receipts and current authority
+
+An exact publication retry by the original issuer returns the original record, including its
+publication time and finite expiry, even after the policy or its authority chain expires. It does
+not resolve the historical authority chain again, renew validity, or prove that the policy is
+currently applicable. Publishing a new version must pass current publication-authority checks.
+
+Withdrawal and supersession use current scoped author authority, not the original installation
+issuer allowlist. An authorized replacement operator can therefore record a terminal event after
+the old policy or binding expires. Supersession still requires the exact retained successor and
+predecessor relationship; neither event changes or reactivates either definition.
+
+Every API request still authenticates and authorizes the current caller. Exact reads require
+`policy:read`; publication and lifecycle retries require non-delegable `policy:author`. Losing that
+capability or project/environment access prevents mutation retries before storage is consulted.
+An event retry must preserve its original actor. If different actors submit the same event identity,
+including concurrently, the losing request receives `409 release_policy_lifecycle_event_conflict`,
+not a storage-outage response. The first actor and receipt remain unchanged.
 
 ## Transport size boundary
 
@@ -172,11 +196,12 @@ and digests in an empty target.
 
 ## Conservative failure behavior
 
-Publication fails before an authoritative write when authentication, capability, scope, route
-identity, installation binding, issuer, mode, validity, source, review, qualification, retained
-artifact, digest, applicability, finite rule vocabulary, ordering, predecessor, or lifecycle
-semantics are invalid. Reads require exact policy, version, and event IDs; there is no mutable
-`latest` alias. Workload credentials cannot author or withdraw policies.
+New policy publication fails before an authoritative write when authentication, capability, scope,
+route identity, installation binding, issuer, mode, validity, source, review, qualification, retained
+artifact, digest, applicability, finite rule vocabulary, ordering, or predecessor semantics are
+invalid. Lifecycle mutations separately enforce current author scope, exact targets, lineage,
+server time, and immutable terminal history. Reads require exact policy, version, and event IDs;
+there is no mutable `latest` alias. Workload credentials cannot author or withdraw policies.
 
 The runner does not fall back to memory storage when Docker, migration, PostgreSQL, object storage,
 Git resolution, or cleanup fails. General environment errors and cleanup guidance are in the

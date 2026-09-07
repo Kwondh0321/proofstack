@@ -216,7 +216,9 @@ describe("release policy publication", () => {
   it("returns the original receipt on an exact retry and rejects semantic rebinding", async () => {
     const value = setup();
     const first = await value.publisher.execute(value.command);
-    value.now.mockReturnValue(new Date("2026-09-07T02:00:00.000Z"));
+    const afterAuthorityExpiry = new Date(Date.parse(value.fixture.binding.expiresAt) + 86_400_000);
+    expect(afterAuthorityExpiry.getTime()).toBeGreaterThan(Date.parse(first.policy.expiresAt));
+    value.now.mockReturnValue(afterAuthorityExpiry);
     value.resolve.mockRejectedValue(new Error("authority backend should not be revisited"));
 
     await expect(value.publisher.execute(value.command)).resolves.toEqual({
@@ -226,6 +228,14 @@ describe("release policy publication", () => {
     expect(value.now).toHaveBeenCalledTimes(1);
     expect(value.resolve).toHaveBeenCalledTimes(1);
     expect(value.port.publishReleasePolicy).toHaveBeenCalledTimes(1);
+
+    await expect(
+      value.publisher.execute({
+        ...value.command,
+        principal: { ...value.command.principal, capabilities: ["policy:read"] },
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(value.resolve).toHaveBeenCalledTimes(1);
 
     const changed = clone(value.command);
     changed.input.changeRationale = "Conflicting immutable policy semantics.";

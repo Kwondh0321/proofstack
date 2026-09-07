@@ -227,7 +227,10 @@ function validateLifecyclePublicationResult(
 ): PublishReleasePolicyLifecycleResult {
   const result = resultObject(input, "event");
   const event = validateRepositoryLifecycleEvent(result.record, scope, expected.eventId);
-  if (!sameLifecycleRequest(event, expected)) {
+  if (
+    !sameLifecycleIntent(event, expected) ||
+    (result.created && event.actorPrincipalId !== expected.actorPrincipalId)
+  ) {
     throw new ReleasePolicyRepositoryContractError(
       "Release policy lifecycle publication substituted immutable semantics",
     );
@@ -238,6 +241,11 @@ function validateLifecyclePublicationResult(
     );
   }
   validateLifecyclePolicyRecords(event, target, successor);
+  if (event.actorPrincipalId !== expected.actorPrincipalId) {
+    // An identical intent can race in storage, which preserves the first actor's receipt.
+    // The losing actor receives the same conflict as an already-visible event, not an outage.
+    throw new ReleasePolicyLifecycleEventConflictError(expected.eventId);
+  }
   return { created: result.created, event };
 }
 
@@ -379,14 +387,13 @@ async function validateLifecycleHistory(
   return history;
 }
 
-function sameLifecycleRequest(
+function sameLifecycleIntent(
   left: ReleasePolicyLifecycleEvent,
   right: ReleasePolicyLifecycleEvent,
 ): boolean {
   return (
     left.eventId === right.eventId &&
     left.kind === right.kind &&
-    left.actorPrincipalId === right.actorPrincipalId &&
     left.reason === right.reason &&
     sameScope(left.scope, right.scope) &&
     samePolicyReference(left.policy, right.policy) &&

@@ -363,6 +363,11 @@ describe("ProofStack OpenAPI document", () => {
     expect(exactLifecycle?.operationId).toBe("getReleasePolicyLifecycleEvent");
     expect(policy?.post?.description).toContain("installer-bound issuer authority");
     expect(policy?.post?.description).toContain("does not evaluate a candidate");
+    expect(policy?.post?.description).toContain("records policy requirements");
+    expect(policy?.post?.description).toContain("without renewing validity");
+    expect(lifecycle?.description).toContain("current scoped non-delegable policy:author");
+    expect(lifecycle?.description).toContain("after policy expiry");
+    expect(lifecycle?.description).toContain("concurrent actor conflicts return 409");
 
     for (const schema of [
       "PublishReleasePolicyRequest",

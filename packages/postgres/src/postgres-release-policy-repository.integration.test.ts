@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type {
   EvidenceScope,
+  PrincipalContext,
   ReleasePolicy,
   ReleasePolicyLifecycleEvent,
 } from "@proofstack/contracts";
-import { ReleasePolicyRepositoryContractError } from "@proofstack/core";
+import {
+  PublishReleasePolicyLifecycle,
+  type PublishReleasePolicyLifecycleResult,
+  ReleasePolicyLifecycleEventConflictError,
+  ReleasePolicyRepositoryContractError,
+} from "@proofstack/core";
 import {
   createReleasePolicyRepositoryTestHarness,
   releasePolicyLifecycleFixture,
@@ -12,7 +18,7 @@ import {
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
 import {
@@ -129,6 +135,112 @@ afterAll(async () => {
 });
 
 describe("PostgresReleasePolicyRepository conformance", () => {
+  it.each(
+    (["withdrawn", "superseded"] as const).flatMap((kind) =>
+      [false, true].map((sameActor) => ({ kind, sameActor })),
+    ),
+  )(
+    "maps concurrent $kind actor receipts with sameActor=$sameActor",
+    async ({ kind, sameActor }) => {
+      const harness = createReleasePolicyRepositoryTestHarness(
+        `pg_actor_${runKey}_${kind}_${sameActor}`,
+      );
+      const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+      await repository.publishReleasePolicy(harness.policy);
+      if (kind === "superseded") await repository.publishReleasePolicy(harness.successor);
+      const principal: PrincipalContext = {
+        authentication: { authenticatedAt: "2028-01-01T00:00:00.000Z", method: "development" },
+        capabilities: ["policy:author"],
+        principalId: "principal_first_operator",
+        principalType: "user",
+        requestId: "request_pg_actor_race",
+        resourceScope: { mode: "tenant" },
+        roles: ["admin"],
+        tenantId: harness.scope.tenantId,
+      };
+      const command = {
+        environmentId: harness.scope.environmentId,
+        input: {
+          eventId: "policy_event_pg_actor_race",
+          kind,
+          reason:
+            "The first durable receipt must define the actor and emit only one outbox intent.",
+          ...(kind === "superseded"
+            ? { successorPolicyVersionId: harness.successor.policyVersionId }
+            : {}),
+        },
+        policyId: harness.policy.policyId,
+        policyVersionId: harness.policy.policyVersionId,
+        principal,
+        projectId: harness.scope.projectId,
+      };
+      const list = repository.listReleasePolicyLifecycleEvents.bind(repository);
+      const arrivals: Array<() => void> = [];
+      const listSpy = vi
+        .spyOn(repository, "listReleasePolicyLifecycleEvents")
+        .mockImplementation(async (...args) => {
+          const history = await list(...args);
+          await new Promise<void>((resolve) => {
+            arrivals.push(resolve);
+            if (arrivals.length === 2) for (const release of arrivals) release();
+          });
+          return history;
+        });
+      const publish = repository.publishReleasePolicyLifecycleEvent.bind(repository);
+      const receipts: PublishReleasePolicyLifecycleResult[] = [];
+      vi.spyOn(repository, "publishReleasePolicyLifecycleEvent").mockImplementation(
+        async (event) => {
+          const receipt = await publish(event);
+          receipts.push(receipt);
+          return receipt;
+        },
+      );
+      const publisher = new PublishReleasePolicyLifecycle({
+        clock: { now: () => new Date("2028-01-01T00:00:00.000Z") },
+        repository,
+      });
+      const commands = [
+        command,
+        {
+          ...command,
+          principal: {
+            ...principal,
+            principalId: sameActor ? principal.principalId : "principal_second_operator",
+          },
+        },
+      ];
+      const outcomes = await Promise.allSettled(commands.map((input) => publisher.execute(input)));
+      listSpy.mockRestore();
+      expect(receipts.map(({ created }) => created).sort()).toEqual([false, true]);
+      const winner = receipts.find(({ created }) => created);
+      if (!winner) throw new Error("Expected one durable winner");
+      if (sameActor) {
+        expect(outcomes).toEqual(
+          expect.arrayContaining([
+            { status: "fulfilled", value: { created: true, event: winner.event } },
+            { status: "fulfilled", value: { created: false, event: winner.event } },
+          ]),
+        );
+      } else {
+        const loserIndex = outcomes.findIndex((result) => result.status === "rejected");
+        const loser = outcomes[loserIndex];
+        const losingCommand = commands[loserIndex];
+        if (loser?.status !== "rejected" || !losingCommand)
+          throw new Error("Expected one losing actor");
+        expect(loser.reason).toBeInstanceOf(ReleasePolicyLifecycleEventConflictError);
+        await expect(publisher.execute(losingCommand)).rejects.toBeInstanceOf(
+          ReleasePolicyLifecycleEventConflictError,
+        );
+      }
+      expect(await list(harness.scope, harness.policy.policyVersionId)).toEqual([winner.event]);
+      const outbox = await adminPool.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM public.proofstack_outbox WHERE tenant_id = $1 AND aggregate_type = 'release_policy_lifecycle'",
+        [harness.scope.tenantId],
+      );
+      expect(outbox.rows[0]?.count).toBe("1");
+    },
+  );
+
   for (const conformanceCase of releasePolicyRepositoryConformanceCases) {
     it(conformanceCase.name, async () => {
       await conformanceCase.run((namespace) => {

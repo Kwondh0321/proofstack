@@ -49,12 +49,17 @@ canonical digest를 사용합니다. 같은 발행을 반복하면 기존 불변
 | Source identity 검증 | source record에 별도로 명시된 identity verifier | 주장된 검증 방법·시간·검증자·보존 evidence이며, 그 자체로 실제 진실을 증명하지 않음 |
 | Reviewer 자격 | 별도 credential-authority principal | 정확한 qualification, 선언된 전문 영역·한계·유효 기간·보존 credential evidence |
 | Source 검토 | qualification에 결합된 별도 reviewer principal | 승인 scope, licensing, freshness, conflict, 관계, rationale, 보존 review basis |
-| Policy 발행과 철회 | installation이 허용한 비워크로드 policy issuer | 정확한 유한 policy vocabulary, source lineage, applicability, assumption, limitation, lifecycle history |
+| 새 policy 발행 | installation이 허용하고 현재 범위의 `policy:author` capability를 가진 비워크로드 policy issuer | 정확한 유한 policy vocabulary, source lineage, applicability, assumption, limitation |
+| 철회와 후속 버전 대체 | 정확한 project·environment에 대해 현재 `policy:author` 권한을 가진 비워크로드 principal | 원래 발행자나 과거 source authority의 재검증을 요구하지 않고 현재 actor의 신원으로 기록하는 책임 있는 종료 event |
 | 영속 record | 강제 RLS PostgreSQL과 S3 호환 불변 content | API 재시작을 통과하는 정확 scope 영속성과 read-back |
 
 static installation registry는 operator가 소유하는 설정이며 policy-author 입력이나 공개 discovery
 mechanism이 아닙니다. policy 발행 요청으로 만들거나 변경할 수 없습니다. 프로덕션 설치에는 별도로
 검토된 configuration 배포와 변경 통제가 필요합니다.
+
+registry 자체는 policy table이나 evidence backup에서 재구성되지 않습니다. 복구 시 검토된 operator
+설정을 별도로 제공하고, operator가 제공하는 credential로 runtime database role을 다시 설정해야
+합니다. 보존된 binding reference가 현재 issuer 권한을 부여하지는 않습니다.
 
 예제는 하나의 actor가 모든 authority 역할을 몰래 수행하지 않았음을 architecture 수준에서 증명하기
 위해 서로 다른 synthetic principal ID를 사용합니다. 이 ID는 실제 인간의 존재, reviewer의 실제
@@ -67,6 +72,26 @@ source review, 필요한 reviewer qualification, installation binding은 정책�
 여전히 포함해야 합니다. 원본에 만료일이 선언되어 있다면 추가 상한으로 적용하며, 정책 만료일과
 같을 수 있지만 1마이크로초라도 앞설 수 없습니다. 보존 content가 없거나 freshness 결론이 unknown인
 경우에는 여전히 발행할 수 없습니다.
+
+## 과거 receipt와 현재 권한
+
+원래 issuer가 정확히 같은 발행을 재시도하면 policy나 authority chain이 만료된 뒤에도 원래 발행
+시각과 유한 만료일을 포함한 기존 record를 반환합니다. 과거 authority chain을 다시 해석하거나
+유효 기간을 갱신하거나 policy가 현재 적용 가능하다고 증명하지 않습니다. 새 버전을 발행하려면
+현재의 발행 권한 검사를 통과해야 합니다.
+
+철회와 후속 버전 대체는 원래 installation의 issuer 허용 목록이 아니라 현재 범위의 author 권한을
+사용합니다. 따라서 권한 있는 후임 operator도 이전 policy나 binding이 만료된 뒤 종료 event를
+기록할 수 있습니다. 후속 버전 대체에는 여전히 보존된 정확한 successor와 predecessor 관계가
+필요하며, 어느 event도 policy definition을 수정하거나 다시 활성화하지 않습니다.
+
+모든 API 요청은 현재 호출자를 계속 인증하고 인가합니다. 정확 조회에는 `policy:read`, 발행과
+lifecycle 재시도에는 위임할 수 없는 `policy:author`가 필요합니다. 해당 capability나
+project·environment 접근 권한을 잃으면 저장소를 조회하기 전에 변경 재시도를 차단합니다.
+event 재시도는 원래 actor를 유지해야 합니다. 서로 다른 actor가 같은 event identity를 제출하면
+동시 요청을 포함해 저장 경쟁에서 지는 요청은 저장소 장애가 아닌
+`409 release_policy_lifecycle_event_conflict`를 받습니다. 먼저 기록된 actor와 receipt는 그대로
+보존됩니다.
 
 ## 전송 크기 경계
 
@@ -165,9 +190,10 @@ predecessor lineage, lifecycle history, source edge, rule order, digest를 보�
 
 ## 보수적인 실패 동작
 
-authentication, capability, scope, route identity, installation binding, issuer, mode, validity,
-source, review, qualification, 보존 artifact, digest, applicability, 유한 rule vocabulary, 정렬,
-predecessor, lifecycle semantics가 잘못되면 authoritative write 전에 발행이 실패합니다. 조회는
+새 policy 발행에서는 authentication, capability, scope, route identity, installation binding, issuer,
+mode, validity, source, review, qualification, 보존 artifact, digest, applicability, 유한 rule vocabulary, 정렬,
+predecessor semantics가 잘못되면 authoritative write 전에 발행이 실패합니다. Lifecycle 변경은
+현재 author scope, 정확한 target, lineage, server time, 불변 종료 이력을 별도로 검사합니다. 조회는
 정확한 policy, version, event ID를 요구하며 mutable `latest` alias는 없습니다. workload
 credential은 policy를 작성하거나 철회할 수 없습니다.
 

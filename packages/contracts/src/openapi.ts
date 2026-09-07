@@ -2303,7 +2303,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
           },
           post: {
             description:
-              "Publishes one exact immutable release policy only after resolving installer-bound issuer authority and every cited source through authoritative boundaries. Requires non-delegable policy:author authority. Publication records criteria; it does not evaluate a candidate, approve a release, or execute a deployment.",
+              "Publishes one exact immutable release policy only after resolving installer-bound issuer authority and every cited source through authoritative boundaries. Requires current non-delegable policy:author authority. An exact retry by the original issuer preserves the historical receipt without renewing validity or re-resolving authority. Publication records policy requirements; it does not evaluate a candidate, approve a release, or execute a deployment.",
             operationId: "publishReleasePolicy",
             parameters: [
               projectParameter,
@@ -2340,7 +2340,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
         {
           post: {
             description:
-              "Publishes one immutable withdrawal or supersession event for an exact policy version. Requires non-delegable policy:author authority. Events preserve history and never rewrite or delete the policy definition.",
+              "Publishes one immutable withdrawal or supersession event for an exact policy version. Requires current scoped non-delegable policy:author authority, not the original issuer's installation allowlist; historical authority is not re-resolved. Events may be recorded after policy expiry and never rewrite or reactivate the definition. Retries preserve the original actor; concurrent actor conflicts return 409, not a storage outage.",
             operationId: "publishReleasePolicyLifecycleEvent",
             parameters: [
               projectParameter,
