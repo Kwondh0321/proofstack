@@ -9,8 +9,8 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { PreparedTargetLaunch } from "./target-launch.js";
 import {
-  superviseReplayTargetProcess,
   type SuperviseReplayTargetProcessOptions,
+  superviseReplayTargetProcess,
 } from "./target-process-supervisor.js";
 
 const sha = (digit: string): string => digit.repeat(64);
@@ -121,8 +121,9 @@ createInterface({ crlfDelay: Infinity, input }).on("line", (line) => {
       return;
     }
     send(ready);
-    if (mode === "complete") {
+    if (mode === "complete" || mode === "completed_incomplete_frame") {
       send({ requestCount: 0, schemaVersion: "0.1", sessionId: message.sessionId, type: "completed" });
+      if (mode === "completed_incomplete_frame") output.write("{\"type\":");
       exitAfterWrite();
     } else if (mode === "completed_hang" || mode === "complete_overflow") {
       send({ requestCount: 0, schemaVersion: "0.1", sessionId: message.sessionId, type: "completed" });
@@ -414,6 +415,18 @@ describe("superviseReplayTargetProcess", () => {
       failureCode: "output_limit_exceeded",
       status: "failed",
     });
+  });
+
+  it("rejects a truncated frame after completion without relying on a shutdown pipe race", async () => {
+    const value = await fixture("completed_incomplete_frame");
+    const result = await superviseReplayTargetProcess(value.options);
+    expect(result).toMatchObject({ failureCode: "protocol_failed", status: "failed" });
+    expect(result.runtime[0]?.evidence).toEqual({
+      fixedClockReadCount: 0,
+      randomByteCount: 0,
+      randomRequestCount: 0,
+    });
+    expect(value.cleanupCount()).toBe(1);
   });
 
   it("honors cooperative and forced deadlines", { timeout: 10_000 }, async () => {
