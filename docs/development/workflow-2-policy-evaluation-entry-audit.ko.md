@@ -87,6 +87,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 여유를 고정한다. Scheduler, source capture, snapshot·result contract, runtime budget 강제,
 공개 route, 체크포인트 종료 승인은 아직 구현하지 않았다.
 
+재현 결과 수집에 앞서 공통 재현 스냅샷 검증기를 보강했습니다. 이전 시도가 종료되지 않았거나
+종료 시각이 다음 시도의 시작보다 늦은 이력을 거부합니다. 기존 상태 전이는 교체 시 이전 시도를
+종료하므로, 잘못된 읽기 이력이 동시 실행 권한을 암시해서는 안 됩니다. 마지막 시도가 실행 중인
+경우와 성공한 경우 모두에서 이전 종료, 동일 시각 교체, 1밀리초 중첩을 회귀 검사합니다.
+이는 읽기 무결성의 전제조건이며 재현 결과 읽기 완성이나 오래된 OS 프로세스의 종료 증명은 아닙니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

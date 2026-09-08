@@ -90,6 +90,13 @@ add exact dataset, both fixture formats, replay-plan, and target-release acquisi
 domain-owned read-only adapters without reversing core dependencies. Record observations still do
 not establish recursive lineage, artifact/ownership state, completed replay, or guarded sealing.
 
+Before replay-result acquisition, the shared replay snapshot validator was hardened to reject a
+predecessor attempt without closure or with an end time after its replacement starts. Existing
+state transitions already close prior attempts when replacing them; malformed read histories
+must not imply simultaneous authority. Regression tests cover both running and successful latest
+attempts, exact-time replacement, earlier closure, and one-millisecond overlap. This is a read
+integrity prerequisite, not a completed replay-result reader or proof that a stale OS process stopped.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

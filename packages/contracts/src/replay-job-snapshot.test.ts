@@ -309,12 +309,128 @@ function rejects(input: unknown): void {
   expect(ReplayJobSnapshotSchema.safeParse(input).success).toBe(false);
 }
 
+function retrySnapshot(running: boolean): ReplayJobSnapshot {
+  const completed = completedSnapshot();
+  const first = requireValue(completed.attempts[0], "completed attempt");
+  const secondFence = {
+    ...first.mutationFence,
+    attemptId: "att_snapshot_retry",
+    fencingToken: 2,
+    leaseId: "lease_snapshot_retry",
+  };
+  const second = {
+    ...first,
+    attemptId: secondFence.attemptId,
+    attemptSequence: 1,
+    mutationFence: secondFence,
+    startedAt: observedAt,
+  };
+  return {
+    ...completed,
+    budgetLedger: [],
+    cancellationAcknowledgements: [],
+    cancellationRequest: null,
+    executionObservations: [],
+    usageObservations: [],
+    attempts: [
+      {
+        ...first,
+        endedAt: observedAt,
+        error: {
+          code: "lease_expired",
+          effectCertainty: "none",
+          message: "Previous lease expired.",
+        },
+        result: undefined,
+        retryDisposition: "retry_scheduled",
+        status: "lease_expired",
+      },
+      running
+        ? {
+            ...second,
+            endedAt: undefined,
+            result: undefined,
+            retryDisposition: undefined,
+            status: "running",
+          }
+        : second,
+    ],
+    job: {
+      ...completed.job,
+      currentLease: running
+        ? {
+            acquiredAt: observedAt,
+            attemptSequence: 1,
+            expiresAt: "2026-08-30T01:01:00.000Z",
+            heartbeatAt: observedAt,
+            mutationFence: secondFence,
+            schemaVersion: "0.1",
+            scope,
+          }
+        : undefined,
+      lastFencingToken: 2,
+      latestAttemptSequence: 1,
+      stateVersion: 6,
+      status: running ? "running" : "succeeded",
+      terminal: running
+        ? undefined
+        : {
+            attemptId: secondFence.attemptId,
+            code: "completed",
+            committedAt: endedAt,
+            status: "succeeded",
+          },
+    },
+  };
+}
+
 function requireValue<T>(value: T | null | undefined, label: string): T {
   if (value === null || value === undefined) throw new Error(`Expected ${label}`);
   return value;
 }
 
 describe("ReplayJobSnapshotSchema", () => {
+  for (const running of [false, true]) {
+    for (const predecessorEnd of ["2026-08-30T01:00:02.999Z", observedAt]) {
+      it(`accepts ${running ? "running" : "completed"} retries when prior closure is ${predecessorEnd}`, () => {
+        const snapshot = retrySnapshot(running);
+        const first = requireValue(snapshot.attempts[0], "first attempt");
+        const second = requireValue(snapshot.attempts[1], "second attempt");
+        const candidate = {
+          ...snapshot,
+          attempts: [{ ...first, endedAt: predecessorEnd }, second],
+        };
+        expect(ReplayJobSnapshotSchema.parse(candidate)).toEqual(candidate);
+      });
+    }
+    it(`rejects an unclosed predecessor before a ${running ? "running" : "completed"} retry`, () => {
+      const snapshot = retrySnapshot(running);
+      const first = requireValue(snapshot.attempts[0], "first attempt");
+      const second = requireValue(snapshot.attempts[1], "second attempt");
+      rejects({
+        ...snapshot,
+        attempts: [
+          {
+            ...first,
+            endedAt: undefined,
+            error: undefined,
+            retryDisposition: undefined,
+            status: "running",
+          },
+          second,
+        ],
+      });
+    });
+    for (const predecessorEnd of ["2026-08-30T01:00:03.001Z", endedAt]) {
+      it(`rejects overlapping ${running ? "running" : "completed"} retry history at ${predecessorEnd}`, () => {
+        const snapshot = retrySnapshot(running);
+        const first = requireValue(snapshot.attempts[0], "first attempt");
+        const second = requireValue(snapshot.attempts[1], "second attempt");
+        rejects({ ...snapshot, attempts: [{ ...first, endedAt: predecessorEnd }, second] });
+      });
+    }
+  }
+
   it("accepts exact queued, running, and completed snapshots", () => {
     expect(ReplayJobSnapshotSchema.parse(queuedSnapshot())).toEqual(queuedSnapshot());
     expect(ReplayJobSnapshotSchema.parse(runningSnapshot())).toEqual(runningSnapshot());

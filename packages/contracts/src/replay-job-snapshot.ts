@@ -78,7 +78,11 @@ function validateAttempts(
       attempt.mutationFence.recoveryEpoch > job.recoveryEpoch ||
       attempt.mutationFence.fencingToken > job.lastFencingToken ||
       (previous !== undefined &&
-        (attempt.mutationFence.fencingToken <= previous.mutationFence.fencingToken ||
+        // Each replacement closes the prior authoritative attempt before (or at) its start.
+        // A stale OS process may still exist, but it cannot retain a second running record.
+        (previous.endedAt === undefined ||
+          Date.parse(previous.endedAt) > Date.parse(attempt.startedAt) ||
+          attempt.mutationFence.fencingToken <= previous.mutationFence.fencingToken ||
           attempt.mutationFence.recoveryEpoch < previous.mutationFence.recoveryEpoch))
     );
   });
@@ -92,7 +96,7 @@ function validateAttempts(
     addIssue(
       context,
       ["attempts"],
-      "Replay attempt history must be contiguous and agree with the job root",
+      "Replay attempt history must be contiguous, closed before replacement, and agree with the job root",
     );
     return undefined;
   }
