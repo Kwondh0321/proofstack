@@ -70,3 +70,7 @@ record가 만료되거나 부적격인 근거를 기술할 수 있으며 이후 
 개별 관측만으로 권위 있는 전체 manifest를 만들면 안 됩니다. 공개 API·SDK, 영속 job, worker
 권한, 복구, 체크포인트 승인은 [진입 검토](workflow-2-policy-evaluation-entry-audit.ko.md)의
 별도 미완료 요구사항입니다.
+
+[도메인별 정의 읽기](workflow-2-policy-evaluation-definition-readers.ko.md)는 데이터셋 버전,
+두 fixture 형식, 재현 계획과 대상 릴리스를 추가로 수집합니다. 패키지 경계와 기록 수준 관찰을
+유지하며, 의존성 확장, 재현 결과의 전체 검증, 아티팩트 권한과 보호된 봉인은 여전히 필요합니다.

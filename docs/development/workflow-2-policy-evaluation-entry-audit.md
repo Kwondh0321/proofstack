@@ -85,6 +85,11 @@ each captured parent and enumerates its explicit record/artifact references and 
 selectors, preserving occurrence order, conflicts, and count/byte limits across all thirty kinds.
 It does not establish child existence, recursive closure, artifact bytes, or snapshot authority.
 
+The [dataset and replay definition readers](workflow-2-policy-evaluation-definition-readers.md)
+add exact dataset, both fixture formats, replay-plan, and target-release acquisition through
+domain-owned read-only adapters without reversing core dependencies. Record observations still do
+not establish recursive lineage, artifact/ownership state, completed replay, or guarded sealing.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

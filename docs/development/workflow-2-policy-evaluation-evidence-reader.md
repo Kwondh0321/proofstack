@@ -82,3 +82,8 @@ policy lifecycle observations, revision guards, and one protected sealed snapsho
 an authoritative manifest merely by accepting caller-selected lists or this reader's individual
 observations. Public API/SDK, durable jobs, worker authority, recovery and checkpoint acceptance
 remain separate unfinished work under the [entry audit](workflow-2-policy-evaluation-entry-audit.md).
+
+The [domain-owned definition readers](workflow-2-policy-evaluation-definition-readers.md) now add
+dataset versions, both fixture formats, replay plans, and target releases. They preserve package
+boundaries and record-level observations; dependency expansion, complete replay-result validation,
+artifact authority, and guarded sealing are still required.
