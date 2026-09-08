@@ -96,9 +96,11 @@ full inventories must not become one unbounded HTTP response.
 
 The separate
 [comparison-selection building block](workflow-2-policy-evaluation-comparison-selection.md) now
-accounts for every candidate comparison result and preserves unreadable and ambiguous sets. Still
-required here are authoritative closure derivation, complete selected-result lineage verification,
-typed rule evidence, artifact/lifecycle observations, guarded capture/sealing, snapshot/result
-contracts and durable jobs with separate worker authority. HTTP/SDK implementation must test
+accounts for every candidate comparison result and preserves unreadable and ambiguous sets. The
+[comparison-lineage building block](workflow-2-policy-evaluation-comparison-lineage.md) validates
+the selected definition and snapshots, re-derives the result, and emits a bounded direct-source
+frontier. Still required here are recursive authoritative closure derivation, subordinate-record
+verification, typed rule evidence, artifact/lifecycle observations, guarded capture/sealing,
+snapshot/result contracts and durable jobs with separate worker authority. HTTP/SDK implementation must test
 just-below/exact/over-limit streamed bytes, immutable identity and complete pagination. Response
 schemas do not expose endpoints. This slice does not change the roadmap's completed item count.

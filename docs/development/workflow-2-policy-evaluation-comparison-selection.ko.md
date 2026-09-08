@@ -10,7 +10,10 @@
 candidate 소유 선택 규칙을 구현합니다. Policy가 사용하는 각 comparison 정의에 대해 candidate의
 전체 선언 목록 안에 결과가 유일한지, 없는지, 모호한지, 아직 판단할 수 없는지를 구분합니다.
 선택한 결과의 전체 상위 계보 검증, 입력 snapshot 봉인, 규칙 판정, 평가 발행, 출시 권한은
-구현하지 않습니다.
+구현하지 않습니다. 후속
+[comparison 계보 검증 기반 기능](workflow-2-policy-evaluation-comparison-lineage.ko.md)이 이제 직접
+정의·결과·snapshot과 candidate 소유권 경계를 검증하지만 하위 record의 재귀 수집과 봉인은
+여전히 남아 있습니다.
 
 ## 루트와 수집 경계
 
@@ -65,9 +68,9 @@ identity, baseline/candidate snapshot 역할 바꿔치기를 다룹니다. Core 
 방어적 복사, 0·1·복수 일치, 읽지 못한 구성원, 확인된 부재, 잘못됐거나 바뀌었거나 미래이거나
 다른 범위인 결과, 전체 수집 목록, root 바꿔치기, 범위·시각 경계, 충돌하는 policy 참조를 다룹니다.
 
-이 기능은 봉인된 `PolicyEvaluationSnapshot`이 아닙니다. 다음 작업은 유일한 결과의 comparison
-정의·snapshot·metric·stratum·계산 정책·candidate 쪽 dataset/fixture/replay target·assessment·
-model-assurance 계보를 검증해야 합니다. 그 뒤 전체 예상 출처 목록을 도출하고 관측을 의존성
-manifest에 결속하며 policy 설치·출처·생명주기 권한과 artifact revision을 확인해 하나의 보호된
-cut을 봉인해야 합니다. 규칙 증거·적용성·평가 결과·저장소·영속 작업·worker 권한·API·SDK·복구·
-체크포인트 승인은 모두 미완료입니다. 이 변경은 로드맵의 완료 항목 수를 늘리지 않습니다.
+이 기능은 봉인된 `PolicyEvaluationSnapshot`이 아닙니다. 후속 계보 검증기는 직접 정의·결과·
+snapshot, candidate 소유 dataset, replay target, assessment 참조를 확인하고 결과를 결정론적으로
+다시 도출합니다. 하위 record의 재귀 수집, 전체 예상 출처 closure, manifest 관측, policy 설치·
+출처·생명주기 권한, artifact revision guard와 하나의 일관된 봉인은 다음 작업입니다. 규칙 증거·
+적용성·평가 결과·저장소·영속 작업·worker 권한·API·SDK·복구·체크포인트 승인은 모두
+미완료입니다. 이 변경은 로드맵의 완료 항목 수를 늘리지 않습니다.

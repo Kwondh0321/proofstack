@@ -69,8 +69,11 @@ and policy evaluation remain unimplemented; the remaining record boundaries belo
 The [complete comparison-selection building block](workflow-2-policy-evaluation-comparison-selection.md)
 validates the exact request/candidate/policy roots, accounts for every candidate-declared result,
 and distinguishes unique, missing, ambiguous, and unresolved definition-to-result mappings without
-dropping unreadable members. Complete upstream result lineage, authoritative closure derivation,
-guarded sealing, rule evidence and policy evaluation remain unimplemented.
+dropping unreadable members. The follow-on
+[comparison-lineage building block](workflow-2-policy-evaluation-comparison-lineage.md) validates
+the selected definition and snapshots, re-derives the result, checks candidate-owned lineage, and
+emits its bounded direct-source frontier. Recursive subordinate-record validation, authoritative
+closure derivation, guarded sealing, rule evidence and policy evaluation remain unimplemented.
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 

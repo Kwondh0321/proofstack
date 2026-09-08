@@ -338,6 +338,10 @@ gate를 고정합니다. 구현 진입만 승인하며 구현된 evaluator나 �
 [comparison 선택 기반 기능](docs/development/workflow-2-policy-evaluation-comparison-selection.ko.md)은
 candidate가 선언한 전체 comparison 집합을 조사해 `unique`, `missing`, `ambiguous`, `unresolved`를
 보존하지만 전체 계보 검증이나 봉인된 입력을 주장하지 않습니다.
+[comparison 계보 검증 기반 기능](docs/development/workflow-2-policy-evaluation-comparison-lineage.ko.md)은
+정확한 정의와 snapshot을 검증하고 선택한 결과를 다시 도출하며 candidate 소유 dataset·target·
+assurance 참조를 결속한 뒤 제한된 직접 출처 frontier를 만듭니다. 하위 record가 이미 검증되거나
+봉인되었다고 주장하지 않습니다.
 
 ## 현재의 경계
 

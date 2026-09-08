@@ -11,7 +11,10 @@ This slice implements the first exact candidate-owned selection rule required by
 comparison definition used by a policy has a unique, missing, ambiguous, or unresolved result in
 the candidate's complete declared comparison inventory. It does not validate the selected result's
 complete upstream lineage, seal an input snapshot, compute a rule outcome, publish an evaluation,
-or grant release authority.
+or grant release authority. The subsequent
+[comparison-lineage building block](workflow-2-policy-evaluation-comparison-lineage.md) now closes
+the direct definition/result/snapshot and candidate-ownership boundary while leaving recursive
+subordinate acquisition and sealing open.
 
 ## Root and acquisition boundary
 
@@ -72,11 +75,11 @@ matches, unreadable members, valid absence, invalid/mismatched/future/cross-scop
 acquisition inventory, root substitution, scope and time boundaries, and conflicting policy
 references.
 
-This is deliberately not the sealed `PolicyEvaluationSnapshot`. Next work must verify a unique
-result's comparison definition, snapshots, metric and stratum, calculation policy, candidate-side
-dataset/fixture/replay target, assessments and model-assurance lineage. It must then derive the
-complete expected source closure, bind these observations into the dependency manifest, validate
-policy installation/source/lifecycle authority and artifact revisions, and seal one guarded cut.
-Rule evidence, applicability, evaluation results, repositories, durable jobs, worker authority,
-API, SDK, recovery and checkpoint acceptance all remain open. This slice does not change the
-roadmap's completed item count.
+This is deliberately not the sealed `PolicyEvaluationSnapshot`. The follow-on lineage validator
+now verifies the direct definition, result, snapshots, candidate-owned dataset, replay target, and
+assessment references and deterministically re-derives the result. Recursive subordinate-record
+acquisition, complete expected-source closure, manifest observations, policy installation/source/
+lifecycle authority, artifact revision guards, and one consistent seal remain next. Rule evidence,
+applicability, evaluation results, repositories, durable jobs, worker authority, API, SDK, recovery
+and checkpoint acceptance all remain open. This slice does not change the roadmap's completed item
+count.

@@ -13,6 +13,11 @@ request/candidate/policy root를 검증하고 candidate가 선언한 모든 결�
 구성원을 삭제하지 않습니다. 결과의 전체 상위 계보, 권위 있는 예상 목록 도출, 보호된 봉인,
 규칙 증거와 정책 평가는 아직 구현하지 않았습니다.
 
+[comparison 계보 검증 기반 기능](workflow-2-policy-evaluation-comparison-lineage.ko.md)은 선택된
+정의·snapshot을 검증하고 결과를 다시 도출하며 candidate 소유 계보와 제한된 직접 출처 frontier를
+확정합니다. 하위 record의 재귀 검증, 권위 있는 전체 closure 도출, 보호된 봉인, 규칙 증거와 정책
+평가는 아직 구현하지 않았습니다.
+
 - 상태: 구현 진입 승인, 체크포인트는 미완료
 - 검토일: 2026-09-07
 - 의존성: `4f6372c48013c7136eb2b46585c99f926bc95729`의 정책 정의 승인

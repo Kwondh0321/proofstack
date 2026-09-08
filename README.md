@@ -341,6 +341,11 @@ entry only, not an implemented evaluator or a release decision. The
 [comparison-selection building block](docs/development/workflow-2-policy-evaluation-comparison-selection.md)
 now accounts for the candidate's complete declared comparison set and preserves unique, missing,
 ambiguous, and unresolved mappings without claiming complete lineage validation or a sealed input.
+The
+[comparison-lineage building block](docs/development/workflow-2-policy-evaluation-comparison-lineage.md)
+then validates the exact definition and snapshots, re-derives the selected result, binds the
+candidate-owned dataset, target, and assurance references, and emits a bounded direct-source
+frontier without claiming that subordinate records are already verified or sealed.
 
 ## Current boundaries
 
