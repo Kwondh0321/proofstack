@@ -204,21 +204,33 @@ function routeFor(
   dependencies: PolicyEvaluationEvidenceReaderDependencies,
 ): {
   readonly read: (scope: EvidenceScope, id: string) => Promise<unknown>;
-  readonly receipt: ReceiptField;
-  readonly validate: (raw: unknown) => EvidenceRecord;
 } {
   if (Object.hasOwn(evaluationReads, source.kind)) {
     const kind = source.kind as EvaluationRecordKind;
     const descriptor = evaluationReads[kind];
     return {
       read: (scope, id) => descriptor.read(dependencies.evaluation, scope, id),
-      receipt: descriptor.receipt,
-      validate: (raw) => validateEvaluationRecord(kind, raw),
     };
   }
   const descriptor = modelReads[source.kind as keyof typeof modelReads];
   return {
     read: (scope, id) => dependencies.modelAssurance.find(scope, descriptor.kind, id),
+  };
+}
+
+function validationFor(source: PolicyEvaluationEvidenceSource): {
+  readonly receipt: ReceiptField;
+  readonly validate: (raw: unknown) => EvidenceRecord;
+} {
+  if (Object.hasOwn(evaluationReads, source.kind)) {
+    const kind = source.kind as EvaluationRecordKind;
+    return {
+      receipt: evaluationReads[kind].receipt,
+      validate: (raw) => validateEvaluationRecord(kind, raw),
+    };
+  }
+  const descriptor = modelReads[source.kind as keyof typeof modelReads];
+  return {
     receipt: descriptor.receipt,
     validate: (raw) => validateModelAssuranceRecord(descriptor.kind, raw),
   };
@@ -240,6 +252,16 @@ export async function readPolicyEvaluationEvidence(
   const recordId = policyEvaluationSourceReferenceKey(source).slice(source.kind.length + 1);
   const route = routeFor(source, dependencies);
   const raw = await route.read(structuredClone(scope), recordId);
+  return inspectPolicyEvaluationEvidenceRecord({ evaluationTime, scope, source }, raw);
+}
+
+/** Pure record-level revalidation; no repository access or authorization is implied. */
+export function inspectPolicyEvaluationEvidenceRecord(
+  input: ReadPolicyEvaluationEvidenceInput,
+  raw: unknown,
+): PolicyEvaluationEvidenceRead {
+  const { evaluationTime, scope, source } = parseInput(input);
+  const route = validationFor(source);
   const unavailable = (observation: UnverifiedObservation): PolicyEvaluationEvidenceRead => ({
     observation,
     record: null,

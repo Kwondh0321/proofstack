@@ -73,8 +73,10 @@ prove its child references, source truth, current qualification or applicability
 bytes, policy satisfaction, approval, or a complete evidence set. A historically valid record may
 describe expired or ineligible evidence; later authority and rule evaluation must retain that fact.
 
-Still required are the remaining source-family adapters, explicit dependency expansion from every
-validated record, complete parent-child/re-derivation checks, deterministic recursive enumeration,
+The [direct-reference enumerator](workflow-2-policy-evaluation-evidence-references.md) now performs
+explicit dependency expansion for these thirty validated record kinds with captured-observation
+revalidation. Still required are the remaining source-family adapters and their expansion,
+complete parent-child/re-derivation checks, deterministic recursive enumeration,
 conflicting-identity detection, cumulative record/byte/time/retry budgets, artifact verification,
 policy lifecycle observations, revision guards, and one protected sealed snapshot. Do not assemble
 an authoritative manifest merely by accepting caller-selected lists or this reader's individual

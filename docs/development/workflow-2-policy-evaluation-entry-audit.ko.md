@@ -23,6 +23,11 @@ request/candidate/policy root를 검증하고 candidate가 선언한 모든 결�
 검증해 개별 record 관측을 만듭니다. 전체 재귀 graph, 보존 원문, 변경 가능한 권한 관측 시점의
 검증과 봉인은 아직 구현하지 않았습니다.
 
+[직접 참조 열거기](workflow-2-policy-evaluation-evidence-references.ko.md)는 관측한 부모를 다시
+검증하고 30종 record의 명시적 record·artifact 참조와 미해결 선택자를 열거합니다. 출현 순서,
+충돌, 개수·바이트 한도를 보존하되 하위 존재, 재귀 전체 목록, 원문, snapshot 권한은 증명하지
+않습니다.
+
 - 상태: 구현 진입 승인, 체크포인트는 미완료
 - 검토일: 2026-09-07
 - 의존성: `4f6372c48013c7136eb2b46585c99f926bc95729`의 정책 정의 승인

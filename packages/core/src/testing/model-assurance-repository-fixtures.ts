@@ -596,6 +596,15 @@ export async function createModelAssuranceRepositoryTestHarness(
       protocolVersionId: protocol.protocolVersionId,
     };
     reviewDefinition.reviewedArtifacts = structuredClone(protocol.claim.evidenceBundle);
+    // Independent public vectors can reuse an artifact label with different example bytes.
+    // This joined fixture must bind the protocol's exact descriptor at every use of that ID.
+    reviewDefinition.counterevidence = reviewDefinition.counterevidence.map((reference) =>
+      structuredClone(
+        reviewDefinition.reviewedArtifacts.find(
+          ({ artifactId }) => artifactId === reference.artifactId,
+        ) ?? reference,
+      ),
+    );
     reviewDefinition.reviewId = `hrr_${namespace}_reviewer_${index + 1}`;
     reviewDefinition.reviewer.principalId = reviewer.principalId;
     reviewDefinition.reviewer.requestId = `req_${namespace}_review_${index + 1}`;

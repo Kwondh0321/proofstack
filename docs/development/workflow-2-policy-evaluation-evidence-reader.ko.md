@@ -63,7 +63,8 @@ callback의 원본 변경도 검사합니다. 이는 보존된 메모리 record�
 현재 자격·적용성, 보존 원문, 정책 충족, 승인 또는 전체 근거 목록을 증명하지 않습니다. 역사적
 record가 만료되거나 부적격인 근거를 기술할 수 있으며 이후 권한·규칙 평가는 이를 보존해야 합니다.
 
-다른 출처 종류의 adapter, 검증 record에서의 명시적 의존성 확장, 부모·자식 및 재도출 검사,
+[직접 참조 열거기](workflow-2-policy-evaluation-evidence-references.ko.md)는 관측 재검증과 함께
+이 30종의 명시적 의존성을 확장합니다. 다른 출처 종류의 adapter와 확장, 부모·자식 및 재도출 검사,
 결정론적 재귀 수집, identity 충돌, 누적 record·byte·시간·재시도 한도, artifact 검증, 정책
 생명주기 관측, revision guard, 보호된 snapshot 봉인이 남아 있습니다. 호출자가 고른 목록이나
 개별 관측만으로 권위 있는 전체 manifest를 만들면 안 됩니다. 공개 API·SDK, 영속 job, worker

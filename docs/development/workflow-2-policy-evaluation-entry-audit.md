@@ -80,6 +80,11 @@ seventeen evaluation and thirteen model/human-assurance record kinds through rea
 revalidates exact scope/reference/digest/time, and emits record-level manifest observations. It does
 not yet expand or validate the complete recursive graph, retained bytes, or mutable authority cut.
 
+The [direct-reference enumerator](workflow-2-policy-evaluation-evidence-references.md) revalidates
+each captured parent and enumerates its explicit record/artifact references and unresolved
+selectors, preserving occurrence order, conflicts, and count/byte limits across all thirty kinds.
+It does not establish child existence, recursive closure, artifact bytes, or snapshot authority.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
