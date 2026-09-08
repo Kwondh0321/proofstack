@@ -75,6 +75,11 @@ the selected definition and snapshots, re-derives the result, checks candidate-o
 emits its bounded direct-source frontier. Recursive subordinate-record validation, authoritative
 closure derivation, guarded sealing, rule evidence and policy evaluation remain unimplemented.
 
+The [evidence-source reader](workflow-2-policy-evaluation-evidence-reader.md) now resolves all
+seventeen evaluation and thirteen model/human-assurance record kinds through read-only repositories,
+revalidates exact scope/reference/digest/time, and emits record-level manifest observations. It does
+not yet expand or validate the complete recursive graph, retained bytes, or mutable authority cut.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
