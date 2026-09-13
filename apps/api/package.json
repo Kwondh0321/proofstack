@@ -44,12 +44,12 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "catalog:",
     "@opentelemetry/api": "1.9.1",
-    "@opentelemetry/exporter-trace-otlp-http": "0.221.0",
-    "@opentelemetry/exporter-trace-otlp-proto": "0.221.0",
-    "@opentelemetry/sdk-trace-node": "2.10.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.222.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.222.0",
+    "@opentelemetry/sdk-trace-node": "2.11.0",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "tsx": "4.23.12",
+    "tsx": "4.23.13",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
