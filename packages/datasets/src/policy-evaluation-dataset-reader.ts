@@ -5,6 +5,7 @@ import type {
   RegressionFixtureVersion,
 } from "@proofstack/contracts";
 import {
+  inspectPolicyEvaluationDefinitionRecord,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
   readPolicyEvaluationDefinitionRecord,
@@ -29,6 +30,38 @@ export type PolicyEvaluationDatasetRead = PolicyEvaluationDefinitionRead<
   PolicyEvaluationDatasetRecord,
   PolicyEvaluationDatasetSource
 >;
+
+/**
+ * Inspects the immutable version body, NOT the interaction repository's ownership wrapper.
+ * This does not replace the reader's two-store conflict check or establish retained authority.
+ */
+export function inspectPolicyEvaluationDataset(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationDatasetSource>,
+  raw: unknown,
+): PolicyEvaluationDatasetRead {
+  return inspectPolicyEvaluationDefinitionRecord<
+    PolicyEvaluationDatasetSource,
+    PolicyEvaluationDatasetRecord
+  >(input, raw, {
+    isInvalidRecordError: (cause) => cause instanceof InvalidRegressionVersionInputError,
+    kinds: ["dataset_version", "regression_fixture_version"],
+    validate: (source, value) => {
+      if (source.kind === "dataset_version") {
+        return validateAndProjectRegressionDatasetVersion(value).version;
+      }
+      // The discriminant only selects a fixed strict schema, never a favorable fallback.
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "schemaVersion" in value &&
+        value.schemaVersion === "0.2"
+      ) {
+        return validateAndProjectRecordedInteractionFixtureVersion(value).version;
+      }
+      return validateAndProjectRegressionFixtureVersion(value).version;
+    },
+  });
+}
 
 /**
  * Reads exact immutable dataset/fixture definitions, without publication or content authority.

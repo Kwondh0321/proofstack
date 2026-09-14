@@ -4,8 +4,10 @@ import type {
   TargetRelease,
 } from "@proofstack/contracts";
 import {
+  inspectPolicyEvaluationDefinitionRecord,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
+  type PolicyEvaluationDefinitionValidator,
   readPolicyEvaluationDefinitionRecord,
 } from "@proofstack/core";
 import { InvalidReplayDefinitionInputError } from "./errors.js";
@@ -24,6 +26,26 @@ export type PolicyEvaluationReplayDefinitionRead = PolicyEvaluationDefinitionRea
   PolicyEvaluationReplayDefinitionSource
 >;
 
+const validator: PolicyEvaluationDefinitionValidator<
+  PolicyEvaluationReplayDefinitionSource,
+  ReplayPlan | TargetRelease
+> = {
+  isInvalidRecordError: (cause) => cause instanceof InvalidReplayDefinitionInputError,
+  kinds: ["replay_plan", "target_release"],
+  validate: (source, raw) =>
+    source.kind === "replay_plan"
+      ? validateAndProjectReplayPlan(raw).plan
+      : validateAndProjectTargetRelease(raw).release,
+};
+
+/** Revalidates a materialized definition; does not establish storage or execution authority. */
+export function inspectPolicyEvaluationReplayDefinition(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationReplayDefinitionSource>,
+  raw: unknown,
+): PolicyEvaluationReplayDefinitionRead {
+  return inspectPolicyEvaluationDefinitionRecord(input, raw, validator);
+}
+
 /**
  * Acquires a single exact immutable definition through read-only replay authority. A verified
  * plan/release is not a completed replay, executable-byte verification, runtime registration,
@@ -37,15 +59,10 @@ export function readPolicyEvaluationReplayDefinition(
     PolicyEvaluationReplayDefinitionSource,
     ReplayPlan | TargetRelease
   >(input, {
-    isInvalidRecordError: (cause) => cause instanceof InvalidReplayDefinitionInputError,
-    kinds: ["replay_plan", "target_release"],
+    ...validator,
     read: (scope, source) =>
       source.kind === "replay_plan"
         ? repository.findReplayPlan(scope, source.reference.planVersionId)
         : repository.findTargetRelease(scope, source.reference.targetReleaseId),
-    validate: (source, raw) =>
-      source.kind === "replay_plan"
-        ? validateAndProjectReplayPlan(raw).plan
-        : validateAndProjectTargetRelease(raw).release,
   });
 }

@@ -86,6 +86,31 @@ This is not a globally atomic snapshot. The enclosing acquisition
 still needs cumulative I/O/byte/time/retry budgets and consistent authority/revision guards for
 publication and lifecycle races before sealing any observation set.
 
+## Reinspect materialized definitions without I/O
+
+`inspectPolicyEvaluationDataset(input, raw)` and
+`inspectPolicyEvaluationReplayDefinition(input, raw)` synchronously validate a supplied immutable
+record body. They use `inspectPolicyEvaluationDefinitionRecord` in core, sharing the observation
+implementation with repository acquisition: strict input capture, domain-owned schema/digest checks,
+exact reference and scope matching, full-precision receipt time, and the complete canonical record
+hash. Input capture occurs before record access; neither domain inspector accepts a repository or
+performs repository I/O. Unexpected validator/accessor exceptions still propagate unchanged.
+
+The dataset inspector accepts the immutable v0.1/v0.2 fixture **version body**, not the interaction
+repository's `{ version, ownerships }` wrapper. The body's schema version selects one strict domain
+validator; failure never retries the other format. This cannot replace acquisition's two-store
+identity-conflict check, prove that a supplied body was retained, or verify ownership metadata.
+Likewise, supplying `null` produces a missing observation but is not proof that either store was
+consulted. A capture pipeline must use its authorized read ports to establish those observations.
+
+These functions compute **new** observations. Before traversing a previously verified record, the
+caller still must compare the newly computed full-record hash and exact source with the original
+captured observation. A receipt-only change may leave the definition digest unchanged while
+changing this full-record hash. Inspection by itself does not perform that comparison, enumerate
+dependencies, establish child availability, or seal a graph. It adds no policy execution or replay
+execution authority. The generic core validator adapter remains trusted internal infrastructure,
+not an external caller's choice of validation rules.
+
 ## Verification and remaining work
 
 The tests use all retained dataset, fixture, interaction-fixture, replay-plan, and target-release
@@ -94,6 +119,12 @@ order. The matrix covers every reference field, nested protocol substitutions, a
 strict invalid/missing distinctions, malformed cross-format responses, duplicate fixture identity,
 wrong schema store, changed semantics/digests, full-precision time edges, receipt hashes, defensive
 copies, input/callback mutation, read failures, and unexpected validator exceptions.
+
+Materialized inspection tests additionally compare synchronous and repository observations against
+the independent hash oracle for every retained definition vector; exercise malformed bodies,
+unknown fields (including undefined-valued fields), changed receipts, scope/reference/time
+substitutions, defensive copies, changing fixture discriminants, and record accessors that mutate
+the caller's context. Existing two-store and real-publication acquisition tests remain in place.
 
 These tests do not claim a new PostgreSQL integration, artifact-content verification, or policy
 worker. The follow-on [replay-result reader](workflow-2-policy-evaluation-replay-result-reader.md)

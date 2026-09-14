@@ -11,6 +11,7 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import { digestRecordedInteractionFixtureVersionDefinition } from "./interaction-fixture-definition-digest.js";
 import {
+  inspectPolicyEvaluationDataset,
   type PolicyEvaluationDatasetRecord,
   type PolicyEvaluationDatasetSource,
   readPolicyEvaluationDataset,
@@ -111,6 +112,130 @@ const hash = (value: unknown) =>
     .update(JSON.stringify(sorted(value)))
     .digest("hex");
 const invalid = { reason: "record_invalid", status: "unavailable" };
+
+describe.each(vectors)("materialized dataset inspection: $name", (vector) => {
+  it("matches acquisition with an independent full-record hash and owns returned values", async () => {
+    const record = version(vector);
+    const command = input(record);
+    const inspected = inspectPolicyEvaluationDataset(command, record);
+    expect(inspected).toEqual(await readPolicyEvaluationDataset(command, routed(vector, record)));
+    expect(inspected).toEqual({
+      observation: { recordSha256: hash(record), status: "verified" },
+      record,
+      source: command.source,
+    });
+    if (!inspected.record) throw new Error("expected verified definition");
+    inspected.record.scope.tenantId = "ten_returned";
+    inspected.source.reference.definitionSha256 = "f".repeat(64);
+    expect(record).toEqual(version(vector));
+    expect(command).toEqual(input(record));
+  });
+  for (const change of [
+    { name: "tampered definition" },
+    { definitionSha256: "f".repeat(64) },
+    { schemaVersion: "999" },
+    { approved: true },
+    { approved: undefined },
+    { createdAt: "bad" },
+  ]) {
+    it(`revalidates materialized schema and digest: ${JSON.stringify(change)}`, async () => {
+      const record = version(vector);
+      const raw = { ...record, ...change };
+      const inspected = inspectPolicyEvaluationDataset(input(record), raw);
+      expect(inspected.observation).toEqual(invalid);
+      expect(inspected).toEqual(
+        await readPolicyEvaluationDataset(input(record), routed(vector, raw)),
+      );
+    });
+  }
+  for (const raw of [undefined, false, 0, "invalid", {}, { schemaVersion: "0.2" }]) {
+    it(`rejects malformed bodies: ${JSON.stringify(raw)}`, () => {
+      expect(inspectPolicyEvaluationDataset(input(version(vector)), raw).observation).toEqual(
+        invalid,
+      );
+    });
+  }
+  it("describes a supplied null without claiming a repository lookup occurred", () => {
+    const command = input(version(vector));
+    expect(inspectPolicyEvaluationDataset(command, null)).toEqual({
+      observation: { status: "missing" },
+      record: null,
+      source: command.source,
+    });
+  });
+  for (const key of ["tenantId", "projectId", "environmentId"] as const) {
+    it(`rechecks requested ${key}`, () => {
+      const record = version(vector);
+      const command = input(record);
+      command.scope[key] = "foreign_scope";
+      expect(inspectPolicyEvaluationDataset(command, record).observation).toEqual({
+        reason: "reference_mismatch",
+        status: "unavailable",
+      });
+    });
+  }
+  for (const key of Object.keys(input(version(vector)).source.reference)) {
+    it(`rechecks exact ${key}`, () => {
+      const record = version(vector);
+      const command = input(record);
+      Object.assign(command.source.reference, {
+        [key]: key === "definitionSha256" ? "f".repeat(64) : "other_id",
+      });
+      expect(inspectPolicyEvaluationDataset(command, record).observation).toEqual({
+        reason: "reference_mismatch",
+        status: "unavailable",
+      });
+    });
+  }
+  it("retains full-precision evaluation time and receipt-only changes", () => {
+    const record = version(vector);
+    const command = input(record);
+    const changed = { ...record, createdByPrincipalId: "usr_changed_receipt" };
+    expect(inspectPolicyEvaluationDataset(command, changed).observation).toEqual({
+      recordSha256: hash(changed),
+      status: "verified",
+    });
+    expect(hash(changed)).not.toBe(hash(record));
+    command.evaluationTime = "2026-09-08T00:00:00.122999999999999999999999999999Z";
+    expect(inspectPolicyEvaluationDataset(command, record).observation).toEqual({
+      reason: "not_yet_available",
+      status: "unavailable",
+    });
+  });
+  it("does not accept a repository wrapper as an immutable body", () => {
+    const record = version(vector);
+    expect(
+      inspectPolicyEvaluationDataset(input(record), { version: record, ownerships: [] })
+        .observation,
+    ).toEqual(invalid);
+  });
+  it("does not mask accessor failures or use mutated evaluation context", () => {
+    const record = version(vector);
+    const failure = new Error("record accessor failure");
+    expect(() =>
+      inspectPolicyEvaluationDataset(input(record), {
+        ...record,
+        get schemaVersion() {
+          throw failure;
+        },
+      }),
+    ).toThrow(failure);
+    const command = input(record);
+    const raw = {
+      ...record,
+      get schemaVersion() {
+        command.evaluationTime = "2000-01-01T00:00:00Z";
+        command.scope.tenantId = "ten_changed";
+        command.source.reference.definitionSha256 = "f".repeat(64);
+        return record.schemaVersion;
+      },
+    };
+    expect(inspectPolicyEvaluationDataset(command, raw).observation).toEqual({
+      recordSha256: hash(record),
+      status: "verified",
+    });
+  });
+});
 
 describe.each(vectors)("dataset acquisition: $name", (vector) => {
   it("reads exact definitions including lineage and binds complete receipt-bearing bytes", async () => {
@@ -240,6 +365,41 @@ describe("fixture format resolution and real immutable storage", () => {
   const interactionVector = vectors.find(
     (v) => v.kind === "recorded_interaction_fixture",
   ) as Vector;
+  it("does not retry another fixture schema after a changing discriminant fails validation", () => {
+    for (const vector of [fixtureVector, interactionVector]) {
+      const record = version(vector);
+      let reads = 0;
+      const raw = {
+        ...record,
+        get schemaVersion() {
+          reads += 1;
+          return reads === 1
+            ? record.schemaVersion === "0.2"
+              ? "0.1"
+              : "0.2"
+            : record.schemaVersion;
+        },
+      };
+      expect(inspectPolicyEvaluationDataset(input(record), raw).observation).toEqual(invalid);
+    }
+  });
+  it("rejects unsupported inspection context before accessing the record", () => {
+    const record = version(fixtureVector);
+    const getVersion = vi.fn(() => record.schemaVersion);
+    const raw = {
+      ...record,
+      get schemaVersion() {
+        return getVersion();
+      },
+    };
+    const command = input(record);
+    expect(() =>
+      inspectPolicyEvaluationDataset({ ...command, evaluationTime: "invalid" }, raw),
+    ).toThrowError(
+      expect.objectContaining({ code: "policy_evaluation_definition_read_input_invalid" }),
+    );
+    expect(getVersion).not.toHaveBeenCalled();
+  });
   for (const evidence of [undefined, {}, false, version(fixtureVector)]) {
     it(`rejects simultaneous or malformed evidence-store responses: ${String(evidence)}`, async () => {
       const record = version(interactionVector);

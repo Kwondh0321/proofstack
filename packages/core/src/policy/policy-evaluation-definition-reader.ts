@@ -49,6 +49,16 @@ export class PolicyEvaluationDefinitionReadInputError extends TypeError {
   }
 }
 
+/** Fixed, trusted domain validation; never accept this adapter from an external request. */
+export interface PolicyEvaluationDefinitionValidator<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
+> {
+  readonly kinds: readonly Source["kind"][];
+  readonly validate: (source: Source, raw: unknown) => Record;
+  readonly isInvalidRecordError: (cause: unknown) => boolean;
+}
+
 /**
  * Internal acquisition primitive for domain-owned adapters, not a plugin or authorization API.
  * The adapter's fixed validator MUST strictly parse and recompute the semantic definition digest;
@@ -62,14 +72,36 @@ export async function readPolicyEvaluationDefinitionRecord<
   Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
 >(
   input: PolicyEvaluationDefinitionReadInput<Source>,
-  adapter: {
-    readonly kinds: readonly Source["kind"][];
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record> & {
     readonly read: (scope: EvidenceScope, source: Source) => Promise<unknown>;
-    readonly validate: (source: Source, raw: unknown) => Record;
-    readonly isInvalidRecordError: (cause: unknown) => boolean;
   },
 ): Promise<PolicyEvaluationDefinitionRead<Record, Source>> {
-  let captured: PolicyEvaluationDefinitionReadInput<Source>;
+  const captured = captureInput(input, adapter.kinds);
+  // A read port must not mutate the captured identity used for post-I/O validation.
+  const raw = await adapter.read(structuredClone(captured.scope), structuredClone(captured.source));
+  return inspectCapturedRecord(captured, raw, adapter);
+}
+
+/**
+ * Revalidates one materialized record without repository I/O. The caller must independently bind
+ * this new observation to the captured source and full-record hash before expanding dependencies.
+ * A supplied null describes absence only; this function cannot establish repository completeness.
+ */
+export function inspectPolicyEvaluationDefinitionRecord<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
+>(
+  input: PolicyEvaluationDefinitionReadInput<Source>,
+  raw: unknown,
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record>,
+): PolicyEvaluationDefinitionRead<Record, Source> {
+  return inspectCapturedRecord(captureInput(input, adapter.kinds), raw, adapter);
+}
+
+function captureInput<Source extends PolicyEvaluationSourceReference>(
+  input: PolicyEvaluationDefinitionReadInput<Source>,
+  kinds: readonly Source["kind"][],
+): PolicyEvaluationDefinitionReadInput<Source> {
   try {
     if (Object.keys(input).some((key) => !["evaluationTime", "scope", "source"].includes(key))) {
       throw new TypeError("Unexpected acquisition input field");
@@ -77,15 +109,21 @@ export async function readPolicyEvaluationDefinitionRecord<
     const scope = EvidenceScopeSchema.parse(input.scope);
     const evaluationTime = PolicyEvaluationTimeSchema.parse(input.evaluationTime);
     const source = PolicyEvaluationSourceReferenceSchema.parse(input.source);
-    if (!adapter.kinds.includes(source.kind)) throw new TypeError("Unsupported source kind");
-    captured = { evaluationTime, scope, source: source as Source };
+    if (!kinds.includes(source.kind)) throw new TypeError("Unsupported source kind");
+    return { evaluationTime, scope, source: source as Source };
   } catch (cause) {
     throw new PolicyEvaluationDefinitionReadInputError({ cause });
   }
+}
 
-  const { evaluationTime, scope, source } = captured;
-  // A read port must not mutate the captured identity used for post-I/O validation.
-  const raw = await adapter.read(structuredClone(scope), structuredClone(source));
+function inspectCapturedRecord<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
+>(
+  { evaluationTime, scope, source }: PolicyEvaluationDefinitionReadInput<Source>,
+  raw: unknown,
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record>,
+): PolicyEvaluationDefinitionRead<Record, Source> {
   if (raw === null) return { observation: { status: "missing" }, record: null, source };
   let record: Record;
   try {

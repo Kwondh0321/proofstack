@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { PolicyEvaluationSourceReference } from "@proofstack/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
+  inspectPolicyEvaluationDefinitionRecord,
   PolicyEvaluationDefinitionReadInputError,
   readPolicyEvaluationDefinitionRecord,
 } from "./policy-evaluation-definition-reader.js";
@@ -46,6 +47,52 @@ function adapter(raw: unknown = record()) {
 }
 
 describe("domain-owned policy definition observations", () => {
+  it("uses the same observation boundary synchronously without calling a read port", () => {
+    const port = adapter();
+    expect(inspectPolicyEvaluationDefinitionRecord(input(), record(), port)).toEqual({
+      observation: { recordSha256: recordHash(), status: "verified" },
+      record: record(),
+      source,
+    });
+    expect(port.read).not.toHaveBeenCalled();
+  });
+  it("captures the synchronous context before validating an untrusted record", () => {
+    const command = input();
+    const port = adapter();
+    port.validate.mockImplementation((reference) => {
+      command.evaluationTime = "2000-01-01T00:00:00Z";
+      command.scope.tenantId = "ten_changed";
+      Object.assign(command.source.reference, { definitionSha256: "f".repeat(64) });
+      Object.assign(reference.reference, { datasetId: "dat_changed" });
+      return record();
+    });
+    expect(inspectPolicyEvaluationDefinitionRecord(command, record(), port)).toEqual({
+      observation: { recordSha256: recordHash(), status: "verified" },
+      record: record(),
+      source,
+    });
+    expect(port.read).not.toHaveBeenCalled();
+  });
+  it("rejects invalid inspection context before touching the supplied record", () => {
+    const port = adapter();
+    expect(() =>
+      inspectPolicyEvaluationDefinitionRecord(
+        { ...input(), evaluationTime: "bad" },
+        record(),
+        port,
+      ),
+    ).toThrow(PolicyEvaluationDefinitionReadInputError);
+    expect(port.validate).not.toHaveBeenCalled();
+    expect(port.read).not.toHaveBeenCalled();
+  });
+  it("propagates unexpected synchronous validator failures unchanged", () => {
+    const port = adapter();
+    const failure = new Error("validator unavailable");
+    port.validate.mockImplementation(() => {
+      throw failure;
+    });
+    expect(() => inspectPolicyEvaluationDefinitionRecord(input(), record(), port)).toThrow(failure);
+  });
   it("retains a complete canonical record hash and exact equal-time receipt", async () => {
     const port = adapter();
     expect(await readPolicyEvaluationDefinitionRecord(input(), port)).toEqual({

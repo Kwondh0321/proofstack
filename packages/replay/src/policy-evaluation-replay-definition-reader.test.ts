@@ -8,6 +8,7 @@ import type {
 } from "@proofstack/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
+  inspectPolicyEvaluationReplayDefinition,
   type PolicyEvaluationReplayDefinitionSource,
   readPolicyEvaluationReplayDefinition,
 } from "./policy-evaluation-replay-definition-reader.js";
@@ -82,6 +83,92 @@ const hash = (value: unknown) =>
     .update(JSON.stringify(sorted(value)))
     .digest("hex");
 const invalid = { reason: "record_invalid", status: "unavailable" };
+
+describe.each(vectors)("materialized replay definition inspection: $name", (vector) => {
+  it("matches acquisition synchronously without aliasing input or records", async () => {
+    const value = record(vector);
+    const command = input(value);
+    const inspected = inspectPolicyEvaluationReplayDefinition(command, value);
+    expect(inspected).toEqual(
+      await readPolicyEvaluationReplayDefinition(command, routed(vector, value)),
+    );
+    expect(inspected).toEqual({
+      observation: { recordSha256: hash(value), status: "verified" },
+      record: value,
+      source: command.source,
+    });
+    if (!inspected.record) throw new Error("expected verified definition");
+    inspected.record.scope.tenantId = "ten_returned";
+    inspected.source.reference.definitionSha256 = "f".repeat(64);
+    expect(value).toEqual(record(vector));
+    expect(command).toEqual(input(value));
+  });
+  for (const change of [
+    { definitionSha256: "f".repeat(64) },
+    { schemaVersion: "999" },
+    { approved: true },
+    { approved: undefined },
+    { createdAt: "bad" },
+    vector.kind === "replay_plan" ? { planId: "plan_tampered" } : { targetId: "target_tampered" },
+  ]) {
+    it(`revalidates schema and digest: ${JSON.stringify(change)}`, async () => {
+      const value = record(vector);
+      const raw = { ...value, ...change };
+      const inspected = inspectPolicyEvaluationReplayDefinition(input(value), raw);
+      expect(inspected.observation).toEqual(invalid);
+      expect(inspected).toEqual(
+        await readPolicyEvaluationReplayDefinition(input(value), routed(vector, raw)),
+      );
+    });
+  }
+  for (const raw of [undefined, false, 0, "invalid", {}]) {
+    it(`rejects malformed bodies: ${JSON.stringify(raw)}`, () => {
+      expect(
+        inspectPolicyEvaluationReplayDefinition(input(record(vector)), raw).observation,
+      ).toEqual(invalid);
+    });
+  }
+  it("describes a supplied null without claiming storage completeness", () => {
+    const command = input(record(vector));
+    expect(inspectPolicyEvaluationReplayDefinition(command, null)).toEqual({
+      observation: { status: "missing" },
+      record: null,
+      source: command.source,
+    });
+  });
+  it("rejects the other definition family without fallback", () => {
+    const other = vectors.find((item) => item.kind !== vector.kind) as Vector;
+    expect(
+      inspectPolicyEvaluationReplayDefinition(input(record(vector)), record(other)).observation,
+    ).toEqual(invalid);
+  });
+  it("owns context before accessing records and propagates unexpected exceptions", () => {
+    const value = record(vector);
+    const failure = new Error("record accessor failure");
+    expect(() =>
+      inspectPolicyEvaluationReplayDefinition(input(value), {
+        ...value,
+        get schemaVersion() {
+          throw failure;
+        },
+      }),
+    ).toThrow(failure);
+    const command = input(value);
+    const raw = {
+      ...value,
+      get schemaVersion() {
+        command.evaluationTime = "2000-01-01T00:00:00Z";
+        command.scope.tenantId = "ten_changed";
+        command.source.reference.definitionSha256 = "f".repeat(64);
+        return value.schemaVersion;
+      },
+    };
+    expect(inspectPolicyEvaluationReplayDefinition(command, raw).observation).toEqual({
+      recordSha256: hash(value),
+      status: "verified",
+    });
+  });
+});
 
 describe.each(vectors)("replay definition acquisition: $name", (vector) => {
   it("reads one exact immutable version with a full canonical record hash", async () => {
@@ -165,6 +252,10 @@ describe.each(vectors)("replay definition acquisition: $name", (vector) => {
           [key]: key === "definitionSha256" ? "f".repeat(64) : "different_identity",
         });
       }
+      expect(inspectPolicyEvaluationReplayDefinition(command, value).observation).toEqual({
+        reason: "reference_mismatch",
+        status: "unavailable",
+      });
       expect(
         (await readPolicyEvaluationReplayDefinition(command, routed(vector, value))).observation,
       ).toEqual({ reason: "reference_mismatch", status: "unavailable" });
@@ -175,6 +266,10 @@ describe.each(vectors)("replay definition acquisition: $name", (vector) => {
       const value = record(vector);
       const command = input(value);
       command.scope[key] = "different_scope";
+      expect(inspectPolicyEvaluationReplayDefinition(command, value).observation).toEqual({
+        reason: "reference_mismatch",
+        status: "unavailable",
+      });
       expect(await readPolicyEvaluationReplayDefinition(command, routed(vector, value))).toEqual({
         observation: { reason: "reference_mismatch", status: "unavailable" },
         record: null,
@@ -186,6 +281,10 @@ describe.each(vectors)("replay definition acquisition: $name", (vector) => {
     const value = record(vector);
     const command = input(value);
     command.evaluationTime = "2026-09-08T00:00:00.122999999999999999999999999999Z";
+    expect(inspectPolicyEvaluationReplayDefinition(command, value).observation).toEqual({
+      reason: "not_yet_available",
+      status: "unavailable",
+    });
     expect(
       (await readPolicyEvaluationReplayDefinition(command, routed(vector, value))).observation,
     ).toEqual({ reason: "not_yet_available", status: "unavailable" });
@@ -193,6 +292,10 @@ describe.each(vectors)("replay definition acquisition: $name", (vector) => {
   it("hashes receipt-only changes rather than only the definition", async () => {
     const value = record(vector);
     const changed = { ...value, createdByPrincipalId: "usr_changed_receipt" };
+    expect(inspectPolicyEvaluationReplayDefinition(input(value), changed).observation).toEqual({
+      recordSha256: hash(changed),
+      status: "verified",
+    });
     const observed = await readPolicyEvaluationReplayDefinition(
       input(value),
       routed(vector, changed),
