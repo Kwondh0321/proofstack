@@ -248,6 +248,13 @@ export const ReplayJobSnapshotSchema = z
     validateBudgetLedger(value.job, attemptsById, value.budgetLedger, context);
 
     const cancellation = value.cancellationRequest;
+    if (cancellation && !["running", "cancelled"].includes(value.job.status)) {
+      addIssue(
+        context,
+        ["cancellationRequest"],
+        "A retained cancellation request requires a running or cancelled job",
+      );
+    }
     if (
       cancellation &&
       (cancellation.jobId !== value.job.jobId ||

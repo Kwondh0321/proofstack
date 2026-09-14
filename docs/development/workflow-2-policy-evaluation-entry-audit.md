@@ -97,6 +97,15 @@ must not imply simultaneous authority. Regression tests cover both running and s
 attempts, exact-time replacement, earlier closure, and one-millisecond overlap. This is a read
 integrity prerequisite, not a completed replay-result reader or proof that a stale OS process stopped.
 
+The subsequent [replay-result reader](workflow-2-policy-evaluation-replay-result-reader.md) now
+validates complete retained snapshots against exact successful terminal references, including
+all receipt times and per-read history/UTF-8 admission limits. It hashes the complete normalized
+record and preserves missing, invalid, mismatched, future, and operational-failure boundaries.
+Its cross-check also closed a shared snapshot-validation gap: retained cancellation intent now
+requires a running or cancelled job, matching the existing memory and PostgreSQL mutation rules.
+This does not complete recursive source acquisition, retained-byte verification, guarded sealing,
+the evaluator, or durable policy-worker acceptance.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

@@ -275,6 +275,11 @@ function completedSnapshot(): ReplayJobSnapshot {
   const attempt = requireValue(running.attempts[0], "running attempt");
   return {
     ...running,
+    // Success cannot inherit a cancellation request that would have won the terminal commit.
+    cancellationAcknowledgements: [],
+    cancellationRequest: null,
+    executionObservations: [],
+    usageObservations: [],
     attempts: [
       {
         ...attempt,
@@ -390,6 +395,73 @@ function requireValue<T>(value: T | null | undefined, label: string): T {
 }
 
 describe("ReplayJobSnapshotSchema", () => {
+  it("rejects cancellation intent on a still-queued job", () => {
+    rejects({ ...queuedSnapshot(), cancellationRequest: runningSnapshot().cancellationRequest });
+  });
+  it.each([
+    ["succeeded", "completed", null],
+    ["failed", "execution_failed", "worker_internal_error"],
+    ["timed_out", "deadline_reached", "deadline_exceeded"],
+    ["budget_exhausted", "budget_limit_reached", "budget_exhausted"],
+  ] as const)("rejects cancellation intent with a %s terminal job", (status, code, errorCode) => {
+    const snapshot = completedSnapshot();
+    const attempt = requireValue(snapshot.attempts[0], "completed attempt");
+    rejects({
+      ...snapshot,
+      cancellationRequest: runningSnapshot().cancellationRequest,
+      attempts: [
+        {
+          ...attempt,
+          status,
+          ...(errorCode === null
+            ? {}
+            : {
+                result: undefined,
+                error: {
+                  code: errorCode,
+                  effectCertainty: "none",
+                  message: "Terminal control outcome",
+                },
+              }),
+        },
+      ],
+      job: { ...snapshot.job, status, terminal: { attemptId, code, committedAt: endedAt, status } },
+    });
+  });
+  it("accepts cancellation intent while running and after its cancelled terminal commit", () => {
+    const running = runningSnapshot();
+    const attempt = requireValue(running.attempts[0], "running attempt");
+    expect(ReplayJobSnapshotSchema.safeParse(running).success).toBe(true);
+    expect(
+      ReplayJobSnapshotSchema.safeParse({
+        ...running,
+        attempts: [
+          {
+            ...attempt,
+            endedAt,
+            retryDisposition: "not_retryable",
+            status: "cancelled",
+            error: {
+              code: "cancelled",
+              effectCertainty: "none",
+              message: "Cancellation won the commit",
+            },
+          },
+        ],
+        job: {
+          ...running.job,
+          currentLease: undefined,
+          status: "cancelled",
+          terminal: {
+            attemptId,
+            code: "cancellation_committed",
+            committedAt: endedAt,
+            status: "cancelled",
+          },
+        },
+      }).success,
+    ).toBe(true);
+  });
   for (const running of [false, true]) {
     for (const predecessorEnd of ["2026-08-30T01:00:02.999Z", observedAt]) {
       it(`accepts ${running ? "running" : "completed"} retries when prior closure is ${predecessorEnd}`, () => {

@@ -96,8 +96,9 @@ wrong schema store, changed semantics/digests, full-precision time edges, receip
 copies, input/callback mutation, read failures, and unexpected validator exceptions.
 
 These tests do not claim a new PostgreSQL integration, artifact-content verification, or policy
-worker. Still required are definition dependency expansion; exact replay-result/job/attempt
-validation; comparison/root/profile/installation source acquisition; hashless-selector resolution;
+worker. The follow-on [replay-result reader](workflow-2-policy-evaluation-replay-result-reader.md)
+adds exact terminal-result/job/attempt observations with per-read admission limits. Still required
+are definition dependency expansion; comparison/root/profile/installation source acquisition; hashless-selector resolution;
 complete parent-child re-derivation; global graph conflict detection; retained artifact-content
 expansion; lifecycle observations and revision guards; and a protected snapshot. The durable worker,
 database roles/recovery, API/SDK, contributor flow, and all other

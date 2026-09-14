@@ -93,6 +93,13 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 경우와 성공한 경우 모두에서 이전 종료, 동일 시각 교체, 1밀리초 중첩을 회귀 검사합니다.
 이는 읽기 무결성의 전제조건이며 재현 결과 읽기 완성이나 오래된 OS 프로세스의 종료 증명은 아닙니다.
 
+후속 [재현 결과 읽기](workflow-2-policy-evaluation-replay-result-reader.ko.md)는 보관된 전체
+스냅샷과 정확한 최종 성공 참조, 모든 기록 시각 및 읽기별 이력 개수·UTF-8 한도를 검증합니다.
+정규화된 전체 기록을 해시하고 부재·손상·불일치·미래 기록과 운영 오류를 구분합니다.
+교차 점검에서 공통 스냅샷 검증도 보강해 취소 의도가 있으면 실행 중·취소됨 상태만 허용하도록
+기존 메모리·PostgreSQL 상태 전이와 맞췄습니다.
+재귀 수집, 실제 보관 바이트 검증, 보호된 봉인, 규칙 평가와 영속 정책 워커 승인은 남아 있습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정
