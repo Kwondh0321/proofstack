@@ -26,6 +26,10 @@ import {
   RegressionTraceSnapshotSchema,
   type SourceSnapshot,
 } from "@proofstack/contracts";
+import {
+  type PolicyEvaluationReplayDeclaration,
+  parsePolicyEvaluationReplayDeclaration,
+} from "./policy-evaluation-replay-declaration.js";
 
 type ArtifactReference = SourceSnapshot["content"];
 type SourceKind = PolicyEvaluationSourceReference["kind"];
@@ -35,6 +39,7 @@ type SourceReferences = {
 
 /** Paths are JSON pointers into the validated parent record, never fetch URLs. */
 export type PolicyEvaluationEvidenceReference = { readonly path: string } & (
+  | { readonly kind: "replay_declaration"; readonly declaration: PolicyEvaluationReplayDeclaration }
   | { readonly kind: "record"; readonly source: PolicyEvaluationSourceReference }
   | { readonly kind: "artifact"; readonly reference: ArtifactReference }
   | { readonly kind: "criterion_selector"; readonly selector: CriterionVersionSelector }
@@ -162,6 +167,25 @@ export class PolicyEvaluationReferenceCollector {
     this.add(
       { kind: "artifact", path, reference: parsed },
       `artifact:${parsed.artifactId}`,
+      parsed,
+    );
+  }
+
+  replayDeclaration(path: string, declaration: PolicyEvaluationReplayDeclaration): void {
+    const parsed = parsePolicyEvaluationReplayDeclaration(declaration);
+    const identity =
+      parsed.kind === "endpoint_profile"
+        ? `replay_endpoint_profile:${canonical([parsed.reference.endpointProfileId, parsed.reference.endpointProfileVersion])}`
+        : parsed.kind === "credential_selector"
+          ? `replay_credential_version:${canonical(parsed.reference.credentialVersionId)}`
+          : undefined;
+    this.add(
+      {
+        kind: "replay_declaration",
+        path,
+        declaration: parsed,
+      },
+      identity,
       parsed,
     );
   }

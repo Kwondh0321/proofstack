@@ -62,8 +62,9 @@ charge every fetched event against cumulative record, byte and time budgets. Exa
 are allowed; exceeding a limit throws without returning a truncated inventory.
 
 The manifest's immutable source-kind inventory is unchanged. These occurrence variants are not
-additional manifest records, a sealed snapshot, or evidence that a dependency exists. Replay plan,
-target release and replay result enumeration, source acquisition, global conflicts, artifact-content
+additional manifest records, a sealed snapshot, or evidence that a dependency exists. The follow-on
+[replay enumerators](workflow-2-policy-evaluation-replay-references.md) cover direct plan, target,
+and result occurrences. Source acquisition, global conflicts, artifact-content
 expansion, installation/lifecycle authority, revision guards, deterministic rules, durable workers,
 persistence, API/SDK and the [checkpoint gates](workflow-2-policy-evaluation-entry-audit.md) remain open.
 

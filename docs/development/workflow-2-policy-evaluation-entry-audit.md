@@ -114,6 +114,10 @@ Its synchronous materialized-history inspector now shares the same captured-inpu
 including complete history and byte admission, and supports original-observation hash/source binding
 without another repository read. This is a prerequisite for replay-result dependency enumeration,
 not evidence that a supplied history came from an authorized store or includes every retained row.
+The [replay dependency enumerators](workflow-2-policy-evaluation-replay-references.md) now preserve
+direct plan/target/result records, content descriptors, prior attempts, and unresolved declarations
+with local conflicts and occurrence budgets. Digest-only or ID-only claims are not promoted to
+installed authority, emitted artifacts, retained bytes, or independently verified invocation hashes.
 This does not complete recursive source acquisition, retained-byte verification, guarded sealing,
 the evaluator, or durable policy-worker acceptance.
 

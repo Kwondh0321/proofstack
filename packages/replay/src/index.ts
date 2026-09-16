@@ -2,6 +2,7 @@ export * from "./create-replay-job.js";
 export * from "./errors.js";
 export * from "./execute-recorded-boundary-replay.js";
 export * from "./policy-evaluation-replay-definition-reader.js";
+export * from "./policy-evaluation-replay-references.js";
 export * from "./policy-evaluation-replay-result-reader.js";
 export * from "./preflight.js";
 export * from "./publish-replay-definitions.js";
