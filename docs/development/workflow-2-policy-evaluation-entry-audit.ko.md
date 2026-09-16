@@ -114,6 +114,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 격상하지 않습니다.
 재귀 수집, 실제 보관 바이트 검증, 보호된 봉인, 규칙 평가와 영속 정책 워커 승인은 남아 있습니다.
 
+[제어 기록 읽기](workflow-2-policy-evaluation-control-record-readers.ko.md)는 고정 도메인 검증기와
+원래 기록 시각으로 세 비교 종류·릴리스 후보·정책·설치 바인딩을 수집합니다. 기록 수집은
+44종 중 41종, 직접 의존 관계 열거는 44종 중 35종이며 체크포인트 완료율이 아닙니다.
+기록 검증은 비교 재계산·정책 효력·설치 권한·재귀 완전성·릴리스 승인을 뜻하지 않습니다.
+프로파일·런타임 어댑터 읽기와 제어 기록 의존 관계 및 아래의 수집·워커 검증 조건이 남아 있습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

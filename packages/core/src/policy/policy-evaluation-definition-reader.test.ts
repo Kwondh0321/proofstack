@@ -239,4 +239,56 @@ describe("domain-owned policy definition observations", () => {
     expect(value).toEqual(record());
     expect(command).toEqual(input());
   });
+  it("uses a fixed publication receipt without inserting a synthetic createdAt into the record", () => {
+    const { createdAt, ...fields } = record();
+    const published = { ...fields, publishedAt: createdAt };
+    const port = {
+      kinds: ["dataset_version"] as const,
+      isInvalidRecordError: () => false,
+      validate: () => structuredClone(published),
+      receiptTime: (value: typeof published) => value.publishedAt,
+    };
+    const inspected = inspectPolicyEvaluationDefinitionRecord(input(), published, port);
+    const expectedHash = createHash("sha256")
+      .update(
+        `{"datasetId":"dat_test","datasetVersionId":"datv_test","definitionSha256":"${"a".repeat(64)}","publishedAt":"${time}","scope":{"environmentId":"env_test","projectId":"prj_test","tenantId":"ten_test"}}`,
+      )
+      .digest("hex");
+    expect(inspected).toEqual({
+      source,
+      record: published,
+      observation: { status: "verified", recordSha256: expectedHash },
+    });
+    expect(inspected.record).not.toHaveProperty("createdAt");
+    expect(
+      inspectPolicyEvaluationDefinitionRecord(
+        { ...input(), evaluationTime: time.replace(/1Z$/, "0Z") },
+        published,
+        port,
+      ).observation,
+    ).toEqual({ status: "unavailable", reason: "not_yet_available" });
+  });
+  it("does not fall back to createdAt when an explicit receipt selector breaks its contract", () => {
+    const port = { ...adapter(), receiptTime: () => undefined as unknown as string };
+    expect(() => inspectPolicyEvaluationDefinitionRecord(input(), record(), port)).toThrow(
+      "Validated policy evaluation record omitted its receipt time",
+    );
+  });
+  it("rejects a trusted adapter that violates its default createdAt contract", () => {
+    const raw = record();
+    Reflect.deleteProperty(raw, "createdAt");
+    expect(() => inspectPolicyEvaluationDefinitionRecord(input(), raw, adapter())).toThrow(
+      "Validated policy evaluation record omitted its receipt time",
+    );
+  });
+  it("propagates unexpected receipt-selector failures unchanged", () => {
+    const failure = new Error("receipt selector failed");
+    const port = {
+      ...adapter(),
+      receiptTime: () => {
+        throw failure;
+      },
+    };
+    expect(() => inspectPolicyEvaluationDefinitionRecord(input(), record(), port)).toThrow(failure);
+  });
 });

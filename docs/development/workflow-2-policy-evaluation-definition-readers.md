@@ -130,8 +130,10 @@ These tests do not claim a new PostgreSQL integration, artifact-content verifica
 worker. The follow-on [replay-result reader](workflow-2-policy-evaluation-replay-result-reader.md)
 adds exact terminal-result/job/attempt observations with per-read admission limits. The
 [replay dependency enumerators](workflow-2-policy-evaluation-replay-references.md) now add direct
-plan/target/result occurrences and unresolved declarations. Still required are
-comparison/root/profile/installation source acquisition; hashless-selector resolution;
+plan/target/result occurrences and unresolved declarations. The
+[control-record readers](workflow-2-policy-evaluation-control-record-readers.md) add comparison,
+candidate, policy, and installation-binding acquisition. Still required are
+runtime/isolation profile and runtime-adapter acquisition; hashless-selector resolution;
 complete parent-child re-derivation; global graph conflict detection; retained artifact-content
 expansion; lifecycle observations and revision guards; and a protected snapshot. The durable worker,
 database roles/recovery, API/SDK, contributor flow, and all other

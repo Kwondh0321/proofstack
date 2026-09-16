@@ -121,6 +121,14 @@ installed authority, emitted artifacts, retained bytes, or independently verifie
 This does not complete recursive source acquisition, retained-byte verification, guarded sealing,
 the evaluator, or durable policy-worker acceptance.
 
+The [control-record readers](workflow-2-policy-evaluation-control-record-readers.md) now acquire
+the three comparison kinds, release candidates, policies, and installation bindings using fixed
+domain validators and original receipt fields. Record acquisition covers 41 of 44 manifest kinds;
+direct dependency enumeration remains 35 of 44. These counts do not measure checkpoint completion.
+Record verification is not comparison re-derivation, policy effectiveness, installation authority,
+recursive closure, or release approval. Profile/runtime-adapter readers and control dependencies
+remain prerequisites alongside the other capture and worker gates below.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

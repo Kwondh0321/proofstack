@@ -50,14 +50,18 @@ export class PolicyEvaluationDefinitionReadInputError extends TypeError {
 }
 
 /** Fixed, trusted domain validation; never accept this adapter from an external request. */
-export interface PolicyEvaluationDefinitionValidator<
+export type PolicyEvaluationDefinitionValidator<
   Source extends PolicyEvaluationSourceReference,
-  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
-> {
+  Record extends { readonly scope: EvidenceScope },
+> = {
   readonly kinds: readonly Source["kind"][];
   readonly validate: (source: Source, raw: unknown) => Record;
   readonly isInvalidRecordError: (cause: unknown) => boolean;
-}
+  /** Fixed domain receipt selection, never a caller-selected semantic/effective time. */
+  readonly receiptTime?: (record: Record) => string;
+} & ([Record] extends [{ readonly createdAt: string }]
+  ? unknown
+  : { readonly receiptTime: (record: Record) => string });
 
 /**
  * Internal acquisition primitive for domain-owned adapters, not a plugin or authorization API.
@@ -69,7 +73,7 @@ export interface PolicyEvaluationDefinitionValidator<
  */
 export async function readPolicyEvaluationDefinitionRecord<
   Source extends PolicyEvaluationSourceReference,
-  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
+  Record extends { readonly scope: EvidenceScope },
 >(
   input: PolicyEvaluationDefinitionReadInput<Source>,
   adapter: PolicyEvaluationDefinitionValidator<Source, Record> & {
@@ -89,7 +93,7 @@ export async function readPolicyEvaluationDefinitionRecord<
  */
 export function inspectPolicyEvaluationDefinitionRecord<
   Source extends PolicyEvaluationSourceReference,
-  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
+  Record extends { readonly scope: EvidenceScope },
 >(
   input: PolicyEvaluationDefinitionReadInput<Source>,
   raw: unknown,
@@ -118,7 +122,7 @@ function captureInput<Source extends PolicyEvaluationSourceReference>(
 
 function inspectCapturedRecord<
   Source extends PolicyEvaluationSourceReference,
-  Record extends { readonly createdAt: string; readonly scope: EvidenceScope },
+  Record extends { readonly scope: EvidenceScope },
 >(
   { evaluationTime, scope, source }: PolicyEvaluationDefinitionReadInput<Source>,
   raw: unknown,
@@ -155,8 +159,13 @@ function inspectCapturedRecord<
       source,
     };
   }
+  const receiptTime =
+    adapter.receiptTime === undefined ? fields["createdAt"] : adapter.receiptTime(record);
+  if (typeof receiptTime !== "string") {
+    throw new TypeError("Validated policy evaluation record omitted its receipt time");
+  }
   if (
-    policyEvaluationTimestampOrderKey(record.createdAt) >
+    policyEvaluationTimestampOrderKey(receiptTime) >
     policyEvaluationTimestampOrderKey(evaluationTime)
   ) {
     return {

@@ -116,7 +116,9 @@ I/O 전에 알 수 없는 최상위 입력 필드, 잘못된 범위·시각·참
 후속 [재현 결과 읽기](workflow-2-policy-evaluation-replay-result-reader.ko.md)가 정확한 최종
 결과·작업·시도 관찰과 읽기별 수용 한도를 추가합니다.
 [재현 의존 관계 추출기](workflow-2-policy-evaluation-replay-references.ko.md)는 계획·대상·결과의
-직접 참조와 미해결 선언을 추가합니다. 비교·루트·프로파일·설치 출처 수집,
+직접 참조와 미해결 선언을 추가합니다.
+[제어 기록 읽기](workflow-2-policy-evaluation-control-record-readers.ko.md)는 비교·후보·정책·설치
+바인딩 수집을 추가합니다. 런타임·격리 프로파일과 런타임 어댑터 수집,
 해시 없는 선택자 해소, 부모·자식 관계 재계산, 전역 충돌 검사, 보관 바이트 내부 참조 확장,
 수명주기·리비전 검사와 보호된 스냅샷이 남아 있습니다. 워커, DB 역할·복구, API·SDK, 기여자
 실행 흐름 및 [체크포인트 진입 검토](workflow-2-policy-evaluation-entry-audit.ko.md)의 모든

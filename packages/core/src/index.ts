@@ -50,6 +50,7 @@ export * from "./outbox/projection-cursor-repository.js";
 export * from "./policy/policy-evaluation-captured-record.js";
 export * from "./policy/policy-evaluation-comparison-lineage.js";
 export * from "./policy/policy-evaluation-comparison-selection.js";
+export * from "./policy/policy-evaluation-control-record-reader.js";
 export * from "./policy/policy-evaluation-definition-reader.js";
 export * from "./policy/policy-evaluation-evidence-reader.js";
 export * from "./policy/policy-evaluation-evidence-references.js";
