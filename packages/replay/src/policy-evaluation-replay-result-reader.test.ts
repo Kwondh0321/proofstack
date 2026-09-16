@@ -11,9 +11,12 @@ import {
   type TargetRelease,
   type TargetReleaseDefinition,
 } from "@proofstack/contracts";
+import { revalidatePolicyEvaluationCapturedRecord } from "@proofstack/core";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  inspectPolicyEvaluationReplayResult,
   type PolicyEvaluationReplayResultReadInput,
+  type PolicyEvaluationReplayResultSource,
   readPolicyEvaluationReplayResult,
 } from "./policy-evaluation-replay-result-reader.js";
 import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "./replay-budget.js";
@@ -271,6 +274,247 @@ function withPriorAttempt(): ReplayJobSnapshot {
   expect(ReplayJobSnapshotSchema.safeParse(value).success).toBe(true);
   return value;
 }
+
+describe("materialized policy replay-result inspection", () => {
+  it("synchronously reinspects memory, wire, and failed-prior-attempt histories with the same full hash", async () => {
+    for (const raw of [actual.completed, fixture(), withPriorAttempt()]) {
+      const expected = wire(raw);
+      const input = command(expected);
+      const inspected = inspectPolicyEvaluationReplayResult(input, raw);
+      expect(inspected).not.toBeInstanceOf(Promise);
+      expect(inspected).toEqual({
+        source: input.source,
+        record: expected,
+        observation: { status: "verified", recordSha256: hash(expected) },
+      });
+      expect(inspected).toEqual(await readPolicyEvaluationReplayResult(input, port(raw)));
+    }
+  });
+
+  it("distinguishes supplied absence, malformed bodies, non-success, and contradictory histories", () => {
+    const input = command(fixture());
+    expect(inspectPolicyEvaluationReplayResult(input, null)).toEqual({
+      source: input.source,
+      record: null,
+      observation: { status: "missing" },
+    });
+    const contradictory = fixture();
+    contradictory.cancellationRequest = withCancellation().cancellationRequest;
+    for (const raw of [
+      undefined,
+      false,
+      0,
+      "invalid",
+      [],
+      {},
+      contradictory,
+      {
+        ...fixture(),
+        approved: undefined,
+      },
+    ]) {
+      expect(inspectPolicyEvaluationReplayResult(input, raw)).toEqual({
+        source: input.source,
+        record: null,
+        observation: invalid,
+      });
+    }
+    for (const raw of [actual.queued, actual.running, withCancellation()]) {
+      expect(inspectPolicyEvaluationReplayResult(input, raw).observation).toEqual(mismatch);
+    }
+  });
+
+  it("retains exact identity, scope, and full-precision temporal admission during reinspection", () => {
+    const raw = fixture();
+    for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+      const input = command(raw);
+      input.scope[dimension] = "foreign_scope";
+      expect(inspectPolicyEvaluationReplayResult(input, raw).observation).toEqual(mismatch);
+    }
+    const otherArtifact = command(raw);
+    otherArtifact.source.reference.result.sha256 = sha("0");
+    expect(inspectPolicyEvaluationReplayResult(otherArtifact, raw).observation).toEqual(mismatch);
+    const otherVersion = command(raw);
+    otherVersion.source.reference.targetRelease.targetAdapter.version = "9.0.0";
+    expect(inspectPolicyEvaluationReplayResult(otherVersion, raw).observation).toEqual(mismatch);
+    const otherInstant = command(raw);
+    otherInstant.source.reference.completedAt = time("500000000000000000000000000001");
+    expect(inspectPolicyEvaluationReplayResult(otherInstant, raw).observation).toEqual(mismatch);
+    const earlierCut = command(raw);
+    earlierCut.evaluationTime = time("599999999999999999999999999999");
+    expect(inspectPolicyEvaluationReplayResult(earlierCut, raw).observation).toEqual(future);
+    const equivalentInstant = command(raw);
+    equivalentInstant.source.reference.completedAt = "2026-09-08T09:00:00.500+09:00";
+    expect(inspectPolicyEvaluationReplayResult(equivalentInstant, raw)).toEqual({
+      source: equivalentInstant.source,
+      record: raw,
+      observation: { status: "verified", recordSha256: hash(raw) },
+    });
+  });
+
+  it("validates input before touching a supplied body, even when it is null", () => {
+    const input = command(fixture());
+    const getter = vi.fn(() => {
+      throw new Error("Must not read a body with invalid input");
+    });
+    const raw = {
+      get job() {
+        return getter();
+      },
+    };
+    for (const bad of [
+      null,
+      { ...input, approved: true },
+      { ...input, scope: {} },
+      { ...input, evaluationTime: "invalid" },
+      { ...input, source: { kind: "replay_plan", reference: input.source.reference.plan } },
+      { ...input, limits: { ...limits, maximumRecords: 1 } },
+      { ...input, limits: { ...limits, maximumRecordBytes: Infinity } },
+      { ...input, limits: { ...limits, extra: 1 } },
+    ]) {
+      for (const body of [raw, null]) {
+        expect(() => inspectPolicyEvaluationReplayResult(bad as typeof input, body)).toThrow(
+          expect.objectContaining({ code: "policy_evaluation_replay_result_read_input_invalid" }),
+        );
+      }
+    }
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("owns the full context before body access and returns independent record and source values", () => {
+    const value = fixture();
+    const original = fixture();
+    const input = command(value);
+    const expectedSource = structuredClone(input.source);
+    const raw = {
+      ...value,
+      get job() {
+        input.scope.tenantId = "foreign_scope";
+        input.source.reference.result.sha256 = sha("0");
+        input.evaluationTime = "2000-01-01T00:00:00Z";
+        input.limits.maximumRecords = 2;
+        input.limits.maximumRecordBytes = 1;
+        return value.job;
+      },
+    };
+    const result = inspectPolicyEvaluationReplayResult(input, raw);
+    expect(result).toEqual({
+      source: expectedSource,
+      record: original,
+      observation: { status: "verified", recordSha256: hash(original) },
+    });
+    if (!result.record) throw new Error("Expected a retained record");
+    result.record.job.createdByPrincipalId = "usr_changed";
+    last(result.record).result = undefined;
+    result.source.reference.result.sha256 = sha("1");
+    expect(value).toEqual(original);
+    expect(input.source.reference.result.sha256).toBe(sha("0"));
+  });
+
+  it("reapplies complete history and UTF-8 limits, including failed attempts and cancellation rows", () => {
+    const prior = withPriorAttempt();
+    const error = prior.attempts[0]?.error;
+    if (!error) throw new Error("Expected the retained prior failure");
+    error.message = "이전 시도 실패 — retained prior failure";
+    for (const raw of [prior, withCancellation()]) {
+      const maximumRecords =
+        1 +
+        raw.attempts.length +
+        raw.budgetLedger.length +
+        raw.executionObservations.length +
+        raw.usageObservations.length +
+        raw.cancellationAcknowledgements.length +
+        Number(raw.cancellationRequest !== null);
+      const maximumRecordBytes = Buffer.byteLength(json(wire(raw)));
+      expect(maximumRecordBytes).toBeGreaterThan(json(wire(raw)).length);
+      const input = { ...command(fixture()), limits: { maximumRecords, maximumRecordBytes } };
+      expect(inspectPolicyEvaluationReplayResult(input, raw).observation).toEqual(
+        raw === prior ? { status: "verified", recordSha256: hash(wire(raw)) } : mismatch,
+      );
+      for (const [field, dimension] of [
+        ["maximumRecords", "records"],
+        ["maximumRecordBytes", "record_bytes"],
+      ] as const) {
+        const bounded = structuredClone(input);
+        bounded.limits[field] -= 1;
+        expect(() => inspectPolicyEvaluationReplayResult(bounded, raw)).toThrow(
+          expect.objectContaining({
+            code: "policy_evaluation_replay_result_read_limit_exceeded",
+            dimension,
+          }),
+        );
+      }
+    }
+  });
+
+  it("rejects oversized histories before element access and does not let body getters widen limits", () => {
+    const attempts = new Array(MAX_POLICY_EVALUATION_ACQUISITION_RECORDS);
+    const getter = vi.fn(() => {
+      throw new Error("Must not traverse oversized history");
+    });
+    Object.defineProperty(attempts, 0, { get: getter });
+    expect(() =>
+      inspectPolicyEvaluationReplayResult(command(fixture()), {
+        ...fixture(),
+        attempts,
+      }),
+    ).toThrow(expect.objectContaining({ dimension: "records" }));
+    expect(getter).not.toHaveBeenCalled();
+    const input = command(fixture());
+    input.limits.maximumRecordBytes = 1;
+    expect(() =>
+      inspectPolicyEvaluationReplayResult(input, {
+        ...fixture(),
+        get job() {
+          input.limits.maximumRecordBytes = limits.maximumRecordBytes;
+          return fixture().job;
+        },
+      }),
+    ).toThrow(expect.objectContaining({ dimension: "record_bytes" }));
+  });
+
+  it("propagates unexpected body-access failures without fabricating an observation", () => {
+    const error = new Error("Captured body access failed");
+    expect(() =>
+      inspectPolicyEvaluationReplayResult(command(fixture()), {
+        ...fixture(),
+        get job() {
+          throw error;
+        },
+      }),
+    ).toThrow(error);
+  });
+
+  it("binds reinspection to the original observation before later dependency traversal", async () => {
+    const raw = withPriorAttempt();
+    const input = command(raw);
+    const read = await readPolicyEvaluationReplayResult(input, port(raw));
+    const revalidate = (evidence: typeof read) =>
+      revalidatePolicyEvaluationCapturedRecord<
+        PolicyEvaluationReplayResultReadInput,
+        ReplayJobSnapshot,
+        PolicyEvaluationReplayResultSource
+      >(input, evidence, inspectPolicyEvaluationReplayResult);
+    expect(revalidate(read)).toEqual(read);
+    for (const field of ["receipt", "prior_failure"] as const) {
+      const changed = structuredClone(read);
+      if (!changed.record) throw new Error("Expected a captured body");
+      if (field === "receipt") changed.record.job.createdByPrincipalId = "usr_other_receipt";
+      else {
+        const error = changed.record.attempts[0]?.error;
+        if (!error) throw new Error("Expected a prior failure");
+        error.message = "Different retained failure";
+      }
+      // Exact successful-result identity is unchanged, but the original full-history hash is not.
+      expect(inspectPolicyEvaluationReplayResult(input, changed.record).observation.status).toBe(
+        "verified",
+      );
+      expect(() => revalidate(changed)).toThrow(
+        expect.objectContaining({ reason: "observation_mismatch" }),
+      );
+    }
+  });
+});
 
 describe("exact policy replay-result acquisition", () => {
   it("reads one exact scoped job and hashes its full retained history, not just the result reference", async () => {

@@ -76,6 +76,30 @@ transport, cumulative graph budget, wall-clock deadline, or cancellation mechani
 collector still needs bounded source materialization, total I/O/record/byte/time accounting, and
 consistent revision guards. Exceeding a budget must never trigger a more favorable source choice.
 
+## Reinspect captured history without another read
+
+`inspectPolicyEvaluationReplayResult(input, raw)` synchronously applies the same validation to a
+materialized job snapshot. It takes no repository, starts no replay, and makes no I/O calls. Both
+the inspector and repository reader first capture their own validated input, then use the same
+private record inspection implementation. The reader never recaptures caller-owned input after
+awaiting `findJob`. Record access cannot change the captured scope, exact source, semantic time,
+or admission limits.
+
+Reinspection still counts every retained history row before parsing, validates the complete strict
+snapshot, normalizes only schema-admitted optional undefined properties, reapplies the full-record
+UTF-8 limit, and checks terminal identity, scope, and receipt times. It produces a new observation
+and defensive normalized record, using the same hash for equivalent memory and JSON transport
+representations. Unexpected access failures propagate; malformed input and limit errors remain
+operational errors, not absence or a policy verdict.
+
+Supplying `null` yields a missing observation, but does **not** prove an authorized repository was
+consulted. Likewise, a valid supplied history does not prove storage provenance, history completeness,
+or current authority. Before dependency traversal, the shared
+`revalidatePolicyEvaluationCapturedRecord` boundary must compare the new observation's exact source
+and full-record hash with the original captured observation. Changing a receipt or prior failure can
+leave the successful result reference intact while invalidating this binding. A standalone inspector
+does not perform that comparison or derive recursive closure.
+
 ## Verification and remaining scope
 
 Cross-checking read semantics against the memory state machine and PostgreSQL completion functions
@@ -94,6 +118,12 @@ every non-success job status, historical-attempt substitution, unclosed/overlapp
 schema corruption, full-precision completion/capture edges, successful-history receipt categories, optional-field
 transport parity, defensive copies, input mutation, operational failures, and exact record/UTF-8
 byte admission edges. Canonical hashes use an independent sorted-JSON test oracle.
+
+The materialized-inspection tests additionally cross-check synchronous results against acquired
+memory/JSON/prior-failure histories, rejection before body access, input/limit isolation from body
+getters, output isolation, exact count/UTF-8 edges, unexpected exceptions, and original-observation
+binding after receipt-only or prior-failure mutation. The shared record inspection implementation
+retains the complete existing acquisition regression suite.
 
 `verified` is a record observation, **not** policy satisfaction, approval, execution attestation, or
 proof that a provider or stale OS process behaved as reported. The repository is trusted to return

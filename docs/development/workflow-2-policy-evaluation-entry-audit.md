@@ -110,6 +110,10 @@ all receipt times and per-read history/UTF-8 admission limits. It hashes the com
 record and preserves missing, invalid, mismatched, future, and operational-failure boundaries.
 Its cross-check also closed a shared snapshot-validation gap: retained cancellation intent now
 requires a running or cancelled job, matching the existing memory and PostgreSQL mutation rules.
+Its synchronous materialized-history inspector now shares the same captured-input validation path,
+including complete history and byte admission, and supports original-observation hash/source binding
+without another repository read. This is a prerequisite for replay-result dependency enumeration,
+not evidence that a supplied history came from an authorized store or includes every retained row.
 This does not complete recursive source acquisition, retained-byte verification, guarded sealing,
 the evaluator, or durable policy-worker acceptance.
 

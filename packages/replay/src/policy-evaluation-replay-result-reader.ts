@@ -21,6 +21,11 @@ export type PolicyEvaluationReplayResultSource = Extract<
   { readonly kind: "replay_result" }
 >;
 
+export type PolicyEvaluationReplayResultRead = PolicyEvaluationDefinitionRead<
+  ReplayJobSnapshot,
+  PolicyEvaluationReplayResultSource
+>;
+
 export interface PolicyEvaluationReplayResultReadInput {
   readonly evaluationTime: string;
   /** Per-read admission ceilings, supplied from the enclosing acquisition's remaining budget. */
@@ -113,9 +118,32 @@ function checkHistoryCount(raw: unknown, maximumRecords: number): void {
 export async function readPolicyEvaluationReplayResult(
   input: PolicyEvaluationReplayResultReadInput,
   repository: Pick<ReplayJobControlRepository, "findJob">,
-): Promise<PolicyEvaluationDefinitionRead<ReplayJobSnapshot, PolicyEvaluationReplayResultSource>> {
-  const { evaluationTime, limits, scope, source } = captureInput(input);
-  const raw = await repository.findJob(structuredClone(scope), source.reference.jobId);
+): Promise<PolicyEvaluationReplayResultRead> {
+  const captured = captureInput(input);
+  const raw = await repository.findJob(
+    structuredClone(captured.scope),
+    captured.source.reference.jobId,
+  );
+  return inspectCapturedReplayResult(captured, raw);
+}
+
+/**
+ * Reinspect a materialized job history without repository I/O or replay execution. A supplied
+ * value (including null) cannot establish that storage was consulted or its history is complete.
+ * This computes a new observation; capture integrity additionally requires comparing it with
+ * the original source and full-record hash before dependency traversal.
+ */
+export function inspectPolicyEvaluationReplayResult(
+  input: PolicyEvaluationReplayResultReadInput,
+  raw: unknown,
+): PolicyEvaluationReplayResultRead {
+  return inspectCapturedReplayResult(captureInput(input), raw);
+}
+
+function inspectCapturedReplayResult(
+  { evaluationTime, limits, scope, source }: PolicyEvaluationReplayResultReadInput,
+  raw: unknown,
+): PolicyEvaluationReplayResultRead {
   if (raw === null) return { observation: { status: "missing" }, record: null, source };
   checkHistoryCount(raw, limits.maximumRecords);
   const parsed = ReplayJobSnapshotSchema.safeParse(raw);
