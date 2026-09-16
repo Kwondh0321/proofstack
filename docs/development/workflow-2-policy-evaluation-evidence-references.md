@@ -12,6 +12,11 @@ references in all seventeen non-model evaluation and thirteen model/human-assura
 It is a pure operation over that record and its captured observation, not a child lookup or a
 proof that the references resolve.
 
+The follow-on [dataset enumerator](workflow-2-policy-evaluation-dataset-references.md) shares the
+captured-record integrity boundary and occurrence collector, adding dataset/fixture dependencies
+and explicit trace, prompt/tool, protocol and endpoint-profile declarations. Those additions do
+not change the thirty record kinds covered by this function or the manifest source-kind inventory.
+
 ## Revalidate the observed parent
 
 The caller supplies previously authorized scope, exact source reference, semantic evaluation time,

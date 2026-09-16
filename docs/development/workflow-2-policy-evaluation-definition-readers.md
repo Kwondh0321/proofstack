@@ -129,8 +129,12 @@ the caller's context. Existing two-store and real-publication acquisition tests 
 These tests do not claim a new PostgreSQL integration, artifact-content verification, or policy
 worker. The follow-on [replay-result reader](workflow-2-policy-evaluation-replay-result-reader.md)
 adds exact terminal-result/job/attempt observations with per-read admission limits. Still required
-are definition dependency expansion; comparison/root/profile/installation source acquisition; hashless-selector resolution;
+are replay definition/result dependency expansion; comparison/root/profile/installation source acquisition; hashless-selector resolution;
 complete parent-child re-derivation; global graph conflict detection; retained artifact-content
 expansion; lifecycle observations and revision guards; and a protected snapshot. The durable worker,
 database roles/recovery, API/SDK, contributor flow, and all other
 [checkpoint entry gates](workflow-2-policy-evaluation-entry-audit.md) remain required.
+
+The [dataset reference enumerator](workflow-2-policy-evaluation-dataset-references.md) now covers
+direct dataset/fixture dependencies after binding the reinspection to its captured observation.
+It does not acquire children or close the remaining graph and authority gaps above.

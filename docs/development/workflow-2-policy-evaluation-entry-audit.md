@@ -90,6 +90,13 @@ add exact dataset, both fixture formats, replay-plan, and target-release acquisi
 domain-owned read-only adapters without reversing core dependencies. Record observations still do
 not establish recursive lineage, artifact/ownership state, completed replay, or guarded sealing.
 
+The [dataset reference enumerator](workflow-2-policy-evaluation-dataset-references.md) now binds
+traversal to the captured parent observation and preserves members, predecessors, exact observed
+trace selectors, interaction content occurrences, and unresolved protocol/profile declarations.
+It retains failed attempts and duplicate aliases, rejects local semantic conflicts, and enforces
+occurrence budgets. It does not acquire children or complete replay-definition/result expansion,
+recursive capture, retained-byte verification, installation authority, or snapshot sealing.
+
 Before replay-result acquisition, the shared replay snapshot validator was hardened to reject a
 predecessor attempt without closure or with an end time after its replacement starts. Existing
 state transitions already close prior attempts when replacing them; malformed read histories

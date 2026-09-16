@@ -5,15 +5,25 @@ import {
   CriterionVersionSelectorSchema,
   type EvaluationRun,
   encodeEvaluationCanonicalJson,
+  type InteractionCaptureSource,
+  InteractionCaptureSourceSchema,
+  type InteractionPromptReference,
+  InteractionPromptReferenceSchema,
+  type InteractionToolContractReference,
+  InteractionToolContractReferenceSchema,
   MAX_POLICY_EVALUATION_ACQUISITION_RECORD_BYTES,
   MAX_POLICY_EVALUATION_ACQUISITION_RECORDS,
   type ModelEvaluatorSelector,
   ModelEvaluatorSelectorSchema,
+  type ModelInteractionAttempt,
+  ModelInteractionAttemptSchema,
   type OracleSpec,
   type PolicyEvaluationSourceReference,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
   type QualificationReport,
+  type RegressionTraceSnapshot,
+  RegressionTraceSnapshotSchema,
   type SourceSnapshot,
 } from "@proofstack/contracts";
 
@@ -32,6 +42,23 @@ export type PolicyEvaluationEvidenceReference = { readonly path: string } & (
   | { readonly kind: "evaluation_run_identity"; readonly evaluationRunId: string }
   | { readonly kind: "qualification_policy"; readonly reference: QualificationReport["policy"] }
   | { readonly kind: "registered_implementation"; readonly reference: OracleSpec["implementation"] }
+  | { readonly kind: "trace_snapshot_selector"; readonly selector: RegressionTraceSnapshot }
+  | {
+      readonly kind: "protocol_declaration";
+      readonly reference: InteractionCaptureSource["captureAdapter"];
+    }
+  | {
+      readonly kind: "endpoint_profile_selector";
+      readonly selector: Pick<
+        ModelInteractionAttempt["provider"],
+        "endpointProfileId" | "endpointProfileVersion"
+      >;
+    }
+  | { readonly kind: "interaction_prompt"; readonly reference: InteractionPromptReference }
+  | {
+      readonly kind: "interaction_tool_contract";
+      readonly reference: InteractionToolContractReference;
+    }
 );
 
 /** Limits apply to reference occurrences and their canonical UTF-8 bytes, not unique records. */
@@ -188,6 +215,56 @@ export class PolicyEvaluationReferenceCollector {
 
   implementation(path: string, reference: OracleSpec["implementation"]): void {
     this.add({ kind: "registered_implementation", path, reference });
+  }
+
+  traceSnapshot(path: string, selector: RegressionTraceSnapshot): void {
+    this.add({
+      kind: "trace_snapshot_selector",
+      path,
+      selector: RegressionTraceSnapshotSchema.parse(selector),
+    });
+  }
+
+  protocol(path: string, reference: InteractionCaptureSource["captureAdapter"]): void {
+    this.add({
+      kind: "protocol_declaration",
+      path,
+      reference: InteractionCaptureSourceSchema.shape.captureAdapter.parse(reference),
+    });
+  }
+
+  endpointProfile(
+    path: string,
+    selector: Pick<
+      ModelInteractionAttempt["provider"],
+      "endpointProfileId" | "endpointProfileVersion"
+    >,
+  ): void {
+    this.add({
+      kind: "endpoint_profile_selector",
+      path,
+      selector: ModelInteractionAttemptSchema.shape.provider
+        .pick({ endpointProfileId: true, endpointProfileVersion: true })
+        .parse(selector),
+    });
+  }
+
+  prompt(path: string, reference: InteractionPromptReference): void {
+    const parsed = InteractionPromptReferenceSchema.parse(reference);
+    this.add(
+      { kind: "interaction_prompt", path, reference: parsed },
+      `interaction_prompt:${canonical([parsed.promptId, parsed.promptVersion])}`,
+      { definitionSha256: parsed.definitionSha256 },
+    );
+  }
+
+  toolContract(path: string, reference: InteractionToolContractReference): void {
+    const parsed = InteractionToolContractReferenceSchema.parse(reference);
+    this.add(
+      { kind: "interaction_tool_contract", path, reference: parsed },
+      `interaction_tool_contract:${canonical([parsed.toolId, parsed.toolVersion])}`,
+      { definitionSha256: parsed.definitionSha256 },
+    );
   }
 
   replay(path: string, reference: EvaluationRun["replay"]): void {

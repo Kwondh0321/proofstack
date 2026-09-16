@@ -47,6 +47,7 @@ export * from "./outbox/consumer-receipt-repository.js";
 export * from "./outbox/outbox-repository.js";
 export * from "./outbox/process-consumer-message.js";
 export * from "./outbox/projection-cursor-repository.js";
+export * from "./policy/policy-evaluation-captured-record.js";
 export * from "./policy/policy-evaluation-comparison-lineage.js";
 export * from "./policy/policy-evaluation-comparison-selection.js";
 export * from "./policy/policy-evaluation-definition-reader.js";
