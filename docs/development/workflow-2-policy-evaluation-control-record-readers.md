@@ -71,10 +71,11 @@ single-port routing, and original storage-error propagation. Shared-reader tests
 cover missing or failing receipt selectors and the absence of synthetic receipt fields.
 
 This adds six kinds to the prior 35 record-level acquisition kinds: **41 of 44** manifest source
-kinds have readers. Direct dependency enumeration remains **35 of 44**; these are narrow inventories,
+kinds have readers. The subsequent [control-reference enumerator](workflow-2-policy-evaluation-control-references.md)
+also brings direct dependency enumeration to **41 of 44**; these are narrow inventories,
 not phase or product completion percentages. Replay runtime profiles, replay isolation profiles,
-and runtime adapters still need acquisition. The six control kinds still need dependency
-enumeration. Recursive capture, unresolved-selector resolution, retained artifact bytes, global
+and runtime adapters still need acquisition and enumeration. Recursive capture,
+unresolved-selector resolution, retained artifact bytes, global
 budgets/conflicts, authority and lifecycle revision guards, snapshot sealing, deterministic rule
 execution, and durable worker/API/SDK integration remain separate requirements of the
 [checkpoint entry audit](workflow-2-policy-evaluation-entry-audit.md).

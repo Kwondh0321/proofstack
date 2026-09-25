@@ -124,9 +124,12 @@ the evaluator, or durable policy-worker acceptance.
 The [control-record readers](workflow-2-policy-evaluation-control-record-readers.md) now acquire
 the three comparison kinds, release candidates, policies, and installation bindings using fixed
 domain validators and original receipt fields. Record acquisition covers 41 of 44 manifest kinds;
-direct dependency enumeration remains 35 of 44. These counts do not measure checkpoint completion.
+direct dependency enumeration also covers 41 of 44 after the subsequent
+[control-reference enumerator](workflow-2-policy-evaluation-control-references.md). It preserves
+duplicate, failed, omitted, and unresolved occurrences without converting declarations into
+authority. These counts do not measure checkpoint completion.
 Record verification is not comparison re-derivation, policy effectiveness, installation authority,
-recursive closure, or release approval. Profile/runtime-adapter readers and control dependencies
+recursive closure, or release approval. Profile/runtime-adapter acquisition and enumeration
 remain prerequisites alongside the other capture and worker gates below.
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:

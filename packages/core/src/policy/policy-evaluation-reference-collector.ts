@@ -27,6 +27,10 @@ import {
   type SourceSnapshot,
 } from "@proofstack/contracts";
 import {
+  type PolicyEvaluationControlDeclaration,
+  parsePolicyEvaluationControlDeclaration,
+} from "./policy-evaluation-control-declaration.js";
+import {
   type PolicyEvaluationReplayDeclaration,
   parsePolicyEvaluationReplayDeclaration,
 } from "./policy-evaluation-replay-declaration.js";
@@ -39,6 +43,10 @@ type SourceReferences = {
 
 /** Paths are JSON pointers into the validated parent record, never fetch URLs. */
 export type PolicyEvaluationEvidenceReference = { readonly path: string } & (
+  | {
+      readonly kind: "control_declaration";
+      readonly declaration: PolicyEvaluationControlDeclaration;
+    }
   | { readonly kind: "replay_declaration"; readonly declaration: PolicyEvaluationReplayDeclaration }
   | { readonly kind: "record"; readonly source: PolicyEvaluationSourceReference }
   | { readonly kind: "artifact"; readonly reference: ArtifactReference }
@@ -188,6 +196,17 @@ export class PolicyEvaluationReferenceCollector {
       identity,
       parsed,
     );
+  }
+
+  controlDeclaration(path: string, declaration: PolicyEvaluationControlDeclaration): void {
+    const parsed = parsePolicyEvaluationControlDeclaration(declaration);
+    const identity =
+      parsed.kind === "comparison_predecessor"
+        ? `control_comparison_predecessor:${parsed.reference.comparisonVersionId}`
+        : parsed.kind === "safety_event"
+          ? `control_safety_event:${parsed.reference.eventId}`
+          : undefined;
+    this.add({ kind: "control_declaration", path, declaration: parsed }, identity, parsed);
   }
 
   artifacts(path: string, references: readonly ArtifactReference[]): void {
