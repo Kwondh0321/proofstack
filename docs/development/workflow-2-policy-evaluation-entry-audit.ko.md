@@ -126,6 +126,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 실제 바이트·OS 집행을 증명하지 않습니다. 신뢰된 워커 조립·재귀 수집·권한 관찰·봉인과
 아래의 나머지 검증 조건은 미완료입니다.
 
+후속 [부모 결속 선택자 읽기](workflow-2-policy-evaluation-selector-reader.ko.md)는 재검사한 부모
+출현에서 기준·평가기 선택자, 실행 ID, 부분 비교 이전 버전을 고정 읽기 포트로 해석합니다.
+기준 포함·프로필 상호 참조·비교 계열·정확한 ID와 해시·범위·수신 시각을 검증하며, 누락된
+선택자는 해시를 지어내지 않고 미해결 목록으로 보존합니다. 직접 연결 수집의 선행 작업이지
+재귀 그래프·원문·권한 수집, 봉인 또는 체크포인트 완료는 아닙니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

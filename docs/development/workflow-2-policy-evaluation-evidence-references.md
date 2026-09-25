@@ -59,6 +59,10 @@ embedded references are not parsed or validated by this helper.
 
 ## Order, conflicts, and bounded accounting
 
+The follow-on [parent-bound selector reader](workflow-2-policy-evaluation-selector-reader.md)
+resolves criterion/evaluator selectors and run identities from these exact occurrences. Enumeration
+alone still performs no child lookup; resolved direct edges do not complete recursive lineage.
+
 Identical references at different parent locations remain separate occurrences. The helper does
 not silently deduplicate evidence and counterevidence or remove a failed attempt. Record identity
 uses the source kind and immutable lookup ID; reuse with a different full reference is a conflict.

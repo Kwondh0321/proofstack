@@ -138,6 +138,13 @@ catalogue, fixed exact readers, and direct artifact occurrences. Both inventorie
 and does not establish installation, artifact bytes, or OS enforcement. Trusted worker composition,
 recursive capture, authority observations, sealing and the other gates below remain open.
 
+The [parent-bound selector reader](workflow-2-policy-evaluation-selector-reader.md) now resolves
+criterion/evaluator selectors, run identities, and partial comparison predecessors from revalidated
+parent occurrences through fixed read-only ports. It verifies criterion membership, reciprocal
+model profiles, comparison families, exact IDs/digests, scope, and receipt cuts. Missing selectors
+retain their unresolved frontier without invented hashes. This closes a direct-edge acquisition
+prerequisite, not recursive graph/byte/authority capture, sealing, or checkpoint acceptance.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

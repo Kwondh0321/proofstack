@@ -55,6 +55,10 @@ metadata로 남깁니다. Calibration method의 implementation/configuration 해
 
 ## 순서·충돌·한도
 
+후속 [부모 결속 선택자 읽기](workflow-2-policy-evaluation-selector-reader.ko.md)는 이 정확한
+출현에서 기준·평가기 선택자와 실행 ID를 해석합니다. 열거 자체는 자식을 조회하지 않으며
+직접 연결을 확인해도 재귀 계보 전체가 완성되는 것은 아닙니다.
+
 같은 참조가 다른 위치에 있으면 각각의 출현을 유지합니다. 증거·반대 근거를 중복 제거하거나
 실패 시도를 버리지 않습니다. Record identity는 종류와 불변 조회 ID로 판단하며, 같은 identity의
 전체 참조가 다르면 충돌입니다. Artifact identity는 `artifactId`이고 digest가 같아도 다른

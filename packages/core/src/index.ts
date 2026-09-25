@@ -59,6 +59,7 @@ export * from "./policy/policy-evaluation-evidence-references.js";
 export * from "./policy/policy-evaluation-manifest.js";
 export * from "./policy/policy-evaluation-request-record-validation.js";
 export * from "./policy/policy-evaluation-runtime-reader.js";
+export * from "./policy/policy-evaluation-selector-reader.js";
 export * from "./policy/policy-exact-arithmetic.js";
 export * from "./policy/record-release-policy.js";
 export * from "./policy/release-policy-authority.js";
