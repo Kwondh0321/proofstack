@@ -58,6 +58,7 @@ export * from "./policy/policy-evaluation-evidence-reader.js";
 export * from "./policy/policy-evaluation-evidence-references.js";
 export * from "./policy/policy-evaluation-manifest.js";
 export * from "./policy/policy-evaluation-request-record-validation.js";
+export * from "./policy/policy-evaluation-runtime-reader.js";
 export * from "./policy/policy-exact-arithmetic.js";
 export * from "./policy/record-release-policy.js";
 export * from "./policy/release-policy-authority.js";
@@ -70,6 +71,8 @@ export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";
 export * from "./release/release-candidate-source-references.js";
+export * from "./runtime/runtime-definition-catalogue.js";
+export * from "./runtime/runtime-definition-record.js";
 export { MemoryComparisonRepository } from "./testing/memory-comparison-repository.js";
 export {
   type EvaluationRecordReference,

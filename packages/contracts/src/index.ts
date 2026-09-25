@@ -47,3 +47,5 @@ export * from "./replay-job-snapshot.js";
 export * from "./replay-plan.js";
 export * from "./replay-worker-protocol.js";
 export * from "./replay-worker-protocol-v2.js";
+export * from "./runtime-definition.js";
+export * from "./runtime-definition-encoding.js";

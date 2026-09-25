@@ -45,3 +45,4 @@ invalidate an ADR present in this directory.
 - [ADR-0020: Compare exact evidence without making release decisions](0020-exact-evidence-comparison.md)
 - [ADR-0021: Separate release policy, decision, attestation, and enforcement authority](0021-separate-release-policy-authority.md)
 - [ADR-0022: Evaluate policies against sealed evidence with separate worker authority](0022-snapshot-bound-policy-evaluation.md)
+- [ADR-0023: Retain runtime definitions separately from installation authority](0023-retain-runtime-definitions-separately-from-installation.md)

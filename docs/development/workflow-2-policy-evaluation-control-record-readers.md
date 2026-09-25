@@ -73,8 +73,9 @@ cover missing or failing receipt selectors and the absence of synthetic receipt 
 This adds six kinds to the prior 35 record-level acquisition kinds: **41 of 44** manifest source
 kinds have readers. The subsequent [control-reference enumerator](workflow-2-policy-evaluation-control-references.md)
 also brings direct dependency enumeration to **41 of 44**; these are narrow inventories,
-not phase or product completion percentages. Replay runtime profiles, replay isolation profiles,
-and runtime adapters still need acquisition and enumeration. Recursive capture,
+not phase or product completion percentages. The subsequent
+[runtime-definition boundary](workflow-2-policy-evaluation-runtime-definitions.md) adds runtime profiles,
+isolation profiles, and adapters, bringing both inventories to 44 of 44. Recursive capture,
 unresolved-selector resolution, retained artifact bytes, global
 budgets/conflicts, authority and lifecycle revision guards, snapshot sealing, deterministic rule
 execution, and durable worker/API/SDK integration remain separate requirements of the

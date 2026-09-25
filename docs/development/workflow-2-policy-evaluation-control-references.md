@@ -79,9 +79,10 @@ all policy predicate branches, both criterion-bearing metric forms, all snapshot
 one-sided/invalid cases, artifact availability forms, aliases, predecessors, repeated sources,
 arrays beyond index nine, exact/overflow budgets, conflicts, substitution, mutation, and failures.
 
-Record acquisition and direct enumeration now each cover **41 of 44** manifest kinds. Runtime
-profiles, isolation profiles, and runtime adapters remain. These are implementation inventories,
-not phase completion percentages. Recursive child acquisition, selector resolution, retained-byte
+This boundary brings record acquisition and direct enumeration to **41 of 44** manifest kinds.
+The subsequent [runtime-definition boundary](workflow-2-policy-evaluation-runtime-definitions.md)
+adds the remaining three kinds and brings both inventories to **44 of 44**. These are implementation
+inventories, not phase completion percentages. Recursive child acquisition, selector resolution, retained-byte
 verification, global closure/conflict budgets, authority/lifecycle revision guards, snapshot
 sealing, deterministic rules, durable worker/API/SDK composition, and real-service checkpoint
 acceptance remain required by the [entry audit](workflow-2-policy-evaluation-entry-audit.md).

@@ -129,8 +129,14 @@ direct dependency enumeration also covers 41 of 44 after the subsequent
 duplicate, failed, omitted, and unresolved occurrences without converting declarations into
 authority. These counts do not measure checkpoint completion.
 Record verification is not comparison re-derivation, policy effectiveness, installation authority,
-recursive closure, or release approval. Profile/runtime-adapter acquisition and enumeration
-remain prerequisites alongside the other capture and worker gates below.
+recursive closure, or release approval.
+
+The subsequent [runtime-definition boundary](workflow-2-policy-evaluation-runtime-definitions.md)
+adds actual retained runtime/isolation profile and adapter bodies, a bounded immutable operator
+catalogue, fixed exact readers, and direct artifact occurrences. Both inventories now cover 44 of
+44 source kinds. The catalogue does not replace the existing candidate allowlist or target launcher,
+and does not establish installation, artifact bytes, or OS enforcement. Trusted worker composition,
+recursive capture, authority observations, sealing and the other gates below remain open.
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
