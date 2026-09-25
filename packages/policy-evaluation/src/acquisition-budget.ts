@@ -72,9 +72,19 @@ export class AcquisitionBudget {
         if (typeof method !== "function") return method;
         return (...args: unknown[]) => {
           const task = (async () => {
-            this.reserveRecords(1);
+            const requestedEvents =
+              property === "resolveExactEvents" && Array.isArray(args[2]) ? args[2].length : 0;
+            // Exact trace selectors are bounded before I/O. Reserve every requested row even for
+            // absent/invalid responses; a multi-event lookup is not a one-record budget shortcut.
+            this.reserveRecords(1 + requestedEvents);
             this.reads++;
             const value: unknown = await Reflect.apply(method, target, args);
+            if (
+              property === "resolveExactEvents" &&
+              Array.isArray(value) &&
+              value.length > requestedEvents
+            )
+              this.reserveRecords(value.length - requestedEvents);
             this.measure(value);
             if (property === "findJob" && value !== null && typeof value === "object") {
               let rows = 0;

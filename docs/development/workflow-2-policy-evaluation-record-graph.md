@@ -100,9 +100,11 @@ PostgreSQL snapshot capture, a production deployment, or policy-evaluation check
 ## Remaining dependency order
 
 [Captured comparison integration](workflow-2-policy-comparison-capture.md) now connects complete
-selection and direct re-derivation without repository rereads. Complete cross-record semantics;
-acquire exact
-trace events, retained artifact bytes, and declaration/installation/source authority; collect
+selection and direct re-derivation without repository rereads. The higher-level
+[exact trace capture](workflow-2-policy-trace-capture.md) now reads verified-parent event selectors
+under this same acquisition budget; this graph-only entry point and its frontier counters remain
+metadata-only. Complete cross-record semantics; acquire retained artifact bytes and
+declaration/installation/source authority; collect
 mutable lifecycle state and guard against acquisition races; derive closure and seal the snapshot;
 evaluate all policy predicates; persist and run separately authorized durable jobs; expose and
 verify API/SDK, recovery, isolation, and end-to-end contributor paths. Release decisions,

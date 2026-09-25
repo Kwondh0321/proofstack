@@ -64,7 +64,9 @@ PostgreSQL 정책 worker나 종단 간 출시 테스트는 아닙니다.
 
 `lineage_verified`는 직접 비교 경계만 검증합니다. 하위 기록·선언·trace 선택·artifact 참조는
 아직 미해결일 수 있으며 통합 통과 판정이나 봉인된 snapshot을 만들지 않습니다. 전체 기록 간
-의미 검증, trace·artifact 실제 내용, 변경 가능한 권한·생명주기와 경쟁 조건 방어, snapshot 봉인,
+의미 검증은 별도입니다. 상위 [고정 trace 수집](workflow-2-policy-trace-capture.ko.md)은 같은 예산으로
+부모에 결속된 이벤트와 콘텐츠 참조 출현을 추가 수집하며 이 비교 전용 함수는 metadata만 다룹니다.
+전체 의미 검증, artifact 실제 내용, 변경 가능한 권한·생명주기와 경쟁 조건 방어, snapshot 봉인,
 정책 조건 평가, 작업 전체의 영속 예산, 별도 권한 worker·저장소, API·SDK, 복구·종단 간 검증은
 남아 있습니다. 수집 예산은 호출 단위 metadata 한도이며 의미 검증 CPU 제한 시간, 전송 메모리
 한도나 영속 재시도 장부가 아닙니다.

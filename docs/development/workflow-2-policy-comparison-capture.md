@@ -68,8 +68,11 @@ These are not live-provider, PostgreSQL policy-worker, or end-to-end release tes
 
 `lineage_verified` validates only the direct comparison boundary. The retained graph may still have
 unresolved downstream records, declarations, trace selectors, and artifact references. No aggregate
-pass verdict or sealed snapshot is emitted. Complete cross-record semantic closure, exact trace and
-artifact bytes, mutable authority/lifecycle acquisition and race guards, snapshot sealing,
+pass verdict or sealed snapshot is emitted. The higher-level
+[exact trace capture](workflow-2-policy-trace-capture.md) adds parent-bound event acquisition and
+content-reference occurrences under the same budget; this comparison-only entry point stays
+metadata-only. Complete cross-record semantic closure, artifact bytes, mutable authority/lifecycle
+acquisition and race guards, snapshot sealing,
 deterministic policy predicates, job-wide durable accounting, authorized worker persistence,
 API/SDK, recovery and end-to-end acceptance remain open. Acquisition budgets remain invocation-local
 metadata limits, not a semantic CPU deadline, wire-memory limit, or persistent retry ledger.

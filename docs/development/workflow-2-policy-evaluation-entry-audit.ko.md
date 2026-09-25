@@ -145,6 +145,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 유효하지 않은 상태도 유지합니다. 하위 의미·내용·권한 검증, 봉인, worker와 정책 평가 완료
 조건은 아직 미완료입니다.
 
+후속 [고정 트레이스 증거 수집](workflow-2-policy-trace-capture.ko.md)은 검증된 그래프 부모의
+이벤트 ID를 원래 순서대로 조회하고 범위·고정밀 접수 시각을 검사합니다. 전체 envelope 해시,
+겹치는 관측 변경 검사와 모든 콘텐츠 참조 출현을 보존하며 그래프 수집 예산을 공유합니다.
+누락·이용 불가는 구분하며 전체 trace 범위, 실제 artifact 바이트, 권한, 의미적 완전성이나
+봉인된 snapshot을 주장하지 않습니다. 아래의 정책·영속 worker 완료 조건은 남아 있습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

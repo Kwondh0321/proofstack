@@ -3,6 +3,7 @@ import {
   type PolicyEvaluationComparisonInventory,
   type PolicyEvaluationComparisonResolution,
   type PolicyEvaluationManifestEntry,
+  type PolicyEvaluationRequest,
   policyEvaluationSourceReferenceKey,
   type ReleaseCandidate,
 } from "@proofstack/contracts";
@@ -75,6 +76,14 @@ export async function capturePolicyComparisonEvidence(
 ): Promise<PolicyComparisonEvidenceCapture> {
   const request = validatePolicyEvaluationRequestRecord(input);
   const graph = await capturePolicyRecordGraph(request, repositories);
+  return resolveCapturedComparisonEvidence(request, graph);
+}
+
+/** Internal only: the graph must come from this invocation's fixed acquisition pipeline. */
+export function resolveCapturedComparisonEvidence(
+  request: PolicyEvaluationRequest,
+  graph: PolicyRecordGraph,
+): PolicyComparisonEvidenceCapture {
   const nodes = new Map(
     graph.nodes.map(({ read }) => [policyEvaluationSourceReferenceKey(read.source), read]),
   );

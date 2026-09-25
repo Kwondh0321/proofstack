@@ -17,6 +17,45 @@ const limits = PolicyEvaluationExecutionLimitsSchema.parse({
 });
 
 describe("record acquisition budget", () => {
+  it("reserves exact trace rows before I/O, including absent observations", async () => {
+    const budget = new AcquisitionBudget({ ...limits, maxAcquisitionRecords: 4 });
+    const resolveExactEvents = vi.fn(async (_scope, _trace, _ids) => null);
+    const port = budget.wrap({ resolveExactEvents });
+    await port.resolveExactEvents({}, "trace", ["one", "two"]);
+    expect(budget.usage()).toMatchObject({ records: 3, reads: 1, bytes: 4 });
+    await expect(port.resolveExactEvents({}, "trace", ["one"])).rejects.toMatchObject({
+      reason: "record_limit",
+    });
+    expect(resolveExactEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("charges oversized trace responses instead of trusting the requested row count", async () => {
+    const budget = new AcquisitionBudget({ ...limits, maxAcquisitionRecords: 3 });
+    const port = budget.wrap({
+      async resolveExactEvents(_scope: unknown, _trace: string, _ids: string[]) {
+        return [{}, {}, {}];
+      },
+    });
+    await expect(port.resolveExactEvents({}, "trace", ["one"])).rejects.toMatchObject({
+      reason: "record_limit",
+    });
+  });
+
+  it("charges every exact trace row and its full response bytes", async () => {
+    const budget = new AcquisitionBudget(limits);
+    const rows = [{ id: "one" }, { id: "two" }];
+    const port = budget.wrap({
+      async resolveExactEvents(_scope: unknown, _trace: string, _ids: string[]) {
+        return rows;
+      },
+    });
+    await port.resolveExactEvents({}, "trace", ["one", "two"]);
+    expect(budget.usage()).toMatchObject({
+      records: 3,
+      reads: 1,
+      bytes: Buffer.byteLength(JSON.stringify(rows)),
+    });
+  });
   it.each([
     null,
     undefined,

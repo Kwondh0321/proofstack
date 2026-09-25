@@ -88,8 +88,17 @@ export async function capturePolicyRecordGraph(
   repositories: PolicyRecordGraphRepositories,
 ): Promise<PolicyRecordGraph> {
   const request = validatePolicyEvaluationRequestRecord(candidate);
-  const { evaluationTime, scope } = request;
   const budget = new AcquisitionBudget(request.limits);
+  return acquirePolicyRecordGraph(request, repositories, budget);
+}
+
+/** Internal composition boundary: only request-owning entry points may supply this shared meter. */
+export async function acquirePolicyRecordGraph(
+  request: PolicyEvaluationRequest,
+  repositories: PolicyRecordGraphRepositories,
+  budget: AcquisitionBudget,
+): Promise<PolicyRecordGraph> {
+  const { evaluationTime, scope } = request;
   const ports = metered(repositories, budget);
   const limits = {
     maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,

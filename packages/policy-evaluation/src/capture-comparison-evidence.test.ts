@@ -1,9 +1,14 @@
 import {
   COMPARISON_RESULT_SCHEMA_VERSION,
+  EvidenceEnvelopeSchema,
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
+  REGRESSION_DATASET_VERSION_SCHEMA_VERSION,
+  REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION,
   type ComparisonEvidenceSnapshot,
   type ComparisonResult,
   type PolicyEvaluationRequestDefinition,
+  type RegressionDatasetVersionDefinition,
+  type RegressionFixtureVersionDefinition,
   type ReleaseCandidate,
   type ReleasePolicy,
 } from "@proofstack/contracts";
@@ -21,13 +26,20 @@ import {
   comparisonFixtureScope,
   comparisonSnapshotFixture,
   MemoryComparisonRepository,
+  MemoryEvidenceRepository,
   MemoryReleaseCandidateRepository,
   MemoryReleasePolicyRepository,
   releaseCandidateFixture,
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
+import {
+  digestRegressionDatasetVersionDefinition,
+  digestRegressionFixtureVersionDefinition,
+} from "@proofstack/datasets";
+import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyComparisonEvidence } from "./capture-comparison-evidence.js";
+import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
 type ReceiptKey =
@@ -237,6 +249,103 @@ async function harness(value = fixture()) {
 }
 
 describe("request-rooted comparison evidence capture", () => {
+  it("preserves verified direct comparison lineage while acquiring retained trace events in the same graph", async () => {
+    const value = fixture();
+    const traceId = "0123456789abcdef0123456789abcdef";
+    const fixtureDefinition: RegressionFixtureVersionDefinition = {
+      fixtureId: "fixture_captured_trace",
+      fixtureVersionId: "fixture_captured_trace_v1",
+      name: "Additional retained candidate evidence",
+      replayability: "evidence_only",
+      schemaVersion: REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION,
+      scope: value.scope,
+      source: {
+        kind: "trace_snapshot",
+        traceId,
+        eventIds: ["event_captured_trace"],
+        observedEventCount: 1,
+        sourceCompleteness: "observed_snapshot",
+      },
+    };
+    const retainedFixture = {
+      ...fixtureDefinition,
+      source: { ...fixtureDefinition.source, capturedAt: "2026-09-01T00:00:00.000Z" },
+      createdAt: "2026-09-01T00:00:00.000Z",
+      createdByPrincipalId: "principal_capture",
+      definitionSha256: digestRegressionFixtureVersionDefinition(fixtureDefinition),
+    };
+    const datasetDefinition: RegressionDatasetVersionDefinition = {
+      datasetId: "dataset_captured_trace",
+      datasetVersionId: "dataset_captured_trace_v1",
+      name: "Additional retained candidate dataset",
+      scope: value.scope,
+      schemaVersion: REGRESSION_DATASET_VERSION_SCHEMA_VERSION,
+      fixtureVersions: [
+        {
+          fixtureId: retainedFixture.fixtureId,
+          fixtureVersionId: retainedFixture.fixtureVersionId,
+          definitionSha256: retainedFixture.definitionSha256,
+        },
+      ],
+    };
+    const dataset = {
+      ...datasetDefinition,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      createdByPrincipalId: "principal_capture",
+      definitionSha256: digestRegressionDatasetVersionDefinition(datasetDefinition),
+    };
+    value.candidate.datasets.push({
+      datasetId: dataset.datasetId,
+      datasetVersionId: dataset.datasetVersionId,
+      definitionSha256: dataset.definitionSha256,
+    });
+    value.candidate.datasets.sort((left, right) => {
+      const a = `${left.datasetId}:${left.datasetVersionId}`;
+      const b = `${right.datasetId}:${right.datasetVersionId}`;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    const h = await harness(value);
+    const datasets = new MemoryRegressionVersionRepository();
+    await datasets.publishFixtureVersion(retainedFixture);
+    await datasets.publishDatasetVersion(dataset);
+    const evidence = new MemoryEvidenceRepository();
+    const envelope = EvidenceEnvelopeSchema.parse({
+      schemaVersion: "0.1",
+      scope: value.scope,
+      receivedAt: "2026-09-01T00:00:00.000Z",
+      evidence: {
+        eventId: "event_captured_trace",
+        traceId,
+        spanId: "0123456789abcdef",
+        kind: "agent.run",
+        name: "Retained event",
+        startedAt: "2026-09-01T00:00:00.000Z",
+        source: { sdkName: "fixture", sdkVersion: "1.0.0", serviceName: "capture" },
+      },
+    });
+    await evidence.append([envelope]);
+    const exact = vi.spyOn(evidence, "resolveExactEvents");
+    const output = await capturePolicyTraceEvidence(
+      h.request,
+      { ...h.repositories, datasets },
+      evidence,
+    );
+    if (
+      output.status !== "traces_captured" ||
+      output.comparisonCapture.status !== "inventory_captured"
+    )
+      throw new Error("Expected composed comparison and trace capture");
+    expect(output.comparisonCapture.comparisons[0]?.status).toBe("lineage_verified");
+    expect(output.traces).toHaveLength(1);
+    expect(output.traces[0]?.read.events).toEqual([envelope]);
+    expect(output.traces[0]?.read.observation.status).toBe("verified");
+    expect(h.repositories.control.comparison.findComparisonResult).toHaveBeenCalledTimes(1);
+    expect(exact).toHaveBeenCalledExactlyOnceWith(value.scope, traceId, ["event_captured_trace"]);
+    expect(output.usage.records).toBe(output.comparisonCapture.graph.usage.records + 2);
+    // Unrelated missing descendants remain visible; direct lineage is not complete closure.
+    expect(output.comparisonCapture.graph.unresolved.records).toBeGreaterThan(0);
+  });
+
   it("selects and rederives exact retained comparisons without rereading or promoting missing descendants", async () => {
     const h = await harness();
     const output = await capturePolicyComparisonEvidence(h.request, h.repositories);

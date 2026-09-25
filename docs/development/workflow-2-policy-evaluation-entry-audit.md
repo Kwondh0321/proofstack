@@ -159,6 +159,13 @@ unavailable observations into absence. It re-derives unique comparisons from cap
 and snapshots without requerying storage, retains non-unique and invalid outcomes, and leaves
 downstream semantic, content, authority, sealing, worker, and policy-evaluation gates open.
 
+The [exact retained trace capture](workflow-2-policy-trace-capture.md) now acquires the ordered event
+IDs from verified graph parents, checks scope and full-precision receipt cuts, hashes complete
+envelopes, detects changed overlapping observations, and retains every content-reference occurrence.
+It shares the graph acquisition budget and preserves missing/unavailable states. This does not
+claim complete-trace coverage, artifact bytes, authority, semantic closure, or a sealed snapshot;
+the remaining policy and durable-worker gates below stay open.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
