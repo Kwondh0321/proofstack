@@ -10,6 +10,7 @@ import {
   PolicyEvaluationComparisonInventorySchema,
   type PolicyEvaluationComparisonResolution,
   type PolicyEvaluationRequest,
+  PolicyEvaluationManifestEntrySchema,
   policyEvaluationTimestampOrderKey,
   type ReleaseCandidate,
   type ReleaseCandidateComparisonReference,
@@ -17,6 +18,11 @@ import {
   type ReleasePolicy,
 } from "@proofstack/contracts";
 import { validateComparisonRecord } from "../evaluation/comparison-record-validation.js";
+import { revalidatePolicyEvaluationCapturedRecord } from "./policy-evaluation-captured-record.js";
+import {
+  inspectPolicyEvaluationControlRecord,
+  type PolicyEvaluationControlRead,
+} from "./policy-evaluation-control-record-reader.js";
 import {
   releaseCandidateReference,
   validateReleaseCandidateRecord,
@@ -32,6 +38,7 @@ import {
 
 export type PolicyEvaluationComparisonSelectionErrorCode =
   | "candidate_inventory_mismatch"
+  | "captured_observation_invalid"
   | "invalid_candidate"
   | "invalid_policy"
   | "invalid_request"
@@ -65,6 +72,11 @@ export interface ResolvePolicyEvaluationComparisonsInput {
   readonly request: unknown;
 }
 
+export interface ResolveCapturedPolicyEvaluationComparisonsInput
+  extends Omit<ResolvePolicyEvaluationComparisonsInput, "acquisitions"> {
+  readonly acquisitions: readonly PolicyEvaluationControlRead[];
+}
+
 function exact(left: unknown, right: unknown): boolean {
   return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
     encodeEvaluationCanonicalJson(right),
@@ -83,7 +95,7 @@ function recordSha256(record: unknown): string {
   return createHash("sha256").update(encodeEvaluationCanonicalJson(record)).digest("hex");
 }
 
-function parseRoots(input: ResolvePolicyEvaluationComparisonsInput): {
+function parseRoots(input: Omit<ResolvePolicyEvaluationComparisonsInput, "acquisitions">): {
   readonly candidate: ReleaseCandidate;
   readonly policy: ReleasePolicy;
   readonly request: PolicyEvaluationRequest;
@@ -290,6 +302,77 @@ export function resolvePolicyEvaluationComparisons(
   const { candidate, policy, request } = parseRoots(input);
   validateRootBinding(request, candidate, policy);
   const members = candidateMembers(candidate, request, input.acquisitions);
+  return inventory(candidate, policy, request, members);
+}
+
+/**
+ * Reuse captured record observations without querying storage or relabelling an unavailable body
+ * as missing. Verified bodies must still match the original full-record hash and fixed inspector.
+ * This validates capture integrity, not acquisition provenance or release authority.
+ */
+export function resolveCapturedPolicyEvaluationComparisons(
+  input: ResolveCapturedPolicyEvaluationComparisonsInput,
+): PolicyEvaluationComparisonInventory {
+  const { candidate, policy, request } = parseRoots(input);
+  validateRootBinding(request, candidate, policy);
+  if (
+    !Array.isArray(input.acquisitions) ||
+    input.acquisitions.length !== candidate.comparisons.length
+  )
+    throw new PolicyEvaluationComparisonSelectionError(
+      "candidate_inventory_mismatch",
+      "Captured comparisons must include every candidate member in candidate order",
+    );
+  const acquisitions = input.acquisitions.map((raw, index) => {
+    try {
+      // Own all fields before reinspection; never reread a mutable caller-owned observation.
+      const captured = structuredClone(raw);
+      if (
+        !captured ||
+        Object.keys(captured).some((key) => !["record", "source", "observation"].includes(key))
+      )
+        throw new Error("Invalid capture envelope");
+      const entry = PolicyEvaluationManifestEntrySchema.parse({
+        source: captured.source,
+        observation: captured.observation,
+      });
+      if (
+        entry.source.kind !== "comparison_result" ||
+        !exact(entry.source.reference, candidate.comparisons[index])
+      )
+        throw new Error("Captured comparison source or order differs from the candidate inventory");
+      if (entry.observation.status !== "verified") {
+        if (captured.record !== null)
+          throw new Error("An unreadable observation must not retain a body");
+        return { reference: entry.source.reference, result: null, retained: entry.observation };
+      }
+      const checked = revalidatePolicyEvaluationCapturedRecord(
+        { evaluationTime: request.evaluationTime, scope: request.scope, source: entry.source },
+        captured,
+        inspectPolicyEvaluationControlRecord,
+      );
+      return { reference: entry.source.reference, result: checked.record, retained: null };
+    } catch (cause) {
+      throw new PolicyEvaluationComparisonSelectionError(
+        "captured_observation_invalid",
+        "Captured comparison observations must retain exact sources and original record hashes",
+        { cause },
+      );
+    }
+  });
+  const members = candidateMembers(candidate, request, acquisitions).map((member, index) => ({
+    ...member,
+    observation: acquisitions[index]?.retained ?? member.observation,
+  }));
+  return inventory(candidate, policy, request, members);
+}
+
+function inventory(
+  candidate: ReleaseCandidate,
+  policy: ReleasePolicy,
+  request: PolicyEvaluationRequest,
+  members: PolicyEvaluationCandidateComparisonMember[],
+): PolicyEvaluationComparisonInventory {
   try {
     return PolicyEvaluationComparisonInventorySchema.parse({
       candidate: releaseCandidateReference(candidate),

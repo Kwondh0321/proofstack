@@ -153,6 +153,12 @@ establish complete semantic closure, retained bytes, mutable authority, guarded 
 job-wide accounting, worker execution, or policy-evaluation acceptance. The roadmap count remains
 two accepted Workflow 2 checkpoints of seven.
 
+The subsequent [captured comparison integration](workflow-2-policy-comparison-capture.md) now
+selects the complete candidate comparison inventory from the acquired graph without converting
+unavailable observations into absence. It re-derives unique comparisons from captured definitions
+and snapshots without requerying storage, retains non-unique and invalid outcomes, and leaves
+downstream semantic, content, authority, sealing, worker, and policy-evaluation gates open.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

@@ -139,6 +139,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 권한, 경쟁 방어와 봉인, 영속 작업 전체 예산, 워커 실행 및 정책 평가 완료는 아직 증명하지
 않습니다. Workflow 2 완료 체크포인트 수는 7개 중 2개로 유지합니다.
 
+후속 [수집된 비교 증거 연결](workflow-2-policy-comparison-capture.ko.md)은 이용 불가 관측을
+단순 부재로 바꾸지 않고 수집된 그래프에서 후보의 전체 비교 목록을 선택합니다. 저장소를 다시
+조회하지 않고 수집한 정의와 snapshot에서 유일한 비교 결과를 다시 도출하며, 유일하지 않거나
+유효하지 않은 상태도 유지합니다. 하위 의미·내용·권한 검증, 봉인, worker와 정책 평가 완료
+조건은 아직 미완료입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

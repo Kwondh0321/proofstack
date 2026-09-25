@@ -49,6 +49,12 @@ result's snapshots or their upstream dependencies are valid.
 
 ## Complete-set classification
 
+`resolveCapturedPolicyEvaluationComparisons` accepts the fixed reader's captured observations
+instead of raw lookup bodies. It preserves unreadable reasons and revalidates original full-record
+hashes before using verified bodies. The higher-level
+[comparison capture](workflow-2-policy-comparison-capture.md) binds this pure check to request-rooted
+acquisition and re-derives uniquely selected results without additional reads.
+
 Policy comparison references are deduplicated only when their repository identity and exact
 logical ID/digest agree. Reusing one comparison version identity with different references is an
 integrity conflict. For every remaining definition, classification scans all candidate members:

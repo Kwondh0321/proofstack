@@ -29,7 +29,12 @@ import {
   type PolicyEvaluationComparisonAcquisition,
   PolicyEvaluationComparisonSelectionError,
   resolvePolicyEvaluationComparisons,
+  resolveCapturedPolicyEvaluationComparisons,
 } from "./policy-evaluation-comparison-selection.js";
+import {
+  inspectPolicyEvaluationControlRecord,
+  type PolicyEvaluationControlRead,
+} from "./policy-evaluation-control-record-reader.js";
 import {
   digestPolicyEvaluationRequestDefinition,
   policyEvaluationRequestReference,
@@ -226,6 +231,140 @@ function expectCode(
     expect((error as PolicyEvaluationComparisonSelectionError).code).toBe(code);
   }
 }
+
+function required<T>(value: T | null | undefined): T {
+  if (value === null || value === undefined)
+    throw new Error("Missing comparison test fixture member");
+  return value;
+}
+
+describe("captured comparison selection", () => {
+  function capture(value: ReturnType<typeof fixture>) {
+    return value.results.map((result) =>
+      inspectPolicyEvaluationControlRecord(
+        {
+          evaluationTime: value.request.evaluationTime,
+          scope: value.scope,
+          source: { kind: "comparison_result", reference: resultReference(result) },
+        },
+        result,
+      ),
+    );
+  }
+
+  it("matches raw selection and owns verified records without repository access", () => {
+    const value = fixture();
+    const acquisitions = capture(value);
+    const output = resolveCapturedPolicyEvaluationComparisons({ ...value, acquisitions });
+    expect(output).toEqual(
+      resolvePolicyEvaluationComparisons({ ...value, acquisitions: acquired(value.results) }),
+    );
+    required(acquisitions[0]).source.reference.definitionSha256 = "f".repeat(64);
+    expect(output.members[0]?.reference).toEqual(value.candidate.comparisons[0]);
+  });
+
+  it.each(["missing", "record_invalid", "reference_mismatch", "not_yet_available"] as const)(
+    "preserves %s for a second unreadable member and prevents a false unique selection",
+    (reason) => {
+      const value = fixture(2);
+      const acquisitions = capture(value);
+      const observation =
+        reason === "missing"
+          ? { status: "missing" as const }
+          : { status: "unavailable" as const, reason };
+      acquisitions[1] = { source: required(acquisitions[1]).source, record: null, observation };
+      const output = resolveCapturedPolicyEvaluationComparisons({ ...value, acquisitions });
+      expect(output.members[1]?.observation).toEqual(observation);
+      expect(output.policyComparisons[0]).toMatchObject({
+        status: "unresolved",
+        knownMatches: [value.candidate.comparisons[0]],
+        unresolvedMembers: [value.candidate.comparisons[1]],
+      });
+    },
+  );
+
+  it("preserves ambiguity and unresolved members together", () => {
+    const value = fixture(3);
+    const acquisitions = capture(value);
+    acquisitions[2] = {
+      source: required(acquisitions[2]).source,
+      record: null,
+      observation: { status: "missing" },
+    };
+    expect(
+      resolveCapturedPolicyEvaluationComparisons({ ...value, acquisitions }).policyComparisons[0],
+    ).toMatchObject({
+      status: "ambiguous",
+      matches: value.candidate.comparisons.slice(0, 2),
+      unresolvedMembers: value.candidate.comparisons.slice(2),
+    });
+  });
+
+  it.each(["empty", "not_array"])("rejects %s captured inventories", (kind) => {
+    const value = fixture();
+    expectCode(
+      () =>
+        resolveCapturedPolicyEvaluationComparisons({
+          ...value,
+          acquisitions: (kind === "empty" ? [] : null) as unknown as PolicyEvaluationControlRead[],
+        }),
+      "candidate_inventory_mismatch",
+    );
+  });
+
+  it.each([
+    "extra",
+    "null",
+    "kind",
+    "digest",
+    "order",
+    "hash",
+    "receipt",
+    "body",
+    "unknown_reason",
+    "verified_null",
+    "missing_body",
+  ])("rejects %s capture corruption", (kind) => {
+    const value = fixture(2);
+    const acquisitions = capture(value);
+    const first = required(acquisitions[0]);
+    if (kind === "extra") Object.assign(first, { authority: true });
+    if (kind === "null") acquisitions[0] = null as unknown as PolicyEvaluationControlRead;
+    if (kind === "kind") Object.assign(first.source, { kind: "assessment" });
+    if (kind === "digest") first.source.reference.definitionSha256 = "e".repeat(64);
+    if (kind === "order") acquisitions.reverse();
+    if (kind === "hash") Object.assign(first.observation, { recordSha256: "f".repeat(64) });
+    if (kind === "receipt")
+      Object.assign(required(first.record), { createdByPrincipalId: "principal_changed" });
+    if (kind === "body") Object.assign(required(first.record), { resultId: "result_changed" });
+    if (kind === "unknown_reason")
+      Object.assign(first.observation, { status: "unavailable", reason: "other" });
+    if (kind === "verified_null") Object.assign(first, { record: null });
+    if (kind === "missing_body") Object.assign(first, { observation: { status: "missing" } });
+    expectCode(
+      () => resolveCapturedPolicyEvaluationComparisons({ ...value, acquisitions }),
+      "captured_observation_invalid",
+    );
+  });
+
+  it("validates roots before captured body access", () => {
+    const value = fixture();
+    let touched = false;
+    expectCode(
+      () =>
+        resolveCapturedPolicyEvaluationComparisons({
+          ...value,
+          request: { ...value.request, definitionSha256: "f".repeat(64) },
+          get acquisitions() {
+            touched = true;
+            return capture(value);
+          },
+        }),
+      "invalid_request",
+    );
+    expect(touched).toBe(false);
+  });
+});
 
 describe("policy evaluation request record validation", () => {
   it("recomputes the request digest and returns its exact reference", () => {

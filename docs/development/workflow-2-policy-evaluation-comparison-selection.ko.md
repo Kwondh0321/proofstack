@@ -45,6 +45,11 @@ request의 원본 정밀도 `evaluationTime`보다 늦을 수 없습니다. 손�
 
 ## 전체 집합 분류
 
+`resolveCapturedPolicyEvaluationComparisons`는 단순 조회 본문 대신 고정 조회기가 수집한 관측을
+받습니다. 읽지 못한 이유를 유지하고 검증된 본문을 사용하기 전에 원본 전체 해시를 다시
+확인합니다. 상위 [비교 수집 함수](workflow-2-policy-comparison-capture.ko.md)는 이 순수 검사를
+요청 루트 기반 수집과 연결하고 추가 조회 없이 유일하게 선택된 결과를 다시 도출합니다.
+
 Policy의 comparison 참조는 저장소 identity와 정확한 논리 ID·해시가 모두 같을 때만 중복을
 합칩니다. 같은 comparison version identity에 다른 참조를 붙이면 무결성 충돌입니다. 남은 각
 정의는 candidate의 모든 구성원을 조사한 뒤 다음과 같이 분류합니다.
