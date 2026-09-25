@@ -3,6 +3,7 @@ export * from "./interaction-fixture-definition-digest.js";
 export * from "./interaction-fixture-revocation-identifiers.js";
 export * from "./policy-evaluation-dataset-reader.js";
 export * from "./policy-evaluation-dataset-references.js";
+export * from "./policy-evaluation-dataset-relations.js";
 export * from "./policy-evaluation-fixture-bindings.js";
 export * from "./publish-recorded-interaction-fixture-version.js";
 export * from "./publish-regression-dataset-version.js";

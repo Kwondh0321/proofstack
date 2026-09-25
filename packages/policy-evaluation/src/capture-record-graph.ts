@@ -18,6 +18,11 @@ import {
   readPolicyEvaluationSelector,
   validatePolicyEvaluationRequestRecord,
 } from "@proofstack/core";
+import {
+  inspectPolicyEvaluationDatasetRelations,
+  type PolicyDatasetRelations,
+  type PolicyEvaluationDatasetRead,
+} from "@proofstack/datasets";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
   type PolicyRecordExpansion,
@@ -47,6 +52,8 @@ export interface PolicyRecordGraph {
   /** Deterministic breadth-first parent order, preserving every occurrence within each parent. */
   readonly edges: readonly PolicyRecordGraphEdge[];
   readonly entries: readonly PolicyEvaluationManifestEntry[];
+  /** Exact membership/predecessor observations, not whole-graph semantic eligibility. */
+  readonly datasetRelations: PolicyDatasetRelations;
   readonly usage: ReturnType<AcquisitionBudget["usage"]>;
   readonly unresolved: { readonly records: number; readonly references: number };
 }
@@ -247,6 +254,17 @@ export async function acquirePolicyRecordGraph(
       nodes,
       edges,
       entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
+      datasetRelations: inspectPolicyEvaluationDatasetRelations(
+        { scope, evaluationTime },
+        nodes
+          .map(({ read }) => read)
+          .filter(
+            (read): read is PolicyEvaluationDatasetRead =>
+              read.source.kind === "dataset_version" ||
+              read.source.kind === "regression_fixture_version",
+          ),
+        limits,
+      ),
       usage: budget.usage(),
       unresolved: {
         records: nodes.filter(({ read }) => read.observation.status !== "verified").length,

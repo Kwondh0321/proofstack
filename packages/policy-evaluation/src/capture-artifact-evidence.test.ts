@@ -16,6 +16,7 @@ import {
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
+  policyEvaluationSourceReferenceKey,
   PrincipalContextSchema,
   type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
@@ -383,6 +384,8 @@ async function harness(recorded = false) {
     candidate,
     recordedPublication,
     fixtureContents,
+    fixture,
+    fixtureDefinition,
   };
 }
 
@@ -979,6 +982,29 @@ describe("fixture-bound artifact capture", () => {
     const output = await h.execute();
     if (output.status !== "artifacts_captured") throw new Error("Expected observations");
     expect(output.fixtureBindings).toEqual([]);
+    const relations = output.traceCapture.comparisonCapture.graph.datasetRelations;
+    expect(relations.unavailableParents).toContainEqual({
+      source: {
+        kind: "regression_fixture_version",
+        reference: {
+          fixtureId: "fixture_artifact",
+          fixtureVersionId: "fixture_artifact_v2",
+          definitionSha256: h.recordedPublication?.version.definitionSha256,
+        },
+      },
+      observation: { status: "missing" },
+    });
+    expect(relations.parents.flatMap((parent) => parent.relations)).toContainEqual({
+      kind: "dataset_member",
+      path: "/fixtureVersions/0",
+      source: relations.unavailableParents.find(
+        (parent) =>
+          parent.source.kind === "regression_fixture_version" &&
+          parent.source.reference.fixtureVersionId === "fixture_artifact_v2",
+      )?.source,
+      recordObservation: { status: "missing" },
+      observation: { status: "unavailable" },
+    });
     expect(
       output.traceCapture.comparisonCapture.graph.entries.some(
         (entry) =>
@@ -987,5 +1013,168 @@ describe("fixture-bound artifact capture", () => {
           entry.observation.status === "missing",
       ),
     ).toBe(true);
+  });
+});
+
+describe("dataset relationships retained through public capture", () => {
+  it("joins published dataset and promotion records with their exact graph provenance and no extra reads", async () => {
+    const h = await harness(true);
+    const datasetRead = vi.spyOn(h.repositories.datasets, "findDatasetVersion");
+    const fixtureRead = vi.spyOn(h.repositories.datasets, "findFixtureVersion");
+    const recordedRead = vi.spyOn(h.repositories.datasets, "findRecordedInteractionFixtureVersion");
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected captured evidence");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const report = graph.datasetRelations;
+    expect(report.parents).toHaveLength(3);
+    expect(report.parents.flatMap((parent) => parent.relations)).toHaveLength(2);
+    for (const parent of report.parents) {
+      const node = graph.nodes.find(
+        ({ read }) =>
+          policyEvaluationSourceReferenceKey(read.source) ===
+          policyEvaluationSourceReferenceKey(parent.source),
+      );
+      expect(node?.read.observation).toEqual({
+        status: "verified",
+        recordSha256: parent.recordSha256,
+      });
+      for (const relation of parent.relations) {
+        expect(relation.observation).toEqual({ status: "matched" });
+        expect(graph.edges).toContainEqual({
+          parent: parent.source,
+          parentRecordSha256: parent.recordSha256,
+          reference: { kind: "record", path: relation.path, source: relation.source },
+          target: relation.source,
+        });
+        const target = graph.nodes.find(
+          ({ read }) =>
+            policyEvaluationSourceReferenceKey(read.source) ===
+            policyEvaluationSourceReferenceKey(relation.source),
+        );
+        expect(relation.recordObservation).toEqual(target?.read.observation);
+      }
+    }
+    const datasetNodes = graph.nodes.filter(({ read }) => read.source.kind === "dataset_version");
+    const fixtureNodes = graph.nodes.filter(
+      ({ read }) => read.source.kind === "regression_fixture_version",
+    );
+    expect(datasetRead).toHaveBeenCalledTimes(datasetNodes.length);
+    expect(fixtureRead).toHaveBeenCalledTimes(fixtureNodes.length);
+    expect(recordedRead).toHaveBeenCalledTimes(fixtureNodes.length);
+    for (const read of [datasetRead, fixtureRead, recordedRead]) {
+      expect(new Set(read.mock.calls.map(([, id]) => id)).size).toBe(read.mock.calls.length);
+      for (const [actualScope] of read.mock.calls) expect(actualScope).toEqual(scope);
+    }
+    expect(output.usage.artifacts.reads).toBe(19);
+    expect(output).not.toHaveProperty("verdict");
+  });
+
+  it("detects a substituted snapshot receipt even when definition hashes, bytes and artifact ownership still match", async () => {
+    const h = await harness(true);
+    const baseline = await publicApi.capturePolicyRecordGraph(h.request, h.repositories);
+    const findRecorded = h.repositories.datasets.findRecordedInteractionFixtureVersion.bind(
+      h.repositories.datasets,
+    );
+    vi.spyOn(h.repositories.datasets, "findRecordedInteractionFixtureVersion").mockImplementation(
+      async (scope, id) => {
+        const captured = await findRecorded(scope, id);
+        // Controlled corrupt-adapter response, not a supported publication. The instant and
+        // definition are unchanged, but the copied full snapshot receipt differs from its parent.
+        if (captured) captured.version.source.capturedAt = "2026-09-05T00:00:00.0000Z";
+        return captured;
+      },
+    );
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected captured observations");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const parent = graph.datasetRelations.parents.find(
+      ({ source }) =>
+        source.kind === "regression_fixture_version" &&
+        source.reference.fixtureVersionId === "fixture_artifact_v2",
+    );
+    const original = baseline.datasetRelations.parents.find(
+      ({ source }) =>
+        source.kind === "regression_fixture_version" &&
+        source.reference.fixtureVersionId === "fixture_artifact_v2",
+    );
+    expect(parent?.source).toEqual(original?.source);
+    expect(parent?.recordSha256).not.toBe(original?.recordSha256);
+    expect(parent?.relations[0]?.observation).toEqual({
+      status: "mismatch",
+      reason: "trace_snapshot_mismatch",
+    });
+    expect(
+      output.fixtureBindings[0]?.artifacts.every((item) => item.observation.status === "matched"),
+    ).toBe(true);
+    for (const artifact of output.artifacts.filter(({ read }) => read.catalog?.ownership))
+      expect(artifact.read.observation.status).toBe("verified");
+    // Exact dataset membership is a direct relation, not transitive fixture eligibility.
+    expect(
+      graph.datasetRelations.parents.find(({ source }) => source.kind === "dataset_version")
+        ?.relations[0]?.observation,
+    ).toEqual({ status: "matched" });
+    expect(output).not.toHaveProperty("verdict");
+  });
+
+  it.each(["missing", "record_invalid", "reference_mismatch", "not_yet_available"])(
+    "retains an unreadable predecessor (%s) separately from verified child bytes",
+    async (reason) => {
+      const h = await harness(true);
+      const findFixture = h.repositories.datasets.findFixtureVersion.bind(h.repositories.datasets);
+      vi.spyOn(h.repositories.datasets, "findFixtureVersion").mockImplementation(
+        async (scope, id) => {
+          const captured = await findFixture(scope, id);
+          if (!captured) return null;
+          if (reason === "missing") return null;
+          if (reason === "record_invalid") Object.assign(captured, { unexpected: true });
+          if (reason === "reference_mismatch") {
+            captured.fixtureId = "fixture_other";
+            captured.definitionSha256 = digestRegressionFixtureVersionDefinition({
+              ...h.fixtureDefinition,
+              fixtureId: captured.fixtureId,
+            });
+          }
+          if (reason === "not_yet_available") captured.createdAt = "2027-01-01T00:00:00.000Z";
+          return captured;
+        },
+      );
+      const output = await h.execute();
+      if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+      const report = output.traceCapture.comparisonCapture.graph.datasetRelations;
+      const observation =
+        reason === "missing" ? { status: "missing" } : { status: "unavailable", reason };
+      const expectedSource = {
+        kind: "regression_fixture_version",
+        reference: {
+          fixtureId: h.fixture.fixtureId,
+          fixtureVersionId: h.fixture.fixtureVersionId,
+          definitionSha256: h.fixture.definitionSha256,
+        },
+      };
+      expect(report.unavailableParents).toContainEqual({ source: expectedSource, observation });
+      const predecessor = report.parents
+        .flatMap((parent) => parent.relations)
+        .find((relation) => relation.kind === "fixture_predecessor");
+      expect(predecessor).toEqual({
+        kind: "fixture_predecessor",
+        path: "/predecessor",
+        source: expectedSource,
+        recordObservation: observation,
+        observation: { status: "unavailable" },
+      });
+      expect(
+        output.fixtureBindings[0]?.artifacts.every((item) => item.observation.status === "matched"),
+      ).toBe(true);
+      expect(output).not.toHaveProperty("verdict");
+    },
+  );
+
+  it("does not turn predecessor storage failure into an unavailable or successful report", async () => {
+    const h = await harness(true);
+    const failure = new Error("Dataset storage unavailable");
+    vi.spyOn(h.repositories.datasets, "findFixtureVersion").mockRejectedValue(failure);
+    await expect(h.execute()).rejects.toBe(failure);
+    expect(h.find).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
   });
 });

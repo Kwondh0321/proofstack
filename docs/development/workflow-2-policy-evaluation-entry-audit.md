@@ -187,6 +187,13 @@ linked. Matching ownership is distinct from available bytes; ordinary artifacts 
 fixture-only constraints. Cross-record semantics, mutable authority, guarded sealing and all later
 policy/worker gates remain open. This does not add an accepted Workflow 2 checkpoint.
 
+The subsequent [dataset/fixture relation inspection](workflow-2-policy-dataset-relations.md) now
+joins captured exact membership and predecessor records without rereading repositories. It checks
+the evidence-only predecessor format and complete snapshot copy for recorded promotion, including
+the receipt excluded from definition hashes. Known mismatches, unavailable children and unreadable
+parents remain distinct. A direct match does not establish transitive eligibility, logical-root
+registration, mutable authority or sealing; Workflow 2 remains 2/7 accepted checkpoints.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
