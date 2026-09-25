@@ -218,6 +218,7 @@ packages/contracts       런타임 스키마, 공개 타입, 인증 컨텍스트
 packages/core            프레임워크 독립적인 인가 및 증거 유스케이스
 packages/datasets        불변 회귀 정의, 이진 인코딩, 공개 검증 벡터
 packages/replay          정규 bounded-replay 정의와 fail-closed 기록 실행
+packages/policy-evaluation  도메인 간 증거 기록 그래프 수집; 릴리스 결정 기능은 아님
 packages/artifacts       암호화 콘텐츠 수명주기, 인가, 저장소 포트
 packages/postgres        영속 저장소, 마이그레이션, 전달 상태, 런타임 역할
 packages/recovery        조정된 복구 매니페스트, 객체 인벤토리, 무결성 검증

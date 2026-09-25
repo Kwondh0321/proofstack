@@ -16,6 +16,17 @@ const modules = [
     packageName: "@proofstack/replay",
   },
   {
+    allowed: new Set([
+      "@proofstack/contracts",
+      "@proofstack/core",
+      "@proofstack/datasets",
+      "@proofstack/replay",
+    ]),
+    productionExternalAllowlist: new Set(),
+    directory: "packages/policy-evaluation/src",
+    packageName: "@proofstack/policy-evaluation",
+  },
+  {
     allowed: new Set(["@proofstack/contracts"]),
     directory: "packages/core/src",
     packageName: "@proofstack/core",

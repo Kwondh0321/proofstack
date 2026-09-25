@@ -1,0 +1,35 @@
+{
+  "name": "@proofstack/policy-evaluation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bounded cross-domain policy evidence acquisition for ProofStack",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "biome lint src",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@proofstack/contracts": "workspace:*",
+    "@proofstack/core": "workspace:*",
+    "@proofstack/datasets": "workspace:*",
+    "@proofstack/replay": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

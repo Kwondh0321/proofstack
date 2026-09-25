@@ -132,6 +132,13 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 선택자는 해시를 지어내지 않고 미해결 목록으로 보존합니다. 직접 연결 수집의 선행 작업이지
 재귀 그래프·원문·권한 수집, 봉인 또는 체크포인트 완료는 아닙니다.
 
+이후의 [요청 기반 기록 그래프](workflow-2-policy-evaluation-record-graph.ko.md)는 별도
+`@proofstack/policy-evaluation` 패키지에서 도메인별 조회와 열거를 연결합니다. 정확한 메타데이터
+순회, 부모 결속 선택자 해석, 중복 간선과 미해결 목록 보존, 부모 사이 충돌 검사, 호출 전체의
+조회·이력 행·바이트·참조 발생 한도를 구현합니다. 전체 의미적 정합성, 실제 콘텐츠, 변경 가능한
+권한, 경쟁 방어와 봉인, 영속 작업 전체 예산, 워커 실행 및 정책 평가 완료는 아직 증명하지
+않습니다. Workflow 2 완료 체크포인트 수는 7개 중 2개로 유지합니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

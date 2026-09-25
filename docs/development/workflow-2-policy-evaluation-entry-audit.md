@@ -72,7 +72,7 @@ and distinguishes unique, missing, ambiguous, and unresolved definition-to-resul
 dropping unreadable members. The follow-on
 [comparison-lineage building block](workflow-2-policy-evaluation-comparison-lineage.md) validates
 the selected definition and snapshots, re-derives the result, checks candidate-owned lineage, and
-emits its bounded direct-source frontier. Recursive subordinate-record validation, authoritative
+emits its bounded direct-source frontier. Complete recursive semantic validation, authoritative
 closure derivation, guarded sealing, rule evidence and policy evaluation remain unimplemented.
 
 The [evidence-source reader](workflow-2-policy-evaluation-evidence-reader.md) now resolves all
@@ -144,6 +144,14 @@ parent occurrences through fixed read-only ports. It verifies criterion membersh
 model profiles, comparison families, exact IDs/digests, scope, and receipt cuts. Missing selectors
 retain their unresolved frontier without invented hashes. This closes a direct-edge acquisition
 prerequisite, not recursive graph/byte/authority capture, sealing, or checkpoint acceptance.
+
+The [request-rooted record graph](workflow-2-policy-evaluation-record-graph.md) now composes all
+owning readers and enumerators in `@proofstack/policy-evaluation`. It traverses exact metadata,
+resolves parent-bound selectors, preserves repeated edges and unresolved frontiers, rejects
+cross-parent conflicts, and meters invocation-wide reads/rows/bytes/occurrences. It does not yet
+establish complete semantic closure, retained bytes, mutable authority, guarded sealing, durable
+job-wide accounting, worker execution, or policy-evaluation acceptance. The roadmap count remains
+two accepted Workflow 2 checkpoints of seven.
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 

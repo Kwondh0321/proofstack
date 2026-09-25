@@ -46,3 +46,4 @@ invalidate an ADR present in this directory.
 - [ADR-0021: Separate release policy, decision, attestation, and enforcement authority](0021-separate-release-policy-authority.md)
 - [ADR-0022: Evaluate policies against sealed evidence with separate worker authority](0022-snapshot-bound-policy-evaluation.md)
 - [ADR-0023: Retain runtime definitions separately from installation authority](0023-retain-runtime-definitions-separately-from-installation.md)
+- [ADR-0024: Compose policy record acquisition above domain packages](0024-compose-policy-record-acquisition-above-domain-packages.md)
