@@ -17,6 +17,7 @@ const modules = [
   },
   {
     allowed: new Set([
+      "@proofstack/artifacts",
       "@proofstack/contracts",
       "@proofstack/core",
       "@proofstack/datasets",

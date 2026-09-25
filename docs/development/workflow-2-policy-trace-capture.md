@@ -112,5 +112,7 @@ authorized durable jobs, API/SDK, recovery, isolation, and end-to-end acceptance
 Workflow 2 still has two accepted checkpoints out of seven.
 
 The subsequent [authorized artifact observer](workflow-2-policy-artifact-observation.md) provides
-the owning-domain exact content-read prerequisite. Connecting it to these trace occurrences and
-the graph's artifact references under a shared budget remains open.
+the owning-domain exact content-read prerequisite. The
+[request-rooted artifact capture](workflow-2-policy-artifact-capture.md) now connects these trace
+occurrences and graph artifact references under shared admission. Owner/authority semantics and
+guarded sealing remain open.

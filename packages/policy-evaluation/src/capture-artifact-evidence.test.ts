@@ -1,0 +1,646 @@
+import { createHash } from "node:crypto";
+import {
+  ArtifactCipher,
+  ArtifactProtectionError,
+  LocalArtifactKeyring,
+} from "@proofstack/artifacts";
+import {
+  MemoryArtifactCatalogRepository,
+  MemoryArtifactObjectStore,
+} from "@proofstack/artifacts/testing";
+import {
+  type ArtifactMetadata,
+  type ContentReference,
+  EvidenceEnvelopeSchema,
+  POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
+  type PolicyEvaluationRequest,
+  type PolicyEvaluationRequestDefinition,
+  PrincipalContextSchema,
+  type RegressionDatasetVersionDefinition,
+  type RegressionFixtureVersionDefinition,
+} from "@proofstack/contracts";
+import {
+  digestPolicyEvaluationRequestDefinition,
+  digestReleaseCandidateDefinition,
+  releaseCandidateReference,
+  releasePolicyReference,
+} from "@proofstack/core";
+import {
+  comparisonFixtureScope,
+  MemoryEvidenceRepository,
+  MemoryReleaseCandidateRepository,
+  MemoryReleasePolicyRepository,
+  releaseCandidateFixture,
+  releasePolicyRepositoryFixture,
+} from "@proofstack/core/testing";
+import {
+  digestRegressionDatasetVersionDefinition,
+  digestRegressionFixtureVersionDefinition,
+} from "@proofstack/datasets";
+import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
+import { describe, expect, it, vi } from "vitest";
+import { capturePolicyArtifactEvidence } from "./capture-artifact-evidence.js";
+import * as publicApi from "./index.js";
+import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+
+const scope = comparisonFixtureScope("artifact_graph");
+const traceId = "0123456789abcdef0123456789abcdef";
+const createdAt = "2026-09-04T00:00:00.000Z";
+const observedAt = "2026-10-01T02:00:00.000Z";
+const content = Buffer.from("exact graph and trace artifact");
+const reference: ContentReference = {
+  artifactId: "artifact_shared",
+  classification: "confidential",
+  mediaType: "text/plain",
+  sha256: createHash("sha256").update(content).digest("hex"),
+  sizeBytes: content.byteLength,
+};
+
+function withLimits(
+  request: PolicyEvaluationRequest,
+  changes: Partial<PolicyEvaluationRequest["limits"]>,
+) {
+  const {
+    createdAt,
+    createdByPrincipalId,
+    definitionSha256: _hash,
+    schemaVersion,
+    scope,
+    ...definition
+  } = request;
+  const body = { ...definition, limits: { ...definition.limits, ...changes } };
+  return {
+    ...body,
+    createdAt,
+    createdByPrincipalId,
+    schemaVersion,
+    scope,
+    definitionSha256: digestPolicyEvaluationRequestDefinition(scope, body),
+  };
+}
+
+async function harness() {
+  const datasets = new MemoryRegressionVersionRepository();
+  const fixtureDefinition: RegressionFixtureVersionDefinition = {
+    fixtureId: "fixture_artifact",
+    fixtureVersionId: "fixture_artifact_v1",
+    name: "Artifact trace",
+    replayability: "evidence_only",
+    schemaVersion: "0.1",
+    scope,
+    source: {
+      kind: "trace_snapshot",
+      traceId,
+      eventIds: ["event_artifact"],
+      observedEventCount: 1,
+      sourceCompleteness: "observed_snapshot",
+    },
+  };
+  const fixture = {
+    ...fixtureDefinition,
+    source: { ...fixtureDefinition.source, capturedAt: "2026-09-05T00:00:00.000Z" },
+    createdAt: "2026-09-05T00:00:00.000Z",
+    createdByPrincipalId: "principal_fixture",
+    definitionSha256: digestRegressionFixtureVersionDefinition(fixtureDefinition),
+  };
+  await datasets.publishFixtureVersion(fixture);
+  const datasetDefinition: RegressionDatasetVersionDefinition = {
+    datasetId: "dataset_artifact",
+    datasetVersionId: "dataset_artifact_v1",
+    name: "Artifact dataset",
+    scope,
+    schemaVersion: "0.1",
+    fixtureVersions: [
+      {
+        fixtureId: fixture.fixtureId,
+        fixtureVersionId: fixture.fixtureVersionId,
+        definitionSha256: fixture.definitionSha256,
+      },
+    ],
+  };
+  const dataset = {
+    ...datasetDefinition,
+    createdAt: "2026-09-05T00:00:00.000Z",
+    createdByPrincipalId: "principal_dataset",
+    definitionSha256: digestRegressionDatasetVersionDefinition(datasetDefinition),
+  };
+  await datasets.publishDatasetVersion(dataset);
+  const candidate = releaseCandidateFixture("artifact_graph", scope);
+  const build = candidate.buildArtifacts[0];
+  if (!build) throw new Error("Expected candidate artifact fixture");
+  build.artifact = structuredClone(reference);
+  candidate.datasets = [
+    {
+      datasetId: dataset.datasetId,
+      datasetVersionId: dataset.datasetVersionId,
+      definitionSha256: dataset.definitionSha256,
+    },
+  ];
+  const {
+    createdAt: _at,
+    createdByPrincipalId: _by,
+    schemaVersion: _version,
+    scope: _scope,
+    definitionSha256: _hash,
+    ...candidateDefinition
+  } = candidate;
+  candidate.definitionSha256 = digestReleaseCandidateDefinition(scope, candidateDefinition);
+  const policy = releasePolicyRepositoryFixture("artifact_graph", scope);
+  const candidates = new MemoryReleaseCandidateRepository();
+  const policies = new MemoryReleasePolicyRepository();
+  await candidates.publishReleaseCandidate(candidate);
+  await policies.publishReleasePolicy(policy);
+  const absent = new Proxy({}, { get: () => async () => null });
+  const repositories = {
+    control: {
+      comparison: absent,
+      installationBinding: absent,
+      releaseCandidate: candidates,
+      releasePolicy: policies,
+    },
+    evidence: { evaluation: absent, modelAssurance: absent },
+    datasets,
+    replayDefinitions: absent,
+    replayResults: absent,
+    runtimeDefinitions: absent,
+  } as unknown as PolicyRecordGraphRepositories;
+  const definition: PolicyEvaluationRequestDefinition = {
+    algorithm: { id: "proofstack.deterministic-policy", version: "1.0.0" },
+    evaluationRequestId: "request_artifact",
+    evaluationTime: "2026-10-01T00:00:00.000Z",
+    candidate: releaseCandidateReference(candidate),
+    policy: releasePolicyReference(policy),
+    limits: {
+      heartbeatIntervalMilliseconds: 1000,
+      leaseDurationMilliseconds: 5000,
+      maxAcquisitionRecordBytes: 8_388_608,
+      maxAcquisitionRecords: 10000,
+      maxArtifactReadBytes: 1_048_576,
+      maxAttempts: 2,
+      maxRuleEvaluations: 256,
+      perAttemptTimeoutMilliseconds: 20000,
+      retryBackoffMilliseconds: 100,
+      retryableErrors: ["source_revision_changed"],
+      totalDeadlineMilliseconds: 60000,
+    },
+  };
+  const request: PolicyEvaluationRequest = {
+    ...definition,
+    schemaVersion: POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
+    scope: structuredClone(scope),
+    createdAt: "2026-10-01T01:00:00.000Z",
+    createdByPrincipalId: "principal_request",
+    definitionSha256: digestPolicyEvaluationRequestDefinition(scope, definition),
+  };
+  const actor = PrincipalContextSchema.parse({
+    authentication: { authenticatedAt: createdAt, method: "development" },
+    capabilities: ["artifact:read"],
+    principalId: "principal_capture",
+    principalType: "service",
+    requestId: "request_capture",
+    resourceScope: { mode: "tenant" },
+    roles: ["viewer"],
+    tenantId: scope.tenantId,
+  });
+  const evidence = new MemoryEvidenceRepository();
+  const event = EvidenceEnvelopeSchema.parse({
+    schemaVersion: "0.1",
+    scope,
+    receivedAt: createdAt,
+    evidence: {
+      eventId: "event_artifact",
+      traceId,
+      spanId: "0123456789abcdef",
+      startedAt: createdAt,
+      kind: "agent.run",
+      name: "Artifact event",
+      contentReferences: [reference, reference],
+      source: { sdkName: "fixture", sdkVersion: "1.0.0", serviceName: "artifact_test" },
+    },
+  });
+  await evidence.append([event]);
+  const catalog = new MemoryArtifactCatalogRepository();
+  const objects = new MemoryArtifactObjectStore();
+  const keyring = new LocalArtifactKeyring({
+    activeKeyId: "key_capture",
+    keys: { key_capture: new Uint8Array(32).fill(7) },
+  });
+  const encryption = new ArtifactCipher(keyring);
+  const metadata: ArtifactMetadata = {
+    schemaVersion: "0.1",
+    scope,
+    createdAt,
+    state: "reserved",
+    contentReference: { ...reference },
+    redaction: { status: "not_required" },
+    retention: { mode: "expire", expiresAt: "2026-10-02T00:00:00.000Z" },
+  };
+  const reserved = {
+    metadata,
+    createdByPrincipalId: "principal_writer",
+    objectKey: "objects/v1/shared",
+    encryption: await encryption.createPlan(metadata),
+  };
+  await catalog.reserve(reserved);
+  const encrypted = await encryption.encrypt(metadata, reserved.encryption, content);
+  await objects.putIfAbsent(reserved.objectKey, encrypted.bytes);
+  const active = await catalog.activate(
+    scope,
+    reference.artifactId,
+    encrypted.receipt,
+    "2026-09-04T00:01:00.000Z",
+  );
+  const find = vi.spyOn(catalog, "find");
+  const get = vi.spyOn(objects, "get");
+  const decrypt = vi.spyOn(encryption, "decrypt");
+  const exact = vi.spyOn(evidence, "resolveExactEvents");
+  const root = vi.spyOn(candidates, "findReleaseCandidate");
+  const clock = { now: vi.fn(() => new Date(observedAt)) };
+  const dependencies = { catalog, objects, encryption, clock };
+  const execute = (input = request) =>
+    capturePolicyArtifactEvidence(input, actor, repositories, evidence, dependencies);
+  return {
+    request,
+    actor,
+    repositories,
+    evidence,
+    dependencies,
+    execute,
+    find,
+    get,
+    decrypt,
+    exact,
+    root,
+    clock,
+    active,
+    catalog,
+    encrypted,
+    keyring,
+    event,
+    candidate,
+  };
+}
+
+describe("request-rooted authorized artifact capture", () => {
+  it("binds all graph and repeated trace occurrences under one metadata and object budget", async () => {
+    const h = await harness();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured" || output.traceCapture.status !== "traces_captured")
+      throw new Error("Expected captured observations");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const records = graph.edges.flatMap((edge, edgeIndex) =>
+      edge.reference.kind === "artifact" ? [edgeIndex] : [],
+    );
+    expect(output.artifacts.map(({ origin }) => origin)).toEqual([
+      ...records.map((edgeIndex) => ({ kind: "record", edgeIndex })),
+      { kind: "trace", artifactReferenceIndex: 0 },
+      { kind: "trace", artifactReferenceIndex: 1 },
+    ]);
+    for (const { origin, read } of output.artifacts) {
+      const edge = origin.kind === "record" ? graph.edges[origin.edgeIndex] : undefined;
+      const expected =
+        origin.kind === "trace"
+          ? output.traceCapture.artifactReferences[origin.artifactReferenceIndex]?.reference
+          : edge?.reference.kind === "artifact"
+            ? edge.reference.reference
+            : undefined;
+      expect(read.reference).toEqual(expected);
+      expect(read.scope).toEqual(scope);
+      expect(read.evaluationTime).toBe(h.request.evaluationTime);
+    }
+    expect(graph.unresolved.records).toBeGreaterThan(0);
+    const shared = output.artifacts.filter(
+      ({ read }) => read.reference.artifactId === reference.artifactId,
+    );
+    expect(shared).toHaveLength(3);
+    expect(shared.every(({ read }) => read.observation.status === "verified")).toBe(true);
+    expect(output.artifacts.some(({ read }) => read.observation.status === "missing")).toBe(true);
+    expect(h.exact).toHaveBeenCalledTimes(1);
+    expect(h.get).toHaveBeenCalledTimes(3);
+    expect(output.usage.reads).toBe(output.traceCapture.usage.reads + h.find.mock.calls.length);
+    expect(output.usage.records).toBe(output.traceCapture.usage.records + h.find.mock.calls.length);
+    expect(output.usage.references).toBe(output.traceCapture.usage.references);
+    expect(output.usage.artifacts).toEqual({
+      reads: 3,
+      reservedBytes: h.encrypted.bytes.byteLength * 3,
+      receivedBytes: h.encrypted.bytes.byteLength * 3,
+      chargedBytes: h.encrypted.bytes.byteLength * 3,
+    });
+    expect(output.startedAt).toBe(observedAt);
+    expect(output.completedAt).toBe(observedAt);
+    expect(JSON.stringify(output)).not.toContain(content.toString());
+    expect(JSON.stringify(output)).not.toContain(h.active.objectKey);
+    expect(JSON.stringify(output)).not.toContain(h.active.encryption.wrappedDataKey.ciphertext);
+    expect(output).not.toHaveProperty("sealed");
+    expect(output).not.toHaveProperty("verdict");
+  });
+
+  it.each([
+    "capability",
+    "tenant",
+    "project",
+    "environment",
+    "principal",
+    "request",
+    "evaluation_time",
+    "receipt_time",
+    "clock",
+  ])("rejects invalid %s before repository I/O", async (kind) => {
+    const h = await harness();
+    if (kind === "capability") h.actor.capabilities = ["policy:evaluate"];
+    if (kind === "tenant") h.actor.tenantId = "tenant_other";
+    if (kind === "project")
+      h.actor.resourceScope = { mode: "restricted", projects: [{ projectId: "project_other" }] };
+    if (kind === "environment")
+      h.actor.resourceScope = {
+        mode: "restricted",
+        projects: [{ projectId: scope.projectId, environmentIds: ["environment_other"] }],
+      };
+    if (kind === "principal") Object.assign(h.actor, { extra: true });
+    if (kind === "request") h.request.definitionSha256 = "f".repeat(64);
+    if (kind === "evaluation_time")
+      h.clock.now.mockReturnValue(new Date("2026-09-30T00:00:00.000Z"));
+    if (kind === "receipt_time") h.clock.now.mockReturnValue(new Date("2026-10-01T00:30:00.000Z"));
+    if (kind === "clock") h.clock.now.mockReturnValue(new Date(Number.NaN));
+    await expect(h.execute()).rejects.toThrow();
+    expect(h.root).not.toHaveBeenCalled();
+    expect(h.exact).not.toHaveBeenCalled();
+    expect(h.find).not.toHaveBeenCalled();
+  });
+
+  it("preserves unavailable roots without reporting an empty successful inventory", async () => {
+    const h = await harness();
+    h.root.mockResolvedValue(null);
+    const output = await h.execute();
+    expect(output.status).toBe("roots_unavailable");
+    expect(output).not.toHaveProperty("artifacts");
+    expect(output.usage.artifacts).toEqual({
+      reads: 0,
+      reservedBytes: 0,
+      receivedBytes: 0,
+      chargedBytes: 0,
+    });
+    expect(h.find).not.toHaveBeenCalled();
+  });
+
+  it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
+    const h = await harness();
+    // Each available occurrence needs two catalog reads. Make that dimension dominate the
+    // separately enforced reference count so this test specifically reaches record admission.
+    h.event.evidence.contentReferences = Array.from({ length: 20 }, () => reference);
+    h.exact.mockResolvedValue([h.event]);
+    const baseline = await h.execute();
+    expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
+    const exact = withLimits(h.request, {
+      maxAcquisitionRecords: Math.max(baseline.usage.records, baseline.usage.references),
+      maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
+    });
+    expect((await h.execute(exact)).usage).toEqual(baseline.usage);
+    await expect(
+      h.execute(withLimits(exact, { maxAcquisitionRecords: baseline.usage.records - 1 })),
+    ).rejects.toMatchObject({ reason: "record_limit" });
+    await expect(
+      h.execute(
+        withLimits(exact, {
+          maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes - 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "byte_limit" });
+  });
+
+  it("allows the exact repeated-byte budget and rejects the next read before object I/O", async () => {
+    const h = await harness();
+    const total = h.encrypted.bytes.byteLength * 3;
+    expect(
+      (await h.execute(withLimits(h.request, { maxArtifactReadBytes: total }))).usage.artifacts
+        .chargedBytes,
+    ).toBe(total);
+    h.get.mockClear();
+    await expect(
+      h.execute(withLimits(h.request, { maxArtifactReadBytes: total - 1 })),
+    ).rejects.toMatchObject({ reason: "artifact_byte_limit" });
+    expect(h.get).toHaveBeenCalledTimes(2);
+    h.get.mockClear();
+    await expect(
+      h.execute(withLimits(h.request, { maxArtifactReadBytes: 0 })),
+    ).rejects.toMatchObject({ reason: "artifact_byte_limit" });
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it("charges missing objects conservatively without inventing received bytes", async () => {
+    const h = await harness();
+    h.get.mockResolvedValue(null);
+    const output = await h.execute();
+    expect(output.usage.artifacts).toEqual({
+      reads: 3,
+      reservedBytes: h.encrypted.bytes.byteLength * 3,
+      receivedBytes: 0,
+      chargedBytes: h.encrypted.bytes.byteLength * 3,
+    });
+    if (output.status !== "artifacts_captured") throw new Error("Expected artifacts");
+    expect(
+      output.artifacts
+        .filter(({ read }) => read.reference.artifactId === reference.artifactId)
+        .every(
+          ({ read }) =>
+            read.observation.status === "unavailable" &&
+            read.observation.reason === "object_missing",
+        ),
+    ).toBe(true);
+  });
+
+  it("preserves unsupported original trace descriptors without managed-store lookup", async () => {
+    const h = await harness();
+    const unmanaged = {
+      ...reference,
+      artifactId: "artifact_unmanaged",
+      mediaType: "opaque",
+      sizeBytes: 0,
+    };
+    h.event.evidence.contentReferences = [unmanaged];
+    h.exact.mockResolvedValue([h.event]);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected captures");
+    expect(output.artifacts.at(-1)).toMatchObject({
+      origin: { kind: "trace", artifactReferenceIndex: 0 },
+      read: {
+        reference: unmanaged,
+        observation: { status: "unavailable", reason: "reference_unsupported" },
+      },
+    });
+    expect(h.find.mock.calls.every(([, id]) => id !== unmanaged.artifactId)).toBe(true);
+  });
+
+  it("preflights restricted references before any artifact lookup and permits explicit access", async () => {
+    const h = await harness();
+    h.event.evidence.contentReferences = [
+      { ...reference, artifactId: "artifact_restricted", classification: "restricted" },
+    ];
+    h.exact.mockResolvedValue([h.event]);
+    await expect(h.execute()).rejects.toMatchObject({ code: "forbidden" });
+    expect(h.find).not.toHaveBeenCalled();
+    h.actor.capabilities.push("artifact:read:restricted");
+    expect((await h.execute()).status).toBe("artifacts_captured");
+  });
+
+  it("does not let an understated descriptor bypass the owning reader's stored classification", async () => {
+    const h = await harness();
+    const changed = structuredClone(h.active);
+    changed.metadata.contentReference.classification = "restricted";
+    h.find.mockResolvedValue(changed);
+    await expect(h.execute()).rejects.toMatchObject({ code: "forbidden" });
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it("admits catalog responses before domain inspection without invoking accessors", async () => {
+    const h = await harness();
+    const getter = vi.fn(() => h.active.metadata);
+    const raw = Object.defineProperty(structuredClone(h.active), "metadata", {
+      enumerable: true,
+      get: getter,
+    });
+    h.find.mockResolvedValue(raw);
+    await expect(h.execute()).rejects.toMatchObject({ reason: "unmeasurable_record" });
+    expect(getter).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it.each(["missing", "invalid", "lifecycle", "ownership"])(
+    "rejects %s changes between repeated occurrences without a partial result",
+    async (kind) => {
+      const h = await harness();
+      const changed = structuredClone(h.active);
+      if (kind === "invalid") Object.assign(changed, { extra: true });
+      if (kind === "lifecycle") {
+        changed.metadata.state = "tombstoned";
+        changed.metadata.tombstonedAt = "2026-09-30T00:00:00.000Z";
+      }
+      if (kind === "ownership")
+        Object.assign(changed, {
+          ownership: {
+            schemaVersion: "0.1",
+            scope,
+            artifactId: reference.artifactId,
+            boundAt: "2026-09-05T00:00:00.000Z",
+            boundByPrincipalId: "principal_binder",
+            owner: {
+              kind: "regression_fixture_version",
+              fixtureId: "fixture_owner",
+              fixtureVersionId: "fixture_owner_v1",
+            },
+          },
+        });
+      let calls = 0;
+      h.find.mockImplementation(async (_scope, id) => {
+        if (id !== reference.artifactId) return null;
+        if (++calls <= 2) return h.active;
+        return kind === "missing" ? null : changed;
+      });
+      await expect(h.execute()).rejects.toMatchObject({
+        reason: "observation_conflict",
+        identity: "artifact:artifact_shared",
+      });
+    },
+  );
+
+  it("rejects changed content availability even when both catalog observations agree", async () => {
+    const h = await harness();
+    h.get.mockResolvedValueOnce(h.encrypted.bytes).mockResolvedValueOnce(null);
+    await expect(h.execute()).rejects.toMatchObject({
+      reason: "observation_conflict",
+      identity: "artifact:artifact_shared",
+    });
+  });
+
+  it("rejects a catalog revision that changes during an individual object read", async () => {
+    const h = await harness();
+    let calls = 0;
+    h.find.mockImplementation(async (_scope, id) =>
+      id === reference.artifactId && ++calls === 1 ? h.active : null,
+    );
+    await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+  });
+
+  it.each(["root", "catalog", "object", "crypto"])(
+    "propagates %s operational errors without publishing indeterminate evidence",
+    async (kind) => {
+      const h = await harness();
+      const failure =
+        kind === "crypto" ? new ArtifactProtectionError() : new Error("capture port unavailable");
+      if (kind === "root") h.root.mockRejectedValue(failure);
+      if (kind === "catalog") h.find.mockRejectedValue(failure);
+      if (kind === "object") h.get.mockRejectedValue(failure);
+      if (kind === "crypto") h.decrypt.mockRejectedValue(failure);
+      await expect(h.execute()).rejects.toBe(failure);
+    },
+  );
+
+  it("retains real key-provider failure through both the crypto and composition layers", async () => {
+    const h = await harness();
+    const failure = new Error("key service unavailable");
+    vi.spyOn(h.keyring, "unwrapDataKey").mockRejectedValue(failure);
+    await expect(h.execute()).rejects.toMatchObject({
+      code: "artifact_protection_failed",
+      cause: failure,
+    });
+  });
+
+  it("rejects excess returned bytes before decryption even if the catalog predicted less", async () => {
+    const h = await harness();
+    h.get.mockResolvedValue(new Uint8Array(h.encrypted.bytes.byteLength + 1));
+    await expect(
+      h.execute(withLimits(h.request, { maxArtifactReadBytes: h.encrypted.bytes.byteLength })),
+    ).rejects.toMatchObject({ reason: "artifact_byte_limit" });
+    expect(h.decrypt).not.toHaveBeenCalled();
+  });
+
+  it("permits advancing observation timestamps without treating them as catalog conflicts", async () => {
+    const h = await harness();
+    let calls = 0;
+    h.clock.now.mockImplementation(() => new Date(Date.parse(observedAt) + ++calls));
+    const output = await h.execute();
+    expect(output.status).toBe("artifacts_captured");
+    expect(output.completedAt > output.startedAt).toBe(true);
+  });
+
+  it("rejects a clock regression between individually monotone reads", async () => {
+    const h = await harness();
+    let calls = 0;
+    h.clock.now.mockImplementation(
+      () => new Date(Date.parse(observedAt) - (++calls === 5 ? 1 : 0)),
+    );
+    await expect(h.execute()).rejects.toMatchObject({ reason: "clock_invalid" });
+  });
+
+  it("rejects earlier verified content that expires at the final aggregate cut", async () => {
+    const h = await harness();
+    await h.execute();
+    const lastCall = h.clock.now.mock.calls.length;
+    let calls = 0;
+    h.clock.now.mockImplementation(
+      () => new Date(++calls === lastCall ? "2026-10-02T00:00:00.000Z" : observedAt),
+    );
+    await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+  });
+
+  it("owns the request and actor before any asynchronous repository mutation", async () => {
+    const h = await harness();
+    h.root.mockImplementation(async () => {
+      h.actor.capabilities.length = 0;
+      h.request.scope.tenantId = "tenant_changed";
+      h.request.limits.maxArtifactReadBytes = 0;
+      return h.candidate;
+    });
+    const output = await h.execute();
+    expect(output.status).toBe("artifacts_captured");
+    expect(output.usage.artifacts.reads).toBe(3);
+    expect(h.find.mock.calls.every(([passed]) => passed.tenantId === scope.tenantId)).toBe(true);
+  });
+
+  it("does not expose caller-supplied graph or meter composition at the package entry point", () => {
+    expect(publicApi.capturePolicyArtifactEvidence).toBe(capturePolicyArtifactEvidence);
+    expect(publicApi).not.toHaveProperty("acquirePolicyTraceEvidence");
+    expect(publicApi).not.toHaveProperty("acquirePolicyRecordGraph");
+    expect(publicApi).not.toHaveProperty("AcquisitionBudget");
+  });
+});

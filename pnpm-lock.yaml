@@ -608,6 +608,9 @@ importers:
 
   packages/policy-evaluation:
     dependencies:
+      '@proofstack/artifacts':
+        specifier: workspace:*
+        version: link:../artifacts
       '@proofstack/contracts':
         specifier: workspace:*
         version: link:../contracts

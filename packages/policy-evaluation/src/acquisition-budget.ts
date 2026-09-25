@@ -6,6 +6,7 @@ export class PolicyRecordGraphError extends Error {
     readonly reason:
       | "record_limit"
       | "byte_limit"
+      | "artifact_byte_limit"
       | "reference_limit"
       | "unmeasurable_record"
       | "reference_conflict"
@@ -24,6 +25,10 @@ export class AcquisitionBudget {
   private bytes = 0;
   private references = 0;
   private referenceBytes = 0;
+  private artifactReads = 0;
+  private artifactReservedBytes = 0;
+  private artifactReceivedBytes = 0;
+  private artifactChargedBytes = 0;
   private readonly pending = new Set<Promise<unknown>>();
   constructor(private readonly limits: PolicyEvaluationExecutionLimits) {}
 
@@ -41,6 +46,56 @@ export class AcquisitionBudget {
       references: this.references,
       referenceBytes: this.referenceBytes,
     };
+  }
+
+  artifactUsage() {
+    return {
+      reads: this.artifactReads,
+      reservedBytes: this.artifactReservedBytes,
+      receivedBytes: this.artifactReceivedBytes,
+      chargedBytes: this.artifactChargedBytes,
+    };
+  }
+
+  /**
+   * Reserve each expected encrypted response before I/O. Missing/failed reads do not refund the
+   * reservation; larger returned buffers charge the excess before domain processing. Received
+   * bytes describe complete buffers only, NOT hidden transport retries or partial network reads.
+   */
+  readArtifactObject(
+    expectedBytes: number,
+    read: () => Promise<Uint8Array | null>,
+  ): Promise<Uint8Array | null> {
+    return this.track(
+      (async () => {
+        if (
+          !Number.isSafeInteger(expectedBytes) ||
+          expectedBytes < 1 ||
+          expectedBytes > this.limits.maxArtifactReadBytes - this.artifactChargedBytes
+        )
+          throw new PolicyRecordGraphError("artifact_byte_limit");
+        this.artifactReads++;
+        this.artifactReservedBytes += expectedBytes;
+        this.artifactChargedBytes += expectedBytes;
+        const value = await read();
+        if (value instanceof Uint8Array) {
+          this.artifactReceivedBytes += value.byteLength;
+          this.artifactChargedBytes += Math.max(0, value.byteLength - expectedBytes);
+          if (this.artifactChargedBytes > this.limits.maxArtifactReadBytes)
+            throw new PolicyRecordGraphError("artifact_byte_limit");
+        }
+        return value;
+      })(),
+    );
+  }
+
+  private track<T>(task: Promise<T>): Promise<T> {
+    this.pending.add(task);
+    void task.then(
+      () => this.pending.delete(task),
+      () => this.pending.delete(task),
+    );
+    return task;
   }
 
   private charge(bytes: number) {
@@ -104,12 +159,7 @@ export class AcquisitionBudget {
             }
             return structuredClone(value);
           })();
-          this.pending.add(task);
-          void task.then(
-            () => this.pending.delete(task),
-            () => this.pending.delete(task),
-          );
-          return task;
+          return this.track(task);
         };
       },
     });

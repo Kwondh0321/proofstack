@@ -9,7 +9,13 @@ export {
   type CapturedPolicyComparison,
   type PolicyComparisonEvidenceCapture,
 } from "./capture-comparison-evidence.js";
-export * from "./capture-trace-evidence.js";
+export {
+  capturePolicyTraceEvidence,
+  type PolicyTraceArtifactReference,
+  type PolicyTraceCapture,
+  type PolicyTraceEvidenceCapture,
+} from "./capture-trace-evidence.js";
+export * from "./capture-artifact-evidence.js";
 export type {
   PolicyRecordExpansion,
   PolicyRecordGraphRepositories,

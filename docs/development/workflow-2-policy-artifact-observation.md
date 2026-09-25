@@ -3,8 +3,9 @@
 [English](workflow-2-policy-artifact-observation.md) |
 [한국어](workflow-2-policy-artifact-observation.ko.md)
 
-Status: owning-domain content observation implemented. Request-rooted artifact composition, guarded
-snapshot sealing, and Workflow 2 checkpoint 3 remain open.
+Status: owning-domain content observation implemented. The subsequent
+[request-rooted capture](workflow-2-policy-artifact-capture.md) composes this observer. Guarded
+snapshot sealing and Workflow 2 checkpoint 3 remain open.
 
 ## Authority before content
 
@@ -103,8 +104,8 @@ mutation, and catalog changes during I/O. These are not PostgreSQL policy-worker
 release acceptance tests. No existing artifact read route, encryption contract, or lifecycle state
 transition is changed.
 
-Next: compose every artifact occurrence from the request-rooted graph and retained traces with a
-single shared budget; bind expected ownership and complete cross-record semantics; capture mutable
-authority and race guards; seal snapshots; implement deterministic policy predicates and durable
-jobs, API/SDK, recovery, isolation and end-to-end acceptance. The roadmap remains 2/7 accepted
-Workflow 2 checkpoints.
+The subsequent [artifact capture](workflow-2-policy-artifact-capture.md) connects graph/trace
+occurrences with shared metadata admission and conservative object reservations. Expected ownership,
+complete cross-record semantics, mutable authority and transactional race guards remain open. Then
+seal snapshots and implement deterministic policy predicates, durable jobs, API/SDK, recovery,
+isolation and end-to-end acceptance. The roadmap remains 2/7 accepted Workflow 2 checkpoints.

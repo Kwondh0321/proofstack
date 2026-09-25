@@ -1,4 +1,8 @@
-import { type ContentReference, encodeEvaluationCanonicalJson } from "@proofstack/contracts";
+import {
+  type ContentReference,
+  encodeEvaluationCanonicalJson,
+  type PolicyEvaluationRequest,
+} from "@proofstack/contracts";
 import {
   type ExactEvidenceRepository,
   type PolicyEvaluationTraceRead,
@@ -57,6 +61,16 @@ export async function capturePolicyTraceEvidence(
 ): Promise<PolicyTraceEvidenceCapture> {
   const request = validatePolicyEvaluationRequestRecord(input);
   const budget = new AcquisitionBudget(request.limits);
+  return acquirePolicyTraceEvidence(request, repositories, evidence, budget);
+}
+
+/** Internal only: one request-owning composition must supply the same meter for every phase. */
+export async function acquirePolicyTraceEvidence(
+  request: PolicyEvaluationRequest,
+  repositories: PolicyRecordGraphRepositories,
+  evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
+  budget: AcquisitionBudget,
+): Promise<PolicyTraceEvidenceCapture> {
   try {
     const graph = await acquirePolicyRecordGraph(request, repositories, budget);
     const comparisonCapture = resolveCapturedComparisonEvidence(request, graph);

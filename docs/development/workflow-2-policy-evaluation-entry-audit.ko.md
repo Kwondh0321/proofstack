@@ -157,6 +157,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 않습니다. 요청 기반 전체 연결·누적 한도·예상 소유권 의미와 트랜잭션 봉인 guard는 남아 있으며
 전후 조회 일치만으로 이를 대체하지 않습니다.
 
+후속 [요청 기반 아티팩트 수집](workflow-2-policy-artifact-capture.ko.md)이 이제 그래프·트레이스의
+각 출현에 이 검증기를 적용합니다. 부모 출처를 보존하고 모든 단계의 기록·JSON 한도를 공유하며
+반복 암호문 읽기를 보수적으로 예약하고 모순된 관측과 최종 시각의 만료를 거절합니다. 완성된
+버퍼 수신량은 부분 전송이나 영속 재시도 계측이 아닙니다. 예상 소유권 의미·변경 가능한 권한·
+경쟁 방어가 있는 봉인과 아래 정책·워커 승인 기준은 미완료이며 Workflow 2 완료 수는 2/7입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

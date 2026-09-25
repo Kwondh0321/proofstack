@@ -173,6 +173,13 @@ during object I/O. It emits no plaintext, locator, key or sealed verdict. Reques
 composition, cumulative admission, expected-owner semantics and transactional sealing guards remain
 open; matching before/after reads do not replace those gates.
 
+The subsequent [request-rooted artifact capture](workflow-2-policy-artifact-capture.md) now invokes
+that observer for every graph/trace occurrence. It preserves parent provenance, shares record/JSON
+admission across all phases, conservatively reserves repeated encrypted reads, rejects contradictory
+observations and checks final-cut expiry. Complete-buffer receipts are not partial-transfer or
+durable retry accounting. Expected-owner semantics, mutable authority, guarded sealing and all
+policy/worker acceptance gates below remain open; Workflow 2 still has 2/7 accepted checkpoints.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
