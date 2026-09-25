@@ -180,6 +180,13 @@ observations and checks final-cut expiry. Complete-buffer receipts are not parti
 durable retry accounting. Expected-owner semantics, mutable authority, guarded sealing and all
 policy/worker acceptance gates below remain open; Workflow 2 still has 2/7 accepted checkpoints.
 
+The subsequent [fixture-binding inspection](workflow-2-policy-fixture-bindings.md) checks each
+captured recorded fixture against its exact catalog ownership, publication time/principal, content
+descriptor, retention and redaction. Parent/catalog hashes and all direct alias occurrences remain
+linked. Matching ownership is distinct from available bytes; ordinary artifacts do not inherit
+fixture-only constraints. Cross-record semantics, mutable authority, guarded sealing and all later
+policy/worker gates remain open. This does not add an accepted Workflow 2 checkpoint.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

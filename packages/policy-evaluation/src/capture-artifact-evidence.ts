@@ -24,6 +24,10 @@ import {
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  inspectCapturedFixtureBindings,
+  type PolicyFixtureBindingCapture,
+} from "./capture-fixture-bindings.js";
+import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
@@ -48,7 +52,11 @@ export type PolicyArtifactEvidenceCapture = {
   };
 } & (
   | { readonly status: "roots_unavailable" }
-  | { readonly status: "artifacts_captured"; readonly artifacts: readonly PolicyArtifactCapture[] }
+  | {
+      readonly status: "artifacts_captured";
+      readonly artifacts: readonly PolicyArtifactCapture[];
+      readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
+    }
 );
 
 function canonical(value: unknown): string {
@@ -58,7 +66,7 @@ function canonical(value: unknown): string {
 /**
  * Request-rooted graph, comparison, trace and authorized artifact acquisition. The caller must
  * authorize metadata/trace ports separately; artifact access does not grant those permissions.
- * This captures observations, NOT complete semantic/owner authority or a sealed policy snapshot.
+ * This checks recorded-fixture bindings, NOT complete semantic authority or a sealed policy snapshot.
  */
 export async function capturePolicyArtifactEvidence(
   input: unknown,
@@ -162,6 +170,10 @@ export async function capturePolicyArtifactEvidence(
       observations.set(reference.artifactId, fingerprint);
       artifacts.push({ origin, read });
     }
+    const fixtureBindings = inspectCapturedFixtureBindings(
+      traceCapture.comparisonCapture.graph,
+      artifacts,
+    );
     const completedAt = clock.now().toISOString();
     for (const { read } of artifacts) {
       if (
@@ -178,6 +190,7 @@ export async function capturePolicyArtifactEvidence(
       startedAt,
       completedAt,
       artifacts,
+      fixtureBindings,
       usage: usage(),
     };
   } finally {

@@ -105,7 +105,9 @@ release acceptance tests. No existing artifact read route, encryption contract, 
 transition is changed.
 
 The subsequent [artifact capture](workflow-2-policy-artifact-capture.md) connects graph/trace
-occurrences with shared metadata admission and conservative object reservations. Expected ownership,
-complete cross-record semantics, mutable authority and transactional race guards remain open. Then
+occurrences with shared metadata admission and conservative object reservations. The subsequent
+[fixture-binding inspection](workflow-2-policy-fixture-bindings.md) checks exact recorded-fixture
+publication bindings without interpreting ownership as available content. Complete cross-record
+semantics, mutable authority and transactional race guards remain open. Then
 seal snapshots and implement deterministic policy predicates, durable jobs, API/SDK, recovery,
 isolation and end-to-end acceptance. The roadmap remains 2/7 accepted Workflow 2 checkpoints.

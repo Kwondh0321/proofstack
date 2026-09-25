@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   ArtifactCipher,
   ArtifactProtectionError,
@@ -16,6 +17,7 @@ import {
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
+  type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
 } from "@proofstack/contracts";
@@ -34,12 +36,14 @@ import {
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import {
+  digestRecordedInteractionFixtureVersionDefinition,
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
 } from "@proofstack/datasets";
 import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyArtifactEvidence } from "./capture-artifact-evidence.js";
+import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import * as publicApi from "./index.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
@@ -79,7 +83,7 @@ function withLimits(
   };
 }
 
-async function harness() {
+async function harness(recorded = false) {
   const datasets = new MemoryRegressionVersionRepository();
   const fixtureDefinition: RegressionFixtureVersionDefinition = {
     fixtureId: "fixture_artifact",
@@ -104,6 +108,77 @@ async function harness() {
     definitionSha256: digestRegressionFixtureVersionDefinition(fixtureDefinition),
   };
   await datasets.publishFixtureVersion(fixture);
+  let selectedFixture = {
+    fixtureId: fixture.fixtureId,
+    fixtureVersionId: fixture.fixtureVersionId,
+    definitionSha256: fixture.definitionSha256,
+  };
+  const fixtureContents = new Map<string, Buffer>();
+  const fixtureMetadata: ArtifactMetadata[] = [];
+  let recordedPublication:
+    | Awaited<ReturnType<typeof datasets.publishRecordedInteractionFixtureVersion>>
+    | undefined;
+  if (recorded) {
+    const vector = JSON.parse(
+      readFileSync(
+        new URL("../../datasets/vectors/interaction-fixture-definition-v2.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { vectors: { input: RecordedInteractionFixtureVersionDefinition }[] };
+    const definition = structuredClone(
+      vector.vectors[0]?.input,
+    ) as RecordedInteractionFixtureVersionDefinition;
+    definition.scope = scope;
+    definition.fixtureId = fixture.fixtureId;
+    definition.fixtureVersionId = "fixture_artifact_v2";
+    definition.predecessor = {
+      fixtureVersionId: fixture.fixtureVersionId,
+      definitionSha256: fixture.definitionSha256,
+    };
+    definition.source = structuredClone(fixtureDefinition.source);
+    for (const binding of definition.interactionCapture.artifacts) {
+      const bytes = Buffer.from(
+        JSON.stringify({ artifactId: binding.contentReference.artifactId, captured: true }),
+      );
+      fixtureContents.set(binding.contentReference.artifactId, bytes);
+      binding.contentReference.sha256 = createHash("sha256").update(bytes).digest("hex");
+      binding.contentReference.sizeBytes = bytes.byteLength;
+      const metadata: ArtifactMetadata = {
+        schemaVersion: "0.1",
+        scope,
+        createdAt,
+        availableAt: "2026-09-04T00:01:00.000Z",
+        state: "available",
+        contentReference: binding.contentReference,
+        redaction: binding.redaction,
+        retention: binding.retention,
+      };
+      fixtureMetadata.push(metadata);
+      datasets.seedInteractionArtifact(metadata);
+    }
+    for (const interaction of definition.interactionCapture.interactions) {
+      for (const attempt of interaction.attempts)
+        attempt.normalizedRequest.sha256 = createHash("sha256")
+          .update(fixtureContents.get(attempt.normalizedRequest.artifactId) as Buffer)
+          .digest("hex");
+      if (interaction.kind === "model")
+        interaction.prompt.definitionSha256 = createHash("sha256")
+          .update(fixtureContents.get(interaction.prompt.artifactId) as Buffer)
+          .digest("hex");
+    }
+    recordedPublication = await datasets.publishRecordedInteractionFixtureVersion({
+      ...definition,
+      source: structuredClone(fixture.source),
+      createdAt: "2026-09-06T00:00:00.000Z",
+      createdByPrincipalId: "principal_fixture",
+      definitionSha256: digestRecordedInteractionFixtureVersionDefinition(definition),
+    });
+    selectedFixture = {
+      fixtureId: recordedPublication.version.fixtureId,
+      fixtureVersionId: recordedPublication.version.fixtureVersionId,
+      definitionSha256: recordedPublication.version.definitionSha256,
+    };
+  }
   const datasetDefinition: RegressionDatasetVersionDefinition = {
     datasetId: "dataset_artifact",
     datasetVersionId: "dataset_artifact_v1",
@@ -112,15 +187,15 @@ async function harness() {
     schemaVersion: "0.1",
     fixtureVersions: [
       {
-        fixtureId: fixture.fixtureId,
-        fixtureVersionId: fixture.fixtureVersionId,
-        definitionSha256: fixture.definitionSha256,
+        fixtureId: selectedFixture.fixtureId,
+        fixtureVersionId: selectedFixture.fixtureVersionId,
+        definitionSha256: selectedFixture.definitionSha256,
       },
     ],
   };
   const dataset = {
     ...datasetDefinition,
-    createdAt: "2026-09-05T00:00:00.000Z",
+    createdAt: "2026-09-07T00:00:00.000Z",
     createdByPrincipalId: "principal_dataset",
     definitionSha256: digestRegressionDatasetVersionDefinition(datasetDefinition),
   };
@@ -250,6 +325,34 @@ async function harness() {
     encrypted.receipt,
     "2026-09-04T00:01:00.000Z",
   );
+  for (const published of fixtureMetadata) {
+    const { availableAt: _available, ...reservedFields } = published;
+    const metadata: ArtifactMetadata = { ...reservedFields, state: "reserved" };
+    const plan = await encryption.createPlan(metadata);
+    const objectKey = `objects/v1/${metadata.contentReference.artifactId}`;
+    await catalog.reserve({
+      metadata,
+      encryption: plan,
+      objectKey,
+      createdByPrincipalId: "principal_writer",
+    });
+    const encrypted = await encryption.encrypt(
+      metadata,
+      plan,
+      fixtureContents.get(metadata.contentReference.artifactId) as Buffer,
+    );
+    await objects.putIfAbsent(objectKey, encrypted.bytes);
+    await catalog.activate(
+      scope,
+      metadata.contentReference.artifactId,
+      encrypted.receipt,
+      published.availableAt as string,
+    );
+  }
+  // The separate memory adapters deliberately need this test-only coordinated-state bridge.
+  // The production coordinated PostgreSQL transaction is not being simulated or claimed here.
+  for (const ownership of recordedPublication?.ownerships ?? [])
+    catalog.claimFixtureOwnershipForTesting(ownership);
   const find = vi.spyOn(catalog, "find");
   const get = vi.spyOn(objects, "get");
   const decrypt = vi.spyOn(encryption, "decrypt");
@@ -278,6 +381,8 @@ async function harness() {
     keyring,
     event,
     candidate,
+    recordedPublication,
+    fixtureContents,
   };
 }
 
@@ -333,6 +438,7 @@ describe("request-rooted authorized artifact capture", () => {
     expect(JSON.stringify(output)).not.toContain(h.active.encryption.wrappedDataKey.ciphertext);
     expect(output).not.toHaveProperty("sealed");
     expect(output).not.toHaveProperty("verdict");
+    expect(output.fixtureBindings).toEqual([]);
   });
 
   it.each([
@@ -374,6 +480,7 @@ describe("request-rooted authorized artifact capture", () => {
     const output = await h.execute();
     expect(output.status).toBe("roots_unavailable");
     expect(output).not.toHaveProperty("artifacts");
+    expect(output).not.toHaveProperty("fixtureBindings");
     expect(output.usage.artifacts).toEqual({
       reads: 0,
       reservedBytes: 0,
@@ -642,5 +749,243 @@ describe("request-rooted authorized artifact capture", () => {
     expect(publicApi).not.toHaveProperty("acquirePolicyTraceEvidence");
     expect(publicApi).not.toHaveProperty("acquirePolicyRecordGraph");
     expect(publicApi).not.toHaveProperty("AcquisitionBudget");
+    expect(publicApi).not.toHaveProperty("inspectCapturedFixtureBindings");
+  });
+});
+
+describe("fixture-bound artifact capture", () => {
+  const id = "art_model_config";
+
+  it.each(["missing_edge", "wrong_edge", "missing_occurrences", "missing_alias", "missing_body"])(
+    "fails closed on internal capture composition regression: %s",
+    async (kind) => {
+      const h = await harness(true);
+      const output = await h.execute();
+      if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+      const graph = structuredClone(output.traceCapture.comparisonCapture.graph);
+      let artifacts = [...output.artifacts];
+      const node = graph.nodes.find(
+        ({ read }) =>
+          read.source.kind === "regression_fixture_version" &&
+          read.record !== null &&
+          "interactionCapture" in read.record,
+      );
+      if (kind === "missing_body") Object.assign(node?.read as object, { record: null });
+      if (kind === "missing_occurrences") artifacts = [];
+      if (kind === "missing_alias")
+        artifacts = artifacts.filter(({ read }) => read.reference.artifactId !== id);
+      if (kind === "missing_edge" || kind === "wrong_edge") {
+        const capture = artifacts.find(({ origin }) => origin.kind === "record");
+        Object.assign(capture as object, {
+          origin: {
+            kind: "record",
+            edgeIndex:
+              kind === "missing_edge"
+                ? graph.edges.length
+                : graph.edges.findIndex((edge) => edge.reference.kind !== "artifact"),
+          },
+        });
+      }
+      expect(() => inspectCapturedFixtureBindings(graph, artifacts)).toThrowError(
+        expect.objectContaining({ reason: "observation_conflict" }),
+      );
+    },
+  );
+
+  it("binds actual encrypted content to the published owner, complete fixture and every alias occurrence", async () => {
+    const h = await harness(true);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected artifact capture");
+    const fixture = h.recordedPublication?.version;
+    if (!fixture) throw new Error("Expected recorded fixture");
+    expect(output.fixtureBindings).toHaveLength(1);
+    const binding = output.fixtureBindings[0];
+    expect(binding?.source).toEqual({
+      kind: "regression_fixture_version",
+      reference: {
+        fixtureId: fixture.fixtureId,
+        fixtureVersionId: fixture.fixtureVersionId,
+        definitionSha256: fixture.definitionSha256,
+      },
+    });
+    expect(binding?.artifacts).toHaveLength(fixture.interactionCapture.artifacts.length);
+    const graph = output.traceCapture.comparisonCapture.graph;
+    for (const artifact of binding?.artifacts ?? []) {
+      expect(artifact.observation).toEqual({ status: "matched" });
+      expect(artifact.artifactCaptureIndexes).toHaveLength(2);
+      for (const index of artifact.artifactCaptureIndexes) {
+        const captured = output.artifacts[index];
+        expect(captured?.read.reference.artifactId).toBe(artifact.artifactId);
+        expect(captured?.read.catalog?.recordSha256).toBe(artifact.catalogRecordSha256);
+        expect(captured?.read.observation.status).toBe("verified");
+        if (captured?.origin.kind !== "record")
+          throw new Error("Expected fixture graph occurrence");
+        expect(graph.edges[captured.origin.edgeIndex]?.parent).toEqual(binding?.source);
+        expect(graph.edges[captured.origin.edgeIndex]?.parentRecordSha256).toBe(
+          binding?.recordSha256,
+        );
+      }
+    }
+    // General candidate/trace artifacts do not inherit fixture ownership rules.
+    expect(binding?.artifacts.some((item) => item.artifactId === reference.artifactId)).toBe(false);
+    const general = output.artifacts.find(
+      ({ read }) => read.reference.artifactId === reference.artifactId,
+    );
+    expect(general?.read.catalog?.ownership).toBeNull();
+    expect(general?.read.observation.status).toBe("verified");
+    expect(output.usage.artifacts.reads).toBe(19);
+  });
+
+  it.each([
+    "missing_owner",
+    "wrong_fixture",
+    "wrong_version",
+    "wrong_publisher",
+    "late_binding",
+    "early_binding",
+    "late_activation",
+    "catalog_missing",
+    "catalog_invalid",
+    "tombstoned",
+  ])("retains %s separately from content verification", async (kind) => {
+    const h = await harness(true);
+    h.find.mockImplementation(async (scope, artifactId) => {
+      const entry = await MemoryArtifactCatalogRepository.prototype.find.call(
+        h.catalog,
+        scope,
+        artifactId,
+      );
+      if (artifactId !== id || !entry) return entry;
+      if (kind === "catalog_missing") return null;
+      if (kind === "catalog_invalid") Object.assign(entry, { extra: true });
+      if (kind === "missing_owner") Reflect.deleteProperty(entry, "ownership");
+      if (entry.ownership) {
+        if (kind === "wrong_fixture") entry.ownership.owner.fixtureId = "fixture_other";
+        if (kind === "wrong_version")
+          entry.ownership.owner.fixtureVersionId = "fixture_other_version";
+        if (kind === "wrong_publisher") entry.ownership.boundByPrincipalId = "principal_other";
+        if (kind === "late_binding") entry.ownership.boundAt = "2026-09-07T00:00:00.000Z";
+        if (kind === "early_binding") entry.ownership.boundAt = "2026-09-05T00:00:00.000Z";
+      }
+      if (kind === "late_activation")
+        entry.metadata.availableAt = "2026-09-06T00:00:00.000000000000000000000000000001Z";
+      if (kind === "tombstoned") {
+        entry.metadata.state = "tombstoned";
+        entry.metadata.tombstonedAt = "2026-09-07T00:00:00.000Z";
+      }
+      return entry;
+    });
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const binding = output.fixtureBindings[0]?.artifacts.find(
+      (binding) => binding.artifactId === id,
+    );
+    const expected =
+      kind === "tombstoned"
+        ? { status: "matched" }
+        : kind.startsWith("catalog_")
+          ? { status: "unavailable", reason: "catalog_unavailable" }
+          : {
+              status: "mismatch",
+              reason:
+                kind === "missing_owner"
+                  ? "ownership_missing"
+                  : kind === "late_activation"
+                    ? "publication_time_mismatch"
+                    : "ownership_mismatch",
+            };
+    expect(binding?.observation).toEqual(expected);
+    const reads = output.artifacts.filter(({ read }) => read.reference.artifactId === id);
+    expect(reads).toHaveLength(2);
+    for (const { read } of reads)
+      expect(read.observation.status).toBe(
+        kind === "catalog_missing"
+          ? "missing"
+          : kind === "catalog_invalid" || kind === "tombstoned"
+            ? "unavailable"
+            : "verified",
+      );
+    expect(output).not.toHaveProperty("verdict");
+  });
+
+  it.each(["retention", "redaction"])(
+    "detects %s substitution even when the changed catalog has valid authenticated bytes",
+    async (kind) => {
+      const h = await harness(true);
+      const changed = await h.catalog.find(scope, id);
+      if (!changed) throw new Error("Expected catalog fixture");
+      if (kind === "retention")
+        changed.metadata.retention = { mode: "expire", expiresAt: "2027-01-01T00:00:00.000Z" };
+      else changed.metadata.redaction = { status: "not_performed" };
+      Object.assign(changed, {
+        encryption: await h.dependencies.encryption.createPlan(changed.metadata),
+      });
+      const encrypted = await h.dependencies.encryption.encrypt(
+        changed.metadata,
+        changed.encryption,
+        h.fixtureContents.get(id) as Buffer,
+      );
+      Object.assign(changed, { objectReceipt: encrypted.receipt });
+      h.find.mockImplementation(async (scope, artifactId) =>
+        artifactId === id
+          ? changed
+          : MemoryArtifactCatalogRepository.prototype.find.call(h.catalog, scope, artifactId),
+      );
+      h.get.mockImplementation(async (key) =>
+        key === changed.objectKey
+          ? encrypted.bytes
+          : MemoryArtifactObjectStore.prototype.get.call(h.dependencies.objects, key),
+      );
+      const output = await h.execute();
+      if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+      expect(
+        output.fixtureBindings[0]?.artifacts.find((binding) => binding.artifactId === id)
+          ?.observation,
+      ).toEqual({ status: "mismatch", reason: `${kind}_mismatch` });
+      expect(
+        output.artifacts
+          .filter(({ read }) => read.reference.artifactId === id)
+          .every(({ read }) => read.observation.status === "verified"),
+      ).toBe(true);
+    },
+  );
+
+  it("does not promote matching ownership to retained content when objects are missing", async () => {
+    const h = await harness(true);
+    h.get.mockResolvedValue(null);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    expect(
+      output.fixtureBindings[0]?.artifacts.every(
+        (binding) => binding.observation.status === "matched",
+      ),
+    ).toBe(true);
+    expect(
+      output.artifacts
+        .filter(({ read }) => read.reference.artifactId === id)
+        .every(
+          ({ read }) =>
+            read.observation.status === "unavailable" &&
+            read.observation.reason === "object_missing",
+        ),
+    ).toBe(true);
+  });
+
+  it("retains an unreadable fixture as unresolved, never inventing its binding inventory", async () => {
+    const h = await harness(true);
+    vi.spyOn(h.repositories.datasets, "findRecordedInteractionFixtureVersion").mockResolvedValue(
+      null,
+    );
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    expect(output.fixtureBindings).toEqual([]);
+    expect(
+      output.traceCapture.comparisonCapture.graph.entries.some(
+        (entry) =>
+          entry.source.kind === "regression_fixture_version" &&
+          entry.source.reference.fixtureVersionId === "fixture_artifact_v2" &&
+          entry.observation.status === "missing",
+      ),
+    ).toBe(true);
   });
 });

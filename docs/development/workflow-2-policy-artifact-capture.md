@@ -2,8 +2,9 @@
 
 [English](workflow-2-policy-artifact-capture.md) | [한국어](workflow-2-policy-artifact-capture.ko.md)
 
-Status: graph/trace artifact acquisition implemented. Owner eligibility, complete semantic closure,
-mutable authority, guarded snapshot sealing and Workflow 2 checkpoint 3 remain open.
+Status: graph/trace artifact acquisition and recorded-fixture binding inspection implemented.
+Complete semantic closure, mutable authority, guarded snapshot sealing and Workflow 2 checkpoint 3
+remain open.
 
 ## One request owns the acquisition
 
@@ -57,6 +58,15 @@ This is a `source_revision_changed` capture failure even if no maintenance proce
 availability changed during collection. It does not rewrite an earlier observation as a historical
 success, retry automatically, or authorize later snapshot publication.
 
+## Recorded-fixture bindings
+
+The subsequent [fixture-binding inspection](workflow-2-policy-fixture-bindings.md) adds
+`fixtureBindings` derived from this invocation's verified recorded fixtures and catalog observations.
+It compares exact ownership, publication receipts, descriptors, retention and redaction while
+preserving every direct fixture occurrence. A matched binding and verified content are separate
+observations; neither proves complete closure or mutable authority. Ordinary build/trace files do
+not acquire a fixture-ownership requirement.
+
 ## Shared resource admission
 
 Graph reads, trace rows, both catalog reads and compact raw catalog JSON consume one metadata
@@ -94,8 +104,8 @@ catalog/content changes and real key-provider failure. Existing graph/trace entr
 their behavior; internal shared-meter helpers are not package-root exports.
 
 No plaintext, wrapped key, object locator, policy verdict or sealed marker is added to the capture.
-This is not a PostgreSQL policy-worker or release acceptance test. Matching observations are not
-owner eligibility, current policy/source authority, atomic sealing, deployment permission or
+This is not a PostgreSQL policy-worker or release acceptance test. Matching recorded-fixture bindings
+do not establish current policy/source authority, atomic sealing, deployment permission or
 production readiness. Complete those boundaries, then implement deterministic predicates, durable
 jobs, API/SDK, recovery/isolation and end-to-end acceptance. The roadmap remains **2/7** accepted
 Workflow 2 checkpoints.
