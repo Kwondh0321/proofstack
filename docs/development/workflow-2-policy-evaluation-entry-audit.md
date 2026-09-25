@@ -166,6 +166,13 @@ It shares the graph acquisition budget and preserves missing/unavailable states.
 claim complete-trace coverage, artifact bytes, authority, semantic closure, or a sealed snapshot;
 the remaining policy and durable-worker gates below stay open.
 
+The [authorized artifact observer](workflow-2-policy-artifact-observation.md) adds one exact
+owning-domain read with artifact capabilities, full catalog integrity, precise receipt/lifecycle
+cuts, encrypted and plaintext digest verification, and a second catalog read to detect changes
+during object I/O. It emits no plaintext, locator, key or sealed verdict. Request-rooted artifact
+composition, cumulative admission, expected-owner semantics and transactional sealing guards remain
+open; matching before/after reads do not replace those gates.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

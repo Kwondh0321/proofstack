@@ -151,6 +151,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 누락·이용 불가는 구분하며 전체 trace 범위, 실제 artifact 바이트, 권한, 의미적 완전성이나
 봉인된 snapshot을 주장하지 않습니다. 아래의 정책·영속 worker 완료 조건은 남아 있습니다.
 
+후속 [권한을 확인한 아티팩트 관측](workflow-2-policy-artifact-observation.ko.md)은 아티팩트
+접근 권한, 전체 카탈로그 무결성, 고정밀 접수·생명주기 경계, 암호문·원문 해시와 I/O 이후
+카탈로그 변경 검사를 갖춘 개별 조회를 추가합니다. 원문·저장 위치·키·봉인된 판정을 반환하지
+않습니다. 요청 기반 전체 연결·누적 한도·예상 소유권 의미와 트랜잭션 봉인 guard는 남아 있으며
+전후 조회 일치만으로 이를 대체하지 않습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

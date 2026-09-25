@@ -110,3 +110,7 @@ relationships are valid. Complete cross-record semantic validation, artifact-byt
 mutable authority/lifecycle capture and race guards, snapshot sealing, all policy predicates,
 authorized durable jobs, API/SDK, recovery, isolation, and end-to-end acceptance remain open.
 Workflow 2 still has two accepted checkpoints out of seven.
+
+The subsequent [authorized artifact observer](workflow-2-policy-artifact-observation.md) provides
+the owning-domain exact content-read prerequisite. Connecting it to these trace occurrences and
+the graph's artifact references under a shared budget remains open.

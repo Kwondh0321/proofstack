@@ -5,6 +5,7 @@ export * from "./artifact-key-status.js";
 export * from "./artifact-maintenance.js";
 export * from "./artifact-ports.js";
 export * from "./errors.js";
+export * from "./policy-evaluation-artifact-reader.js";
 export * from "./purge-artifact.js";
 export * from "./read-artifact.js";
 export * from "./read-artifact-metadata.js";
