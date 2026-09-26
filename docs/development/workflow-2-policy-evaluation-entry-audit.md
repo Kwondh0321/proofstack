@@ -207,6 +207,13 @@ Independent receipt/accounting checks survive a missing plan; unretained lease e
 usage remain unknown. Reports retain original hashes without new repository reads. This is not
 execution authority, result-content meaning or sealing, and Workflow 2 remains 2/7.
 
+The subsequent [retained evaluation snapshot bindings](workflow-2-policy-evaluation-snapshot-bindings.md)
+apply the existing run-history, aggregate and assessment contracts to captured exact graph inputs.
+They preserve unavailable prerequisites and contradictory histories, original edge/hash provenance,
+and cumulative repeated inspection limits without additional reads. Local snapshot consistency is
+not criterion/source authority, independently recomputed interval bounds or sealing; Workflow 2
+remains 2/7 accepted checkpoints.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

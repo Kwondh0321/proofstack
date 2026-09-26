@@ -34,6 +34,10 @@ import {
 } from "@proofstack/replay";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  inspectCapturedEvaluationSnapshots,
+  type PolicyEvaluationSnapshotBindings,
+} from "./capture-evaluation-snapshots.js";
+import {
   type PolicyRecordExpansion,
   type PolicyRecordGraphRepositories,
   type PolicyRecordRead,
@@ -63,6 +67,8 @@ export interface PolicyRecordGraph {
   readonly entries: readonly PolicyEvaluationManifestEntry[];
   /** Exact membership/predecessor observations, not whole-graph semantic eligibility. */
   readonly datasetRelations: PolicyDatasetRelations;
+  /** Retained run/aggregate/assessment consistency, not criterion trust or policy satisfaction. */
+  readonly evaluationSnapshots: PolicyEvaluationSnapshotBindings;
   /** Declared replay-plan consistency, not execution or installed runtime authority. */
   readonly replayPlans: PolicyReplayPlanBindings;
   /** All retained attempts and accounting, not proof of execution or policy satisfaction. */
@@ -300,6 +306,7 @@ export async function acquirePolicyRecordGraph(
       nodes,
       edges,
       entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
+      evaluationSnapshots: inspectCapturedEvaluationSnapshots({ nodes, edges }, limits),
       replayResults: { results: replayResults, unavailableResults },
       datasetRelations: inspectPolicyEvaluationDatasetRelations(
         { scope, evaluationTime },

@@ -18,6 +18,10 @@ export {
 export * from "./capture-artifact-evidence.js";
 export type { PolicyFixtureBindingCapture } from "./capture-fixture-bindings.js";
 export type {
+  PolicyEvaluationSnapshotBindings,
+  PolicyEvaluationSnapshotCheck,
+} from "./capture-evaluation-snapshots.js";
+export type {
   PolicyRecordExpansion,
   PolicyRecordGraphRepositories,
   PolicyRecordRead,

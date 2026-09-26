@@ -33,6 +33,7 @@ import {
   MemoryComparisonRepository,
   createModelAssuranceRepositoryTestHarness,
   FixedClock,
+  type EvaluationRepositoryFixtureRecord,
 } from "@proofstack/core/testing";
 import { digestReplayPlanDefinition, digestTargetReleaseDefinition } from "@proofstack/replay";
 import {
@@ -41,6 +42,7 @@ import {
 } from "@proofstack/replay/testing";
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
+import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 
 type Fields = Record<string, unknown>;
@@ -150,7 +152,10 @@ function missingRepositories() {
   return { repositories, calls };
 }
 
-async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_kind" | "history") {
+async function harness(
+  replayCase?: "valid" | "invalid_digest" | "unsupported_kind" | "history",
+  snapshots?: { mutate?: (fixture: EvaluationRepositoryFixtureRecord) => void },
+) {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
   const replayRepository = new MemoryReplayDefinitionRepository();
   const replay = replayCase
@@ -305,6 +310,25 @@ async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_ki
   for (const fixture of evaluation.records) {
     const oldHash = fixture.record.definitionSha256;
     bind(fixture.record);
+    if (snapshots) {
+      // Repository vectors exercise local records, not cross-record chronology or distinct cases.
+      // Join them into an actual coherent retained snapshot before testing semantic substitutions.
+      if (fixture.kind === "evaluation_run" && fixture.record.evaluationRunId === "evr_1")
+        fixture.record.fixture.fixtureVersionId = "fxv_schema_v2";
+      if (fixture.kind === "raw_observation") {
+        fixture.record.startedAt = "2026-09-02T00:00:01.000Z";
+        fixture.record.completedAt = "2026-09-02T00:00:02.000Z";
+        fixture.record.recordedAt = "2026-09-02T00:00:02.000Z";
+      }
+      if (fixture.kind === "evaluation_run_result") {
+        fixture.record.completedAt = "2026-09-02T00:00:03.000Z";
+        fixture.record.recordedAt = "2026-09-02T00:00:03.000Z";
+      }
+      if (fixture.kind === "evaluation_aggregate")
+        fixture.record.createdAt = "2026-09-02T00:00:04.000Z";
+      if (fixture.kind === "assessment") fixture.record.createdAt = "2026-09-02T00:00:05.000Z";
+      snapshots.mutate?.(fixture);
+    }
     const body = structuredClone(fixture.record) as unknown as Fields;
     for (const key of evaluationRecordDescriptors[fixture.kind].receiptKeys) delete body[key];
     fixture.record.definitionSha256 = digestEvaluationRecordDefinition(
@@ -369,6 +393,293 @@ async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_ki
     input: request(candidate, policy),
   };
 }
+
+describe("retained evaluation snapshots in the acquired graph", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
+  it("joins actual published runs, results, aggregates and assessments without extra reads", async () => {
+    const h = await harness(undefined, {});
+    const repository = h.repositories.evidence.evaluation;
+    const observations = vi.spyOn(repository, "findRawObservation");
+    const aggregate = vi.spyOn(repository, "findEvaluationAggregate");
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const reports = graph.evaluationSnapshots;
+    expect(reports.parents).toHaveLength(4);
+    expect(reports.unavailableParents).toEqual([]);
+    expect(
+      reports.parents.flatMap((p) => p.checks).every((c) => c.observation.status === "matched"),
+    ).toBe(true);
+    expect(observations).toHaveBeenCalledTimes(2);
+    expect(aggregate).toHaveBeenCalledTimes(1);
+    expect(reports.inspectionUsage.references).toBe(15);
+    for (const report of reports.parents) {
+      expect(graph.entries).toContainEqual({
+        source: report.source,
+        observation: { status: "verified", recordSha256: report.recordSha256 },
+      });
+      expect(report.dependencyEdgeIndexes.length).toBeGreaterThan(0);
+      for (const index of report.dependencyEdgeIndexes) expect(graph.edges[index]).toBeDefined();
+    }
+    const reordered = inspectCapturedEvaluationSnapshots(
+      { nodes: [...graph.nodes].reverse(), edges: graph.edges },
+      limits,
+    );
+    expect(reordered).toEqual(reports);
+    const before = structuredClone(graph);
+    const first = reordered.parents[0];
+    if (!first || first.source.kind !== "evaluation_run_result")
+      throw new Error("Missing result report");
+    first.source.reference.resultId = "result_detached";
+    expect(graph).toEqual(before);
+    expect(reports).not.toHaveProperty("eligible");
+    expect(reports).not.toHaveProperty("sealed");
+  });
+
+  it.each([
+    "observation_attempt",
+    "observation_budget",
+    "observation_time",
+    "observation_verdict",
+    "omitted_observation",
+    "result_terminal",
+    "duplicate_fixture",
+    "dataset_mismatch",
+    "aggregate_confidence",
+    "aggregate_time",
+    "assessment_run",
+    "assessment_observation",
+    "assessment_coverage",
+    "assessment_time",
+  ])("detects cross-record inconsistency despite valid individual digests: %s", async (kind) => {
+    const h = await harness(undefined, {
+      mutate: ({ kind: recordKind, record }: EvaluationRepositoryFixtureRecord) => {
+        if (recordKind === "raw_observation" && record.observationId === "obs_0") {
+          if (kind === "observation_attempt") record.attemptId = "attempt_other";
+          if (kind === "observation_budget") record.budgetUsage.elapsedMilliseconds = 5001;
+          if (kind === "observation_time") record.startedAt = "2026-09-01T23:59:59.999Z";
+          if (kind === "observation_verdict") {
+            record.verdict = "fail";
+            record.measurement = { kind: "boolean", metricName: "schema_valid", value: false };
+          }
+        }
+        if (recordKind === "evaluation_run_result" && record.resultId === "evs_0") {
+          if (kind === "omitted_observation") record.observations = [];
+          if (kind === "result_terminal") record.terminalReason = "attempts_exhausted";
+        }
+        if (recordKind === "evaluation_run" && record.evaluationRunId === "evr_1") {
+          if (kind === "duplicate_fixture") record.fixture.fixtureVersionId = "fxv_schema_v1";
+          if (kind === "dataset_mismatch") record.dataset.datasetVersionId = "dtv_other";
+        }
+        if (recordKind === "evaluation_aggregate") {
+          if (kind === "aggregate_confidence" && record.passInterval.status === "reported")
+            record.passInterval.interval.confidenceLevelBasisPoints = 9000;
+          if (kind === "aggregate_time") record.createdAt = "2026-09-02T00:00:02.999Z";
+        }
+        if (recordKind === "aggregation_policy" && kind === "assessment_coverage")
+          record.minimumApplicableCount = 3;
+        if (recordKind === "assessment") {
+          if (kind === "assessment_run") record.runs.pop();
+          if (kind === "assessment_observation") record.observations.pop();
+          if (kind === "assessment_time") record.createdAt = "2026-09-02T00:00:03.999Z";
+        }
+      },
+    });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const { parents, unavailableParents } = graph.evaluationSnapshots;
+    expect(unavailableParents).toEqual([]);
+    expect(parents.flatMap((p) => p.checks).some((c) => c.observation.status === "mismatch")).toBe(
+      true,
+    );
+    expect(
+      parents.flatMap((p) => p.checks).some((c) => c.observation.status === "unavailable"),
+    ).toBe(false);
+    const assessment = parents.find((p) => p.source.kind === "assessment");
+    const affected = kind.startsWith("assessment_") ? "assessment_snapshot" : "aggregate_history";
+    expect(assessment?.checks.find((c) => c.kind === affected)?.observation.status).toBe(
+      "mismatch",
+    );
+  });
+
+  it.each([
+    "findEvaluationRun",
+    "findRawObservation",
+    "findEvaluationRunResult",
+    "findAggregationPolicy",
+    "findEvaluationAggregate",
+    "findAssessment",
+  ] as const)(
+    "preserves unavailable evidence and does not shrink a favorable snapshot: %s",
+    async (method) => {
+      const h = await harness(undefined, {});
+      vi.spyOn(h.repositories.evidence.evaluation, method).mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const reports = graph.evaluationSnapshots;
+      const checks = reports.parents.flatMap((p) => p.checks);
+      expect(checks.some((c) => c.observation.status === "mismatch")).toBe(false);
+      if (method === "findAssessment") {
+        expect(reports.parents).toEqual([]);
+        expect(reports.unavailableParents[0]?.source.kind).toBe("assessment");
+      } else {
+        expect(checks.some((c) => c.observation.status === "unavailable")).toBe(true);
+        expect(
+          reports.parents
+            .find((p) => p.source.kind === "assessment")
+            ?.checks.find((c) => c.kind === "aggregate_history")?.observation.status,
+        ).toBe("unavailable");
+      }
+      if (method === "findEvaluationRun")
+        expect(
+          graph.edges.some(
+            (e) =>
+              e.reference.kind === "evaluation_run_identity" &&
+              e.target === null &&
+              e.selectorFailure?.status === "missing",
+          ),
+        ).toBe(true);
+    },
+  );
+
+  it("preserves an established bad history alongside another unavailable observation", async () => {
+    const h = await harness(undefined, {
+      mutate: (fixture) => {
+        if (fixture.kind === "raw_observation" && fixture.record.observationId === "obs_0")
+          fixture.record.attemptId = "attempt_other";
+      },
+    });
+    const find = h.repositories.evidence.evaluation.findRawObservation.bind(
+      h.repositories.evidence.evaluation,
+    );
+    vi.spyOn(h.repositories.evidence.evaluation, "findRawObservation").mockImplementation(
+      (scope, id) => (id === "obs_1" ? Promise.resolve(null) : find(scope, id)),
+    );
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const aggregate = graph.evaluationSnapshots.parents.find(
+      (p) => p.source.kind === "evaluation_aggregate",
+    );
+    expect(aggregate?.checks.map((c) => c.observation.status)).toEqual([
+      "matched",
+      "mismatch",
+      "unavailable",
+    ]);
+    expect(
+      graph.evaluationSnapshots.parents
+        .find((p) => p.source.kind === "assessment")
+        ?.checks.find((c) => c.kind === "aggregate_history")?.observation.status,
+    ).toBe("mismatch");
+  });
+
+  it("charges nested repeated inputs cumulatively and accepts exact admission boundaries", async () => {
+    const h = await harness(undefined, {});
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const usage = graph.evaluationSnapshots.inspectionUsage;
+    const exact = { maxReferences: usage.references, maxReferenceBytes: usage.referenceBytes };
+    expect(inspectCapturedEvaluationSnapshots(graph, exact)).toEqual(graph.evaluationSnapshots);
+    expect(() =>
+      inspectCapturedEvaluationSnapshots(graph, { ...exact, maxReferences: usage.references - 1 }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspectCapturedEvaluationSnapshots(graph, {
+        ...exact,
+        maxReferenceBytes: usage.referenceBytes - 1,
+      }),
+    ).toThrow("reference_bytes_exceeded");
+    expect(() =>
+      inspectCapturedEvaluationSnapshots(graph, { ...exact, maxReferences: -1 }),
+    ).toThrow("input_invalid");
+  });
+
+  it.each(["record_invalid", "not_yet_available"] as const)(
+    "retains the original unavailable observation reason: %s",
+    async (reason) => {
+      const h = await harness(undefined, {});
+      const original = h.repositories.evidence.evaluation.findRawObservation.bind(
+        h.repositories.evidence.evaluation,
+      );
+      vi.spyOn(h.repositories.evidence.evaluation, "findRawObservation").mockImplementation(
+        async (scope, id) => {
+          const record = await original(scope, id);
+          if (record && id === "obs_0") {
+            if (reason === "record_invalid") record.definitionSha256 = "f".repeat(64);
+            else record.recordedAt = "2026-11-01T00:00:00.000Z";
+          }
+          return record;
+        },
+      );
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const entry = graph.entries.find(
+        (e) => e.source.kind === "raw_observation" && e.source.reference.observationId === "obs_0",
+      );
+      expect(entry?.observation).toEqual({ status: "unavailable", reason });
+      const result = graph.evaluationSnapshots.parents.find(
+        (p) => p.source.kind === "evaluation_run_result" && p.source.reference.resultId === "evs_0",
+      );
+      expect(result?.checks[0]?.observation.status).toBe("unavailable");
+      expect(
+        result?.dependencyEdgeIndexes.some(
+          (i) => graph.edges[i]?.target?.kind === "raw_observation",
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("propagates an observation-store failure without a partial successful report", async () => {
+    const h = await harness(undefined, {});
+    const failure = new Error("Evaluation observation store failed");
+    vi.spyOn(h.repositories.evidence.evaluation, "findRawObservation").mockRejectedValue(failure);
+    await expect(capturePolicyRecordGraph(h.input, h.repositories)).rejects.toBe(failure);
+  });
+
+  it("keeps an empty internal graph empty rather than manufacturing successful checks", () => {
+    expect(
+      inspectCapturedEvaluationSnapshots(
+        { nodes: [], edges: [] },
+        { maxReferences: 0, maxReferenceBytes: 0 },
+      ),
+    ).toEqual({
+      parents: [],
+      unavailableParents: [],
+      inspectionUsage: { references: 0, referenceBytes: 0 },
+    });
+  });
+
+  it.each([
+    "edge_missing",
+    "edge_duplicate",
+    "parent_hash",
+    "node_missing",
+    "target_kind",
+    "selector_failure_missing",
+  ])(
+    "rejects a broken internal provenance invariant instead of reporting absent evidence: %s",
+    async (kind) => {
+      const h = await harness(undefined, {});
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const edges = structuredClone([...graph.edges]);
+      const nodes = structuredClone([...graph.nodes]);
+      const index = edges.findIndex(
+        (e) => e.parent.kind === "evaluation_run_result" && e.reference.path === "/evaluationRunId",
+      );
+      const edge = edges[index];
+      if (!edge?.target) throw new Error("Missing result edge");
+      if (kind === "edge_missing") edges.splice(index, 1);
+      if (kind === "edge_duplicate") edges.push(structuredClone(edge));
+      if (kind === "parent_hash") Object.assign(edge, { parentRecordSha256: "f".repeat(64) });
+      if (kind === "node_missing")
+        nodes.splice(
+          nodes.findIndex(
+            (n) =>
+              policyEvaluationSourceReferenceKey(n.read.source) ===
+              policyEvaluationSourceReferenceKey(edge.target as NonNullable<typeof edge.target>),
+          ),
+          1,
+        );
+      if (kind === "target_kind") Object.assign(edge, { target: graph.roots[0] });
+      if (kind === "selector_failure_missing") Object.assign(edge, { target: null });
+      expect(() => inspectCapturedEvaluationSnapshots({ nodes, edges }, limits)).toThrow(
+        "reference_conflict",
+      );
+    },
+  );
+});
 
 describe("request-rooted recursive record graph", () => {
   it.each(["valid", "profile_mismatch", "missing_plan", "missing_result"])(

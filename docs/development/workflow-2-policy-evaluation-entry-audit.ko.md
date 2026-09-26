@@ -187,6 +187,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 추가 저장소 조회 없이 원래 해시를 보존합니다. 실행 권한·결과 내용 의미·봉인은 별도이며 완료
 체크포인트는 2/7입니다.
 
+후속 [평가 스냅샷 연결 검사](workflow-2-policy-evaluation-snapshot-bindings.ko.md)는 기존 실행 이력·
+집계·평가 스냅샷 규칙을 수집한 정확한 기록에 적용합니다. 누락·모순, 원래 간선·해시 출처와
+반복 검사 누적 한도를 보존하며 추가 조회는 없습니다. 관계 일치는 기준·출처 권한, 구간 경계의
+독립 재계산이나 봉인이 아닙니다. 완료 체크포인트는 2/7입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

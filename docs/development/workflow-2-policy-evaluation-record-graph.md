@@ -60,6 +60,11 @@ attempts, retry declarations, history receipts, budget policy and boundary obser
 results stay separate from successful reports; unavailable plans and unretained lease-expiry timing
 are explicit. This adds no repository I/O and does not prove execution or result-content meaning.
 
+`evaluationSnapshots` applies the existing run-history, aggregate and assessment contracts to the
+[captured evaluation relationships](workflow-2-policy-evaluation-snapshot-bindings.md). It retains
+missing parents, contradictory histories, original dependency-edge indexes and cumulative repeated
+inspection usage. Local consistency is not evaluator execution, source authority or a sealed verdict.
+
 An edge's `target` is the exact child record reference or `null`. Missing/unavailable selectors
 retain a typed `selectorFailure`; no missing hash is fabricated. Artifact descriptors, exact trace
 selectors, protocol/profile declarations, candidate source claims, approval requirements, and
