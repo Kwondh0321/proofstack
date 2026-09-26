@@ -201,6 +201,12 @@ all dependency occurrences and original record hashes without additional reposit
 plan consistency is not installation authority, historical execution, complete replay-result lineage
 or sealing; no additional Workflow 2 checkpoint is accepted.
 
+The subsequent [replay-result binding inspection](workflow-2-policy-replay-result-bindings.md) relates
+all retained attempts, declared retries, boundary observations and budget history to the exact plan.
+Independent receipt/accounting checks survive a missing plan; unretained lease expiry and disputed
+usage remain unknown. Reports retain original hashes without new repository reads. This is not
+execution authority, result-content meaning or sealing, and Workflow 2 remains 2/7.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

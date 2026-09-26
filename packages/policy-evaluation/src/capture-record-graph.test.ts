@@ -8,6 +8,7 @@ import {
   type ReleasePolicy,
   type ReleasePolicyDefinition,
   type ReplayPlanDefinition,
+  type EvaluationRun,
   type TargetReleaseDefinition,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
@@ -34,7 +35,10 @@ import {
   FixedClock,
 } from "@proofstack/core/testing";
 import { digestReplayPlanDefinition, digestTargetReleaseDefinition } from "@proofstack/replay";
-import { MemoryReplayDefinitionRepository } from "@proofstack/replay/testing";
+import {
+  MemoryReplayDefinitionRepository,
+  MemoryReplayJobRepository,
+} from "@proofstack/replay/testing";
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
@@ -146,7 +150,7 @@ function missingRepositories() {
   return { repositories, calls };
 }
 
-async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_kind") {
+async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_kind" | "history") {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
   const replayRepository = new MemoryReplayDefinitionRepository();
   const replay = replayCase
@@ -164,7 +168,8 @@ async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_ki
         targetDefinition.scope = evaluation.scope;
         if (replayCase === "unsupported_kind") targetDefinition.supportedBoundaryKinds = ["tool"];
         const receipt = {
-          createdAt: "2026-09-08T00:00:00.000Z",
+          createdAt:
+            replayCase === "history" ? "2026-09-01T00:00:00.000Z" : "2026-09-08T00:00:00.000Z",
           createdByPrincipalId: "principal_replay_graph",
         };
         const target = {
@@ -209,17 +214,80 @@ async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_ki
     await replayRepository.publishTargetRelease(replay.target);
     await replayRepository.publishReplayPlan(replay.plan);
   }
+  // The upstream evaluation fixtures were created on September 2; their source must precede them.
+  let historyTime = "2026-09-01T00:00:00.000Z";
+  const replayJobs = new MemoryReplayJobRepository({
+    definitions: replayRepository,
+    now: () => historyTime,
+  });
+  let replayResultReference: EvaluationRun["replay"] | undefined;
+  if (replay && replayCase === "history") {
+    await replayJobs.createJob({
+      scope: evaluation.scope,
+      jobId: "job_graph_history",
+      createdByPrincipalId: "principal_graph",
+      plan: replay.planReference,
+    });
+    historyTime = "2026-09-01T00:00:00.100Z";
+    const claim = await replayJobs.claimJob({
+      scope: evaluation.scope,
+      jobId: "job_graph_history",
+      attemptId: "attempt_graph_history",
+      leaseId: "lease_graph_history",
+      leaseDurationMilliseconds: 1000,
+      workerId: "worker_graph_history",
+      workerBuildSha256: "b".repeat(64),
+      workerProtocol: replay.plan.workerProtocol,
+    });
+    if (!claim.claimed) throw new Error("Expected claimed graph history");
+    historyTime = "2026-09-01T00:00:00.200Z";
+    const completed = await replayJobs.completeJob({
+      scope: evaluation.scope,
+      workerFence: claim.workerFence,
+      status: "succeeded",
+      code: "completed",
+      result: {
+        artifactId: "artifact_graph_history",
+        sha256: "a".repeat(64),
+        sizeBytes: 1,
+        mediaType: "application/json",
+        classification: "internal",
+      },
+    });
+    const latest = completed.attempts.at(-1);
+    if (!latest?.result || !latest.endedAt) throw new Error("Expected completed graph history");
+    replayResultReference = {
+      jobId: completed.job.jobId,
+      attemptId: latest.attemptId,
+      completedAt: latest.endedAt,
+      plan: replay.planReference,
+      targetRelease: replay.targetReference,
+      result: latest.result,
+      terminalCode: "completed",
+      terminalStatus: "succeeded",
+    };
+  }
   const rewrittenHashes = new Map<string, string>();
   const bind = (value: unknown): void => {
     if (value === null || typeof value !== "object") return;
     const object = value as Fields;
+    if (
+      replayResultReference &&
+      object["terminalStatus"] === "succeeded" &&
+      typeof object["jobId"] === "string"
+    )
+      Object.assign(object, structuredClone(replayResultReference));
     if (replay && typeof object["planVersionId"] === "string")
       Object.assign(object, replay.planReference);
     if (replay && typeof object["targetReleaseId"] === "string")
       Object.assign(object, replay.targetReference);
     // Independent vectors reuse artifact names for different bytes. Give different descriptors
     // distinct fixture identities, while keeping genuinely identical occurrences shared.
-    if (typeof object["artifactId"] === "string" && typeof object["sha256"] === "string") {
+    if (
+      typeof object["artifactId"] === "string" &&
+      typeof object["sha256"] === "string" &&
+      object["artifactId"] !== replayResultReference?.result.artifactId
+    ) {
       const suffix = createHash("sha256")
         .update(encodeEvaluationCanonicalJson(object))
         .digest("hex")
@@ -288,6 +356,7 @@ async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_ki
     },
     evidence: { ...missing.repositories.evidence, evaluation: evaluation.repository },
     ...(replay ? { replayDefinitions: replayRepository } : {}),
+    ...(replayResultReference ? { replayResults: replayJobs } : {}),
   };
   return {
     candidate,
@@ -296,11 +365,72 @@ async function harness(replayCase?: "valid" | "invalid_digest" | "unsupported_ki
     calls,
     evaluation,
     replay,
+    replayResultReference,
     input: request(candidate, policy),
   };
 }
 
 describe("request-rooted recursive record graph", () => {
+  it.each(["valid", "profile_mismatch", "missing_plan", "missing_result"])(
+    "retains replay result binding observations through actual graph acquisition: %s",
+    async (kind) => {
+      const h = await harness("history");
+      const originalFind = h.repositories.replayResults.findJob.bind(h.repositories.replayResults);
+      const read = vi.spyOn(h.repositories.replayResults, "findJob");
+      if (kind === "profile_mismatch")
+        read.mockImplementation(async (scope, id) => {
+          const value = await originalFind(scope, id);
+          if (value?.attempts[0]) value.attempts[0].runtimeProfile.id = "runtime_other";
+          return value;
+        });
+      if (kind === "missing_plan")
+        vi.spyOn(h.repositories.replayDefinitions, "findReplayPlan").mockResolvedValue(null);
+      if (kind === "missing_result") read.mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      expect(read).toHaveBeenCalledTimes(1);
+      if (kind === "missing_result") {
+        expect(graph.replayResults.results).toEqual([]);
+        expect(graph.replayResults.unavailableResults).toEqual([
+          {
+            source: { kind: "replay_result", reference: h.replayResultReference },
+            observation: { status: "missing" },
+          },
+        ]);
+        return;
+      }
+      expect(graph.replayResults.results).toHaveLength(1);
+      expect(graph.replayResults.unavailableResults).toEqual([]);
+      const report = graph.replayResults.results[0];
+      expect(report?.source).toEqual({ kind: "replay_result", reference: h.replayResultReference });
+      const node = graph.entries.find((e) => e.source.kind === "replay_result");
+      expect(node?.observation).toEqual({ status: "verified", recordSha256: report?.recordSha256 });
+      expect(
+        report?.checks.filter((c) => c.observation.status === "mismatch").map((c) => c.kind),
+      ).toEqual(kind === "profile_mismatch" ? ["runtime_profile"] : []);
+      if (kind === "missing_plan") {
+        expect(report?.plan.recordObservation).toEqual({ status: "missing" });
+        expect(report?.checks.find((c) => c.kind === "runtime_profile")?.observation).toEqual({
+          status: "unavailable",
+          reason: "plan_unavailable",
+        });
+      } else expect(report?.checks.every((c) => c.observation.status !== "unavailable")).toBe(true);
+      expect(graph.edges).toContainEqual({
+        parent: report?.source,
+        parentRecordSha256: report?.recordSha256,
+        reference: { kind: "record", path: "/job/plan", source: report?.plan.source },
+        target: report?.plan.source,
+      });
+      expect(graph).not.toHaveProperty("sealed");
+    },
+  );
+
+  it("propagates a replay history repository failure without returning partial checks", async () => {
+    const h = await harness("history");
+    const failure = new Error("History unavailable");
+    vi.spyOn(h.repositories.replayResults, "findJob").mockRejectedValue(failure);
+    await expect(capturePolicyRecordGraph(h.input, h.repositories)).rejects.toBe(failure);
+  });
+
   it.each(["valid", "invalid_digest", "unsupported_kind"] as const)(
     "retains published replay plan semantics in the actual acquired graph: %s",
     async (kind) => {

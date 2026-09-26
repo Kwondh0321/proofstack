@@ -181,6 +181,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 선언된 계획 일관성은 설치 권한·과거 실행·전체 재현 결과 계보·봉인이 아니며 Workflow 2 완료
 체크포인트는 추가되지 않습니다.
 
+후속 [재현 결과 연결 검사](workflow-2-policy-replay-result-bindings.ko.md)는 이전 실패를 포함한
+모든 시도·재시도 선언·경계 관측·예산 이력을 정확한 계획과 대조합니다. 계획이 없어도 독립적인
+접수·회계 검사는 유지하며 과거 lease 만료 시각과 알 수 없는 사용량은 추정하지 않습니다.
+추가 저장소 조회 없이 원래 해시를 보존합니다. 실행 권한·결과 내용 의미·봉인은 별도이며 완료
+체크포인트는 2/7입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

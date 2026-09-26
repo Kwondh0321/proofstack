@@ -25,6 +25,10 @@ import {
 } from "@proofstack/datasets";
 import {
   inspectPolicyEvaluationReplayPlanBindings,
+  inspectPolicyEvaluationReplayResultBindings,
+  type PolicyEvaluationReplayDefinitionRead,
+  type PolicyEvaluationReplayResultRead,
+  type PolicyReplayResultBindings,
   type PolicyReplayPlanBindingRead,
   type PolicyReplayPlanBindings,
 } from "@proofstack/replay";
@@ -61,6 +65,17 @@ export interface PolicyRecordGraph {
   readonly datasetRelations: PolicyDatasetRelations;
   /** Declared replay-plan consistency, not execution or installed runtime authority. */
   readonly replayPlans: PolicyReplayPlanBindings;
+  /** All retained attempts and accounting, not proof of execution or policy satisfaction. */
+  readonly replayResults: {
+    readonly results: readonly PolicyReplayResultBindings[];
+    readonly unavailableResults: readonly {
+      readonly source: PolicyEvaluationReplayResultRead["source"];
+      readonly observation: Exclude<
+        PolicyEvaluationReplayResultRead["observation"],
+        { status: "verified" }
+      >;
+    }[];
+  };
   readonly usage: ReturnType<AcquisitionBudget["usage"]>;
   readonly unresolved: { readonly records: number; readonly references: number };
 }
@@ -253,6 +268,30 @@ export async function acquirePolicyRecordGraph(
     const nodes = [...expanded.entries()]
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([, node]) => node);
+    const replayResults: PolicyReplayResultBindings[] = [];
+    const unavailableResults: PolicyRecordGraph["replayResults"]["unavailableResults"][number][] =
+      [];
+    for (const { read } of nodes) {
+      if (read.source.kind !== "replay_result") continue;
+      if (read.observation.status !== "verified") {
+        unavailableResults.push({ source: read.source, observation: read.observation });
+        continue;
+      }
+      const planKey = policyEvaluationSourceReferenceKey({
+        kind: "replay_plan",
+        reference: read.source.reference.plan,
+      });
+      const planRead = captured.get(planKey);
+      if (planRead?.source.kind !== "replay_plan")
+        throw new PolicyRecordGraphError("reference_conflict", planKey);
+      replayResults.push(
+        inspectPolicyEvaluationReplayResultBindings(
+          { scope, evaluationTime, source: read.source, limits: replayLimits },
+          read as PolicyEvaluationReplayResultRead,
+          planRead as PolicyEvaluationReplayDefinitionRead,
+        ),
+      );
+    }
     return {
       request: policyEvaluationRequestReference(request),
       scope,
@@ -261,6 +300,7 @@ export async function acquirePolicyRecordGraph(
       nodes,
       edges,
       entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
+      replayResults: { results: replayResults, unavailableResults },
       datasetRelations: inspectPolicyEvaluationDatasetRelations(
         { scope, evaluationTime },
         nodes

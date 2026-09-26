@@ -55,6 +55,11 @@ from the captured target/profile/dataset/fixture records, including boundary sup
 digests, membership and recorded format. Missing plans and prerequisites stay explicit. No target is
 executed, and a direct match does not prove historical execution, runtime installation or eligibility.
 
+`replayResults` retains [result-to-plan checks](workflow-2-policy-replay-result-bindings.md) for all
+attempts, retry declarations, history receipts, budget policy and boundary observations. Missing
+results stay separate from successful reports; unavailable plans and unretained lease-expiry timing
+are explicit. This adds no repository I/O and does not prove execution or result-content meaning.
+
 An edge's `target` is the exact child record reference or `null`. Missing/unavailable selectors
 retain a typed `selectorFailure`; no missing hash is fabricated. Artifact descriptors, exact trace
 selectors, protocol/profile declarations, candidate source claims, approval requirements, and

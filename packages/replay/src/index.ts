@@ -4,6 +4,7 @@ export * from "./execute-recorded-boundary-replay.js";
 export * from "./policy-evaluation-replay-definition-reader.js";
 export * from "./policy-evaluation-replay-plan-bindings.js";
 export * from "./policy-evaluation-replay-references.js";
+export * from "./policy-evaluation-replay-result-bindings.js";
 export * from "./policy-evaluation-replay-result-reader.js";
 export * from "./preflight.js";
 export * from "./publish-replay-definitions.js";
