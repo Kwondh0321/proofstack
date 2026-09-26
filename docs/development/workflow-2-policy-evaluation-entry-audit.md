@@ -194,6 +194,13 @@ the receipt excluded from definition hashes. Known mismatches, unavailable child
 parents remain distinct. A direct match does not establish transitive eligibility, logical-root
 registration, mutable authority or sealing; Workflow 2 remains 2/7 accepted checkpoints.
 
+The subsequent [replay-plan binding inspection](workflow-2-policy-replay-plan-bindings.md) checks
+captured exact target/profile compatibility, declared boundary support, independently recomputed
+invocation digests, and recorded fixture format/membership. It preserves unavailable prerequisites,
+all dependency occurrences and original record hashes without additional repository I/O. Declared
+plan consistency is not installation authority, historical execution, complete replay-result lineage
+or sealing; no additional Workflow 2 checkpoint is accepted.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

@@ -50,6 +50,11 @@ equality. It retains original hashes, paths and unavailable parent/child observa
 I/O or resetting admission. Inspect this report separately from metadata verification; matching one
 relation does not establish transitive eligibility or logical-root authority.
 
+`replayPlans` retains [declared replay-plan consistency](workflow-2-policy-replay-plan-bindings.md)
+from the captured target/profile/dataset/fixture records, including boundary support, invocation
+digests, membership and recorded format. Missing plans and prerequisites stay explicit. No target is
+executed, and a direct match does not prove historical execution, runtime installation or eligibility.
+
 An edge's `target` is the exact child record reference or `null`. Missing/unavailable selectors
 retain a typed `selectorFailure`; no missing hash is fabricated. Artifact descriptors, exact trace
 selectors, protocol/profile declarations, candidate source claims, approval requirements, and

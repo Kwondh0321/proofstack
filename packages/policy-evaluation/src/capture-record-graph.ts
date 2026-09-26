@@ -23,6 +23,11 @@ import {
   type PolicyDatasetRelations,
   type PolicyEvaluationDatasetRead,
 } from "@proofstack/datasets";
+import {
+  inspectPolicyEvaluationReplayPlanBindings,
+  type PolicyReplayPlanBindingRead,
+  type PolicyReplayPlanBindings,
+} from "@proofstack/replay";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
   type PolicyRecordExpansion,
@@ -54,6 +59,8 @@ export interface PolicyRecordGraph {
   readonly entries: readonly PolicyEvaluationManifestEntry[];
   /** Exact membership/predecessor observations, not whole-graph semantic eligibility. */
   readonly datasetRelations: PolicyDatasetRelations;
+  /** Declared replay-plan consistency, not execution or installed runtime authority. */
+  readonly replayPlans: PolicyReplayPlanBindings;
   readonly usage: ReturnType<AcquisitionBudget["usage"]>;
   readonly unresolved: { readonly records: number; readonly references: number };
 }
@@ -262,6 +269,21 @@ export async function acquirePolicyRecordGraph(
             (read): read is PolicyEvaluationDatasetRead =>
               read.source.kind === "dataset_version" ||
               read.source.kind === "regression_fixture_version",
+          ),
+        limits,
+      ),
+      replayPlans: inspectPolicyEvaluationReplayPlanBindings(
+        { scope, evaluationTime },
+        nodes
+          .map(({ read }) => read)
+          .filter(
+            (read): read is PolicyReplayPlanBindingRead =>
+              read.source.kind === "replay_plan" ||
+              read.source.kind === "target_release" ||
+              read.source.kind === "dataset_version" ||
+              read.source.kind === "regression_fixture_version" ||
+              read.source.kind === "replay_runtime_profile" ||
+              read.source.kind === "replay_isolation_profile",
           ),
         limits,
       ),

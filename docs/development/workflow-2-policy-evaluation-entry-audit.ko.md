@@ -175,6 +175,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 사용 불가 자식과 읽을 수 없는 부모를 구분합니다. 직접 관계 일치는 전체 계보 적격성·논리 루트
 등록·변경 가능한 권한·봉인을 증명하지 않으며 Workflow 2 완료 체크포인트는 2/7입니다.
 
+후속 [재현 계획 연결 검사](workflow-2-policy-replay-plan-bindings.ko.md)는 수집한 정확한 실행 대상·
+프로필 호환성, 경계 지원 선언, 독립적으로 계산한 호출 정의 해시와 기록형 픽스처 형식·구성원을
+확인합니다. 저장소 추가 I/O 없이 확인 불가 전제조건·반복 의존성·원래 기록 해시를 보존합니다.
+선언된 계획 일관성은 설치 권한·과거 실행·전체 재현 결과 계보·봉인이 아니며 Workflow 2 완료
+체크포인트는 추가되지 않습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정
