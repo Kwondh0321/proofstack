@@ -9,8 +9,9 @@ import type {
 } from "@proofstack/contracts";
 import {
   EvidenceScopeSchema,
-  evidenceTimestampOrderKey,
   OpaqueIdSchema,
+  PolicyEvaluationTimeSchema,
+  policyEvaluationTimestampOrderKey,
   QualifiedSourceReferenceSchema,
   ReleasePolicyDefinitionSchema,
   UtcMillisecondTimestampSchema,
@@ -29,7 +30,9 @@ export const RELEASE_POLICY_AUTHORITY_REASONS = [
   "installation_binding_scope_mismatch",
   "installation_binding_unavailable",
   "issuer_not_authorized",
+  "policy_expired_at_evaluation",
   "policy_mode_not_authorized",
+  "policy_not_effective_at_evaluation",
   "policy_not_publishable_at_time",
   "reviewer_qualification_evidence_unavailable",
   "reviewer_qualification_not_current",
@@ -128,7 +131,7 @@ function sameScope(left: EvidenceScope, right: EvidenceScope): boolean {
 }
 
 function before(left: string, right: string): boolean {
-  return evidenceTimestampOrderKey(left) < evidenceTimestampOrderKey(right);
+  return policyEvaluationTimestampOrderKey(left) < policyEvaluationTimestampOrderKey(right);
 }
 
 function intervalCovers(
@@ -236,7 +239,10 @@ function parseSources(
   return sources;
 }
 
-function parseInput(input: ValidateReleasePolicyAuthorityInput): ParsedAuthorityInput {
+function parseInput(
+  input: ValidateReleasePolicyAuthorityInput,
+  purpose: "publication" | "evaluation",
+): ParsedAuthorityInput {
   let definition: ReleasePolicyDefinition;
   let installationBinding: PolicyInstallationBinding | null;
   try {
@@ -249,7 +255,9 @@ function parseInput(input: ValidateReleasePolicyAuthorityInput): ParsedAuthority
     throw invalid("Policy authority definition or installation binding is invalid", cause);
   }
   const scope = EvidenceScopeSchema.safeParse(input.scope);
-  const at = UtcMillisecondTimestampSchema.safeParse(input.at);
+  const at = (
+    purpose === "publication" ? UtcMillisecondTimestampSchema : PolicyEvaluationTimeSchema
+  ).safeParse(input.at);
   const publisherPrincipalId = OpaqueIdSchema.safeParse(input.publisherPrincipalId);
   if (!scope.success || !at.success || !publisherPrincipalId.success) {
     throw invalid(
@@ -550,7 +558,24 @@ function addSourceFindings(
 export function validateReleasePolicyAuthority(
   raw: ValidateReleasePolicyAuthorityInput,
 ): ReleasePolicyAuthorityValidation {
-  const input = parseInput(raw);
+  return deriveAuthority(parseInput(raw, "publication"), "publication");
+}
+
+/**
+ * Rechecks retained authority prerequisites at the exact semantic evaluation time. Unlike
+ * publication, the policy must already be effective. This does NOT inspect terminal lifecycle
+ * events, guard revisions, seal inputs or grant permission to evaluate or release.
+ */
+export function validateReleasePolicyEvaluationAuthority(
+  raw: ValidateReleasePolicyAuthorityInput,
+): ReleasePolicyAuthorityValidation {
+  return deriveAuthority(parseInput(raw, "evaluation"), "evaluation");
+}
+
+function deriveAuthority(
+  input: ParsedAuthorityInput,
+  purpose: "publication" | "evaluation",
+): ReleasePolicyAuthorityValidation {
   const findings = new Map<string, ReleasePolicyAuthorityFinding>();
   const add = (reason: ReleasePolicyAuthorityReason, reference?: QualifiedSourceReference) => {
     const finding = {
@@ -566,7 +591,12 @@ export function validateReleasePolicyAuthority(
     findings.set(key, finding);
   };
 
-  if (!before(input.at, input.definition.expiresAt)) add("policy_not_publishable_at_time");
+  if (purpose === "publication") {
+    if (!before(input.at, input.definition.expiresAt)) add("policy_not_publishable_at_time");
+  } else {
+    if (before(input.at, input.definition.effectiveAt)) add("policy_not_effective_at_evaluation");
+    if (!before(input.at, input.definition.expiresAt)) add("policy_expired_at_evaluation");
+  }
   addInstallationFindings(add, input);
   addSourceFindings((reason, reference) => add(reason, reference), input);
 

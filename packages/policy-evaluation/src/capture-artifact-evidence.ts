@@ -9,9 +9,9 @@ import {
 import {
   type ContentReference,
   encodeEvaluationCanonicalJson,
-  policyEvaluationTimestampOrderKey,
   type PrincipalContext,
   PrincipalContextSchema,
+  policyEvaluationTimestampOrderKey,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import {
@@ -27,6 +27,10 @@ import {
   inspectCapturedFixtureBindings,
   type PolicyFixtureBindingCapture,
 } from "./capture-fixture-bindings.js";
+import {
+  inspectCapturedPolicyAuthority,
+  type PolicyAuthorityPrerequisites,
+} from "./capture-policy-authority.js";
 import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
@@ -56,6 +60,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly status: "artifacts_captured";
       readonly artifacts: readonly PolicyArtifactCapture[];
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
+      readonly policyAuthority: PolicyAuthorityPrerequisites;
     }
 );
 
@@ -66,7 +71,8 @@ function canonical(value: unknown): string {
 /**
  * Request-rooted graph, comparison, trace and authorized artifact acquisition. The caller must
  * authorize metadata/trace ports separately; artifact access does not grant those permissions.
- * This checks recorded-fixture bindings, NOT complete semantic authority or a sealed policy snapshot.
+ * This checks recorded-fixture bindings and static policy-authority prerequisites, NOT complete
+ * semantic/mutable authority or a sealed policy snapshot.
  */
 export async function capturePolicyArtifactEvidence(
   input: unknown,
@@ -174,6 +180,14 @@ export async function capturePolicyArtifactEvidence(
       traceCapture.comparisonCapture.graph,
       artifacts,
     );
+    const policyAuthority = inspectCapturedPolicyAuthority(
+      traceCapture.comparisonCapture.graph,
+      artifacts,
+      {
+        maxReferences: request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
+      },
+    );
     const completedAt = clock.now().toISOString();
     for (const { read } of artifacts) {
       if (
@@ -191,6 +205,7 @@ export async function capturePolicyArtifactEvidence(
       completedAt,
       artifacts,
       fixtureBindings,
+      policyAuthority,
       usage: usage(),
     };
   } finally {

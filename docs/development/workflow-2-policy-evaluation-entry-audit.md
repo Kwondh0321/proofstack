@@ -229,6 +229,13 @@ repository reads. Missing evidence and known contradictions remain distinct, wit
 nested edges and cumulative repeated-use limits. Historical consistency is not current authority,
 truthful measurements, sealed inputs or a policy result; Workflow 2 remains 2/7 accepted checkpoints.
 
+The subsequent [retained policy authority prerequisites](workflow-2-policy-authority-prerequisites.md)
+compose exact installation, source/review/reviewer records and actual retained artifact observations
+at the request's full-precision evaluation time. They preserve original repeated provenance and use
+the recorded policy issuer, not the artifact reader. Static requirements do not inspect terminal
+lifecycle or revision guards and do not seal inputs, evaluate rules or authorize release; Workflow 2
+remains 2/7 accepted checkpoints.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

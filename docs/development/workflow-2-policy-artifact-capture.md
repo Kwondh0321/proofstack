@@ -2,7 +2,8 @@
 
 [English](workflow-2-policy-artifact-capture.md) | [한국어](workflow-2-policy-artifact-capture.ko.md)
 
-Status: graph/trace artifact acquisition and recorded-fixture binding inspection implemented.
+Status: graph/trace artifact acquisition, recorded-fixture bindings and static policy-authority
+prerequisite inspection implemented.
 Complete semantic closure, mutable authority, guarded snapshot sealing and Workflow 2 checkpoint 3
 remain open.
 
@@ -68,6 +69,12 @@ observations; neither proves complete closure or mutable authority. Ordinary bui
 not acquire a fixture-ownership requirement.
 
 ## Shared resource admission
+
+The subsequent [policy-authority inspection](workflow-2-policy-authority-prerequisites.md) adds
+`policyAuthority` from the original policy/source records and verified-byte observations. It performs
+no additional I/O, preserves repeated dependency provenance and checks static requirements at the
+exact request evaluation time. Its `valid` status is not mutable-authority, sealed-snapshot or
+release approval. Inspection reference usage is reported separately from acquisition I/O usage.
 
 Graph reads, trace rows, both catalog reads and compact raw catalog JSON consume one metadata
 budget. The raw admission wrapper rejects getters, hidden/non-JSON fields and cycles before domain
