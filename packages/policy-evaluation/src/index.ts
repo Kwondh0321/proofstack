@@ -18,6 +18,10 @@ export {
 export * from "./capture-artifact-evidence.js";
 export type { PolicyFixtureBindingCapture } from "./capture-fixture-bindings.js";
 export type {
+  PolicyModelAssuranceBindings,
+  PolicyModelAssuranceCheck,
+} from "./capture-model-assurance.js";
+export type {
   PolicyEvaluationSnapshotBindings,
   PolicyEvaluationSnapshotCheck,
 } from "./capture-evaluation-snapshots.js";

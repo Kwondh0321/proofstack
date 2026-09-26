@@ -221,6 +221,14 @@ aggregates and assessments with full-precision time comparisons and cumulative i
 Recorded consistency is not current source/qualification authority, installed execution or sealing;
 the remaining checkpoint gates below stay open.
 
+The subsequent [model and human assurance bindings](workflow-2-policy-model-assurance-bindings.md)
+reuse the owning qualification, calibration, blinded-result, critique and human-quorum algorithms
+at each retained assessment's recorded evaluation time. They connect base evaluation history,
+non-model evidence, exact evaluator lineages, review supersession and bounded validity without new
+repository reads. Missing evidence and known contradictions remain distinct, with original hashes,
+nested edges and cumulative repeated-use limits. Historical consistency is not current authority,
+truthful measurements, sealed inputs or a policy result; Workflow 2 remains 2/7 accepted checkpoints.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

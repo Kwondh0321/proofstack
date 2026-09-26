@@ -38,6 +38,10 @@ import {
   type PolicyEvaluationSnapshotBindings,
 } from "./capture-evaluation-snapshots.js";
 import {
+  inspectCapturedModelAssurance,
+  type PolicyModelAssuranceBindings,
+} from "./capture-model-assurance.js";
+import {
   type PolicyRecordExpansion,
   type PolicyRecordGraphRepositories,
   type PolicyRecordRead,
@@ -69,6 +73,8 @@ export interface PolicyRecordGraph {
   readonly datasetRelations: PolicyDatasetRelations;
   /** Retained run/aggregate/assessment consistency, not criterion trust or policy satisfaction. */
   readonly evaluationSnapshots: PolicyEvaluationSnapshotBindings;
+  /** Retained model/human prerequisites, not current authority or a release decision. */
+  readonly modelAssurance: PolicyModelAssuranceBindings;
   /** Declared replay-plan consistency, not execution or installed runtime authority. */
   readonly replayPlans: PolicyReplayPlanBindings;
   /** All retained attempts and accounting, not proof of execution or policy satisfaction. */
@@ -298,6 +304,7 @@ export async function acquirePolicyRecordGraph(
         ),
       );
     }
+    const evaluationSnapshots = inspectCapturedEvaluationSnapshots({ nodes, edges }, limits);
     return {
       request: policyEvaluationRequestReference(request),
       scope,
@@ -306,7 +313,8 @@ export async function acquirePolicyRecordGraph(
       nodes,
       edges,
       entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
-      evaluationSnapshots: inspectCapturedEvaluationSnapshots({ nodes, edges }, limits),
+      evaluationSnapshots,
+      modelAssurance: inspectCapturedModelAssurance({ nodes, edges }, evaluationSnapshots, limits),
       replayResults: { results: replayResults, unavailableResults },
       datasetRelations: inspectPolicyEvaluationDatasetRelations(
         { scope, evaluationTime },

@@ -66,7 +66,8 @@ Test vectors are joined before hashing/publication; production readers are not r
 Local matches do not establish current criterion/source/reviewer authority, qualification-policy
 registration, implementation installation, retained artifact availability, fixture/replay meaning,
 independence, numerical interval correctness or the truth of recorded measurements. Existing
-dataset/replay/artifact/comparison reports must still be combined with these observations. Model and
-human assurance bindings, mutable authority/revision guards, sealed inputs, deterministic policy
-results, durable jobs, API/SDK, recovery and end-to-end checkpoint acceptance remain open. The accepted
-Workflow 2 checkpoint count remains **2/7**.
+dataset/replay/artifact/comparison reports must still be combined with these observations. The
+subsequent [model and human assurance inspection](workflow-2-policy-model-assurance-bindings.md)
+adds retained prerequisite checks, not full closure. Mutable authority/revision guards, sealed inputs,
+deterministic policy results, durable jobs, API/SDK, recovery and end-to-end checkpoint acceptance
+remain open. The accepted Workflow 2 checkpoint count remains **2/7**.
