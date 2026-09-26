@@ -141,6 +141,9 @@ export class AcquisitionBudget {
             )
               this.reserveRecords(value.length - requestedEvents);
             this.measure(value);
+            // A complete terminal-history lookup is not a one-record shortcut for its members.
+            if (property === "listReleasePolicyLifecycleEvents" && Array.isArray(value))
+              this.reserveRecords(value.length);
             if (property === "findJob" && value !== null && typeof value === "object") {
               let rows = 0;
               const job = value as Record<string, unknown>;

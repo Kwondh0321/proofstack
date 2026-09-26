@@ -236,6 +236,12 @@ the recorded policy issuer, not the artifact reader. Static requirements do not 
 lifecycle or revision guards and do not seal inputs, evaluate rules or authorize release; Workflow 2
 remains 2/7 accepted checkpoints.
 
+The subsequent [terminal policy lifecycle capture](workflow-2-policy-lifecycle-capture.md) observes
+the exact root's complete zero-or-one terminal history before and after artifact acquisition. It
+retains full event/successor hashes, preserves exact semantic-time states and rejects detected
+changes under the shared acquisition budget. This is not an atomic revision guard or sealed input;
+static authority validity remains separate, and Workflow 2 remains 2/7 accepted checkpoints.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

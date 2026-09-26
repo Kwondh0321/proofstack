@@ -27,16 +27,18 @@ import {
   type PolicyAuthorityFixtureOptions,
   policyAuthorityFixture,
   releaseCandidateFixture,
+  releasePolicyLifecycleFixture,
+  releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import { describe, expect, it, vi } from "vitest";
 import {
   capturePolicyArtifactEvidence,
   type PolicyArtifactCapture,
+  type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedPolicyAuthority } from "./capture-policy-authority.js";
 import type { PolicyRecordGraph } from "./capture-record-graph.js";
 import * as publicApi from "./index.js";
-import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
 const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
 const evaluationTime = "2026-10-01T00:00:00.000Z";
@@ -175,7 +177,7 @@ async function harness(
     replayDefinitions: absent,
     replayResults: absent,
     runtimeDefinitions: absent,
-  } as unknown as PolicyRecordGraphRepositories;
+  } as unknown as PolicyArtifactEvidenceRepositories;
   const definition: PolicyEvaluationRequestDefinition = {
     algorithm: { id: "proofstack.deterministic-policy", version: "1.0.0" },
     evaluationRequestId: "request_authority",
@@ -261,6 +263,7 @@ async function harness(
   const review = vi.spyOn(evaluation, "findSourceReview");
   const qualification = vi.spyOn(evaluation, "findSourceReviewerQualification");
   const policy = vi.spyOn(policies, "findReleasePolicy");
+  const history = vi.spyOn(policies, "listReleasePolicyLifecycleEvents");
   const dependencies = { catalog, objects, encryption, clock: { now: () => new Date(observedAt) } };
   const execute = async (at = evaluationTime) => {
     const output = await capturePolicyArtifactEvidence(
@@ -290,6 +293,8 @@ async function harness(
     review,
     qualification,
     policy,
+    policies,
+    history,
   };
 }
 
@@ -301,6 +306,168 @@ function graphOf(capture: Capture) {
 function reasons(capture: Capture) {
   return capture.policyAuthority.requirements.findings.map(({ reason }) => reason);
 }
+
+describe("request-rooted terminal policy lifecycle capture", () => {
+  it("retains an explicit empty history without asserting active or sealed authority", async () => {
+    const h = await harness();
+    const capture = await h.execute();
+    const before = capture.policyLifecycle.beforeArtifacts;
+    expect(before).toMatchObject({
+      scope: h.fixture.policy.scope,
+      policy: releasePolicyReference(h.fixture.policy),
+      evaluationTime,
+      startedAt: observedAt,
+      completedAt: observedAt,
+      state: "no_terminal_event_at_evaluation",
+      history: [],
+    });
+    expect(before.policyRecordSha256).toBe(capture.policyAuthority.recordSha256);
+    expect(capture.policyLifecycle.afterArtifacts).toEqual(before);
+    expect(h.history.mock.calls).toEqual(
+      Array.from({ length: 2 }, () => [h.fixture.policy.scope, h.fixture.policy.policyVersionId]),
+    );
+    expect(before).not.toHaveProperty("revision");
+    expect(before).not.toHaveProperty("valid");
+    expect(publicApi).not.toHaveProperty("observeCapturedPolicyLifecycle");
+  });
+
+  it.each(["withdrawn", "superseded"] as const)(
+    "retains stable %s history separately from valid static prerequisites",
+    async (kind) => {
+      const h = await harness();
+      const successor = releasePolicyRepositoryFixture(
+        "capture_successor",
+        h.fixture.policy.scope,
+        {
+          policyId: h.fixture.policy.policyId,
+          predecessor: releasePolicyReference(h.fixture.policy),
+          publishedAt: "2026-09-30T23:00:00.000Z",
+          semanticVersion: "2.0.0",
+        },
+      );
+      if (kind === "superseded") await h.policies.publishReleasePolicy(successor);
+      const event = releasePolicyLifecycleFixture(
+        "capture_terminal",
+        h.fixture.policy,
+        kind === "withdrawn"
+          ? { occurredAt: evaluationTime }
+          : { kind, successor, occurredAt: evaluationTime },
+      );
+      await h.policies.publishReleasePolicyLifecycleEvent(event);
+      const capture = await h.execute();
+      expect(capture.policyAuthority.requirements.status).toBe("valid");
+      expect(capture.policyLifecycle.beforeArtifacts.state).toBe(`${kind}_at_evaluation`);
+      expect(capture.policyLifecycle.beforeArtifacts.history[0]?.record).toEqual(event);
+      expect(capture.policyLifecycle.beforeArtifacts.observationSha256).toBe(
+        capture.policyLifecycle.afterArtifacts.observationSha256,
+      );
+      expect(h.policy).toHaveBeenCalledTimes(kind === "superseded" ? 3 : 1);
+      expect(graphOf(capture).roots).toContainEqual({
+        kind: "release_policy",
+        reference: releasePolicyReference(h.fixture.policy),
+      });
+      expect(
+        graphOf(capture).nodes.some(
+          ({ read }) =>
+            read.source.kind === "release_policy" &&
+            read.source.reference.policyVersionId === successor.policyVersionId,
+        ),
+      ).toBe(false);
+      // Both complete-history reads and each returned member are charged independently.
+      expect(
+        capture.usage.records - capture.traceCapture.usage.records - h.find.mock.calls.length,
+      ).toBe(kind === "superseded" ? 6 : 4);
+      expect(
+        capture.usage.reads - capture.traceCapture.usage.reads - h.find.mock.calls.length,
+      ).toBe(kind === "superseded" ? 4 : 2);
+    },
+  );
+
+  it.each([evaluationTime, "2026-10-01T00:30:00.000Z"])(
+    "rejects a real terminal write during object acquisition at %s",
+    async (occurredAt) => {
+      const h = await harness();
+      h.get.mockImplementationOnce(async (key) => {
+        await h.policies.publishReleasePolicyLifecycleEvent(
+          releasePolicyLifecycleFixture("concurrent", h.fixture.policy, { occurredAt }),
+        );
+        return h.originalGet(key);
+      });
+      await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+      expect(h.history).toHaveBeenCalledTimes(2);
+      expect(h.get).toHaveBeenCalled();
+    },
+  );
+
+  it.each(["reason", "actorPrincipalId"] as const)(
+    "detects a same-time terminal %s substitution by complete-record digest",
+    async (field) => {
+      const h = await harness();
+      const event = releasePolicyLifecycleFixture("capture_change", h.fixture.policy, {
+        occurredAt: evaluationTime,
+      });
+      h.history
+        .mockResolvedValueOnce([event])
+        .mockResolvedValueOnce([{ ...event, [field]: "changed_value" }]);
+      await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    },
+  );
+
+  it.each(["before", "after"] as const)(
+    "propagates %s-history storage failures without a partial result",
+    async (when) => {
+      const h = await harness();
+      const failure = new Error("history store unavailable");
+      if (when === "after") h.history.mockResolvedValueOnce([]);
+      h.history.mockRejectedValueOnce(failure);
+      await expect(h.execute()).rejects.toBe(failure);
+      expect(h.history).toHaveBeenCalledTimes(when === "before" ? 1 : 2);
+      if (when === "before") expect(h.get).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not inspect lifecycle or fabricate it when the policy root is unavailable", async () => {
+    const h = await harness();
+    h.policy.mockResolvedValue(null);
+    const output = await capturePolicyArtifactEvidence(
+      h.requestAt(),
+      h.actor,
+      h.repositories,
+      h.evidence,
+      h.dependencies,
+    );
+    expect(output.status).toBe("roots_unavailable");
+    expect(output).not.toHaveProperty("policyLifecycle");
+    expect(h.history).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it("does not bypass final artifact expiry during the lifecycle recheck", async () => {
+    const h = await harness();
+    let now = observedAt;
+    h.dependencies.clock.now = () => new Date(now);
+    h.history.mockResolvedValueOnce([]).mockImplementationOnce(async () => {
+      now = "2028-01-01T00:00:00.000Z";
+      return [];
+    });
+    await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(h.get).toHaveBeenCalled();
+  });
+
+  it("does not count advancing observation times as changed authority", async () => {
+    const h = await harness();
+    let milliseconds = Date.parse(observedAt);
+    h.dependencies.clock.now = () => new Date(milliseconds++);
+    const capture = await h.execute();
+    expect(
+      capture.policyLifecycle.afterArtifacts.startedAt >
+        capture.policyLifecycle.beforeArtifacts.completedAt,
+    ).toBe(true);
+    expect(capture.policyLifecycle.afterArtifacts.observationSha256).toBe(
+      capture.policyLifecycle.beforeArtifacts.observationSha256,
+    );
+  });
+});
 
 describe("request-rooted retained policy authority prerequisites", () => {
   it("composes published exact records and real encrypted bytes without granting caller authority", async () => {

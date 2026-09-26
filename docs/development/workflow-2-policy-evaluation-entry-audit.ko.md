@@ -202,6 +202,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 원래 해시를 유지하며 아티팩트 조회자가 아닌 기록된 정책 발행자를 검사합니다. 정적 조건은
 철회·대체 이력이나 변경 버전 방어·봉인·정책 판정·출시 승인이 아니며 완료 체크포인트는 2/7입니다.
 
+후속 [정책 종결 이력 수집](workflow-2-policy-lifecycle-capture.ko.md)은 파일 수집 전후에 정확한
+루트의 전체 종결 이력 0~1개를 관측합니다. 이벤트·후속 정책 전체 해시, 정밀 평가 시각 상태와
+공통 누적 예산을 유지하고 감지한 변경을 거절합니다. 원자적 변경 버전 검증이나 봉인된 입력은
+아니며 정적 권한 유효성과 별개입니다. Workflow 2 완료 체크포인트는 계속 2/7입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

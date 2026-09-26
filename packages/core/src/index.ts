@@ -52,6 +52,7 @@ export * from "./policy/policy-evaluation-comparison-lineage.js";
 export * from "./policy/policy-evaluation-comparison-selection.js";
 export * from "./policy/policy-evaluation-control-declaration.js";
 export * from "./policy/policy-evaluation-control-record-reader.js";
+export * from "./policy/policy-evaluation-lifecycle-reader.js";
 export * from "./policy/policy-evaluation-control-references.js";
 export * from "./policy/policy-evaluation-definition-reader.js";
 export * from "./policy/policy-evaluation-evidence-reader.js";

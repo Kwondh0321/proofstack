@@ -16,8 +16,8 @@ import {
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
-  policyEvaluationSourceReferenceKey,
   PrincipalContextSchema,
+  policyEvaluationSourceReferenceKey,
   type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
@@ -43,10 +43,12 @@ import {
 } from "@proofstack/datasets";
 import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
 import { describe, expect, it, vi } from "vitest";
-import { capturePolicyArtifactEvidence } from "./capture-artifact-evidence.js";
+import {
+  capturePolicyArtifactEvidence,
+  type PolicyArtifactEvidenceRepositories,
+} from "./capture-artifact-evidence.js";
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import * as publicApi from "./index.js";
-import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
 const scope = comparisonFixtureScope("artifact_graph");
 const traceId = "0123456789abcdef0123456789abcdef";
@@ -239,7 +241,7 @@ async function harness(recorded = false) {
     replayDefinitions: absent,
     replayResults: absent,
     runtimeDefinitions: absent,
-  } as unknown as PolicyRecordGraphRepositories;
+  } as unknown as PolicyArtifactEvidenceRepositories;
   const definition: PolicyEvaluationRequestDefinition = {
     algorithm: { id: "proofstack.deterministic-policy", version: "1.0.0" },
     evaluationRequestId: "request_artifact",
@@ -425,8 +427,11 @@ describe("request-rooted authorized artifact capture", () => {
     expect(output.artifacts.some(({ read }) => read.observation.status === "missing")).toBe(true);
     expect(h.exact).toHaveBeenCalledTimes(1);
     expect(h.get).toHaveBeenCalledTimes(3);
-    expect(output.usage.reads).toBe(output.traceCapture.usage.reads + h.find.mock.calls.length);
-    expect(output.usage.records).toBe(output.traceCapture.usage.records + h.find.mock.calls.length);
+    // Both complete lifecycle observations are admitted even when each returns an empty history.
+    expect(output.usage.reads).toBe(output.traceCapture.usage.reads + h.find.mock.calls.length + 2);
+    expect(output.usage.records).toBe(
+      output.traceCapture.usage.records + h.find.mock.calls.length + 2,
+    );
     expect(output.usage.references).toBe(output.traceCapture.usage.references);
     expect(output.usage.artifacts).toEqual({
       reads: 3,

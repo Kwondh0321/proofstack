@@ -32,10 +32,22 @@ import {
   type PolicyAuthorityPrerequisites,
 } from "./capture-policy-authority.js";
 import {
+  observeCapturedPolicyLifecycle,
+  type PolicyLifecycleObservation,
+  type PolicyLifecycleReadRepository,
+} from "./capture-policy-lifecycle.js";
+import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+
+/** Artifact capture additionally observes the complete authoritative terminal policy history. */
+export type PolicyArtifactEvidenceRepositories = PolicyRecordGraphRepositories & {
+  readonly control: PolicyRecordGraphRepositories["control"] & {
+    readonly releasePolicy: PolicyLifecycleReadRepository;
+  };
+};
 
 export type PolicyArtifactCaptureOrigin =
   | { readonly kind: "record"; readonly edgeIndex: number }
@@ -61,6 +73,10 @@ export type PolicyArtifactEvidenceCapture = {
       readonly artifacts: readonly PolicyArtifactCapture[];
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly policyAuthority: PolicyAuthorityPrerequisites;
+      readonly policyLifecycle: {
+        readonly beforeArtifacts: PolicyLifecycleObservation;
+        readonly afterArtifacts: PolicyLifecycleObservation;
+      };
     }
 );
 
@@ -71,13 +87,13 @@ function canonical(value: unknown): string {
 /**
  * Request-rooted graph, comparison, trace and authorized artifact acquisition. The caller must
  * authorize metadata/trace ports separately; artifact access does not grant those permissions.
- * This checks recorded-fixture bindings and static policy-authority prerequisites, NOT complete
- * semantic/mutable authority or a sealed policy snapshot.
+ * This checks recorded-fixture bindings, static policy-authority prerequisites and terminal
+ * lifecycle observations, NOT complete semantic/mutable authority or a sealed policy snapshot.
  */
 export async function capturePolicyArtifactEvidence(
   input: unknown,
   actor: PrincipalContext,
-  repositories: PolicyRecordGraphRepositories,
+  repositories: PolicyArtifactEvidenceRepositories,
   evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
   dependencies: PolicyEvaluationArtifactReadDependencies,
 ): Promise<PolicyArtifactEvidenceCapture> {
@@ -123,6 +139,12 @@ export async function capturePolicyArtifactEvidence(
         completedAt: clock.now().toISOString(),
         usage: usage(),
       };
+    const policyRepository = budget.wrap(repositories.control.releasePolicy);
+    const beforeArtifacts = await observeCapturedPolicyLifecycle(
+      traceCapture.comparisonCapture.graph,
+      policyRepository,
+      clock,
+    );
     const occurrences: { origin: PolicyArtifactCaptureOrigin; reference: ContentReference }[] = [];
     traceCapture.comparisonCapture.graph.edges.forEach((edge, edgeIndex) => {
       if (edge.reference.kind === "artifact")
@@ -188,6 +210,13 @@ export async function capturePolicyArtifactEvidence(
         maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
       },
     );
+    const afterArtifacts = await observeCapturedPolicyLifecycle(
+      traceCapture.comparisonCapture.graph,
+      policyRepository,
+      clock,
+    );
+    if (beforeArtifacts.observationSha256 !== afterArtifacts.observationSha256)
+      throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
     const completedAt = clock.now().toISOString();
     for (const { read } of artifacts) {
       if (
@@ -206,6 +235,7 @@ export async function capturePolicyArtifactEvidence(
       artifacts,
       fixtureBindings,
       policyAuthority,
+      policyLifecycle: { beforeArtifacts, afterArtifacts },
       usage: usage(),
     };
   } finally {

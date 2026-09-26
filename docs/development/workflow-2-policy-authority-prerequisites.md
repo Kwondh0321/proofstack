@@ -80,7 +80,9 @@ Other candidate dependencies deliberately remain missing in these fixtures: stat
 is not evidence that the full candidate graph is complete. No PostgreSQL policy-worker or release
 acceptance is claimed by these tests.
 
-Terminal withdrawal/supersession history, current authority and artifact revision guards, atomic
+The subsequent [terminal lifecycle capture](workflow-2-policy-lifecycle-capture.md) separately
+observes withdrawal/supersession before and after artifact reads. Static `valid` still does not
+establish lifecycle validity. Current authority and artifact revision guards, atomic
 snapshot publication, policy predicates, durable worker fencing/retries, API/SDK, recovery/isolation
 and end-to-end checkpoint acceptance remain open. A static `valid` report must never bypass those
 remaining gates or authorize a release.

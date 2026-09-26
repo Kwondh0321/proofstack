@@ -3,7 +3,7 @@
 [English](workflow-2-policy-artifact-capture.md) | [한국어](workflow-2-policy-artifact-capture.ko.md)
 
 Status: graph/trace artifact acquisition, recorded-fixture bindings and static policy-authority
-prerequisite inspection implemented.
+prerequisite inspection and terminal policy lifecycle observations implemented.
 Complete semantic closure, mutable authority, guarded snapshot sealing and Workflow 2 checkpoint 3
 remain open.
 
@@ -76,8 +76,12 @@ no additional I/O, preserves repeated dependency provenance and checks static re
 exact request evaluation time. Its `valid` status is not mutable-authority, sealed-snapshot or
 release approval. Inspection reference usage is reported separately from acquisition I/O usage.
 
-Graph reads, trace rows, both catalog reads and compact raw catalog JSON consume one metadata
-budget. The raw admission wrapper rejects getters, hidden/non-JSON fields and cycles before domain
+The subsequent [terminal lifecycle capture](workflow-2-policy-lifecycle-capture.md) observes exact
+policy history before and after object reads, retaining full event/successor hashes and rejecting
+detected changes. It does not replace the required future atomic revision guard and snapshot seal.
+
+Graph reads, trace rows, both catalog reads, terminal history/successor reads and raw JSON consume
+one metadata budget. The raw admission wrapper rejects getters, hidden/non-JSON fields and cycles before domain
 inspection. Original graph/trace references remain charged once per occurrence; adding a result's
 origin index does not create a new source-reference occurrence or reset any counter.
 
