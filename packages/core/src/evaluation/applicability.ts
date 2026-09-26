@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import {
   type ApplicabilityContext,
   ApplicabilityContextSchema,
   type ApplicabilityExpression,
   ApplicabilityExpressionSchema,
   type ApplicabilityResult,
+  encodeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 
 export type ApplicabilityContextField =
@@ -128,6 +130,15 @@ function parseContext(input: unknown): ApplicabilityContext {
     throw new InvalidApplicabilityInputError("context", { cause: parsed.error });
   }
   return parsed.data;
+}
+
+/** The owning bounded context hash; admitted absent optionals have one canonical representation. */
+export function digestApplicabilityContext(input: unknown): string {
+  const context = parseContext(input);
+  const defined = Object.fromEntries(
+    Object.entries(context).filter(([, value]) => value !== undefined),
+  );
+  return createHash("sha256").update(encodeEvaluationCanonicalJson(defined)).digest("hex");
 }
 
 /**

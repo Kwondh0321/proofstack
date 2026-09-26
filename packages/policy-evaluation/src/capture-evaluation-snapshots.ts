@@ -17,13 +17,27 @@ import {
 import { PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
 import type { PolicyRecordRead } from "./record-routing.js";
+import {
+  inspectCapturedEvaluationRun,
+  type PolicyEvaluationRunBindingCheck,
+} from "./capture-evaluation-run-bindings.js";
 
-type ParentKind = "evaluation_run_result" | "evaluation_aggregate" | "assessment";
+type ParentKind =
+  | "evaluation_run"
+  | "evaluation_run_result"
+  | "evaluation_aggregate"
+  | "assessment";
 type ParentSource = Extract<PolicyEvaluationSourceReference, { kind: ParentKind }>;
 type Status = "matched" | "mismatch" | "unavailable";
 
 export interface PolicyEvaluationSnapshotCheck {
-  readonly kind: "run_history" | "aggregate_snapshot" | "aggregate_history" | "assessment_snapshot";
+  readonly kind:
+    | PolicyEvaluationRunBindingCheck["kind"]
+    | "run_definition"
+    | "run_history"
+    | "aggregate_snapshot"
+    | "aggregate_history"
+    | "assessment_snapshot";
   /** JSON pointer in the report's parent; empty points at that entire retained record. */
   readonly path: string;
   readonly observation: { readonly status: Status };
@@ -49,7 +63,17 @@ export interface PolicyEvaluationSnapshotBindings {
 }
 
 function isParent(source: PolicyEvaluationSourceReference): source is ParentSource {
-  return ["evaluation_run_result", "evaluation_aggregate", "assessment"].includes(source.kind);
+  return ["evaluation_run", "evaluation_run_result", "evaluation_aggregate", "assessment"].includes(
+    source.kind,
+  );
+}
+
+function combinedStatus(checks: readonly PolicyEvaluationSnapshotCheck[]): Status {
+  return checks.some((c) => c.observation.status === "mismatch")
+    ? "mismatch"
+    : checks.some((c) => c.observation.status === "unavailable")
+      ? "unavailable"
+      : "matched";
 }
 
 function same(left: unknown, right: unknown): boolean {
@@ -61,7 +85,7 @@ function same(left: unknown, right: unknown): boolean {
 /**
  * Internal only: consumes this invocation's fixed, revalidated acquisition graph, never a public
  * caller's graph. Reuses domain snapshot rules without I/O, execution or authority inference.
- * A local match does not validate run definitions, source trust, retained bytes or full closure.
+ * A local match does not validate source trust, retained bytes or full closure.
  */
 export function inspectCapturedEvaluationSnapshots(
   graph: Pick<PolicyRecordGraph, "nodes" | "edges">,
@@ -75,7 +99,7 @@ export function inspectCapturedEvaluationSnapshots(
   const edgeKey = (source: PolicyEvaluationSourceReference, path: string) =>
     JSON.stringify([policyEvaluationSourceReferenceKey(source), path]);
   graph.edges.forEach((edge, index) => {
-    if (!isParent(edge.parent)) return;
+    if (!isParent(edge.parent) && edge.parent.kind !== "qualification_report") return;
     const key = edgeKey(edge.parent, edge.reference.path);
     if (edges.has(key)) throw new PolicyRecordGraphError("reference_conflict", key);
     edges.set(key, { edge, index });
@@ -83,6 +107,7 @@ export function inspectCapturedEvaluationSnapshots(
   const parents: PolicyEvaluationSnapshotBindings["parents"][number][] = [];
   const unavailableParents: PolicyEvaluationSnapshotBindings["unavailableParents"][number][] = [];
   const histories = new Map<string, Status>();
+  const definitions = new Map<string, Status>();
   const aggregates = new Map<
     string,
     { snapshot: unknown; dependencies: number[]; status: Status }
@@ -139,8 +164,13 @@ export function inspectCapturedEvaluationSnapshots(
         : "mismatch";
   const ordered = [...nodes.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
-  // The three passes follow the fixed dependency order, not storage or caller ordering.
-  for (const kind of ["evaluation_run_result", "evaluation_aggregate", "assessment"] as const) {
+  // The passes follow the fixed dependency order, not storage or caller ordering.
+  for (const kind of [
+    "evaluation_run",
+    "evaluation_run_result",
+    "evaluation_aggregate",
+    "assessment",
+  ] as const) {
     for (const [key, parent] of ordered) {
       if (parent.source.kind !== kind || !isParent(parent.source)) continue;
       if (parent.observation.status !== "verified") {
@@ -149,9 +179,17 @@ export function inspectCapturedEvaluationSnapshots(
       }
       const dependencies: number[] = [];
       const checks: PolicyEvaluationSnapshotCheck[] = [];
-      if (kind === "evaluation_run_result") {
+      if (kind === "evaluation_run") {
+        checks.push(
+          ...inspectCapturedEvaluationRun(parent, (source, path, childKind) =>
+            dependency(source, path, childKind, dependencies),
+          ),
+        );
+        definitions.set(key, combinedStatus(checks));
+      } else if (kind === "evaluation_run_result") {
         const result = parent.record as EvaluationRunResult;
-        const run = body(dependency(parent, "/evaluationRunId", "evaluation_run", dependencies));
+        const runRead = dependency(parent, "/evaluationRunId", "evaluation_run", dependencies);
+        const run = body(runRead);
         const observations = result.observations.map((_, i) =>
           body(dependency(parent, `/observations/${i}`, "raw_observation", dependencies)),
         );
@@ -160,8 +198,18 @@ export function inspectCapturedEvaluationSnapshots(
             ? undefined
             : { run, result, observations };
         const outcome = status(snapshot, EvaluationRunSnapshotSchema);
-        histories.set(key, outcome);
         checks.push(check("run_history", "", outcome));
+        checks.push(
+          check(
+            "run_definition",
+            "/evaluationRunId",
+            runRead === undefined
+              ? "unavailable"
+              : (definitions.get(policyEvaluationSourceReferenceKey(runRead.source)) ??
+                  "unavailable"),
+          ),
+        );
+        histories.set(key, combinedStatus(checks));
       } else if (kind === "evaluation_aggregate") {
         const aggregate = parent.record as EvaluationAggregate;
         const policy = body(
@@ -195,11 +243,7 @@ export function inspectCapturedEvaluationSnapshots(
             : { aggregate, policy, runs, results };
         const outcome = status(snapshot, EvaluationAggregateSnapshotSchema);
         checks.unshift(check("aggregate_snapshot", "", outcome));
-        const historyStatus = checks.some((c) => c.observation.status === "mismatch")
-          ? "mismatch"
-          : checks.some((c) => c.observation.status === "unavailable")
-            ? "unavailable"
-            : "matched";
+        const historyStatus = combinedStatus(checks);
         aggregates.set(key, { snapshot, dependencies: [...dependencies], status: historyStatus });
       } else {
         const assessment = parent.record as Assessment;

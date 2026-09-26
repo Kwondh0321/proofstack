@@ -9,6 +9,7 @@ import {
   type ReleasePolicyDefinition,
   type ReplayPlanDefinition,
   type EvaluationRun,
+  type EvaluatorSpec,
   type TargetReleaseDefinition,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
@@ -43,6 +44,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
+import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 
 type Fields = Record<string, unknown>;
@@ -313,6 +315,27 @@ async function harness(
     if (snapshots) {
       // Repository vectors exercise local records, not cross-record chronology or distinct cases.
       // Join them into an actual coherent retained snapshot before testing semantic substitutions.
+      if (fixture.kind === "criterion_set") {
+        for (const criterion of fixture.record.criteria) {
+          const expression = criterion.applicability;
+          if (expression.operator !== "allOf" || expression.operands[0]?.operator !== "equals")
+            throw new Error("Expected environment applicability clause");
+          expression.operands[0].value = evaluation.scope.environmentId;
+        }
+      }
+      if (fixture.kind === "qualification_report") {
+        fixture.record.startedAt = "2026-09-02T00:00:00.000Z";
+        fixture.record.completedAt = "2026-09-02T00:00:00.000Z";
+        fixture.record.validFrom = "2026-09-02T00:00:00.000Z";
+      }
+      if (fixture.kind === "evaluation_run") {
+        fixture.record.applicability.evaluatedAt = "2026-09-02T00:00:00.000Z";
+        fixture.record.applicability.context.environmentId = evaluation.scope.environmentId;
+        fixture.record.applicability.context.populationTags = ["adult users"];
+        fixture.record.applicability.contextSha256 = createHash("sha256")
+          .update(encodeEvaluationCanonicalJson(fixture.record.applicability.context))
+          .digest("hex");
+      }
       if (fixture.kind === "evaluation_run" && fixture.record.evaluationRunId === "evr_1")
         fixture.record.fixture.fixtureVersionId = "fxv_schema_v2";
       if (fixture.kind === "raw_observation") {
@@ -396,21 +419,362 @@ async function harness(
 
 describe("retained evaluation snapshots in the acquired graph", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
+  it.each([
+    ["context_digest", "run_applicability_context"],
+    ["context_scope", "run_applicability_context"],
+    ["applicability_result", "run_applicability_result"],
+    ["applicability_unknown", "run_applicability_result"],
+    ["criterion_missing", "run_criterion"],
+    ["criterion_evaluator", "run_criterion_reference"],
+    ["criterion_oracle", "run_criterion_reference"],
+    ["criterion_receipt", "run_criterion_receipt"],
+    ["status_draft", "run_status"],
+    ["status_expired", "run_status"],
+    ["status_future", "run_status"],
+    ["aggregation_dataset", "run_aggregation"],
+    ["evaluator_support", "run_specification"],
+    ["oracle_support", "run_specification"],
+    ["evaluator_oracle", "run_specification"],
+    ["evaluator_budget", "run_budget"],
+    ["oracle_budget", "run_budget"],
+    ["qualification_subject", "run_qualification_subject"],
+    ["qualification_fixture_set", "run_qualification_fixture_set"],
+    ["qualification_case", "run_qualification_cases"],
+    ["qualification_extra_case", "run_qualification_cases"],
+    ["qualification_expected", "run_qualification_cases"],
+    ["qualification_fixture", "run_qualification_coverage"],
+    ["qualification_criterion", "run_qualification_coverage"],
+    ["qualification_outcome", "run_qualification_outcome"],
+    ["qualification_window", "run_qualification_window"],
+    ["qualification_receipts", "run_qualification_receipts"],
+  ])(
+    "rejects or preserves a retained run-definition contradiction: %s",
+    async (mutation, expected) => {
+      const h = await harness(undefined, {
+        mutate: (fixture) => {
+          const { kind, record } = fixture;
+          if (kind === "evaluation_run") {
+            if (mutation === "context_digest") record.applicability.contextSha256 = "0".repeat(64);
+            if (mutation === "context_scope")
+              record.applicability.context.environmentId = "env_other";
+            if (mutation === "applicability_result")
+              record.applicability.context.populationTags = [];
+            if (mutation === "applicability_unknown") delete record.applicability.context.locale;
+            if (
+              ["context_scope", "applicability_result", "applicability_unknown"].includes(mutation)
+            )
+              record.applicability.contextSha256 = createHash("sha256")
+                .update(encodeEvaluationCanonicalJson(record.applicability.context))
+                .digest("hex");
+            if (mutation === "criterion_missing") record.criterion.criterionId = "crt_missing";
+            if (mutation === "criterion_receipt")
+              record.applicability.evaluatedAt =
+                "2026-09-01T23:59:59.999999999999999999999999999999Z";
+            if (mutation === "qualification_subject")
+              record.evaluatorQualification = structuredClone(record.oracleQualification);
+          }
+          if (kind === "criterion_set") {
+            const criterion = record.criteria[0];
+            if (!criterion) throw new Error("Missing criterion");
+            if (mutation === "criterion_evaluator") criterion.evaluator.evaluatorId = "evl_other";
+            if (mutation === "criterion_oracle") criterion.oracle.oracleId = "orc_other";
+          }
+          if (kind === "criterion_set_status" && record.status === "approved") {
+            if (mutation === "status_draft") {
+              record.status = "draft";
+              delete record.previousStatus;
+            }
+            if (mutation === "status_expired") record.expiresAt = "2026-09-02T00:00:00.000Z";
+            if (mutation === "status_future")
+              record.effectiveAt = "2026-09-02T00:00:00.000000000000000000000000000001Z";
+          }
+          if (kind === "aggregation_policy" && mutation === "aggregation_dataset")
+            record.dataset.datasetVersionId = "dtv_other";
+          if (kind === "evaluator_spec") {
+            const supported = record.supportedCriteria[0];
+            const oracle = record.oracles[0];
+            if (!supported || !oracle) throw new Error("Missing specification prerequisites");
+            if (mutation === "evaluator_support") supported.criterionId = "crt_other";
+            if (mutation === "evaluator_oracle") oracle.oracleId = "orc_other";
+            if (mutation === "evaluator_budget") record.budgets.inputBytes--;
+          }
+          if (kind === "oracle_spec") {
+            const supported = record.supportedCriteria[0];
+            if (!supported) throw new Error("Missing supported criterion");
+            if (mutation === "oracle_support") supported.criterionId = "crt_other";
+            if (mutation === "oracle_budget") record.budgets.memoryBytes--;
+          }
+          if (kind === "qualification_fixture_set") {
+            const boundary = record.cases.find((c) => c.caseKind === "boundary");
+            if (!boundary) throw new Error("Missing boundary case");
+            if (mutation === "qualification_fixture")
+              boundary.fixture.fixtureVersionId = "fxv_other";
+            if (mutation === "qualification_criterion")
+              boundary.criterion.criterionId = "crt_other";
+          }
+          if (kind === "qualification_report" && record.subject.kind === "evaluator") {
+            if (mutation === "qualification_fixture_set")
+              record.fixtureSet.fixtureSetId = "qfs_other";
+            const boundary = record.caseResults.find((c) => c.caseKind === "boundary");
+            if (!boundary) throw new Error("Missing boundary result");
+            if (mutation === "qualification_case") boundary.caseId = "case_boundary_other";
+            if (mutation === "qualification_extra_case") {
+              record.caseResults.push({ ...structuredClone(boundary), caseId: "case_zz_extra" });
+              record.summary.matchedCount++;
+              record.summary.totalCount++;
+            }
+            if (mutation === "qualification_expected") {
+              boundary.expectedOutcome = "fail";
+              boundary.actualOutcome = "fail";
+            }
+            if (mutation === "qualification_outcome") record.status = "unqualified";
+            if (mutation === "qualification_window") {
+              record.startedAt = record.completedAt = record.validFrom = "2026-09-01T00:00:00Z";
+              record.validUntil = "2026-09-02T00:00:00.000Z";
+            }
+            if (mutation === "qualification_receipts")
+              record.startedAt = "2026-09-01T23:59:59.999999999999999999999999999999Z";
+          }
+        },
+      });
+      if (
+        [
+          "criterion_evaluator",
+          "criterion_oracle",
+          "evaluator_oracle",
+          "qualification_fixture_set",
+        ].includes(mutation)
+      ) {
+        // Same-version identity forks fail at acquisition, before any relationship can look usable.
+        await expect(capturePolicyRecordGraph(h.input, h.repositories)).rejects.toThrow(
+          "reference_conflict",
+        );
+        return;
+      }
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const parents = graph.evaluationSnapshots.parents;
+      const runs = parents.filter((p) => p.source.kind === "evaluation_run");
+      expect(runs).toHaveLength(2);
+      for (const run of runs)
+        expect(
+          run.checks.some((c) => c.kind === expected && c.observation.status === "mismatch"),
+        ).toBe(true);
+      for (const result of parents.filter((p) => p.source.kind === "evaluation_run_result"))
+        expect(result.checks).toContainEqual({
+          kind: "run_definition",
+          path: "/evaluationRunId",
+          observation: { status: "mismatch" },
+        });
+      expect(parents.find((p) => p.source.kind === "assessment")?.checks).toContainEqual({
+        kind: "aggregate_history",
+        path: "/aggregate",
+        observation: { status: "mismatch" },
+      });
+    },
+  );
+
+  it.each([
+    ["evaluator", "run_criterion_reference"],
+    ["oracle", "run_criterion_reference"],
+    ["source_review", "run_source_reviews"],
+    ["fixture_set", "run_qualification_fixture_set"],
+    ["evaluator_oracles", "run_specification"],
+  ])(
+    "unit-checks unequal declared references independently of acquisition conflicts: %s",
+    async (change, expected) => {
+      const h = await harness(undefined, {});
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const original = graph.nodes.find((n) => n.read.source.kind === "evaluation_run")?.read;
+      if (original?.observation.status !== "verified") throw new Error("Missing run");
+      const parent = structuredClone(original);
+      const run = parent.record as EvaluationRun;
+      if (change === "evaluator") run.evaluator.evaluatorVersionId = "evv_other";
+      if (change === "oracle") run.oracle.oracleVersionId = "orv_other";
+      if (change === "source_review") {
+        const review = run.sourceReviews[0];
+        if (!review) throw new Error("Missing source review");
+        review.sourceReviewId = "srv_other";
+      }
+      // This domain-rule unit test supplies controlled record bodies. End-to-end tests above
+      // separately enforce hashes, parent-bound edges and repository identities before this call.
+      const checks = inspectCapturedEvaluationRun(parent, (source, path) => {
+        const edge = graph.edges.find(
+          (e) =>
+            e.reference.path === path &&
+            policyEvaluationSourceReferenceKey(e.parent) ===
+              policyEvaluationSourceReferenceKey(source.source),
+        );
+        const child = graph.nodes.find(
+          (n) =>
+            edge?.target &&
+            policyEvaluationSourceReferenceKey(n.read.source) ===
+              policyEvaluationSourceReferenceKey(edge.target),
+        )?.read;
+        if (!child) throw new Error("Missing test dependency");
+        const copy = structuredClone(child);
+        if (copy.observation.status === "verified" && copy.source.kind === "evaluator_spec") {
+          const spec = copy.record as EvaluatorSpec;
+          if (change === "fixture_set")
+            spec.qualificationFixtureSet.fixtureSetVersionId = "qfv_other";
+          if (change === "evaluator_oracles") {
+            const oracle = spec.oracles[0];
+            if (!oracle) throw new Error("Missing evaluator oracle");
+            oracle.oracleVersionId = "orv_other";
+          }
+        }
+        return copy;
+      });
+      expect(checks.some((c) => c.kind === expected && c.observation.status === "mismatch")).toBe(
+        true,
+      );
+    },
+  );
+
+  it.each([
+    "findCriterionSet",
+    "findCriterionSetStatus",
+    "findEvaluatorSpec",
+    "findOracleSpec",
+    "findQualificationReport",
+    "findQualificationFixtureSet",
+  ] as const)(
+    "retains missing run prerequisites instead of manufacturing a definition match: %s",
+    async (method) => {
+      const h = await harness(undefined, {});
+      vi.spyOn(h.repositories.evidence.evaluation, method).mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const runs = graph.evaluationSnapshots.parents.filter(
+        (p) => p.source.kind === "evaluation_run",
+      );
+      expect(runs).toHaveLength(2);
+      expect(runs.flatMap((p) => p.checks).some((c) => c.observation.status === "mismatch")).toBe(
+        false,
+      );
+      expect(runs.every((p) => p.checks.some((c) => c.observation.status === "unavailable"))).toBe(
+        true,
+      );
+      expect(
+        graph.evaluationSnapshots.parents.find((p) => p.source.kind === "assessment")?.checks,
+      ).toContainEqual({
+        kind: "aggregate_history",
+        path: "/aggregate",
+        observation: { status: "unavailable" },
+      });
+    },
+  );
+
+  it.each([
+    ["2026-09-01T23:59:59.999999999999999999999999999999Z", "mismatch"],
+    ["2026-09-02T00:00:00.000Z", "mismatch"],
+    ["2026-09-02T00:00:00.000000000000000000000000000001Z", "matched"],
+  ])(
+    "keeps all supported fractional precision at a declared status expiry: %s",
+    async (expiry, expected) => {
+      const h = await harness(undefined, {
+        mutate: (fixture) => {
+          if (fixture.kind === "criterion_set_status" && fixture.record.status === "approved")
+            fixture.record.expiresAt = expiry;
+        },
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const runs = graph.evaluationSnapshots.parents.filter(
+        (p) => p.source.kind === "evaluation_run",
+      );
+      expect(runs).toHaveLength(2);
+      for (const run of runs)
+        expect(run.checks.find((c) => c.kind === "run_status")?.observation.status).toBe(expected);
+    },
+  );
+
+  it("does not lose a known context contradiction when a qualification is missing", async () => {
+    const h = await harness(undefined, {
+      mutate: (fixture) => {
+        if (fixture.kind === "evaluation_run")
+          fixture.record.applicability.contextSha256 = "0".repeat(64);
+      },
+    });
+    vi.spyOn(h.repositories.evidence.evaluation, "findQualificationReport").mockResolvedValue(null);
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const runs = graph.evaluationSnapshots.parents.filter(
+      (p) => p.source.kind === "evaluation_run",
+    );
+    for (const run of runs) {
+      expect(run.checks.some((c) => c.observation.status === "mismatch")).toBe(true);
+      expect(run.checks.some((c) => c.observation.status === "unavailable")).toBe(true);
+    }
+    expect(
+      graph.evaluationSnapshots.parents.find((p) => p.source.kind === "assessment")?.checks,
+    ).toContainEqual({
+      kind: "aggregate_history",
+      path: "/aggregate",
+      observation: { status: "mismatch" },
+    });
+  });
+
+  it.each(
+    (["evaluator", "oracle"] as const).flatMap((role) =>
+      (["elapsedMilliseconds", "inputBytes", "memoryBytes", "outputBytes"] as const).map(
+        (dimension) => ({ role, dimension }),
+      ),
+    ),
+  )(
+    "checks every $role execution ceiling without rounding: $dimension",
+    async ({ role, dimension }) => {
+      const h = await harness(undefined, {
+        mutate: (fixture) => {
+          if (
+            (fixture.kind === "evaluator_spec" || fixture.kind === "oracle_spec") &&
+            fixture.kind === `${role}_spec`
+          )
+            fixture.record.budgets[dimension]--;
+        },
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      for (const run of graph.evaluationSnapshots.parents.filter(
+        (p) => p.source.kind === "evaluation_run",
+      ))
+        expect(
+          run.checks.find((c) => c.kind === "run_budget" && c.path === `/${role}`)?.observation
+            .status,
+        ).toBe("mismatch");
+    },
+  );
+
+  it("retains an approved status without an optional expiration as a local record check only", async () => {
+    const h = await harness(undefined, {
+      mutate: (fixture) => {
+        if (fixture.kind === "criterion_set_status") delete fixture.record.expiresAt;
+      },
+    });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const runs = graph.evaluationSnapshots.parents.filter(
+      (p) => p.source.kind === "evaluation_run",
+    );
+    expect(runs).toHaveLength(2);
+    for (const run of runs)
+      expect(run.checks.find((c) => c.kind === "run_status")?.observation.status).toBe("matched");
+    expect(graph.evaluationSnapshots).not.toHaveProperty("eligible");
+  });
+
   it("joins actual published runs, results, aggregates and assessments without extra reads", async () => {
     const h = await harness(undefined, {});
     const repository = h.repositories.evidence.evaluation;
     const observations = vi.spyOn(repository, "findRawObservation");
     const aggregate = vi.spyOn(repository, "findEvaluationAggregate");
+    const qualifications = vi.spyOn(repository, "findQualificationReport");
+    const qualificationCases = vi.spyOn(repository, "findQualificationFixtureSet");
     const graph = await capturePolicyRecordGraph(h.input, h.repositories);
     const reports = graph.evaluationSnapshots;
-    expect(reports.parents).toHaveLength(4);
+    expect(reports.parents).toHaveLength(6);
     expect(reports.unavailableParents).toEqual([]);
     expect(
       reports.parents.flatMap((p) => p.checks).every((c) => c.observation.status === "matched"),
     ).toBe(true);
     expect(observations).toHaveBeenCalledTimes(2);
     expect(aggregate).toHaveBeenCalledTimes(1);
-    expect(reports.inspectionUsage.references).toBe(15);
+    expect(qualifications).toHaveBeenCalledTimes(2);
+    expect(qualificationCases).toHaveBeenCalledTimes(1);
+    expect(reports.inspectionUsage.references).toBe(33);
     for (const report of reports.parents) {
       expect(graph.entries).toContainEqual({
         source: report.source,
@@ -418,6 +782,12 @@ describe("retained evaluation snapshots in the acquired graph", () => {
       });
       expect(report.dependencyEdgeIndexes.length).toBeGreaterThan(0);
       for (const index of report.dependencyEdgeIndexes) expect(graph.edges[index]).toBeDefined();
+      if (report.source.kind === "evaluation_run")
+        expect(
+          report.dependencyEdgeIndexes.filter(
+            (i) => graph.edges[i]?.parent.kind === "qualification_report",
+          ),
+        ).toHaveLength(2);
     }
     const reordered = inspectCapturedEvaluationSnapshots(
       { nodes: [...graph.nodes].reverse(), edges: graph.edges },
@@ -425,9 +795,8 @@ describe("retained evaluation snapshots in the acquired graph", () => {
     );
     expect(reordered).toEqual(reports);
     const before = structuredClone(graph);
-    const first = reordered.parents[0];
-    if (!first || first.source.kind !== "evaluation_run_result")
-      throw new Error("Missing result report");
+    const first = reordered.parents.find((p) => p.source.kind === "evaluation_run_result");
+    if (first?.source.kind !== "evaluation_run_result") throw new Error("Missing result report");
     first.source.reference.resultId = "result_detached";
     expect(graph).toEqual(before);
     expect(reports).not.toHaveProperty("eligible");

@@ -214,6 +214,13 @@ and cumulative repeated inspection limits without additional reads. Local snapsh
 not criterion/source authority, independently recomputed interval bounds or sealing; Workflow 2
 remains 2/7 accepted checkpoints.
 
+The subsequent [run-definition bindings](workflow-2-policy-evaluation-run-bindings.md) connect exact
+criteria, evaluator/oracle declarations, applicability, attempt ceilings and qualification corpora
+to retained runs. Their mismatches and unavailable prerequisites propagate through result histories,
+aggregates and assessments with full-precision time comparisons and cumulative inspection admission.
+Recorded consistency is not current source/qualification authority, installed execution or sealing;
+the remaining checkpoint gates below stay open.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

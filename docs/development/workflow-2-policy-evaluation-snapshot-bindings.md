@@ -2,7 +2,7 @@
 
 [English](workflow-2-policy-evaluation-snapshot-bindings.md) | [한국어](workflow-2-policy-evaluation-snapshot-bindings.ko.md)
 
-Status: retained run-result, aggregate and assessment relationships are checked during record graph
+Status: retained run-definition, run-result, aggregate and assessment relationships are checked during record graph
 acquisition. Complete semantic closure, source authority, guarded sealing and Workflow 2 checkpoint
 3 remain open. No evaluator, oracle or replay target is executed by this inspection.
 
@@ -24,12 +24,14 @@ The composer uses the existing owning contracts, rather than a second implementa
 
 | Check | Fixed contract and scope |
 | --- | --- |
+| `run_*` / `run_definition` | [Run-definition inspection](workflow-2-policy-evaluation-run-bindings.md): exact criterion, specification, applicability, declared status, budgets and qualification relationships, followed by the result's prerequisite summary |
 | `run_history` | `EvaluationRunSnapshotSchema`: exact run and observation history, contiguous predeclared attempts, budgets, chronology, declared error retries, terminal reason and preserved final verdict |
 | `aggregate_snapshot` | `EvaluationAggregateSnapshotSchema`: exact policy/run/result/criterion/dataset references, member verdicts, distinct fixture versions, chronology, method and retained interval metadata |
 | `assessment_snapshot` | `AssessmentSnapshotSchema`: exact aggregate, policy, complete run/observation lists, qualification/review references, risk tier, independence-group declarations, coverage and statistical-assumption dimensions |
-| `aggregate_history` | The aggregate snapshot check together with all its member run-history checks; an established mismatch is retained even when another member is unavailable |
+| `aggregate_history` | The aggregate snapshot check together with all its member run-definition and run-history checks; an established mismatch is retained even when another member is unavailable |
 
-Every available run result receives a history check. An aggregate retains both its local snapshot
+Every available run receives definition checks, and every available result receives separate
+history and run-definition prerequisite checks. An aggregate retains both its local snapshot
 check and a separate history check for each result member. An assessment retains its local snapshot
 check and the aggregate-history prerequisite. A favorable local snapshot cannot erase an earlier
 failed history. Known mismatches and unavailable child reports remain separately inspectable even
@@ -46,10 +48,11 @@ Each parent report preserves its exact source, full original `recordSha256`, ord
 `dependencyEdgeIndexes` into the enclosing graph. Those edges retain the original parent hash,
 JSON pointer, exact child source and any selector failure. Assessment dependencies also include
 the original aggregate edges used by its nested snapshot, without pretending they originated in
-the assessment. An ID-only run selector with no resolved child retains its explicit unresolved
+the assessment. Run dependencies likewise preserve the original qualification-report corpus edges.
+An ID-only run selector with no resolved child retains its explicit unresolved
 edge; no digest or missing node is invented. Broken internal edges fail acquisition.
 
-The three passes are run results, aggregates, then assessments; parents within a pass are ordered
+The four passes are runs, run results, aggregates, then assessments; parents within a pass are ordered
 by their unique source key. Reports are detached from graph inputs. Inspection is repeatable for
 the same captured graph regardless of node insertion order.
 
@@ -74,7 +77,7 @@ internal provenance failures and storage-error propagation.
 These are retained snapshot relationships, not a claim that evaluator/oracle implementations were
 executed correctly, an observed value is true, statistical assumptions are justified, interval
 bounds were independently recomputed, or reviewers/independence/source declarations are authoritative.
-Run-to-criterion/evaluator/qualification bindings, model/human assurance relationships, artifact
+Run-definition consistency does not establish qualification or source authority. Model/human assurance relationships, artifact
 ownership/content, mutable authority and revision guards still need their own checks. The existing
 dataset, replay, comparison, trace and artifact reports must be combined, not replaced by one
 snapshot match. Sealing, deterministic policy results, durable jobs, API/SDK and end-to-end acceptance

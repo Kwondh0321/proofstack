@@ -6,7 +6,43 @@ import {
   type ApplicabilityExpression,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import { evaluateApplicability, InvalidApplicabilityInputError } from "./applicability.js";
+import {
+  digestApplicabilityContext,
+  evaluateApplicability,
+  InvalidApplicabilityInputError,
+} from "./applicability.js";
+
+describe("digestApplicabilityContext", () => {
+  it.each([
+    [{ populationTags: [] }, "de74ad0db9d16a24808b756110cde75b90b7f09745d444de508b6beca84a8c19"],
+    [
+      { environmentId: "env_local", locale: "ko-kr", populationTags: ["성인 사용자"] },
+      "590b2c88c186368dcb29f96038b9307d281ef543d24bdaec30df4b71b0859fbb",
+    ],
+  ])("matches fixed canonical UTF-8 SHA-256 vectors: %j", (context, expected) => {
+    expect(digestApplicabilityContext(context)).toBe(expected);
+    expect(digestApplicabilityContext(Object.fromEntries(Object.entries(context).reverse()))).toBe(
+      expected,
+    );
+  });
+  it("normalizes admitted absent optionals without mutating the input", () => {
+    const context = { populationTags: [], locale: undefined };
+    expect(digestApplicabilityContext(context)).toBe(
+      digestApplicabilityContext({ populationTags: [] }),
+    );
+    expect(Object.hasOwn(context, "locale")).toBe(true);
+  });
+  it.each([
+    null,
+    {},
+    { populationTags: ["z", "a"] },
+    { populationTags: [], locale: null },
+    { populationTags: [], extra: undefined },
+    { populationTags: ["a", "a"] },
+  ])("rejects invalid or extra context input before hashing: %j", (input) => {
+    expect(() => digestApplicabilityContext(input)).toThrow(InvalidApplicabilityInputError);
+  });
+});
 
 const fullContext: ApplicabilityContext = {
   environmentId: "env_prod",

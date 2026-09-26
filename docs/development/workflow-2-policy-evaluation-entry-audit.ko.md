@@ -192,6 +192,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 반복 검사 누적 한도를 보존하며 추가 조회는 없습니다. 관계 일치는 기준·출처 권한, 구간 경계의
 독립 재계산이나 봉인이 아닙니다. 완료 체크포인트는 2/7입니다.
 
+후속 [실행 정의 연결 검사](workflow-2-policy-evaluation-run-bindings.ko.md)는 정확한 기준·평가기·
+오라클·적용 조건·시도 한도·자격 사례를 실행에 연결합니다. 모순과 누락은 결과 이력·집계·평가로
+전달하며 모든 지원 소수 초 정밀도와 누적 검사 한도를 유지합니다. 현재 출처·자격 권한이나 설치된
+실행기·봉인은 증명하지 않으며 아래 체크포인트 완료 조건은 여전히 남아 있습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정
