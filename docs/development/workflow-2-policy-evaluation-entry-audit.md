@@ -242,6 +242,12 @@ retains full event/successor hashes, preserves exact semantic-time states and re
 changes under the shared acquisition budget. This is not an atomic revision guard or sealed input;
 static authority validity remains separate, and Workflow 2 remains 2/7 accepted checkpoints.
 
+The subsequent [PostgreSQL source serialization](workflow-2-policy-source-locks.md) makes actual
+catalog, ownership and policy/lifecycle writes participate in transaction-scoped resource locks,
+including absent-row creation. The private nonblocking reader primitive has no new runtime grants.
+Full observation comparison, bounded guarded snapshot publication and dedicated worker integration
+remain open; a successful lock is not a seal or policy result. Workflow 2 remains 2/7.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

@@ -207,6 +207,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 공통 누적 예산을 유지하고 감지한 변경을 거절합니다. 원자적 변경 버전 검증이나 봉인된 입력은
 아니며 정적 권한 유효성과 별개입니다. Workflow 2 완료 체크포인트는 계속 2/7입니다.
 
+후속 [PostgreSQL 출처 쓰기 직렬화](workflow-2-policy-source-locks.ko.md)는 부재 생성까지 포함한
+카탈로그·소유권·정책·종결 이력 쓰기를 트랜잭션 자원 잠금에 연결합니다. 비공개 비대기 읽기
+기능에 기존 런타임 권한을 추가하지 않았습니다. 전체 관측 비교·제한된 원자적 입력 발행·전용
+worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 아닙니다. 완료 수는 계속 2/7입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정
