@@ -12,10 +12,10 @@ import {
   encodeEvaluationCanonicalJson,
   OpaqueIdSchema,
   PolicyEvaluationTimeSchema,
-  policyEvaluationTimestampOrderKey,
   PostgresTimestampSchema,
   type PrincipalContext,
   PrincipalContextSchema,
+  policyEvaluationTimestampOrderKey,
   Sha256Schema,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
@@ -89,6 +89,21 @@ export interface PolicyEvaluationArtifactRead {
     readonly objectReads: number;
     readonly objectBytes: number;
   };
+}
+
+export interface PolicyEvaluationArtifactCatalogInspection {
+  readonly catalog: PolicyEvaluationArtifactCatalogObservation | null;
+  /** Content readiness is not content verification; this function performs no object/key I/O. */
+  readonly observation:
+    | { readonly status: "content_pending" }
+    | { readonly status: "missing" }
+    | {
+        readonly status: "unavailable";
+        readonly reason: Exclude<
+          Extract<PolicyEvaluationArtifactObservation, { status: "unavailable" }>["reason"],
+          "object_missing" | "content_integrity_failed"
+        >;
+      };
 }
 
 export class PolicyEvaluationArtifactReadInputError extends TypeError {
@@ -237,6 +252,122 @@ function capture(input: PolicyEvaluationArtifactReadInput): PolicyEvaluationArti
   }
 }
 
+function authorize(fixed: PolicyEvaluationArtifactReadInput): void {
+  const { scope, principal, reference } = fixed;
+  requireCapability(principal, "artifact:read");
+  if (principal.tenantId !== scope.tenantId)
+    throw new ForbiddenError("Artifact observation scope does not match principal");
+  requireEnvironmentAccess(principal, scope.projectId, scope.environmentId);
+  if (reference.classification === "restricted")
+    requireCapability(principal, "artifact:read:restricted");
+}
+
+type CatalogInspection =
+  | {
+      readonly status: "ready";
+      readonly entry: ArtifactCatalogEntry;
+      readonly catalog: PolicyEvaluationArtifactCatalogObservation;
+    }
+  | {
+      readonly status: "observed";
+      readonly catalog: PolicyEvaluationArtifactCatalogObservation | null;
+      readonly observation: Exclude<
+        PolicyEvaluationArtifactCatalogInspection["observation"],
+        { readonly status: "content_pending" }
+      >;
+    };
+
+/** One owning-domain implementation for initial acquisition and transaction-local reinspection. */
+function inspectCatalog(
+  fixed: PolicyEvaluationArtifactReadInput,
+  raw: unknown,
+  observedAt: string,
+): CatalogInspection {
+  const { scope, reference, principal, evaluationTime } = fixed;
+  const unavailable = (
+    reason: Extract<
+      PolicyEvaluationArtifactCatalogInspection["observation"],
+      { status: "unavailable" }
+    >["reason"],
+    catalog: PolicyEvaluationArtifactCatalogObservation | null = null,
+  ): CatalogInspection => ({
+    status: "observed",
+    catalog,
+    observation: { status: "unavailable", reason },
+  });
+  if (!ArtifactContentReferenceSchema.safeParse(reference).success)
+    return unavailable("reference_unsupported");
+  if (raw === null)
+    return { status: "observed", catalog: null, observation: { status: "missing" } };
+  const entry = catalogRecord(raw);
+  if (!entry) return unavailable("record_invalid");
+  if (canonical(entry.metadata.scope) !== canonical(scope))
+    return unavailable("reference_mismatch");
+  if (entry.metadata.contentReference.classification === "restricted")
+    requireCapability(principal, "artifact:read:restricted");
+  if (canonical(entry.metadata.contentReference) !== canonical(reference))
+    return unavailable("reference_mismatch");
+  const catalog = {
+    metadata: structuredClone(entry.metadata),
+    ownership: entry.ownership ? structuredClone(entry.ownership) : null,
+    recordSha256: hash(canonical(entry)),
+  };
+  const received = [
+    entry.metadata.createdAt,
+    entry.metadata.availableAt,
+    entry.metadata.tombstonedAt,
+    entry.metadata.purgedAt,
+    entry.ownership?.boundAt,
+  ];
+  if (
+    received.some(
+      (time) =>
+        time !== undefined &&
+        policyEvaluationTimestampOrderKey(time) > policyEvaluationTimestampOrderKey(observedAt),
+    ) ||
+    policyEvaluationTimestampOrderKey(entry.metadata.createdAt) >
+      policyEvaluationTimestampOrderKey(evaluationTime) ||
+    (entry.metadata.availableAt !== undefined &&
+      policyEvaluationTimestampOrderKey(entry.metadata.availableAt) >
+        policyEvaluationTimestampOrderKey(evaluationTime))
+  )
+    return unavailable("not_yet_available", catalog);
+  if (entry.metadata.state !== "available") return unavailable(entry.metadata.state, catalog);
+  if (
+    entry.metadata.retention.mode === "expire" &&
+    policyEvaluationTimestampOrderKey(entry.metadata.retention.expiresAt) <=
+      policyEvaluationTimestampOrderKey(observedAt)
+  )
+    return unavailable("retention_expired", catalog);
+  return { status: "ready", entry, catalog };
+}
+
+/**
+ * Reinspect a caller-owned catalog value without content, key, clock, or repository I/O. The
+ * trusted transaction composer must obtain the value under the complete source guard. This
+ * inspection itself acquires no locks and proves neither content availability nor a sealed cut.
+ */
+export function inspectPolicyEvaluationArtifactCatalog(
+  input: PolicyEvaluationArtifactReadInput,
+  value: unknown,
+  observedAt: string,
+): PolicyEvaluationArtifactCatalogInspection {
+  const fixed = capture(input);
+  authorize(fixed);
+  const time = UtcMillisecondTimestampSchema.safeParse(observedAt);
+  if (
+    !time.success ||
+    policyEvaluationTimestampOrderKey(fixed.evaluationTime) >
+      policyEvaluationTimestampOrderKey(time.data)
+  )
+    throw new PolicyEvaluationArtifactReadInputError();
+  const result = inspectCatalog(fixed, value, time.data);
+  return {
+    catalog: result.catalog,
+    observation: result.status === "ready" ? { status: "content_pending" } : result.observation,
+  };
+}
+
 /**
  * Authorized exact content observation, not an HTTP boundary, policy verdict or sealed DB cut.
  * Returns no plaintext, key or locator. The future capture composer must supply parent provenance,
@@ -247,13 +378,8 @@ export async function readPolicyEvaluationArtifact(
   dependencies: PolicyEvaluationArtifactReadDependencies,
 ): Promise<PolicyEvaluationArtifactRead> {
   const fixed = capture(input);
-  const { scope, principal, reference, evaluationTime } = fixed;
-  requireCapability(principal, "artifact:read");
-  if (principal.tenantId !== scope.tenantId)
-    throw new ForbiddenError("Artifact observation scope does not match principal");
-  requireEnvironmentAccess(principal, scope.projectId, scope.environmentId);
-  if (reference.classification === "restricted")
-    requireCapability(principal, "artifact:read:restricted");
+  const { scope, reference, evaluationTime } = fixed;
+  authorize(fixed);
   let lastTime: string | undefined;
   const now = () => {
     let timestamp: string;
@@ -307,52 +433,10 @@ export async function readPolicyEvaluationArtifact(
   };
   const raw = await find();
   const observedAt = now();
-  if (raw === null) return finish({ status: "missing" });
-  const entry = catalogRecord(raw);
-  if (!entry) return finish(unavailable("record_invalid"));
-  if (canonical(entry.metadata.scope) !== canonical(scope))
-    return finish(unavailable("reference_mismatch"));
-  if (entry.metadata.contentReference.classification === "restricted")
-    requireCapability(principal, "artifact:read:restricted");
-  if (canonical(entry.metadata.contentReference) !== canonical(reference))
-    return finish(unavailable("reference_mismatch"));
-  const recordSha256 = hash(canonical(entry));
-  const catalog = {
-    metadata: structuredClone(entry.metadata),
-    ownership: entry.ownership ? structuredClone(entry.ownership) : null,
-    recordSha256,
-  };
-  const received = [
-    entry.metadata.createdAt,
-    entry.metadata.availableAt,
-    entry.metadata.tombstonedAt,
-    entry.metadata.purgedAt,
-    entry.ownership?.boundAt,
-  ];
-  if (
-    received.some(
-      (time) =>
-        time !== undefined &&
-        policyEvaluationTimestampOrderKey(time) > policyEvaluationTimestampOrderKey(observedAt),
-    )
-  )
-    return finish(unavailable("not_yet_available"), catalog);
-  if (
-    policyEvaluationTimestampOrderKey(entry.metadata.createdAt) >
-      policyEvaluationTimestampOrderKey(evaluationTime) ||
-    (entry.metadata.availableAt !== undefined &&
-      policyEvaluationTimestampOrderKey(entry.metadata.availableAt) >
-        policyEvaluationTimestampOrderKey(evaluationTime))
-  )
-    return finish(unavailable("not_yet_available"), catalog);
-  if (entry.metadata.state !== "available")
-    return finish(unavailable(entry.metadata.state), catalog);
-  if (
-    entry.metadata.retention.mode === "expire" &&
-    policyEvaluationTimestampOrderKey(entry.metadata.retention.expiresAt) <=
-      policyEvaluationTimestampOrderKey(observedAt)
-  )
-    return finish(unavailable("retention_expired"), catalog);
+  const inspected = inspectCatalog(fixed, raw, observedAt);
+  if (inspected.status === "observed") return finish(inspected.observation, inspected.catalog);
+  const { entry, catalog } = inspected;
+  const { recordSha256 } = catalog;
   const expectedBytes = reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES;
   if (expectedBytes > fixed.maxReadBytes)
     throw new PolicyEvaluationArtifactCaptureError("read_limit");

@@ -67,6 +67,31 @@ complete validated private catalog record, including original receipts. The hash
 the hashed locator or wrapped key. Ownership is observed provenance, not a conclusion that the
 owner was applicable or authorized at the policy's semantic cut.
 
+## Catalog-only transaction reinspection
+
+`inspectPolicyEvaluationArtifactCatalog(input, value, observedAt)` exposes the same owning-domain
+catalog checks used by the content reader, without calling a repository, object store, decryptor,
+key provider, or clock. The trusted composer supplies an already admitted catalog value and an
+authoritative UTC millisecond observation time at or after the semantic evaluation time. Input,
+scope, actor capabilities, stored classification, complete references, lifecycle, ownership,
+receipts and retention keep the same checks. Returned metadata is independently owned; private
+locators, encryption plans and keys remain behind the full-record hash.
+
+A usable catalog yields `content_pending`, **never** `verified`, `object_missing` or
+`content_integrity_failed`: inspecting metadata cannot establish any of those byte-level facts.
+The read-limit field is validated for compatibility with acquisition, but no byte budget is
+reserved or consumed. A zero-byte limit cannot bypass the actual content reader's admission.
+Unavailable catalog results agree with acquisition at the same observation time; invalid or
+mismatched bodies retain no foreign metadata. A hash identifies only a validated exact record,
+not an invalid raw value or all intermediate states.
+
+This is the domain boundary needed for transaction-local reinspection, not an implemented
+transaction composer or snapshot publisher. The composer must still derive every source from
+trusted request-rooted capture, acquire all source guards on one connection, bound/charge the
+reads, compare full observations and time-dependent availability, validate job authority, and
+publish atomically before releasing guards. Passing a caller-selected catalog value to this
+inspector alone cannot establish a current authoritative observation or permission to seal.
+
 ## Errors and races stay separate
 
 Catalog, object-store, key-provider, and unexpected implementation failures propagate. In

@@ -13,6 +13,7 @@ import {
 } from "./artifact-ports.js";
 import { ArtifactProtectionError } from "./errors.js";
 import {
+  inspectPolicyEvaluationArtifactCatalog,
   type PolicyEvaluationArtifactReadInput,
   readPolicyEvaluationArtifact,
 } from "./policy-evaluation-artifact-reader.js";
@@ -142,6 +143,159 @@ function set(value: object, path: string, replacement: unknown) {
   for (const part of parts) target = target[part] as Record<string, unknown>;
   target[key] = replacement;
 }
+
+describe("transaction-ready catalog inspection", () => {
+  it("returns content-pending metadata with no repository, object, key or clock I/O", async () => {
+    const h = await harness();
+    const raw = { ...h.active, ownership: ownership() };
+    const result = inspectPolicyEvaluationArtifactCatalog(h.input, raw, observedAt);
+    expect(result).toEqual({
+      catalog: {
+        metadata: h.active.metadata,
+        ownership: ownership(),
+        recordSha256: hash(encodeEvaluationCanonicalJson(raw)),
+      },
+      observation: { status: "content_pending" },
+    });
+    expect(h.find).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+    expect(h.decrypt).not.toHaveBeenCalled();
+    expect(h.clock.now).not.toHaveBeenCalled();
+    const output = JSON.stringify(result);
+    for (const secret of [
+      raw.objectKey,
+      raw.encryption.wrappedDataKey.ciphertext,
+      content.toString(),
+    ])
+      expect(output).not.toContain(secret);
+    raw.ownership.owner.fixtureId = "fixture_changed";
+    raw.metadata.redaction.status = "not_performed";
+    expect(result.catalog?.ownership?.owner.fixtureId).toBe("fixture_one");
+    expect(result.catalog?.metadata.redaction.status).toBe("not_required");
+  });
+
+  it.each([
+    "missing",
+    "invalid",
+    "unsupported",
+    "scope_mismatch",
+    "reference_mismatch",
+    "reserved",
+    "tombstoned",
+    "purged",
+    "future_receipt",
+    "after_evaluation",
+    "expired",
+    "ready",
+  ])("agrees with acquisition for %s without claiming content verification", async (kind) => {
+    const h = await harness();
+    let raw: ArtifactCatalogEntry | null = structuredClone(h.active);
+    if (kind === "missing") raw = null;
+    if (kind === "invalid") raw = {} as ArtifactCatalogEntry;
+    if (kind === "unsupported") h.input.reference.mediaType = "opaque";
+    if (kind === "scope_mismatch")
+      (raw as ArtifactCatalogEntry).metadata.scope.projectId = "project_other";
+    if (kind === "reference_mismatch")
+      (raw as ArtifactCatalogEntry).metadata.contentReference.sha256 = "a".repeat(64);
+    if (kind === "reserved") raw = structuredClone(h.reserved);
+    if (kind === "tombstoned" || kind === "purged") {
+      const entry = raw as ArtifactCatalogEntry;
+      entry.metadata.state = kind;
+      entry.metadata.tombstonedAt = "2026-09-07T02:10:00.000Z";
+      if (kind === "purged") entry.metadata.purgedAt = "2026-09-07T02:11:00.000Z";
+    }
+    if (kind === "future_receipt")
+      Object.assign(raw as ArtifactCatalogEntry, {
+        ownership: { ...ownership(), boundAt: "2026-09-07T03:00:00.000001Z" },
+      });
+    if (kind === "after_evaluation")
+      (raw as ArtifactCatalogEntry).metadata.availableAt = "2026-09-07T02:00:00.000001Z";
+    if (kind === "expired")
+      (raw as ArtifactCatalogEntry).metadata.retention = { mode: "expire", expiresAt: observedAt };
+    const result = inspectPolicyEvaluationArtifactCatalog(h.input, raw, observedAt);
+    h.find.mockResolvedValue(raw);
+    const read = await h.execute();
+    expect(result.catalog).toEqual(read.catalog);
+    expect(result.observation).toEqual(
+      read.observation.status === "verified" ? { status: "content_pending" } : read.observation,
+    );
+  });
+
+  it.each(["capability", "tenant", "project", "environment", "restricted", "understated"])(
+    "preserves %s authorization during reinspection",
+    async (kind) => {
+      const h = await harness({
+        classification:
+          kind === "restricted" || kind === "understated" ? "restricted" : "confidential",
+      });
+      if (kind === "capability") h.input.principal.capabilities = ["policy:evaluate"];
+      if (kind === "tenant") h.input.principal.tenantId = "tenant_other";
+      if (kind === "project")
+        h.input.principal.resourceScope = {
+          mode: "restricted",
+          projects: [{ projectId: "project_other" }],
+        };
+      if (kind === "environment")
+        h.input.principal.resourceScope = {
+          mode: "restricted",
+          projects: [{ projectId: scope.projectId, environmentIds: ["environment_other"] }],
+        };
+      if (kind === "understated") h.input.reference.classification = "confidential";
+      expect(() => inspectPolicyEvaluationArtifactCatalog(h.input, h.active, observedAt)).toThrow(
+        ForbiddenError,
+      );
+      expect(h.find).not.toHaveBeenCalled();
+      expect(h.get).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["bad", "2026-09-07T01:59:59.999Z", "2026-09-07T03:00:00.000001Z"])(
+    "rejects invalid or premature server observation time %s",
+    async (time) => {
+      const h = await harness();
+      expect(() => inspectPolicyEvaluationArtifactCatalog(h.input, h.active, time)).toThrow(
+        "Artifact observation requires exact authorized scope",
+      );
+    },
+  );
+
+  it("rejects malformed inputs without waiving the content read budget", async () => {
+    const h = await harness();
+    expect(() =>
+      inspectPolicyEvaluationArtifactCatalog(
+        { ...h.input, maxReadBytes: -1 },
+        h.active,
+        observedAt,
+      ),
+    ).toThrow();
+    const zero = { ...h.input, maxReadBytes: 0 };
+    expect(inspectPolicyEvaluationArtifactCatalog(zero, h.active, observedAt).observation).toEqual({
+      status: "content_pending",
+    });
+    await expect(readPolicyEvaluationArtifact(zero, h.dependencies)).rejects.toMatchObject({
+      reason: "read_limit",
+    });
+  });
+
+  it.each([
+    ["objectKey", "objects/changed"],
+    ["objectReceipt.sha256", "a".repeat(64)],
+    ["encryption.wrappedDataKey.keyId", "key_changed"],
+  ])(
+    "fingerprints private %s changes without returning the private record",
+    async (path, value) => {
+      const h = await harness();
+      const before = inspectPolicyEvaluationArtifactCatalog(h.input, h.active, observedAt);
+      const changed = structuredClone(h.active);
+      set(changed, path, value);
+      const after = inspectPolicyEvaluationArtifactCatalog(h.input, changed, observedAt);
+      expect(after.observation).toEqual({ status: "content_pending" });
+      expect(after.catalog?.metadata).toEqual(before.catalog?.metadata);
+      expect(after.catalog?.recordSha256).not.toBe(before.catalog?.recordSha256);
+      expect(after).not.toHaveProperty("entry");
+    },
+  );
+});
 
 describe("exact policy artifact observation", () => {
   it("uses real authenticated encryption and returns receipts and hashes, never bytes, locators or keys", async () => {

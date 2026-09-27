@@ -248,6 +248,12 @@ including absent-row creation. The private nonblocking reader primitive has no n
 Full observation comparison, bounded guarded snapshot publication and dedicated worker integration
 remain open; a successful lock is not a seal or policy result. Workflow 2 remains 2/7.
 
+The [catalog-only reinspection boundary](workflow-2-policy-artifact-observation.md) now shares the
+content reader's exact authorization, private-record hash, lifecycle and retention checks without
+object/key I/O. Its `content_pending` result cannot replace byte verification or establish an
+atomic source cut. Transaction-local source reads, complete comparison and publication still need
+to be connected; this prerequisite does not close the third checkpoint.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

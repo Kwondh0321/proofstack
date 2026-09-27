@@ -212,6 +212,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 기능에 기존 런타임 권한을 추가하지 않았습니다. 전체 관측 비교·제한된 원자적 입력 발행·전용
 worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 아닙니다. 완료 수는 계속 2/7입니다.
 
+[카탈로그 전용 재검사](workflow-2-policy-artifact-observation.ko.md)는 콘텐츠 읽기의 정확한
+권한·비공개 기록 해시·생명주기·보존 검사를 공유하되 오브젝트·키 I/O를 수행하지 않습니다.
+`content_pending`은 바이트 검증이나 원자적 출처 관측을 대체하지 않습니다. 같은 트랜잭션의
+출처 조회·전체 비교·발행 연결은 남아 있으며 이 전제조건만으로 세 번째 체크포인트를 닫지 않습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정
