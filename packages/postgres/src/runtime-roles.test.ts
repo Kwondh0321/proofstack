@@ -139,6 +139,37 @@ function managedRole(
 }
 
 describe("provisionRuntimeRoles", () => {
+  it("revokes private policy source helpers from PUBLIC and every managed role without regranting", async () => {
+    const client = new FakeClient();
+    const configuration = options();
+    await provisionRuntimeRoles(poolWith(client), configuration);
+    const statements = client.queries.map(({ text }) => text.trim());
+    for (const signature of [
+      "public.proofstack_try_lock_policy_evaluation_source(text, text)",
+      "public.proofstack_lock_policy_evaluation_source_write()",
+    ]) {
+      for (const recipient of [
+        "PUBLIC",
+        ...Object.values(configuration).map(({ name }) => `"${name}"`),
+      ]) {
+        expect(
+          statements.some(
+            (statement) =>
+              statement.startsWith("REVOKE ALL PRIVILEGES ON FUNCTION") &&
+              statement.includes(signature) &&
+              statement.endsWith(`FROM ${recipient}`),
+          ),
+        ).toBe(true);
+      }
+      expect(
+        statements.some(
+          (statement) =>
+            statement.startsWith("GRANT EXECUTE ON FUNCTION") && statement.includes(signature),
+        ),
+      ).toBe(false);
+    }
+  });
+
   it("creates marked roles and replaces their platform grants atomically", async () => {
     const client = new FakeClient();
 

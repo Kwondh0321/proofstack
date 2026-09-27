@@ -36,6 +36,15 @@ conflicting exclusive lock. The function and trigger function use invoker privil
 `pg_catalog` search path. PUBLIC execution is revoked. No existing runtime role receives the new
 reader function; dedicated policy-worker provisioning is still future work.
 
+Both helpers are also in the runtime provisioning revocation inventory. Logical recovery uses
+`--no-privileges`, so migration-time revocation alone does not survive the reconstructed function
+defaults. Reprovisioning must remove PUBLIC execution and stale explicit runtime grants before
+restored traffic resumes. The isolated ACL-regression test restores permissive defaults for every
+platform function and explicitly grants the two helpers to every runtime role, then proves that
+reprovisioning removes them without adding a helper grant. The full recovery rehearsal separately
+checks real dump/restore. Keep the shared migration immutable; update provisioning code and use the
+existing `db:provision` recovery step, not an edited migration or a weakened ACL check.
+
 The future trusted snapshot publisher must perform this entire protocol on **one connection**:
 
 1. Begin an explicit READ COMMITTED transaction with the authorized exact scope and valid job fence.

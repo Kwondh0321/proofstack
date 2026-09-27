@@ -234,6 +234,58 @@ describe("policy evaluation database source serialization", () => {
     ).rejects.toMatchObject({ code: "22023" });
   });
 
+  it("removes restored function ACLs and stale direct grants when runtime roles are reprovisioned", async () => {
+    const name = `ps_guard_acl_${runKey}`;
+    const url = new URL(databaseUrl as string);
+    url.pathname = `/${name}`;
+    await admin.query(`CREATE DATABASE "${name}"`);
+    const restored = new Pool({ connectionString: url.toString(), max: 2 });
+    const signatures = [
+      "public.proofstack_try_lock_policy_evaluation_source(text,text)",
+      "public.proofstack_lock_policy_evaluation_source_write()",
+    ];
+    try {
+      await migrateDatabase(restored);
+      // Simulate the default function EXECUTE ACL restored by --no-privileges. This is an
+      // isolated disposable database, not the shared test database or an operational instance.
+      await restored.query("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO PUBLIC");
+      for (const { name: role } of Object.values(credentials)) {
+        await restored.query(`GRANT EXECUTE ON FUNCTION ${signatures.join(", ")} TO "${role}"`);
+      }
+      await provisionRuntimeRoles(restored, credentials);
+      const publicFunctions = await restored.query<{ signature: string }>(`
+        SELECT procedure.oid::regprocedure::text AS signature
+        FROM pg_proc AS procedure
+        JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public' AND procedure.proname LIKE 'proofstack_%'
+          AND EXISTS (
+            SELECT 1 FROM aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) AS privilege
+            WHERE privilege.grantee = 0 AND privilege.privilege_type = 'EXECUTE'
+          )
+        ORDER BY signature
+      `);
+      // Inspect every platform function, so a future migration omitted from revocation fails here.
+      expect(publicFunctions.rows).toEqual([]);
+      const direct = await restored.query<{ allowed: boolean }>(
+        `SELECT has_function_privilege(role_name, signature, 'EXECUTE') AS allowed
+         FROM unnest($1::text[]) AS roles(role_name)
+         CROSS JOIN unnest($2::text[]) AS functions(signature)`,
+        [Object.values(credentials).map(({ name: role }) => role), signatures],
+      );
+      expect(direct.rows).toEqual(
+        Array.from({ length: signatures.length * Object.keys(credentials).length }, () => ({
+          allowed: false,
+        })),
+      );
+      await withExactScopeTransaction(restored, scope(), async (client) => {
+        expect(await acquire(client, "artifact", "art_guard")).toBe(true);
+      });
+    } finally {
+      await restored.end();
+      await admin.query(`DROP DATABASE "${name}"`);
+    }
+  });
+
   it.each(["tenantId", "projectId", "environmentId"] as const)(
     "requires exact %s context",
     async (field) => {
