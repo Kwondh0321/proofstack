@@ -277,6 +277,7 @@ const workflowScope: EvidenceScope = {
 };
 const traceId = "9bf92f3577b34da6a3ce929d0e0e4736";
 const availableArtifactId = "art_recovery_available";
+const expiringArtifactId = "art_recovery_expiring";
 const purgedArtifactId = "art_recovery_purged";
 const artifactKeyId = "key_recovery_primary";
 const rotatedArtifactKeyId = "key_recovery_rotated";
@@ -286,6 +287,10 @@ const workflowArtifactKeyId = `key_${workflowNamespace}`;
 const workflowArtifactKey = Buffer.alloc(32, 47).toString("base64url");
 const availableArtifactContent = Buffer.from(
   JSON.stringify({ evidence: "coordinated recovery", status: "available" }),
+  "utf8",
+);
+const expiringArtifactContent = Buffer.from(
+  JSON.stringify({ evidence: "precise retention recovery", status: "available" }),
   "utf8",
 );
 const s3Connection = {
@@ -826,6 +831,14 @@ async function seedRecoverableArtifacts(
     artifactId: availableArtifactId,
     classification: "internal",
     content: availableArtifactContent,
+    keyId: artifactKeyId,
+    mediaType: "application/json",
+  });
+  // Build provenance uses the retained artifact; expiry precision needs its own fixture.
+  await store({
+    artifactId: expiringArtifactId,
+    classification: "internal",
+    content: expiringArtifactContent,
     keyId: artifactKeyId,
     mediaType: "application/json",
     retention: {
@@ -2646,14 +2659,17 @@ describe("coordinated recovery rehearsal", () => {
     const sourceLedger = await inspectVerifiedMigrationLedger(sourcePool);
     const sourceCatalog = new PostgresArtifactCatalogRepository(sourcePool);
     const sourceAvailable = await sourceCatalog.find(scope, availableArtifactId);
+    const sourceExpiring = await sourceCatalog.find(scope, expiringArtifactId);
     const sourcePurged = await sourceCatalog.find(scope, purgedArtifactId);
     expect(sourceAvailable?.metadata.state).toBe("available");
-    expect(sourceAvailable?.metadata.retention).toEqual({
+    expect(sourceAvailable?.metadata.retention).toEqual({ mode: "retain" });
+    expect(sourceExpiring?.metadata.state).toBe("available");
+    expect(sourceExpiring?.metadata.retention).toEqual({
       mode: "expire",
       expiresAt: "9999-09-28T12:00:00.000000000000000000000000000001+09:00",
     });
     expect(sourcePurged?.metadata.state).toBe("purged");
-    if (!sourceAvailable || !sourcePurged) {
+    if (!sourceAvailable || !sourceExpiring || !sourcePurged) {
       throw new Error("Recovery artifact catalog fixtures are incomplete");
     }
 
@@ -3262,6 +3278,15 @@ describe("coordinated recovery rehearsal", () => {
     expect(Buffer.from(restoredArtifact.content)).toEqual(availableArtifactContent);
     expect(restoredArtifact.metadata.state).toBe("available");
     expect(restoredArtifact.metadata).toEqual(sourceAvailable.metadata);
+    const restoredExpiringArtifact = await restoredArtifactReader.execute({
+      artifactId: expiringArtifactId,
+      environmentId: scope.environmentId,
+      principal: artifactPrincipal(),
+      projectId: scope.projectId,
+    });
+    expect(Buffer.from(restoredExpiringArtifact.content)).toEqual(expiringArtifactContent);
+    expect(restoredExpiringArtifact.metadata.state).toBe("available");
+    expect(restoredExpiringArtifact.metadata).toEqual(sourceExpiring.metadata);
     await expect(
       restoredArtifactReader.execute({
         artifactId: availableArtifactId,
