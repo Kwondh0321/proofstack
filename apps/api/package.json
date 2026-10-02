@@ -37,7 +37,7 @@
     "@proofstack/postgres": "workspace:*",
     "@proofstack/replay": "workspace:*",
     "@proofstack/s3": "workspace:*",
-    "fastify": "5.12.1",
+    "fastify": "5.12.5",
     "openid-client": "6.8.7",
     "zod": "catalog:"
   },
