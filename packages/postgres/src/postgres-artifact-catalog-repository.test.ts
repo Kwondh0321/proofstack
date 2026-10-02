@@ -1,6 +1,14 @@
-import { type ArtifactCatalogEntry, ArtifactConflictError } from "@proofstack/artifacts";
+import {
+  type ArtifactCatalogEntry,
+  ArtifactConflictError,
+  InvalidArtifactLifecycleInputError,
+} from "@proofstack/artifacts";
 import { artifactCatalogRepositoryConformanceCases } from "@proofstack/artifacts/testing";
-import type { ArtifactOwnership, ArtifactTombstone } from "@proofstack/contracts";
+import {
+  type ArtifactOwnership,
+  type ArtifactTombstone,
+  policyEvaluationTimestampOrderKey,
+} from "@proofstack/contracts";
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import {
@@ -30,7 +38,11 @@ interface StoredArtifact {
 }
 
 function normalized(timestamp: unknown): string | null {
-  return typeof timestamp === "string" ? new Date(timestamp).toISOString() : null;
+  if (typeof timestamp !== "string") return null;
+  const milliseconds = new Date(timestamp).toISOString();
+  const fraction = /[.](\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(timestamp)?.[1] ?? "";
+  const extra = fraction.padEnd(6, "0").slice(3, 6);
+  return extra === "000" ? milliseconds : `${milliseconds.slice(0, -1)}${extra}Z`;
 }
 
 function artifactKey(tenantId: unknown, artifactId: unknown): string {
@@ -72,7 +84,12 @@ class ArtifactCatalogFakeClient {
           created_by_principal_id: values[14],
           encryption_version: values[16],
           environment_id: values[2],
-          expires_at: normalized(values[12]),
+          expires_at: values[23],
+          expires_at_matches: true,
+          expires_at_order_key:
+            typeof values[23] === "string"
+              ? policyEvaluationTimestampOrderKey(values[23]).toString()
+              : null,
           media_type: values[7],
           object_key: values[15],
           object_receipt_sha256: null,
@@ -184,7 +201,7 @@ class ArtifactCatalogFakeClient {
             ),
         };
       }
-      if (text.includes("state = 'available'") && text.includes("expires_at <=")) {
+      if (text.includes("state = 'available'") && text.includes("expires_at_order_key <=")) {
         return {
           rows: this.list(
             values,
@@ -194,7 +211,7 @@ class ArtifactCatalogFakeClient {
                 row.state === "available" &&
                 row.retention_mode === "expire" &&
                 typeof expiresAt === "string" &&
-                Date.parse(expiresAt) <= Date.parse(String(values[3]))
+                policyEvaluationTimestampOrderKey(expiresAt) <= BigInt(String(values[3]))
               );
             },
             "expires_at",
@@ -285,8 +302,10 @@ class ArtifactCatalogFakeClient {
       .map(({ row }) => row)
       .filter((row) => scopeMatches(row, values) && predicate(row))
       .sort((left, right) => {
-        const timeOrder =
-          Date.parse(String(left[timestampColumn])) - Date.parse(String(right[timestampColumn]));
+        const difference =
+          policyEvaluationTimestampOrderKey(String(left[timestampColumn])) -
+          policyEvaluationTimestampOrderKey(String(right[timestampColumn]));
+        const timeOrder = difference < 0n ? -1 : difference > 0n ? 1 : 0;
         return timeOrder || String(left.artifact_id).localeCompare(String(right.artifact_id));
       })
       .slice(0, limit)
@@ -431,6 +450,14 @@ describe("PostgresArtifactCatalogRepository contract", () => {
 
   it.each([
     ["timestamp", { available_at: 42 }],
+    ["expiry native projection", { expires_at_matches: false }],
+    ["expiry exact key", { expires_at_order_key: "1" }],
+    ["expiry missing key", { expires_at_order_key: null }],
+    [
+      "retained unexpected key",
+      { retention_mode: "retain", expires_at: null, expires_at_order_key: "1" },
+    ],
+    ["retained unexpected expiry", { retention_mode: "retain", expires_at_order_key: null }],
     ["metadata", { schema_version: "broken" }],
     ["protection", { content_nonce: "not-canonical" }],
     ["object key", { object_key: " unsafe " }],
@@ -449,6 +476,42 @@ describe("PostgresArtifactCatalogRepository contract", () => {
     await expect(
       repository.find(entry.metadata.scope, entry.metadata.contentReference.artifactId),
     ).rejects.toBeInstanceOf(PostgresArtifactDataIntegrityError);
+  });
+
+  it("rejects invalid or lossy native receipt inputs before acquiring a connection", async () => {
+    const client = new ArtifactCatalogFakeClient();
+    const repository = new PostgresArtifactCatalogRepository(poolWith(client));
+    const entry = candidate();
+    const scope = entry.metadata.scope;
+    const artifactId = entry.metadata.contentReference.artifactId;
+    for (const timestamp of ["invalid", "2026-08-28T03:01:00.0000001Z"]) {
+      await expect(
+        repository.reserve({ ...entry, metadata: { ...entry.metadata, createdAt: timestamp } }),
+      ).rejects.toBeInstanceOf(InvalidArtifactLifecycleInputError);
+      await expect(
+        repository.activate(
+          scope,
+          artifactId,
+          { sha256: "a".repeat(64), sizeBytes: 38 },
+          timestamp,
+        ),
+      ).rejects.toBeInstanceOf(InvalidArtifactLifecycleInputError);
+      await expect(
+        repository.tombstone(scope, { ...abandonedTombstone(artifactId), occurredAt: timestamp }),
+      ).rejects.toBeInstanceOf(InvalidArtifactLifecycleInputError);
+      await expect(repository.listAbandoned(scope, timestamp, 10)).rejects.toBeInstanceOf(
+        InvalidArtifactLifecycleInputError,
+      );
+      await expect(
+        repository.recordPurge(scope, {
+          artifactId,
+          purgeId: "purge_timestamp",
+          objectWasPresent: false,
+          occurredAt: timestamp,
+        }),
+      ).rejects.toBeInstanceOf(InvalidArtifactLifecycleInputError);
+    }
+    expect(client.queries).toEqual([]);
   });
 
   it("maps lifecycle receipt uniqueness failures to domain conflicts", async () => {

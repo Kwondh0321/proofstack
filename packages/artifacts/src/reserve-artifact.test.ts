@@ -100,6 +100,37 @@ function command(overrides: Partial<Parameters<ReserveArtifact["execute"]>[0]> =
 }
 
 describe("ReserveArtifact", () => {
+  it("accepts an expiry strictly after creation at the full bounded precision", async () => {
+    const value = harness();
+    const expiresAt = "2026-08-28T03:00:00.000000000000000000000000000001Z";
+    await expect(
+      value.reserve.execute(
+        command({ request: request({ retention: { mode: "expire", expiresAt } }) }),
+      ),
+    ).resolves.toMatchObject({
+      created: true,
+      metadata: { retention: { mode: "expire", expiresAt } },
+    });
+  });
+
+  it("compares retry expiry instants exactly while retaining the original encryption context", async () => {
+    const value = harness();
+    const run = (expiresAt: string) =>
+      value.reserve.execute(
+        command({ request: request({ retention: { mode: "expire", expiresAt } }) }),
+      );
+    const first = await run("2026-09-28T03:00:00.000001Z");
+    await expect(run("2026-09-28T12:00:00.0000010+09:00")).resolves.toEqual({
+      created: false,
+      metadata: first.metadata,
+    });
+    await expect(run("2026-09-28T03:00:00.000001000000000000000000000001Z")).rejects.toBeInstanceOf(
+      ArtifactConflictError,
+    );
+    expect(value.planned).toEqual([first.metadata]);
+    expect(value.objectKeyCalls()).toBe(1);
+  });
+
   it("authorizes and persists a bounded public reservation without exposing storage details", async () => {
     const value = harness();
     const result = await value.reserve.execute(

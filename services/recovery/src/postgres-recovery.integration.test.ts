@@ -40,6 +40,7 @@ import type {
   ReleasePolicy,
   ReleasePolicyLifecycleEvent,
   ReplayPlanDefinition,
+  ReserveArtifactRequest,
   TargetReleaseDefinition,
 } from "@proofstack/contracts";
 import {
@@ -779,6 +780,7 @@ async function seedRecoverableArtifacts(
     readonly content: Uint8Array;
     readonly keyId: string;
     readonly mediaType: string;
+    readonly retention?: ReserveArtifactRequest["retention"];
   }): Promise<void> => {
     const cipher = new ArtifactCipher(new LocalArtifactKeyring({ activeKeyId: input.keyId, keys }));
     const reserve = new ReserveArtifact({
@@ -803,7 +805,7 @@ async function seedRecoverableArtifacts(
         classification: input.classification,
         mediaType: input.mediaType,
         redaction: { status: "not_required" },
-        retention: { mode: "retain" },
+        retention: input.retention ?? { mode: "retain" },
         sha256: sha256(input.content),
         sizeBytes: input.content.byteLength,
       },
@@ -826,6 +828,10 @@ async function seedRecoverableArtifacts(
     content: availableArtifactContent,
     keyId: artifactKeyId,
     mediaType: "application/json",
+    retention: {
+      mode: "expire",
+      expiresAt: "9999-09-28T12:00:00.000000000000000000000000000001+09:00",
+    },
   });
   await store({
     artifactId: purgedArtifactId,
@@ -2642,6 +2648,10 @@ describe("coordinated recovery rehearsal", () => {
     const sourceAvailable = await sourceCatalog.find(scope, availableArtifactId);
     const sourcePurged = await sourceCatalog.find(scope, purgedArtifactId);
     expect(sourceAvailable?.metadata.state).toBe("available");
+    expect(sourceAvailable?.metadata.retention).toEqual({
+      mode: "expire",
+      expiresAt: "9999-09-28T12:00:00.000000000000000000000000000001+09:00",
+    });
     expect(sourcePurged?.metadata.state).toBe("purged");
     if (!sourceAvailable || !sourcePurged) {
       throw new Error("Recovery artifact catalog fixtures are incomplete");
@@ -3098,6 +3108,13 @@ describe("coordinated recovery rehearsal", () => {
         )
     `);
     expect(restoredPublicFunctionPrivileges.rows).toEqual([{ count: 0 }]);
+    const timestampGuardPrivileges = await restoredPool.query<{ readonly permitted: boolean }>(
+      `SELECT has_function_privilege(role_name, 'public.proofstack_guard_artifact_timestamp_integrity()', 'EXECUTE') AS permitted FROM unnest($1::text[]) AS runtime_role(role_name)`,
+      [Object.values(roles).map(({ name }) => name)],
+    );
+    expect(timestampGuardPrivileges.rows).toEqual(
+      Object.values(roles).map(() => ({ permitted: false })),
+    );
     const restoredRegressionHelperPrivileges = await restoredPool.query<{
       readonly regression_execute: boolean;
       readonly role_name: string;
@@ -3244,6 +3261,7 @@ describe("coordinated recovery rehearsal", () => {
     });
     expect(Buffer.from(restoredArtifact.content)).toEqual(availableArtifactContent);
     expect(restoredArtifact.metadata.state).toBe("available");
+    expect(restoredArtifact.metadata).toEqual(sourceAvailable.metadata);
     await expect(
       restoredArtifactReader.execute({
         artifactId: availableArtifactId,

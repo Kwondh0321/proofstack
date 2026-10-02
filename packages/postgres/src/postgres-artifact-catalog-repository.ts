@@ -10,6 +10,7 @@ import {
   type ArtifactPurgeReceipt,
   ArtifactStateTransitionError,
   artifactReservationIdentity,
+  InvalidArtifactLifecycleInputError,
   MAX_ARTIFACT_MAINTENANCE_BATCH_SIZE,
   type ReserveArtifactCatalogResult,
   type TombstoneArtifactCatalogResult,
@@ -22,6 +23,8 @@ import {
   ArtifactTombstoneSchema,
   type EvidenceScope,
   OpaqueIdSchema,
+  PostgresTimestampSchema,
+  policyEvaluationTimestampOrderKey,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
@@ -39,6 +42,8 @@ interface StoredArtifactRow extends QueryResultRow {
   readonly encryption_version: string;
   readonly environment_id: string;
   readonly expires_at: string | null;
+  readonly expires_at_matches: boolean;
+  readonly expires_at_order_key: string | null;
   readonly media_type: string;
   readonly object_key: string;
   readonly object_receipt_sha256: string | null;
@@ -105,6 +110,32 @@ export class PostgresArtifactDataIntegrityError extends Error {
 }
 
 const UTC_TIMESTAMP_FORMAT = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`;
+
+/** Server receipts use native precision; keep existing millisecond spellings when lossless. */
+function exactReceiptColumn(
+  name: "created_at" | "available_at" | "tombstoned_at" | "purged_at" | "occurred_at",
+  qualified?: "receipt.occurred_at",
+) {
+  const column = qualified ?? name;
+  return `CASE
+    WHEN ${column} IS NULL THEN NULL
+    WHEN extract(year FROM ${column} AT TIME ZONE 'UTC') NOT BETWEEN 1 AND 9999 THEN 'invalid'
+    WHEN date_trunc('milliseconds', ${column}) = ${column}
+      THEN to_char(${column} AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT})
+    ELSE to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+  END AS ${name}`;
+}
+
+function assertNativeReceiptTimestamp(value: string): void {
+  if (
+    !PostgresTimestampSchema.safeParse(value).success ||
+    policyEvaluationTimestampOrderKey(value) % 10n ** 24n !== 0n
+  )
+    throw new InvalidArtifactLifecycleInputError(
+      "PostgreSQL artifact receipts require losslessly representable microsecond instants",
+    );
+}
+
 const SELECT_ARTIFACT_COLUMNS = `
   tenant_id,
   project_id,
@@ -118,11 +149,13 @@ const SELECT_ARTIFACT_COLUMNS = `
   content_size_bytes,
   redaction,
   retention_mode,
-  to_char(expires_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS expires_at,
-  to_char(created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
-  to_char(available_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS available_at,
-  to_char(tombstoned_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS tombstoned_at,
-  to_char(purged_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS purged_at,
+  expires_at_lexical AS expires_at,
+  expires_at IS NOT DISTINCT FROM expires_at_lexical::timestamptz AS expires_at_matches,
+  expires_at_order_key::text AS expires_at_order_key,
+  ${exactReceiptColumn("created_at")},
+  ${exactReceiptColumn("available_at")},
+  ${exactReceiptColumn("tombstoned_at")},
+  ${exactReceiptColumn("purged_at")},
   created_by_principal_id,
   object_key,
   encryption_version,
@@ -142,14 +175,14 @@ const SELECT_TOMBSTONE_COLUMNS = `
   actor_principal_id,
   tombstone_trigger,
   reason,
-  to_char(occurred_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS occurred_at
+  ${exactReceiptColumn("occurred_at")}
 `;
 
 const SELECT_PURGE_RECEIPT_COLUMNS = `
   receipt.artifact_id,
   receipt.purge_id,
   receipt.object_was_present,
-  to_char(receipt.occurred_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS occurred_at
+  ${exactReceiptColumn("occurred_at", "receipt.occurred_at")}
 `;
 
 const INSERT_ARTIFACT_SQL = `
@@ -176,10 +209,11 @@ const INSERT_ARTIFACT_SQL = `
     wrapped_key_id,
     wrapped_key_ciphertext,
     wrapped_key_nonce,
-    wrapped_key_tag
+    wrapped_key_tag,
+    expires_at_lexical
   ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13,
-    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
   )
   ON CONFLICT (tenant_id, artifact_id) DO NOTHING
   RETURNING artifact_id
@@ -259,6 +293,15 @@ function storedEntry(row: StoredArtifactRow): ArtifactCatalogEntry {
       { cause: metadata.error },
     );
   }
+
+  if (
+    row.expires_at_matches !== true ||
+    (metadata.data.retention.mode === "expire"
+      ? row.expires_at_order_key !==
+        policyEvaluationTimestampOrderKey(metadata.data.retention.expiresAt).toString()
+      : row.expires_at_order_key !== null || expiresAt !== undefined)
+  )
+    throw new PostgresArtifactDataIntegrityError("Stored artifact expiry projections do not match");
 
   if (
     row.encryption_version !== "a256gcm-v1" ||
@@ -466,6 +509,7 @@ function insertValues(candidate: ArtifactCatalogEntry): readonly unknown[] {
     candidate.encryption.wrappedDataKey.ciphertext,
     candidate.encryption.wrappedDataKey.nonce,
     candidate.encryption.wrappedDataKey.tag,
+    retention.mode === "expire" ? retention.expiresAt : null,
   ];
 }
 
@@ -582,6 +626,7 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
   async reserve(candidate: ArtifactCatalogEntry): Promise<ReserveArtifactCatalogResult> {
+    assertNativeReceiptTimestamp(candidate.metadata.createdAt);
     if (candidate.metadata.state !== "reserved" || candidate.objectReceipt !== undefined) {
       throw new ArtifactStateTransitionError();
     }
@@ -654,6 +699,7 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
     objectReceipt: ArtifactObjectReceipt,
     availableAt: string,
   ): Promise<ArtifactCatalogEntry> {
+    assertNativeReceiptTimestamp(availableAt);
     return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
       const existing = await requiredLocked(client, scope, artifactId);
       if (existing.metadata.state === "available") {
@@ -697,6 +743,7 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
     scope: EvidenceScope,
     tombstone: ArtifactTombstone,
   ): Promise<TombstoneArtifactCatalogResult> {
+    assertNativeReceiptTimestamp(tombstone.occurredAt);
     return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
       const existing = await requiredLocked(client, scope, tombstone.artifactId);
       const recorded = await findTombstone(client, scope.tenantId, tombstone.artifactId);
@@ -764,6 +811,10 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
     scope: EvidenceScope,
     receipt: ArtifactPurgeReceipt,
   ): Promise<ArtifactCatalogEntry> {
+    if (!UtcMillisecondTimestampSchema.safeParse(receipt.occurredAt).success)
+      throw new InvalidArtifactLifecycleInputError(
+        "Artifact purge receipts require UTC milliseconds",
+      );
     return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
       const existing = await requiredLocked(client, scope, receipt.artifactId);
       if (existing.metadata.state === "purged") {
@@ -846,11 +897,17 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
             AND environment_id = $3
             AND state = 'available'
             AND retention_mode = 'expire'
-            AND expires_at <= $4
-          ORDER BY expires_at, artifact_id
+            AND expires_at_order_key <= $4::numeric
+          ORDER BY expires_at_order_key, artifact_id
           LIMIT $5
         `,
-        [scope.tenantId, scope.projectId, scope.environmentId, expiresBefore, limit],
+        [
+          scope.tenantId,
+          scope.projectId,
+          scope.environmentId,
+          policyEvaluationTimestampOrderKey(expiresBefore).toString(),
+          limit,
+        ],
       );
       return result.rows.map(storedEntry);
     });
@@ -862,6 +919,7 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
     limit: number,
   ): Promise<readonly ArtifactCatalogEntry[]> {
     assertMaintenanceLimit(limit);
+    assertNativeReceiptTimestamp(createdBefore);
     return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
       const result = await client.query<StoredArtifactRow>(
         `

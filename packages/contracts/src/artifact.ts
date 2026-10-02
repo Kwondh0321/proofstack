@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { ContentReferenceSchema, EvidenceScopeSchema, RedactionStageSchema } from "./evidence.js";
+import { policyEvaluationTimestampOrderKey } from "./policy-evaluation-time.js";
 import {
   OpaqueIdSchema,
+  PostgresTimestampSchema,
   Sha256Schema,
   TimestampSchema,
   UtcMillisecondTimestampSchema,
@@ -93,7 +95,7 @@ export const ArtifactRetentionPlanSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("retain") }).strict(),
   z
     .object({
-      expiresAt: TimestampSchema,
+      expiresAt: PostgresTimestampSchema,
       mode: z.literal("expire"),
     })
     .strict(),
@@ -158,16 +160,16 @@ export const ReserveArtifactRequestSchema = z
 
 export const ArtifactMetadataSchema = z
   .object({
-    availableAt: TimestampSchema.optional(),
+    availableAt: PostgresTimestampSchema.optional(),
     contentReference: ArtifactContentReferenceSchema,
-    createdAt: TimestampSchema,
-    purgedAt: TimestampSchema.optional(),
+    createdAt: PostgresTimestampSchema,
+    purgedAt: PostgresTimestampSchema.optional(),
     redaction: ArtifactRedactionSummarySchema,
     retention: ArtifactRetentionPlanSchema,
     schemaVersion: z.literal(ARTIFACT_SCHEMA_VERSION),
     scope: EvidenceScopeSchema,
     state: ArtifactStateSchema,
-    tombstonedAt: TimestampSchema.optional(),
+    tombstonedAt: PostgresTimestampSchema.optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -209,7 +211,13 @@ export const ArtifactMetadataSchema = z
     let previous: { readonly name: string; readonly value: string } | undefined;
     for (const [name, timestamp] of lifecycle) {
       if (!timestamp) continue;
-      if (previous && Date.parse(timestamp) < Date.parse(previous.value)) {
+      if (
+        previous &&
+        PostgresTimestampSchema.safeParse(timestamp).success &&
+        PostgresTimestampSchema.safeParse(previous.value).success &&
+        policyEvaluationTimestampOrderKey(timestamp) <
+          policyEvaluationTimestampOrderKey(previous.value)
+      ) {
         context.addIssue({
           code: "custom",
           message: `${name} cannot be earlier than ${previous.name}`,

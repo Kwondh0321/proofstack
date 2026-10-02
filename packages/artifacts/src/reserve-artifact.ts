@@ -1,9 +1,10 @@
 import {
-  ArtifactMetadataSchema,
   type ArtifactMetadata,
+  ArtifactMetadataSchema,
   type PrincipalContext,
-  ReserveArtifactRequestSchema,
+  policyEvaluationTimestampOrderKey,
   type ReserveArtifactRequest,
+  ReserveArtifactRequestSchema,
 } from "@proofstack/contracts";
 import { type Clock, requireCapability, requireEnvironmentAccess } from "@proofstack/core";
 import type { ArtifactIdentityGenerator } from "./artifact-identifiers.js";
@@ -99,7 +100,8 @@ export class ReserveArtifact {
     if (
       !existing &&
       metadata.retention.mode === "expire" &&
-      Date.parse(metadata.retention.expiresAt) <= Date.parse(createdAt)
+      policyEvaluationTimestampOrderKey(metadata.retention.expiresAt) <=
+        policyEvaluationTimestampOrderKey(createdAt)
     ) {
       throw new InvalidArtifactLifecycleInputError(
         "Artifact expiration must be later than its reservation time",

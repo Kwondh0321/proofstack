@@ -414,13 +414,14 @@ async function seedInteractionArtifact(metadataInput: ArtifactMetadata): Promise
           wrapped_key_nonce,
           wrapped_key_tag,
           object_receipt_sha256,
-          object_receipt_size_bytes
+          object_receipt_size_bytes,
+          expires_at_lexical
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13::timestamptz,
           $14::timestamptz, $15::timestamptz, $16::timestamptz, $17::timestamptz, $18, $19,
           'a256gcm-v1', 'AAAAAAAAAAAAAAAA', 'A256GCM', 'key_interaction_seed',
           'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'CCCCCCCCCCCCCCCC',
-          'DDDDDDDDDDDDDDDDDDDDDD', $20, $21
+          'DDDDDDDDDDDDDDDDDDDDDD', $20, $21, $22
         )
       `,
       [
@@ -445,6 +446,7 @@ async function seedInteractionArtifact(metadataInput: ArtifactMetadata): Promise
         `${metadata.scope.tenantId}/${artifactId}`,
         hasObjectReceipt ? "e".repeat(64) : null,
         hasObjectReceipt ? metadata.contentReference.sizeBytes + 20 : null,
+        metadata.retention.mode === "expire" ? metadata.retention.expiresAt : null,
       ],
     );
     await client.query("COMMIT");

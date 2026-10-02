@@ -12,7 +12,6 @@ import {
   encodeEvaluationCanonicalJson,
   OpaqueIdSchema,
   PolicyEvaluationTimeSchema,
-  PostgresTimestampSchema,
   type PrincipalContext,
   PrincipalContextSchema,
   policyEvaluationTimestampOrderKey,
@@ -194,18 +193,7 @@ function catalogRecord(value: unknown): ArtifactCatalogEntry | null {
   )
     return null;
   if (metadata.data.state === "available" && receipt === undefined) return null;
-  const times = [
-    metadata.data.createdAt,
-    metadata.data.availableAt,
-    metadata.data.tombstonedAt,
-    metadata.data.purgedAt,
-  ].filter((time): time is string => time !== undefined);
-  if (!times.every((time) => PostgresTimestampSchema.safeParse(time).success)) return null;
-  if (
-    metadata.data.retention.mode === "expire" &&
-    !PostgresTimestampSchema.safeParse(metadata.data.retention.expiresAt).success
-  )
-    return null;
+  // The shared metadata contract validates supported precision and exact lifecycle chronology.
   const ownership = value["ownership"];
   if (ownership !== undefined) {
     const parsed = ArtifactOwnershipSchema.safeParse(ownership);
@@ -218,15 +206,6 @@ function catalogRecord(value: unknown): ArtifactCatalogEntry | null {
     )
       return null;
   }
-  if (
-    times.some(
-      (time, index) =>
-        index > 0 &&
-        policyEvaluationTimestampOrderKey(time) <
-          policyEvaluationTimestampOrderKey(times[index - 1] as string),
-    )
-  )
-    return null;
   // All private and public fields have been checked; preserve receipts and omit only allowed undefined.
   return JSON.parse(JSON.stringify(value)) as ArtifactCatalogEntry;
 }

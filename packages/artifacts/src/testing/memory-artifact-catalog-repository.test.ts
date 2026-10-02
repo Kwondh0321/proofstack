@@ -62,6 +62,48 @@ function ownership(overrides: Record<string, unknown> = {}) {
 }
 
 describe("MemoryArtifactCatalogRepository", () => {
+  it("orders maintenance using exact timestamps before artifact IDs", async () => {
+    const repository = new MemoryArtifactCatalogRepository();
+    const base = candidate();
+    for (const [artifactId, fraction] of [
+      ["art_middle", "2"],
+      ["art_last", "3"],
+      ["art_first", "1"],
+      ["art_equal", "1"],
+    ] as const) {
+      const entry = {
+        ...base,
+        metadata: {
+          ...base.metadata,
+          contentReference: { ...base.metadata.contentReference, artifactId },
+          retention: {
+            mode: "expire" as const,
+            expiresAt: `2026-09-28T03:00:00.${"0".repeat(29)}${fraction}Z`,
+          },
+        },
+      };
+      await repository.reserve(entry);
+      await repository.activate(
+        base.metadata.scope,
+        artifactId,
+        { sha256: "a".repeat(64), sizeBytes: 21 },
+        "2026-08-28T03:01:00Z",
+      );
+    }
+    expect(await repository.listExpired(base.metadata.scope, "2026-09-28T03:00:00Z", 10)).toEqual(
+      [],
+    );
+    expect(
+      (
+        await repository.listExpired(
+          base.metadata.scope,
+          "2026-09-28T03:00:00.000000000000000000000000000002Z",
+          10,
+        )
+      ).map((e) => e.metadata.contentReference.artifactId),
+    ).toEqual(["art_equal", "art_first", "art_middle"]);
+  });
+
   it("returns defensive copies instead of mutable catalog state", async () => {
     const repository = new MemoryArtifactCatalogRepository();
     const input = candidate();

@@ -254,6 +254,13 @@ object/key I/O. Its `content_pending` result cannot replace byte verification or
 atomic source cut. Transaction-local source reads, complete comparison and publication still need
 to be connected; this prerequisite does not close the third checkpoint.
 
+The subsequent [artifact timestamp integrity audit](artifact-timestamp-integrity-audit.md) reproduced
+authenticated retention-text loss and submillisecond temporal misclassification in the real database
+adapter. Its forward correction separates original text from exact expiration order and preserves
+native receipt precision. Migration, ciphertext compatibility, restore permissions and exact-commit
+acceptance must pass before guarded publication; this repair is not snapshot sealing or another
+completed Workflow 2 checkpoint.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

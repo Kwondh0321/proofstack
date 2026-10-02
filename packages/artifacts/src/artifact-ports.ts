@@ -4,6 +4,7 @@ import {
   type ArtifactTombstone,
   type EvidenceScope,
   MAX_ARTIFACT_CONTENT_BYTES,
+  policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
 
 export const ARTIFACT_ENCRYPTION_VERSION = "a256gcm-v1" as const;
@@ -19,7 +20,7 @@ export function artifactReservationIdentity(metadata: ArtifactMetadata): unknown
     retention:
       metadata.retention.mode === "expire"
         ? {
-            expiresAt: new Date(metadata.retention.expiresAt).toISOString(),
+            expiresAt: policyEvaluationTimestampOrderKey(metadata.retention.expiresAt).toString(),
             mode: metadata.retention.mode,
           }
         : metadata.retention,

@@ -169,6 +169,7 @@ describe("PostgreSQL evidence schema", () => {
       "0048_allow_policy_withdrawal",
       "0049_align_policy_lifecycle_reason_bounds",
       "0050_policy_evaluation_source_locks",
+      "0051_artifact_timestamp_integrity",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

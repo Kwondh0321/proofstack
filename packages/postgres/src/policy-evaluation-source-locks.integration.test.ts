@@ -671,9 +671,44 @@ describe("policy evaluation database source serialization", () => {
       const index = migrations.findIndex(({ id }) => id === migrationId);
       expect(index).toBeGreaterThan(0);
       await migrateDatabase(upgrade, migrations.slice(0, index));
-      const catalog = new PostgresArtifactCatalogRepository(upgrade);
       const entry = reserved(scope());
-      await catalog.reserve(entry);
+      // Seed the historical schema directly; the current adapter requires later columns.
+      await upgrade.query(
+        `INSERT INTO public.proofstack_artifact_catalog (
+        tenant_id, project_id, environment_id, artifact_id, schema_version, state,
+        classification, media_type, content_sha256, content_size_bytes, redaction,
+        retention_mode, created_at, created_by_principal_id, object_key,
+        encryption_version, content_nonce, wrapped_key_algorithm, wrapped_key_id,
+        wrapped_key_ciphertext, wrapped_key_nonce, wrapped_key_tag
+      ) VALUES ($1, $2, $3, $4, '0.1', 'reserved', $5, $6, $7, $8, $9::jsonb,
+        'retain', $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+        [
+          entry.metadata.scope.tenantId,
+          entry.metadata.scope.projectId,
+          entry.metadata.scope.environmentId,
+          entry.metadata.contentReference.artifactId,
+          entry.metadata.contentReference.classification,
+          entry.metadata.contentReference.mediaType,
+          entry.metadata.contentReference.sha256,
+          entry.metadata.contentReference.sizeBytes,
+          JSON.stringify(entry.metadata.redaction),
+          entry.metadata.createdAt,
+          entry.createdByPrincipalId,
+          entry.objectKey,
+          entry.encryption.version,
+          entry.encryption.contentNonce,
+          entry.encryption.wrappedDataKey.algorithm,
+          entry.encryption.wrappedDataKey.keyId,
+          entry.encryption.wrappedDataKey.ciphertext,
+          entry.encryption.wrappedDataKey.nonce,
+          entry.encryption.wrappedDataKey.tag,
+        ],
+      );
+      const beforeCatalog = (
+        await upgrade.query(
+          "SELECT to_jsonb(a) AS record FROM public.proofstack_artifact_catalog a",
+        )
+      ).rows;
       const repository = new PostgresReleasePolicyRepository(upgrade);
       const fixture = createReleasePolicyRepositoryTestHarness("guard_upgrade");
       await repository.publishReleasePolicy(fixture.policy);
@@ -681,13 +716,20 @@ describe("policy evaluation database source serialization", () => {
       const ledger = await upgrade.query(
         "SELECT id, checksum FROM proofstack_schema_migrations ORDER BY id",
       );
-      expect((await migrateDatabase(upgrade)).newlyAppliedIds).toEqual([migrationId]);
+      const throughGuard = migrations.slice(0, index + 1);
+      expect((await migrateDatabase(upgrade, throughGuard)).newlyAppliedIds).toEqual([migrationId]);
       expect(
         (
           await upgrade.query("SELECT id, checksum FROM proofstack_schema_migrations ORDER BY id")
         ).rows.slice(0, index),
       ).toEqual(ledger.rows);
-      expect(await catalog.find(entry.metadata.scope, "art_guard")).toEqual(entry);
+      expect(
+        (
+          await upgrade.query(
+            "SELECT to_jsonb(a) AS record FROM public.proofstack_artifact_catalog a",
+          )
+        ).rows,
+      ).toEqual(beforeCatalog);
       expect(
         await repository.findReleasePolicy(fixture.scope, fixture.policy.policyVersionId),
       ).toEqual(fixture.policy);
@@ -697,7 +739,14 @@ describe("policy evaluation database source serialization", () => {
           fixture.policy.policyVersionId,
         ),
       ).toEqual([fixture.withdrawal]);
-      expect((await migrateDatabase(upgrade)).newlyAppliedIds).toEqual([]);
+      expect((await migrateDatabase(upgrade, throughGuard)).newlyAppliedIds).toEqual([]);
+      await migrateDatabase(upgrade);
+      expect(
+        await new PostgresArtifactCatalogRepository(upgrade).find(
+          entry.metadata.scope,
+          "art_guard",
+        ),
+      ).toEqual(entry);
     } finally {
       await upgrade.end();
       await admin.query(`DROP DATABASE "${name}"`);

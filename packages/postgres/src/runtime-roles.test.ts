@@ -139,7 +139,7 @@ function managedRole(
 }
 
 describe("provisionRuntimeRoles", () => {
-  it("revokes private policy source helpers from PUBLIC and every managed role without regranting", async () => {
+  it("revokes private artifact and policy source guards from PUBLIC and every managed role without regranting", async () => {
     const client = new FakeClient();
     const configuration = options();
     await provisionRuntimeRoles(poolWith(client), configuration);
@@ -147,6 +147,7 @@ describe("provisionRuntimeRoles", () => {
     for (const signature of [
       "public.proofstack_try_lock_policy_evaluation_source(text, text)",
       "public.proofstack_lock_policy_evaluation_source_write()",
+      "public.proofstack_guard_artifact_timestamp_integrity()",
     ]) {
       for (const recipient of [
         "PUBLIC",

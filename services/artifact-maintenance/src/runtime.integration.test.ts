@@ -259,8 +259,11 @@ describe("artifact maintenance real adapters", () => {
     const pendingId = `art_pending_${runKey}`;
     const reconciledId = `art_reconciled_${runKey}`;
     const abandonedId = `art_abandoned_${runKey}`;
+    const expiredAt = new Date(Date.now() - 24 * 60 * 60 * 1_000)
+      .toISOString()
+      .replace(/\.\d{3}Z$/u, ".000000000000000000000000000001+00:00");
     const expiredKey = await seedArtifact(expiredId, "available", {
-      expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString(),
+      expiresAt: expiredAt,
       mode: "expire",
     });
     const pendingKey = await seedArtifact(pendingId, "available", { mode: "retain" });
@@ -301,7 +304,7 @@ describe("artifact maintenance real adapters", () => {
     });
 
     await expect(writerCatalog.find(scope, expiredId)).resolves.toMatchObject({
-      metadata: { state: "purged" },
+      metadata: { state: "purged", retention: { mode: "expire", expiresAt: expiredAt } },
     });
     await expect(writerCatalog.find(scope, pendingId)).resolves.toMatchObject({
       metadata: { state: "purged" },

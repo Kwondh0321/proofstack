@@ -189,6 +189,7 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_evaluation_record_references(text, text, jsonb)",
   "public.proofstack_evaluation_intent_status(text, text, text, text, jsonb, timestamp with time zone)",
   "public.proofstack_guard_artifact_catalog_mutation()",
+  "public.proofstack_guard_artifact_timestamp_integrity()",
   "public.proofstack_guard_api_key_mutation()",
   "public.proofstack_guard_browser_session_mutation()",
   "public.proofstack_guard_consumer_receipt_transition()",

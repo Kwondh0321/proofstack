@@ -5,6 +5,7 @@ import {
   type ArtifactTombstone,
   ArtifactTombstoneSchema,
   type EvidenceScope,
+  policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
 import type {
   ArtifactCatalogEntry,
@@ -69,16 +70,21 @@ function compareExpired(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry)
   const leftExpiry = (left.metadata.retention as { readonly expiresAt: string }).expiresAt;
   const rightExpiry = (right.metadata.retention as { readonly expiresAt: string }).expiresAt;
   return (
-    Date.parse(leftExpiry) - Date.parse(rightExpiry) ||
+    compareInstants(leftExpiry, rightExpiry) ||
     left.metadata.contentReference.artifactId.localeCompare(
       right.metadata.contentReference.artifactId,
     )
   );
 }
 
+function compareInstants(left: string, right: string): number {
+  const delta = policyEvaluationTimestampOrderKey(left) - policyEvaluationTimestampOrderKey(right);
+  return delta < 0n ? -1 : delta > 0n ? 1 : 0;
+}
+
 function compareAbandoned(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): number {
   return (
-    Date.parse(left.metadata.createdAt) - Date.parse(right.metadata.createdAt) ||
+    compareInstants(left.metadata.createdAt, right.metadata.createdAt) ||
     left.metadata.contentReference.artifactId.localeCompare(
       right.metadata.contentReference.artifactId,
     )
@@ -87,8 +93,7 @@ function compareAbandoned(left: ArtifactCatalogEntry, right: ArtifactCatalogEntr
 
 function comparePendingPurge(left: ArtifactCatalogEntry, right: ArtifactCatalogEntry): number {
   return (
-    Date.parse(left.metadata.tombstonedAt as string) -
-      Date.parse(right.metadata.tombstonedAt as string) ||
+    compareInstants(left.metadata.tombstonedAt as string, right.metadata.tombstonedAt as string) ||
     left.metadata.contentReference.artifactId.localeCompare(
       right.metadata.contentReference.artifactId,
     )
@@ -223,7 +228,7 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
     limit: number,
   ): Promise<readonly ArtifactCatalogEntry[]> {
     assertMaintenanceLimit(limit);
-    const threshold = Date.parse(expiresBefore);
+    const threshold = policyEvaluationTimestampOrderKey(expiresBefore);
     return [...this.artifacts.values()]
       .map(({ entry }) => entry)
       .filter(
@@ -231,7 +236,7 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
           matchesScope(entry, scope) &&
           entry.metadata.state === "available" &&
           entry.metadata.retention.mode === "expire" &&
-          Date.parse(entry.metadata.retention.expiresAt) <= threshold,
+          policyEvaluationTimestampOrderKey(entry.metadata.retention.expiresAt) <= threshold,
       )
       .sort(compareExpired)
       .slice(0, limit)
@@ -244,14 +249,14 @@ export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepositor
     limit: number,
   ): Promise<readonly ArtifactCatalogEntry[]> {
     assertMaintenanceLimit(limit);
-    const threshold = Date.parse(createdBefore);
+    const threshold = policyEvaluationTimestampOrderKey(createdBefore);
     return [...this.artifacts.values()]
       .map(({ entry }) => entry)
       .filter(
         (entry) =>
           matchesScope(entry, scope) &&
           entry.metadata.state === "reserved" &&
-          Date.parse(entry.metadata.createdAt) <= threshold,
+          policyEvaluationTimestampOrderKey(entry.metadata.createdAt) <= threshold,
       )
       .sort(compareAbandoned)
       .slice(0, limit)

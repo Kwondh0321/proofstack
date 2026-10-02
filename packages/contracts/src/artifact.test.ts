@@ -165,6 +165,47 @@ describe("JsonPointerSchema", () => {
 });
 
 describe("ArtifactMetadataSchema", () => {
+  it("compares lifecycle instants without dropping submillisecond chronology", () => {
+    const createdAt = "2026-08-28T00:00:00.000001Z";
+    expect(
+      ArtifactMetadataSchema.safeParse({
+        ...metadata,
+        createdAt,
+        availableAt: "2026-08-28T00:00:00.000Z",
+        state: "available",
+      }).success,
+    ).toBe(false);
+    expect(
+      ArtifactMetadataSchema.safeParse({
+        ...metadata,
+        createdAt,
+        availableAt: "2026-08-28T09:00:00.0000010+09:00",
+        state: "available",
+      }).success,
+    ).toBe(true);
+    expect(
+      ArtifactMetadataSchema.safeParse({
+        ...metadata,
+        createdAt: "invalid",
+        availableAt: "invalid",
+        state: "available",
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    "2026-09-28T00:00:00.0000000000000000000000000000001Z",
+    "0000-09-28T00:00:00Z",
+    "2026-09-28T00:00:00+16:00",
+  ])("rejects unsupported persistence timestamp %s", (expiresAt) => {
+    expect(
+      ReserveArtifactRequestSchema.safeParse({
+        ...reservation,
+        retention: { mode: "expire", expiresAt },
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts every valid lifecycle state, including abandoned reservations", () => {
     const available = {
       ...metadata,

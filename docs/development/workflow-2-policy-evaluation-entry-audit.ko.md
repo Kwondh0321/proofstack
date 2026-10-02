@@ -217,6 +217,12 @@ worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 
 `content_pending`은 바이트 검증이나 원자적 출처 관측을 대체하지 않습니다. 같은 트랜잭션의
 출처 조회·전체 비교·발행 연결은 남아 있으며 이 전제조건만으로 세 번째 체크포인트를 닫지 않습니다.
 
+후속 [아티팩트 시각 무결성 감사](artifact-timestamp-integrity-audit.ko.md)는 실제 DB 어댑터에서
+인증된 보존 문자열 손실과 서브밀리초 시점 오판정을 재현했습니다. 전진 수정은 원래 문자열과
+정확한 만료 순서를 분리하고 네이티브 영수증의 정밀도를 유지합니다. 보호된 발행 연결 전에
+마이그레이션·암호문 호환성·복구 권한·정확한 커밋의 승인 검사를 통과해야 합니다. 이 수정은
+입력 봉인이나 Workflow 2의 추가 체크포인트 완료가 아닙니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정
