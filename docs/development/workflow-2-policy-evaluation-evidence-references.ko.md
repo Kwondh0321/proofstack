@@ -92,6 +92,18 @@ protocol의 정확한 descriptor를 일관되게 사용하도록 수정했고, p
 이전 충돌을 재현하는 부정 테스트를 남겼습니다. 이는 시험 graph의 identity 수정이지 실제 운영
 artifact 데이터 수정이나 보존 원문을 검증했다는 주장이 아닙니다.
 
+이후 전체 상태 이력 변경의 정확한 SHA 서비스 검증에서 assessment의 conflict·disagreement
+근거 필드 누락을 발견했습니다. 참조 흐름의 PostgreSQL 계보는 19개였지만 기존 TypeScript
+helper는 18개로 계산해 강화된 정규화 읽기가 불완전한 재구성을 거부했습니다. 이전 fixture는
+두 필드가 비어 있어 내용이 있는 변형까지 검증했다는 근거가 되지 못했습니다.
+
+저장소 계보와 별도 정책 enumerator 모두 두 필드를 포함하도록 수정했습니다. 저장소는 그 안의
+source snapshot 참조를 검사하고, 정책 수집은 `/conflicts/{index}/evidence`와
+`/disagreement/evidence`의 artifact·replay까지 해결된 분쟁과 반복 출현을 그대로 보존합니다.
+메모리/실제 PostgreSQL 공통 회귀 검사는 중첩 출처 누락·digest 대체 거부, 실제 출처 발행 후
+정확한 읽기와 동일 재시도를 검증합니다. 비어 있지 않은 구조 경로 검사는 근거 세 종류와
+개수·바이트 경계를 다룹니다. 정규화 count 검사·SQL·canonical vector·eligibility 의미는 유지합니다.
+
 재귀 출처 수집, 해시 없는 선택자 해석, 전역 identity·계보 검사, 정의 재도출, 보존 artifact 원문
 확장·검증, 정책 권한, 변경 가능한 revision guard와 보호된 snapshot 봉인이 남아 있습니다.
 이 함수의 결과는 출처 진실, 적격성, 정책 충족, 사람 승인, 릴리스 허가를 뜻하지 않습니다.

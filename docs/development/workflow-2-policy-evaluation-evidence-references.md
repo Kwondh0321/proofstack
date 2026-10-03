@@ -100,6 +100,21 @@ fixture now binds the protocol's descriptor consistently; the public vectors are
 negative test reconstructs the old conflict. This repairs test-graph identity, not production
 artifact data or proof of real retained content.
 
+The complete-history increment's exact-SHA service acceptance subsequently exposed an omitted
+assessment field family: conflict and disagreement evidence. The reference workflow persisted
+19 PostgreSQL lineage edges while the owning TypeScript helper counted 18, so the strengthened
+normalized read correctly rejected the incomplete reconstruction. Earlier fixtures had empty
+conflict/disagreement fields and did not establish coverage of those nonempty variants.
+
+Both the owning repository lineage and this independent policy enumerator now include those
+fields. Repository lineage checks their source snapshots; policy acquisition additionally keeps
+every artifact and replay occurrence under `/conflicts/{index}/evidence` and
+`/disagreement/evidence`, including resolved disputes and repeated references. Shared memory /
+PostgreSQL regressions require missing or substituted nested sources to fail, then verify exact
+read-back and idempotent retry once the actual source exists. A populated structural-path test
+covers all three evidence variants and count/byte boundaries. The normalized count check, SQL,
+canonical vectors and existing eligibility semantics are unchanged.
+
 Recursive source acquisition, hashless-selector resolution, global identity/lineage checks,
 definition re-derivation, retained artifact-content expansion and verification, policy authority,
 mutable revision guards, and one protected snapshot remain required. No result from this helper

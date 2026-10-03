@@ -16,9 +16,14 @@ export const policyEvaluationRecordReferences: Enumerators = {
   assessment(record, out) {
     out.record("/aggregate", "evaluation_aggregate", record.aggregate);
     out.record("/aggregationPolicy", "aggregation_policy", record.aggregationPolicy);
+    record.conflicts.forEach(({ evidence }, index) => {
+      out.evidence(`/conflicts/${index}/evidence`, evidence);
+    });
     out.evidence("/counterevidence", record.counterevidence);
     out.criterion("/criterion", record.criterion);
     out.record("/criterionStatus", "criterion_set_status", record.criterionStatus);
+    if (record.disagreement.status !== "none")
+      out.evidence("/disagreement/evidence", record.disagreement.evidence);
     out.records("/observations", "raw_observation", record.observations);
     out.records("/qualifications", "qualification_report", record.qualifications);
     out.records("/runs", "evaluation_run", record.runs);

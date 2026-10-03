@@ -380,7 +380,11 @@ function assessmentReferences(record: Assessment): readonly EvaluationRecordRefe
     ...record.sourceReviews.map(({ definitionSha256, sourceReviewId }) =>
       exact("source_review", sourceReviewId, definitionSha256),
     ),
-    ...record.counterevidence.flatMap((reference) =>
+    ...[
+      ...record.counterevidence,
+      ...record.conflicts.flatMap(({ evidence }) => evidence),
+      ...(record.disagreement.status === "none" ? [] : record.disagreement.evidence),
+    ].flatMap((reference) =>
       reference.kind === "source_snapshot"
         ? [
             exact(

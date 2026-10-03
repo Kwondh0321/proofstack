@@ -19,6 +19,10 @@ import type {
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
+import {
+  digestEvaluationRecordDefinition,
+  evaluationRecordDescriptors,
+} from "../evaluation/evaluation-record-validation.js";
 import type {
   EvaluationRepository,
   PublishEvaluationRecordResult,
@@ -246,8 +250,103 @@ async function publishGraph(harness: EvaluationRepositoryTestHarness): Promise<v
   }
 }
 
+function redigest<K extends EvaluationRecordKind>(kind: K, record: RecordByKind[K]): void {
+  const receipts = new Set(evaluationRecordDescriptors[kind].receiptKeys);
+  const definition = Object.fromEntries(
+    Object.entries(record).filter(([key]) => !receipts.has(key)),
+  );
+  record.definitionSha256 = digestEvaluationRecordDefinition(kind, record.scope, definition);
+}
+
 export const evaluationRepositoryConformanceCases: readonly EvaluationRepositoryConformanceCase[] =
   [
+    ...(["assessment_conflict", "assessment_disagreement"] as const).map(
+      (mode): EvaluationRepositoryConformanceCase => ({
+        name: `preserves exact source lineage used only by ${mode}`,
+        async run(factory) {
+          await withHarness(factory, `nested_${mode}`, async (harness) => {
+            await publishGraph(harness);
+            const original = harness.records.find(({ kind }) => kind === "source_snapshot");
+            assert.ok(original?.kind === "source_snapshot");
+            const source = structuredClone(original.record);
+            source.sourceSnapshotId = "src_nested_only";
+            redigest("source_snapshot", source);
+            const reference = {
+              sourceSnapshotId: source.sourceSnapshotId,
+              definitionSha256: source.definitionSha256,
+            };
+            const root = harness.records.find(({ kind }) => kind === "assessment");
+            assert.ok(root?.kind === "assessment");
+            const record = structuredClone(root.record);
+            record.assessmentId = "assessment_nested_only";
+            const evidence = { kind: "source_snapshot" as const, source: reference };
+            if (mode === "assessment_conflict") {
+              const other = {
+                kind: "source_snapshot" as const,
+                source: {
+                  sourceSnapshotId: original.record.sourceSnapshotId,
+                  definitionSha256: original.record.definitionSha256,
+                },
+              };
+              record.conflicts = [
+                {
+                  conflictId: "conflict_nested_only",
+                  evidence: [evidence, other].sort((a, b) =>
+                    a.source.sourceSnapshotId < b.source.sourceSnapshotId ? -1 : 1,
+                  ),
+                  severity: "noncritical",
+                  status: "resolved",
+                  summary: "Retained independent conflict evidence",
+                },
+              ];
+            } else {
+              record.disagreement = {
+                evidence: [evidence],
+                status: "resolved",
+                rationale: "Retained disagreement evidence",
+              };
+            }
+            redigest("assessment", record);
+            const candidate = { kind: "assessment" as const, record };
+            await assert.rejects(
+              publishEvaluationFixture(harness.repository, candidate),
+              EvaluationLineageError,
+            );
+            assert.equal(await findFixture(harness.repository, harness.scope, candidate), null);
+            await harness.repository.publishSourceSnapshot(source);
+            const wrongDigest = structuredClone(candidate);
+            const substitutedEvidence =
+              mode === "assessment_conflict"
+                ? wrongDigest.record.conflicts[0]?.evidence
+                : wrongDigest.record.disagreement.status !== "none"
+                  ? wrongDigest.record.disagreement.evidence
+                  : [];
+            const nested = substitutedEvidence?.find(
+              (entry) =>
+                entry.kind === "source_snapshot" &&
+                entry.source.sourceSnapshotId === source.sourceSnapshotId,
+            );
+            assert.ok(nested?.kind === "source_snapshot");
+            nested.source.definitionSha256 = "0".repeat(64);
+            redigest("assessment", wrongDigest.record);
+            await assert.rejects(
+              publishEvaluationFixture(harness.repository, wrongDigest),
+              EvaluationLineageError,
+            );
+            const created = await publishEvaluationFixture(harness.repository, candidate);
+            assert.equal(created.created, true);
+            assert.deepEqual(
+              await findFixture(harness.repository, harness.scope, candidate),
+              candidate.record,
+            );
+            assert.equal(
+              (await publishEvaluationFixture(harness.repository, candidate)).created,
+              false,
+            );
+          });
+        },
+      }),
+    ),
     {
       name: "publishes and reads the complete immutable evaluation graph in dependency order",
       async run(factory) {

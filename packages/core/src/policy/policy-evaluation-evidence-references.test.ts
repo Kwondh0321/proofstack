@@ -61,6 +61,18 @@ const paths = {
     "qualification_report /qualifications/*",
     "evaluation_run /runs/*",
     "source_review /sourceReviews/*",
+    "artifact /conflicts/*/evidence/*/artifact",
+    "source_snapshot /conflicts/*/evidence/*/source",
+    "replay_result /conflicts/*/evidence/*/replay",
+    "replay_plan /conflicts/*/evidence/*/replay/plan",
+    "artifact /conflicts/*/evidence/*/replay/result",
+    "target_release /conflicts/*/evidence/*/replay/targetRelease",
+    "artifact /disagreement/evidence/*/artifact",
+    "source_snapshot /disagreement/evidence/*/source",
+    "replay_result /disagreement/evidence/*/replay",
+    "replay_plan /disagreement/evidence/*/replay/plan",
+    "artifact /disagreement/evidence/*/replay/result",
+    "target_release /disagreement/evidence/*/replay/targetRelease",
   ],
   criterion_set: [
     "source_snapshot /criteria/*/counterevidence/*",
@@ -536,6 +548,62 @@ beforeAll(async () => {
 });
 
 describe("exact policy evaluation evidence references", () => {
+  it("retains conflict and disagreement artifacts, source records and replay occurrences", () => {
+    const source = fields(fixture("source_snapshot").record);
+    const run = fields(fixture("evaluation_run").record);
+    const evidence = [
+      { kind: "artifact", artifact: source["content"] },
+      { kind: "replay_result", replay: run["replay"] },
+      {
+        kind: "source_snapshot",
+        source: {
+          sourceSnapshotId: source["sourceSnapshotId"],
+          definitionSha256: source["definitionSha256"],
+        },
+      },
+    ];
+    const {
+      record,
+      input,
+      evidence: captured,
+    } = fixture("assessment", (definition) => {
+      definition["conflicts"] = [
+        {
+          conflictId: "conflict_complete_refs",
+          evidence,
+          severity: "noncritical",
+          status: "resolved",
+          summary: "All retained evidence variants",
+        },
+      ];
+      definition["disagreement"] = {
+        evidence,
+        status: "resolved",
+        rationale: "All retained evidence variants",
+      };
+    });
+    const output = verify("assessment", record);
+    expect(output.references.filter(({ path }) => path.startsWith("/conflicts/"))).toHaveLength(6);
+    expect(output.references.filter(({ path }) => path.startsWith("/disagreement/"))).toHaveLength(
+      6,
+    );
+    throwsReason(
+      () =>
+        enumeratePolicyEvaluationEvidenceReferences(input, captured, {
+          maxReferences: output.references.length - 1,
+          maxReferenceBytes: output.referenceBytes,
+        }),
+      "reference_limit_exceeded",
+    );
+    throwsReason(
+      () =>
+        enumeratePolicyEvaluationEvidenceReferences(input, captured, {
+          maxReferences: output.references.length,
+          maxReferenceBytes: output.referenceBytes - 1,
+        }),
+      "reference_bytes_exceeded",
+    );
+  });
   it("covers all thirty source kinds and every retained fixture variant", () => {
     expect(kinds).toHaveLength(30);
     expect(new Set(records.map(({ kind }) => kind))).toEqual(new Set(kinds));
