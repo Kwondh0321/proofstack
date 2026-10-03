@@ -81,6 +81,20 @@ Any failed prerequisite, image startup, migration, role grant, API or worker tra
 read-back, assertion, or cleanup produces a nonzero exit. The runner never falls back to in-memory
 storage or silently keeps a partial result.
 
+On a non-interrupted failure after preparing the isolated service environment, the shared
+Workflow 1/2 runner prints that disposable project's container status and the last 160 log lines
+from each PostgreSQL/SeaweedFS service **before** cleanup. Each diagnostic command has a ten-second
+hard termination limit.
+Diagnostics are best effort: their own failures neither replace the original acceptance error
+nor prevent the existing cleanup attempt. The runner does not dump Compose configuration or
+environment variables, inspect unrelated projects, retry tests, or relax assertions. A service
+reported healthy at startup can still stop before the test; preserve these failure diagnostics
+when reporting a connection refusal. A later green retry is not proof of the first failure's cause.
+
+The diagnostic command-port regressions run with `pnpm test:acceptance:runner` and the normal
+`pnpm check` gate. They verify command scope, output limits and failure containment; they are not
+a substitute for real-service clean-checkout acceptance.
+
 | Terminal signal | Meaning | Next action |
 | --- | --- | --- |
 | `spawn docker ENOENT` | Docker is not installed or not on `PATH` | Install Docker with Compose v2, then retry |

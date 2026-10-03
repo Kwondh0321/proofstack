@@ -81,6 +81,19 @@ install 뒤 같은 root 명령을 실행합니다.
 cleanup 중 하나라도 실패하면 0이 아닌 상태로 종료됩니다. runner는 in-memory 저장소로
 우회하거나 부분 결과를 성공으로 숨기지 않습니다.
 
+일회성 서비스 환경을 준비한 뒤 interrupt가 아닌 실패가 발생하면 Workflow 1/2 공통 runner는
+**정리 전에** 정확한 일회성 project의 container 상태와 PostgreSQL·SeaweedFS 각각의 마지막
+로그 160줄을 출력합니다.
+각 진단 명령에는 10초 강제 종료 한도가 있습니다. 진단 자체의 실패는 원래 수용 오류를 바꾸거나
+기존 정리 시도를 막지 않습니다. Compose 설정이나 환경 변수를 덤프하거나 다른 project를
+검사하지 않으며, 테스트를 재시도하거나 assertion을 완화하지 않습니다. 시작 때 healthy로
+보고된 service도 테스트 전에 중단될 수 있으므로 연결 거절을 보고할 때 이 진단을 보존하세요.
+뒤의 재실행이 통과한 사실만으로 첫 실패 원인이 밝혀지는 것은 아닙니다.
+
+진단 명령 포트 회귀 검사는 `pnpm test:acceptance:runner`와 일반 `pnpm check` gate에서 실행합니다.
+명령 범위·출력 한도·진단 실패 격리를 확인하는 검사이며 실제 service clean-checkout 수용을
+대신하지 않습니다.
+
 | Terminal 신호 | 의미 | 다음 행동 |
 | --- | --- | --- |
 | `spawn docker ENOENT` | Docker가 설치되지 않았거나 `PATH`에 없음 | Compose v2가 포함된 Docker를 설치한 뒤 재시도 |

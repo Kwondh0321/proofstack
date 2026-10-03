@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
+import { collectWorkflowAcceptanceDiagnostics } from "./workflow-acceptance-diagnostics.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const composeFile = resolve(repositoryRoot, "compose.yaml");
@@ -56,6 +57,8 @@ function run(command, args, options = {}) {
       cwd: repositoryRoot,
       env: options.env,
       stdio: "inherit",
+      timeout: options.timeout,
+      killSignal: options.killSignal,
     });
     activeChild = child;
     child.once("error", (error) => {
@@ -155,6 +158,19 @@ try {
   primaryError = error;
 } finally {
   if (composeEnvironment) {
+    if (primaryError && !receivedSignal) {
+      console.error(
+        `${workflowLabel} failed. Collecting isolated service diagnostics before cleanup.`,
+      );
+      const failures = await collectWorkflowAcceptanceDiagnostics(run, {
+        composeFile,
+        environment: composeEnvironment,
+        projectName,
+      });
+      for (const failure of failures) {
+        console.error(`${workflowLabel} ${failure.kind} diagnostics failed: ${failure.message}`);
+      }
+    }
     try {
       await run(
         "docker",
