@@ -44,6 +44,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
+import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 
@@ -69,7 +70,7 @@ function request(
   const definition: PolicyEvaluationRequestDefinition = {
     ...(defaults as PolicyEvaluationRequestDefinition),
     evaluationTime: time,
-    limits: limits as PolicyEvaluationRequestDefinition["limits"],
+    limits: structuredClone(limits) as PolicyEvaluationRequestDefinition["limits"],
     candidate: {
       candidateId: candidate.candidateId,
       candidateVersionId: candidate.candidateVersionId,
@@ -1225,11 +1226,13 @@ describe("request-rooted recursive record graph", () => {
     const keys = graph.entries.map(({ source }) => policyEvaluationSourceReferenceKey(source));
     expect(keys).toEqual([...new Set(keys)].sort());
     expect(graph.edges[0]?.parent.kind).toBe("release_candidate");
-    expect(graph.usage.references).toBe(graph.edges.length);
+    expect(graph.usage.references).toBe(
+      graph.edges.length + graph.policyAssessments.inspectionUsage.references,
+    );
     expect(graph.usage.referenceBytes).toBe(
       graph.edges.reduce(
         (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
-        0,
+        graph.policyAssessments.inspectionUsage.referenceBytes,
       ),
     );
     expect(graph).not.toHaveProperty("sealed");
@@ -1764,5 +1767,316 @@ describe("fixed cross-domain routing", () => {
         kind,
       ).toBe(true);
     }
+  });
+});
+
+describe("candidate-owned policy assessment declarations", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
+
+  function required<T>(value: T | undefined): T {
+    if (value === undefined) throw new Error("Missing assessment test fixture member");
+    return value;
+  }
+
+  async function capture(change: (setup: Awaited<ReturnType<typeof harness>>) => void = () => {}) {
+    const setup = await harness();
+    change(setup);
+    setup.candidate = candidateDigest(setup.candidate);
+    setup.policy = policyDigest(setup.policy);
+    setup.input = request(setup.candidate, setup.policy);
+    setup.repositories = {
+      ...setup.repositories,
+      control: {
+        ...setup.repositories.control,
+        releaseCandidate: { findReleaseCandidate: async () => setup.candidate },
+        releasePolicy: { findReleasePolicy: async () => setup.policy },
+      },
+    };
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    return { setup, graph };
+  }
+
+  it("retains complete candidate declarations and each original rule occurrence independently", async () => {
+    const { setup, graph } = await capture((value) => {
+      const reference = required(value.candidate.assessments[0]);
+      const modelReference = {
+        assessmentExtensionId: "assessment_model",
+        definitionSha256: "a".repeat(64),
+      };
+      value.candidate.modelAssuranceAssessments = [modelReference];
+      const template = required(value.policy.rules[0]);
+      const predicates: ReleasePolicy["rules"][number]["predicate"][] = [
+        {
+          kind: "coverage_floor",
+          sourceKind: "assessment_samples",
+          assessment: reference,
+          sampleClass: "observed",
+          minimumCount: 1,
+          unit: "cases",
+        },
+        {
+          kind: "uncertainty_bound",
+          assessment: reference,
+          bound: "lower",
+          comparator: "at_least",
+          confidenceLevelBasisPoints: 9500,
+          intervalMethod: "wilson_score_interval",
+          intervalMethodVersion: "1.0.0",
+          thresholdBasisPoints: 0,
+          unit: "basis_points",
+        },
+        {
+          kind: "eligibility_required",
+          assessmentClass: "evaluation",
+          assessment: reference,
+          expected: "eligible",
+        },
+        {
+          kind: "eligibility_required",
+          assessmentClass: "model_assurance",
+          assessment: modelReference,
+          expected: "eligible",
+        },
+      ];
+      value.policy.rules = [
+        ...predicates.map((predicate, i) => ({
+          ...structuredClone(template),
+          ruleId: `rule_assessment_${i}`,
+          predicate,
+        })),
+        ...value.policy.rules.filter(({ predicate }) => predicate.kind === "approval_required"),
+      ].sort((left, right) =>
+        left.ruleId < right.ruleId ? -1 : left.ruleId > right.ruleId ? 1 : 0,
+      );
+    });
+    const report = graph.policyAssessments;
+    if (report.status !== "inspected") throw new Error("Expected assessment inspection");
+    expect(report.members).toHaveLength(2);
+    expect(report.rules).toHaveLength(4);
+    expect(report.rules.map(({ ruleId }) => ruleId)).toEqual(
+      setup.policy.rules
+        .filter(({ predicate }) => "assessment" in predicate)
+        .map(({ ruleId }) => ruleId),
+    );
+    expect(report.rules.map(({ membership }) => membership.status)).toEqual(
+      Array(4).fill("declared"),
+    );
+    expect(report.rules.map(({ observation }) => observation.status)).toEqual([
+      "verified",
+      "verified",
+      "verified",
+      "missing",
+    ]);
+    expect(new Set(report.rules.map(({ policyEdgeIndex }) => policyEdgeIndex)).size).toBe(4);
+    for (const rule of report.rules) {
+      const edge = required(graph.edges[rule.policyEdgeIndex]);
+      expect(edge.parentRecordSha256).toBe(report.policy.recordSha256);
+      expect(edge.reference.path).toBe(`/rules/${rule.ruleIndex}/predicate/assessment`);
+      expect(edge.target).toEqual(rule.source);
+      if (rule.membership.status !== "declared") throw new Error("Expected declared member");
+      const candidateEdge = required(graph.edges[rule.membership.candidateEdgeIndex]);
+      expect(candidateEdge.parentRecordSha256).toBe(report.candidate.recordSha256);
+      expect(candidateEdge.target).toEqual(rule.source);
+    }
+    expect(report.inspectionUsage.references).toBe(6);
+    expect(report).not.toHaveProperty("verdict");
+    expect(report).not.toHaveProperty("sealed");
+  });
+
+  it("does not treat a readable same-scope assessment as candidate-owned", async () => {
+    const { graph } = await capture(({ candidate }) => {
+      candidate.assessments = [
+        { assessmentId: "assessment_other", definitionSha256: "b".repeat(64) },
+      ];
+    });
+    const report = graph.policyAssessments;
+    if (report.status !== "inspected") throw new Error("Expected inspection");
+    expect(report.members[0]?.observation.status).toBe("missing");
+    expect(report.rules.length).toBeGreaterThan(0);
+    expect(
+      report.rules.every(
+        ({ membership, observation }) =>
+          membership.status === "not_declared" && observation.status === "verified",
+      ),
+    ).toBe(true);
+  });
+
+  it("retains unused declarations even when no policy rule references an assessment", async () => {
+    const { graph } = await capture(({ policy }) => {
+      policy.rules = policy.rules.filter(({ predicate }) => !("assessment" in predicate));
+    });
+    const report = graph.policyAssessments;
+    expect(report).toMatchObject({
+      status: "inspected",
+      rules: [],
+      members: [{ observation: { status: "verified" } }],
+    });
+  });
+
+  it.each(["missing", "record_invalid", "reference_mismatch", "not_yet_available"] as const)(
+    "keeps declared membership separate from %s record availability",
+    async (failure) => {
+      const { graph } = await capture((setup) => {
+        const repository = setup.repositories.evidence.evaluation;
+        setup.repositories = {
+          ...setup.repositories,
+          evidence: {
+            ...setup.repositories.evidence,
+            evaluation: new Proxy(repository, {
+              get(target, key) {
+                if (key === "findAssessment")
+                  return async (...args: Parameters<typeof repository.findAssessment>) => {
+                    const record = await repository.findAssessment(...args);
+                    if (!record) throw new Error("Expected retained assessment");
+                    if (failure === "missing") return null;
+                    if (failure === "record_invalid")
+                      return { ...record, definitionSha256: "f".repeat(64) };
+                    if (failure === "reference_mismatch") {
+                      const changed = { ...record, assessmentId: "assessment_wrong" };
+                      const body = structuredClone(changed) as unknown as Fields;
+                      for (const key of evaluationRecordDescriptors.assessment.receiptKeys)
+                        delete body[key];
+                      changed.definitionSha256 = digestEvaluationRecordDefinition(
+                        "assessment",
+                        changed.scope,
+                        body,
+                      );
+                      return changed;
+                    }
+                    return { ...record, createdAt: "2026-10-02T00:00:00.000Z" };
+                  };
+                const value: unknown = Reflect.get(target, key);
+                return typeof value === "function" ? value.bind(target) : value;
+              },
+            }),
+          },
+        };
+      });
+      const report = graph.policyAssessments;
+      if (report.status !== "inspected") throw new Error("Expected inspection");
+      const observation =
+        failure === "missing" ? { status: "missing" } : { status: "unavailable", reason: failure };
+      expect(report.members[0]?.observation).toEqual(observation);
+      for (const rule of report.rules) {
+        expect(rule.membership.status).toBe("declared");
+        expect(rule.observation).toEqual(observation);
+      }
+    },
+  );
+
+  it.each(["release_candidate", "release_policy"] as const)(
+    "preserves unavailable %s roots instead of reporting empty successful bindings",
+    async (kind) => {
+      const setup = await harness();
+      setup.repositories = {
+        ...setup.repositories,
+        control: {
+          ...setup.repositories.control,
+          ...(kind === "release_candidate"
+            ? { releaseCandidate: { findReleaseCandidate: async () => null } }
+            : {
+                releasePolicy: {
+                  findReleasePolicy: async () => ({
+                    ...setup.policy,
+                    definitionSha256: "f".repeat(64),
+                  }),
+                },
+              }),
+        },
+      };
+      const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+      expect(graph.policyAssessments).toMatchObject({
+        status: "roots_unavailable",
+        unavailableRoots: [
+          {
+            source: { kind },
+            observation:
+              kind === "release_candidate"
+                ? { status: "missing" }
+                : { status: "unavailable", reason: "record_invalid" },
+          },
+        ],
+        inspectionUsage: { references: 0, referenceBytes: 0 },
+      });
+      expect(graph.policyAssessments).not.toHaveProperty("rules");
+    },
+  );
+
+  it("rejects a changed digest under the same declared assessment identity", async () => {
+    await expect(
+      capture(({ candidate }) => {
+        required(candidate.assessments[0]).definitionSha256 = "f".repeat(64);
+      }),
+    ).rejects.toMatchObject({ reason: "reference_conflict" });
+  });
+
+  it.each([
+    "parent_hash",
+    "target",
+    "reference",
+    "selector_failure",
+    "missing_edge",
+    "duplicate_edge",
+    "missing_node",
+    "root_reference",
+  ] as const)("rejects internal %s provenance corruption", async (change) => {
+    const { setup, graph } = await capture();
+    const altered = structuredClone(graph) as unknown as {
+      nodes: (typeof graph.nodes)[number][];
+      edges: (typeof graph.edges)[number][];
+    };
+    const edgeIndex = altered.edges.findIndex(
+      ({ parent, reference }) =>
+        parent.kind === "release_candidate" && reference.path === "/assessments/0",
+    );
+    const edge = required(altered.edges[edgeIndex]);
+    if (change === "parent_hash")
+      altered.edges[edgeIndex] = { ...edge, parentRecordSha256: "f".repeat(64) };
+    if (change === "target") altered.edges[edgeIndex] = { ...edge, target: null };
+    if (change === "reference")
+      altered.edges[edgeIndex] = {
+        ...edge,
+        reference: {
+          kind: "evaluation_run_identity",
+          path: edge.reference.path,
+          evaluationRunId: "run_other",
+        },
+      };
+    if (change === "selector_failure")
+      altered.edges[edgeIndex] = { ...edge, selectorFailure: { status: "missing" } };
+    if (change === "missing_edge") altered.edges.splice(edgeIndex, 1);
+    if (change === "duplicate_edge") altered.edges.push(edge);
+    if (change === "missing_node")
+      altered.nodes = altered.nodes.filter(({ read }) => read.source.kind !== "assessment");
+    if (change === "root_reference") setup.input.candidate.definitionSha256 = "f".repeat(64);
+    expect(() => inspectCapturedPolicyAssessments(setup.input, altered, limits)).toThrow(
+      expect.objectContaining({ reason: "reference_conflict" }),
+    );
+  });
+
+  it("admits exact repeated inspection budgets and rejects one below each limit", async () => {
+    const { setup, graph } = await capture();
+    const usage = graph.policyAssessments.inspectionUsage;
+    const exact = { maxReferences: usage.references, maxReferenceBytes: usage.referenceBytes };
+    expect(inspectCapturedPolicyAssessments(setup.input, graph, exact)).toEqual(
+      graph.policyAssessments,
+    );
+    expect(() =>
+      inspectCapturedPolicyAssessments(setup.input, graph, {
+        ...exact,
+        maxReferences: exact.maxReferences - 1,
+      }),
+    ).toThrow(expect.objectContaining({ reason: "reference_limit_exceeded" }));
+    expect(() =>
+      inspectCapturedPolicyAssessments(setup.input, graph, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow(expect.objectContaining({ reason: "reference_bytes_exceeded" }));
+    const before = structuredClone(graph);
+    const report = inspectCapturedPolicyAssessments(setup.input, graph, exact);
+    if (report.status !== "inspected") throw new Error("Expected inspection");
+    Object.assign(report.candidate.source.reference, { definitionSha256: "f".repeat(64) });
+    expect(graph).toEqual(before);
   });
 });

@@ -60,6 +60,10 @@
 모순된 이력, 원래 의존 간선 인덱스와 반복 검사 누적 사용량을 보존합니다. 관계 일치는 평가기의
 실제 실행·출처 권한이나 봉인된 판정이 아닙니다.
 
+`policyAssessments`는 각 assessment 기반 규칙의 [정확한 후보 선언 소속](workflow-2-policy-assessment-bindings.ko.md)을
+보고합니다. 소속과 기록 가용성을 분리하고 미사용 선언·반복 규칙·원래 간선 인덱스를 보존합니다.
+후보의 dataset/target까지 전체 계보를 검증하거나 규칙을 판정하지는 않습니다.
+
 간선의 `target`은 정확한 자식 참조 또는 `null`입니다. 해석하지 못한 선택자는 누락/사용 불가
 사유를 `selectorFailure`로 남기며 해시를 만들어 넣지 않습니다. 아티팩트, 정확한 트레이스 선택자,
 프로토콜/프로필 선언, 후보 소스 주장, 승인 요구 등은 미해결 간선으로 보존합니다. 대상 참조가
@@ -77,7 +81,7 @@
 | `usage.reads` | 누락·반복을 포함한 실제 조회. 두 형식의 픽스처 조회는 2회 |
 | `usage.records` | 조회 횟수와 보관된 재현 시도·예산·취소·실행·사용량 이력 행 |
 | `usage.bytes` | 공백 없는 JSON 호환 응답의 UTF-8 바이트. 반복 응답과 null도 재계산 |
-| `usage.references` | 중복·미해결 선언을 포함한 모든 참조 발생 |
+| `usage.references` | 중복·미해결 선언을 포함한 모든 그래프 참조 발생과 후보·정책 assessment 검사 발생 |
 | `usage.referenceBytes` | 참조 항목들의 정규 UTF-8 바이트 합 |
 
 `maxAcquisitionRecords`는 기록 수와 별도의 참조 발생 수를 각각 제한합니다.

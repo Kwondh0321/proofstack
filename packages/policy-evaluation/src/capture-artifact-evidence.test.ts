@@ -1195,15 +1195,36 @@ describe("request-owned source recheck composition", () => {
   });
 
   it("shares record and JSON admission with capture rather than resetting for the transaction", async () => {
-    const f = await recheckHarness();
+    // Retain a real successor/history so record admission remains the limiting dimension
+    // after candidate assessment inspection also charges reference occurrences.
+    const prepare = async () => {
+      const fixture = await recheckHarness();
+      const successor = releasePolicyRepositoryFixture("recheck_budget", scope, {
+        policyId: fixture.h.policy.policyId,
+        predecessor: releasePolicyReference(fixture.h.policy),
+        publishedAt: "2026-10-01T00:30:00.000Z",
+        semanticVersion: "2.0.0",
+      });
+      await fixture.h.policies.publishReleasePolicy(successor);
+      await fixture.h.policies.publishReleasePolicyLifecycleEvent(
+        releasePolicyLifecycleFixture("recheck_budget", fixture.h.policy, {
+          kind: "superseded",
+          successor,
+          occurredAt: "2026-10-01T01:00:00.000Z",
+        }),
+      );
+      return fixture;
+    };
+    const f = await prepare();
     const baseline = await f.run();
-    const fresh = await recheckHarness();
+    expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
+    const fresh = await prepare();
     const exact = withLimits(fresh.h.request, {
       maxAcquisitionRecords: Math.max(baseline.usage.records, baseline.usage.references),
       maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
     });
     expect((await fresh.run(exact)).usage).toEqual(baseline.usage);
-    const short = await recheckHarness();
+    const short = await prepare();
     await expect(
       short.run(
         withLimits(exact, {
@@ -1212,7 +1233,7 @@ describe("request-owned source recheck composition", () => {
       ),
     ).rejects.toMatchObject({ reason: "byte_limit" });
     expect(short.state.phase).toBe("rolled_back");
-    const fewer = await recheckHarness();
+    const fewer = await prepare();
     await expect(
       fewer.run(withLimits(exact, { maxAcquisitionRecords: baseline.usage.records - 1 })),
     ).rejects.toMatchObject({ reason: "record_limit" });

@@ -34,6 +34,10 @@ import {
 } from "@proofstack/replay";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  inspectCapturedPolicyAssessments,
+  type PolicyAssessmentBindings,
+} from "./capture-policy-assessments.js";
+import {
   inspectCapturedEvaluationSnapshots,
   type PolicyEvaluationSnapshotBindings,
 } from "./capture-evaluation-snapshots.js";
@@ -69,6 +73,8 @@ export interface PolicyRecordGraph {
   /** Deterministic breadth-first parent order, preserving every occurrence within each parent. */
   readonly edges: readonly PolicyRecordGraphEdge[];
   readonly entries: readonly PolicyEvaluationManifestEntry[];
+  /** Exact rule-to-candidate assessment declarations, not transitive lineage or eligibility. */
+  readonly policyAssessments: PolicyAssessmentBindings;
   /** Exact membership/predecessor observations, not whole-graph semantic eligibility. */
   readonly datasetRelations: PolicyDatasetRelations;
   /** Retained run/aggregate/assessment consistency, not criterion trust or policy satisfaction. */
@@ -304,6 +310,11 @@ export async function acquirePolicyRecordGraph(
         ),
       );
     }
+    const policyAssessments = inspectCapturedPolicyAssessments(request, { nodes, edges }, limits);
+    budget.addReferences(
+      policyAssessments.inspectionUsage.references,
+      policyAssessments.inspectionUsage.referenceBytes,
+    );
     const evaluationSnapshots = inspectCapturedEvaluationSnapshots({ nodes, edges }, limits);
     return {
       request: policyEvaluationRequestReference(request),
@@ -313,6 +324,7 @@ export async function acquirePolicyRecordGraph(
       nodes,
       edges,
       entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
+      policyAssessments,
       evaluationSnapshots,
       modelAssurance: inspectCapturedModelAssurance({ nodes, edges }, evaluationSnapshots, limits),
       replayResults: { results: replayResults, unavailableResults },

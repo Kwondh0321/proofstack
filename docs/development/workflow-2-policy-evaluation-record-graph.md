@@ -65,6 +65,11 @@ are explicit. This adds no repository I/O and does not prove execution or result
 missing parents, contradictory histories, original dependency-edge indexes and cumulative repeated
 inspection usage. Local consistency is not evaluator execution, source authority or a sealed verdict.
 
+`policyAssessments` retains [exact candidate declaration membership](workflow-2-policy-assessment-bindings.md)
+for every assessment-bearing policy rule. Membership and record availability remain separate;
+unused declarations, repeated rules and original edge indexes are preserved. This does not establish
+the complete candidate dataset/target lineage or predicate outcomes.
+
 An edge's `target` is the exact child record reference or `null`. Missing/unavailable selectors
 retain a typed `selectorFailure`; no missing hash is fabricated. Artifact descriptors, exact trace
 selectors, protocol/profile declarations, candidate source claims, approval requirements, and
@@ -83,7 +88,7 @@ specific to the selector reader; further domain validation belongs to complete s
 | `usage.reads` | Actual repository calls, including missing and repeated selector reads; a dual-format fixture lookup uses two calls |
 | `usage.records` | Calls plus retained replay attempt, budget, cancellation, execution, and usage rows |
 | `usage.bytes` | Compact JSON-compatible UTF-8 response bytes; repeated responses and null responses count again |
-| `usage.references` | Every admitted reference occurrence, including duplicates and unresolved declarations |
+| `usage.references` | Every admitted graph reference occurrence plus candidate/policy assessment inspection occurrences, including duplicates and unresolved declarations |
 | `usage.referenceBytes` | Sum of canonical UTF-8 bytes for those reference entries |
 
 The request's `maxAcquisitionRecords` bounds `records` and, separately, `references`. The combined

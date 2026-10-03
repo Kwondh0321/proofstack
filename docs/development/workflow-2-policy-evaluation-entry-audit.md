@@ -229,6 +229,12 @@ repository reads. Missing evidence and known contradictions remain distinct, wit
 nested edges and cumulative repeated-use limits. Historical consistency is not current authority,
 truthful measurements, sealed inputs or a policy result; Workflow 2 remains 2/7 accepted checkpoints.
 
+The [candidate assessment membership report](workflow-2-policy-assessment-bindings.md) connects every
+assessment-bearing policy rule to the exact candidate declaration, retaining repeated occurrences,
+unused declarations and independent record availability under cumulative count/byte admission.
+This does not close assessment-to-dataset/target lineage, current authority or typed rule operands;
+complete closure and sealing remain required before policy outcomes.
+
 The subsequent [retained policy authority prerequisites](workflow-2-policy-authority-prerequisites.md)
 compose exact installation, source/review/reviewer records and actual retained artifact observations
 at the request's full-precision evaluation time. They preserve original repeated provenance and use
