@@ -44,6 +44,10 @@ export type {
   PolicyEvaluationSnapshotCheck,
 } from "./capture-evaluation-snapshots.js";
 export type {
+  PolicyEvaluationReplayBindings,
+  PolicyEvaluationReplayCheck,
+} from "./capture-evaluation-replay-bindings.js";
+export type {
   PolicyRecordExpansion,
   PolicyRecordGraphRepositories,
   PolicyRecordRead,

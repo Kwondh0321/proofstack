@@ -34,6 +34,10 @@ import {
 } from "@proofstack/replay";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  inspectCapturedEvaluationReplayBindings,
+  type PolicyEvaluationReplayBindings,
+} from "./capture-evaluation-replay-bindings.js";
+import {
   inspectCapturedCandidateAssessmentLineage,
   type PolicyCandidateAssessmentLineage,
 } from "./capture-candidate-assessment-lineage.js";
@@ -85,6 +89,8 @@ export interface PolicyRecordGraph {
   readonly datasetRelations: PolicyDatasetRelations;
   /** Retained run/aggregate/assessment consistency, not criterion trust or policy satisfaction. */
   readonly evaluationSnapshots: PolicyEvaluationSnapshotBindings;
+  /** Run-to-plan dataset/target and retained replay prerequisites, not execution authority. */
+  readonly evaluationReplays: PolicyEvaluationReplayBindings;
   /** Retained model/human prerequisites, not current authority or a release decision. */
   readonly modelAssurance: PolicyModelAssuranceBindings;
   /** Declared replay-plan consistency, not execution or installed runtime authority. */
@@ -347,6 +353,34 @@ export async function acquirePolicyRecordGraph(
         limits,
       ),
     );
+    const replayPlans = admitInspection(
+      inspectPolicyEvaluationReplayPlanBindings(
+        { scope, evaluationTime },
+        nodes
+          .map(({ read }) => read)
+          .filter(
+            (read): read is PolicyReplayPlanBindingRead =>
+              read.source.kind === "replay_plan" ||
+              read.source.kind === "target_release" ||
+              read.source.kind === "dataset_version" ||
+              read.source.kind === "regression_fixture_version" ||
+              read.source.kind === "replay_runtime_profile" ||
+              read.source.kind === "replay_isolation_profile",
+          ),
+        limits,
+      ),
+    );
+    const evaluationReplays = admitInspection(
+      inspectCapturedEvaluationReplayBindings(
+        {
+          nodes,
+          edges,
+          replayPlans,
+          replayResults: { results: replayResults, unavailableResults },
+        },
+        limits,
+      ),
+    );
     return {
       request: policyEvaluationRequestReference(request),
       scope,
@@ -358,6 +392,7 @@ export async function acquirePolicyRecordGraph(
       policyAssessments,
       candidateAssessmentLineage,
       evaluationSnapshots,
+      evaluationReplays,
       modelAssurance,
       replayResults: { results: replayResults, unavailableResults },
       datasetRelations: admitInspection(
@@ -373,23 +408,7 @@ export async function acquirePolicyRecordGraph(
           limits,
         ),
       ),
-      replayPlans: admitInspection(
-        inspectPolicyEvaluationReplayPlanBindings(
-          { scope, evaluationTime },
-          nodes
-            .map(({ read }) => read)
-            .filter(
-              (read): read is PolicyReplayPlanBindingRead =>
-                read.source.kind === "replay_plan" ||
-                read.source.kind === "target_release" ||
-                read.source.kind === "dataset_version" ||
-                read.source.kind === "regression_fixture_version" ||
-                read.source.kind === "replay_runtime_profile" ||
-                read.source.kind === "replay_isolation_profile",
-            ),
-          limits,
-        ),
-      ),
+      replayPlans,
       usage: budget.usage(),
       unresolved: {
         records: nodes.filter(({ read }) => read.observation.status !== "verified").length,

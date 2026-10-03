@@ -13,6 +13,8 @@ import {
   type RegressionFixtureVersionDefinition,
   type EvaluatorSpec,
   type TargetReleaseDefinition,
+  type RuntimeDefinition,
+  type RuntimeDefinitionRecord,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
   encodeEvaluationCanonicalJson,
@@ -24,6 +26,8 @@ import {
   digestEvaluationRecordDefinition,
   evaluationRecordDescriptors,
   CreateModelAssuranceAssessment,
+  digestRuntimeDefinition,
+  StaticRuntimeDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -55,6 +59,7 @@ import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapsho
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
 import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
+import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 
 type Fields = Record<string, unknown>;
@@ -169,6 +174,8 @@ async function harness(
   snapshots?: {
     mutate?: (fixture: EvaluationRepositoryFixtureRecord) => void;
     dataset?: "matched" | "wrong_fixture";
+    replayBindings?: boolean;
+    plan?: (plan: ReplayPlanDefinition) => void;
   },
 ) {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
@@ -243,6 +250,7 @@ async function harness(
     }
   };
   const replayRepository = new MemoryReplayDefinitionRepository();
+  const runtimeRecords: RuntimeDefinitionRecord[] = [];
   const replay = replayCase
     ? (() => {
         const document = JSON.parse(
@@ -256,6 +264,7 @@ async function harness(
         const targetDefinition = document.vectors.find((v) => v.kind === "target_release")
           ?.input as TargetReleaseDefinition;
         targetDefinition.scope = evaluation.scope;
+        if (snapshots?.replayBindings) targetDefinition.supportedBoundaryModes = ["simulation"];
         if (replayCase === "unsupported_kind") targetDefinition.supportedBoundaryKinds = ["tool"];
         const receipt = {
           createdAt:
@@ -278,6 +287,75 @@ async function harness(
           ?.input as ReplayPlanDefinition;
         planDefinition.scope = evaluation.scope;
         planDefinition.targetRelease = targetReference;
+        if (snapshots?.replayBindings) {
+          if (!retainedDataset) throw new Error("Joined replay requires a retained dataset");
+          planDefinition.dataset = {
+            datasetId: retainedDataset.datasetId,
+            datasetVersionId: retainedDataset.datasetVersionId,
+            definitionSha256: retainedDataset.definitionSha256,
+          };
+          // A shared plan can simulate a dataset containing several distinct evaluation fixtures.
+          // This is retained metadata; the test does not claim a simulator actually ran.
+          planDefinition.boundaries = [
+            {
+              boundaryId: "boundary_shared_simulation",
+              kind: "model",
+              mode: "simulation",
+              configurationSha256: "7".repeat(64),
+              seedHex: "8".repeat(64),
+              simulatorRelease: targetReference,
+              qualification: {
+                artifactId: "artifact_simulation_qualification",
+                sha256: "9".repeat(64),
+                sizeBytes: 1,
+                mediaType: "application/json",
+                classification: "internal",
+              },
+            },
+          ];
+          const vectors = JSON.parse(
+            readFileSync(
+              new URL("../../contracts/vectors/runtime-definition-v1.json", import.meta.url),
+              "utf8",
+            ),
+          ) as { vectors: { input: { definition: RuntimeDefinition } }[] };
+          for (const { input } of vectors.vectors) {
+            const definition = structuredClone(input.definition);
+            if (definition.recordKind === "runtime_adapter") continue;
+            if (definition.recordKind === "replay_runtime_profile") {
+              definition.family = target.runtime.family;
+              definition.runtime = {
+                architecture: target.runtime.architecture,
+                platform: target.runtime.platform,
+                version: target.runtime.version,
+              };
+            }
+            const record: RuntimeDefinitionRecord = {
+              ...definition,
+              schemaVersion: "0.1",
+              scope: evaluation.scope,
+              registeredAt: "2026-09-01T00:00:00.000Z",
+              registeredByPrincipalId: "principal_graph_runtime",
+              definitionSha256: digestRuntimeDefinition(evaluation.scope, definition),
+            };
+            runtimeRecords.push(record);
+            if (record.recordKind === "replay_runtime_profile")
+              planDefinition.runtimeProfile = {
+                id: record.id,
+                version: record.version,
+                family: record.family,
+                definitionSha256: record.definitionSha256,
+              };
+            else
+              planDefinition.isolationProfile = {
+                id: record.id,
+                version: record.version,
+                kind: record.kind,
+                definitionSha256: record.definitionSha256,
+              };
+          }
+        }
+        snapshots?.plan?.(planDefinition);
         if (replayCase === "invalid_digest") {
           const boundary = planDefinition.boundaries[0];
           if (boundary?.mode !== "recorded_stub") throw new Error("Expected recorded fixture");
@@ -490,6 +568,9 @@ async function harness(
     ...(replay ? { replayDefinitions: replayRepository } : {}),
     ...(replayResultReference ? { replayResults: replayJobs } : {}),
     ...(retainedDataset ? { datasets } : {}),
+    ...(snapshots?.replayBindings
+      ? { runtimeDefinitions: new StaticRuntimeDefinitionCatalogue(runtimeRecords) }
+      : {}),
   };
   return {
     candidate,
@@ -502,6 +583,350 @@ async function harness(
     input: request(candidate, policy),
   };
 }
+
+describe("evaluation run replay bindings", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
+  const setup = () => harness("history", { dataset: "matched", replayBindings: true });
+  const statuses = (graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>, kind: string) =>
+    graph.evaluationReplays.parents.map(
+      (parent) => parent.checks.find((check) => check.kind === kind)?.observation.status,
+    );
+
+  it("joins exact plan and result prerequisites while allowing distinct fixtures to share a plan", async () => {
+    const h = await setup();
+    const planRead = vi.spyOn(h.repositories.replayDefinitions, "findReplayPlan");
+    const resultRead = vi.spyOn(h.repositories.replayResults, "findJob");
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const report = graph.evaluationReplays;
+    expect(report.parents).toHaveLength(2);
+    expect(report.unavailableParents).toEqual([]);
+    expect(
+      report.parents.flatMap((parent) => parent.checks).map((check) => check.observation.status),
+    ).toEqual(Array(10).fill("matched"));
+    const runs = h.evaluation.records.filter((record) => record.kind === "evaluation_run");
+    expect(new Set(runs.map(({ record }) => record.fixture.fixtureVersionId)).size).toBe(2);
+    expect(new Set(runs.map(({ record }) => record.replay.plan.planVersionId)).size).toBe(1);
+    expect(planRead).toHaveBeenCalledTimes(1);
+    expect(resultRead).toHaveBeenCalledTimes(1);
+    expect(report.inspectionUsage.references).toBe(12);
+    for (const parent of report.parents) {
+      expect(graph.entries).toContainEqual({
+        source: parent.source,
+        observation: { status: "verified", recordSha256: parent.recordSha256 },
+      });
+      expect(parent.dependencyEdgeIndexes).toHaveLength(6);
+      expect(
+        parent.dependencyEdgeIndexes.filter(
+          (index) => graph.edges[index]?.parent.kind === "replay_plan",
+        ),
+      ).toHaveLength(2);
+    }
+    const reordered = inspectCapturedEvaluationReplayBindings(
+      { ...graph, nodes: [...graph.nodes].reverse() },
+      limits,
+    );
+    expect(reordered).toEqual(report);
+    const before = structuredClone(graph);
+    const first = reordered.parents[0];
+    if (!first) throw new Error("Missing run report");
+    first.source.reference.definitionSha256 = "f".repeat(64);
+    expect(graph).toEqual(before);
+    expect(report).not.toHaveProperty("sealed");
+    expect(report).not.toHaveProperty("eligible");
+  });
+
+  it.each(["dataset", "target", "receipt"] as const)(
+    "retains a known plan %s mismatch independently of unavailable evidence",
+    async (kind) => {
+      const h = await harness("history", {
+        dataset: "matched",
+        replayBindings: true,
+        plan: (plan) => {
+          if (kind === "dataset") plan.dataset.datasetVersionId = "dataset_foreign";
+        },
+        mutate: ({ kind: recordKind, record }) => {
+          if (kind === "target" && recordKind === "evaluation_run") {
+            record.replay.targetRelease.targetId = "target_foreign";
+            record.replay.targetRelease.targetReleaseId = "target_foreign_v1";
+          }
+        },
+      });
+      if (kind === "receipt") {
+        if (!h.replay) throw new Error("Missing plan");
+        vi.spyOn(h.repositories.replayDefinitions, "findReplayPlan").mockResolvedValue({
+          ...h.replay.plan,
+          createdAt: "2026-09-01T00:00:00.201Z",
+        });
+      }
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      expect(statuses(graph, `plan_${kind}`)).toEqual(["mismatch", "mismatch"]);
+      if (kind === "dataset")
+        expect(statuses(graph, "plan_prerequisites")).toEqual(["unavailable", "unavailable"]);
+      if (kind === "target")
+        expect(statuses(graph, "result_history")).toEqual(["unavailable", "unavailable"]);
+      if (kind === "receipt")
+        expect(statuses(graph, "result_history")).toEqual(["mismatch", "mismatch"]);
+    },
+  );
+
+  it.each([
+    ["2026-09-01T00:00:00.199999Z", "mismatch"],
+    ["2026-09-01T00:00:00.200000Z", "matched"],
+    ["2026-09-01T00:00:00.200001Z", "matched"],
+  ] as const)("preserves the exact plan receipt boundary at %s", async (completedAt, expected) => {
+    const h = await harness("history", {
+      dataset: "matched",
+      replayBindings: true,
+      mutate: ({ kind, record }) => {
+        if (kind === "evaluation_run") record.replay.completedAt = completedAt;
+      },
+    });
+    if (!h.replay) throw new Error("Missing plan");
+    vi.spyOn(h.repositories.replayDefinitions, "findReplayPlan").mockResolvedValue({
+      ...h.replay.plan,
+      createdAt: "2026-09-01T00:00:00.200Z",
+    });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(statuses(graph, "plan_receipt")).toEqual([expected, expected]);
+  });
+
+  it.each(["plan", "result", "runtime", "isolation", "dataset"] as const)(
+    "preserves the missing %s prerequisite",
+    async (kind) => {
+      const h = await setup();
+      if (kind === "plan")
+        vi.spyOn(h.repositories.replayDefinitions, "findReplayPlan").mockResolvedValue(null);
+      if (kind === "result")
+        vi.spyOn(h.repositories.replayResults, "findJob").mockResolvedValue(null);
+      if (kind === "runtime")
+        vi.spyOn(h.repositories.runtimeDefinitions, "findRuntimeProfile").mockResolvedValue(null);
+      if (kind === "isolation")
+        vi.spyOn(h.repositories.runtimeDefinitions, "findIsolationProfile").mockResolvedValue(null);
+      if (kind === "dataset")
+        vi.spyOn(h.repositories.datasets, "findDatasetVersion").mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const affected = kind === "result" ? "result_history" : "plan_prerequisites";
+      expect(statuses(graph, affected)).toEqual(["unavailable", "unavailable"]);
+      expect(statuses(graph, "plan_dataset")).toEqual(
+        Array(2).fill(kind === "plan" ? "unavailable" : "matched"),
+      );
+      if (kind === "plan")
+        expect(statuses(graph, "result_history")).toEqual(["unavailable", "unavailable"]);
+    },
+  );
+
+  it("does not hide a known boundary contradiction behind an unavailable runtime", async () => {
+    const h = await harness("history", {
+      dataset: "matched",
+      replayBindings: true,
+      plan: (plan) => {
+        const boundary = plan.boundaries[0];
+        if (boundary) boundary.kind = "data";
+      },
+    });
+    vi.spyOn(h.repositories.runtimeDefinitions, "findRuntimeProfile").mockResolvedValue(null);
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(statuses(graph, "plan_prerequisites")).toEqual(["mismatch", "mismatch"]);
+    expect(statuses(graph, "plan_dataset")).toEqual(["matched", "matched"]);
+  });
+
+  it("preserves missing evaluation parents and an actually empty run inventory", async () => {
+    const h = await setup();
+    vi.spyOn(h.repositories.evidence.evaluation, "findEvaluationRun").mockResolvedValue(null);
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(graph.evaluationReplays.parents).toEqual([]);
+    expect(graph.evaluationReplays.unavailableParents).toHaveLength(2);
+    expect(
+      graph.evaluationReplays.unavailableParents.every(
+        (parent) => parent.observation.status === "missing",
+      ),
+    ).toBe(true);
+    expect(graph.evaluationReplays.inspectionUsage).toEqual({ references: 0, referenceBytes: 0 });
+    expect(
+      inspectCapturedEvaluationReplayBindings(
+        {
+          nodes: [],
+          edges: [],
+          replayPlans: {
+            plans: [],
+            unavailablePlans: [],
+            inspectionUsage: { references: 0, referenceBytes: 0 },
+          },
+          replayResults: { results: [], unavailableResults: [] },
+        },
+        { maxReferences: 0, maxReferenceBytes: 0 },
+      ),
+    ).toEqual({
+      parents: [],
+      unavailableParents: [],
+      inspectionUsage: { references: 0, referenceBytes: 0 },
+    });
+  });
+
+  it("admits repeated shared-plan traversal at exact limits and rejects one below", async () => {
+    const h = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const usage = graph.evaluationReplays.inspectionUsage;
+    const exact = { maxReferences: usage.references, maxReferenceBytes: usage.referenceBytes };
+    expect(inspectCapturedEvaluationReplayBindings(graph, exact)).toEqual(graph.evaluationReplays);
+    expect(() =>
+      inspectCapturedEvaluationReplayBindings(graph, {
+        ...exact,
+        maxReferences: exact.maxReferences - 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      inspectCapturedEvaluationReplayBindings(graph, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow();
+  });
+
+  it.each([
+    "edge_missing",
+    "edge_duplicate",
+    "parent_hash",
+    "parent_source",
+    "reference",
+    "reference_kind",
+    "target",
+    "selector_failure",
+    "node_missing",
+    "node_source",
+    "plan_report_missing",
+    "plan_report_hash",
+    "plan_report_empty",
+    "plan_report_source",
+    "result_report_missing",
+    "result_report_hash",
+    "result_report_empty",
+    "result_report_source",
+    "result_plan",
+    "result_plan_observation",
+  ] as const)("rejects broken retained provenance: %s", async (kind) => {
+    const h = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const changed = {
+      ...structuredClone(graph),
+      edges: [...graph.edges],
+      nodes: [...structuredClone(graph.nodes)],
+    };
+    const index = changed.edges.findIndex(
+      (edge) => edge.parent.kind === "evaluation_run" && edge.reference.path === "/replay/plan",
+    );
+    const edge = changed.edges[index];
+    if (edge?.reference.kind !== "record") throw new Error("Missing original plan edge");
+    if (edge.parent.kind !== "evaluation_run") throw new Error("Missing run parent");
+    if (kind === "edge_missing") changed.edges.splice(index, 1);
+    if (kind === "edge_duplicate") changed.edges.push(edge);
+    if (kind === "parent_hash")
+      changed.edges[index] = { ...edge, parentRecordSha256: "f".repeat(64) };
+    if (kind === "parent_source")
+      changed.edges[index] = {
+        ...edge,
+        parent: {
+          ...edge.parent,
+          reference: { ...edge.parent.reference, definitionSha256: "f".repeat(64) },
+        },
+      };
+    if (kind === "reference_kind") {
+      if (!h.replayResultReference) throw new Error("Missing result reference");
+      changed.edges[index] = {
+        ...edge,
+        reference: {
+          kind: "artifact",
+          path: edge.reference.path,
+          reference: h.replayResultReference.result,
+        },
+      };
+    }
+    if (kind === "reference")
+      changed.edges[index] = {
+        ...edge,
+        reference: { ...edge.reference, source: graph.roots[0] as typeof edge.reference.source },
+      };
+    if (kind === "target") changed.edges[index] = { ...edge, target: null };
+    if (kind === "selector_failure")
+      changed.edges[index] = { ...edge, selectorFailure: { status: "missing" } };
+    if (kind === "node_missing")
+      changed.nodes = changed.nodes.filter(({ read }) => read.source.kind !== "replay_plan");
+    if (kind === "node_source")
+      for (const node of changed.nodes)
+        if (node.read.source.kind === "replay_plan")
+          node.read.source.reference.definitionSha256 = "f".repeat(64);
+    if (kind.startsWith("plan_report_"))
+      changed.replayPlans = {
+        ...graph.replayPlans,
+        plans:
+          kind === "plan_report_missing"
+            ? []
+            : graph.replayPlans.plans.map((report) => ({
+                ...report,
+                ...(kind === "plan_report_hash"
+                  ? { recordSha256: "f".repeat(64) }
+                  : kind === "plan_report_source"
+                    ? {
+                        source: {
+                          ...report.source,
+                          reference: {
+                            ...report.source.reference,
+                            definitionSha256: "f".repeat(64),
+                          },
+                        },
+                      }
+                    : { checks: [] }),
+              })),
+      };
+    if (kind.startsWith("result_report_"))
+      changed.replayResults = {
+        ...graph.replayResults,
+        results:
+          kind === "result_report_missing"
+            ? []
+            : graph.replayResults.results.map((report) => ({
+                ...report,
+                ...(kind === "result_report_hash"
+                  ? { recordSha256: "f".repeat(64) }
+                  : kind === "result_report_source"
+                    ? {
+                        source: {
+                          ...report.source,
+                          reference: {
+                            ...report.source.reference,
+                            completedAt: "2026-09-01T00:00:00.200001Z",
+                          },
+                        },
+                      }
+                    : { checks: [] }),
+              })),
+      };
+    if (kind === "result_plan" || kind === "result_plan_observation")
+      changed.replayResults = {
+        ...graph.replayResults,
+        results: graph.replayResults.results.map((report) => ({
+          ...report,
+          plan: {
+            ...report.plan,
+            ...(kind === "result_plan"
+              ? {
+                  source: {
+                    ...report.plan.source,
+                    reference: {
+                      ...report.plan.source.reference,
+                      definitionSha256: "f".repeat(64),
+                    },
+                  },
+                }
+              : { recordObservation: { status: "missing" as const } }),
+          },
+        })),
+      };
+    expect(() => inspectCapturedEvaluationReplayBindings(changed, limits)).toThrow(
+      expect.objectContaining({ reason: "reference_conflict" }),
+    );
+  });
+});
 
 describe("retained evaluation snapshots in the acquired graph", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
@@ -1316,6 +1741,7 @@ describe("request-rooted recursive record graph", () => {
       graph.policyAssessments,
       graph.candidateAssessmentLineage,
       graph.evaluationSnapshots,
+      graph.evaluationReplays,
       graph.modelAssurance,
       graph.datasetRelations,
       graph.replayPlans,
@@ -1358,6 +1784,7 @@ describe("request-rooted recursive record graph", () => {
         graph.policyAssessments,
         graph.candidateAssessmentLineage,
         graph.evaluationSnapshots,
+        graph.evaluationReplays,
         graph.datasetRelations,
         graph.replayPlans,
       ];

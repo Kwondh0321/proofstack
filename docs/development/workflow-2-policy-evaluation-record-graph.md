@@ -65,6 +65,10 @@ are explicit. This adds no repository I/O and does not prove execution or result
 missing parents, contradictory histories, original dependency-edge indexes and cumulative repeated
 inspection usage. Local consistency is not evaluator execution, source authority or a sealed verdict.
 
+`evaluationReplays` joins [each retained run to its replay plan and result](workflow-2-evaluation-replay-bindings.md).
+Exact dataset/target declarations, plan receipt and owning plan/result prerequisites remain separate
+checks. Shared plans are allowed; missing evidence and original run/plan edge ownership are retained.
+
 `policyAssessments` retains [exact candidate declaration membership](workflow-2-policy-assessment-bindings.md)
 for every assessment-bearing policy rule. Membership and record availability remain separate;
 unused declarations, repeated rules and original edge indexes are preserved. This does not establish
@@ -93,7 +97,7 @@ specific to the selector reader; further domain validation belongs to complete s
 | `usage.reads` | Actual repository calls, including missing and repeated selector reads; a dual-format fixture lookup uses two calls |
 | `usage.records` | Calls plus retained replay attempt, budget, cancellation, execution, and usage rows |
 | `usage.bytes` | Compact JSON-compatible UTF-8 response bytes; repeated responses and null responses count again |
-| `usage.references` | Every admitted graph reference occurrence plus all six semantic reports' inspection occurrences, including duplicates and unresolved declarations |
+| `usage.references` | Every admitted graph reference occurrence plus all seven semantic reports' inspection occurrences, including duplicates and unresolved declarations |
 | `usage.referenceBytes` | Sum of canonical UTF-8 bytes for those reference entries |
 
 The request's `maxAcquisitionRecords` bounds `records` and, separately, `references`. The combined
@@ -103,8 +107,8 @@ also enforced by the owning components. These are invocation-local ceilings, **n
 job-wide accounting, wire transfer limits, complete process-memory accounting, or artifact-byte
 verification. The request's artifact, rule, lease, attempt, and deadline limits require later layers.
 
-The six reports are `policyAssessments`, `evaluationSnapshots`, `modelAssurance`,
-`candidateAssessmentLineage`, `datasetRelations` and `replayPlans`. Each retains its own
+The seven reports are `policyAssessments`, `evaluationSnapshots`, `evaluationReplays`,
+`modelAssurance`, `candidateAssessmentLineage`, `datasetRelations` and `replayPlans`. Each retains its own
 `inspectionUsage`; the composition adds every report's reference count and canonical reference
 bytes to the same request budget before proceeding. Artifact capture also admits its later
 `policyAuthority` inspection before the second lifecycle observation or guarded source transaction.

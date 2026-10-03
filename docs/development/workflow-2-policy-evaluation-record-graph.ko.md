@@ -60,6 +60,10 @@
 모순된 이력, 원래 의존 간선 인덱스와 반복 검사 누적 사용량을 보존합니다. 관계 일치는 평가기의
 실제 실행·출처 권한이나 봉인된 판정이 아닙니다.
 
+`evaluationReplays`는 [각 실행과 정확한 재현 계획·결과](workflow-2-evaluation-replay-bindings.ko.md)를
+연결합니다. dataset·target 선언, 계획 시각과 소유 계획·결과 전제조건을 별도로 검사합니다.
+공유 계획을 허용하며 누락 관측과 원래 실행·계획의 간선 소유 관계를 유지합니다.
+
 `policyAssessments`는 각 assessment 기반 규칙의 [정확한 후보 선언 소속](workflow-2-policy-assessment-bindings.ko.md)을
 보고합니다. 소속과 기록 가용성을 분리하고 미사용 선언·반복 규칙·원래 간선 인덱스를 보존합니다.
 후보의 dataset/target까지 전체 계보를 검증하거나 규칙을 판정하지는 않습니다.
@@ -86,10 +90,10 @@ base/run, 근거 부재, 관측된 빈 집계를 보존합니다. 현재 출처 
 | `usage.reads` | 누락·반복을 포함한 실제 조회. 두 형식의 픽스처 조회는 2회 |
 | `usage.records` | 조회 횟수와 보관된 재현 시도·예산·취소·실행·사용량 이력 행 |
 | `usage.bytes` | 공백 없는 JSON 호환 응답의 UTF-8 바이트. 반복 응답과 null도 재계산 |
-| `usage.references` | 중복·미해결 선언을 포함한 모든 그래프 참조 발생과 여섯 의미 검사 보고서의 참조 발생 |
+| `usage.references` | 중복·미해결 선언을 포함한 모든 그래프 참조 발생과 일곱 의미 검사 보고서의 참조 발생 |
 | `usage.referenceBytes` | 참조 항목들의 정규 UTF-8 바이트 합 |
 
-여섯 보고서는 `policyAssessments`, `evaluationSnapshots`, `modelAssurance`,
+일곱 보고서는 `policyAssessments`, `evaluationSnapshots`, `evaluationReplays`, `modelAssurance`,
 `candidateAssessmentLineage`, `datasetRelations`, `replayPlans`입니다. 각 `inspectionUsage`의
 참조 수·정규 바이트를 같은 요청 예산에 합산한 뒤 다음 처리를 진행합니다. 상위 아티팩트 수집도
 두 번째 정책 이력 관측이나 guarded source transaction 전에 `policyAuthority` 사용량을 합산합니다.

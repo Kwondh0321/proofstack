@@ -242,6 +242,11 @@ membership while retaining unavailable evidence, empty aggregates and repeated p
 closes those captured relationships only; current authority, complete closure and sealed rule
 operands remain open. Workflow 2 remains 2/7 accepted checkpoints.
 
+The subsequent [evaluation-to-replay bindings](workflow-2-evaluation-replay-bindings.md) join every
+captured run's exact dataset/target and replay completion to the retained plan and owning plan/result
+prerequisites. Shared plans remain valid; unavailable evidence and known contradictions stay distinct.
+This report still requires complete closure and sealed rule operands before policy outcomes.
+
 The subsequent [retained policy authority prerequisites](workflow-2-policy-authority-prerequisites.md)
 compose exact installation, source/review/reviewer records and actual retained artifact observations
 at the request's full-precision evaluation time. They preserve original repeated provenance and use

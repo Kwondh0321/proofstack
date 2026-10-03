@@ -351,6 +351,7 @@ describe("captured model and human assurance bindings", () => {
         graph.policyAssessments,
         graph.candidateAssessmentLineage,
         graph.evaluationSnapshots,
+        graph.evaluationReplays,
         graph.modelAssurance,
         graph.datasetRelations,
         graph.replayPlans,
