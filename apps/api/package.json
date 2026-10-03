@@ -38,7 +38,7 @@
     "@proofstack/replay": "workspace:*",
     "@proofstack/s3": "workspace:*",
     "fastify": "5.12.5",
-    "openid-client": "6.8.7",
+    "openid-client": "6.8.8",
     "zod": "catalog:"
   },
   "devDependencies": {
