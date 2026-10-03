@@ -41,6 +41,8 @@ export interface PolicyDatasetRelation extends ExpectedRelation {
 }
 
 export interface PolicyDatasetRelations {
+  /** Repeated relation inputs, to be admitted by the request-owning composition. */
+  readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
   readonly parents: readonly {
     readonly source: PolicyEvaluationDatasetSource;
     readonly recordSha256: string;
@@ -193,7 +195,15 @@ export function inspectPolicyEvaluationDatasetRelations(
         relations,
       });
     }
-    return { parents, unavailableParents };
+    const usage = out.result();
+    return {
+      parents,
+      unavailableParents,
+      inspectionUsage: {
+        references: usage.references.length,
+        referenceBytes: usage.referenceBytes,
+      },
+    };
   } catch (cause) {
     if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
     throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });

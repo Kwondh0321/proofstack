@@ -238,6 +238,10 @@ export async function capturePolicyArtifactEvidence(
         maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
       },
     );
+    budget.addReferences(
+      policyAuthority.inspectionUsage.references,
+      policyAuthority.inspectionUsage.referenceBytes,
+    );
     const afterArtifacts = await observeCapturedPolicyLifecycle(
       traceCapture.comparisonCapture.graph,
       policyRepository,

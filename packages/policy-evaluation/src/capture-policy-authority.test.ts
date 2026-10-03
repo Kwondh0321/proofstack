@@ -307,6 +307,82 @@ function reasons(capture: Capture) {
   return capture.policyAuthority.requirements.findings.map(({ reason }) => reason);
 }
 
+describe("combined policy-authority inspection admission", () => {
+  it.each(["references", "bytes"] as const)(
+    "admits exact combined %s and rejects one below before opening source transactions",
+    async (dimension) => {
+      const h = await harness({}, true);
+      const baseline = await h.execute();
+      expect(baseline.policyAuthority.inspectionUsage.references).toBeGreaterThan(0);
+      expect(baseline.usage.references).toBe(
+        baseline.traceCapture.usage.references +
+          baseline.policyAuthority.inspectionUsage.references,
+      );
+      expect(baseline.usage.referenceBytes).toBe(
+        baseline.traceCapture.usage.referenceBytes +
+          baseline.policyAuthority.inspectionUsage.referenceBytes +
+          baseline.usage.sourceGuards.canonicalBytes,
+      );
+      expect(baseline.usage.records).toBeLessThan(baseline.usage.references);
+      const original = h.requestAt();
+      const {
+        scope,
+        schemaVersion: _version,
+        createdAt: _at,
+        createdByPrincipalId: _by,
+        definitionSha256: _hash,
+        ...definition
+      } = original;
+      const limits = {
+        ...definition.limits,
+        maxAcquisitionRecords: baseline.usage.references,
+        maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
+      };
+      const request = (nextLimits: typeof limits) => {
+        const next = { ...definition, limits: nextLimits };
+        return {
+          ...original,
+          ...next,
+          definitionSha256: digestPolicyEvaluationRequestDefinition(scope, next),
+        };
+      };
+      expect(
+        (
+          await capturePolicyArtifactEvidence(
+            request(limits),
+            h.actor,
+            h.repositories,
+            h.evidence,
+            h.dependencies,
+          )
+        ).usage,
+      ).toEqual(baseline.usage);
+      const sourceTransactions = {
+        run: vi.fn(async () => {
+          throw new Error("Over-budget capture opened transaction");
+        }),
+      };
+      await expect(
+        capturePolicyArtifactEvidence(
+          request({
+            ...limits,
+            ...(dimension === "references"
+              ? { maxAcquisitionRecords: limits.maxAcquisitionRecords - 1 }
+              : { maxAcquisitionRecordBytes: limits.maxAcquisitionRecordBytes - 1 }),
+          }),
+          h.actor,
+          h.repositories,
+          h.evidence,
+          { ...h.dependencies, sourceTransactions },
+        ),
+      ).rejects.toMatchObject({
+        reason: dimension === "references" ? "reference_limit" : "byte_limit",
+      });
+      expect(sourceTransactions.run).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("request-rooted terminal policy lifecycle capture", () => {
   it("retains an explicit empty history without asserting active or sealed authority", async () => {
     const h = await harness();

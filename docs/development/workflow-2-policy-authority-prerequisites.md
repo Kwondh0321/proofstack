@@ -66,7 +66,9 @@ abort capture rather than manufacture a normal result.
 One inspection meter covers the whole policy, including counterevidence and repeated rule/nested
 dependencies. Limits use the request's acquisition-record count and byte ceilings, applied to each
 dependency occurrence and its canonical reference bytes before use. These inspection counters are
-separate from actual metadata/object I/O usage. They are neither a CPU timer nor durable retry
+separate from actual metadata/object I/O usage. `capturePolicyArtifactEvidence` adds their reference
+count/bytes to the shared request budget before the second lifecycle observation or guarded source
+transaction; a combined overflow aborts capture. They are neither a CPU timer nor durable retry
 accounting. Existing object, classification, monotone-clock and final retention checks remain active.
 
 ## Verification and remaining boundaries

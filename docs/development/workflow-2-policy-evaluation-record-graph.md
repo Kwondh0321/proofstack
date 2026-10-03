@@ -93,7 +93,7 @@ specific to the selector reader; further domain validation belongs to complete s
 | `usage.reads` | Actual repository calls, including missing and repeated selector reads; a dual-format fixture lookup uses two calls |
 | `usage.records` | Calls plus retained replay attempt, budget, cancellation, execution, and usage rows |
 | `usage.bytes` | Compact JSON-compatible UTF-8 response bytes; repeated responses and null responses count again |
-| `usage.references` | Every admitted graph reference occurrence plus candidate/policy assessment membership and candidate lineage inspection occurrences, including duplicates and unresolved declarations |
+| `usage.references` | Every admitted graph reference occurrence plus all six semantic reports' inspection occurrences, including duplicates and unresolved declarations |
 | `usage.referenceBytes` | Sum of canonical UTF-8 bytes for those reference entries |
 
 The request's `maxAcquisitionRecords` bounds `records` and, separately, `references`. The combined
@@ -102,6 +102,18 @@ reference metadata in addition to repository responses. Per-parent and replay-hi
 also enforced by the owning components. These are invocation-local ceilings, **not** durable
 job-wide accounting, wire transfer limits, complete process-memory accounting, or artifact-byte
 verification. The request's artifact, rule, lease, attempt, and deadline limits require later layers.
+
+The six reports are `policyAssessments`, `evaluationSnapshots`, `modelAssurance`,
+`candidateAssessmentLineage`, `datasetRelations` and `replayPlans`. Each retains its own
+`inspectionUsage`; the composition adds every report's reference count and canonical reference
+bytes to the same request budget before proceeding. Artifact capture also admits its later
+`policyAuthority` inspection before the second lifecycle observation or guarded source transaction.
+Shared storage reads do not erase repeated semantic inspection. Metadata reads, response bytes
+and artifact transfers retain their existing counters; no extra repository read is invented.
+Each inspector keeps its own finite admission checks. The composition additionally rejects combined
+overflow without returning partial success, even when every inspector fits individually. Exact
+combined ceilings are accepted; one-below count/byte regressions cover graph, shared model evidence
+and policy authority, including failure before subsequent trace or source-transaction work.
 
 Before each call, reserve its lookup count. Admit response bytes before semantic processing and
 defensive cloning. Measurement rejects cycles, excessive nesting, non-finite numbers, non-JSON

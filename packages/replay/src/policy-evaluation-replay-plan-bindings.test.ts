@@ -431,10 +431,12 @@ describe("captured replay plan bindings", () => {
     expect(h.execute()).toEqual({
       plans: [],
       unavailablePlans: [{ source: h.reads[0]?.source, observation: { status: "missing" } }],
+      inspectionUsage: { references: 0, referenceBytes: 0 },
     });
     expect(inspect(h.context, [], { maxReferences: 0, maxReferenceBytes: 0 })).toEqual({
       plans: [],
       unavailablePlans: [],
+      inspectionUsage: { references: 0, referenceBytes: 0 },
     });
   });
 
@@ -538,6 +540,7 @@ describe("captured replay plan bindings", () => {
       0,
     );
     expect(dependencies).toHaveLength(7);
+    expect(result.inspectionUsage).toEqual({ references: 7, referenceBytes: bytes });
     expect(inspect(h.context, h.reads, { maxReferences: 7, maxReferenceBytes: bytes })).toEqual(
       result,
     );

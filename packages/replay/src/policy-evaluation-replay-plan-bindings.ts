@@ -82,6 +82,8 @@ export interface PolicyReplayPlanCheck {
 }
 
 export interface PolicyReplayPlanBindings {
+  /** Repeated plan inputs, to be admitted by the request-owning composition. */
+  readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
   readonly plans: readonly {
     readonly source: Extract<Source, { kind: "replay_plan" }>;
     readonly recordSha256: string;
@@ -301,7 +303,15 @@ export function inspectPolicyEvaluationReplayPlanBindings(
         checks,
       });
     }
-    return { plans, unavailablePlans };
+    const usage = out.result();
+    return {
+      plans,
+      unavailablePlans,
+      inspectionUsage: {
+        references: usage.references.length,
+        referenceBytes: usage.referenceBytes,
+      },
+    };
   } catch (cause) {
     if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
     throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });

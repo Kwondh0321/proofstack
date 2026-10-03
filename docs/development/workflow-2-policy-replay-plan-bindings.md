@@ -30,6 +30,8 @@ throw without returning partial success. Unique input nodes and cumulative depen
 are independently bounded by `maxReferences`; canonical dependency-reference bytes are bounded by
 `maxReferenceBytes`. Repeated boundary and simulator references count separately. These bounds do
 not establish total memory usage, network transfer accounting or durable retry budgets.
+The report exposes dependency occurrences and their canonical bytes as `inspectionUsage`;
+graph composition admits these into the shared request budget without another repository read.
 
 ## Report and composition
 

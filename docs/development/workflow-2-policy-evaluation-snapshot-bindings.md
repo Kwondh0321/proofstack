@@ -61,8 +61,9 @@ entire inspection. The request's acquisition reference/byte ceilings also bound 
 in-memory inspection meter. Each assessment revalidates its nested aggregate through the fixed
 schema, so the repeated aggregate frontier is charged again **before parsing**, even if storage
 acquisition was shared. Exact ceilings are accepted; overflow throws without a partial report.
-This does not reset the shared acquisition meter, account for external transfers or replace future
-durable job-wide retry/work accounting.
+Graph composition adds the returned inspection count/bytes to the shared request budget before
+continuing, so separately bounded inspections cannot bypass the combined ceiling. This does not
+reset prior usage, account for external transfers or replace durable job-wide retry/work accounting.
 
 ## Verification and limits
 

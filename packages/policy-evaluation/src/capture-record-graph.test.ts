@@ -50,6 +50,7 @@ import {
 } from "@proofstack/replay/testing";
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
+import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
 import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
@@ -1251,6 +1252,7 @@ describe("request-rooted recursive record graph", () => {
       const graph = await capturePolicyRecordGraph(h.input, h.repositories);
       if (kind === "plan")
         expect(graph.replayPlans).toEqual({
+          inspectionUsage: { references: 0, referenceBytes: 0 },
           plans: [],
           unavailablePlans: [
             {
@@ -1310,16 +1312,21 @@ describe("request-rooted recursive record graph", () => {
     const keys = graph.entries.map(({ source }) => policyEvaluationSourceReferenceKey(source));
     expect(keys).toEqual([...new Set(keys)].sort());
     expect(graph.edges[0]?.parent.kind).toBe("release_candidate");
+    const inspections = [
+      graph.policyAssessments,
+      graph.candidateAssessmentLineage,
+      graph.evaluationSnapshots,
+      graph.modelAssurance,
+      graph.datasetRelations,
+      graph.replayPlans,
+    ].map((report) => report.inspectionUsage);
     expect(graph.usage.references).toBe(
-      graph.edges.length +
-        graph.policyAssessments.inspectionUsage.references +
-        graph.candidateAssessmentLineage.inspectionUsage.references,
+      graph.edges.length + inspections.reduce((sum, usage) => sum + usage.references, 0),
     );
     expect(graph.usage.referenceBytes).toBe(
       graph.edges.reduce(
         (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
-        graph.policyAssessments.inspectionUsage.referenceBytes +
-          graph.candidateAssessmentLineage.inspectionUsage.referenceBytes,
+        inspections.reduce((sum, usage) => sum + usage.referenceBytes, 0),
       ),
     );
     expect(graph).not.toHaveProperty("sealed");
@@ -1341,6 +1348,55 @@ describe("request-rooted recursive record graph", () => {
     expect(stored).toEqual(setup.candidate);
     expect(setup.input).toEqual(original);
   });
+
+  it.each(["references", "bytes"] as const)(
+    "admits combined semantic inspection %s exactly and rejects one below before trace I/O",
+    async (dimension) => {
+      const setup = await harness("history", { dataset: "matched" });
+      const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+      const reports = [
+        graph.policyAssessments,
+        graph.candidateAssessmentLineage,
+        graph.evaluationSnapshots,
+        graph.datasetRelations,
+        graph.replayPlans,
+      ];
+      for (const report of reports) expect(report.inspectionUsage.references).toBeGreaterThan(0);
+      const referenceCount =
+        graph.edges.length +
+        reports.reduce((sum, report) => sum + report.inspectionUsage.references, 0);
+      const referenceBytes =
+        graph.edges.reduce(
+          (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
+          0,
+        ) + reports.reduce((sum, report) => sum + report.inspectionUsage.referenceBytes, 0);
+      expect(graph.modelAssurance.inspectionUsage.references).toBe(0);
+      expect(graph.usage.records).toBeLessThan(referenceCount);
+      expect(graph.usage).toMatchObject({ references: referenceCount, referenceBytes });
+      const limits = {
+        ...setup.input.limits,
+        maxAcquisitionRecords: referenceCount,
+        maxAcquisitionRecordBytes: graph.usage.bytes + referenceBytes,
+      };
+      const exact = request(setup.candidate, setup.policy, limits);
+      expect((await capturePolicyRecordGraph(exact, setup.repositories)).usage).toEqual(
+        graph.usage,
+      );
+      const tooSmall = request(setup.candidate, setup.policy, {
+        ...limits,
+        ...(dimension === "references"
+          ? { maxAcquisitionRecords: referenceCount - 1 }
+          : { maxAcquisitionRecordBytes: limits.maxAcquisitionRecordBytes - 1 }),
+      });
+      const evidence = { resolveExactEvents: vi.fn(async () => []) };
+      await expect(
+        capturePolicyTraceEvidence(tooSmall, setup.repositories, evidence),
+      ).rejects.toMatchObject({
+        reason: dimension === "references" ? "reference_limit" : "byte_limit",
+      });
+      expect(evidence.resolveExactEvents).not.toHaveBeenCalled();
+    },
+  );
 
   it("retains both missing roots without inventing child records or accepting an empty graph", async () => {
     const setup = await harness();

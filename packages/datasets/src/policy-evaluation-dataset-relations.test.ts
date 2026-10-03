@@ -435,6 +435,10 @@ describe("captured dataset membership and fixture predecessor semantics", () => 
         sum + encodeEvaluationCanonicalJson({ kind: "record", path, source }).byteLength,
       0,
     );
+    expect(baseline.inspectionUsage).toEqual({
+      references: relations.length,
+      referenceBytes: bytes,
+    });
     expect(
       inspect(context, h.evidence, { maxReferences: relations.length, maxReferenceBytes: bytes }),
     ).toEqual(baseline);
@@ -456,6 +460,7 @@ describe("captured dataset membership and fixture predecessor semantics", () => 
     expect(inspect(context, [], { maxReferences: 0, maxReferenceBytes: 0 })).toEqual({
       parents: [],
       unavailableParents: [],
+      inspectionUsage: { references: 0, referenceBytes: 0 },
     });
     const base = fixture("fixture_base");
     const root = observe(base);

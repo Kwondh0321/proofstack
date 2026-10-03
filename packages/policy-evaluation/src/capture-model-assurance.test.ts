@@ -342,6 +342,70 @@ async function harness(
 }
 
 describe("captured model and human assurance bindings", () => {
+  it.each(["references", "bytes"] as const)(
+    "charges shared model-base inspections against the combined request %s budget",
+    async (dimension) => {
+      const h = await harness(undefined, { copies: 3 });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const reports = [
+        graph.policyAssessments,
+        graph.candidateAssessmentLineage,
+        graph.evaluationSnapshots,
+        graph.modelAssurance,
+        graph.datasetRelations,
+        graph.replayPlans,
+      ];
+      expect(graph.modelAssurance.parents).toHaveLength(3);
+      expect(graph.modelAssurance.inspectionUsage.references).toBeGreaterThan(0);
+      expect(graph.usage.references).toBe(
+        graph.edges.length + reports.reduce((sum, r) => sum + r.inspectionUsage.references, 0),
+      );
+      expect(graph.usage.referenceBytes).toBe(
+        graph.edges.reduce(
+          (sum, e) => sum + encodeEvaluationCanonicalJson(e.reference).byteLength,
+          0,
+        ) + reports.reduce((sum, r) => sum + r.inspectionUsage.referenceBytes, 0),
+      );
+      const {
+        scope,
+        schemaVersion: _version,
+        createdAt: _at,
+        createdByPrincipalId: _by,
+        definitionSha256: _hash,
+        ...definition
+      } = h.input;
+      const limits = {
+        ...definition.limits,
+        maxAcquisitionRecords: graph.usage.references,
+        maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
+      };
+      const request = (nextLimits: typeof limits) => {
+        const next = { ...definition, limits: nextLimits };
+        return {
+          ...h.input,
+          ...next,
+          definitionSha256: digestPolicyEvaluationRequestDefinition(scope, next),
+        };
+      };
+      expect((await capturePolicyRecordGraph(request(limits), h.repositories)).usage).toEqual(
+        graph.usage,
+      );
+      await expect(
+        capturePolicyRecordGraph(
+          request({
+            ...limits,
+            ...(dimension === "references"
+              ? { maxAcquisitionRecords: limits.maxAcquisitionRecords - 1 }
+              : { maxAcquisitionRecordBytes: limits.maxAcquisitionRecordBytes - 1 }),
+          }),
+          h.repositories,
+        ),
+      ).rejects.toMatchObject({
+        reason: dimension === "references" ? "reference_limit" : "byte_limit",
+      });
+    },
+  );
+
   it.each(["retained", "base_missing", "model_missing", "history_mismatch"] as const)(
     "connects each model declaration to its exact base evaluation: %s",
     async (kind) => {

@@ -86,8 +86,17 @@ base/run, 근거 부재, 관측된 빈 집계를 보존합니다. 현재 출처 
 | `usage.reads` | 누락·반복을 포함한 실제 조회. 두 형식의 픽스처 조회는 2회 |
 | `usage.records` | 조회 횟수와 보관된 재현 시도·예산·취소·실행·사용량 이력 행 |
 | `usage.bytes` | 공백 없는 JSON 호환 응답의 UTF-8 바이트. 반복 응답과 null도 재계산 |
-| `usage.references` | 중복·미해결 선언을 포함한 모든 그래프 참조 발생과 후보·정책 assessment 소속 및 후보 계보 검사 발생 |
+| `usage.references` | 중복·미해결 선언을 포함한 모든 그래프 참조 발생과 여섯 의미 검사 보고서의 참조 발생 |
 | `usage.referenceBytes` | 참조 항목들의 정규 UTF-8 바이트 합 |
+
+여섯 보고서는 `policyAssessments`, `evaluationSnapshots`, `modelAssurance`,
+`candidateAssessmentLineage`, `datasetRelations`, `replayPlans`입니다. 각 `inspectionUsage`의
+참조 수·정규 바이트를 같은 요청 예산에 합산한 뒤 다음 처리를 진행합니다. 상위 아티팩트 수집도
+두 번째 정책 이력 관측이나 guarded source transaction 전에 `policyAuthority` 사용량을 합산합니다.
+저장소 조회를 공유하더라도 반복 의미 검사는 계산합니다. 기존 조회·응답 바이트·파일 전송 계수는
+유지하며 발생하지 않은 조회를 추가하지 않습니다. 개별 검사 한도와 함께 합산 한도를 적용하고
+초과 시 부분 성공 없이 실패합니다. 정확한 합산 경계와 하나 부족한 개수·바이트 한도 회귀 검사는
+그래프, 공유 모델 증거, 정책 권한 및 후속 trace·source transaction 시작 전 실패를 다룹니다.
 
 `maxAcquisitionRecords`는 기록 수와 별도의 참조 발생 수를 각각 제한합니다.
 `bytes + referenceBytes`는 `maxAcquisitionRecordBytes` 이하여야 합니다. 부모별 및 재현 이력별

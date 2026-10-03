@@ -316,27 +316,36 @@ export async function acquirePolicyRecordGraph(
         ),
       );
     }
-    const policyAssessments = inspectCapturedPolicyAssessments(request, { nodes, edges }, limits);
-    budget.addReferences(
-      policyAssessments.inspectionUsage.references,
-      policyAssessments.inspectionUsage.referenceBytes,
+    const admitInspection = <
+      T extends {
+        readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
+      },
+    >(
+      report: T,
+    ): T => {
+      budget.addReferences(
+        report.inspectionUsage.references,
+        report.inspectionUsage.referenceBytes,
+      );
+      return report;
+    };
+    const policyAssessments = admitInspection(
+      inspectCapturedPolicyAssessments(request, { nodes, edges }, limits),
     );
-    const evaluationSnapshots = inspectCapturedEvaluationSnapshots({ nodes, edges }, limits);
-    const modelAssurance = inspectCapturedModelAssurance(
-      { nodes, edges },
-      evaluationSnapshots,
-      limits,
+    const evaluationSnapshots = admitInspection(
+      inspectCapturedEvaluationSnapshots({ nodes, edges }, limits),
     );
-    const candidateAssessmentLineage = inspectCapturedCandidateAssessmentLineage(
-      request,
-      { nodes, edges },
-      evaluationSnapshots,
-      modelAssurance,
-      limits,
+    const modelAssurance = admitInspection(
+      inspectCapturedModelAssurance({ nodes, edges }, evaluationSnapshots, limits),
     );
-    budget.addReferences(
-      candidateAssessmentLineage.inspectionUsage.references,
-      candidateAssessmentLineage.inspectionUsage.referenceBytes,
+    const candidateAssessmentLineage = admitInspection(
+      inspectCapturedCandidateAssessmentLineage(
+        request,
+        { nodes, edges },
+        evaluationSnapshots,
+        modelAssurance,
+        limits,
+      ),
     );
     return {
       request: policyEvaluationRequestReference(request),
@@ -351,31 +360,35 @@ export async function acquirePolicyRecordGraph(
       evaluationSnapshots,
       modelAssurance,
       replayResults: { results: replayResults, unavailableResults },
-      datasetRelations: inspectPolicyEvaluationDatasetRelations(
-        { scope, evaluationTime },
-        nodes
-          .map(({ read }) => read)
-          .filter(
-            (read): read is PolicyEvaluationDatasetRead =>
-              read.source.kind === "dataset_version" ||
-              read.source.kind === "regression_fixture_version",
-          ),
-        limits,
+      datasetRelations: admitInspection(
+        inspectPolicyEvaluationDatasetRelations(
+          { scope, evaluationTime },
+          nodes
+            .map(({ read }) => read)
+            .filter(
+              (read): read is PolicyEvaluationDatasetRead =>
+                read.source.kind === "dataset_version" ||
+                read.source.kind === "regression_fixture_version",
+            ),
+          limits,
+        ),
       ),
-      replayPlans: inspectPolicyEvaluationReplayPlanBindings(
-        { scope, evaluationTime },
-        nodes
-          .map(({ read }) => read)
-          .filter(
-            (read): read is PolicyReplayPlanBindingRead =>
-              read.source.kind === "replay_plan" ||
-              read.source.kind === "target_release" ||
-              read.source.kind === "dataset_version" ||
-              read.source.kind === "regression_fixture_version" ||
-              read.source.kind === "replay_runtime_profile" ||
-              read.source.kind === "replay_isolation_profile",
-          ),
-        limits,
+      replayPlans: admitInspection(
+        inspectPolicyEvaluationReplayPlanBindings(
+          { scope, evaluationTime },
+          nodes
+            .map(({ read }) => read)
+            .filter(
+              (read): read is PolicyReplayPlanBindingRead =>
+                read.source.kind === "replay_plan" ||
+                read.source.kind === "target_release" ||
+                read.source.kind === "dataset_version" ||
+                read.source.kind === "regression_fixture_version" ||
+                read.source.kind === "replay_runtime_profile" ||
+                read.source.kind === "replay_isolation_profile",
+            ),
+          limits,
+        ),
       ),
       usage: budget.usage(),
       unresolved: {

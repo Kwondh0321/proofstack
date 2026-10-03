@@ -91,8 +91,11 @@ function withLimits(
   };
 }
 
-async function harness(recorded = false) {
+async function harness(recorded = false, eventCount = 1) {
   const datasets = new MemoryRegressionVersionRepository();
+  const eventIds = Array.from({ length: eventCount }, (_, i) =>
+    i === 0 ? "event_artifact" : `event_artifact_${i}`,
+  );
   const fixtureDefinition: RegressionFixtureVersionDefinition = {
     fixtureId: "fixture_artifact",
     fixtureVersionId: "fixture_artifact_v1",
@@ -103,8 +106,8 @@ async function harness(recorded = false) {
     source: {
       kind: "trace_snapshot",
       traceId,
-      eventIds: ["event_artifact"],
-      observedEventCount: 1,
+      eventIds,
+      observedEventCount: eventIds.length,
       sourceCompleteness: "observed_snapshot",
     },
   };
@@ -301,7 +304,15 @@ async function harness(recorded = false) {
       source: { sdkName: "fixture", sdkVersion: "1.0.0", serviceName: "artifact_test" },
     },
   });
-  await evidence.append([event]);
+  const events = eventIds.map((eventId, i) =>
+    i === 0
+      ? event
+      : EvidenceEnvelopeSchema.parse({
+          ...event,
+          evidence: { ...event.evidence, eventId, spanId: i.toString(16).padStart(16, "0") },
+        }),
+  );
+  await evidence.append(events);
   const catalog = new MemoryArtifactCatalogRepository();
   const objects = new MemoryArtifactObjectStore();
   const keyring = new LocalArtifactKeyring({
@@ -372,6 +383,7 @@ async function harness(recorded = false) {
     capturePolicyArtifactEvidence(input, actor, repositories, evidence, dependencies);
   return {
     request,
+    events,
     actor,
     repositories,
     evidence,
@@ -475,7 +487,9 @@ describe("request-rooted authorized artifact capture", () => {
     expect(output.usage.records).toBe(
       output.traceCapture.usage.records + h.find.mock.calls.length + 2,
     );
-    expect(output.usage.references).toBe(output.traceCapture.usage.references);
+    expect(output.usage.references).toBe(
+      output.traceCapture.usage.references + output.policyAuthority.inspectionUsage.references,
+    );
     expect(output.usage.artifacts).toEqual({
       reads: 3,
       reservedBytes: h.encrypted.bytes.byteLength * 3,
@@ -546,11 +560,13 @@ describe("request-rooted authorized artifact capture", () => {
   });
 
   it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
-    const h = await harness();
+    const h = await harness(false, 2);
     // Each available occurrence needs two catalog reads. Make that dimension dominate the
     // separately enforced reference count so this test specifically reaches record admission.
-    h.event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
-    h.exact.mockResolvedValue([h.event]);
+    // Keep each event below the owning 32-reference maximum.
+    for (const event of h.events)
+      event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+    h.exact.mockResolvedValue(h.events);
     const baseline = await h.execute();
     expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
     const exact = withLimits(h.request, {
@@ -1199,6 +1215,8 @@ describe("request-owned source recheck composition", () => {
     // after candidate assessment inspection also charges reference occurrences.
     const prepare = async () => {
       const fixture = await recheckHarness();
+      fixture.h.event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+      fixture.h.exact.mockResolvedValue([fixture.h.event]);
       const successor = releasePolicyRepositoryFixture("recheck_budget", scope, {
         policyId: fixture.h.policy.policyId,
         predecessor: releasePolicyReference(fixture.h.policy),

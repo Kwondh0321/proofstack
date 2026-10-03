@@ -78,8 +78,9 @@ inspection. Each dependency resolution is charged before use, including repeated
 records. Deduplicating human independence records for the owning quorum algorithm does not erase
 their charged occurrences or graph edges. The existing evaluation report is reused rather than
 recomputed with a reset budget. Owning schemas bound arrays and strings; this meter is not a CPU
-timer or a count of every scalar comparison or schema parse. It is distinct from acquisition and
-artifact-transfer accounting.
+timer or a count of every scalar comparison or schema parse. Graph composition adds this report's
+`inspectionUsage` to the shared request reference/byte budget, retaining repeated inspections of
+shared evidence. Metadata reads and artifact transfers keep their separate existing counters.
 
 Tests publish joined, rehashed records to the real memory evaluation, model-assurance and candidate
 repositories. They exercise coherent inputs, schema-admitted cross-record contradictions, missing

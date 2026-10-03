@@ -44,13 +44,15 @@ duplicate identity, contradictory full reference, changed body/hash, malformed i
 bound fails inspection; no partial successful report is returned. The node count and cumulative
 relation occurrences are independently bounded by `maxReferences`, and compact canonical record
 references by `maxReferenceBytes`. Repeated relations still count. These are bounded pure inspection
-limits, not a second acquisition meter or a complete process-memory/wire-transfer limit.
+limits, not a complete process-memory/wire-transfer limit. The report exposes the repeated relation
+count and canonical reference bytes as `inspectionUsage` for request-wide admission.
 
 ## Result and trusted composition
 
 `capturePolicyRecordGraph` derives the inspector input from its own captured nodes. It never accepts
 a caller-authored graph. The resulting `datasetRelations` is retained by comparison, trace and
-artifact composition; it adds no repository calls and does not reset or recharge acquisition usage.
+artifact composition. It adds no repository calls; its inspection occurrences and reference bytes
+are added to the shared request budget without resetting prior usage.
 Existing graph edges, metadata observations, trace reads and artifact checks remain intact.
 
 `parents` is sorted by source identity. Each entry retains the exact source and full `recordSha256`.
