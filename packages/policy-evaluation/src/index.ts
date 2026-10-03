@@ -18,6 +18,7 @@ export {
 export * from "./capture-artifact-evidence.js";
 export type { PolicyFixtureBindingCapture } from "./capture-fixture-bindings.js";
 export type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
+export type { PolicyEvaluationTrustPrerequisites } from "./capture-evaluation-trust.js";
 export type { PolicyAssessmentBindings } from "./capture-policy-assessments.js";
 export type {
   PolicyCandidateAssessmentLineage,

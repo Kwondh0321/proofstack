@@ -17,6 +17,7 @@ import {
   type CriteriaTrustArtifactAvailability,
   type EvaluateCriteriaTrustInput,
   evaluateCriteriaTrust,
+  evaluatePolicyCriteriaTrust,
   InvalidCriteriaTrustInputError,
   sourceScopeCovers,
 } from "./criteria-trust.js";
@@ -688,6 +689,126 @@ describe("evaluateCriteriaTrust", () => {
     if (!qualification) throw new Error("Expected reviewer qualification");
     qualification.credentialEvidence = [];
     expect(() => evaluateCriteriaTrust(reviewer)).toThrow(InvalidCriteriaTrustInputError);
+  });
+});
+
+describe("policy-time criteria trust", () => {
+  it("retains qualification obligations for every subject in the unchanged criterion set", () => {
+    const input = structuredClone(fixture()) as MutableCriteriaTrustInput;
+    const first = input.criterionSet.criteria[0];
+    if (!first || !input.criterionStatus) throw new Error("Missing criterion fixture");
+    input.criterionSet.criteria.push({
+      ...structuredClone(first),
+      criterionId: "criterion_unselected",
+      evaluator: { ...first.evaluator, evaluatorVersionId: "evaluator_unavailable" },
+    });
+    input.criterionSet.criteria.sort((a, b) => a.criterionId.localeCompare(b.criterionId));
+    redigest("criterion_set", input.criterionSet);
+    input.criterionStatus.criterionSet.definitionSha256 = input.criterionSet.definitionSha256;
+    redigest("criterion_set_status", input.criterionStatus);
+    const before = structuredClone(input);
+    expect(evaluatePolicyCriteriaTrust(input)).toEqual({
+      evaluationTime: input.at,
+      status: "unverifiable",
+      reasons: ["qualification_report_unavailable"],
+    });
+    expect(input).toEqual(before);
+  });
+
+  it.each([
+    ["2026-09-02T00:01:00Z", "eligible", []],
+    ["2026-09-02T00:01:00.1Z", "eligible", []],
+    ["2026-09-02T00:01:00.000000000000000000000000000001Z", "eligible", []],
+  ] as const)("preserves the exact policy cut %s", (at, status, reasons) => {
+    const input = { ...fixture(), at };
+    const original = structuredClone(input);
+    expect(evaluatePolicyCriteriaTrust(input)).toEqual({ evaluationTime: at, reasons, status });
+    expect(() => evaluateCriteriaTrust(input)).toThrow(InvalidCriteriaTrustInputError);
+    expect(input).toEqual(original);
+  });
+
+  it.each([
+    ["0000003", "0000004", "0000006", "source_not_effective"],
+    ["0000004", "0000004", "0000006", null],
+    ["0000005", "0000004", "0000006", null],
+    ["0000006", "0000004", "0000006", "source_not_current"],
+    ["0000007", "0000004", "0000006", "source_not_current"],
+  ] as const)("observes interval membership at fractional %s", (fraction, start, end, reason) => {
+    const instant = (part: string) => `2026-09-02T00:01:00.${part}Z`;
+    const input = replaceSource({ ...fixture(), at: instant(fraction) }, (source) => {
+      source.effectiveAt = instant(start);
+      source.expiresAt = instant(end);
+    });
+    expect(evaluatePolicyCriteriaTrust(input)).toEqual({
+      evaluationTime: instant(fraction),
+      status: reason ? "ineligible" : "eligible",
+      reasons: reason ? [reason] : [],
+    });
+  });
+
+  it.each([1, 2, 3])("preserves the last supported digit at position %s", (digit) => {
+    const instant = (last: number) => `2026-09-02T00:01:00.${"0".repeat(29)}${last}Z`;
+    const at = instant(digit);
+    // Keep the original wide interval's other bound: the source contract does not admit an
+    // entire interval whose endpoints collapse to one native database ordering key.
+    const start = replaceSource({ ...fixture(), at }, (source) => {
+      source.effectiveAt = instant(2);
+    });
+    const end = replaceSource({ ...fixture(), at }, (source) => {
+      source.expiresAt = instant(2);
+    });
+    expect(evaluatePolicyCriteriaTrust(start)).toEqual({
+      evaluationTime: at,
+      status: digit < 2 ? "ineligible" : "eligible",
+      reasons: digit < 2 ? ["source_not_effective"] : [],
+    });
+    expect(evaluatePolicyCriteriaTrust(end)).toEqual({
+      evaluationTime: at,
+      status: digit >= 2 ? "ineligible" : "eligible",
+      reasons: digit >= 2 ? ["source_not_current"] : [],
+    });
+  });
+
+  it.each([
+    "2026-09-02T09:01:00.000+09:00",
+    "2026-09-02T00:01:00.0000000000000000000000000000001Z",
+    "2026-02-30T00:00:00Z",
+    "invalid",
+    undefined,
+  ])("rejects an invalid or non-UTC policy time %s", (at) => {
+    expect(() => evaluatePolicyCriteriaTrust({ ...fixture(), at: at as string })).toThrow(
+      InvalidCriteriaTrustInputError,
+    );
+  });
+
+  it("keeps missing qualification, approval concerns and established contradictions distinct", () => {
+    const input = fixture();
+    const at = "2026-09-02T00:01:00.0000004Z";
+    expect(evaluatePolicyCriteriaTrust({ ...input, at, qualifications: [] })).toEqual({
+      evaluationTime: at,
+      status: "unverifiable",
+      reasons: ["qualification_report_unavailable"],
+    });
+    const review = input.sources[0]?.review;
+    if (!review) throw new Error("Missing source review");
+    const approval = {
+      ...input,
+      at,
+      request: { ...input.request, requesterPrincipalId: review.reviewedByPrincipalId },
+    };
+    expect(evaluatePolicyCriteriaTrust(approval)).toEqual({
+      evaluationTime: at,
+      status: "require_approval",
+      reasons: ["requester_only_review"],
+    });
+    const expired = replaceSource(approval, (record) => {
+      record.expiresAt = "2026-09-02T00:00:59.000Z";
+    });
+    expect(evaluatePolicyCriteriaTrust(expired)).toEqual({
+      evaluationTime: at,
+      status: "ineligible",
+      reasons: ["requester_only_review", "source_not_current"],
+    });
   });
 });
 

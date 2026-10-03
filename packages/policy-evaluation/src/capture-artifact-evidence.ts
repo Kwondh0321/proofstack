@@ -24,6 +24,10 @@ import {
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  inspectCapturedEvaluationTrust,
+  type PolicyEvaluationTrustPrerequisites,
+} from "./capture-evaluation-trust.js";
+import {
   inspectCapturedFixtureBindings,
   type PolicyFixtureBindingCapture,
 } from "./capture-fixture-bindings.js";
@@ -90,6 +94,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly sourceRecheck?: PolicyEvaluationSourceRecheck;
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly policyAuthority: PolicyAuthorityPrerequisites;
+      readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly policyLifecycle: {
         readonly beforeArtifacts: PolicyLifecycleObservation;
         readonly afterArtifacts: PolicyLifecycleObservation;
@@ -242,6 +247,18 @@ export async function capturePolicyArtifactEvidence(
       policyAuthority.inspectionUsage.references,
       policyAuthority.inspectionUsage.referenceBytes,
     );
+    const evaluationTrust = inspectCapturedEvaluationTrust(
+      traceCapture.comparisonCapture.graph,
+      artifacts,
+      {
+        maxReferences: request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
+      },
+    );
+    budget.addReferences(
+      evaluationTrust.inspectionUsage.references,
+      evaluationTrust.inspectionUsage.referenceBytes,
+    );
     const afterArtifacts = await observeCapturedPolicyLifecycle(
       traceCapture.comparisonCapture.graph,
       policyRepository,
@@ -289,6 +306,7 @@ export async function capturePolicyArtifactEvidence(
       ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
       fixtureBindings,
       policyAuthority,
+      evaluationTrust,
       policyLifecycle: { beforeArtifacts, afterArtifacts },
       usage: usage(),
     };

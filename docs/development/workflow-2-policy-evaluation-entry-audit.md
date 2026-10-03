@@ -254,6 +254,13 @@ the recorded policy issuer, not the artifact reader. Static requirements do not 
 lifecycle or revision guards and do not seal inputs, evaluate rules or authorize release; Workflow 2
 remains 2/7 accepted checkpoints.
 
+The subsequent [evaluation trust prerequisites](workflow-2-evaluation-trust-prerequisites.md) compose
+each original run's retained criterion, selected qualifications, source/review/reviewer records and
+actual artifact observations at the exact policy cut. They preserve the original actor/context,
+whole-set obligations, unavailable sources and repeated metered provenance. These owning trust
+observations do not establish complete authority history, full closure, a rule verdict or a seal;
+Workflow 2 remains 2/7 accepted checkpoints.
+
 The subsequent [terminal policy lifecycle capture](workflow-2-policy-lifecycle-capture.md) observes
 the exact root's complete zero-or-one terminal history before and after artifact acquisition. It
 retains full event/successor hashes, preserves exact semantic-time states and rejects detected

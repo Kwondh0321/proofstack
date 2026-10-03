@@ -24,6 +24,7 @@ import {
   EvidenceScopeSchema,
   OpaqueIdSchema,
   OracleSpecSchema,
+  PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
   QualificationFixtureSetSchema,
   QualificationReportSchema,
@@ -72,6 +73,13 @@ export interface EvaluateCriteriaTrustInput {
   /** Exact, repository-resolved qualification records; requester assertions are not accepted. */
   readonly reviewerQualifications: readonly SourceReviewerQualification[];
   readonly sources: readonly CriteriaTrustSourceEvidence[];
+}
+
+/** Retained prerequisites at a semantic policy cut, not the public server-time trust receipt. */
+export interface PolicyCriteriaTrustEvaluation {
+  readonly evaluationTime: string;
+  readonly reasons: readonly CriteriaTrustReason[];
+  readonly status: CriteriaTrustStatus;
 }
 
 export class InvalidCriteriaTrustInputError extends TypeError {
@@ -644,12 +652,37 @@ function statusFor(reasons: ReadonlySet<CriteriaTrustReason>): CriteriaTrustStat
  * fields are intentionally absent. Missing evidence remains unavailable instead of being inferred.
  */
 export function evaluateCriteriaTrust(input: EvaluateCriteriaTrustInput): CriteriaTrustEvaluation {
+  const result = deriveCriteriaTrust(input, "server");
+  return {
+    evaluatedAt: result.evaluationTime,
+    reasons: [...result.reasons],
+    status: result.status,
+  };
+}
+
+/**
+ * Fixed policy-capture entry point over exact already-resolved records and byte observations.
+ * Preserves the complete criterion set and every existing trust rule at an exact UTC cut.
+ * No clock, repository I/O, latest-state lookup, actor impersonation or publication authority.
+ */
+export function evaluatePolicyCriteriaTrust(
+  input: EvaluateCriteriaTrustInput,
+): PolicyCriteriaTrustEvaluation {
+  return deriveCriteriaTrust(input, "policy");
+}
+
+function deriveCriteriaTrust(
+  input: EvaluateCriteriaTrustInput,
+  purpose: "server" | "policy",
+): PolicyCriteriaTrustEvaluation {
   let at: string;
   let criterionSet: CriterionSet;
   let criterionStatus: CriterionSetStatusRecord | null;
   let request: EvaluateCriteriaTrustInput["request"];
   try {
-    at = UtcMillisecondTimestampSchema.parse(input.at);
+    at = (purpose === "server" ? UtcMillisecondTimestampSchema : PolicyEvaluationTimeSchema).parse(
+      input.at,
+    );
     criterionSet = CriterionSetSchema.parse(input.criterionSet);
     criterionStatus =
       input.criterionStatus === null
@@ -705,7 +738,7 @@ export function evaluateCriteriaTrust(input: EvaluateCriteriaTrustInput): Criter
   addQualificationReasons(reasons, criterionSet, request, qualifications, availableArtifacts, at);
 
   return {
-    evaluatedAt: at,
+    evaluationTime: at,
     reasons: [...reasons].sort(),
     status: statusFor(reasons),
   };

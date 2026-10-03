@@ -76,6 +76,11 @@ no additional I/O, preserves repeated dependency provenance and checks static re
 exact request evaluation time. Its `valid` status is not mutable-authority, sealed-snapshot or
 release approval. Inspection reference usage is reported separately from acquisition I/O usage.
 
+The [evaluation trust prerequisites](workflow-2-evaluation-trust-prerequisites.md) add `evaluationTrust`
+for each original run's complete retained criterion set and selected qualifications. Their exact-time
+observations use the run actor/context and actual captured bytes, with repeated inspection usage
+included in the same request limits. They do not replace complete authority closure or sealing.
+
 The subsequent [terminal lifecycle capture](workflow-2-policy-lifecycle-capture.md) observes exact
 policy history before and after object reads, retaining full event/successor hashes and rejecting
 detected changes. It does not replace the required future atomic revision guard and snapshot seal.
