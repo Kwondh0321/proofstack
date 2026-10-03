@@ -41,8 +41,11 @@ new HTTP endpoint, CLI, published SDK operation, or functioning policy-worker se
 
 `nodes` contain the owning read and its references. Missing or unavailable records retain
 `references: null`, never a fabricated verified leaf. A verified record may genuinely have no
-references. `entries` contain the corresponding source/observation pairs; they are **not an
-authoritative expected closure** suitable for sealing without the remaining validation.
+references. `entries` now come from a separate [retained record closure pass](workflow-2-policy-record-closure.md)
+which re-enumerates full bodies and reconstructs every reachable original occurrence.
+`recordClosure.sources` binds that exact inventory and `recordClosure.frontier` categorizes the
+remaining non-record occurrences. This is **not complete guarded semantic/authority closure**
+suitable for sealing without the remaining validation.
 
 `datasetRelations` additionally reports [direct dataset/fixture semantics](workflow-2-policy-dataset-relations.md)
 from those same captured nodes: exact membership, predecessor format and recorded-promotion snapshot

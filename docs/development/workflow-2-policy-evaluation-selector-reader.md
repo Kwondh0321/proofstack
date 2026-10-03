@@ -36,6 +36,12 @@ repository read follows. Copies isolate both the port's scope and returned recor
 This integrity check is not authorization: trusted capture composition must supply the parent and
 repository authorities, not public clients.
 
+`inspectPolicyEvaluationSelector(input, parent, rawChild)` provides the same fixed checks for
+already captured child bodies, including complete-parent admission, without repository I/O.
+The [retained record closure pass](workflow-2-policy-record-closure.md) uses this pure path to
+recheck each resolved edge. Supplied bodies are not authenticated by inspection, and a null body
+does not independently prove protected absence or grant publication authority.
+
 | Occurrence | Exact lookup | Additional relationship check |
 | --- | --- | --- |
 | `criterion_selector` | `findCriterionSet(scope, criterionSetVersionId)` | Logical set ID, immutable version ID, and membership of the exact criterion |

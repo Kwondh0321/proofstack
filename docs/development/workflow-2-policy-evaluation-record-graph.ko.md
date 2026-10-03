@@ -37,7 +37,10 @@
 
 `nodes`는 조회 결과와 참조를 담습니다. 누락 또는 사용 불가 기록의 `references`는 `null`이며,
 검증된 빈 목록으로 위장하지 않습니다. 반대로 정상 기록이 실제로 참조를 갖지 않을 수는 있습니다.
-`entries`는 기록 관측 목록일 뿐, 그대로 봉인에 사용해도 되는 권위 있는 전체 의존관계가 아닙니다.
+`entries`는 이제 [별도 기록 의존성 도출 검사](workflow-2-policy-record-closure.ko.md)에서 원본
+본문과 모든 참조 경로를 다시 계산해 생성합니다. `recordClosure.sources`는 정확한 기록 목록,
+`recordClosure.frontier`는 나머지 참조의 구분을 보존합니다. 전체 의미·권한 보호를 마친 봉인용
+의존관계는 아니며, 아래의 추가 검증이 필요합니다.
 
 `datasetRelations`는 같은 노드의 [데이터셋·픽스처 직접 관계](workflow-2-policy-dataset-relations.ko.md)를
 추가로 보고합니다. 구성원, 선행 버전 형식과 기록형 전환의 정확한 스냅샷 복사를 검사합니다.

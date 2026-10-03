@@ -2,31 +2,35 @@ import { readFileSync } from "node:fs";
 import {
   type EvidenceScope,
   PolicyEvaluationSourceReferenceSchema,
+  REPLAY_BUDGET_DIMENSIONS,
+  type ReplayJobSnapshot,
   type ReplayPlan,
   type TargetRelease,
-  type ReplayJobSnapshot,
-  REPLAY_BUDGET_DIMENSIONS,
 } from "@proofstack/contracts";
 import {
   CreateModelAssuranceAssessment,
-  StaticRuntimeDefinitionCatalogue,
   digestComparisonRecordDefinition,
+  StaticRuntimeDefinitionCatalogue,
 } from "@proofstack/core";
 import {
-  createModelAssuranceRepositoryTestHarness,
   createComparisonRepositoryTestHarness,
-  publishComparisonFixture,
-  policyAuthorityFixture,
-  releaseCandidateFixture,
+  createModelAssuranceRepositoryTestHarness,
   FixedClock,
+  policyAuthorityFixture,
+  publishComparisonFixture,
+  releaseCandidateFixture,
 } from "@proofstack/core/testing";
+import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "@proofstack/replay";
 import {
   MemoryReplayDefinitionRepository,
   MemoryReplayJobRepository,
 } from "@proofstack/replay/testing";
-import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "@proofstack/replay";
 import { describe, expect, it } from "vitest";
-import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
+import {
+  enumerateCapturedPolicyRecord,
+  type PolicyRecordGraphRepositories,
+  readAndExpandPolicyRecord,
+} from "./record-routing.js";
 
 type Fields = Record<string, unknown>;
 const time = "2026-10-01T00:00:00.000Z";
@@ -83,6 +87,13 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
   expect(expansion.read.source).toEqual(input.source);
   expect(expansion.references, kind).not.toBeNull();
   expect(Array.isArray(expansion.references), kind).toBe(true);
+  const derived = enumerateCapturedPolicyRecord(input, expansion.read, limits, replayLimits);
+  expect(derived.references, kind).toEqual(expansion.references);
+  const changed = structuredClone(expansion.read);
+  if (changed.observation.status !== "verified")
+    throw new Error("Missing verified routing observation");
+  Reflect.set(changed.observation, "recordSha256", "0".repeat(64));
+  expect(() => enumerateCapturedPolicyRecord(input, changed, limits, replayLimits)).toThrow();
   return expansion;
 }
 
@@ -334,6 +345,14 @@ describe("positive fixed-domain routing", () => {
       replayLimits,
     );
     expect(expansion.read.observation.status).toBe("verified");
+    expect(
+      enumerateCapturedPolicyRecord(
+        { source: reference, scope, evaluationTime: time },
+        expansion.read,
+        limits,
+        replayLimits,
+      ).references,
+    ).toEqual(expansion.references);
     expect(
       expansion.references?.some(
         (edge) => edge.kind === "record" && edge.source.kind === "replay_plan",

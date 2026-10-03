@@ -57,6 +57,63 @@ interface Context {
   readonly source: PolicyEvaluationSourceReference;
 }
 
+/** Fixed owning reinspection of retained bodies; no repository ports or caller validators. */
+export function enumerateCapturedPolicyRecord(
+  context: Context,
+  read: PolicyRecordRead,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+  replayLimits: { readonly maximumRecords: number; readonly maximumRecordBytes: number },
+) {
+  const { source, scope, evaluationTime } = context;
+  switch (source.kind) {
+    case "comparison_definition":
+    case "comparison_snapshot":
+    case "comparison_result":
+    case "release_candidate":
+    case "release_policy":
+    case "policy_installation_binding":
+      return enumeratePolicyEvaluationControlReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationControlRead,
+        limits,
+      );
+    case "dataset_version":
+    case "regression_fixture_version":
+      return enumeratePolicyEvaluationDatasetReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationDatasetRead,
+        limits,
+      );
+    case "replay_plan":
+    case "target_release":
+      return enumeratePolicyEvaluationReplayDefinitionReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationReplayDefinitionRead,
+        limits,
+      );
+    case "replay_result":
+      return enumeratePolicyEvaluationReplayResultReferences(
+        { source, scope, evaluationTime, limits: replayLimits },
+        read as PolicyEvaluationReplayResultRead,
+        limits,
+      );
+    case "replay_runtime_profile":
+    case "replay_isolation_profile":
+    case "runtime_adapter":
+      return enumeratePolicyEvaluationRuntimeReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationRuntimeRead,
+        limits,
+      );
+    default:
+      return enumeratePolicyEvaluationEvidenceReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationEvidenceRead,
+        limits,
+      );
+  }
+}
+
 function finish<R extends PolicyRecordRead>(
   read: R,
   enumerate: (read: R) => {

@@ -10,8 +10,8 @@ import {
   enumeratePolicyEvaluationEvidenceReferences,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationEvidenceRead,
-  type PolicyEvaluationEvidenceSource,
   type PolicyEvaluationEvidenceReference,
+  type PolicyEvaluationEvidenceSource,
   type PolicyEvaluationSelectorParentSource,
   type PolicyEvaluationSelectorRead,
   policyEvaluationRequestReference,
@@ -28,23 +28,19 @@ import {
   inspectPolicyEvaluationReplayResultBindings,
   type PolicyEvaluationReplayDefinitionRead,
   type PolicyEvaluationReplayResultRead,
-  type PolicyReplayResultBindings,
   type PolicyReplayPlanBindingRead,
   type PolicyReplayPlanBindings,
+  type PolicyReplayResultBindings,
 } from "@proofstack/replay";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
-import {
-  inspectCapturedEvaluationReplayBindings,
-  type PolicyEvaluationReplayBindings,
-} from "./capture-evaluation-replay-bindings.js";
 import {
   inspectCapturedCandidateAssessmentLineage,
   type PolicyCandidateAssessmentLineage,
 } from "./capture-candidate-assessment-lineage.js";
 import {
-  inspectCapturedPolicyAssessments,
-  type PolicyAssessmentBindings,
-} from "./capture-policy-assessments.js";
+  inspectCapturedEvaluationReplayBindings,
+  type PolicyEvaluationReplayBindings,
+} from "./capture-evaluation-replay-bindings.js";
 import {
   inspectCapturedEvaluationSnapshots,
   type PolicyEvaluationSnapshotBindings,
@@ -53,6 +49,11 @@ import {
   inspectCapturedModelAssurance,
   type PolicyModelAssuranceBindings,
 } from "./capture-model-assurance.js";
+import {
+  inspectCapturedPolicyAssessments,
+  type PolicyAssessmentBindings,
+} from "./capture-policy-assessments.js";
+import { deriveCapturedRecordClosure, type PolicyRecordClosure } from "./derive-record-closure.js";
 import {
   type PolicyRecordExpansion,
   type PolicyRecordGraphRepositories,
@@ -81,6 +82,8 @@ export interface PolicyRecordGraph {
   /** Deterministic breadth-first parent order, preserving every occurrence within each parent. */
   readonly edges: readonly PolicyRecordGraphEdge[];
   readonly entries: readonly PolicyEvaluationManifestEntry[];
+  /** Independently re-derived retained record inventory and explicit non-record frontier. */
+  readonly recordClosure: PolicyRecordClosure;
   /** Exact rule-to-candidate assessment declarations, not transitive lineage or eligibility. */
   readonly policyAssessments: PolicyAssessmentBindings;
   /** Candidate dataset/target lineage joined to retained histories, not current authority. */
@@ -335,6 +338,12 @@ export async function acquirePolicyRecordGraph(
       );
       return report;
     };
+    const { entries, closure } = deriveCapturedRecordClosure(
+      request,
+      { roots, nodes, edges },
+      limits,
+    );
+    const recordClosure = admitInspection(closure);
     const policyAssessments = admitInspection(
       inspectCapturedPolicyAssessments(request, { nodes, edges }, limits),
     );
@@ -388,7 +397,8 @@ export async function acquirePolicyRecordGraph(
       roots,
       nodes,
       edges,
-      entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
+      entries,
+      recordClosure,
       policyAssessments,
       candidateAssessmentLineage,
       evaluationSnapshots,

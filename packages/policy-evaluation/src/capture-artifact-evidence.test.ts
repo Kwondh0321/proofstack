@@ -560,9 +560,9 @@ describe("request-rooted authorized artifact capture", () => {
   });
 
   it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
-    const h = await harness(false, 2);
-    // Each available occurrence needs two catalog reads. Make that dimension dominate the
-    // separately enforced reference count so this test specifically reaches record admission.
+    const h = await harness(false, 4);
+    // Each available occurrence needs two catalog reads. Four events keep that dimension above
+    // reference inspection (including closure) so this test specifically reaches record admission.
     // Keep each event below the owning 32-reference maximum.
     for (const event of h.events)
       event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
@@ -905,8 +905,8 @@ describe("request-rooted authorized artifact capture", () => {
   });
 });
 
-async function recheckHarness() {
-  const h = await harness();
+async function recheckHarness(eventCount = 1) {
+  const h = await harness(false, eventCount);
   const calls: string[] = [];
   const state = { phase: "outside" };
   const ports = {
@@ -1212,11 +1212,12 @@ describe("request-owned source recheck composition", () => {
 
   it("shares record and JSON admission with capture rather than resetting for the transaction", async () => {
     // Retain a real successor/history so record admission remains the limiting dimension
-    // after candidate assessment inspection also charges reference occurrences.
+    // after candidate assessment and closure inspection also charge reference occurrences.
     const prepare = async () => {
-      const fixture = await recheckHarness();
-      fixture.h.event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
-      fixture.h.exact.mockResolvedValue([fixture.h.event]);
+      const fixture = await recheckHarness(4);
+      for (const event of fixture.h.events)
+        event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+      fixture.h.exact.mockResolvedValue(fixture.h.events);
       const successor = releasePolicyRepositoryFixture("recheck_budget", scope, {
         policyId: fixture.h.policy.policyId,
         predecessor: releasePolicyReference(fixture.h.policy),
@@ -1259,10 +1260,11 @@ describe("request-owned source recheck composition", () => {
   });
 
   it("charges each retained terminal-history row as well as its reread operation", async () => {
-    const f = await recheckHarness();
+    const f = await recheckHarness(4);
     // Keep record admission, rather than reference admission, the limiting dimension.
-    f.h.event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
-    f.h.exact.mockResolvedValue([f.h.event]);
+    for (const event of f.h.events)
+      event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+    f.h.exact.mockResolvedValue(f.h.events);
     await f.h.policies.publishReleasePolicyLifecycleEvent(
       releasePolicyLifecycleFixture("recheck_rows", f.h.policy, {
         occurredAt: "2026-09-30T00:00:00.000Z",
@@ -1279,9 +1281,10 @@ describe("request-owned source recheck composition", () => {
       recheck.guards + recheck.artifactReads + recheck.policyReads + 2 + 1,
     );
     expect(output.usage.records).toBeGreaterThan(output.usage.references);
-    const fresh = await recheckHarness();
-    fresh.h.event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
-    fresh.h.exact.mockResolvedValue([fresh.h.event]);
+    const fresh = await recheckHarness(4);
+    for (const event of fresh.h.events)
+      event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+    fresh.h.exact.mockResolvedValue(fresh.h.events);
     await fresh.h.policies.publishReleasePolicyLifecycleEvent(
       releasePolicyLifecycleFixture("recheck_rows", fresh.h.policy, {
         occurredAt: "2026-09-30T00:00:00.000Z",

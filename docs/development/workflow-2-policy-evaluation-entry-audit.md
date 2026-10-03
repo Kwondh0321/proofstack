@@ -153,6 +153,13 @@ establish complete semantic closure, retained bytes, mutable authority, guarded 
 job-wide accounting, worker execution, or policy-evaluation acceptance. The roadmap count remains
 two accepted Workflow 2 checkpoints of seven.
 
+The subsequent [retained record closure pass](workflow-2-policy-record-closure.md) independently
+reconstructs the metadata inventory from request roots and owning full-record enumerations,
+rechecks resolved selectors, rejects omitted/extra/substituted occurrences, and categorizes the
+remaining artifact/trace/selector/declaration frontier. It meters repeated reinspection without
+new I/O. This supplies an expected retained-record inventory for manifest validation, not complete
+semantic/current-authority closure, absent-record guards, typed rule operands or sealed publication.
+
 The subsequent [captured comparison integration](workflow-2-policy-comparison-capture.md) now
 selects the complete candidate comparison inventory from the acquired graph without converting
 unavailable observations into absence. It re-derives unique comparisons from captured definitions

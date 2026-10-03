@@ -340,17 +340,11 @@ function inspectChild(
   };
 }
 
-/**
- * Resolves one parent-bound occurrence through fixed read-only ports. Parent reinspection and
- * whole-frontier budgets precede I/O; no latest lookup, synthetic digest, validator plugin, or
- * missing-as-success fallback exists. Storage exceptions (including typed errors) propagate.
- * This is not authorization, complete graph/byte/authority capture, or policy satisfaction.
- */
-export async function readPolicyEvaluationSelector(
+/** Complete parent reinspection shared by fixed repository and retained-child paths. */
+function prepareSelector(
   input: ReadPolicyEvaluationSelectorInput,
   evidence: PolicyEvaluationSelectorParentRead,
-  dependencies: PolicyEvaluationSelectorReaderDependencies,
-): Promise<PolicyEvaluationSelectorRead> {
+) {
   const fixed = parseInput(input);
   const context = {
     evaluationTime: fixed.evaluationTime,
@@ -371,6 +365,39 @@ export async function readPolicyEvaluationSelector(
         );
   const reference = frontier.references.find((value) => value.path === fixed.path);
   if (!reference || !isResolvable(reference)) throw new PolicyEvaluationSelectorReadInputError();
+  return { fixed, frontier, reference };
+}
+
+/**
+ * Reinspect one retained child against its complete original parent occurrence without I/O.
+ * Trusted capture owns both observations; accepting a supplied body does not authenticate it,
+ * establish absent-record protection, or grant snapshot/publication authority.
+ */
+export function inspectPolicyEvaluationSelector(
+  input: ReadPolicyEvaluationSelectorInput,
+  evidence: PolicyEvaluationSelectorParentRead,
+  raw: unknown,
+): PolicyEvaluationSelectorRead {
+  const { fixed, frontier, reference } = prepareSelector(input, evidence);
+  return {
+    parent: { recordSha256: frontier.recordSha256, source: fixed.source },
+    reference,
+    ...inspectChild(fixed, reference, raw),
+  };
+}
+
+/**
+ * Resolves one parent-bound occurrence through fixed read-only ports. Parent reinspection and
+ * whole-frontier budgets precede I/O; no latest lookup, synthetic digest, validator plugin, or
+ * missing-as-success fallback exists. Storage exceptions (including typed errors) propagate.
+ * This is not authorization, complete graph/byte/authority capture, or policy satisfaction.
+ */
+export async function readPolicyEvaluationSelector(
+  input: ReadPolicyEvaluationSelectorInput,
+  evidence: PolicyEvaluationSelectorParentRead,
+  dependencies: PolicyEvaluationSelectorReaderDependencies,
+): Promise<PolicyEvaluationSelectorRead> {
+  const { fixed, frontier, reference } = prepareSelector(input, evidence);
   const raw = await readChild(structuredClone(fixed.scope), reference, dependencies);
   return {
     parent: { recordSha256: frontier.recordSha256, source: fixed.source },

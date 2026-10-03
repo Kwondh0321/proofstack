@@ -1,46 +1,48 @@
-import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
+  type EvaluationRun,
+  type EvaluatorSpec,
+  encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
+  PolicyEvaluationSourceReferenceSchema,
+  policyEvaluationSourceReferenceKey,
+  type RegressionDatasetVersionDefinition,
+  type RegressionFixtureVersionDefinition,
   type ReleaseCandidate,
   type ReleaseCandidateDefinition,
   type ReleasePolicy,
   type ReleasePolicyDefinition,
   type ReplayPlanDefinition,
-  type EvaluationRun,
-  type RegressionDatasetVersionDefinition,
-  type RegressionFixtureVersionDefinition,
-  type EvaluatorSpec,
-  type TargetReleaseDefinition,
   type RuntimeDefinition,
   type RuntimeDefinitionRecord,
-  PolicyEvaluationSourceReferenceSchema,
-  policyEvaluationSourceReferenceKey,
-  encodeEvaluationCanonicalJson,
+  type TargetReleaseDefinition,
 } from "@proofstack/contracts";
 import {
+  assemblePolicyEvaluationManifest,
+  CreateModelAssuranceAssessment,
+  digestEvaluationRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
-  digestEvaluationRecordDefinition,
-  evaluationRecordDescriptors,
-  CreateModelAssuranceAssessment,
   digestRuntimeDefinition,
+  evaluationRecordDescriptors,
   StaticRuntimeDefinitionCatalogue,
+  validatePolicyEvaluationManifest,
 } from "@proofstack/core";
 import {
+  comparisonDefinitionFixture,
   createEvaluationRepositoryTestHarness,
-  publishEvaluationFixture,
+  createModelAssuranceRepositoryTestHarness,
+  type EvaluationRepositoryFixtureRecord,
+  FixedClock,
+  MemoryComparisonRepository,
   MemoryReleaseCandidateRepository,
   MemoryReleasePolicyRepository,
+  publishEvaluationFixture,
   releaseCandidateFixture,
   releasePolicyRepositoryFixture,
-  comparisonDefinitionFixture,
-  MemoryComparisonRepository,
-  createModelAssuranceRepositoryTestHarness,
-  FixedClock,
-  type EvaluationRepositoryFixtureRecord,
 } from "@proofstack/core/testing";
 import {
   digestRegressionDatasetVersionDefinition,
@@ -53,13 +55,14 @@ import {
   MemoryReplayJobRepository,
 } from "@proofstack/replay/testing";
 import { describe, expect, it, vi } from "vitest";
-import { capturePolicyRecordGraph } from "./capture-record-graph.js";
-import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
+import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
+import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
+import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
-import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
-import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
-import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
+import { capturePolicyRecordGraph } from "./capture-record-graph.js";
+import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
+import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 
 type Fields = Record<string, unknown>;
@@ -583,6 +586,501 @@ async function harness(
     input: request(candidate, policy),
   };
 }
+
+describe("independent retained record closure", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
+  type Graph = Awaited<ReturnType<typeof capturePolicyRecordGraph>>;
+  const editable = (graph: Graph) => ({
+    roots: structuredClone([...graph.roots]),
+    nodes: structuredClone([...graph.nodes]),
+    edges: structuredClone([...graph.edges]),
+  });
+  type Editable = ReturnType<typeof editable>;
+  const first = <T>(values: readonly T[], predicate: (value: T) => boolean): T => {
+    const found = values.find(predicate);
+    if (!found) throw new Error("Missing closure test observation");
+    return found;
+  };
+  const root = (graph: Editable) =>
+    first(graph.nodes, ({ read }) => read.source.kind === "release_candidate");
+  const missing = (graph: Editable) =>
+    first(graph.nodes, ({ read }) => read.observation.status === "missing");
+  const selected = (graph: Editable) =>
+    first(
+      graph.edges,
+      ({ reference, target }) => reference.kind === "criterion_selector" && target !== null,
+    );
+  const direct = (graph: Editable) =>
+    first(graph.edges, ({ reference }) => reference.kind === "record");
+  const artifact = (graph: Editable) =>
+    first(graph.edges, ({ reference }) => reference.kind === "artifact");
+  const reorder = (graph: Editable) =>
+    graph.nodes.sort((a, b) => {
+      const left = policyEvaluationSourceReferenceKey(a.read.source);
+      const right = policyEvaluationSourceReferenceKey(b.read.source);
+      return left < right ? -1 : left > right ? 1 : 0;
+    });
+
+  it("derives the request inventory from owning bodies with repeated edges, cycles and distinct frontiers", async () => {
+    const setup = await harness("history", { dataset: "matched", replayBindings: true });
+    const read = vi.spyOn(setup.repositories.evidence.evaluation, "findCriterionSet");
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const calls = read.mock.calls.length;
+    const original = structuredClone(graph);
+    const derived = deriveCapturedRecordClosure(setup.input, graph, limits);
+    expect(derived.entries).toEqual(graph.entries);
+    expect(derived.closure).toEqual(graph.recordClosure);
+    expect(graph.recordClosure.sources).toContainEqual({
+      kind: "release_candidate",
+      reference: setup.input.candidate,
+    });
+    expect(graph.recordClosure.sources).toContainEqual({
+      kind: "release_policy",
+      reference: setup.input.policy,
+    });
+    expect(graph.recordClosure.sources.filter(({ kind }) => kind === "criterion_set")).toHaveLength(
+      1,
+    );
+    expect(
+      graph.edges.filter(({ target }) => target?.kind === "criterion_set").length,
+    ).toBeGreaterThan(5);
+    expect(derived.closure.frontier.map(({ edgeIndex }) => edgeIndex)).toEqual(
+      graph.edges.flatMap(({ target }, index) => (target === null ? [index] : [])),
+    );
+    expect(new Set(derived.closure.frontier.map(({ kind }) => kind))).toEqual(
+      new Set(["artifact", "trace", "retained_declaration"]),
+    );
+    expect(derived.entries.some(({ observation }) => observation.status === "missing")).toBe(true);
+    expect(read).toHaveBeenCalledTimes(calls);
+    expect(graph).toEqual(original);
+    const source = derived.closure.sources.find((value) => value.kind === "release_candidate");
+    if (source?.kind !== "release_candidate") throw new Error("Missing derived root");
+    source.reference.candidateVersionId = "candidate_mutated_after_derivation";
+    expect(graph).toEqual(original);
+    expect(derived.closure).not.toHaveProperty("sealed");
+    expect(derived.closure).not.toHaveProperty("authority");
+  });
+
+  it("derives both unavailable roots without claiming a verified empty graph", async () => {
+    const setup = await harness();
+    const graph = await capturePolicyRecordGraph(setup.input, missingRepositories().repositories);
+    const derived = deriveCapturedRecordClosure(setup.input, graph, {
+      maxReferences: 0,
+      maxReferenceBytes: 0,
+    });
+    expect(derived.entries).toHaveLength(2);
+    expect(derived.entries.every(({ observation }) => observation.status === "missing")).toBe(true);
+    expect(derived.closure).toMatchObject({
+      frontier: [],
+      inspectionUsage: { references: 0, referenceBytes: 0 },
+    });
+  });
+
+  it("rejects a self-consistent manifest subset against the separately derived source inventory", async () => {
+    const setup = await harness();
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const assemble = (entries: Graph["entries"]) =>
+      assemblePolicyEvaluationManifest({
+        entries: [...entries],
+        manifestId: "manifest_closure",
+        request: graph.request,
+        scope: graph.scope,
+      });
+    const verify = (pageSet: ReturnType<typeof assemble>) =>
+      validatePolicyEvaluationManifest({
+        pageSet,
+        expected: {
+          manifest: {
+            manifestId: pageSet.manifest.manifestId,
+            definitionSha256: pageSet.manifest.definitionSha256,
+          },
+          request: graph.request,
+          scope: graph.scope,
+          sources: [...graph.recordClosure.sources],
+        },
+      });
+    const complete = assemble(graph.entries);
+    expect(verify(complete)).toEqual(complete);
+    const subset = assemble(graph.entries.slice(1));
+    expect(() => verify(subset)).toThrow(
+      expect.objectContaining({ code: "source_closure_mismatch" }),
+    );
+  });
+
+  it("rejects a selector absence contradicting a retained verified exact child before trace I/O", async () => {
+    const setup = await harness();
+    const original = setup.repositories.evidence.evaluation;
+    let reads = 0;
+    const repositories = {
+      ...setup.repositories,
+      evidence: {
+        ...setup.repositories.evidence,
+        evaluation: new Proxy(original, {
+          get(target, property) {
+            if (property === "findCriterionSet")
+              return async (...args: Parameters<typeof original.findCriterionSet>) => {
+                reads++;
+                return reads === 1 ? original.findCriterionSet(...args) : null;
+              };
+            const value: unknown = Reflect.get(target, property);
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        }),
+      },
+    };
+    const evidence = { resolveExactEvents: vi.fn(async () => []) };
+    await expect(
+      capturePolicyTraceEvidence(setup.input, repositories, evidence),
+    ).rejects.toMatchObject({ reason: "observation_conflict" });
+    expect(reads).toBeGreaterThan(1);
+    expect(evidence.resolveExactEvents).not.toHaveBeenCalled();
+  });
+
+  it("preserves a genuine selector membership mismatch when its independently reached set is available", async () => {
+    const setup = await harness(undefined, {
+      mutate: ({ kind, record }) => {
+        if (kind === "oracle_spec") {
+          const criterion = record.supportedCriteria[0];
+          if (!criterion) throw new Error("Missing oracle selector");
+          criterion.criterionId = "criterion_unrelated";
+        }
+      },
+    });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const edge = graph.edges.find(
+      ({ parent, reference }) =>
+        parent.kind === "oracle_spec" && reference.kind === "criterion_selector",
+    );
+    expect(edge).toMatchObject({
+      target: null,
+      selectorFailure: { status: "unavailable", reason: "lineage_mismatch" },
+    });
+    expect(
+      graph.nodes.find(({ read }) => read.source.kind === "criterion_set")?.read.observation.status,
+    ).toBe("verified");
+    expect(deriveCapturedRecordClosure(setup.input, graph, limits).closure).toEqual(
+      graph.recordClosure,
+    );
+  });
+
+  it.each(["missing", "not_yet_available"] as const)(
+    "preserves %s selector observations without inventing sources",
+    async (state) => {
+      const setup = await harness();
+      const original = setup.repositories.evidence.evaluation;
+      const graph = await capturePolicyRecordGraph(setup.input, {
+        ...setup.repositories,
+        evidence: {
+          ...setup.repositories.evidence,
+          evaluation: new Proxy(original, {
+            get(target, property) {
+              if (property === "findCriterionSet")
+                return async (...args: Parameters<typeof original.findCriterionSet>) => {
+                  const record = await original.findCriterionSet(...args);
+                  return state === "missing"
+                    ? null
+                    : record && { ...record, publishedAt: "2027-01-01T00:00:00.000Z" };
+                };
+              const value: unknown = Reflect.get(target, property);
+              return typeof value === "function" ? value.bind(target) : value;
+            },
+          }),
+        },
+      });
+      const derived = deriveCapturedRecordClosure(setup.input, graph, limits);
+      const frontier = derived.closure.frontier.filter(
+        ({ kind }) => kind === "unresolved_selector",
+      );
+      expect(frontier.length).toBeGreaterThan(5);
+      for (const { edgeIndex } of frontier)
+        expect(graph.edges[edgeIndex]).toMatchObject({
+          target: null,
+          selectorFailure:
+            state === "missing" ? { status: "missing" } : { status: "unavailable", reason: state },
+        });
+      const altered = editable(graph);
+      const edge = first(altered.edges, (value) => value.selectorFailure !== undefined);
+      Reflect.set(edge, "selectorFailure", { status: "unavailable", reason: "invented" });
+      expect(() => deriveCapturedRecordClosure(setup.input, altered, limits)).toThrow();
+      Reflect.set(edge, "selectorFailure", { status: "missing", reason: "extra" });
+      expect(() => deriveCapturedRecordClosure(setup.input, altered, limits)).toThrow();
+      Reflect.deleteProperty(edge, "selectorFailure");
+      expect(() => deriveCapturedRecordClosure(setup.input, altered, limits)).toThrow();
+    },
+  );
+
+  const attacks: readonly [string, (graph: Editable) => void][] = [
+    [
+      "different root order",
+      (g) => {
+        g.roots.reverse();
+      },
+    ],
+    [
+      "omitted root",
+      (g) => {
+        g.roots.pop();
+      },
+    ],
+    [
+      "caller-added root",
+      (g) => {
+        g.roots.push(g.roots[0] as Graph["roots"][number]);
+      },
+    ],
+    [
+      "omitted reachable node",
+      (g) => {
+        g.nodes.splice(0, 1);
+      },
+    ],
+    [
+      "duplicate node",
+      (g) => {
+        g.nodes.push(g.nodes[0] as Graph["nodes"][number]);
+        reorder(g);
+      },
+    ],
+    [
+      "changed canonical node order",
+      (g) => {
+        g.nodes.reverse();
+      },
+    ],
+    [
+      "orphan node",
+      (g) => {
+        const source = {
+          kind: "release_candidate" as const,
+          reference: {
+            candidateId: "orphan",
+            candidateVersionId: "orphan_v1",
+            definitionSha256: "a".repeat(64),
+          },
+        };
+        g.nodes.push({
+          read: { source, observation: { status: "missing" }, record: null },
+          references: null,
+        });
+        reorder(g);
+      },
+    ],
+    [
+      "changed semantic body",
+      (g) => {
+        Reflect.set(root(g).read.record as object, "candidateId", "candidate_substituted");
+      },
+    ],
+    [
+      "changed original receipt",
+      (g) => {
+        Reflect.set(root(g).read.record as object, "createdAt", "2026-09-04T00:00:00.000Z");
+      },
+    ],
+    [
+      "changed original observation",
+      (g) => {
+        Reflect.set(root(g).read.observation, "recordSha256", "f".repeat(64));
+      },
+    ],
+    [
+      "verified parent with no reference inventory",
+      (g) => {
+        Reflect.set(root(g), "references", null);
+      },
+    ],
+    [
+      "reference and matching edge removed together",
+      (g) => {
+        const node = root(g);
+        Reflect.set(node, "references", node.references?.slice(1));
+        g.edges.splice(0, 1);
+      },
+    ],
+    [
+      "missing parent relabeled as empty leaf",
+      (g) => {
+        Reflect.set(missing(g), "references", []);
+      },
+    ],
+    [
+      "missing parent retaining a body",
+      (g) => {
+        Reflect.set(missing(g).read, "record", {});
+      },
+    ],
+    [
+      "invalid observation status",
+      (g) => {
+        Reflect.set(missing(g).read, "observation", { status: "approved" });
+      },
+    ],
+    [
+      "extra node field",
+      (g) => {
+        Reflect.set(root(g), "complete", true);
+      },
+    ],
+    [
+      "extra read field",
+      (g) => {
+        Reflect.set(root(g).read, "complete", true);
+      },
+    ],
+    [
+      "extra edge field",
+      (g) => {
+        Reflect.set(direct(g), "complete", true);
+      },
+    ],
+    [
+      "omitted edge",
+      (g) => {
+        g.edges.splice(0, 1);
+      },
+    ],
+    [
+      "duplicate trailing edge",
+      (g) => {
+        g.edges.push(g.edges[0] as Graph["edges"][number]);
+      },
+    ],
+    [
+      "changed edge order",
+      (g) => {
+        g.edges.reverse();
+      },
+    ],
+    [
+      "changed edge parent",
+      (g) => {
+        Reflect.set(direct(g), "parent", g.roots[1]);
+      },
+    ],
+    [
+      "changed edge parent hash",
+      (g) => {
+        Reflect.set(direct(g), "parentRecordSha256", "f".repeat(64));
+      },
+    ],
+    [
+      "changed occurrence path",
+      (g) => {
+        Reflect.set(direct(g).reference, "path", "/invented");
+      },
+    ],
+    [
+      "direct edge with null target",
+      (g) => {
+        Reflect.set(direct(g), "target", null);
+      },
+    ],
+    [
+      "direct edge with selector failure",
+      (g) => {
+        Reflect.set(direct(g), "selectorFailure", { status: "missing" });
+      },
+    ],
+    [
+      "resolved selector with failure",
+      (g) => {
+        Reflect.set(selected(g), "selectorFailure", { status: "missing" });
+      },
+    ],
+    [
+      "resolved selector with substituted target",
+      (g) => {
+        Reflect.set(selected(g), "target", g.roots[0]);
+      },
+    ],
+    [
+      "resolved selector relabeled missing",
+      (g) => {
+        const edge = selected(g);
+        Reflect.set(edge, "target", null);
+        Reflect.set(edge, "selectorFailure", { status: "missing" });
+      },
+    ],
+    [
+      "artifact converted into a record target",
+      (g) => {
+        Reflect.set(artifact(g), "target", g.roots[0]);
+      },
+    ],
+    [
+      "artifact with selector failure",
+      (g) => {
+        Reflect.set(artifact(g), "selectorFailure", { status: "missing" });
+      },
+    ],
+  ];
+  it.each(attacks)("rejects %s independently of the supplied inventory", async (_label, attack) => {
+    const setup = await harness();
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const altered = editable(graph);
+    attack(altered);
+    expect(() => deriveCapturedRecordClosure(setup.input, altered, limits)).toThrow();
+  });
+
+  it("retains parent-owned declarations and cannot turn an omitted identity into an artifact lookup", async () => {
+    const setup = await harness("history", { dataset: "matched", replayBindings: true });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const declarations = graph.recordClosure.frontier.filter(
+      ({ kind }) => kind === "retained_declaration",
+    );
+    expect(declarations.length).toBeGreaterThan(0);
+    const declarationKinds = declarations.map(
+      ({ edgeIndex }) => graph.edges[edgeIndex]?.reference.kind,
+    );
+    expect(declarationKinds).toContain("registered_implementation");
+    expect(declarationKinds).toContain("qualification_policy");
+    expect(declarationKinds).toContain("replay_declaration");
+    expect(declarationKinds).toContain("control_declaration");
+    const altered = editable(graph);
+    const edge = altered.edges[declarations[0]?.edgeIndex ?? -1];
+    if (!edge) throw new Error("Missing declaration");
+    Reflect.set(edge, "target", altered.roots[0]);
+    expect(() => deriveCapturedRecordClosure(setup.input, altered, limits)).toThrow();
+  });
+
+  it("uses independent repeated occurrence counts and canonical bytes for exact and one-below admission", async () => {
+    const setup = await harness("history", { dataset: "matched", replayBindings: true });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const exact = {
+      maxReferences: graph.edges.length,
+      maxReferenceBytes: graph.edges.reduce(
+        (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
+        0,
+      ),
+    };
+    expect(deriveCapturedRecordClosure(setup.input, graph, exact).closure.inspectionUsage).toEqual({
+      references: exact.maxReferences,
+      referenceBytes: exact.maxReferenceBytes,
+    });
+    expect(() =>
+      deriveCapturedRecordClosure(setup.input, graph, {
+        ...exact,
+        maxReferences: exact.maxReferences - 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      deriveCapturedRecordClosure(setup.input, graph, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      deriveCapturedRecordClosure(setup.input, graph, { ...exact, maxReferences: -1 }),
+    ).toThrow();
+    expect(() =>
+      deriveCapturedRecordClosure(
+        { ...setup.input, definitionSha256: "f".repeat(64) },
+        graph,
+        exact,
+      ),
+    ).toThrow();
+  });
+});
 
 describe("evaluation run replay bindings", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
@@ -1738,6 +2236,7 @@ describe("request-rooted recursive record graph", () => {
     expect(keys).toEqual([...new Set(keys)].sort());
     expect(graph.edges[0]?.parent.kind).toBe("release_candidate");
     const inspections = [
+      graph.recordClosure,
       graph.policyAssessments,
       graph.candidateAssessmentLineage,
       graph.evaluationSnapshots,
@@ -1781,6 +2280,7 @@ describe("request-rooted recursive record graph", () => {
       const setup = await harness("history", { dataset: "matched" });
       const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
       const reports = [
+        graph.recordClosure,
         graph.policyAssessments,
         graph.candidateAssessmentLineage,
         graph.evaluationSnapshots,

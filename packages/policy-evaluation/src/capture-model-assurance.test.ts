@@ -348,6 +348,7 @@ describe("captured model and human assurance bindings", () => {
       const h = await harness(undefined, { copies: 3 });
       const graph = await capturePolicyRecordGraph(h.input, h.repositories);
       const reports = [
+        graph.recordClosure,
         graph.policyAssessments,
         graph.candidateAssessmentLineage,
         graph.evaluationSnapshots,

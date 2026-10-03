@@ -22,6 +22,7 @@ import {
 } from "./policy-evaluation-evidence-reader.js";
 import { enumeratePolicyEvaluationEvidenceReferences } from "./policy-evaluation-evidence-references.js";
 import {
+  inspectPolicyEvaluationSelector,
   type PolicyEvaluationSelectorParentRead,
   type PolicyEvaluationSelectorParentSource,
   type PolicyEvaluationSelectorReaderDependencies,
@@ -245,6 +246,47 @@ beforeAll(async () => {
 });
 
 describe("parent-bound policy evaluation selector reads", () => {
+  it("reinspects every retained selector route without a repository port or alternate algorithm", async () => {
+    for (const scenario of scenarios) {
+      const { input, evidence } = captured(scenario);
+      const before = structuredClone({ input, evidence, child: scenario.child });
+      const read = await readPolicyEvaluationSelector(input, evidence, dependencies);
+      expect(inspectPolicyEvaluationSelector(input, evidence, scenario.child)).toEqual(read);
+      expect({ input, evidence, child: scenario.child }).toEqual(before);
+      expect(inspectPolicyEvaluationSelector(input, evidence, null)).toMatchObject({
+        status: "missing",
+        evidence: null,
+      });
+      expect(
+        inspectPolicyEvaluationSelector(input, evidence, {
+          ...scenario.child,
+          definitionSha256: "f".repeat(64),
+        }),
+      ).toMatchObject({ status: "unavailable", reason: "record_invalid", evidence: null });
+    }
+  });
+
+  it("retained selector inspection rejects changed parent observations before considering a child", () => {
+    const scenario = scenarios[0] as Scenario;
+    const { input, evidence } = captured(scenario);
+    if (evidence.observation.status !== "verified") throw new Error("Missing parent");
+    Reflect.set(evidence.observation, "recordSha256", "f".repeat(64));
+    expect(() => inspectPolicyEvaluationSelector(input, evidence, scenario.child)).toThrow();
+  });
+
+  it("retained selector inspection preserves complete-parent occurrence and byte admission", () => {
+    const scenario = scenarios[0] as Scenario;
+    const { input, evidence } = captured(scenario);
+    for (const limited of [{ maxReferences: 0 }, { maxReferenceBytes: 0 }])
+      expect(() =>
+        inspectPolicyEvaluationSelector(
+          { ...input, limits: { ...limits, ...limited } },
+          evidence,
+          scenario.child,
+        ),
+      ).toThrow();
+  });
+
   it("resolves every selector-bearing parent through actual memory repositories", async () => {
     for (const scenario of scenarios) {
       const { input, evidence } = captured(scenario);

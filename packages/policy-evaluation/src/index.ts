@@ -1,53 +1,54 @@
 export { PolicyRecordGraphError } from "./acquisition-budget.js";
+export * from "./capture-artifact-evidence.js";
+export type {
+  PolicyCandidateAssessmentLineage,
+  PolicyCandidateAssessmentLineageCheck,
+} from "./capture-candidate-assessment-lineage.js";
+export {
+  type CapturedPolicyComparison,
+  capturePolicyComparisonEvidence,
+  type PolicyComparisonEvidenceCapture,
+} from "./capture-comparison-evidence.js";
+export type {
+  PolicyEvaluationReplayBindings,
+  PolicyEvaluationReplayCheck,
+} from "./capture-evaluation-replay-bindings.js";
+export type {
+  PolicyEvaluationSnapshotBindings,
+  PolicyEvaluationSnapshotCheck,
+} from "./capture-evaluation-snapshots.js";
+export type { PolicyEvaluationTrustPrerequisites } from "./capture-evaluation-trust.js";
+export type { PolicyFixtureBindingCapture } from "./capture-fixture-bindings.js";
+export type {
+  PolicyModelAssuranceBindings,
+  PolicyModelAssuranceCheck,
+} from "./capture-model-assurance.js";
+export type { PolicyAssessmentBindings } from "./capture-policy-assessments.js";
+export type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
+export type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 export {
   capturePolicyRecordGraph,
   type PolicyRecordGraph,
   type PolicyRecordGraphEdge,
 } from "./capture-record-graph.js";
 export {
-  capturePolicyComparisonEvidence,
-  type CapturedPolicyComparison,
-  type PolicyComparisonEvidenceCapture,
-} from "./capture-comparison-evidence.js";
-export {
   capturePolicyTraceEvidence,
   type PolicyTraceArtifactReference,
   type PolicyTraceCapture,
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
-export * from "./capture-artifact-evidence.js";
-export type { PolicyFixtureBindingCapture } from "./capture-fixture-bindings.js";
-export type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
-export type { PolicyEvaluationTrustPrerequisites } from "./capture-evaluation-trust.js";
-export type { PolicyAssessmentBindings } from "./capture-policy-assessments.js";
-export type {
-  PolicyCandidateAssessmentLineage,
-  PolicyCandidateAssessmentLineageCheck,
-} from "./capture-candidate-assessment-lineage.js";
-export type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
+export type { PolicyRecordClosure } from "./derive-record-closure.js";
 export type {
   PolicyEvaluationSourceGuard,
   PolicyEvaluationSourceGuardOrigin,
   PolicyEvaluationSourceGuardUsage,
 } from "./derive-source-guards.js";
-export { PolicyEvaluationSourceRecheckError } from "./recheck-captured-sources.js";
 export type {
   PolicyEvaluationSourceRecheck,
   PolicyEvaluationSourceRecheckPorts,
   PolicyEvaluationSourceTransactions,
 } from "./recheck-captured-sources.js";
-export type {
-  PolicyModelAssuranceBindings,
-  PolicyModelAssuranceCheck,
-} from "./capture-model-assurance.js";
-export type {
-  PolicyEvaluationSnapshotBindings,
-  PolicyEvaluationSnapshotCheck,
-} from "./capture-evaluation-snapshots.js";
-export type {
-  PolicyEvaluationReplayBindings,
-  PolicyEvaluationReplayCheck,
-} from "./capture-evaluation-replay-bindings.js";
+export { PolicyEvaluationSourceRecheckError } from "./recheck-captured-sources.js";
 export type {
   PolicyRecordExpansion,
   PolicyRecordGraphRepositories,
