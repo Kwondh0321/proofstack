@@ -315,6 +315,12 @@ runtime grants. Its read-only report returns after guard release and cannot auth
 Other presence/selector/authority closure, snapshot/job/fence publication, durable worker and all
 remaining checkpoint gates stay open; Workflow 2 remains 2/7.
 
+The subsequent [metadata publication barrier](workflow-2-policy-metadata-barrier.md) installs
+mandatory shared writer locks across 52 source roots and 33 partitions, with nonblocking exclusive
+tenant acquisition and compatible migration/recovery guards. This protects the database write
+domain needed for absence and complete history queries. It does not add authoritative same-client
+closure, sealed contracts/publication, policy worker authority or a checkpoint acceptance.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

@@ -137,6 +137,7 @@ describe("migration inspection", () => {
         "0049_align_policy_lifecycle_reason_bounds",
         "0050_policy_evaluation_source_locks",
         "0051_artifact_timestamp_integrity",
+        "0052_policy_evaluation_metadata_barrier",
       ],
     });
   });

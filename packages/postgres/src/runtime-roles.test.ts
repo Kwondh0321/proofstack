@@ -147,6 +147,9 @@ describe("provisionRuntimeRoles", () => {
     for (const signature of [
       "public.proofstack_try_lock_policy_evaluation_source(text, text)",
       "public.proofstack_lock_policy_evaluation_source_write()",
+      "public.proofstack_try_lock_policy_evaluation_metadata()",
+      "public.proofstack_lock_policy_evaluation_metadata_write()",
+      "public.proofstack_lock_policy_evaluation_recovery_write()",
       "public.proofstack_guard_artifact_timestamp_integrity()",
     ]) {
       for (const recipient of [

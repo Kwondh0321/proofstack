@@ -269,6 +269,12 @@ worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 
 다른 부재·selector·권한 관계, 스냅샷/작업/fence 발행, 영속 워커와 나머지 승인 검사는
 미완료이며 Workflow 2 완료 수는 2/7입니다.
 
+후속 [메타데이터 확정 잠금](workflow-2-policy-metadata-barrier.ko.md)은 원본 테이블 52개와 파티션
+33개의 쓰기에 공유 잠금을 강제하고 테넌트 배타 잠금을 대기 없이 획득하며 migration·recovery
+잠금과 조율합니다. 부재와 전체 이력 조회에 필요한 DB 변경 범위를 보호하지만, 같은 연결에서
+전체 권한 closure를 해석하거나 sealed 계약·원자적 발행·worker 권한을 구현한 것은 아닙니다.
+checkpoint 승인 상태는 바뀌지 않습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

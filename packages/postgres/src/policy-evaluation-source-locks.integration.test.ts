@@ -251,6 +251,9 @@ describe("policy evaluation database source serialization", () => {
     const signatures = [
       "public.proofstack_try_lock_policy_evaluation_source(text,text)",
       "public.proofstack_lock_policy_evaluation_source_write()",
+      "public.proofstack_try_lock_policy_evaluation_metadata()",
+      "public.proofstack_lock_policy_evaluation_metadata_write()",
+      "public.proofstack_lock_policy_evaluation_recovery_write()",
     ];
     try {
       await migrateDatabase(restored);

@@ -95,6 +95,7 @@ describe("durable replay job ledger migration", () => {
       [replayJobTables],
     );
     expect(triggers.rows.map(({ tgname }) => tgname)).toEqual([
+      ...replayJobTables.map(() => "proofstack_policy_evaluation_metadata_write_lock"),
       "proofstack_replay_attempt_events_append_only",
       "proofstack_replay_attempts_apply_recovery_epoch",
       "proofstack_replay_attempts_history",
