@@ -70,7 +70,9 @@ This protocol is a required integration contract, **not yet an installed snapsho
 The [transaction-local normalized reads](workflow-2-policy-transaction-reads.md) now provide the
 artifact, ownership, policy and lifecycle values through the guarded connection while sharing
 the existing adapters' validation. They do not themselves acquire guards or publish snapshots.
-The current two-observation capture is unchanged. It does not acquire these locks or claim atomicity.
+The [request-owned guard plan](workflow-2-policy-source-guard-plan.md) now derives bounded complete
+coordinates for this installed two-kind domain from the capture, retaining every known origin and
+absence. The two-observation capture still does not acquire these locks or claim atomicity.
 The forthcoming publisher still needs full observation comparison, bounded lock accounting and
 retry/deadline handling, current migration verification, worker-only privileges, and actual guarded
 snapshot persistence. There is no API endpoint, new caller capability, result or approval here.

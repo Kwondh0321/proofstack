@@ -265,8 +265,15 @@ The [transaction-local normalized reads](workflow-2-policy-transaction-reads.md)
 existing artifact and policy adapters' complete validation on a caller-owned database connection.
 They preserve exact scope, original receipts, ownership and canonical projections without opening
 another transaction or changing its context/lifetime. Real transaction and source-lock regressions
-cover the connection boundary. Trusted guard-set derivation, full observation comparison, job/fence
+cover the connection boundary. Trusted lock orchestration, full observation comparison, job/fence
 validation and atomic snapshot publication remain open; this prerequisite does not close checkpoint 3.
+
+The [request-owned source guard plan](workflow-2-policy-source-guard-plan.md) now derives complete
+bounded artifact/policy coordinates inside authorized capture, retaining missing and unavailable
+identities, all repeated origins and retained lifecycle successors. It adds exact guard-array byte
+admission without extra I/O or a caller-selected subset. This closes coordinate derivation for the
+installed two-kind lock domain only. Lock acquisition, full reinspection, other authority/presence
+boundaries, job/fence publication and the remaining checkpoint gates stay open; Workflow 2 is 2/7.
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 

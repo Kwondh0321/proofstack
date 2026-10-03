@@ -7,6 +7,7 @@ export class PolicyRecordGraphError extends Error {
       | "record_limit"
       | "byte_limit"
       | "artifact_byte_limit"
+      | "guard_limit"
       | "reference_limit"
       | "unmeasurable_record"
       | "reference_conflict"

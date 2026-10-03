@@ -20,6 +20,11 @@ export type { PolicyFixtureBindingCapture } from "./capture-fixture-bindings.js"
 export type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
 export type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 export type {
+  PolicyEvaluationSourceGuard,
+  PolicyEvaluationSourceGuardOrigin,
+  PolicyEvaluationSourceGuardUsage,
+} from "./derive-source-guards.js";
+export type {
   PolicyModelAssuranceBindings,
   PolicyModelAssuranceCheck,
 } from "./capture-model-assurance.js";

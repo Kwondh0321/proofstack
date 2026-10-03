@@ -75,7 +75,11 @@ These reads provide the owning adapters' validated values on the correct connect
 derive a trusted request-rooted lock set, compare a completed acquisition with current observations,
 meter a durable job, validate a lease/fence or persist a sealed snapshot.
 
-The publisher must still derive the complete bounded guard set, acquire every guard without waiting,
+The [request-owned guard plan](workflow-2-policy-source-guard-plan.md) now derives bounded complete
+coordinates for the installed artifact/policy lock domain inside authorized capture. That output
+does not establish guards, current observations or a globally atomic recursive closure.
+
+The publisher must still verify the complete request-owned guard set, acquire every guard without waiting,
 roll back the whole transaction on a conflict, use these reads in subsequent READ COMMITTED
 statements, compare full lifecycle/catalog observations and time-dependent availability, then
 publish snapshot and job state atomically. It must not hold database guards during object/key I/O

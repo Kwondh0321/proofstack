@@ -34,6 +34,7 @@ import {
   MemoryReleaseCandidateRepository,
   MemoryReleasePolicyRepository,
   releaseCandidateFixture,
+  releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import {
@@ -384,6 +385,8 @@ async function harness(recorded = false) {
     keyring,
     event,
     candidate,
+    policy,
+    policies,
     recordedPublication,
     fixtureContents,
     fixture,
@@ -425,6 +428,42 @@ describe("request-rooted authorized artifact capture", () => {
     expect(shared).toHaveLength(3);
     expect(shared.every(({ read }) => read.observation.status === "verified")).toBe(true);
     expect(output.artifacts.some(({ read }) => read.observation.status === "missing")).toBe(true);
+    const expectedCoordinates = new Set([
+      ...graph.nodes.flatMap(({ read }) =>
+        read.source.kind === "release_policy"
+          ? [JSON.stringify(["release_policy", read.source.reference.policyVersionId])]
+          : [],
+      ),
+      ...output.artifacts.map(({ read }) =>
+        JSON.stringify(["artifact", read.reference.artifactId]),
+      ),
+    ]);
+    expect(output.sourceGuards.map(({ kind, id }) => JSON.stringify([kind, id]))).toEqual(
+      [...expectedCoordinates].sort(),
+    );
+    expect(
+      output.sourceGuards.find(({ kind, id }) => kind === "artifact" && id === reference.artifactId)
+        ?.origins,
+    ).toEqual(
+      output.artifacts.flatMap(({ read }, captureIndex) =>
+        read.reference.artifactId === reference.artifactId
+          ? [{ kind: "artifact_capture", captureIndex }]
+          : [],
+      ),
+    );
+    expect(output.usage.sourceGuards).toEqual({
+      resources: expectedCoordinates.size,
+      origins:
+        graph.nodes.filter(({ read }) => read.source.kind === "release_policy").length +
+        output.artifacts.length,
+      canonicalBytes: Buffer.byteLength(JSON.stringify(output.sourceGuards)),
+    });
+    for (const [captureIndex, { read }] of output.artifacts.entries())
+      expect(
+        output.sourceGuards.find(
+          ({ kind, id }) => kind === "artifact" && id === read.reference.artifactId,
+        )?.origins,
+      ).toContainEqual({ kind: "artifact_capture", captureIndex });
     expect(h.exact).toHaveBeenCalledTimes(1);
     expect(h.get).toHaveBeenCalledTimes(3);
     // Both complete lifecycle observations are admitted even when each returns an empty history.
@@ -456,6 +495,7 @@ describe("request-rooted authorized artifact capture", () => {
     "environment",
     "principal",
     "request",
+    "guard_subset",
     "evaluation_time",
     "receipt_time",
     "clock",
@@ -472,6 +512,7 @@ describe("request-rooted authorized artifact capture", () => {
       };
     if (kind === "principal") Object.assign(h.actor, { extra: true });
     if (kind === "request") h.request.definitionSha256 = "f".repeat(64);
+    if (kind === "guard_subset") Object.assign(h.request, { sourceGuards: [] });
     if (kind === "evaluation_time")
       h.clock.now.mockReturnValue(new Date("2026-09-30T00:00:00.000Z"));
     if (kind === "receipt_time") h.clock.now.mockReturnValue(new Date("2026-10-01T00:30:00.000Z"));
@@ -489,6 +530,8 @@ describe("request-rooted authorized artifact capture", () => {
     expect(output.status).toBe("roots_unavailable");
     expect(output).not.toHaveProperty("artifacts");
     expect(output).not.toHaveProperty("fixtureBindings");
+    expect(output).not.toHaveProperty("sourceGuards");
+    expect(output.usage.sourceGuards).toEqual({ resources: 0, origins: 0, canonicalBytes: 0 });
     expect(output.usage.artifacts).toEqual({
       reads: 0,
       reservedBytes: 0,
@@ -584,6 +627,85 @@ describe("request-rooted authorized artifact capture", () => {
       },
     });
     expect(h.find.mock.calls.every(([, id]) => id !== unmanaged.artifactId)).toBe(true);
+    expect(
+      output.sourceGuards.find(
+        ({ kind, id }) => kind === "artifact" && id === unmanaged.artifactId,
+      ),
+    ).toEqual({
+      kind: "artifact",
+      id: unmanaged.artifactId,
+      origins: [{ kind: "artifact_capture", captureIndex: output.artifacts.length - 1 }],
+    });
+  });
+
+  it("retains a later lifecycle successor in the guard set without replacing the request root", async () => {
+    const h = await harness();
+    const successor = releasePolicyRepositoryFixture("artifact_successor", scope, {
+      policyId: h.policy.policyId,
+      predecessor: releasePolicyReference(h.policy),
+      publishedAt: "2026-10-01T00:30:00.000Z",
+      semanticVersion: "2.0.0",
+    });
+    await h.policies.publishReleasePolicy(successor);
+    const event = releasePolicyLifecycleFixture("artifact_successor", h.policy, {
+      kind: "superseded",
+      successor,
+      occurredAt: "2026-10-01T01:00:00.000Z",
+    });
+    await h.policies.publishReleasePolicyLifecycleEvent(event);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected artifacts");
+    expect(
+      output.sourceGuards.find(
+        ({ kind, id }) => kind === "release_policy" && id === successor.policyVersionId,
+      ),
+    ).toEqual({
+      kind: "release_policy",
+      id: successor.policyVersionId,
+      origins: [{ kind: "policy_successor", historyIndex: 0 }],
+    });
+    expect(output.policyLifecycle.afterArtifacts.policy).toEqual(h.request.policy);
+    expect(output.policyLifecycle.afterArtifacts.state).toBe("no_terminal_event_at_evaluation");
+    expect(
+      output.sourceGuards.some(
+        ({ kind, id }) => kind === "release_policy" && id === h.policy.policyVersionId,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps an unreadable predecessor policy coordinate instead of calling its closure empty", async () => {
+    const h = await harness();
+    const successor = releasePolicyRepositoryFixture("artifact_predecessor", scope, {
+      policyId: h.policy.policyId,
+      predecessor: releasePolicyReference(h.policy),
+      publishedAt: "2026-09-30T23:00:00.000Z",
+      semanticVersion: "2.0.0",
+    });
+    await h.policies.publishReleasePolicy(successor);
+    const findPolicy = h.policies.findReleasePolicy.bind(h.policies);
+    // Controlled absence at the read port, not a supported database publication without its FK.
+    vi.spyOn(h.policies, "findReleasePolicy").mockImplementation((scope, id) =>
+      id === h.policy.policyVersionId ? Promise.resolve(null) : findPolicy(scope, id),
+    );
+    const output = await h.execute(
+      withLimits({ ...h.request, policy: releasePolicyReference(successor) }, {}),
+    );
+    if (output.status !== "artifacts_captured") throw new Error("Expected artifacts");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const nodeIndex = graph.nodes.findIndex(
+      ({ read }) =>
+        read.source.kind === "release_policy" &&
+        read.source.reference.policyVersionId === h.policy.policyVersionId,
+    );
+    expect(graph.nodes[nodeIndex]).toMatchObject({
+      read: { observation: { status: "missing" } },
+      references: null,
+    });
+    expect(
+      output.sourceGuards.find(
+        ({ kind, id }) => kind === "release_policy" && id === h.policy.policyVersionId,
+      )?.origins,
+    ).toEqual([{ kind: "policy_node", nodeIndex }]);
   });
 
   it("preflights restricted references before any artifact lookup and permits explicit access", async () => {
@@ -758,6 +880,7 @@ describe("request-rooted authorized artifact capture", () => {
     expect(publicApi).not.toHaveProperty("acquirePolicyRecordGraph");
     expect(publicApi).not.toHaveProperty("AcquisitionBudget");
     expect(publicApi).not.toHaveProperty("inspectCapturedFixtureBindings");
+    expect(publicApi).not.toHaveProperty("deriveCapturedPolicySourceGuards");
   });
 });
 

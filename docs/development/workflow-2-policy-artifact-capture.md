@@ -3,7 +3,7 @@
 [English](workflow-2-policy-artifact-capture.md) | [한국어](workflow-2-policy-artifact-capture.ko.md)
 
 Status: graph/trace artifact acquisition, recorded-fixture bindings and static policy-authority
-prerequisite inspection and terminal policy lifecycle observations implemented.
+prerequisite inspection, terminal policy lifecycle observations and request-owned guard coordinates implemented.
 Complete semantic closure, mutable authority, guarded snapshot sealing and Workflow 2 checkpoint 3
 remain open.
 
@@ -79,6 +79,13 @@ release approval. Inspection reference usage is reported separately from acquisi
 The subsequent [terminal lifecycle capture](workflow-2-policy-lifecycle-capture.md) observes exact
 policy history before and after object reads, retaining full event/successor hashes and rejecting
 detected changes. It does not replace the required future atomic revision guard and snapshot seal.
+
+The [request-owned source guard plan](workflow-2-policy-source-guard-plan.md) now derives every
+known artifact/policy coordinate in the installed serialization domain, including missing versions,
+unsupported descriptors, repeat origins and retained successors. Its exact canonical array bytes
+additionally consume the same metadata ceiling; no new evidence-reference occurrence or I/O is
+introduced. The final clock/expiry cut follows derivation. A coordinate is not an acquired lock,
+complete recursive closure, independently revalidated revision or a sealed snapshot.
 
 Graph reads, trace rows, both catalog reads, terminal history/successor reads and raw JSON consume
 one metadata budget. The raw admission wrapper rejects getters, hidden/non-JSON fields and cycles before domain

@@ -41,6 +41,11 @@ import {
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+import {
+  deriveCapturedPolicySourceGuards,
+  type PolicyEvaluationSourceGuard,
+  type PolicyEvaluationSourceGuardUsage,
+} from "./derive-source-guards.js";
 
 /** Artifact capture additionally observes the complete authoritative terminal policy history. */
 export type PolicyArtifactEvidenceRepositories = PolicyRecordGraphRepositories & {
@@ -65,12 +70,14 @@ export type PolicyArtifactEvidenceCapture = {
   readonly completedAt: string;
   readonly usage: ReturnType<AcquisitionBudget["usage"]> & {
     readonly artifacts: ReturnType<AcquisitionBudget["artifactUsage"]>;
+    readonly sourceGuards: PolicyEvaluationSourceGuardUsage;
   };
 } & (
   | { readonly status: "roots_unavailable" }
   | {
       readonly status: "artifacts_captured";
       readonly artifacts: readonly PolicyArtifactCapture[];
+      readonly sourceGuards: readonly PolicyEvaluationSourceGuard[];
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly policyAuthority: PolicyAuthorityPrerequisites;
       readonly policyLifecycle: {
@@ -88,7 +95,8 @@ function canonical(value: unknown): string {
  * Request-rooted graph, comparison, trace and authorized artifact acquisition. The caller must
  * authorize metadata/trace ports separately; artifact access does not grant those permissions.
  * This checks recorded-fixture bindings, static policy-authority prerequisites and terminal
- * lifecycle observations, NOT complete semantic/mutable authority or a sealed policy snapshot.
+ * lifecycle observations and derives installed-domain guard coordinates, NOT acquired locks,
+ * complete semantic/mutable authority or a sealed policy snapshot.
  */
 export async function capturePolicyArtifactEvidence(
   input: unknown,
@@ -128,9 +136,18 @@ export async function capturePolicyArtifactEvidence(
   )
     throw new InvalidPolicyEvaluationRequestRecordError("Request time follows artifact capture");
   const budget = new AcquisitionBudget(request.limits);
+  let sourceGuardUsage: PolicyEvaluationSourceGuardUsage = {
+    resources: 0,
+    origins: 0,
+    canonicalBytes: 0,
+  };
   try {
     const traceCapture = await acquirePolicyTraceEvidence(request, repositories, evidence, budget);
-    const usage = () => ({ ...budget.usage(), artifacts: budget.artifactUsage() });
+    const usage = () => ({
+      ...budget.usage(),
+      artifacts: budget.artifactUsage(),
+      sourceGuards: sourceGuardUsage,
+    });
     if (traceCapture.status === "roots_unavailable")
       return {
         status: "roots_unavailable",
@@ -217,6 +234,17 @@ export async function capturePolicyArtifactEvidence(
     );
     if (beforeArtifacts.observationSha256 !== afterArtifacts.observationSha256)
       throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+    const sourceGuardPlan = deriveCapturedPolicySourceGuards(
+      {
+        request,
+        graph: traceCapture.comparisonCapture.graph,
+        traceReferences: traceCapture.artifactReferences,
+        artifacts,
+        lifecycle: afterArtifacts,
+      },
+      budget,
+    );
+    sourceGuardUsage = sourceGuardPlan.usage;
     const completedAt = clock.now().toISOString();
     for (const { read } of artifacts) {
       if (
@@ -233,6 +261,7 @@ export async function capturePolicyArtifactEvidence(
       startedAt,
       completedAt,
       artifacts,
+      sourceGuards: sourceGuardPlan.guards,
       fixtureBindings,
       policyAuthority,
       policyLifecycle: { beforeArtifacts, afterArtifacts },
