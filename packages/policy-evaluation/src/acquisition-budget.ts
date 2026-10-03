@@ -145,6 +145,7 @@ export class AcquisitionBudget {
             // A complete terminal-history lookup is not a one-record shortcut for its members.
             if (
               (property === "listReleasePolicyLifecycleEvents" ||
+                property === "listCriterionSetStatuses" ||
                 property === "listPolicyHistory") &&
               Array.isArray(value)
             )

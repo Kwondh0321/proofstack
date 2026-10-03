@@ -151,6 +151,23 @@ describe("record acquisition budget", () => {
     expect(empty.usage().records).toBe(1);
   });
 
+  it("counts every criterion history row on repeated reads instead of charging one array", async () => {
+    const read = vi.fn(async () => [{ statusRecordId: "first" }, { statusRecordId: "second" }]);
+    const budget = new AcquisitionBudget({ ...limits, maxAcquisitionRecords: 6 });
+    const port = budget.wrap({ listCriterionSetStatuses: read });
+    await port.listCriterionSetStatuses();
+    await port.listCriterionSetStatuses();
+    expect(budget.usage()).toMatchObject({ records: 6, reads: 2 });
+    await expect(port.listCriterionSetStatuses()).rejects.toMatchObject({ reason: "record_limit" });
+    expect(read).toHaveBeenCalledTimes(2);
+    const short = new AcquisitionBudget({ ...limits, maxAcquisitionRecords: 5 });
+    const shortPort = short.wrap({ listCriterionSetStatuses: read });
+    await shortPort.listCriterionSetStatuses();
+    await expect(shortPort.listCriterionSetStatuses()).rejects.toMatchObject({
+      reason: "record_limit",
+    });
+  });
+
   it("shares the exact byte ceiling between raw responses and reference occurrences", async () => {
     const value = { text: "한글" };
     const bytes = Buffer.byteLength(JSON.stringify(value));

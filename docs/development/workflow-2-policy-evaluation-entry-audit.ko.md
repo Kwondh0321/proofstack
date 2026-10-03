@@ -280,6 +280,11 @@ dataset/fixture·replay·trace의 기존 검증을 다른 연결이나 트랜잭
 이는 보호된 전체 조회를 구성할 기반이며, 전체 reverse authority 이력·closure 발행·seal을
 추가하거나 기존 source recheck 보고서의 수명을 바꾸지 않습니다.
 
+후속 [criterion 상태 이력 전체 조회](workflow-2-criterion-status-history.ko.md)는 정확한 scope에서
+한도 내 전체 상태를 반환하며 최신 상태를 고르거나 분기·terminal·나중 receipt를 제거하지
+않습니다. 메모리/PostgreSQL 공통 검사, 평가 행 정규화와 이력별 누적 한도를 제공합니다.
+현재 head 선택·capture/seal·checkpoint 3 승인은 여전히 후속 작업입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

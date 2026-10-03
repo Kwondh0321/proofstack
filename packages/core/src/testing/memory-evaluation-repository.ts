@@ -18,6 +18,13 @@ import type {
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
+import { EvidenceScopeSchema } from "@proofstack/contracts";
+import {
+  admitCriterionStatusHistory,
+  type CriterionStatusHistoryLimits,
+  type CriterionStatusHistoryRepository,
+  requireCriterionStatusHistoryLimits,
+} from "../evaluation/criterion-status-history.js";
 import {
   type EvaluationStoredRecord,
   evaluationRecordId,
@@ -458,8 +465,32 @@ export function evaluationRecordUniqueBinding(
 }
 
 /** Exact-scope, immutable in-memory implementation of the complete evaluation repository port. */
-export class MemoryEvaluationRepository implements EvaluationRepository {
+export class MemoryEvaluationRepository
+  implements EvaluationRepository, CriterionStatusHistoryRepository
+{
   private readonly tenants = new Map<string, TenantState>();
+
+  async listCriterionSetStatuses(
+    scopeInput: EvidenceScope,
+    limitsInput: CriterionStatusHistoryLimits,
+  ) {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const limits = requireCriterionStatusHistoryLimits(limitsInput);
+    const records: CriterionSetStatusRecord[] = [];
+    for (const [key, record] of this.tenants.get(scope.tenantId)?.records ?? []) {
+      if (!key.startsWith("criterion_set_status:") || !scopesEqual(record.scope, scope)) continue;
+      records.push(record as CriterionSetStatusRecord);
+      if (records.length > limits.maxRecords) break;
+    }
+    records.sort((left, right) =>
+      left.statusRecordId < right.statusRecordId
+        ? -1
+        : left.statusRecordId > right.statusRecordId
+          ? 1
+          : 0,
+    );
+    return admitCriterionStatusHistory(scope, records, limits);
+  }
 
   private async find<RecordType>(
     kind: EvaluationRecordKind,

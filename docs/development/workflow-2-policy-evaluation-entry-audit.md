@@ -327,6 +327,12 @@ opening another connection or ending the caller's transaction. Their extraction 
 guarded composition; it does not add complete reverse authority histories, closure publication or
 a seal, and does not change the existing source recheck report's lifetime.
 
+The subsequent [complete criterion status history reader](workflow-2-criterion-status-history.md)
+provides bounded exact-scope enumeration without choosing a latest status or filtering away
+branches, terminal records or later receipts. Shared memory/PostgreSQL conformance, normalized
+evaluation-row checks and per-history-row cumulative admission support the later authority
+interpreter. It does not itself select a current head, add capture/sealing or accept checkpoint 3.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

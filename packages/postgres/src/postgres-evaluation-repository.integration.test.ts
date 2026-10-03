@@ -1,13 +1,24 @@
-import { digestEvaluationRecordDefinition, EvaluationRecordConflictError } from "@proofstack/core";
+import {
+  digestEvaluationRecordDefinition,
+  EvaluationRecordConflictError,
+  EvaluationRepositoryContractError,
+} from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
+  criterionStatusHistoryConformanceCases,
+  criterionStatusHistoryFixture,
   evaluationRepositoryConformanceCases,
   publishEvaluationFixture,
 } from "@proofstack/core/testing";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
-import { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
+import {
+  listPostgresCriterionSetStatusesOnClient,
+  PostgresEvaluationRepository,
+  readPostgresEvaluationRecordOnClient,
+} from "./postgres-evaluation-repository.js";
+import { withExactReadCommittedScopeTransaction } from "./tenant-transaction.js";
 
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
 if (!databaseUrl) {
@@ -95,6 +106,132 @@ function harness(namespace: string) {
 }
 
 describe("PostgresEvaluationRepository contract", () => {
+  it.each([
+    ["lineage count", "lineage_count = lineage_count + 1"],
+    ["unexpected attempt projection", "attempt_id = 'att_corrupt_history', attempt_sequence = 1"],
+  ])(
+    "rejects stored %s corruption without returning a valid history prefix",
+    async (_label, mutation) => {
+      const fixture = harness(
+        `history_corrupt_${_label === "lineage count" ? "count" : "attempt"}`,
+      );
+      for (const record of fixture.records)
+        await publishEvaluationFixture(fixture.repository, record);
+      const status = fixture.records.find((record) => record.kind === "criterion_set_status");
+      if (status?.kind !== "criterion_set_status") throw new Error("Missing status fixture");
+      const limits = { maxRecords: 10, maxRecordBytes: 100_000 };
+      const before = await fixture.repository.listCriterionSetStatuses(fixture.scope, limits);
+      const client = await adminPool.connect();
+      try {
+        await client.query("BEGIN");
+        // Isolated admin corruption fixture. CHECK constraints remain enabled; rollback restores
+        // the row and session setting. This is not a runtime-role bypass or a changed migration.
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        await client.query(
+          `UPDATE public.proofstack_evaluation_records SET ${mutation}
+        WHERE tenant_id = $1 AND record_kind = 'criterion_set_status' AND record_id = $2`,
+          [fixture.scope.tenantId, status.record.statusRecordId],
+        );
+        await expect(
+          listPostgresCriterionSetStatusesOnClient(client, fixture.scope, limits),
+        ).rejects.toBeInstanceOf(EvaluationRepositoryContractError);
+        await expect(
+          readPostgresEvaluationRecordOnClient(
+            client,
+            fixture.scope,
+            "criterion_set_status",
+            status.record.statusRecordId,
+          ),
+        ).rejects.toBeInstanceOf(EvaluationRepositoryContractError);
+      } finally {
+        await client.query("ROLLBACK");
+        client.release();
+      }
+      expect(await fixture.repository.listCriterionSetStatuses(fixture.scope, limits)).toEqual(
+        before,
+      );
+    },
+  );
+
+  it("prevents a new status phantom from committing across a held complete metadata cut", async () => {
+    const fixture = harness("history_guarded_cut");
+    for (const record of fixture.records)
+      await publishEvaluationFixture(fixture.repository, record);
+    const previous = fixture.records.find(
+      (record) => record.kind === "criterion_set_status" && record.record.status === "approved",
+    );
+    if (previous?.kind !== "criterion_set_status") throw new Error("Missing approved status");
+    const next = criterionStatusHistoryFixture(previous.record, {
+      statusRecordId: "csr_guarded_withdrawal",
+      status: "withdrawn",
+      expiresAt: undefined,
+      previousStatus: {
+        statusRecordId: previous.record.statusRecordId,
+        definitionSha256: previous.record.definitionSha256,
+      },
+    });
+    const limits = { maxRecords: 10, maxRecordBytes: 100_000 };
+    const before = await fixture.repository.listCriterionSetStatuses(fixture.scope, limits);
+    let pending: Promise<unknown> | undefined;
+    let failed = false;
+    let failure: unknown;
+    try {
+      await withExactReadCommittedScopeTransaction(adminPool, fixture.scope, async (client) => {
+        expect(
+          (
+            await client.query(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows,
+        ).toEqual([{ acquired: true }]);
+        const pid = (await client.query("SELECT pg_backend_pid() AS pid")).rows[0]?.pid;
+        pending = fixture.repository.publishCriterionSetStatus(next).catch((error: unknown) => {
+          failed = true;
+          failure = error;
+        });
+        await expect
+          .poll(
+            async () => {
+              if (failed) throw failure;
+              return (
+                await adminPool.query<{ count: number }>(
+                  "SELECT count(*)::int AS count FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)) AND wait_event = 'advisory'",
+                  [pid],
+                )
+              ).rows[0]?.count;
+            },
+            { timeout: 5_000, interval: 20 },
+          )
+          .toBeGreaterThan(0);
+        const suppliedScope = { ...fixture.scope };
+        const suppliedLimits = { ...limits };
+        const view = {
+          query: async (sql: string, values?: unknown[]) => {
+            const result = await client.query(sql, values);
+            suppliedScope.tenantId = "ten_changed_during_read";
+            suppliedLimits.maxRecords = 0;
+            suppliedLimits.maxRecordBytes = 2;
+            return result;
+          },
+        } as Pick<PoolClient, "query">;
+        expect(
+          await listPostgresCriterionSetStatusesOnClient(view, suppliedScope, suppliedLimits),
+        ).toEqual(before);
+      });
+      await pending;
+      if (failed) throw failure;
+      const after = await fixture.repository.listCriterionSetStatuses(fixture.scope, limits);
+      expect(after).toHaveLength(before.length + 1);
+      expect(after.some(({ statusRecordId }) => statusRecordId === next.statusRecordId)).toBe(true);
+    } finally {
+      // The owning transaction helper has already committed or rolled back before draining.
+      await pending;
+    }
+  });
+
+  for (const testCase of criterionStatusHistoryConformanceCases) {
+    it(testCase.name, () => testCase.run(harness));
+  }
   for (const testCase of evaluationRepositoryConformanceCases) {
     it(testCase.name, async () => {
       await testCase.run(harness);

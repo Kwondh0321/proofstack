@@ -19,7 +19,12 @@ import type {
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
+import { EvidenceScopeSchema } from "@proofstack/contracts";
 import {
+  admitCriterionStatusHistory,
+  CriterionStatusHistoryLimitError,
+  type CriterionStatusHistoryLimits,
+  type CriterionStatusHistoryRepository,
   EvaluationLineageError,
   EvaluationRecordConflictError,
   type EvaluationRecordKind,
@@ -32,12 +37,27 @@ import {
   evaluationRecordUniqueBinding,
   evaluationResource,
   type PublishEvaluationRecordResult,
+  requireCriterionStatusHistoryLimits,
   validateEvaluationRecord,
 } from "@proofstack/core";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { withTenantTransaction } from "./tenant-transaction.js";
 
 interface StoredRecordRow extends QueryResultRow {
+  readonly record_kind: string;
+  readonly record_id: string;
+  readonly schema_version: string;
+  readonly recorded_at_lexical: string;
+  readonly recorded_at_matches: boolean;
+  readonly actor_principal_id: string;
+  readonly resource_kind: string | null;
+  readonly resource_id: string | null;
+  readonly lifecycle_state: string | null;
+  readonly verdict: string | null;
+  readonly run_id: string | null;
+  readonly attempt_id: string | null;
+  readonly attempt_sequence: number | null;
+  readonly lineage_count: number;
   readonly definition_sha256: string;
   readonly environment_id: string;
   readonly project_id: string;
@@ -353,6 +373,11 @@ async function acquireLocks(client: PoolClient, keys: readonly string[]): Promis
   }
 }
 
+const SELECT_EVALUATION_COLUMNS = `tenant_id, project_id, environment_id, record_kind, record_id,
+  schema_version, definition_sha256, recorded_at_lexical, actor_principal_id,
+  resource_kind, resource_id, lifecycle_state, verdict, run_id, attempt_id, attempt_sequence,
+  lineage_count, record, recorded_at = recorded_at_lexical::timestamptz AS recorded_at_matches`;
+
 async function loadStored(
   client: Pick<PoolClient, "query">,
   kind: EvaluationRecordKind,
@@ -360,7 +385,7 @@ async function loadStored(
   recordId: string,
 ): Promise<StoredRecordRow | null> {
   const result = await client.query<StoredRecordRow>(
-    `SELECT tenant_id, project_id, environment_id, definition_sha256, record
+    `SELECT ${SELECT_EVALUATION_COLUMNS}
      FROM public.proofstack_evaluation_records
      WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3`,
     [tenantId, kind, recordId],
@@ -371,11 +396,32 @@ async function loadStored(
 function parseStored(kind: EvaluationRecordKind, row: StoredRecordRow): EvaluationStoredRecord {
   try {
     const record = validateEvaluationRecord(kind, row.record);
+    const projected = projection(kind, record);
+    const resource = evaluationResource(kind, record);
+    const referenceCount = new Set(
+      evaluationRecordReferences(kind, record).map(
+        ({ recordKind, recordId }) => `${recordKind}:${recordId}`,
+      ),
+    ).size;
     if (
       record.scope.tenantId !== row.tenant_id ||
       record.scope.projectId !== row.project_id ||
       record.scope.environmentId !== row.environment_id ||
-      record.definitionSha256 !== row.definition_sha256
+      record.definitionSha256 !== row.definition_sha256 ||
+      kind !== row.record_kind ||
+      evaluationRecordId(kind, record) !== row.record_id ||
+      record.schemaVersion !== row.schema_version ||
+      projected.recordedAt !== row.recorded_at_lexical ||
+      row.recorded_at_matches !== true ||
+      projected.actorPrincipalId !== row.actor_principal_id ||
+      projected.attemptId !== row.attempt_id ||
+      projected.attemptSequence !== row.attempt_sequence ||
+      projected.lifecycleState !== row.lifecycle_state ||
+      projected.runId !== row.run_id ||
+      projected.verdict !== row.verdict ||
+      (resource?.kind ?? null) !== row.resource_kind ||
+      (resource?.resourceId ?? null) !== row.resource_id ||
+      referenceCount !== row.lineage_count
     ) {
       throw new Error("normalized columns differ from the canonical record");
     }
@@ -449,8 +495,49 @@ export async function readPostgresEvaluationRecordOnClient<K extends EvaluationR
     : null;
 }
 
-export class PostgresEvaluationRepository implements EvaluationRepository {
+/**
+ * Complete exact-scope status scan. Do not filter on an unvalidated JSON selector or choose a
+ * latest row. The caller owns transaction/guards; overflow is an error, never a truncated history.
+ */
+export async function listPostgresCriterionSetStatusesOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  limitsInput: CriterionStatusHistoryLimits,
+): Promise<readonly CriterionSetStatusRecord[]> {
+  const scope = EvidenceScopeSchema.parse(scopeInput);
+  const limits = requireCriterionStatusHistoryLimits(limitsInput);
+  const result = await client.query<StoredRecordRow>(
+    `SELECT ${SELECT_EVALUATION_COLUMNS}
+     FROM public.proofstack_evaluation_records
+     WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
+       AND record_kind = 'criterion_set_status'
+     ORDER BY record_id COLLATE "C" LIMIT $4`,
+    [scope.tenantId, scope.projectId, scope.environmentId, limits.maxRecords + 1],
+  );
+  // Reject the overflow sentinel before parsing or accepting any partial list.
+  if (result.rows.length > limits.maxRecords) throw new CriterionStatusHistoryLimitError("records");
+  return admitCriterionStatusHistory(
+    scope,
+    result.rows.map((row) => parseStored("criterion_set_status", row)),
+    limits,
+  );
+}
+
+export class PostgresEvaluationRepository
+  implements EvaluationRepository, CriterionStatusHistoryRepository
+{
   constructor(private readonly pool: Pick<Pool, "connect">) {}
+
+  async listCriterionSetStatuses(
+    scopeInput: EvidenceScope,
+    limitsInput: CriterionStatusHistoryLimits,
+  ) {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const limits = requireCriterionStatusHistoryLimits(limitsInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      listPostgresCriterionSetStatusesOnClient(client, scope, limits),
+    );
+  }
 
   private async find<K extends EvaluationRecordKind>(
     kind: K,

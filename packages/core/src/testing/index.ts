@@ -14,6 +14,10 @@ export {
   createComparisonRepositoryTestHarness,
 } from "./comparison-repository-fixtures.js";
 export {
+  criterionStatusHistoryConformanceCases,
+  criterionStatusHistoryFixture,
+} from "./criterion-status-history-conformance.js";
+export {
   type EvaluationRepositoryConformanceCase,
   type EvaluationRepositoryFixtureRecord,
   type EvaluationRepositoryTestFactory,
@@ -52,6 +56,12 @@ export {
   releaseCandidateFixtureScope,
 } from "./release-candidate-repository-fixtures.js";
 export {
+  anyPolicySourceScope,
+  type PolicyAuthorityFixture,
+  type PolicyAuthorityFixtureOptions,
+  policyAuthorityFixture,
+} from "./release-policy-fixtures.js";
+export {
   type ReleasePolicyRepositoryConformanceCase,
   type ReleasePolicyRepositoryTestFactory,
   releasePolicyRepositoryConformanceCases,
@@ -63,9 +73,3 @@ export {
   releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
 } from "./release-policy-repository-fixtures.js";
-export {
-  anyPolicySourceScope,
-  type PolicyAuthorityFixture,
-  type PolicyAuthorityFixtureOptions,
-  policyAuthorityFixture,
-} from "./release-policy-fixtures.js";

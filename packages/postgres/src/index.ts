@@ -52,6 +52,7 @@ export {
   PostgresConsumerReceiptRepository,
 } from "./postgres-consumer-receipt-repository.js";
 export {
+  listPostgresCriterionSetStatusesOnClient,
   type PostgresEvaluationRecordByKind,
   PostgresEvaluationRepository,
   readPostgresEvaluationRecordOnClient,
