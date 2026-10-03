@@ -17,9 +17,17 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { loadBundledMigrations } from "./migrations.js";
-import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
+import {
+  PostgresArtifactCatalogRepository,
+  readPostgresArtifactCatalogOnClient,
+} from "./postgres-artifact-catalog-repository.js";
 import { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
-import { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
+import {
+  listPostgresReleasePolicyLifecycleEventsOnClient,
+  PostgresReleasePolicyRepository,
+  readPostgresReleasePolicyLifecycleEventOnClient,
+  readPostgresReleasePolicyOnClient,
+} from "./postgres-release-policy-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
 import { withExactScopeTransaction } from "./tenant-transaction.js";
 
@@ -323,7 +331,8 @@ describe("policy evaluation database source serialization", () => {
         "artifact",
         "art_guard",
         () => artifacts.reserve(entry),
-        async () => {
+        async (client) => {
+          expect(await readPostgresArtifactCatalogOnClient(client, target, "art_guard")).toBeNull();
           expect(await artifacts.find(target, "art_guard")).toBeNull();
         },
         end,
@@ -372,7 +381,10 @@ describe("policy evaluation database source serialization", () => {
               occurredAt: "2026-08-29T07:00:00.000Z",
             });
         },
-        async () => {
+        async (client) => {
+          expect(await readPostgresArtifactCatalogOnClient(client, target, "art_guard")).toEqual(
+            before,
+          );
           expect(await artifacts.find(target, "art_guard")).toEqual(before);
         },
       );
@@ -408,7 +420,10 @@ describe("policy evaluation database source serialization", () => {
       "artifact",
       "art_guard",
       () => withExactScopeTransaction(api, target, write),
-      async () => {
+      async (client) => {
+        expect(
+          (await readPostgresArtifactCatalogOnClient(client, target, "art_guard"))?.metadata.state,
+        ).toBe("reserved");
         expect((await artifacts.find(target, "art_guard"))?.metadata.state).toBe("reserved");
       },
     );
@@ -473,7 +488,28 @@ describe("policy evaluation database source serialization", () => {
               ]),
             );
           },
-          async () => {
+          async (client) => {
+            expect(
+              await readPostgresReleasePolicyOnClient(
+                client,
+                fixture.scope,
+                fixture.policy.policyVersionId,
+              ),
+            ).toEqual(fixture.policy);
+            expect(
+              await listPostgresReleasePolicyLifecycleEventsOnClient(
+                client,
+                fixture.scope,
+                fixture.policy.policyVersionId,
+              ),
+            ).toEqual([]);
+            expect(
+              await readPostgresReleasePolicyLifecycleEventOnClient(
+                client,
+                fixture.scope,
+                event.eventId,
+              ),
+            ).toBeNull();
             expect(
               await policies.listReleasePolicyLifecycleEvents(
                 fixture.scope,
@@ -539,7 +575,10 @@ describe("policy evaluation database source serialization", () => {
       "artifact",
       "art_guard",
       () => artifacts.reserve(reserved(target)),
-      async () => {
+      async (client) => {
+        expect(
+          await readPostgresArtifactCatalogOnClient(client, guardScope, "art_guard"),
+        ).toBeNull();
         expect(await artifacts.find(guardScope, "art_guard")).toBeNull();
       },
     );
@@ -569,7 +608,14 @@ describe("policy evaluation database source serialization", () => {
       "release_policy",
       fixture.policy.policyVersionId,
       () => policies.publishReleasePolicy(fixture.policy),
-      async () => {
+      async (client) => {
+        expect(
+          await readPostgresReleasePolicyOnClient(
+            client,
+            fixture.scope,
+            fixture.policy.policyVersionId,
+          ),
+        ).toBeNull();
         expect(
           await policies.findReleasePolicy(fixture.scope, fixture.policy.policyVersionId),
         ).toBeNull();
@@ -651,7 +697,10 @@ describe("policy evaluation database source serialization", () => {
       "artifact",
       artifactId,
       () => repository.publishRecordedInteractionFixtureVersion(fixture),
-      async () => {
+      async (client) => {
+        expect(await readPostgresArtifactCatalogOnClient(client, target, artifactId)).toEqual(
+          before,
+        );
         expect(await artifacts.find(target, artifactId)).toEqual(before);
       },
     );

@@ -223,6 +223,12 @@ worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 
 마이그레이션·암호문 호환성·복구 권한·정확한 커밋의 승인 검사를 통과해야 합니다. 이 수정은
 입력 봉인이나 Workflow 2의 추가 체크포인트 완료가 아닙니다.
 
+[트랜잭션 내부 정규화 읽기](workflow-2-policy-transaction-reads.ko.md)는 호출자가 소유한 DB
+연결에서 기존 아티팩트·정책 어댑터의 전체 검증을 공유합니다. 별도 트랜잭션을 열거나 문맥·
+수명을 바꾸지 않고 정확한 스코프·원 영수증·소유권·canonical 투영을 유지합니다. 실제 트랜잭션과
+출처 잠금 회귀 검사로 연결 경계를 검증합니다. 신뢰된 잠금 대상 도출·전체 관측 비교·작업/fence
+검증·원자적 스냅샷 발행은 남아 있으며 이 전제조건으로 세 번째 체크포인트를 닫지 않습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

@@ -593,7 +593,7 @@ async function findTombstone(
 }
 
 async function findOwnership(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   artifactId: string,
 ): Promise<ArtifactOwnership | null> {
@@ -620,6 +620,35 @@ async function findOwnership(
   );
   const row = result.rows[0];
   return row ? storedOwnership(row) : null;
+}
+
+/**
+ * Reads the complete normalized catalog entry on the caller's connection, including ownership.
+ * The trusted caller must establish authorized scope, transaction lifetime and any source guards.
+ * This function never opens/ends a transaction, changes scope or performs object/key I/O.
+ */
+export async function readPostgresArtifactCatalogOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  artifactId: string,
+): Promise<ArtifactCatalogEntry | null> {
+  const context = { ...scope };
+  const result = await client.query<StoredArtifactRow>(
+    `
+      SELECT ${SELECT_ARTIFACT_COLUMNS}
+      FROM public.proofstack_artifact_catalog
+      WHERE tenant_id = $1
+        AND project_id = $2
+        AND environment_id = $3
+        AND artifact_id = $4
+    `,
+    [context.tenantId, context.projectId, context.environmentId, artifactId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const entry = storedEntry(row);
+  const ownership = await findOwnership(client, context, artifactId);
+  return ownership ? { ...entry, ownership } : entry;
 }
 
 export class PostgresArtifactCatalogRepository implements ArtifactCatalogRepository {
@@ -649,24 +678,9 @@ export class PostgresArtifactCatalogRepository implements ArtifactCatalogReposit
   }
 
   async find(scope: EvidenceScope, artifactId: string): Promise<ArtifactCatalogEntry | null> {
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const result = await client.query<StoredArtifactRow>(
-        `
-          SELECT ${SELECT_ARTIFACT_COLUMNS}
-          FROM public.proofstack_artifact_catalog
-          WHERE tenant_id = $1
-            AND project_id = $2
-            AND environment_id = $3
-            AND artifact_id = $4
-        `,
-        [scope.tenantId, scope.projectId, scope.environmentId, artifactId],
-      );
-      const row = result.rows[0];
-      if (!row) return null;
-      const entry = storedEntry(row);
-      const ownership = await findOwnership(client, scope, artifactId);
-      return ownership ? { ...entry, ownership } : entry;
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresArtifactCatalogOnClient(client, scope, artifactId),
+    );
   }
 
   async findPurgeReceipt(

@@ -39,6 +39,7 @@ export {
 export {
   PostgresArtifactCatalogRepository,
   PostgresArtifactDataIntegrityError,
+  readPostgresArtifactCatalogOnClient,
 } from "./postgres-artifact-catalog-repository.js";
 export {
   MAX_CONSUMER_RECEIPT_ERROR_LENGTH,
@@ -50,7 +51,12 @@ export { PostgresComparisonRepository } from "./postgres-comparison-repository.j
 export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
 export { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
-export { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
+export {
+  listPostgresReleasePolicyLifecycleEventsOnClient,
+  PostgresReleasePolicyRepository,
+  readPostgresReleasePolicyLifecycleEventOnClient,
+  readPostgresReleasePolicyOnClient,
+} from "./postgres-release-policy-repository.js";
 export {
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,

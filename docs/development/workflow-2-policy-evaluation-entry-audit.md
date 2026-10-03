@@ -261,6 +261,13 @@ native receipt precision. Migration, ciphertext compatibility, restore permissio
 acceptance must pass before guarded publication; this repair is not snapshot sealing or another
 completed Workflow 2 checkpoint.
 
+The [transaction-local normalized reads](workflow-2-policy-transaction-reads.md) now share the
+existing artifact and policy adapters' complete validation on a caller-owned database connection.
+They preserve exact scope, original receipts, ownership and canonical projections without opening
+another transaction or changing its context/lifetime. Real transaction and source-lock regressions
+cover the connection boundary. Trusted guard-set derivation, full observation comparison, job/fence
+validation and atomic snapshot publication remain open; this prerequisite does not close checkpoint 3.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

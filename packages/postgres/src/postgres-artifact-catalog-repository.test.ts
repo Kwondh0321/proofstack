@@ -9,11 +9,12 @@ import {
   type ArtifactTombstone,
   policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   PostgresArtifactCatalogRepository,
   PostgresArtifactDataIntegrityError,
+  readPostgresArtifactCatalogOnClient,
 } from "./postgres-artifact-catalog-repository.js";
 
 interface StoredRow extends Record<string, unknown> {
@@ -446,6 +447,55 @@ describe("PostgresArtifactCatalogRepository contract", () => {
     await expect(
       repository.find(entry.metadata.scope, entry.metadata.contentReference.artifactId),
     ).rejects.toBeInstanceOf(PostgresArtifactDataIntegrityError);
+  });
+
+  it("pins scope across catalog and ownership reads without taking over the client", async () => {
+    const client = new ArtifactCatalogFakeClient();
+    const repository = new PostgresArtifactCatalogRepository(poolWith(client));
+    const entry = candidate();
+    const ownership: ArtifactOwnership = {
+      artifactId: entry.metadata.contentReference.artifactId,
+      boundAt: "2026-08-28T03:02:00.000Z",
+      boundByPrincipalId: "usr_fixture_publisher",
+      owner: {
+        fixtureId: "fix_postgres_catalog",
+        fixtureVersionId: "fixv_postgres_catalog_001",
+        kind: "regression_fixture_version",
+      },
+      schemaVersion: "0.1",
+      scope: entry.metadata.scope,
+    };
+    await repository.reserve(entry);
+    client.bindOwnership(ownership);
+    const scope = structuredClone(entry.metadata.scope);
+    const previousQueries = client.queries.length;
+    const previousReleases = client.releaseArguments.length;
+    const port = {
+      query: async (text: string, values: readonly unknown[]) => {
+        const result = await client.query(text, values);
+        if (text.includes("FROM public.proofstack_artifact_catalog")) {
+          scope.tenantId = "ten_port_mutated";
+          scope.projectId = "prj_port_mutated";
+          scope.environmentId = "env_port_mutated";
+        }
+        return result;
+      },
+    } as unknown as Pick<PoolClient, "query">;
+    await expect(
+      readPostgresArtifactCatalogOnClient(port, scope, entry.metadata.contentReference.artifactId),
+    ).resolves.toEqual({ ...entry, ownership });
+    const queries = client.queries.slice(previousQueries);
+    expect(queries).toHaveLength(2);
+    for (const query of queries) {
+      expect(query.text.trimStart().startsWith("SELECT")).toBe(true);
+      expect(query.values).toEqual([
+        entry.metadata.scope.tenantId,
+        entry.metadata.scope.projectId,
+        entry.metadata.scope.environmentId,
+        entry.metadata.contentReference.artifactId,
+      ]);
+    }
+    expect(client.releaseArguments).toHaveLength(previousReleases);
   });
 
   it.each([

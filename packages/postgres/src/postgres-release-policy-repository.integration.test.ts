@@ -20,7 +20,12 @@ import {
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
-import { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
+import {
+  listPostgresReleasePolicyLifecycleEventsOnClient,
+  PostgresReleasePolicyRepository,
+  readPostgresReleasePolicyLifecycleEventOnClient,
+  readPostgresReleasePolicyOnClient,
+} from "./postgres-release-policy-repository.js";
 import {
   provisionRuntimeRoles,
   type RuntimeRoleCredentials,
@@ -135,6 +140,167 @@ afterAll(async () => {
 });
 
 describe("PostgresReleasePolicyRepository conformance", () => {
+  it("reads uncommitted policy and lifecycle records without ending the caller's transaction", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_client_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    await repository.publishReleasePolicy(harness.policy);
+    const client = await policyAuthorPool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('proofstack.tenant_id', $1, true),
+          set_config('proofstack.project_id', $2, true),
+          set_config('proofstack.environment_id', $3, true)`,
+        [harness.scope.tenantId, harness.scope.projectId, harness.scope.environmentId],
+      );
+      await client.query("SAVEPOINT policy_read_probe");
+      await client.query("SELECT public.proofstack_publish_release_policy($1::jsonb)", [
+        JSON.stringify(publicationCommand(harness.successor)),
+      ]);
+      const event = harness.supersession;
+      await client.query("SELECT public.proofstack_publish_release_policy_lifecycle($1::jsonb)", [
+        JSON.stringify({
+          actorPrincipalId: event.actorPrincipalId,
+          environmentId: event.scope.environmentId,
+          eventId: event.eventId,
+          occurredAt: event.occurredAt,
+          projectId: event.scope.projectId,
+          record: event,
+          schemaVersion: event.schemaVersion,
+          tenantId: event.scope.tenantId,
+        }),
+      ]);
+      expect(
+        await readPostgresReleasePolicyOnClient(
+          client,
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toEqual(harness.policy);
+      expect(
+        await readPostgresReleasePolicyOnClient(
+          client,
+          harness.scope,
+          harness.successor.policyVersionId,
+        ),
+      ).toEqual(harness.successor);
+      expect(
+        await readPostgresReleasePolicyLifecycleEventOnClient(client, harness.scope, event.eventId),
+      ).toEqual(event);
+      expect(
+        await listPostgresReleasePolicyLifecycleEventsOnClient(
+          client,
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toEqual([event]);
+      expect(
+        await repository.findReleasePolicy(harness.scope, harness.successor.policyVersionId),
+      ).toBeNull();
+      expect(
+        await repository.listReleasePolicyLifecycleEvents(
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toEqual([]);
+      const otherScope = { ...harness.scope, environmentId: "env_client_other" };
+      expect(
+        await readPostgresReleasePolicyOnClient(client, otherScope, harness.policy.policyVersionId),
+      ).toBeNull();
+      expect(
+        await readPostgresReleasePolicyLifecycleEventOnClient(client, otherScope, event.eventId),
+      ).toBeNull();
+      expect(
+        await listPostgresReleasePolicyLifecycleEventsOnClient(
+          client,
+          otherScope,
+          harness.policy.policyVersionId,
+        ),
+      ).toEqual([]);
+      await client.query("ROLLBACK TO SAVEPOINT policy_read_probe");
+      expect(
+        await readPostgresReleasePolicyOnClient(
+          client,
+          harness.scope,
+          harness.successor.policyVersionId,
+        ),
+      ).toBeNull();
+      expect(
+        await readPostgresReleasePolicyLifecycleEventOnClient(client, harness.scope, event.eventId),
+      ).toBeNull();
+      expect(
+        await listPostgresReleasePolicyLifecycleEventsOnClient(
+          client,
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toEqual([]);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(
+      await repository.findReleasePolicy(harness.scope, harness.successor.policyVersionId),
+    ).toBeNull();
+    expect(
+      await repository.listReleasePolicyLifecycleEvents(
+        harness.scope,
+        harness.policy.policyVersionId,
+      ),
+    ).toEqual([]);
+  });
+
+  it("preserves normalized policy projections and strict lifecycle checks on the caller's client", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_client_bad_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    await repository.publishReleasePolicy(harness.policy);
+    await repository.publishReleasePolicy(harness.successor);
+    await repository.publishReleasePolicyLifecycleEvent(harness.supersession);
+    const client = await adminPool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      await client.query(
+        `UPDATE public.proofstack_release_policy_rules
+         SET rule = jsonb_set(rule, '{description}', '"tampered"'::jsonb)
+         WHERE tenant_id = $1 AND policy_version_id = $2 AND rule_position = 1`,
+        [harness.scope.tenantId, harness.policy.policyVersionId],
+      );
+      await expect(
+        readPostgresReleasePolicyOnClient(client, harness.scope, harness.policy.policyVersionId),
+      ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+      await client.query(
+        `UPDATE public.proofstack_release_policy_lifecycle_events
+         SET record = record || '{"unrecognized":true}'::jsonb
+         WHERE tenant_id = $1 AND event_id = $2`,
+        [harness.scope.tenantId, harness.supersession.eventId],
+      );
+      await expect(
+        readPostgresReleasePolicyLifecycleEventOnClient(
+          client,
+          harness.scope,
+          harness.supersession.eventId,
+        ),
+      ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+      await expect(
+        listPostgresReleasePolicyLifecycleEventsOnClient(
+          client,
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(
+      await repository.findReleasePolicy(harness.scope, harness.policy.policyVersionId),
+    ).toEqual(harness.policy);
+    expect(
+      await repository.findReleasePolicyLifecycleEvent(harness.scope, harness.supersession.eventId),
+    ).toEqual(harness.supersession);
+  });
+
   it.each(
     (["withdrawn", "superseded"] as const).flatMap((kind) =>
       [false, true].map((sameActor) => ({ kind, sameActor })),

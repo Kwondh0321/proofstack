@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
   type ArtifactCatalogEntry,
   ArtifactCipher,
   ArtifactConflictError,
@@ -13,7 +14,11 @@ import { type PrincipalContext, policyEvaluationTimestampOrderKey } from "@proof
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
-import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
+import {
+  PostgresArtifactCatalogRepository,
+  PostgresArtifactDataIntegrityError,
+  readPostgresArtifactCatalogOnClient,
+} from "./postgres-artifact-catalog-repository.js";
 
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
 if (!databaseUrl) {
@@ -117,6 +122,99 @@ async function reserveTimestampProbe(expiresAt: string) {
   if (!entry) throw new Error("Reserved timestamp probe is missing");
   return { artifactId, catalog, cipher, command, entry, plaintext, principal, reserve, scope };
 }
+
+describe("transaction-local artifact catalog reads", () => {
+  it("sees its connection's uncommitted native receipts and preserves the caller's savepoint", async () => {
+    const expiresAt = "2026-09-28T12:00:00.000000000000000000000000000001+09:00";
+    const h = await reserveTimestampProbe(expiresAt);
+    const client = await runtimePool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('proofstack.tenant_id', $1, true),
+          set_config('proofstack.project_id', $2, true),
+          set_config('proofstack.environment_id', $3, true)`,
+        [h.scope.tenantId, h.scope.projectId, h.scope.environmentId],
+      );
+      await client.query("SAVEPOINT artifact_read_probe");
+      await client.query(
+        `UPDATE public.proofstack_artifact_catalog
+         SET state = 'available', available_at = $5::timestamptz,
+           object_receipt_sha256 = $6, object_receipt_size_bytes = $7
+         WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3 AND artifact_id = $4`,
+        [
+          h.scope.tenantId,
+          h.scope.projectId,
+          h.scope.environmentId,
+          h.artifactId,
+          "2026-08-28T03:01:00.000001Z",
+          "a".repeat(64),
+          h.plaintext.byteLength + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
+        ],
+      );
+      const observed = await readPostgresArtifactCatalogOnClient(client, h.scope, h.artifactId);
+      expect(observed?.metadata).toMatchObject({
+        state: "available",
+        availableAt: "2026-08-28T03:01:00.000001Z",
+        retention: { mode: "expire", expiresAt },
+      });
+      expect((await h.catalog.find(h.scope, h.artifactId))?.metadata.state).toBe("reserved");
+      expect(
+        await readPostgresArtifactCatalogOnClient(
+          client,
+          { ...h.scope, environmentId: "env_other" },
+          h.artifactId,
+        ),
+      ).toBeNull();
+      if (!observed) throw new Error("Expected the uncommitted catalog entry");
+      const mutable = observed as unknown as { metadata: { retention: { expiresAt: string } } };
+      mutable.metadata.retention.expiresAt = "2026-09-29T03:00:00Z";
+      expect(
+        (await readPostgresArtifactCatalogOnClient(client, h.scope, h.artifactId))?.metadata
+          .retention,
+      ).toEqual({ mode: "expire", expiresAt });
+      await client.query("ROLLBACK TO SAVEPOINT artifact_read_probe");
+      expect(await readPostgresArtifactCatalogOnClient(client, h.scope, h.artifactId)).toEqual(
+        h.entry,
+      );
+      expect(
+        (
+          await client.query<{ readonly contexts: string[] }>(
+            `SELECT ARRAY[current_setting('proofstack.tenant_id'),
+              current_setting('proofstack.project_id'),
+              current_setting('proofstack.environment_id')] AS contexts`,
+          )
+        ).rows,
+      ).toEqual([{ contexts: [h.scope.tenantId, h.scope.projectId, h.scope.environmentId] }]);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(await h.catalog.find(h.scope, h.artifactId)).toEqual(h.entry);
+  });
+
+  it("retains normalized expiry integrity checks on the supplied client", async () => {
+    const h = await reserveTimestampProbe("2026-09-28T03:00:00.000001Z");
+    const client = await adminPool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      await client.query(
+        `UPDATE public.proofstack_artifact_catalog
+         SET expires_at_order_key = expires_at_order_key + 1
+         WHERE tenant_id = $1 AND artifact_id = $2`,
+        [h.scope.tenantId, h.artifactId],
+      );
+      await expect(
+        readPostgresArtifactCatalogOnClient(client, h.scope, h.artifactId),
+      ).rejects.toBeInstanceOf(PostgresArtifactDataIntegrityError);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(await h.catalog.find(h.scope, h.artifactId)).toEqual(h.entry);
+  });
+});
 
 describe("artifact timestamp integrity", () => {
   it.each([

@@ -195,7 +195,7 @@ async function acquireLocks(client: PoolClient, keys: readonly string[]): Promis
 }
 
 async function loadStoredPolicy(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   policyVersionId: string,
 ): Promise<StoredReleasePolicyRow | null> {
@@ -365,7 +365,7 @@ function parseStoredPolicy(row: StoredReleasePolicyRow): ReleasePolicy {
 }
 
 async function loadStoredLifecycleEvent(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   eventId: string,
 ): Promise<StoredReleasePolicyLifecycleRow | null> {
@@ -490,6 +490,46 @@ function assertExactReference(
   return policy;
 }
 
+/** The trusted caller owns the scoped transaction and guards; this read uses only that client. */
+export async function readPostgresReleasePolicyOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  policyVersionId: string,
+): Promise<ReleasePolicy | null> {
+  const row = await loadStoredPolicy(client, scope, policyVersionId);
+  return row ? clone(parseStoredPolicy(row)) : null;
+}
+
+/** Shares the repository's complete normalized event validation without opening a transaction. */
+export async function readPostgresReleasePolicyLifecycleEventOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  eventId: string,
+): Promise<ReleasePolicyLifecycleEvent | null> {
+  const row = await loadStoredLifecycleEvent(client, scope, eventId);
+  return row ? clone(parseStoredLifecycleEvent(row)) : null;
+}
+
+/** Reads the complete retained terminal history on the caller's already scoped connection. */
+export async function listPostgresReleasePolicyLifecycleEventsOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  policyVersionId: string,
+): Promise<readonly ReleasePolicyLifecycleEvent[]> {
+  const result = await client.query<StoredReleasePolicyLifecycleRow>(
+    `SELECT tenant_id, project_id, environment_id, event_id, schema_version, kind,
+       policy_id, policy_version_id, policy_definition_sha256,
+       successor_policy_id, successor_policy_version_id, successor_definition_sha256,
+       actor_principal_id, occurred_at_lexical, reason, record
+     FROM public.proofstack_release_policy_lifecycle_events
+     WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
+       AND policy_version_id = $4
+     ORDER BY occurred_at ASC, event_id ASC`,
+    [scope.tenantId, scope.projectId, scope.environmentId, policyVersionId],
+  );
+  return result.rows.map((row) => clone(parseStoredLifecycleEvent(row)));
+}
+
 export class PostgresReleasePolicyRepository implements ReleasePolicyRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
@@ -497,40 +537,27 @@ export class PostgresReleasePolicyRepository implements ReleasePolicyRepository 
     scope: EvidenceScope,
     policyVersionId: string,
   ): Promise<ReleasePolicy | null> {
-    return withExactScopeTransaction(this.pool, scope, async (client) => {
-      const row = await loadStoredPolicy(client, scope, policyVersionId);
-      return row ? clone(parseStoredPolicy(row)) : null;
-    });
+    return withExactScopeTransaction(this.pool, scope, (client) =>
+      readPostgresReleasePolicyOnClient(client, scope, policyVersionId),
+    );
   }
 
   async findReleasePolicyLifecycleEvent(
     scope: EvidenceScope,
     eventId: string,
   ): Promise<ReleasePolicyLifecycleEvent | null> {
-    return withExactScopeTransaction(this.pool, scope, async (client) => {
-      const row = await loadStoredLifecycleEvent(client, scope, eventId);
-      return row ? clone(parseStoredLifecycleEvent(row)) : null;
-    });
+    return withExactScopeTransaction(this.pool, scope, (client) =>
+      readPostgresReleasePolicyLifecycleEventOnClient(client, scope, eventId),
+    );
   }
 
   async listReleasePolicyLifecycleEvents(
     scope: EvidenceScope,
     policyVersionId: string,
   ): Promise<readonly ReleasePolicyLifecycleEvent[]> {
-    return withExactScopeTransaction(this.pool, scope, async (client) => {
-      const result = await client.query<StoredReleasePolicyLifecycleRow>(
-        `SELECT tenant_id, project_id, environment_id, event_id, schema_version, kind,
-           policy_id, policy_version_id, policy_definition_sha256,
-           successor_policy_id, successor_policy_version_id, successor_definition_sha256,
-           actor_principal_id, occurred_at_lexical, reason, record
-         FROM public.proofstack_release_policy_lifecycle_events
-         WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
-           AND policy_version_id = $4
-         ORDER BY occurred_at ASC, event_id ASC`,
-        [scope.tenantId, scope.projectId, scope.environmentId, policyVersionId],
-      );
-      return result.rows.map((row) => clone(parseStoredLifecycleEvent(row)));
-    });
+    return withExactScopeTransaction(this.pool, scope, (client) =>
+      listPostgresReleasePolicyLifecycleEventsOnClient(client, scope, policyVersionId),
+    );
   }
 
   async publishReleasePolicy(policyInput: ReleasePolicy): Promise<PublishReleasePolicyResult> {

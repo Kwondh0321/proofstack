@@ -67,6 +67,9 @@ failed lock is also invalid. Existing writers can still encounter ordinary Postg
 or deadlock errors; the primitive does not promise contention-free operation.
 
 This protocol is a required integration contract, **not yet an installed snapshot publisher**.
+The [transaction-local normalized reads](workflow-2-policy-transaction-reads.md) now provide the
+artifact, ownership, policy and lifecycle values through the guarded connection while sharing
+the existing adapters' validation. They do not themselves acquire guards or publish snapshots.
 The current two-observation capture is unchanged. It does not acquire these locks or claim atomicity.
 The forthcoming publisher still needs full observation comparison, bounded lock accounting and
 retry/deadline handling, current migration verification, worker-only privileges, and actual guarded
