@@ -9,6 +9,9 @@
 - 프로덕션 준비 완료: 승인하지 않음
 - 정책, 승인, 배포 또는 release 권한: 포함하지 않음
 
+후속 수정(2026-10-03): [보존된 유효 기간의 정밀 시각 비교](criteria-trust-time-integrity-audit.ko.md).
+아래의 과거 승인 기록은 이 후속 경계 검토를 대신하지 않습니다.
+
 ## 결정
 
 독립 Workflow 1 종료 검토의 기준 신뢰 루트 finding을 승인합니다. ProofStack은 이제 요청자,
@@ -131,4 +134,3 @@ pnpm test:integration:postgres
 4. 공개 주장과 operator surface를 실제 지원 경계와 대조 감사합니다.
 5. 모든 로컬·원격 repository gate를 실행하고 남은 제한을 기록한 뒤에만 Workflow 1 종료 여부를
    결정합니다.
-

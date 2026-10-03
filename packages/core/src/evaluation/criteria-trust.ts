@@ -22,9 +22,9 @@ import {
   CriterionSetStatusRecordSchema,
   EvaluatorSpecSchema,
   EvidenceScopeSchema,
-  evidenceTimestampOrderKey,
   OpaqueIdSchema,
   OracleSpecSchema,
+  policyEvaluationTimestampOrderKey,
   QualificationFixtureSetSchema,
   QualificationReportSchema,
   SourceReviewerQualificationSchema,
@@ -144,11 +144,12 @@ function sameScope(left: EvidenceScope, right: EvidenceScope): boolean {
 }
 
 function atOrAfter(left: string, right: string): boolean {
-  return evidenceTimestampOrderKey(left) >= evidenceTimestampOrderKey(right);
+  return policyEvaluationTimestampOrderKey(left) >= policyEvaluationTimestampOrderKey(right);
 }
 
 function before(left: string, right: string): boolean {
-  return evidenceTimestampOrderKey(left) < evidenceTimestampOrderKey(right);
+  // Authority validity compares the retained instants, not rounded PostgreSQL cursor positions.
+  return policyEvaluationTimestampOrderKey(left) < policyEvaluationTimestampOrderKey(right);
 }
 
 function currentAt(at: string, validFrom: string, validUntil: string): boolean {

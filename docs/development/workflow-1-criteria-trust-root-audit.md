@@ -9,6 +9,9 @@
 - Production readiness: not approved
 - Policy, approval, deployment, or release authority: not included
 
+Subsequent focused correction (2026-10-03): [retained validity precision](criteria-trust-time-integrity-audit.md).
+The historical acceptance below does not substitute for that later boundary review.
+
 ## Decision
 
 The criteria trust-root finding in the independent Workflow 1 exit review is accepted. ProofStack
@@ -133,4 +136,3 @@ builder. The complete monorepo and remote checks remain the final authority for 
 4. Audit public claims and the operator surface against the actual supported boundaries.
 5. Run every local and remote repository gate, record remaining limitations, and only then decide
    whether Workflow 1 may exit.
-

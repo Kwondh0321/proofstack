@@ -154,6 +154,9 @@ stable:
 
 The actual trust result contains every applicable canonical reason, so it can contain additional
 entries beyond this abbreviated expected subset. Its `evaluatedAt` value is server time.
+Authority validity comparisons retain the exact source timestamp precision; the server's
+`evaluatedAt` response keeps its millisecond format. See the
+[validity precision review](../development/criteria-trust-time-integrity-audit.md).
 
 This is not a release decision. `eligible` would mean only that the evidence met a declared
 assessment usability policy; it would still not authorize production deployment.

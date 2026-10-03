@@ -6,8 +6,8 @@ import type {
   OracleSpec,
   QualificationFixtureSet,
   QualificationReport,
-  SourceReviewRecord,
   SourceReviewerQualification,
+  SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
 import { CriterionSetDefinitionSchema } from "@proofstack/contracts";
@@ -689,6 +689,99 @@ describe("evaluateCriteriaTrust", () => {
     qualification.credentialEvidence = [];
     expect(() => evaluateCriteriaTrust(reviewer)).toThrow(InvalidCriteriaTrustInputError);
   });
+});
+
+describe("exact retained authority validity instants", () => {
+  type Subject = "criterion" | "source" | "review" | "reviewer" | "qualification";
+  const subjects = [
+    {
+      subject: "criterion",
+      startReason: "criterion_status_not_current",
+      endReason: "criterion_status_not_current",
+    },
+    { subject: "source", startReason: "source_not_effective", endReason: "source_not_current" },
+    {
+      subject: "review",
+      startReason: "source_review_not_current",
+      endReason: "source_review_not_current",
+    },
+    {
+      subject: "reviewer",
+      startReason: "reviewer_qualification_not_current",
+      endReason: "reviewer_qualification_not_current",
+    },
+    {
+      subject: "qualification",
+      startReason: "qualification_not_current",
+      endReason: "qualification_not_current",
+    },
+  ] as const;
+  // The ordering oracle is explicit. It does not call either production timestamp-key helper.
+  const instants = [
+    { at: "2026-09-02T00:00:59.999999999999999999999999999999Z", relation: "past" },
+    { at: "2026-09-02T00:01:00.0000000Z", relation: "equal" },
+    { at: "2026-09-02T00:01:00.0000004Z", relation: "future" },
+    { at: "2026-09-02T00:01:00.000000000000000000000000000001Z", relation: "future" },
+    { at: "2026-09-02T09:01:00.0000000+09:00", relation: "equal" },
+    { at: "2026-09-02T09:01:00.0000004+09:00", relation: "future" },
+  ] as const;
+  function inputAt(
+    subject: Subject,
+    boundary: "start" | "end",
+    at: string,
+  ): EvaluateCriteriaTrustInput {
+    const input = fixture();
+    if (subject === "source")
+      return replaceSource(input, (source) => {
+        if (boundary === "start") source.effectiveAt = at;
+        else source.expiresAt = at;
+      });
+    if (subject === "review")
+      return replaceReview(input, (review) => {
+        if (boundary === "start") review.validFrom = at;
+        else review.validUntil = at;
+      });
+    if (subject === "reviewer")
+      return replaceReviewerQualification(input, (reviewer) => {
+        if (boundary === "start") reviewer.validFrom = at;
+        else reviewer.validUntil = at;
+      });
+    const value = structuredClone(input) as MutableCriteriaTrustInput;
+    if (subject === "criterion") {
+      if (!value.criterionStatus) throw new Error("Missing criterion status");
+      if (boundary === "start") value.criterionStatus.effectiveAt = at;
+      else value.criterionStatus.expiresAt = at;
+      redigest("criterion_set_status", value.criterionStatus);
+    } else {
+      const report = value.qualifications[0]?.report;
+      if (!report) throw new Error("Missing qualification report");
+      if (boundary === "start") report.validFrom = at;
+      else report.validUntil = at;
+      redigest("qualification_report", report);
+    }
+    return value;
+  }
+  it.each(
+    subjects.flatMap((subject) =>
+      (["start", "end"] as const).flatMap((boundary) =>
+        instants.map((instant) => ({ ...subject, boundary, ...instant })),
+      ),
+    ),
+  )(
+    "preserves $subject $boundary at $at ($relation)",
+    ({ subject, boundary, at, relation, startReason, endReason }) => {
+      const input = inputAt(subject, boundary, at);
+      const before = structuredClone(input);
+      const invalid = boundary === "start" ? relation === "future" : relation !== "future";
+      const reason = boundary === "start" ? startReason : endReason;
+      expect(evaluateCriteriaTrust(input)).toEqual({
+        evaluatedAt: "2026-09-02T00:01:00.000Z",
+        reasons: invalid ? [reason] : [],
+        status: !invalid ? "eligible" : subject === "reviewer" ? "unverifiable" : "ineligible",
+      });
+      expect(input).toEqual(before);
+    },
+  );
 });
 
 describe("sourceScopeCovers", () => {

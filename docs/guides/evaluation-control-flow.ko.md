@@ -153,6 +153,9 @@ pnpm example:evaluation-control-flow
 
 실제 trust 결과에는 적용되는 canonical reason이 모두 포함되므로, 위에 줄여 표시한 예상 부분집합
 외의 항목도 들어갈 수 있습니다. `evaluatedAt`은 server time입니다.
+권한의 유효 기간은 출처 원문 시각의 정밀도를 유지하여 비교하며 서버의 `evaluatedAt` 응답은
+밀리초 형식을 유지합니다. [시각 정밀도 검토](../development/criteria-trust-time-integrity-audit.ko.md)를
+참조하세요.
 
 이것은 release decision이 아닙니다. `eligible`도 선언된 assessment evidence 사용 정책을
 충족했다는 뜻일 뿐, production 배포를 승인하지 않습니다.
