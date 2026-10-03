@@ -1,7 +1,9 @@
 # ADR-0026: Recheck policy sources through scoped transaction ports
 
-Status: Accepted  
-Date: 2026-10-03  
+Status: Accepted
+
+Date: 2026-10-03
+
 Owners: ProofStack maintainers
 
 ## Context
