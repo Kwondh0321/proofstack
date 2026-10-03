@@ -202,6 +202,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 한도를 적용합니다. dataset/target까지의 전체 계보·현재 권한·규칙 피연산자는 미완료이며
 정책 판정 전에 완전한 의존 관계 검증과 봉인이 필요합니다.
 
+후속 [후보 assessment 계보](workflow-2-candidate-assessment-lineage.ko.md)는 모델 보증 base를
+포함한 모든 후보 평가에서 기존 이력 보고·집계 정책·실행으로 연결합니다. 정확한 후보
+dataset/target과 dataset의 fixture 소속을 검사하고 근거 부재·빈 집계·반복 출처를 보존합니다.
+수집된 관계만 검사하며 현재 권한·완전한 의존 관계·봉인된 규칙 피연산자는 미완료입니다.
+Workflow 2 승인 체크포인트는 2/7입니다.
+
 후속 [보존된 정책 권한 전제조건](workflow-2-policy-authority-prerequisites.ko.md)은 정확한 설치·
 출처·검토·검토자 기록과 실제 보존 파일 관측을 요청의 정밀 평가 시각에서 연결합니다. 반복 출처와
 원래 해시를 유지하며 아티팩트 조회자가 아닌 기록된 정책 발행자를 검사합니다. 정적 조건은

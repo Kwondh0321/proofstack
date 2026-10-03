@@ -342,6 +342,71 @@ async function harness(
 }
 
 describe("captured model and human assurance bindings", () => {
+  it.each(["retained", "base_missing", "model_missing", "history_mismatch"] as const)(
+    "connects each model declaration to its exact base evaluation: %s",
+    async (kind) => {
+      const h = await harness(
+        kind === "history_mismatch"
+          ? (value) => {
+              if (value.family === "model" && value.fixture.kind === "model_assurance_assessment")
+                value.fixture.record.validUntil = "2026-12-01T00:00:00.000Z";
+            }
+          : undefined,
+        { copies: 2 },
+      );
+      if (kind === "base_missing") vi.spyOn(h.evaluation, "findAssessment").mockResolvedValue(null);
+      if (kind === "model_missing") {
+        const find = h.model.find.bind(h.model);
+        vi.spyOn(h.model, "find").mockImplementation((scope, recordKind, id) =>
+          recordKind === "model_assurance_assessment"
+            ? Promise.resolve(null)
+            : find(scope, recordKind, id),
+        );
+      }
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const report = graph.candidateAssessmentLineage;
+      if (report.status !== "inspected") throw new Error("Expected lineage");
+      expect(report.members).toHaveLength(3);
+      const models = report.members.filter((m) => m.source.kind === "model_assurance_assessment");
+      expect(models).toHaveLength(2);
+      for (const member of models) {
+        expect(
+          member.checks.find((c) => c.kind === "model_assurance_history")?.observation.status,
+        ).toBe(
+          kind === "history_mismatch"
+            ? "mismatch"
+            : kind === "retained"
+              ? "matched"
+              : "unavailable",
+        );
+        if (kind === "model_missing") {
+          expect(member.observation).toEqual({ status: "missing" });
+          expect(member.dependencyEdgeIndexes).toEqual([]);
+          continue;
+        }
+        expect(member.checks.find((c) => c.kind === "assessment_history")?.observation.status).toBe(
+          kind === "base_missing" ? "unavailable" : "matched",
+        );
+        const edge = graph.edges[member.dependencyEdgeIndexes[0] ?? -1];
+        expect(edge?.reference.path).toBe("/baseAssessment");
+        expect(edge?.target).toEqual({
+          kind: "assessment",
+          reference: h.assessment.baseAssessment,
+        });
+      }
+      if (kind === "retained") {
+        const [first, second] = models;
+        expect(first?.dependencyEdgeIndexes.slice(1)).toEqual(
+          second?.dependencyEdgeIndexes.slice(1),
+        );
+        expect(first?.checks.filter((c) => c.kind === "candidate_target")).toHaveLength(2);
+        expect(report.inspectionUsage.references).toBe(
+          report.members.reduce((total, m) => total + 1 + m.dependencyEdgeIndexes.length, 0),
+        );
+      }
+    },
+  );
+
   it.each([
     ["calibration_locale", "calibration"],
     ["calibration_unavailable", "calibration"],

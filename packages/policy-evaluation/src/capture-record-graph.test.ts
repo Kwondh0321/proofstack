@@ -9,6 +9,8 @@ import {
   type ReleasePolicyDefinition,
   type ReplayPlanDefinition,
   type EvaluationRun,
+  type RegressionDatasetVersionDefinition,
+  type RegressionFixtureVersionDefinition,
   type EvaluatorSpec,
   type TargetReleaseDefinition,
   PolicyEvaluationSourceReferenceSchema,
@@ -36,6 +38,11 @@ import {
   FixedClock,
   type EvaluationRepositoryFixtureRecord,
 } from "@proofstack/core/testing";
+import {
+  digestRegressionDatasetVersionDefinition,
+  digestRegressionFixtureVersionDefinition,
+  MemoryRegressionVersionRepository,
+} from "@proofstack/datasets";
 import { digestReplayPlanDefinition, digestTargetReleaseDefinition } from "@proofstack/replay";
 import {
   MemoryReplayDefinitionRepository,
@@ -45,6 +52,7 @@ import { describe, expect, it, vi } from "vitest";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
+import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 
@@ -157,9 +165,82 @@ function missingRepositories() {
 
 async function harness(
   replayCase?: "valid" | "invalid_digest" | "unsupported_kind" | "history",
-  snapshots?: { mutate?: (fixture: EvaluationRepositoryFixtureRecord) => void },
+  snapshots?: {
+    mutate?: (fixture: EvaluationRepositoryFixtureRecord) => void;
+    dataset?: "matched" | "wrong_fixture";
+  },
 ) {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
+  const datasets = new MemoryRegressionVersionRepository();
+  const retainedFixtures = snapshots?.dataset
+    ? evaluation.records
+        .filter((f) => f.kind === "evaluation_run")
+        .map(({ record }) => {
+          const definition: RegressionFixtureVersionDefinition = {
+            fixtureId:
+              record.evaluationRunId === "evr_1"
+                ? "fixture_lineage_second"
+                : record.fixture.fixtureId,
+            fixtureVersionId:
+              record.evaluationRunId === "evr_1"
+                ? "fxv_schema_v2"
+                : record.fixture.fixtureVersionId,
+            name: "Candidate lineage fixture",
+            scope: evaluation.scope,
+            schemaVersion: "0.1",
+            replayability: "evidence_only",
+            source: {
+              kind: "trace_snapshot",
+              traceId: "0123456789abcdef0123456789abcdef",
+              eventIds: ["evt_lineage"],
+              observedEventCount: 1,
+              sourceCompleteness: "observed_snapshot",
+            },
+          };
+          return {
+            ...definition,
+            createdAt: "2026-09-01T00:00:00.000Z",
+            createdByPrincipalId: "principal_lineage",
+            source: { ...definition.source, capturedAt: "2026-09-01T00:00:00.000Z" },
+            definitionSha256: digestRegressionFixtureVersionDefinition(definition),
+          };
+        })
+    : [];
+  for (const fixture of retainedFixtures) await datasets.publishFixtureVersion(fixture);
+  const datasetDefinition: RegressionDatasetVersionDefinition = {
+    schemaVersion: "0.1",
+    scope: evaluation.scope,
+    name: "Candidate lineage dataset",
+    datasetId: "dts_regression",
+    datasetVersionId: "dtv_regression_v1",
+    fixtureVersions: retainedFixtures
+      .filter((_, i) => snapshots?.dataset !== "wrong_fixture" || i > 0)
+      .map(({ fixtureId, fixtureVersionId, definitionSha256 }) => ({
+        fixtureId,
+        fixtureVersionId,
+        definitionSha256,
+      })),
+  };
+  const retainedDataset = snapshots?.dataset
+    ? {
+        ...datasetDefinition,
+        createdAt: "2026-09-01T00:00:00.000Z",
+        createdByPrincipalId: "principal_lineage",
+        definitionSha256: digestRegressionDatasetVersionDefinition(datasetDefinition),
+      }
+    : undefined;
+  if (retainedDataset) await datasets.publishDatasetVersion(retainedDataset);
+  const bindDataset = (object: Fields) => {
+    if (retainedDataset && object["datasetVersionId"] === retainedDataset.datasetVersionId) {
+      object["datasetId"] = retainedDataset.datasetId;
+      object["definitionSha256"] = retainedDataset.definitionSha256;
+    }
+    const fixture = retainedFixtures.find((f) => f.fixtureVersionId === object["fixtureVersionId"]);
+    if (fixture) {
+      object["fixtureId"] = fixture.fixtureId;
+      object["definitionSha256"] = fixture.definitionSha256;
+    }
+  };
   const replayRepository = new MemoryReplayDefinitionRepository();
   const replay = replayCase
     ? (() => {
@@ -305,6 +386,7 @@ async function harness(
     if (object["datasetVersionId"] === "dtv_regression_v1")
       object["definitionSha256"] = "7".repeat(64);
     if (object["fixtureVersionId"] === "fxv_boundary") object["definitionSha256"] = "2".repeat(64);
+    bindDataset(object);
     const hash = object["definitionSha256"];
     if (typeof hash === "string" && rewrittenHashes.has(hash))
       object["definitionSha256"] = rewrittenHashes.get(hash);
@@ -339,6 +421,7 @@ async function harness(
       }
       if (fixture.kind === "evaluation_run" && fixture.record.evaluationRunId === "evr_1")
         fixture.record.fixture.fixtureVersionId = "fxv_schema_v2";
+      if (fixture.kind === "evaluation_run") bindDataset(fixture.record.fixture);
       if (fixture.kind === "raw_observation") {
         fixture.record.startedAt = "2026-09-02T00:00:01.000Z";
         fixture.record.completedAt = "2026-09-02T00:00:02.000Z";
@@ -405,6 +488,7 @@ async function harness(
     evidence: { ...missing.repositories.evidence, evaluation: evaluation.repository },
     ...(replay ? { replayDefinitions: replayRepository } : {}),
     ...(replayResultReference ? { replayResults: replayJobs } : {}),
+    ...(retainedDataset ? { datasets } : {}),
   };
   return {
     candidate,
@@ -1227,12 +1311,15 @@ describe("request-rooted recursive record graph", () => {
     expect(keys).toEqual([...new Set(keys)].sort());
     expect(graph.edges[0]?.parent.kind).toBe("release_candidate");
     expect(graph.usage.references).toBe(
-      graph.edges.length + graph.policyAssessments.inspectionUsage.references,
+      graph.edges.length +
+        graph.policyAssessments.inspectionUsage.references +
+        graph.candidateAssessmentLineage.inspectionUsage.references,
     );
     expect(graph.usage.referenceBytes).toBe(
       graph.edges.reduce(
         (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
-        graph.policyAssessments.inspectionUsage.referenceBytes,
+        graph.policyAssessments.inspectionUsage.referenceBytes +
+          graph.candidateAssessmentLineage.inspectionUsage.referenceBytes,
       ),
     );
     expect(graph).not.toHaveProperty("sealed");
@@ -1767,6 +1854,332 @@ describe("fixed cross-domain routing", () => {
         kind,
       ).toBe(true);
     }
+  });
+});
+
+describe("candidate assessment dataset and target lineage", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
+  const members = (graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) => {
+    if (graph.candidateAssessmentLineage.status !== "inspected")
+      throw new Error("Expected candidate lineage");
+    return graph.candidateAssessmentLineage.members;
+  };
+  const checks = (graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) =>
+    members(graph).flatMap((m) => m.checks);
+  const inspect = (
+    setup: Awaited<ReturnType<typeof harness>>,
+    graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>,
+    budget = limits,
+  ) =>
+    inspectCapturedCandidateAssessmentLineage(
+      setup.input,
+      graph,
+      graph.evaluationSnapshots,
+      graph.modelAssurance,
+      budget,
+    );
+
+  it("connects every candidate assessment to exact retained histories, dataset fixtures and target", async () => {
+    const setup = await harness("history", { dataset: "matched" });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    expect(members(graph)).toHaveLength(1);
+    expect(checks(graph).length).toBeGreaterThan(10);
+    expect(checks(graph).every((c) => c.observation.status === "matched")).toBe(true);
+    expect(checks(graph).filter((c) => c.kind === "candidate_target")).toHaveLength(2);
+    expect(checks(graph).filter((c) => c.kind === "dataset_fixture")).toHaveLength(2);
+    const member = members(graph)[0];
+    if (!member) throw new Error("Expected assessment");
+    expect(graph.edges[member.candidateEdgeIndex]?.target).toEqual(member.source);
+    expect(
+      member.dependencyEdgeIndexes.filter(
+        (i) => graph.edges[i]?.reference.path === "/targetRelease",
+      ),
+    ).toHaveLength(2);
+    expect(graph.candidateAssessmentLineage).not.toHaveProperty("sealed");
+    expect(graph.candidateAssessmentLineage).not.toHaveProperty("verdict");
+  });
+
+  it.each(["dataset", "target"] as const)(
+    "retains a valid same-scope assessment's wrong candidate %s",
+    async (kind) => {
+      const setup = await harness("history", { dataset: "matched" });
+      if (kind === "dataset")
+        setup.candidate.datasets = [
+          {
+            datasetId: "dataset_other",
+            datasetVersionId: "dataset_version_other",
+            definitionSha256: "f".repeat(64),
+          },
+        ];
+      else
+        setup.candidate.targetRelease = {
+          ...setup.candidate.targetRelease,
+          targetReleaseId: "release_other",
+        };
+      setup.candidate = candidateDigest(setup.candidate);
+      setup.input = request(setup.candidate, setup.policy);
+      setup.repositories = {
+        ...setup.repositories,
+        control: {
+          ...setup.repositories.control,
+          releaseCandidate: {
+            findReleaseCandidate: async () => setup.candidate,
+          },
+        },
+      };
+      const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+      expect(
+        checks(graph)
+          .filter((c) => c.kind === `candidate_${kind}`)
+          .map((c) => c.observation.status),
+      ).toEqual(Array(kind === "dataset" ? 3 : 2).fill("mismatch"));
+      expect(checks(graph).find((c) => c.kind === "assessment_history")?.observation.status).toBe(
+        "matched",
+      );
+    },
+  );
+
+  it("does not count a readable fixture outside the declared dataset", async () => {
+    const setup = await harness("history", { dataset: "wrong_fixture" });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    expect(
+      checks(graph)
+        .filter((c) => c.kind === "dataset_fixture")
+        .map((c) => c.observation.status),
+    ).toEqual(["mismatch", "matched"]);
+    expect(
+      checks(graph)
+        .filter((c) => c.kind === "fixture_available")
+        .every((c) => c.observation.status === "matched"),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["findAssessment", "assessment_history"],
+    ["findEvaluationAggregate", "aggregate_available"],
+    ["findAggregationPolicy", "aggregation_policy_available"],
+    ["findEvaluationRun", "run_available"],
+  ] as const)("preserves the unreadable %s frontier", async (method, expected) => {
+    const setup = await harness("history", { dataset: "matched" });
+    vi.spyOn(setup.repositories.evidence.evaluation, method).mockResolvedValue(null);
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    expect(members(graph)).toHaveLength(1);
+    expect(
+      checks(graph).some((c) => c.kind === expected && c.observation.status === "unavailable"),
+    ).toBe(true);
+    expect(checks(graph).some((c) => c.kind === "candidate_target")).toBe(
+      method === "findAggregationPolicy",
+    );
+  });
+
+  it.each(["dataset", "fixture", "target"] as const)(
+    "keeps %s availability separate from exact candidate declarations",
+    async (kind) => {
+      const setup = await harness("history", { dataset: "matched" });
+      if (kind === "dataset")
+        vi.spyOn(setup.repositories.datasets, "findDatasetVersion").mockResolvedValue(null);
+      if (kind === "fixture")
+        vi.spyOn(setup.repositories.datasets, "findFixtureVersion").mockResolvedValue(null);
+      if (kind === "target")
+        vi.spyOn(setup.repositories.replayDefinitions, "findTargetRelease").mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+      expect(
+        checks(graph)
+          .filter((c) => c.kind === `${kind}_available`)
+          .map((c) => c.observation.status),
+      ).toEqual(Array(kind === "dataset" ? 3 : 2).fill("unavailable"));
+      expect(
+        checks(graph)
+          .filter((c) => c.kind === "candidate_dataset" || c.kind === "candidate_target")
+          .every((c) => c.observation.status === "matched"),
+      ).toBe(true);
+      expect(
+        checks(graph)
+          .filter((c) => c.kind === "dataset_fixture")
+          .map((c) => c.observation.status),
+      ).toEqual(kind === "dataset" ? ["unavailable", "unavailable"] : ["matched", "matched"]);
+    },
+  );
+
+  it.each(["record_invalid", "reference_mismatch", "not_yet_available"] as const)(
+    "preserves %s assessment observations",
+    async (reason) => {
+      const setup = await harness(undefined, {});
+      const find = setup.repositories.evidence.evaluation.findAssessment.bind(
+        setup.repositories.evidence.evaluation,
+      );
+      vi.spyOn(setup.repositories.evidence.evaluation, "findAssessment").mockImplementation(
+        async (...args) => {
+          const record = await find(...args);
+          if (!record) throw new Error("Expected assessment");
+          if (reason === "record_invalid") record.definitionSha256 = "f".repeat(64);
+          if (reason === "not_yet_available") record.createdAt = "2026-11-01T00:00:00.000Z";
+          if (reason === "reference_mismatch") {
+            record.assessmentId = "assessment_other";
+            const definition = structuredClone(record) as unknown as Fields;
+            for (const key of evaluationRecordDescriptors.assessment.receiptKeys)
+              delete definition[key];
+            record.definitionSha256 = digestEvaluationRecordDefinition(
+              "assessment",
+              record.scope,
+              definition,
+            );
+          }
+          return record;
+        },
+      );
+      const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+      expect(members(graph)[0]?.observation).toEqual({ status: "unavailable", reason });
+      expect(checks(graph).map((c) => c.observation.status)).toEqual(["unavailable"]);
+    },
+  );
+
+  it("propagates criterion/run-history contradictions even with matching candidate references", async () => {
+    const setup = await harness("history", {
+      dataset: "matched",
+      mutate(fixture) {
+        if (fixture.kind === "evaluation_run")
+          fixture.record.applicability.context.populationTags = [];
+      },
+    });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    expect(checks(graph).find((c) => c.kind === "assessment_history")?.observation.status).toBe(
+      "mismatch",
+    );
+    expect(
+      checks(graph)
+        .filter((c) => c.kind === "candidate_dataset" || c.kind === "candidate_target")
+        .every((c) => c.observation.status === "matched"),
+    ).toBe(true);
+  });
+
+  it("keeps an observed empty aggregate distinct from established target lineage", async () => {
+    const setup = await harness(undefined, {
+      mutate(fixture) {
+        if (fixture.kind !== "evaluation_aggregate") return;
+        const record = fixture.record;
+        record.members = [];
+        for (const key of Object.keys(record.counts) as (keyof typeof record.counts)[])
+          record.counts[key] = 0;
+        for (const key of ["coverage", "abstentionRate", "errorRate", "passProportion"] as const)
+          record[key] = { status: "unavailable", reason: "zero_denominator" };
+        record.passInterval = { status: "not_reported", reason: "no_decided_cases" };
+      },
+    });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    expect(checks(graph).find((c) => c.kind === "aggregate_available")?.observation.status).toBe(
+      "matched",
+    );
+    expect(checks(graph).filter((c) => c.kind === "candidate_target")).toMatchObject([
+      {
+        source: { kind: "evaluation_aggregate" },
+        path: "/members",
+        observation: { status: "unavailable" },
+      },
+    ]);
+    expect(checks(graph).some((c) => c.kind === "run_available")).toBe(false);
+    expect(checks(graph).find((c) => c.kind === "candidate_dataset")?.observation.status).toBe(
+      "matched",
+    );
+  });
+
+  it("does not replace an unavailable candidate with an empty member list", async () => {
+    const setup = await harness();
+    setup.repositories = {
+      ...setup.repositories,
+      control: {
+        ...setup.repositories.control,
+        releaseCandidate: { findReleaseCandidate: async () => null },
+      },
+    };
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    expect(graph.candidateAssessmentLineage).toEqual({
+      status: "candidate_unavailable",
+      source: { kind: "release_candidate", reference: setup.input.candidate },
+      observation: { status: "missing" },
+      inspectionUsage: { references: 0, referenceBytes: 0 },
+    });
+  });
+
+  it.each([
+    "parent_hash",
+    "target",
+    "reference",
+    "selector_failure",
+    "missing_edge",
+    "duplicate_edge",
+    "missing_node",
+    "root_reference",
+    "history_hash",
+    "history_missing",
+    "history_empty",
+  ] as const)("rejects internal %s provenance corruption", async (change) => {
+    const setup = await harness(undefined, {});
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const altered = structuredClone(graph);
+    const edges = [...altered.edges];
+    const nodes = [...altered.nodes];
+    const index = edges.findIndex(
+      (e) => e.parent.kind === "assessment" && e.reference.path === "/aggregate",
+    );
+    const edge = edges[index];
+    if (!edge) throw new Error("Missing aggregate edge");
+    if (change === "parent_hash") edges[index] = { ...edge, parentRecordSha256: "f".repeat(64) };
+    if (change === "target") edges[index] = { ...edge, target: null };
+    if (change === "reference")
+      edges[index] = {
+        ...edge,
+        reference: {
+          kind: "evaluation_run_identity",
+          path: "/aggregate",
+          evaluationRunId: "run_other",
+        },
+      };
+    if (change === "selector_failure")
+      edges[index] = { ...edge, selectorFailure: { status: "missing" } };
+    if (change === "missing_edge") edges.splice(index, 1);
+    if (change === "duplicate_edge") edges.push(edge);
+    if (change === "missing_node")
+      nodes.splice(
+        nodes.findIndex((n) => n.read.source.kind === "evaluation_aggregate"),
+        1,
+      );
+    if (change === "root_reference") setup.input.candidate.definitionSha256 = "f".repeat(64);
+    const parents = [...altered.evaluationSnapshots.parents];
+    const assessmentIndex = parents.findIndex((p) => p.source.kind === "assessment");
+    const parent = parents[assessmentIndex];
+    if (!parent) throw new Error("Missing assessment report");
+    if (change === "history_hash")
+      parents[assessmentIndex] = { ...parent, recordSha256: "f".repeat(64) };
+    if (change === "history_missing") parents.splice(assessmentIndex, 1);
+    if (change === "history_empty") parents[assessmentIndex] = { ...parent, checks: [] };
+    expect(() =>
+      inspect(setup, {
+        ...altered,
+        nodes,
+        edges,
+        evaluationSnapshots: { ...altered.evaluationSnapshots, parents },
+      }),
+    ).toThrow("reference_conflict");
+  });
+
+  it("meters repeated traversal at exact limits, rejects one below and owns its output", async () => {
+    const setup = await harness(undefined, {});
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const usage = graph.candidateAssessmentLineage.inspectionUsage;
+    const exact = { maxReferences: usage.references, maxReferenceBytes: usage.referenceBytes };
+    const output = inspect(setup, graph, exact);
+    expect(output).toEqual(graph.candidateAssessmentLineage);
+    expect(() =>
+      inspect(setup, graph, { ...exact, maxReferences: exact.maxReferences - 1 }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspect(setup, graph, { ...exact, maxReferenceBytes: exact.maxReferenceBytes - 1 }),
+    ).toThrow("reference_bytes_exceeded");
+    const before = structuredClone(graph);
+    if (output.status !== "inspected") throw new Error("Expected lineage");
+    Object.assign(output.candidate.source.reference, { definitionSha256: "f".repeat(64) });
+    expect(graph).toEqual(before);
   });
 });
 

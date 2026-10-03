@@ -235,6 +235,13 @@ unused declarations and independent record availability under cumulative count/b
 This does not close assessment-to-dataset/target lineage, current authority or typed rule operands;
 complete closure and sealing remain required before policy outcomes.
 
+The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
+every candidate assessment, including model-assurance base assessments, through retained owning
+histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture
+membership while retaining unavailable evidence, empty aggregates and repeated provenance. This
+closes those captured relationships only; current authority, complete closure and sealed rule
+operands remain open. Workflow 2 remains 2/7 accepted checkpoints.
+
 The subsequent [retained policy authority prerequisites](workflow-2-policy-authority-prerequisites.md)
 compose exact installation, source/review/reviewer records and actual retained artifact observations
 at the request's full-precision evaluation time. They preserve original repeated provenance and use

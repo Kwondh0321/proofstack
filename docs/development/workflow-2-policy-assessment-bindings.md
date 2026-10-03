@@ -50,3 +50,7 @@ The regression suite covers every supported assessment predicate, repeated and u
 readable non-members, missing/invalid/wrong-reference/future records, unavailable roots, conflicting
 digests, graph provenance corruption, defensive results and exact/one-below count and byte limits.
 No public API, scheduler, database role, release approval or checkpoint acceptance is introduced.
+
+The subsequent [candidate assessment lineage report](workflow-2-candidate-assessment-lineage.md)
+joins retained histories with candidate dataset/target and fixture membership. It remains separate
+from this declaration report and does not complete source authority or sealing.

@@ -34,6 +34,10 @@ import {
 } from "@proofstack/replay";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  inspectCapturedCandidateAssessmentLineage,
+  type PolicyCandidateAssessmentLineage,
+} from "./capture-candidate-assessment-lineage.js";
+import {
   inspectCapturedPolicyAssessments,
   type PolicyAssessmentBindings,
 } from "./capture-policy-assessments.js";
@@ -75,6 +79,8 @@ export interface PolicyRecordGraph {
   readonly entries: readonly PolicyEvaluationManifestEntry[];
   /** Exact rule-to-candidate assessment declarations, not transitive lineage or eligibility. */
   readonly policyAssessments: PolicyAssessmentBindings;
+  /** Candidate dataset/target lineage joined to retained histories, not current authority. */
+  readonly candidateAssessmentLineage: PolicyCandidateAssessmentLineage;
   /** Exact membership/predecessor observations, not whole-graph semantic eligibility. */
   readonly datasetRelations: PolicyDatasetRelations;
   /** Retained run/aggregate/assessment consistency, not criterion trust or policy satisfaction. */
@@ -316,6 +322,22 @@ export async function acquirePolicyRecordGraph(
       policyAssessments.inspectionUsage.referenceBytes,
     );
     const evaluationSnapshots = inspectCapturedEvaluationSnapshots({ nodes, edges }, limits);
+    const modelAssurance = inspectCapturedModelAssurance(
+      { nodes, edges },
+      evaluationSnapshots,
+      limits,
+    );
+    const candidateAssessmentLineage = inspectCapturedCandidateAssessmentLineage(
+      request,
+      { nodes, edges },
+      evaluationSnapshots,
+      modelAssurance,
+      limits,
+    );
+    budget.addReferences(
+      candidateAssessmentLineage.inspectionUsage.references,
+      candidateAssessmentLineage.inspectionUsage.referenceBytes,
+    );
     return {
       request: policyEvaluationRequestReference(request),
       scope,
@@ -325,8 +347,9 @@ export async function acquirePolicyRecordGraph(
       edges,
       entries: nodes.map(({ read }) => ({ source: read.source, observation: read.observation })),
       policyAssessments,
+      candidateAssessmentLineage,
       evaluationSnapshots,
-      modelAssurance: inspectCapturedModelAssurance({ nodes, edges }, evaluationSnapshots, limits),
+      modelAssurance,
       replayResults: { results: replayResults, unavailableResults },
       datasetRelations: inspectPolicyEvaluationDatasetRelations(
         { scope, evaluationTime },

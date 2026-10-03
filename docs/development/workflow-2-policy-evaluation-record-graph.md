@@ -70,6 +70,11 @@ for every assessment-bearing policy rule. Membership and record availability rem
 unused declarations, repeated rules and original edge indexes are preserved. This does not establish
 the complete candidate dataset/target lineage or predicate outcomes.
 
+`candidateAssessmentLineage` joins [captured candidate assessment histories](workflow-2-candidate-assessment-lineage.md)
+to exact aggregate-policy/run datasets, fixture membership and candidate targets. It retains every
+declaration, repeated base/run occurrence, unavailable prerequisite and observed empty aggregate.
+These relationships do not establish current source authority or sealed rule operands.
+
 An edge's `target` is the exact child record reference or `null`. Missing/unavailable selectors
 retain a typed `selectorFailure`; no missing hash is fabricated. Artifact descriptors, exact trace
 selectors, protocol/profile declarations, candidate source claims, approval requirements, and
@@ -88,7 +93,7 @@ specific to the selector reader; further domain validation belongs to complete s
 | `usage.reads` | Actual repository calls, including missing and repeated selector reads; a dual-format fixture lookup uses two calls |
 | `usage.records` | Calls plus retained replay attempt, budget, cancellation, execution, and usage rows |
 | `usage.bytes` | Compact JSON-compatible UTF-8 response bytes; repeated responses and null responses count again |
-| `usage.references` | Every admitted graph reference occurrence plus candidate/policy assessment inspection occurrences, including duplicates and unresolved declarations |
+| `usage.references` | Every admitted graph reference occurrence plus candidate/policy assessment membership and candidate lineage inspection occurrences, including duplicates and unresolved declarations |
 | `usage.referenceBytes` | Sum of canonical UTF-8 bytes for those reference entries |
 
 The request's `maxAcquisitionRecords` bounds `records` and, separately, `references`. The combined
