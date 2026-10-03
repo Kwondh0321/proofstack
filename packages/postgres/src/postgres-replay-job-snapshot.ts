@@ -1,6 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 import {
   type EvidenceScope,
+  EvidenceScopeSchema,
+  OpaqueIdSchema,
   ReplayAttemptSchema,
   ReplayBudgetLedgerEntrySchema,
   ReplayCancellationAcknowledgementSchema,
@@ -11,8 +13,8 @@ import {
   type ReplayWorkerMutationFence,
 } from "@proofstack/contracts";
 import {
-  ReplayRepositoryContractError,
   type ReplayJobSnapshot,
+  ReplayRepositoryContractError,
   summarizeReplayBudgetLedger,
 } from "@proofstack/replay";
 import type { PoolClient, QueryResultRow } from "pg";
@@ -319,10 +321,12 @@ function requireOneRow<Row extends QueryResultRow>(rows: readonly Row[], label: 
 }
 
 export async function loadPostgresReplayJobSnapshot(
-  client: PoolClient,
-  scope: EvidenceScope,
-  jobId: string,
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  jobIdInput: string,
 ): Promise<ReplayJobSnapshot | null> {
+  const scope = EvidenceScopeSchema.parse(scopeInput);
+  const jobId = OpaqueIdSchema.parse(jobIdInput);
   const result = await client.query<SnapshotRow>(
     "SELECT public.proofstack_read_replay_job_snapshot($1, $2, $3) AS snapshot",
     [scope.projectId, scope.environmentId, jobId],
@@ -330,6 +334,9 @@ export async function loadPostgresReplayJobSnapshot(
   const row = requireOneRow(result.rows, "replay snapshot result");
   return row.snapshot === null ? null : parsePostgresReplayJobSnapshot(row.snapshot, scope, jobId);
 }
+
+/** Existing complete snapshot reader; no nested transaction or replay worker authority. */
+export const readPostgresReplayJobSnapshotOnClient = loadPostgresReplayJobSnapshot;
 
 export async function requirePostgresReplayJobSnapshot(
   client: PoolClient,

@@ -321,6 +321,12 @@ tenant acquisition and compatible migration/recovery guards. This protects the d
 domain needed for absence and complete history queries. It does not add authoritative same-client
 closure, sealed contracts/publication, policy worker authority or a checkpoint acceptance.
 
+The subsequent [supplied-client source readers](workflow-2-policy-source-client-readers.md) reuse
+owning evaluation/model/comparison/candidate, dataset/fixture, replay and trace validation without
+opening another connection or ending the caller's transaction. Their extraction enables future
+guarded composition; it does not add complete reverse authority histories, closure publication or
+a seal, and does not change the existing source recheck report's lifetime.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

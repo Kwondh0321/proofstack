@@ -9,12 +9,12 @@ import {
   ComparisonLineageError,
   type ComparisonRecord,
   ComparisonRecordConflictError,
-  comparisonRecordId,
   type ComparisonRecordKind,
-  comparisonRecordReferences,
   type ComparisonRepository,
   ComparisonRepositoryContractError,
   ComparisonResourceConflictError,
+  comparisonRecordId,
+  comparisonRecordReferences,
   InvalidComparisonRecordInputError,
   type PublishComparisonRecordResult,
   validateComparisonRecord,
@@ -189,7 +189,7 @@ async function acquireLocks(client: PoolClient, keys: readonly string[]): Promis
 }
 
 async function loadStored(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   kind: ComparisonRecordKind,
   tenantId: string,
   recordId: string,
@@ -265,20 +265,32 @@ type ComparisonRecordByKind = {
   readonly comparison_result: ComparisonResult;
 };
 
+/** Reuses every normalized projection check without changing the caller's transaction. */
+export async function readPostgresComparisonRecordOnClient<K extends ComparisonRecordKind>(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: K,
+  recordId: string,
+): Promise<ComparisonRecordByKind[K] | null> {
+  const scope = { ...scopeInput };
+  const row = await loadStored(client, kind, scope.tenantId, recordId);
+  if (!row) return null;
+  const record = parseStored(kind, row);
+  return scopesEqual(record.scope, scope) ? (clone(record) as ComparisonRecordByKind[K]) : null;
+}
+
 export class PostgresComparisonRepository implements ComparisonRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
   private async find<K extends ComparisonRecordKind>(
-    scope: EvidenceScope,
+    scopeInput: EvidenceScope,
     kind: K,
     recordId: string,
   ): Promise<ComparisonRecordByKind[K] | null> {
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const row = await loadStored(client, kind, scope.tenantId, recordId);
-      if (!row) return null;
-      const record = parseStored(kind, row);
-      return scopesEqual(record.scope, scope) ? (clone(record) as ComparisonRecordByKind[K]) : null;
-    });
+    const scope = { ...scopeInput };
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresComparisonRecordOnClient(client, scope, kind, recordId),
+    );
   }
 
   private async publish<K extends ComparisonRecordKind>(

@@ -9,7 +9,10 @@ import {
 import { createReleaseCandidateRepositoryTestHarness } from "@proofstack/core/testing";
 import type { Pool, PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
-import { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
+import {
+  PostgresReleaseCandidateRepository,
+  readPostgresReleaseCandidateOnClient,
+} from "./postgres-release-candidate-repository.js";
 
 interface FakeStoredRow {
   readonly candidate_id: string;
@@ -93,6 +96,30 @@ function repositoryWith(client: FakeClient): PostgresReleaseCandidateRepository 
 }
 
 describe("PostgresReleaseCandidateRepository", () => {
+  it("owns read scope before awaiting the supplied client or pool", async () => {
+    const { candidate } = createReleaseCandidateRepositoryTestHarness("client_scope_copy");
+    const scope = { ...candidate.scope };
+    const client = new FakeClient();
+    client.records.set(`${scope.tenantId}:${candidate.candidateVersionId}`, storedRow(candidate));
+    const pending = readPostgresReleaseCandidateOnClient(
+      client as unknown as Pick<PoolClient, "query">,
+      scope,
+      candidate.candidateVersionId,
+    );
+    scope.environmentId = "env_changed";
+    await expect(pending).resolves.toEqual(candidate);
+    expect(client.releases).toEqual([]);
+    const poolScope = { ...candidate.scope };
+    const repository = new PostgresReleaseCandidateRepository({
+      connect: async () => {
+        poolScope.projectId = "prj_changed";
+        return client as unknown as PoolClient;
+      },
+    });
+    await expect(
+      repository.findReleaseCandidate(poolScope, candidate.candidateVersionId),
+    ).resolves.toEqual(candidate);
+  });
   it("publishes, verifies, reads, and isolates one canonical record", async () => {
     const harness = createReleaseCandidateRepositoryTestHarness("postgres_candidate_unit");
     const client = new FakeClient();

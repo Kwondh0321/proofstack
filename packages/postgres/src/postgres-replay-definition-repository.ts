@@ -1,8 +1,8 @@
 import { Buffer } from "node:buffer";
 import { isDeepStrictEqual } from "node:util";
 import {
-  EvidenceScopeSchema,
   type EvidenceScope,
+  EvidenceScopeSchema,
   OpaqueIdSchema,
   type ReplayBoundaryDeclaration,
   type ReplayPlan,
@@ -393,7 +393,7 @@ function requireTargetRowMatches(row: TargetReleaseRow, release: TargetRelease):
 }
 
 async function loadTargetRelease(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   targetReleaseId: string,
 ): Promise<TargetRelease | null> {
@@ -627,7 +627,7 @@ function requireBoundaryRowsMatch(rows: readonly BoundaryRow[], plan: ReplayPlan
 }
 
 async function loadReplayPlan(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   planVersionId: string,
 ): Promise<ReplayPlan | null> {
@@ -938,6 +938,30 @@ async function insertReplayPlan(client: PoolClient, plan: ReplayPlan): Promise<v
   }
 }
 
+/** Includes the owning normalized resource, budget and boundary validations. */
+export async function readPostgresReplayPlanOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  planVersionIdInput: string,
+): Promise<ReplayPlan | null> {
+  const scope = requireScope(scopeInput);
+  const planVersionId = requireOpaqueId(planVersionIdInput);
+  const plan = await loadReplayPlan(client, scope.tenantId, planVersionId);
+  return !plan || !scopesEqual(plan.scope, scope) ? null : clone(plan);
+}
+
+/** The caller retains ownership of its transaction, source guards and connection. */
+export async function readPostgresTargetReleaseOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  targetReleaseIdInput: string,
+): Promise<TargetRelease | null> {
+  const scope = requireScope(scopeInput);
+  const targetReleaseId = requireOpaqueId(targetReleaseIdInput);
+  const release = await loadTargetRelease(client, scope.tenantId, targetReleaseId);
+  return !release || !scopesEqual(release.scope, scope) ? null : clone(release);
+}
+
 /** PostgreSQL authority for immutable, tenant-isolated replay definitions. */
 export class PostgresReplayDefinitionRepository implements ReplayDefinitionRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
@@ -948,10 +972,9 @@ export class PostgresReplayDefinitionRepository implements ReplayDefinitionRepos
   ): Promise<ReplayPlan | null> {
     const scope = requireScope(scopeInput);
     const planVersionId = requireOpaqueId(planVersionIdInput);
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const plan = await loadReplayPlan(client, scope.tenantId, planVersionId);
-      return !plan || !scopesEqual(plan.scope, scope) ? null : clone(plan);
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresReplayPlanOnClient(client, scope, planVersionId),
+    );
   }
 
   async findTargetRelease(
@@ -960,10 +983,9 @@ export class PostgresReplayDefinitionRepository implements ReplayDefinitionRepos
   ): Promise<TargetRelease | null> {
     const scope = requireScope(scopeInput);
     const targetReleaseId = requireOpaqueId(targetReleaseIdInput);
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const release = await loadTargetRelease(client, scope.tenantId, targetReleaseId);
-      return !release || !scopesEqual(release.scope, scope) ? null : clone(release);
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresTargetReleaseOnClient(client, scope, targetReleaseId),
+    );
   }
 
   async publishReplayPlan(

@@ -1039,7 +1039,7 @@ function reconstructDataset(
 }
 
 async function loadFixtureVersions(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
 ): Promise<Map<string, StoredFixtureRecord>> {
@@ -1087,7 +1087,7 @@ async function loadFixtureVersions(
 }
 
 async function loadRecordedFixtureVersions(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
 ): Promise<Map<string, StoredRecordedFixtureRecord>> {
@@ -1194,7 +1194,7 @@ async function loadAnyFixtureVersions(
 }
 
 async function loadFixtureVersionIdentities(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
 ): Promise<Map<string, FixtureVersionIdentityRow>> {
@@ -1219,7 +1219,7 @@ async function loadFixtureVersionIdentities(
 }
 
 async function loadDatasetVersions(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
 ): Promise<Map<string, StoredDatasetRecord>> {
@@ -1266,7 +1266,7 @@ async function loadDatasetVersions(
 }
 
 async function loadDatasetVersionIdentities(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
 ): Promise<Map<string, DatasetVersionIdentityRow>> {
@@ -1291,7 +1291,7 @@ async function loadDatasetVersionIdentities(
 }
 
 async function loadFixtureBinding(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   fixtureId: string,
 ): Promise<ResourceBinding | null> {
@@ -1349,7 +1349,7 @@ function requirePublicationIntentStatus(
 }
 
 async function requireCanonicalPublicationIntent(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   expected: RegressionVersionPublishedOutboxIntent,
 ): Promise<void> {
   const result = await client.query<PublicationIntentStatusRow>(
@@ -1701,7 +1701,7 @@ async function insertDatasetVersion(
 }
 
 async function loadInteractionFixtureRevocation(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   stored: StoredRecordedFixtureRecord,
 ): Promise<InteractionFixtureContentRevocation | null> {
   const result = await client.query<FixtureRevocationRow>(
@@ -1754,7 +1754,7 @@ async function loadInteractionFixtureRevocation(
 }
 
 async function loadInteractionArtifactAvailability(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   stored: StoredRecordedFixtureRecord,
 ): Promise<Map<string, ArtifactAvailabilityRow>> {
   const artifactIds = stored.ownerships.map(({ artifactId }) => artifactId);
@@ -1786,7 +1786,7 @@ async function loadInteractionArtifactAvailability(
 }
 
 async function loadInteractionFixtureTombstones(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   stored: StoredRecordedFixtureRecord,
 ): Promise<Map<string, ArtifactTombstone>> {
   const artifactIds = stored.ownerships.map(({ artifactId }) => artifactId);
@@ -1830,7 +1830,7 @@ async function loadInteractionFixtureTombstones(
 }
 
 async function storedInteractionFixtureContent(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   stored: StoredRecordedFixtureRecord,
 ): Promise<StoredInteractionFixtureContent> {
   const revocation = await loadInteractionFixtureRevocation(client, stored);
@@ -1881,6 +1881,126 @@ async function storedInteractionFixtureContent(
   };
 }
 
+/** Uses the owning normalized reads on the caller-owned scoped connection. */
+export async function readPostgresDatasetVersionOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  datasetVersionIdInput: string,
+): Promise<RegressionDatasetVersion | null> {
+  const scope = requireScope(scopeInput);
+  const datasetVersionId = requireOpaqueId(datasetVersionIdInput);
+  const identity = (
+    await loadDatasetVersionIdentities(client, scope.tenantId, [datasetVersionId])
+  ).get(datasetVersionId);
+  if (
+    !identity ||
+    identity.tenant_id !== scope.tenantId ||
+    identity.project_id !== scope.projectId ||
+    identity.environment_id !== scope.environmentId
+  ) {
+    return null;
+  }
+  const stored = (await loadDatasetVersions(client, scope.tenantId, [datasetVersionId])).get(
+    datasetVersionId,
+  );
+  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
+  return clone(stored.version);
+}
+
+/** Uses the owning normalized reads on the caller-owned scoped connection. */
+export async function readPostgresFixtureVersionOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  fixtureVersionIdInput: string,
+): Promise<RegressionFixtureVersion | null> {
+  const scope = requireScope(scopeInput);
+  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
+  const identity = (
+    await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
+  ).get(fixtureVersionId);
+  if (
+    !identity ||
+    identity.tenant_id !== scope.tenantId ||
+    identity.project_id !== scope.projectId ||
+    identity.environment_id !== scope.environmentId
+  ) {
+    return null;
+  }
+  const stored = (await loadFixtureVersions(client, scope.tenantId, [fixtureVersionId])).get(
+    fixtureVersionId,
+  );
+  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
+  return clone(stored.version);
+}
+
+/** Uses the owning normalized reads on the caller-owned scoped connection. */
+export async function readPostgresRecordedInteractionFixtureVersionOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  fixtureVersionIdInput: string,
+): Promise<StoredRecordedInteractionFixtureVersion | null> {
+  const scope = requireScope(scopeInput);
+  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
+  const identity = (
+    await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
+  ).get(fixtureVersionId);
+  if (
+    !identity ||
+    identity.tenant_id !== scope.tenantId ||
+    identity.project_id !== scope.projectId ||
+    identity.environment_id !== scope.environmentId
+  ) {
+    return null;
+  }
+  const stored = (
+    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId])
+  ).get(fixtureVersionId);
+  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
+  requireBindingMatchesStoredRecordedFixture(
+    await loadFixtureBinding(client, scope.tenantId, stored.version.fixtureId),
+    stored,
+  );
+  await requireCanonicalPublicationIntent(
+    client,
+    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored.version),
+  );
+  return { ownerships: clone(stored.ownerships), version: clone(stored.version) };
+}
+
+/** Uses the owning normalized reads on the caller-owned scoped connection. */
+export async function readPostgresRecordedInteractionFixtureContentOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  fixtureVersionIdInput: string,
+): Promise<StoredInteractionFixtureContent | null> {
+  const scope = requireScope(scopeInput);
+  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
+  const identity = (
+    await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
+  ).get(fixtureVersionId);
+  if (
+    !identity ||
+    identity.tenant_id !== scope.tenantId ||
+    identity.project_id !== scope.projectId ||
+    identity.environment_id !== scope.environmentId
+  ) {
+    return null;
+  }
+  const stored = (
+    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId])
+  ).get(fixtureVersionId);
+  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
+  requireBindingMatchesStoredRecordedFixture(
+    await loadFixtureBinding(client, scope.tenantId, stored.version.fixtureId),
+    stored,
+  );
+  await requireCanonicalPublicationIntent(
+    client,
+    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored.version),
+  );
+  return storedInteractionFixtureContent(client, stored);
+}
+
 /** PostgreSQL authority for immutable, tenant-isolated regression fixture and dataset versions. */
 export class PostgresRegressionVersionRepository implements InteractionFixtureVersionRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
@@ -1906,24 +2026,9 @@ export class PostgresRegressionVersionRepository implements InteractionFixtureVe
   ): Promise<RegressionDatasetVersion | null> {
     const scope = requireScope(scopeInput);
     const datasetVersionId = requireOpaqueId(datasetVersionIdInput);
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const identity = (
-        await loadDatasetVersionIdentities(client, scope.tenantId, [datasetVersionId])
-      ).get(datasetVersionId);
-      if (
-        !identity ||
-        identity.tenant_id !== scope.tenantId ||
-        identity.project_id !== scope.projectId ||
-        identity.environment_id !== scope.environmentId
-      ) {
-        return null;
-      }
-      const stored = (await loadDatasetVersions(client, scope.tenantId, [datasetVersionId])).get(
-        datasetVersionId,
-      );
-      if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
-      return clone(stored.version);
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresDatasetVersionOnClient(client, scope, datasetVersionId),
+    );
   }
 
   async findFixtureVersion(
@@ -1932,24 +2037,9 @@ export class PostgresRegressionVersionRepository implements InteractionFixtureVe
   ): Promise<RegressionFixtureVersion | null> {
     const scope = requireScope(scopeInput);
     const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const identity = (
-        await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
-      ).get(fixtureVersionId);
-      if (
-        !identity ||
-        identity.tenant_id !== scope.tenantId ||
-        identity.project_id !== scope.projectId ||
-        identity.environment_id !== scope.environmentId
-      ) {
-        return null;
-      }
-      const stored = (await loadFixtureVersions(client, scope.tenantId, [fixtureVersionId])).get(
-        fixtureVersionId,
-      );
-      if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
-      return clone(stored.version);
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresFixtureVersionOnClient(client, scope, fixtureVersionId),
+    );
   }
 
   async findRecordedInteractionFixtureVersion(
@@ -1958,32 +2048,9 @@ export class PostgresRegressionVersionRepository implements InteractionFixtureVe
   ): Promise<StoredRecordedInteractionFixtureVersion | null> {
     const scope = requireScope(scopeInput);
     const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const identity = (
-        await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
-      ).get(fixtureVersionId);
-      if (
-        !identity ||
-        identity.tenant_id !== scope.tenantId ||
-        identity.project_id !== scope.projectId ||
-        identity.environment_id !== scope.environmentId
-      ) {
-        return null;
-      }
-      const stored = (
-        await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId])
-      ).get(fixtureVersionId);
-      if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
-      requireBindingMatchesStoredRecordedFixture(
-        await loadFixtureBinding(client, scope.tenantId, stored.version.fixtureId),
-        stored,
-      );
-      await requireCanonicalPublicationIntent(
-        client,
-        buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored.version),
-      );
-      return { ownerships: clone(stored.ownerships), version: clone(stored.version) };
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresRecordedInteractionFixtureVersionOnClient(client, scope, fixtureVersionId),
+    );
   }
 
   async findRecordedInteractionFixtureContent(
@@ -1992,32 +2059,9 @@ export class PostgresRegressionVersionRepository implements InteractionFixtureVe
   ): Promise<StoredInteractionFixtureContent | null> {
     const scope = requireScope(scopeInput);
     const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const identity = (
-        await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
-      ).get(fixtureVersionId);
-      if (
-        !identity ||
-        identity.tenant_id !== scope.tenantId ||
-        identity.project_id !== scope.projectId ||
-        identity.environment_id !== scope.environmentId
-      ) {
-        return null;
-      }
-      const stored = (
-        await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId])
-      ).get(fixtureVersionId);
-      if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
-      requireBindingMatchesStoredRecordedFixture(
-        await loadFixtureBinding(client, scope.tenantId, stored.version.fixtureId),
-        stored,
-      );
-      await requireCanonicalPublicationIntent(
-        client,
-        buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored.version),
-      );
-      return storedInteractionFixtureContent(client, stored);
-    });
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresRecordedInteractionFixtureContentOnClient(client, scope, fixtureVersionId),
+    );
   }
 
   async fixtureResourceExists(scopeInput: EvidenceScope, fixtureIdInput: string): Promise<boolean> {

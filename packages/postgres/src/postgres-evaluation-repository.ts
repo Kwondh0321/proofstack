@@ -354,7 +354,7 @@ async function acquireLocks(client: PoolClient, keys: readonly string[]): Promis
 }
 
 async function loadStored(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   kind: EvaluationRecordKind,
   tenantId: string,
   recordId: string,
@@ -413,20 +413,54 @@ async function requireCanonicalOutbox(
   }
 }
 
+export type PostgresEvaluationRecordByKind = {
+  readonly aggregation_policy: EvaluationAggregationPolicy;
+  readonly assessment: Assessment;
+  readonly criterion_set: CriterionSet;
+  readonly criterion_set_status: CriterionSetStatusRecord;
+  readonly discovery_record: DiscoveryRecord;
+  readonly evaluation_aggregate: EvaluationAggregate;
+  readonly evaluation_run: EvaluationRun;
+  readonly evaluation_run_rejection: EvaluationRunRejection;
+  readonly evaluation_run_result: EvaluationRunResult;
+  readonly evaluator_spec: EvaluatorSpec;
+  readonly oracle_spec: OracleSpec;
+  readonly qualification_fixture_set: QualificationFixtureSet;
+  readonly qualification_report: QualificationReport;
+  readonly raw_observation: RawObservation;
+  readonly source_review: SourceReviewRecord;
+  readonly source_reviewer_qualification: SourceReviewerQualification;
+  readonly source_snapshot: SourceSnapshot;
+};
+
+/** Shares owning normalization; the trusted caller owns scope, transaction and guards. */
+export async function readPostgresEvaluationRecordOnClient<K extends EvaluationRecordKind>(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: K,
+  recordId: string,
+): Promise<PostgresEvaluationRecordByKind[K] | null> {
+  const scope = { ...scopeInput };
+  const row = await loadStored(client, kind, scope.tenantId, recordId);
+  if (!row) return null;
+  const record = parseStored(kind, row);
+  return scopesEqual(record.scope, scope)
+    ? (clone(record) as PostgresEvaluationRecordByKind[K])
+    : null;
+}
+
 export class PostgresEvaluationRepository implements EvaluationRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
-  private async find<RecordType>(
-    kind: EvaluationRecordKind,
-    scope: EvidenceScope,
+  private async find<K extends EvaluationRecordKind>(
+    kind: K,
+    scopeInput: EvidenceScope,
     recordId: string,
-  ): Promise<RecordType | null> {
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const row = await loadStored(client, kind, scope.tenantId, recordId);
-      if (!row) return null;
-      const record = parseStored(kind, row);
-      return scopesEqual(record.scope, scope) ? (clone(record) as RecordType) : null;
-    });
+  ): Promise<PostgresEvaluationRecordByKind[K] | null> {
+    const scope = { ...scopeInput };
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresEvaluationRecordOnClient(client, scope, kind, recordId),
+    );
   }
 
   private async publish<RecordType extends EvaluationStoredRecord>(
@@ -557,55 +591,55 @@ export class PostgresEvaluationRepository implements EvaluationRepository {
   }
 
   async findAggregationPolicy(scope: EvidenceScope, id: string) {
-    return this.find<EvaluationAggregationPolicy>("aggregation_policy", scope, id);
+    return this.find("aggregation_policy", scope, id);
   }
   async findAssessment(scope: EvidenceScope, id: string) {
-    return this.find<Assessment>("assessment", scope, id);
+    return this.find("assessment", scope, id);
   }
   async findCriterionSet(scope: EvidenceScope, id: string) {
-    return this.find<CriterionSet>("criterion_set", scope, id);
+    return this.find("criterion_set", scope, id);
   }
   async findCriterionSetStatus(scope: EvidenceScope, id: string) {
-    return this.find<CriterionSetStatusRecord>("criterion_set_status", scope, id);
+    return this.find("criterion_set_status", scope, id);
   }
   async findDiscoveryRecord(scope: EvidenceScope, id: string) {
-    return this.find<DiscoveryRecord>("discovery_record", scope, id);
+    return this.find("discovery_record", scope, id);
   }
   async findEvaluationAggregate(scope: EvidenceScope, id: string) {
-    return this.find<EvaluationAggregate>("evaluation_aggregate", scope, id);
+    return this.find("evaluation_aggregate", scope, id);
   }
   async findEvaluationRun(scope: EvidenceScope, id: string) {
-    return this.find<EvaluationRun>("evaluation_run", scope, id);
+    return this.find("evaluation_run", scope, id);
   }
   async findEvaluationRunRejection(scope: EvidenceScope, id: string) {
-    return this.find<EvaluationRunRejection>("evaluation_run_rejection", scope, id);
+    return this.find("evaluation_run_rejection", scope, id);
   }
   async findEvaluationRunResult(scope: EvidenceScope, id: string) {
-    return this.find<EvaluationRunResult>("evaluation_run_result", scope, id);
+    return this.find("evaluation_run_result", scope, id);
   }
   async findEvaluatorSpec(scope: EvidenceScope, id: string) {
-    return this.find<EvaluatorSpec>("evaluator_spec", scope, id);
+    return this.find("evaluator_spec", scope, id);
   }
   async findOracleSpec(scope: EvidenceScope, id: string) {
-    return this.find<OracleSpec>("oracle_spec", scope, id);
+    return this.find("oracle_spec", scope, id);
   }
   async findQualificationFixtureSet(scope: EvidenceScope, id: string) {
-    return this.find<QualificationFixtureSet>("qualification_fixture_set", scope, id);
+    return this.find("qualification_fixture_set", scope, id);
   }
   async findQualificationReport(scope: EvidenceScope, id: string) {
-    return this.find<QualificationReport>("qualification_report", scope, id);
+    return this.find("qualification_report", scope, id);
   }
   async findRawObservation(scope: EvidenceScope, id: string) {
-    return this.find<RawObservation>("raw_observation", scope, id);
+    return this.find("raw_observation", scope, id);
   }
   async findSourceReview(scope: EvidenceScope, id: string) {
-    return this.find<SourceReviewRecord>("source_review", scope, id);
+    return this.find("source_review", scope, id);
   }
   async findSourceReviewerQualification(scope: EvidenceScope, id: string) {
-    return this.find<SourceReviewerQualification>("source_reviewer_qualification", scope, id);
+    return this.find("source_reviewer_qualification", scope, id);
   }
   async findSourceSnapshot(scope: EvidenceScope, id: string) {
-    return this.find<SourceSnapshot>("source_snapshot", scope, id);
+    return this.find("source_snapshot", scope, id);
   }
 
   async publishAggregationPolicy(candidate: EvaluationAggregationPolicy) {

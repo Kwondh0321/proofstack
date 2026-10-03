@@ -1,10 +1,12 @@
 import type { EvidenceEnvelope } from "@proofstack/contracts";
 import { EvidenceConflictError } from "@proofstack/core";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import {
+  listPostgresTraceEvidenceOnClient,
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
+  resolvePostgresExactEventsOnClient,
 } from "./postgres-evidence-repository.js";
 
 type QueryHandler = (
@@ -101,6 +103,115 @@ function transactionRows(handler: QueryHandler): {
     repository: new PostgresEvidenceRepository(poolWith(client, connections)),
   };
 }
+
+describe("supplied-client evidence input ownership", () => {
+  it("retains scope, cursor and page limit while the cursor query is pending", async () => {
+    const record = envelope();
+    const scope = { ...record.scope };
+    const options = {
+      limit: 1,
+      after: { eventId: "evt_previous", sequence: 0, startedAt: record.evidence.startedAt },
+    };
+    const client = new FakeClient((sql) => {
+      if (sql.includes("SELECT EXISTS")) {
+        scope.tenantId = "ten_changed";
+        scope.projectId = "prj_changed";
+        options.limit = 500;
+        options.after.eventId = "evt_changed";
+        options.after.sequence = 9;
+        return { rows: [{ cursor_found: true }] };
+      }
+      return { rows: [storedRow(record), storedRow(record)] };
+    });
+    await expect(
+      listPostgresTraceEvidenceOnClient(
+        client as unknown as Pick<PoolClient, "query">,
+        scope,
+        record.evidence.traceId,
+        options,
+      ),
+    ).resolves.toEqual({ cursorFound: true, events: [record], hasMore: true });
+    expect(client.queries[1]?.values).toEqual([
+      record.scope.tenantId,
+      record.scope.projectId,
+      record.scope.environmentId,
+      record.evidence.traceId,
+      record.evidence.startedAt,
+      0,
+      "evt_previous",
+      2,
+    ]);
+    expect(client.queries).toHaveLength(2);
+    expect(client.releaseArguments).toEqual([]);
+  });
+
+  it("retains ordered event identities and expected scope across the query await", async () => {
+    const record = envelope();
+    const scope = { ...record.scope };
+    const ids = [record.evidence.eventId];
+    const client = new FakeClient(() => {
+      scope.environmentId = "env_changed";
+      ids[0] = "evt_changed";
+      return { rows: [storedRow(record)] };
+    });
+    await expect(
+      resolvePostgresExactEventsOnClient(
+        client as unknown as Pick<PoolClient, "query">,
+        scope,
+        record.evidence.traceId,
+        ids,
+      ),
+    ).resolves.toEqual([record]);
+    expect(client.queries[0]?.values).toEqual([
+      record.scope.tenantId,
+      record.scope.projectId,
+      record.scope.environmentId,
+      record.evidence.traceId,
+      [record.evidence.eventId],
+    ]);
+    expect(client.releaseArguments).toEqual([]);
+  });
+
+  it("owns repository inputs before pool acquisition can yield", async () => {
+    const record = envelope();
+    const scope = { ...record.scope };
+    const ids = [record.evidence.eventId];
+    const client = new FakeClient((sql) => ({
+      rows: sql.includes("ORDER BY array_position") ? [storedRow(record)] : [],
+    }));
+    const pool = {
+      connect: async () => {
+        scope.tenantId = "ten_changed";
+        ids[0] = "evt_changed";
+        return client;
+      },
+    } as unknown as Pick<Pool, "connect">;
+    await expect(
+      new PostgresEvidenceRepository(pool).resolveExactEvents(scope, record.evidence.traceId, ids),
+    ).resolves.toEqual([record]);
+    expect(client.queries.find(({ text }) => text.includes("set_config"))?.values).toEqual([
+      record.scope.tenantId,
+    ]);
+  });
+
+  it("propagates the original query failure without ending the caller's transaction", async () => {
+    const failure = new Error("source query failed");
+    const client = new FakeClient(() => {
+      throw failure;
+    });
+    const record = envelope();
+    await expect(
+      resolvePostgresExactEventsOnClient(
+        client as unknown as Pick<PoolClient, "query">,
+        record.scope,
+        record.evidence.traceId,
+        [record.evidence.eventId],
+      ),
+    ).rejects.toBe(failure);
+    expect(client.queries).toHaveLength(1);
+    expect(client.releaseArguments).toEqual([]);
+  });
+});
 
 describe("PostgresEvidenceRepository.append", () => {
   it("returns immediately for an empty batch", async () => {

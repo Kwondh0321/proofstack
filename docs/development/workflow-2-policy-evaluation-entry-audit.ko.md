@@ -275,6 +275,11 @@ worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 
 전체 권한 closure를 해석하거나 sealed 계약·원자적 발행·worker 권한을 구현한 것은 아닙니다.
 checkpoint 승인 상태는 바뀌지 않습니다.
 
+후속 [연결 전용 원본 조회](workflow-2-policy-source-client-readers.ko.md)는 평가·모델·비교·candidate,
+dataset/fixture·replay·trace의 기존 검증을 다른 연결이나 트랜잭션 종료 없이 재사용합니다.
+이는 보호된 전체 조회를 구성할 기반이며, 전체 reverse authority 이력·closure 발행·seal을
+추가하거나 기존 source recheck 보고서의 수명을 바꾸지 않습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

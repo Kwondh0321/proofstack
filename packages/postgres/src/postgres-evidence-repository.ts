@@ -4,8 +4,8 @@ import {
   type EvidenceScope,
 } from "@proofstack/contracts";
 import {
-  EvidenceConflictError,
   type AppendEvidenceResult,
+  EvidenceConflictError,
   type EvidencePage,
   type EvidencePageOptions,
   type ExactEvidenceRepository,
@@ -220,6 +220,96 @@ async function appendEnvelope(client: PoolClient, envelope: EvidenceEnvelope): P
   return false;
 }
 
+/** Retains exact scope, ordering and owning validation on the supplied connection. */
+export async function listPostgresTraceEvidenceOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  traceId: string,
+  optionsInput: EvidencePageOptions,
+): Promise<EvidencePage> {
+  const scope = { ...scopeInput };
+  const after = optionsInput.after ? { ...optionsInput.after } : undefined;
+  const limit = optionsInput.limit;
+  if (after) {
+    const cursor = await client.query<CursorPresenceRow>(CURSOR_EXISTS_SQL, [
+      scope.tenantId,
+      scope.projectId,
+      scope.environmentId,
+      traceId,
+      after.startedAt,
+      after.sequence,
+      after.eventId,
+    ]);
+    if (!cursor.rows[0]?.cursor_found) {
+      return { cursorFound: false, events: [], hasMore: false };
+    }
+  }
+
+  const pageSize = limit + 1;
+  const result = after
+    ? await client.query<StoredEvidenceRow>(LIST_TRACE_AFTER_SQL, [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        traceId,
+        after.startedAt,
+        after.sequence,
+        after.eventId,
+        pageSize,
+      ])
+    : await client.query<StoredEvidenceRow>(LIST_TRACE_FIRST_PAGE_SQL, [
+        scope.tenantId,
+        scope.projectId,
+        scope.environmentId,
+        traceId,
+        pageSize,
+      ]);
+  const hasMore = result.rows.length > limit;
+  return {
+    cursorFound: true,
+    events: result.rows.slice(0, limit).map(storedEnvelope),
+    hasMore,
+  };
+}
+
+/** Retains exact scope, ordering and owning validation on the supplied connection. */
+export async function resolvePostgresExactEventsOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  traceId: string,
+  eventIdsInput: readonly string[],
+): Promise<readonly EvidenceEnvelope[] | null> {
+  const scope = { ...scopeInput };
+  const ids = [...eventIdsInput];
+  if (ids.length === 0 || new Set(ids).size !== ids.length) {
+    throw new TypeError("Exact evidence references must be non-empty and unique");
+  }
+  const result = await client.query<StoredEvidenceRow>(RESOLVE_EXACT_EVENTS_SQL, [
+    scope.tenantId,
+    scope.projectId,
+    scope.environmentId,
+    traceId,
+    [...ids],
+  ]);
+  if (result.rows.length !== ids.length) return null;
+  const events = result.rows.map(storedEnvelope);
+  if (
+    events.some(
+      (event, index) =>
+        event.evidence.eventId !== ids[index] ||
+        event.evidence.traceId !== traceId ||
+        event.scope.tenantId !== scope.tenantId ||
+        event.scope.projectId !== scope.projectId ||
+        event.scope.environmentId !== scope.environmentId,
+    )
+  ) {
+    throw new PostgresDataIntegrityError(
+      "Exact evidence resolution returned records outside the requested identity or order",
+    );
+  }
+  return events;
+}
+
 export class PostgresEvidenceRepository implements ExactEvidenceRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
@@ -252,49 +342,14 @@ export class PostgresEvidenceRepository implements ExactEvidenceRepository {
     traceId: string,
     options: EvidencePageOptions,
   ): Promise<EvidencePage> {
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const after = options.after;
-      if (after) {
-        const cursor = await client.query<CursorPresenceRow>(CURSOR_EXISTS_SQL, [
-          scope.tenantId,
-          scope.projectId,
-          scope.environmentId,
-          traceId,
-          after.startedAt,
-          after.sequence,
-          after.eventId,
-        ]);
-        if (!cursor.rows[0]?.cursor_found) {
-          return { cursorFound: false, events: [], hasMore: false };
-        }
-      }
-
-      const pageSize = options.limit + 1;
-      const result = after
-        ? await client.query<StoredEvidenceRow>(LIST_TRACE_AFTER_SQL, [
-            scope.tenantId,
-            scope.projectId,
-            scope.environmentId,
-            traceId,
-            after.startedAt,
-            after.sequence,
-            after.eventId,
-            pageSize,
-          ])
-        : await client.query<StoredEvidenceRow>(LIST_TRACE_FIRST_PAGE_SQL, [
-            scope.tenantId,
-            scope.projectId,
-            scope.environmentId,
-            traceId,
-            pageSize,
-          ]);
-      const hasMore = result.rows.length > options.limit;
-      return {
-        cursorFound: true,
-        events: result.rows.slice(0, options.limit).map(storedEnvelope),
-        hasMore,
-      };
-    });
+    const context = { ...scope };
+    const ownedOptions = {
+      limit: options.limit,
+      ...(options.after ? { after: { ...options.after } } : {}),
+    };
+    return withTenantTransaction(this.pool, context.tenantId, (client) =>
+      listPostgresTraceEvidenceOnClient(client, context, traceId, ownedOptions),
+    );
   }
 
   async resolveExactEvents(
@@ -305,31 +360,10 @@ export class PostgresEvidenceRepository implements ExactEvidenceRepository {
     if (eventIds.length === 0 || new Set(eventIds).size !== eventIds.length) {
       throw new TypeError("Exact evidence references must be non-empty and unique");
     }
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const result = await client.query<StoredEvidenceRow>(RESOLVE_EXACT_EVENTS_SQL, [
-        scope.tenantId,
-        scope.projectId,
-        scope.environmentId,
-        traceId,
-        [...eventIds],
-      ]);
-      if (result.rows.length !== eventIds.length) return null;
-      const events = result.rows.map(storedEnvelope);
-      if (
-        events.some(
-          (event, index) =>
-            event.evidence.eventId !== eventIds[index] ||
-            event.evidence.traceId !== traceId ||
-            event.scope.tenantId !== scope.tenantId ||
-            event.scope.projectId !== scope.projectId ||
-            event.scope.environmentId !== scope.environmentId,
-        )
-      ) {
-        throw new PostgresDataIntegrityError(
-          "Exact evidence resolution returned records outside the requested identity or order",
-        );
-      }
-      return events;
-    });
+    const context = { ...scope };
+    const ids = [...eventIds];
+    return withTenantTransaction(this.pool, context.tenantId, (client) =>
+      resolvePostgresExactEventsOnClient(client, context, traceId, ids),
+    );
   }
 }

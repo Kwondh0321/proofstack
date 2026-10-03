@@ -7,10 +7,10 @@ import {
   type ModelAssuranceRecordByKind,
   ModelAssuranceRecordConflictError,
   type ModelAssuranceRecordKind,
-  modelAssuranceRecordId,
-  modelAssuranceRecordReferences,
   type ModelAssuranceRepository,
   ModelAssuranceRepositoryContractError,
+  modelAssuranceRecordId,
+  modelAssuranceRecordReferences,
   type PublishModelAssuranceRecordResult,
   validateModelAssuranceRecord,
 } from "@proofstack/core";
@@ -226,7 +226,7 @@ async function acquireLocks(client: PoolClient, keys: readonly string[]): Promis
 }
 
 async function loadStored(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   kind: ModelAssuranceRecordKind,
   tenantId: string,
   recordId: string,
@@ -298,22 +298,32 @@ function publicationFunction(kind: ModelAssuranceRecordKind): string {
   return "public.proofstack_publish_model_assurance_control_record";
 }
 
+/** Uses only the supplied client and retains the owning record/scope/digest checks. */
+export async function readPostgresModelAssuranceRecordOnClient<K extends ModelAssuranceRecordKind>(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: K,
+  recordId: string,
+): Promise<ModelAssuranceRecordByKind[K] | null> {
+  const scope = { ...scopeInput };
+  const row = await loadStored(client, kind, scope.tenantId, recordId);
+  if (!row) return null;
+  const record = parseStored(kind, row);
+  return scopesEqual(record.scope, scope) ? (clone(record) as ModelAssuranceRecordByKind[K]) : null;
+}
+
 export class PostgresModelAssuranceRepository implements ModelAssuranceRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
   async find<K extends ModelAssuranceRecordKind>(
-    scope: EvidenceScope,
+    scopeInput: EvidenceScope,
     kind: K,
     recordId: string,
   ): Promise<ModelAssuranceRecordByKind[K] | null> {
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const row = await loadStored(client, kind, scope.tenantId, recordId);
-      if (!row) return null;
-      const record = parseStored(kind, row);
-      return scopesEqual(record.scope, scope)
-        ? (clone(record) as ModelAssuranceRecordByKind[K])
-        : null;
-    });
+    const scope = { ...scopeInput };
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresModelAssuranceRecordOnClient(client, scope, kind, recordId),
+    );
   }
 
   async publish<K extends ModelAssuranceRecordKind>(

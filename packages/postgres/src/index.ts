@@ -42,26 +42,30 @@ export {
   readPostgresArtifactCatalogOnClient,
 } from "./postgres-artifact-catalog-repository.js";
 export {
+  PostgresComparisonRepository,
+  readPostgresComparisonRecordOnClient,
+} from "./postgres-comparison-repository.js";
+export {
   MAX_CONSUMER_RECEIPT_ERROR_LENGTH,
   MAX_CONSUMER_RECEIPT_LEASE_DURATION_MS,
   MAX_CONSUMER_RECEIPT_RETRY_DELAY_MS,
   PostgresConsumerReceiptRepository,
 } from "./postgres-consumer-receipt-repository.js";
-export { PostgresComparisonRepository } from "./postgres-comparison-repository.js";
-export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
-export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
-export { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
-export { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
 export {
-  listPostgresReleasePolicyLifecycleEventsOnClient,
-  PostgresReleasePolicyRepository,
-  readPostgresReleasePolicyLifecycleEventOnClient,
-  readPostgresReleasePolicyOnClient,
-} from "./postgres-release-policy-repository.js";
+  type PostgresEvaluationRecordByKind,
+  PostgresEvaluationRepository,
+  readPostgresEvaluationRecordOnClient,
+} from "./postgres-evaluation-repository.js";
 export {
+  listPostgresTraceEvidenceOnClient,
   PostgresDataIntegrityError,
   PostgresEvidenceRepository,
+  resolvePostgresExactEventsOnClient,
 } from "./postgres-evidence-repository.js";
+export {
+  PostgresModelAssuranceRepository,
+  readPostgresModelAssuranceRecordOnClient,
+} from "./postgres-model-assurance-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
   MAX_OUTBOX_CLAIM_SIZE,
@@ -71,13 +75,35 @@ export {
   MAX_OUTBOX_RETRY_DELAY_MS,
   PostgresOutboxRepository,
 } from "./postgres-outbox-repository.js";
+export { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
 export {
   MAX_PROJECTION_CURSOR_GENERATION,
   PostgresProjectionCursorRepository,
 } from "./postgres-projection-cursor-repository.js";
-export { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
-export { PostgresReplayDefinitionRepository } from "./postgres-replay-definition-repository.js";
+export {
+  PostgresRegressionVersionRepository,
+  readPostgresDatasetVersionOnClient,
+  readPostgresFixtureVersionOnClient,
+  readPostgresRecordedInteractionFixtureContentOnClient,
+  readPostgresRecordedInteractionFixtureVersionOnClient,
+} from "./postgres-regression-version-repository.js";
+export {
+  PostgresReleaseCandidateRepository,
+  readPostgresReleaseCandidateOnClient,
+} from "./postgres-release-candidate-repository.js";
+export {
+  listPostgresReleasePolicyLifecycleEventsOnClient,
+  PostgresReleasePolicyRepository,
+  readPostgresReleasePolicyLifecycleEventOnClient,
+  readPostgresReleasePolicyOnClient,
+} from "./postgres-release-policy-repository.js";
+export {
+  PostgresReplayDefinitionRepository,
+  readPostgresReplayPlanOnClient,
+  readPostgresTargetReleaseOnClient,
+} from "./postgres-replay-definition-repository.js";
 export { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
+export { readPostgresReplayJobSnapshotOnClient } from "./postgres-replay-job-snapshot.js";
 export { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-repository.js";
 export {
   DEFAULT_RUNTIME_ROLE_NAMES,

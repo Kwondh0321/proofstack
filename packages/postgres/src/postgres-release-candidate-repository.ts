@@ -99,7 +99,7 @@ async function acquireLocks(client: PoolClient, keys: readonly string[]): Promis
 }
 
 async function loadStored(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   candidateVersionId: string,
 ): Promise<StoredReleaseCandidateRow | null> {
@@ -166,19 +166,30 @@ async function requireCanonicalOutbox(
   }
 }
 
+/** Exact normalized candidate read on the caller-owned scoped connection. */
+export async function readPostgresReleaseCandidateOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  candidateVersionId: string,
+): Promise<ReleaseCandidate | null> {
+  const scope = { ...scopeInput };
+  const row = await loadStored(client, scope.tenantId, candidateVersionId);
+  if (!row) return null;
+  const candidate = parseStored(row);
+  return scopesEqual(candidate.scope, scope) ? clone(candidate) : null;
+}
+
 export class PostgresReleaseCandidateRepository implements ReleaseCandidateRepository {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
   async findReleaseCandidate(
-    scope: EvidenceScope,
+    scopeInput: EvidenceScope,
     candidateVersionId: string,
   ): Promise<ReleaseCandidate | null> {
-    return withTenantTransaction(this.pool, scope.tenantId, async (client) => {
-      const row = await loadStored(client, scope.tenantId, candidateVersionId);
-      if (!row) return null;
-      const candidate = parseStored(row);
-      return scopesEqual(candidate.scope, scope) ? clone(candidate) : null;
-    });
+    const scope = { ...scopeInput };
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresReleaseCandidateOnClient(client, scope, candidateVersionId),
+    );
   }
 
   async publishReleaseCandidate(input: ReleaseCandidate): Promise<PublishReleaseCandidateResult> {
