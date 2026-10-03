@@ -333,7 +333,7 @@ export function inspectPolicyEvaluationArtifactCatalog(
 ): PolicyEvaluationArtifactCatalogInspection {
   const fixed = capture(input);
   authorize(fixed);
-  const time = UtcMillisecondTimestampSchema.safeParse(observedAt);
+  const time = PolicyEvaluationTimeSchema.safeParse(observedAt);
   if (
     !time.success ||
     policyEvaluationTimestampOrderKey(fixed.evaluationTime) >

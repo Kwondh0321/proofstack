@@ -78,6 +78,9 @@ meter a durable job, validate a lease/fence or persist a sealed snapshot.
 The [request-owned guard plan](workflow-2-policy-source-guard-plan.md) now derives bounded complete
 coordinates for the installed artifact/policy lock domain inside authorized capture. That output
 does not establish guards, current observations or a globally atomic recursive closure.
+The optional [read-only source recheck](workflow-2-policy-source-recheck.md) now composes all guards
+and these reads on one scoped READ COMMITTED connection, comparing captured observations under
+the shared admission meter. Its returned report is not fresh authority after guard release.
 
 The publisher must still verify the complete request-owned guard set, acquire every guard without waiting,
 roll back the whole transaction on a conflict, use these reads in subsequent READ COMMITTED

@@ -235,6 +235,13 @@ worker 통합은 미완료이며 잠금 성공은 봉인이나 정책 결과가 
 현재 두 종류 영역의 좌표 도출만 구현했으며 실제 잠금·전체 재검사·다른 권한/부재 경계·작업/fence
 발행과 나머지 승인 검사는 남아 있습니다. Workflow 2 완료 수는 2/7입니다.
 
+후속 [잠금 아래 출처 재검사](workflow-2-policy-source-recheck.ko.md)는 선택적으로 콘텐츠 I/O 뒤
+현재 영역의 전체 잠금을 얻고 한 READ COMMITTED 연결에서 기존 정규화 카탈로그·정책·이력
+관측을 비교합니다. 네이티브 DB 시점, 공유 한도, 전체 롤백과 포트 수명 정리를 유지하며 새
+런타임 권한은 없습니다. 반환 전 잠금이 풀리므로 읽기 전용 보고서는 발행 권한이 아닙니다.
+다른 부재·selector·권한 관계, 스냅샷/작업/fence 발행, 영속 워커와 나머지 승인 검사는
+미완료이며 Workflow 2 완료 수는 2/7입니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

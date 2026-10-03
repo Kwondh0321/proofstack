@@ -50,6 +50,10 @@ import {
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import * as publicApi from "./index.js";
+import type {
+  PolicyEvaluationSourceRecheckPorts,
+  PolicyEvaluationSourceTransactions,
+} from "./recheck-captured-sources.js";
 
 const scope = comparisonFixtureScope("artifact_graph");
 const traceId = "0123456789abcdef0123456789abcdef";
@@ -881,6 +885,367 @@ describe("request-rooted authorized artifact capture", () => {
     expect(publicApi).not.toHaveProperty("AcquisitionBudget");
     expect(publicApi).not.toHaveProperty("inspectCapturedFixtureBindings");
     expect(publicApi).not.toHaveProperty("deriveCapturedPolicySourceGuards");
+    expect(publicApi).not.toHaveProperty("deriveAndRecheckCapturedPolicySources");
+  });
+});
+
+async function recheckHarness() {
+  const h = await harness();
+  const calls: string[] = [];
+  const state = { phase: "outside" };
+  const ports = {
+    tryGuard: vi.fn(async (kind: "artifact" | "release_policy", id: string) => {
+      calls.push(`guard:${kind}:${id}`);
+      return true;
+    }),
+    findArtifact: vi.fn(async (id: string): Promise<unknown> => {
+      calls.push(`artifact:${id}`);
+      return h.catalog.find(scope, id);
+    }),
+    findPolicy: vi.fn(async (id: string): Promise<unknown> => {
+      calls.push(`policy:${id}`);
+      return h.policies.findReleasePolicy(scope, id);
+    }),
+    listPolicyHistory: vi.fn(async (id: string): Promise<unknown> => {
+      calls.push(`history:${id}`);
+      return h.policies.listReleasePolicyLifecycleEvents(scope, id);
+    }),
+    observationTime: vi.fn(async () => {
+      calls.push("time");
+      return observedAt;
+    }),
+  } satisfies PolicyEvaluationSourceRecheckPorts;
+  const transactions: PolicyEvaluationSourceTransactions = {
+    run: async (exact, operation) => {
+      expect(exact).toEqual(scope);
+      expect(state.phase).toBe("outside");
+      state.phase = "inside";
+      calls.push("begin");
+      try {
+        const result = await operation(ports);
+        state.phase = "committed";
+        calls.push("commit");
+        return result;
+      } catch (error) {
+        state.phase = "rolled_back";
+        calls.push("rollback");
+        throw error;
+      }
+    },
+  };
+  const run = (request = h.request) =>
+    capturePolicyArtifactEvidence(request, h.actor, h.repositories, h.evidence, {
+      ...h.dependencies,
+      sourceTransactions: transactions,
+    });
+  return { h, calls, ports, state, transactions, run };
+}
+
+describe("request-owned source recheck composition", () => {
+  it("does not start a source transaction for unavailable roots or claim a successful empty recheck", async () => {
+    const f = await recheckHarness();
+    f.h.root.mockResolvedValue(null);
+    const run = vi.spyOn(f.transactions, "run");
+    const output = await f.run();
+    expect(output.status).toBe("roots_unavailable");
+    expect(output).not.toHaveProperty("sourceRecheck");
+    expect(output).not.toHaveProperty("sourceGuards");
+    expect(output.usage.sourceGuards).toEqual({ resources: 0, origins: 0, canonicalBytes: 0 });
+    expect(run).not.toHaveBeenCalled();
+    expect(f.calls).toEqual([]);
+  });
+
+  it("guards every coordinate before authoritative reads, outside object/key I/O, on one transaction port", async () => {
+    const f = await recheckHarness();
+    f.h.get.mockImplementation(async () => {
+      expect(f.state.phase).toBe("outside");
+      return f.h.encrypted.bytes;
+    });
+    const output = await f.run();
+    if (output.status !== "artifacts_captured") throw new Error("Expected artifacts");
+    expect(f.calls.slice(1, 1 + output.sourceGuards.length)).toEqual(
+      output.sourceGuards.map(({ kind, id }) => `guard:${kind}:${id}`),
+    );
+    expect(f.calls.at(-1)).toBe("commit");
+    expect(f.h.get).toHaveBeenCalledTimes(3);
+    expect(f.h.decrypt).toHaveBeenCalledTimes(3);
+    expect(f.ports.findArtifact).toHaveBeenCalledTimes(
+      output.sourceGuards.filter(({ kind }) => kind === "artifact").length,
+    );
+    expect(output.sourceRecheck).toEqual({
+      status: "observations_rechecked",
+      observedAt,
+      guards: output.sourceGuards.length,
+      artifactReads: f.ports.findArtifact.mock.calls.length,
+      policyReads: f.ports.findPolicy.mock.calls.length,
+    });
+    expect(JSON.stringify(output.sourceRecheck)).not.toContain(f.h.active.objectKey);
+    expect(output).not.toHaveProperty("sealed");
+    expect(output).not.toHaveProperty("verdict");
+  });
+
+  it.each(["first", "last", "invalid"])(
+    "rolls back the whole observation on %s guard failure without any source reads",
+    async (kind) => {
+      const f = await recheckHarness();
+      const baseline = await f.h.execute();
+      if (baseline.status !== "artifacts_captured") throw new Error("Expected artifacts");
+      const failedIndex = kind === "last" ? baseline.sourceGuards.length - 1 : 0;
+      let index = 0;
+      f.ports.tryGuard.mockImplementation(async () =>
+        index++ === failedIndex
+          ? kind === "invalid"
+            ? (undefined as unknown as boolean)
+            : false
+          : true,
+      );
+      await expect(f.run()).rejects.toMatchObject({
+        reason: kind === "invalid" ? "guard_invalid" : "guard_unavailable",
+      });
+      expect(f.state.phase).toBe("rolled_back");
+      expect(f.ports.findArtifact).not.toHaveBeenCalled();
+      expect(f.ports.findPolicy).not.toHaveBeenCalled();
+      expect(f.ports.observationTime).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["missing", "undefined", "private_key", "ownership", "tombstone", "expiry"])(
+    "rejects changed %s catalog observations with whole rollback",
+    async (kind) => {
+      const f = await recheckHarness();
+      const changed = structuredClone(f.h.active);
+      if (kind === "private_key")
+        Object.assign(changed.encryption.wrappedDataKey, { keyId: "key_changed" });
+      if (kind === "ownership")
+        Object.assign(changed, {
+          ownership: {
+            schemaVersion: "0.1",
+            scope,
+            artifactId: reference.artifactId,
+            boundAt: observedAt,
+            boundByPrincipalId: "principal_owner",
+            owner: {
+              kind: "regression_fixture_version",
+              fixtureId: "fixture_owner",
+              fixtureVersionId: "fixture_owner_v1",
+            },
+          },
+        });
+      if (kind === "tombstone") {
+        changed.metadata.state = "tombstoned";
+        changed.metadata.tombstonedAt = "2026-09-30T00:00:00.000Z";
+      }
+      if (kind === "expiry") f.ports.observationTime.mockResolvedValue("2026-10-02T00:00:00.000Z");
+      f.ports.findArtifact.mockImplementation(async (id) =>
+        id !== reference.artifactId
+          ? null
+          : kind === "missing"
+            ? null
+            : kind === "undefined"
+              ? undefined
+              : changed,
+      );
+      await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+      expect(f.state.phase).toBe("rolled_back");
+      expect(f.calls).not.toContain("commit");
+    },
+  );
+
+  it.each(["missing", "receipt", "scope", "terminal"])(
+    "rejects changed policy %s without selecting newer evidence",
+    async (kind) => {
+      const f = await recheckHarness();
+      if (kind === "terminal")
+        f.ports.listPolicyHistory.mockResolvedValue([
+          releasePolicyLifecycleFixture("recheck_withdrawn", f.h.policy),
+        ]);
+      else {
+        const changed = structuredClone(f.h.policy);
+        if (kind === "receipt") changed.publishedAt = "2026-09-08T00:00:00.000Z";
+        if (kind === "scope") changed.scope.projectId = "project_other";
+        f.ports.findPolicy.mockResolvedValue(kind === "missing" ? null : changed);
+      }
+      await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+      expect(f.state.phase).toBe("rolled_back");
+    },
+  );
+
+  it("retains a later guarded successor and detects a full receipt change without new unguarded reads", async () => {
+    const f = await recheckHarness();
+    const successor = releasePolicyRepositoryFixture("recheck_successor", scope, {
+      policyId: f.h.policy.policyId,
+      predecessor: releasePolicyReference(f.h.policy),
+      publishedAt: "2026-10-01T00:30:00.000Z",
+      semanticVersion: "2.0.0",
+    });
+    await f.h.policies.publishReleasePolicy(successor);
+    await f.h.policies.publishReleasePolicyLifecycleEvent(
+      releasePolicyLifecycleFixture("recheck_successor", f.h.policy, {
+        kind: "superseded",
+        successor,
+        occurredAt: "2026-10-01T01:00:00.000Z",
+      }),
+    );
+    const output = await f.run();
+    expect(output.status).toBe("artifacts_captured");
+    expect(f.ports.findPolicy).toHaveBeenCalledWith(successor.policyVersionId);
+    const fresh = await recheckHarness();
+    await fresh.h.policies.publishReleasePolicy(successor);
+    await fresh.h.policies.publishReleasePolicyLifecycleEvent(
+      releasePolicyLifecycleFixture("recheck_successor", fresh.h.policy, {
+        kind: "superseded",
+        successor,
+        occurredAt: "2026-10-01T01:00:00.000Z",
+      }),
+    );
+    fresh.ports.findPolicy.mockImplementation(async (id) =>
+      id === successor.policyVersionId
+        ? { ...successor, publishedAt: "2026-10-01T00:29:00.000Z" }
+        : fresh.h.policies.findReleasePolicy(scope, id),
+    );
+    await expect(fresh.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(fresh.state.phase).toBe("rolled_back");
+  });
+
+  it("rejects new supersession history without querying its unguarded successor", async () => {
+    const f = await recheckHarness();
+    const successor = releasePolicyRepositoryFixture("recheck_new", scope, {
+      policyId: f.h.policy.policyId,
+      predecessor: releasePolicyReference(f.h.policy),
+      semanticVersion: "2.0.0",
+    });
+    f.ports.listPolicyHistory.mockResolvedValue([
+      releasePolicyLifecycleFixture("recheck_new", f.h.policy, { kind: "superseded", successor }),
+    ]);
+    await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(f.ports.findPolicy).not.toHaveBeenCalledWith(successor.policyVersionId);
+  });
+
+  it.each([undefined, null, { events: [] }])(
+    "rejects malformed history %j instead of treating it as unchanged absence",
+    async (history) => {
+      const f = await recheckHarness();
+      f.ports.listPolicyHistory.mockResolvedValue(history);
+      await expect(f.run()).rejects.toThrow();
+      expect(f.state.phase).toBe("rolled_back");
+      expect(f.calls).not.toContain("commit");
+    },
+  );
+
+  it.each(["object_missing", "content_integrity_failed"])(
+    "preserves captured %s instead of inventing a second content verification",
+    async (reason) => {
+      const f = await recheckHarness();
+      f.h.get.mockResolvedValue(reason === "object_missing" ? null : new Uint8Array(1));
+      const output = await f.run();
+      if (output.status !== "artifacts_captured") throw new Error("Expected artifacts");
+      expect(output.sourceRecheck?.status).toBe("observations_rechecked");
+      expect(
+        output.artifacts.find(({ read }) => read.reference.artifactId === reference.artifactId)
+          ?.read.observation,
+      ).toEqual({ status: "unavailable", reason });
+      expect(f.h.get).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it("keeps unsupported coordinates guarded without new catalog lookup", async () => {
+    const f = await recheckHarness();
+    f.h.event.evidence.contentReferences = [
+      { ...reference, artifactId: "artifact_unmanaged", mediaType: "opaque", sizeBytes: 0 },
+    ];
+    f.h.exact.mockResolvedValue([f.h.event]);
+    const output = await f.run();
+    expect(output.status).toBe("artifacts_captured");
+    expect(f.ports.tryGuard).toHaveBeenCalledWith("artifact", "artifact_unmanaged");
+    expect(f.ports.findArtifact).not.toHaveBeenCalledWith("artifact_unmanaged");
+  });
+
+  it.each(["bad", "2026-10-01T01:59:59.999Z"])(
+    "rejects invalid or pre-capture database cut %s",
+    async (at) => {
+      const f = await recheckHarness();
+      f.ports.observationTime.mockResolvedValue(at);
+      await expect(f.run()).rejects.toMatchObject({ reason: "clock_invalid" });
+      expect(f.state.phase).toBe("rolled_back");
+    },
+  );
+
+  it("retains native database cut precision without making aggregate completion precede it", async () => {
+    const f = await recheckHarness();
+    const at = "2026-10-01T02:00:00.000001Z";
+    f.ports.observationTime.mockResolvedValue(at);
+    const output = await f.run();
+    if (output.status !== "artifacts_captured") throw new Error("Expected artifacts");
+    expect(output.sourceRecheck?.observedAt).toBe(at);
+    expect(output.completedAt).toBe(at);
+  });
+
+  it.each([
+    "tryGuard",
+    "findArtifact",
+    "findPolicy",
+    "listPolicyHistory",
+    "observationTime",
+  ] as const)("propagates %s storage errors unchanged and rolls back", async (method) => {
+    const f = await recheckHarness();
+    const failure = new Error("source storage offline");
+    f.ports[method].mockRejectedValue(failure);
+    await expect(f.run()).rejects.toBe(failure);
+    expect(f.state.phase).toBe("rolled_back");
+  });
+
+  it("shares record and JSON admission with capture rather than resetting for the transaction", async () => {
+    const f = await recheckHarness();
+    const baseline = await f.run();
+    const fresh = await recheckHarness();
+    const exact = withLimits(fresh.h.request, {
+      maxAcquisitionRecords: Math.max(baseline.usage.records, baseline.usage.references),
+      maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
+    });
+    expect((await fresh.run(exact)).usage).toEqual(baseline.usage);
+    const short = await recheckHarness();
+    await expect(
+      short.run(
+        withLimits(exact, {
+          maxAcquisitionRecordBytes: exact.limits.maxAcquisitionRecordBytes - 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "byte_limit" });
+    expect(short.state.phase).toBe("rolled_back");
+    const fewer = await recheckHarness();
+    await expect(
+      fewer.run(withLimits(exact, { maxAcquisitionRecords: baseline.usage.records - 1 })),
+    ).rejects.toMatchObject({ reason: "record_limit" });
+    expect(fewer.state.phase).toBe("rolled_back");
+  });
+
+  it("charges each retained terminal-history row as well as its reread operation", async () => {
+    const f = await recheckHarness();
+    await f.h.policies.publishReleasePolicyLifecycleEvent(
+      releasePolicyLifecycleFixture("recheck_rows", f.h.policy, {
+        occurredAt: "2026-09-30T00:00:00.000Z",
+      }),
+    );
+    const before = await f.h.execute();
+    const output = await f.run();
+    if (output.status !== "artifacts_captured" || !output.sourceRecheck)
+      throw new Error("Expected guarded observations");
+    const recheck = output.sourceRecheck;
+    // Every guard, unique read, history lookup and clock is an operation; the retained row
+    // additionally consumes admission. A one-record history query cannot hide its members.
+    expect(output.usage.records - before.usage.records).toBe(
+      recheck.guards + recheck.artifactReads + recheck.policyReads + 2 + 1,
+    );
+    const fresh = await recheckHarness();
+    await fresh.h.policies.publishReleasePolicyLifecycleEvent(
+      releasePolicyLifecycleFixture("recheck_rows", fresh.h.policy, {
+        occurredAt: "2026-09-30T00:00:00.000Z",
+      }),
+    );
+    await expect(
+      fresh.run(withLimits(fresh.h.request, { maxAcquisitionRecords: output.usage.records - 1 })),
+    ).rejects.toMatchObject({ reason: "record_limit" });
+    expect(fresh.state.phase).toBe("rolled_back");
   });
 });
 

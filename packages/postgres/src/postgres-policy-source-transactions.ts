@@ -1,0 +1,104 @@
+import {
+  type EvidenceScope,
+  EvidenceScopeSchema,
+  OpaqueIdSchema,
+  PolicyEvaluationTimeSchema,
+} from "@proofstack/contracts";
+import {
+  PolicyEvaluationSourceRecheckError,
+  type PolicyEvaluationSourceRecheckPorts,
+  type PolicyEvaluationSourceTransactions,
+} from "@proofstack/policy-evaluation";
+import type { Pool } from "pg";
+import { readPostgresArtifactCatalogOnClient } from "./postgres-artifact-catalog-repository.js";
+import {
+  listPostgresReleasePolicyLifecycleEventsOnClient,
+  readPostgresReleasePolicyOnClient,
+} from "./postgres-release-policy-repository.js";
+import { withExactReadCommittedScopeTransaction } from "./tenant-transaction.js";
+
+/** Trusted read-only adapter. A pool does not confer worker or snapshot-publication authority. */
+export class PostgresPolicySourceTransactions implements PolicyEvaluationSourceTransactions {
+  constructor(private readonly pool: Pick<Pool, "connect">) {}
+
+  async run<T>(
+    scope: EvidenceScope,
+    operation: (ports: PolicyEvaluationSourceRecheckPorts) => Promise<T>,
+  ): Promise<T> {
+    const exact = EvidenceScopeSchema.parse(scope);
+    return withExactReadCommittedScopeTransaction(this.pool, exact, async (client) => {
+      let active = true;
+      let failed = false;
+      let failure: unknown;
+      const pending = new Set<Promise<unknown>>();
+      const call = <Result>(work: () => Promise<Result>): Promise<Result> => {
+        if (!active)
+          return Promise.reject(new Error("Policy source transaction ports have expired"));
+        if (failed) return Promise.reject(failure);
+        const task = work();
+        pending.add(task);
+        void task.then(
+          () => pending.delete(task),
+          (error: unknown) => {
+            pending.delete(task);
+            if (!failed) {
+              failed = true;
+              failure = error;
+            }
+          },
+        );
+        return task;
+      };
+      const id = (value: string) => OpaqueIdSchema.parse(value);
+      const ports: PolicyEvaluationSourceRecheckPorts = {
+        tryGuard: (kind, value) =>
+          call(async () => {
+            if (kind !== "artifact" && kind !== "release_policy")
+              throw new TypeError("Unsupported policy source guard kind");
+            const resourceId = id(value);
+            const result = await client.query<{ acquired: unknown }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_source($1, $2) AS acquired",
+              [kind, resourceId],
+            );
+            const acquired = result.rows.length === 1 ? result.rows[0]?.acquired : undefined;
+            if (acquired !== true)
+              throw new PolicyEvaluationSourceRecheckError(
+                acquired === false ? "guard_unavailable" : "guard_invalid",
+                JSON.stringify([kind, resourceId]),
+              );
+            return true;
+          }),
+        findArtifact: (value) =>
+          call(async () => readPostgresArtifactCatalogOnClient(client, exact, id(value))),
+        findPolicy: (value) =>
+          call(async () => readPostgresReleasePolicyOnClient(client, exact, id(value))),
+        listPolicyHistory: (value) =>
+          call(async () =>
+            listPostgresReleasePolicyLifecycleEventsOnClient(client, exact, id(value)),
+          ),
+        observationTime: () =>
+          call(async () => {
+            const result = await client.query<{ observed_at: unknown }>(
+              `SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS observed_at`,
+            );
+            return PolicyEvaluationTimeSchema.parse(
+              result.rows.length === 1 ? result.rows[0]?.observed_at : undefined,
+            );
+          }),
+      };
+      try {
+        const result = await operation(ports);
+        // Do not let a caught or unawaited port failure commit, or release a connection while
+        // started reads are still using it. The domain composer remains sequential and bounded.
+        active = false;
+        await Promise.allSettled([...pending]);
+        if (failed) throw failure;
+        return result;
+      } finally {
+        active = false;
+        await Promise.allSettled([...pending]);
+      }
+    });
+  }
+}

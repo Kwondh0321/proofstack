@@ -249,15 +249,17 @@ describe("transaction-ready catalog inspection", () => {
     },
   );
 
-  it.each(["bad", "2026-09-07T01:59:59.999Z", "2026-09-07T03:00:00.000001Z"])(
-    "rejects invalid or premature server observation time %s",
-    async (time) => {
-      const h = await harness();
-      expect(() => inspectPolicyEvaluationArtifactCatalog(h.input, h.active, time)).toThrow(
-        "Artifact observation requires exact authorized scope",
-      );
-    },
-  );
+  it.each([
+    "bad",
+    "2026-09-07T01:59:59.999Z",
+    `2026-09-07T03:00:00.${"0".repeat(31)}Z`,
+    "2026-09-07T03:00:00.000+00:00",
+  ])("rejects invalid or premature server observation time %s", async (time) => {
+    const h = await harness();
+    expect(() => inspectPolicyEvaluationArtifactCatalog(h.input, h.active, time)).toThrow(
+      "Artifact observation requires exact authorized scope",
+    );
+  });
 
   it("rejects malformed inputs without waiving the content read budget", async () => {
     const h = await harness();
@@ -275,6 +277,39 @@ describe("transaction-ready catalog inspection", () => {
     await expect(readPolicyEvaluationArtifact(zero, h.dependencies)).rejects.toMatchObject({
       reason: "read_limit",
     });
+  });
+
+  it("admits an exact native database cut without rounding a valid lifecycle receipt into the future", async () => {
+    const h = await harness();
+    const nativeTime = "2026-09-07T03:00:00.000001Z";
+    const raw = {
+      ...h.active,
+      metadata: { ...h.active.metadata, state: "tombstoned" as const, tombstonedAt: nativeTime },
+    };
+    expect(inspectPolicyEvaluationArtifactCatalog(h.input, raw, observedAt).observation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(inspectPolicyEvaluationArtifactCatalog(h.input, raw, nativeTime).observation).toEqual({
+      status: "unavailable",
+      reason: "tombstoned",
+    });
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [`2026-09-07T03:00:00.000000${"9".repeat(24)}Z`, "content_pending"],
+    ["2026-09-07T03:00:00.000001Z", "unavailable"],
+    [`2026-09-07T03:00:00.000001${"0".repeat(23)}1Z`, "unavailable"],
+  ])("preserves the precise retention edge at database cut %s", async (at, status) => {
+    const h = await harness();
+    const raw = structuredClone(h.active);
+    raw.metadata.retention = { mode: "expire", expiresAt: "2026-09-07T03:00:00.000001Z" };
+    const result = inspectPolicyEvaluationArtifactCatalog(h.input, raw, at);
+    expect(result.observation).toEqual(
+      status === "content_pending" ? { status } : { status, reason: "retention_expired" },
+    );
+    expect(result.catalog?.metadata.retention).toEqual(raw.metadata.retention);
   });
 
   it.each([

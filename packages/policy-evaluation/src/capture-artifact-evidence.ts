@@ -42,10 +42,19 @@ import {
 } from "./capture-trace-evidence.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 import {
-  deriveCapturedPolicySourceGuards,
   type PolicyEvaluationSourceGuard,
   type PolicyEvaluationSourceGuardUsage,
 } from "./derive-source-guards.js";
+import {
+  deriveAndRecheckCapturedPolicySources,
+  type PolicyEvaluationSourceRecheck,
+  type PolicyEvaluationSourceTransactions,
+} from "./recheck-captured-sources.js";
+
+export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
+  /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
+  readonly sourceTransactions?: PolicyEvaluationSourceTransactions;
+};
 
 /** Artifact capture additionally observes the complete authoritative terminal policy history. */
 export type PolicyArtifactEvidenceRepositories = PolicyRecordGraphRepositories & {
@@ -78,6 +87,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly status: "artifacts_captured";
       readonly artifacts: readonly PolicyArtifactCapture[];
       readonly sourceGuards: readonly PolicyEvaluationSourceGuard[];
+      readonly sourceRecheck?: PolicyEvaluationSourceRecheck;
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly policyAuthority: PolicyAuthorityPrerequisites;
       readonly policyLifecycle: {
@@ -103,10 +113,11 @@ export async function capturePolicyArtifactEvidence(
   actor: PrincipalContext,
   repositories: PolicyArtifactEvidenceRepositories,
   evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
-  dependencies: PolicyEvaluationArtifactReadDependencies,
+  dependencies: PolicyArtifactEvidenceDependencies,
 ): Promise<PolicyArtifactEvidenceCapture> {
   const request = validatePolicyEvaluationRequestRecord(input);
   const principal = PrincipalContextSchema.parse(actor);
+  const sourceTransactions = dependencies.sourceTransactions;
   requireCapability(principal, "artifact:read");
   if (principal.tenantId !== request.scope.tenantId)
     throw new ForbiddenError("Artifact capture scope does not match principal");
@@ -234,7 +245,7 @@ export async function capturePolicyArtifactEvidence(
     );
     if (beforeArtifacts.observationSha256 !== afterArtifacts.observationSha256)
       throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
-    const sourceGuardPlan = deriveCapturedPolicySourceGuards(
+    const sourceGuardPlan = await deriveAndRecheckCapturedPolicySources(
       {
         request,
         graph: traceCapture.comparisonCapture.graph,
@@ -243,9 +254,18 @@ export async function capturePolicyArtifactEvidence(
         lifecycle: afterArtifacts,
       },
       budget,
+      principal,
+      sourceTransactions ? clock.now().toISOString() : startedAt,
+      sourceTransactions,
     );
     sourceGuardUsage = sourceGuardPlan.usage;
-    const completedAt = clock.now().toISOString();
+    const localCompletedAt = clock.now().toISOString();
+    const completedAt =
+      "recheck" in sourceGuardPlan &&
+      policyEvaluationTimestampOrderKey(sourceGuardPlan.recheck.observedAt) >
+        policyEvaluationTimestampOrderKey(localCompletedAt)
+        ? sourceGuardPlan.recheck.observedAt
+        : localCompletedAt;
     for (const { read } of artifacts) {
       if (
         read.observation.status === "verified" &&
@@ -262,6 +282,7 @@ export async function capturePolicyArtifactEvidence(
       completedAt,
       artifacts,
       sourceGuards: sourceGuardPlan.guards,
+      ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
       fixtureBindings,
       policyAuthority,
       policyLifecycle: { beforeArtifacts, afterArtifacts },

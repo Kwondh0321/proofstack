@@ -24,6 +24,12 @@ export type {
   PolicyEvaluationSourceGuardOrigin,
   PolicyEvaluationSourceGuardUsage,
 } from "./derive-source-guards.js";
+export { PolicyEvaluationSourceRecheckError } from "./recheck-captured-sources.js";
+export type {
+  PolicyEvaluationSourceRecheck,
+  PolicyEvaluationSourceRecheckPorts,
+  PolicyEvaluationSourceTransactions,
+} from "./recheck-captured-sources.js";
 export type {
   PolicyModelAssuranceBindings,
   PolicyModelAssuranceCheck,

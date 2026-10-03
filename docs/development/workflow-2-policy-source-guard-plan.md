@@ -86,6 +86,10 @@ supersession successor, unsupported descriptors without catalog I/O, rejection o
 subsets before I/O, unchanged acquisition call counts and unchanged reference-occurrence counting.
 These are composition and unit checks, not a newly implemented PostgreSQL publisher acceptance test.
 
+Optional [guarded source recheck](workflow-2-policy-source-recheck.md) now derives this plan internally,
+acquires every guard before same-connection normalized reads and compares captured observations.
+Its read-only transaction ends before the report returns; it does not confer publication authority.
+
 The forthcoming publisher must derive or independently verify this complete request-owned plan,
 acquire every required guard on one scoped READ COMMITTED connection and roll back the whole
 transaction on any nonblocking acquisition failure. It must use the
@@ -96,7 +100,7 @@ No object/key I/O may occur while guards are held; no partial/unguarded fallback
 
 The current two-kind domain does not serialize every missing immutable upstream record, unresolved
 selector or mutable authority source. A complete policy snapshot must close those boundaries rather
-than treat this plan as proof of globally atomic recursive evidence. Lock orchestration, current
-migration verification, dedicated worker privileges, durable admission/retries/deadlines, snapshot
+than treat this plan as proof of globally atomic recursive evidence. Atomic publication integration,
+current migration verification, dedicated worker privileges, durable admission/retries/deadlines, snapshot
 contracts, pure predicates, jobs, API/SDK, cancellation, recovery and end-to-end acceptance remain
 open. Coordinate completeness for this installed domain does not accept checkpoint 3.

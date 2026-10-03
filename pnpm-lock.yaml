@@ -654,6 +654,9 @@ importers:
       '@proofstack/identity':
         specifier: workspace:*
         version: link:../identity
+      '@proofstack/policy-evaluation':
+        specifier: workspace:*
+        version: link:../policy-evaluation
       '@proofstack/replay':
         specifier: workspace:*
         version: link:../replay

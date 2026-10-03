@@ -51,6 +51,7 @@ export { PostgresComparisonRepository } from "./postgres-comparison-repository.j
 export { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 export { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
 export { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
+export { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
 export {
   listPostgresReleasePolicyLifecycleEventsOnClient,
   PostgresReleasePolicyRepository,

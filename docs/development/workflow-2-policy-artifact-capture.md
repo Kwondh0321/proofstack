@@ -87,6 +87,11 @@ additionally consume the same metadata ceiling; no new evidence-reference occurr
 introduced. The final clock/expiry cut follows derivation. A coordinate is not an acquired lock,
 complete recursive closure, independently revalidated revision or a sealed snapshot.
 
+The optional [guarded source recheck](workflow-2-policy-source-recheck.md) now acquires the complete
+installed-domain guard set after content/key I/O and compares normalized catalog/policy/history
+observations on one scoped READ COMMITTED connection. Guard/read/history/clock operations share
+this same admission meter. Its report returns after guard release and cannot authorize a later seal.
+
 Graph reads, trace rows, both catalog reads, terminal history/successor reads and raw JSON consume
 one metadata budget. The raw admission wrapper rejects getters, hidden/non-JSON fields and cycles before domain
 inspection. Original graph/trace references remain charged once per occurrence; adding a result's

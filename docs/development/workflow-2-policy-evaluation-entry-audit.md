@@ -275,6 +275,14 @@ admission without extra I/O or a caller-selected subset. This closes coordinate 
 installed two-kind lock domain only. Lock acquisition, full reinspection, other authority/presence
 boundaries, job/fence publication and the remaining checkpoint gates stay open; Workflow 2 is 2/7.
 
+The subsequent [guarded source recheck](workflow-2-policy-source-recheck.md) now optionally acquires
+the complete installed-domain guard set after content I/O, then compares owning normalized
+catalog/policy/history observations on one scoped READ COMMITTED connection. It preserves native
+database-cut precision, shared admission, whole rollback and expired-port cleanup without new
+runtime grants. Its read-only report returns after guard release and cannot authorize publication.
+Other presence/selector/authority closure, snapshot/job/fence publication, durable worker and all
+remaining checkpoint gates stay open; Workflow 2 remains 2/7.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

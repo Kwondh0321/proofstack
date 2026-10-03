@@ -72,9 +72,11 @@ artifact, ownership, policy and lifecycle values through the guarded connection 
 the existing adapters' validation. They do not themselves acquire guards or publish snapshots.
 The [request-owned guard plan](workflow-2-policy-source-guard-plan.md) now derives bounded complete
 coordinates for this installed two-kind domain from the capture, retaining every known origin and
-absence. The two-observation capture still does not acquire these locks or claim atomicity.
-The forthcoming publisher still needs full observation comparison, bounded lock accounting and
-retry/deadline handling, current migration verification, worker-only privileges, and actual guarded
+absence. Optional [read-only source recheck](workflow-2-policy-source-recheck.md) now acquires the
+complete installed-domain guard set and compares normalized sources on that same connection after
+content I/O. It releases guards before returning and does not publish a snapshot or claim global atomicity.
+The forthcoming publisher still needs complete closure/authority comparison, durable lock accounting
+and retry/deadline handling, current migration verification, worker-only privileges, and actual guarded
 snapshot persistence. There is no API endpoint, new caller capability, result or approval here.
 
 ## Verification and limits

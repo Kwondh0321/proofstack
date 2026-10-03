@@ -22,6 +22,7 @@ async function withTransactionContext<Result>(
   pool: Pick<Pool, "connect">,
   context: readonly { readonly statement: string; readonly value: string }[],
   operation: (client: PoolClient) => Promise<Result>,
+  beginStatement: "BEGIN" | "BEGIN ISOLATION LEVEL READ COMMITTED" = "BEGIN",
 ): Promise<Result> {
   const client = await pool.connect();
   let connectionDestroyed = false;
@@ -29,7 +30,7 @@ async function withTransactionContext<Result>(
 
   try {
     try {
-      await client.query("BEGIN");
+      await client.query(beginStatement);
       transactionStarted = true;
       for (const { statement, value } of context) {
         await client.query(statement, [value]);
@@ -78,10 +79,11 @@ export async function withTenantTransaction<Result>(
 }
 
 /** Runs one transaction with all tenant-bearing policy scope dimensions set transaction-locally. */
-export async function withExactScopeTransaction<Result>(
+async function withScopedTransaction<Result>(
   pool: Pick<Pool, "connect">,
   scope: PostgresExactScope,
   operation: (client: PoolClient) => Promise<Result>,
+  beginStatement: "BEGIN" | "BEGIN ISOLATION LEVEL READ COMMITTED",
 ): Promise<Result> {
   return withTransactionContext(
     pool,
@@ -100,5 +102,23 @@ export async function withExactScopeTransaction<Result>(
       },
     ],
     operation,
+    beginStatement,
   );
+}
+
+export async function withExactScopeTransaction<Result>(
+  pool: Pick<Pool, "connect">,
+  scope: PostgresExactScope,
+  operation: (client: PoolClient) => Promise<Result>,
+): Promise<Result> {
+  return withScopedTransaction(pool, scope, operation, "BEGIN");
+}
+
+/** Internal source-observation protocol: override pool/role defaults before any scope SELECT. */
+export async function withExactReadCommittedScopeTransaction<Result>(
+  pool: Pick<Pool, "connect">,
+  scope: PostgresExactScope,
+  operation: (client: PoolClient) => Promise<Result>,
+): Promise<Result> {
+  return withScopedTransaction(pool, scope, operation, "BEGIN ISOLATION LEVEL READ COMMITTED");
 }
