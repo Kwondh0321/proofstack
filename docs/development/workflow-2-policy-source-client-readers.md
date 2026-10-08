@@ -19,7 +19,9 @@ The [dataset/fixture storage guide](workflow-2-regression-storage-integrity.md) 
 logical roots, original intents, shared-format presence and remaining internal root admission.
 
 The [replay storage guide](workflow-2-replay-storage-integrity.md) records both definitions'
-original intent, plan child coordinates/limits and scoped presence. Target resources do not
+original intent, plan child coordinates/limits and scoped presence. Runtime provisioning also
+grants the existing replay worker its fixed read-only intent-status function, without raw outbox
+access or definition writes. Target resources do not
 bind release versions; complete target absence ownership and current authority remain open.
 
 | Domain | Supplied-client functions | Retained owning behavior |

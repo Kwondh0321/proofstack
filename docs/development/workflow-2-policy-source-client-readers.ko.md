@@ -24,7 +24,9 @@ Recorded fixture의 `Content` 조회는 소유권·철회·tombstone·catalog �
 recorded ownership/철회 검증을 유지하며 내부 root admission과 전체 권한 closure는 남습니다.
 
 후속 [replay 저장 검증](workflow-2-replay-storage-integrity.ko.md)은 두 정의의 최초 intent와
-plan 하위 좌표·행 제한·같은 시점의 존재 확인을 추가합니다. Target 리소스에는 release
+plan 하위 좌표·행 제한·같은 시점의 존재 확인을 추가합니다. Runtime provisioning은 기존
+worker에 읽기 전용 intent-status EXECUTE를 부여하며 raw outbox 조회·정의 쓰기는 차단합니다.
+Target 리소스에는 release
 버전 연결이 없으므로 전체 target 부재 소유권·현재 권한은 여전히 남은 요건입니다.
 
 ## 호출자 책임과 남은 경계

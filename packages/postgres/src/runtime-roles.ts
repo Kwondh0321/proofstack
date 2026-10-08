@@ -370,6 +370,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
   replayWorker: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT SELECT ON TABLE public.proofstack_replay_targets, public.proofstack_target_releases, public.proofstack_replay_plan_resources, public.proofstack_replay_plans, public.proofstack_replay_plan_budgets, public.proofstack_replay_plan_boundaries TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_replay_publication_intent_status(text, text, text, text, text, jsonb, timestamptz) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_acknowledge_replay_cancellation(text, text, text, text, text, text, bigint, bigint, text, text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_append_replay_execution_observation(text, text, text, text, text, text, bigint, bigint, text, jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_append_replay_usage_observation(text, text, text, text, text, text, bigint, bigint, text, text, text, jsonb) TO %ROLE%",

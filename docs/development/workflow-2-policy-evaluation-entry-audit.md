@@ -443,6 +443,13 @@ detector.
 
 ## Exact source binding and acquisition
 
+Replay owning definition reads validate original intents under both API and replay-worker
+roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
+status function; raw outbox access and new definition publication remain denied. Native role
+checks and real cross-process worker acceptance are required alongside API source-reader tests.
+This source-read compatibility correction does not provide policy-evaluation worker authority,
+complete logical authority closure, sealing or checkpoint acceptance.
+
 - Resolve every candidate comparison reference in the exact authorized scope before deciding
   whether a policy definition has zero, one, or several matching results. An unreadable member
   cannot be silently dropped to make an ambiguous set look unique.

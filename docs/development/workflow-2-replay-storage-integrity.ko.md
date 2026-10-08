@@ -5,8 +5,10 @@ Target release와 replay plan 조회는 같은 PostgreSQL 연결에서 최초의
 Workflow 2 승인 수는 **2/7**입니다.
 [영문 가이드](workflow-2-replay-storage-integrity.md).
 
-기존 intent-status 함수와 권한으로 event·aggregate·schema·전체 payload·최초 시각을
-대조합니다. 같은 정의의 재시도는 최초 receipt를 유지하며 가변 outbox 전달 상태는
+기존 intent-status 함수로 event·aggregate·schema·전체 payload·최초 시각을 대조합니다.
+Runtime provisioning은 기존 replay worker에 이 읽기 전용·tenant 제한·고정 search path
+함수의 EXECUTE를 부여합니다. Raw outbox 조회와 정의 발행 권한은 없습니다.
+같은 정의의 재시도는 최초 receipt를 유지하며 가변 outbox 전달 상태는
 최초 intent를 바꾸지 않습니다. 기존 비공개 발행의 identity/conflict 규칙을 유지합니다.
 
 Plan 하위 행은 검증된 부모의 project·environment·논리 plan ID와 native boolean으로
@@ -24,8 +26,8 @@ Target 논리 리소스에는 정확한 release 버전 연결이 없습니다. �
 등장하는 참조·outbox aggregate ID만으로 누락된 release의 소유 scope를 추정하지 않습니다.
 기존 target 부모 조회를 유지하며 전체 target 부재 closure나 새 root 규칙을 주장하지 않습니다.
 
-Helper는 전달받은 연결에서 SELECT만 사용합니다. 새 migration·grant·role·의존성·route·
-worker는 없습니다. 공유된 비공개 plan 하위 조회도 잘못된 좌표를 거절합니다. 내부 SQL/행
+Helper는 전달받은 연결에서 SELECT만 사용합니다. Worker의 읽기 함수 grant 하나를 추가하며
+새 migration·role·의존성·route·worker는 없습니다. 공유된 비공개 plan 하위 조회도 잘못된 좌표를 거절합니다. 내부 SQL/행
 admission, 실행/전송 상한, 전체 parent 의미·현재 권한·sealed 발행은 남은 요건입니다.
 끝난 읽기 전용 트랜잭션의 보고서로 나중에 snapshot/job을 발행할 수 없습니다.
 
@@ -35,3 +37,5 @@ admission, 실행/전송 상한, 전체 parent 의미·현재 권한·sealed 발
 보존합니다. 일곱 테이블 fingerprint와 최초 owning 조회로 롤백을 확인합니다. 잘못된
 boolean/행 수 port 응답은 명시적인 변조 검사이며 PostgreSQL이 생성한 타입이라는 뜻은
 아닙니다. 기존 conformance·RLS·같은 backend/barrier·최초 receipt 검증도 필요합니다.
+실제 worker 역할의 정상 조회·손상된 intent·scope 밖 조회, raw outbox 조회 및 새 정의 발행
+차단, tenant 제한과 replay 정의 전용 status 조회도 검증합니다.

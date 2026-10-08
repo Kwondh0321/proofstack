@@ -336,6 +336,8 @@ describe("runtime role provisioning", () => {
       readonly jobsUpdate: boolean;
       readonly migrationsSelect: boolean;
       readonly outboxInsert: boolean;
+      readonly outboxSelect: boolean;
+      readonly definitionIntentExecute: boolean;
       readonly plansInsert: boolean;
       readonly plansSelect: boolean;
       readonly reconcileExecute: boolean;
@@ -359,6 +361,13 @@ describe("runtime role provisioning", () => {
           AS "attemptEventsSelect",
         has_table_privilege(current_user, 'proofstack_outbox', 'INSERT')
           AS "outboxInsert",
+        has_table_privilege(current_user, 'proofstack_outbox', 'SELECT')
+          AS "outboxSelect",
+        has_function_privilege(
+          current_user,
+          'proofstack_replay_publication_intent_status(text,text,text,text,text,jsonb,timestamptz)',
+          'EXECUTE'
+        ) AS "definitionIntentExecute",
         has_table_privilege(current_user, 'proofstack_replay_plans', 'SELECT')
           AS "plansSelect",
         has_table_privilege(current_user, 'proofstack_replay_plans', 'INSERT')
@@ -428,6 +437,8 @@ describe("runtime role provisioning", () => {
         jobsUpdate: false,
         migrationsSelect: true,
         outboxInsert: false,
+        outboxSelect: false,
+        definitionIntentExecute: true,
         plansInsert: false,
         plansSelect: true,
         reconcileExecute: true,

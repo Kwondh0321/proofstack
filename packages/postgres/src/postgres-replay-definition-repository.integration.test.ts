@@ -98,6 +98,10 @@ const credentials = {
 
 const adminPool = new Pool({ connectionString: databaseUrl, max: 6 });
 const runtimePool = new Pool({ connectionString: connectionStringFor(credentials.api), max: 12 });
+const replayWorkerPool = new Pool({
+  connectionString: connectionStringFor(credentials.replayWorker),
+  max: 2,
+});
 
 interface StoredIntentRow extends QueryResultRow {
   readonly aggregate_id: string;
@@ -558,6 +562,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  await replayWorkerPool.end();
   await runtimePool.end();
   for (const role of Object.values(credentials)) {
     const exists = await adminPool.query<{ readonly present: boolean }>(
@@ -651,6 +656,7 @@ async function damagedReplayStorage(
   kind: "replay_plan" | "target_release",
   mutate: (client: PoolClient) => Promise<void>,
   inspect?: (view: Pick<PoolClient, "query">) => Promise<void>,
+  readerRole: RuntimeRoleCredentials = credentials.api,
 ) {
   const before = await scopeFingerprint(h.scope);
   const read = (client: Pick<PoolClient, "query">, scope: EvidenceScope) =>
@@ -664,7 +670,7 @@ async function damagedReplayStorage(
         // Privileged isolated damage only; CHECKs remain active and every change rolls back.
         await client.query("SET LOCAL session_replication_role = 'replica'");
         await mutate(client);
-        await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+        await client.query(`SET LOCAL ROLE "${readerRole.name}"`);
         const calls: string[] = [];
         const view = {
           query: async (sql: string, values: unknown[]) => {
@@ -695,6 +701,99 @@ async function damagedReplayStorage(
 }
 
 describe("replay owning original intents and normalized plan storage", () => {
+  it("keeps the worker intent probe tenant-bound and limited to replay definitions", async () => {
+    const h = await scopeFixture();
+    const intents = await publishedIntents(h.scope.tenantId);
+    expect(intents).toHaveLength(2);
+    await withExactScopeTransaction(replayWorkerPool, h.scope, async (client) => {
+      for (const intent of intents) {
+        const values = [
+          intent.tenantId,
+          intent.eventType,
+          intent.aggregateType,
+          intent.aggregateId,
+          intent.schemaVersion,
+          JSON.stringify(intent.payload),
+          intent.createdAt,
+        ];
+        const probe = async (input: unknown[]) =>
+          (
+            await client.query(
+              "SELECT public.proofstack_replay_publication_intent_status($1,$2,$3,$4,$5,$6::jsonb,$7::timestamptz) AS status",
+              input,
+            )
+          ).rows;
+        await expect(probe(values)).resolves.toEqual([{ status: "canonical" }]);
+        await expect(probe(["ten_other", ...values.slice(1)])).resolves.toEqual([
+          { status: "absent" },
+        ]);
+        const unsupported = [...values];
+        unsupported[1] = "policy.published";
+        await expect(probe(unsupported)).resolves.toEqual([{ status: "absent" }]);
+        const extra = [...values];
+        extra[5] = JSON.stringify({ ...intent.payload, unexpected: true });
+        await expect(probe(extra)).resolves.toEqual([{ status: "absent" }]);
+      }
+    });
+  });
+
+  it("keeps worker raw outbox access and new definition publication denied", async () => {
+    const h = await scopeFixture();
+    const before = await scopeFingerprint(h.scope);
+    const { createdAt, createdByPrincipalId, definitionSha256: _hash, ...original } = h.release;
+    const definition = { ...original, targetReleaseId: `tre_worker_denied_${runKey}` };
+    const release = TargetReleaseSchema.parse({
+      ...definition,
+      createdAt,
+      createdByPrincipalId,
+      definitionSha256: digestTargetReleaseDefinition(definition),
+    });
+    await expect(
+      replayWorkerPool.query("SELECT * FROM public.proofstack_outbox"),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      new PostgresReplayDefinitionRepository(replayWorkerPool).publishTargetRelease(release),
+    ).rejects.toMatchObject({ code: "42501" });
+    expect(await scopeFingerprint(h.scope)).toBe(before);
+    await expect(repository.findTargetRelease(h.scope, h.release.targetReleaseId)).resolves.toEqual(
+      h.release,
+    );
+  });
+
+  for (const kind of ["target_release", "replay_plan"] as const)
+    it(`rejects a damaged ${kind} intent under the replay worker role`, async () => {
+      const h = await scopeFixture();
+      const id = kind === "replay_plan" ? h.plan.planVersionId : h.release.targetReleaseId;
+      await damagedReplayStorage(
+        h,
+        kind,
+        async (client) => {
+          expect(
+            (
+              await client.query(
+                "UPDATE public.proofstack_outbox SET payload=payload || '{\"unexpected\":true}'::jsonb WHERE tenant_id=$1 AND aggregate_id=$2",
+                [h.scope.tenantId, id],
+              )
+            ).rowCount,
+          ).toBe(1);
+        },
+        undefined,
+        credentials.replayWorker,
+      );
+    });
+
+  for (const kind of ["target_release", "replay_plan"] as const)
+    it(`allows the provisioned replay worker to read canonical ${kind}`, async () => {
+      const h = await scopeFixture();
+      const worker = new PostgresReplayDefinitionRepository(replayWorkerPool);
+      if (kind === "target_release")
+        await expect(worker.findTargetRelease(h.scope, h.release.targetReleaseId)).resolves.toEqual(
+          h.release,
+        );
+      else
+        await expect(worker.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(h.plan);
+    });
+
   it("rejects an existing body without either normalized child witness", async () => {
     const h = await scopeFixture();
     await damagedReplayStorage(h, "replay_plan", async (client) => {

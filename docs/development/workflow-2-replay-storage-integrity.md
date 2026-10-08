@@ -10,7 +10,9 @@ the canonical definition. Workflow 2 remains **2/7 accepted checkpoints**.
 
 Ordinary repositories and supplied-client readers share owning validation. The
 existing fixed intent-status function checks the expected event, aggregate, schema,
-complete payload and original creation time through existing grants. Semantic retries
+complete payload and original creation time. Runtime provisioning grants the existing
+replay worker EXECUTE on this read-only, tenant-bound, fixed-search-path function;
+it still cannot read the raw outbox or publish definitions. Semantic retries
 keep their original receipts and private tenant-wide identity/conflict logic. Mutable
 outbox delivery fields do not change the original canonical intent.
 
@@ -38,8 +40,8 @@ does not claim complete target absence closure or invent a resource-root protoco
 
 ## Remaining boundaries and verification
 
-Helpers use only SELECT on the supplied connection. No migration, grant, role,
-dependency, route or worker is added. Shared private plan child loaders now reject
+Helpers use only SELECT on the supplied connection. The single worker read-function
+grant adds no migration, role, dependency, route or worker. Shared private plan child loaders reject
 incorrect coordinates too; their publication/intent rules are otherwise retained.
 Internal SQL/row admission, hard execution/transport limits, complete parent semantics,
 reverse/live authority and sealed publication remain separate requirements. An ended
@@ -53,4 +55,6 @@ trigger-enabled delivery updates preserve both owning definitions. Seven-table
 fingerprints and original owning reads verify rollback. Explicit port-response
 mutations reject nonboolean flags and malformed row counts; these are simulated
 faults, not malformed types emitted by PostgreSQL. Existing repository conformance,
-RLS, supplied-backend/barrier and original-receipt gates remain required.
+RLS, supplied-backend/barrier and original-receipt gates remain required. Native worker
+role cases cover canonical reads, damaged intents, outside scopes, denied raw outbox
+reads and denied new definition publication, plus tenant-bound replay-only status probes.
