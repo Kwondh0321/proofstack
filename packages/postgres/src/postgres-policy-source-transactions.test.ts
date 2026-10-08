@@ -456,7 +456,7 @@ describe("PostgresPolicySourceTransactions", () => {
       text.includes("FROM public.proofstack_evaluation_records"),
     );
     expect(criterionReads.map(({ values }) => values)).toEqual([
-      [scope.tenantId, "criterion_set", "criterion_one"],
+      [scope.tenantId, "criterion_set", "criterion_one", scope.projectId, scope.environmentId],
       [scope.tenantId, scope.projectId, scope.environmentId, historyLimits.maxRecords + 1],
     ]);
     const ledgerIndex = f.queries.findIndex(({ text }) => text.includes("SELECT id, checksum"));

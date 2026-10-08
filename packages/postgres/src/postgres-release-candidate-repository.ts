@@ -102,14 +102,20 @@ async function loadStored(
   client: Pick<PoolClient, "query">,
   tenantId: string,
   candidateVersionId: string,
+  exactScope?: EvidenceScope,
 ): Promise<StoredReleaseCandidateRow | null> {
   const result = await client.query<StoredReleaseCandidateRow>(
     `SELECT tenant_id, project_id, environment_id, candidate_id, candidate_version_id,
        schema_version, definition_sha256, created_at_lexical, created_by_principal_id,
        lineage_count, record
      FROM public.proofstack_release_candidates
-     WHERE tenant_id = $1 AND candidate_version_id = $2`,
-    [tenantId, candidateVersionId],
+     WHERE tenant_id = $1 AND candidate_version_id = $2
+       ${exactScope ? "AND project_id = $3 AND environment_id = $4" : ""}`,
+    [
+      tenantId,
+      candidateVersionId,
+      ...(exactScope ? [exactScope.projectId, exactScope.environmentId] : []),
+    ],
   );
   return result.rows[0] ?? null;
 }
@@ -173,7 +179,7 @@ export async function readPostgresReleaseCandidateOnClient(
   candidateVersionId: string,
 ): Promise<ReleaseCandidate | null> {
   const scope = { ...scopeInput };
-  const row = await loadStored(client, scope.tenantId, candidateVersionId);
+  const row = await loadStored(client, scope.tenantId, candidateVersionId, scope);
   if (!row) return null;
   const candidate = parseStored(row);
   return scopesEqual(candidate.scope, scope) ? clone(candidate) : null;

@@ -327,6 +327,12 @@ opening another connection or ending the caller's transaction. Their extraction 
 guarded composition; it does not add complete reverse authority histories, closure publication or
 a seal, and does not change the existing source recheck report's lifetime.
 
+The supplied-client readers subsequently filter exact normalized scope before canonical parsing
+for all evaluation/comparison/candidate/replay-definition records. Damaged outside-scope bodies
+remain opaque absence, and outside replay plans do not load subordinate budget/boundary rows.
+Found-row integrity checks and tenant-wide publication conflict/lineage queries remain intact.
+This closes a separately reproduced storage-error opacity gap, not presence or authority closure.
+
 The subsequent [model/human scalar integrity correction](workflow-2-model-assurance-projections.md)
 closes a reproduced SQL UNKNOWN/null-actor admission gap through a forward validated constraint
 and owning full scalar row checks. Exact scope is filtered before parsing outside-scope damage;

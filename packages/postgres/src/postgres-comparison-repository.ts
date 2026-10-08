@@ -193,14 +193,21 @@ async function loadStored(
   kind: ComparisonRecordKind,
   tenantId: string,
   recordId: string,
+  exactScope?: EvidenceScope,
 ): Promise<StoredComparisonRow | null> {
   const result = await client.query<StoredComparisonRow>(
     `SELECT tenant_id, project_id, environment_id, record_kind, record_id,
        schema_version, definition_sha256, created_at_lexical, actor_principal_id,
        comparison_id, comparison_version_id, comparison_role, lineage_count, record
      FROM public.proofstack_comparison_records
-     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3`,
-    [tenantId, kind, recordId],
+     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
+       ${exactScope ? "AND project_id = $4 AND environment_id = $5" : ""}`,
+    [
+      tenantId,
+      kind,
+      recordId,
+      ...(exactScope ? [exactScope.projectId, exactScope.environmentId] : []),
+    ],
   );
   return result.rows[0] ?? null;
 }
@@ -273,7 +280,7 @@ export async function readPostgresComparisonRecordOnClient<K extends ComparisonR
   recordId: string,
 ): Promise<ComparisonRecordByKind[K] | null> {
   const scope = { ...scopeInput };
-  const row = await loadStored(client, kind, scope.tenantId, recordId);
+  const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
   if (!row) return null;
   const record = parseStored(kind, row);
   return scopesEqual(record.scope, scope) ? (clone(record) as ComparisonRecordByKind[K]) : null;

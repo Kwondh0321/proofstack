@@ -91,6 +91,14 @@ record의 반환 타입은 kind에 따라 결정됩니다. 발행 경로의 tena
 변경하지 않습니다. Runtime grant·외부 dependency는 그대로이며 후속 모델·사람 기록 필드
 무결성 migration은 기존/신규 행을 검증하되 helper의 트랜잭션 경계를 바꾸지 않습니다.
 
+평가 17종·비교 3종·candidate·replay 정의 2종은 첫 SQL에서 정규화된 tenant/project/
+environment와 불변 ID를 필터링합니다. 범위 밖 행은 canonical 본문 검증이나 반환되는
+native timestamp projection 전에 제외하므로 본문이 손상되어 있어도 부재로 반환합니다.
+범위 밖 replay plan의 budget/boundary 행도 조회하지 않습니다. 범위 안 행의 기존 canonical/
+정규화 검증과 두 scope의 일치 검사는 그대로이며, 손상된 행은 계속 오류입니다. 내부 발행
+loader는 선택적 exact-scope 필터를 생략해 tenant 단위 불변 ID 충돌과 lineage 오류를 계속
+검사합니다. Scope GUC 변경·role/grant·migration·공개 route·새 트랜잭션은 추가하지 않습니다.
+
 이 함수들은 전체 reverse history·논리 selector·upstream 부재·권한 closure를 새로 증명하지
 않습니다. [메타데이터 잠금](workflow-2-policy-metadata-barrier.ko.md) 역시 이 조회들을 자동으로
 실행하지 않습니다. 다음 구성은 content/key I/O를 잠금 밖에서 마친 뒤, 잠금을 보유한 같은
@@ -109,6 +117,16 @@ job을 원자적으로 발행해야 합니다. 기존 [source recheck](workflow-
 정규화 그래프와 손상 사례를 계속 검사합니다. 단위 회귀 검사는 query/pool await 중 입력
 변경과 오류 원형 전달, helper가 트랜잭션 정리를 대신하지 않는 경계를 다룹니다. 처리량이나
 운영 가용성을 보장하지 않습니다.
+
+`source-read-scope-integrity.integration.test.ts`는 기존 API/실행 역할로 발행한 평가·비교·
+candidate 21종의 정상 exact/outside 조회와 부재 ID를 검사합니다. 관리자만 폐기 가능한
+저장소 원문을 잠깐 손상시키고 일반 API 역할의 전달받은 연결에서 조회합니다. 각 tenant/
+project/environment 불일치는 행을 반환하지 않으며 범위 안 손상은 여전히 실패합니다.
+Fingerprint와 원래 owning 조회로 전체 롤백을 확인합니다. Replay 정의 검사는 두 정의와
+손상된 budget/boundary 집합을 별도로 다루며, 범위 밖에서는 빈 부모 조회 이후 하위 행을
+읽지 않고 범위 안에서는 실패합니다. 저장소 손상 회귀 검사이며 일반 runtime 역할이 불변
+레코드를 변경할 수 있다는 주장은 아닙니다. 기존 발행 conformance는 tenant 단위 ID 충돌과
+최초 receipt를 계속 검증합니다.
 
 보호된 저장소 모드도 평가·모델/사람 검증·비교 fixture를 같은 backend의 기존 강제 RLS API
 조회 권한으로 읽습니다. Dataset/fixture/replay 부재, 정확한 event 순서·전체 envelope,

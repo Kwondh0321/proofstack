@@ -102,6 +102,16 @@ its fixed record kind. Publication paths retain their tenant-wide conflict and l
 Runtime grants and external dependencies remain unchanged. The subsequent model/human scalar
 integrity migration validates old and new rows without changing the helper transaction boundary.
 
+Evaluation's seventeen kinds, comparison's three kinds, candidates and the two replay definitions
+now filter normalized tenant/project/environment and immutable ID in the first SQL read, before
+parsing the canonical body or evaluating returned native timestamp projections. An outside-scope
+row remains opaque absence even if its retained body is damaged. A replay plan outside the requested
+scope does not load its budget or boundary rows. Found rows still undergo all owning canonical and
+normalized checks, including canonical-versus-normalized scope agreement; exact-scope damage remains
+an error. Private publication loaders deliberately omit the optional exact-scope filter so tenant-wide
+immutable identity conflicts and owning lineage failures remain visible to publication. This change
+adds no scope GUC mutation, role, grant, migration, public route or new transaction.
+
 Each helper preserves its owning reader's actual checks. An exact record read does not newly
 prove every reverse history, logical selector, upstream absence or publication intent. In
 particular, the recorded fixture reader's intent check is not a claim that all domain readers
@@ -129,6 +139,16 @@ continues through these extracted readers, including positive normalized dataset
 graphs and corruption cases. Unit regressions mutate caller inputs across query/pool awaits and
 check original-error propagation without transaction cleanup by a helper. No throughput or
 production availability claim follows from these checks.
+
+`source-read-scope-integrity.integration.test.ts` publishes the evaluation/comparison/candidate
+fixtures through their existing API or execution roles. It covers all twenty-one kinds with ordinary
+exact/outside reads, absent IDs and API-role supplied-client reads after administrator-only disposable
+damage. Each tenant/project/environment mismatch returns no row; an exact-scope damaged definition
+still fails. Fingerprints and original owning reads verify complete rollback. The replay definition
+suite separately covers both definitions and damaged subordinate budget/boundary sets: outside
+reads stop after the empty parent lookup, while exact-scope damage fails. These are damaged-storage
+regressions, not a claim that normal runtime roles can mutate immutable records. Existing publication
+conformance still exercises tenant-wide identity conflicts and original receipts.
 
 The guarded repository mode additionally routes all evaluation/model/comparison fixtures through
 the same backend under the existing forced-RLS API read role, keeps dataset/fixture/replay absence

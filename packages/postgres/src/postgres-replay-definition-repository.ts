@@ -396,6 +396,7 @@ async function loadTargetRelease(
   client: Pick<PoolClient, "query">,
   tenantId: string,
   targetReleaseId: string,
+  exactScope?: EvidenceScope,
 ): Promise<TargetRelease | null> {
   const result = await client.query<TargetReleaseRow>(
     `SELECT
@@ -412,8 +413,13 @@ async function loadTargetRelease(
       release.stderr_bytes::text AS stderr_bytes,
       release.stdout_bytes::text AS stdout_bytes
     FROM public.proofstack_target_releases AS release
-    WHERE release.tenant_id = $1 AND release.target_release_id = $2`,
-    [tenantId, targetReleaseId],
+    WHERE release.tenant_id = $1 AND release.target_release_id = $2
+      ${exactScope ? "AND release.project_id = $3 AND release.environment_id = $4" : ""}`,
+    [
+      tenantId,
+      targetReleaseId,
+      ...(exactScope ? [exactScope.projectId, exactScope.environmentId] : []),
+    ],
   );
   if (result.rows.length === 0) return null;
   const row = result.rows[0];
@@ -630,6 +636,7 @@ async function loadReplayPlan(
   client: Pick<PoolClient, "query">,
   tenantId: string,
   planVersionId: string,
+  exactScope?: EvidenceScope,
 ): Promise<ReplayPlan | null> {
   const result = await client.query<ReplayPlanRow>(
     `SELECT
@@ -650,8 +657,13 @@ async function loadReplayPlan(
         retry_backoff_maximum_delay_milliseconds,
       plan.retry_total_deadline_milliseconds::text AS retry_total_deadline_milliseconds
     FROM public.proofstack_replay_plans AS plan
-    WHERE plan.tenant_id = $1 AND plan.plan_version_id = $2`,
-    [tenantId, planVersionId],
+    WHERE plan.tenant_id = $1 AND plan.plan_version_id = $2
+      ${exactScope ? "AND plan.project_id = $3 AND plan.environment_id = $4" : ""}`,
+    [
+      tenantId,
+      planVersionId,
+      ...(exactScope ? [exactScope.projectId, exactScope.environmentId] : []),
+    ],
   );
   if (result.rows.length === 0) return null;
   const row = result.rows[0];
@@ -946,7 +958,7 @@ export async function readPostgresReplayPlanOnClient(
 ): Promise<ReplayPlan | null> {
   const scope = requireScope(scopeInput);
   const planVersionId = requireOpaqueId(planVersionIdInput);
-  const plan = await loadReplayPlan(client, scope.tenantId, planVersionId);
+  const plan = await loadReplayPlan(client, scope.tenantId, planVersionId, scope);
   return !plan || !scopesEqual(plan.scope, scope) ? null : clone(plan);
 }
 
@@ -958,7 +970,7 @@ export async function readPostgresTargetReleaseOnClient(
 ): Promise<TargetRelease | null> {
   const scope = requireScope(scopeInput);
   const targetReleaseId = requireOpaqueId(targetReleaseIdInput);
-  const release = await loadTargetRelease(client, scope.tenantId, targetReleaseId);
+  const release = await loadTargetRelease(client, scope.tenantId, targetReleaseId, scope);
   return !release || !scopesEqual(release.scope, scope) ? null : clone(release);
 }
 

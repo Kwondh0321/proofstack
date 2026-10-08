@@ -383,12 +383,19 @@ async function loadStored(
   kind: EvaluationRecordKind,
   tenantId: string,
   recordId: string,
+  exactScope?: EvidenceScope,
 ): Promise<StoredRecordRow | null> {
   const result = await client.query<StoredRecordRow>(
     `SELECT ${SELECT_EVALUATION_COLUMNS}
      FROM public.proofstack_evaluation_records
-     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3`,
-    [tenantId, kind, recordId],
+     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
+       ${exactScope ? "AND project_id = $4 AND environment_id = $5" : ""}`,
+    [
+      tenantId,
+      kind,
+      recordId,
+      ...(exactScope ? [exactScope.projectId, exactScope.environmentId] : []),
+    ],
   );
   return result.rows[0] ?? null;
 }
@@ -487,7 +494,7 @@ export async function readPostgresEvaluationRecordOnClient<K extends EvaluationR
   recordId: string,
 ): Promise<PostgresEvaluationRecordByKind[K] | null> {
   const scope = { ...scopeInput };
-  const row = await loadStored(client, kind, scope.tenantId, recordId);
+  const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
   if (!row) return null;
   const record = parseStored(kind, row);
   return scopesEqual(record.scope, scope)

@@ -1,6 +1,23 @@
-import type { EvidenceScope, JsonObject, ReplayPlan, TargetRelease } from "@proofstack/contracts";
-import { JsonValueSchema, OpaqueIdSchema, TimestampSchema } from "@proofstack/contracts";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import type {
+  EvidenceScope,
+  JsonObject,
+  ReplayPlan,
+  ReplayPlanDefinition,
+  TargetRelease,
+  TargetReleaseDefinition,
+} from "@proofstack/contracts";
 import {
+  JsonValueSchema,
+  OpaqueIdSchema,
+  ReplayPlanSchema,
+  TargetReleaseSchema,
+  TimestampSchema,
+} from "@proofstack/contracts";
+import {
+  digestReplayPlanDefinition,
+  digestTargetReleaseDefinition,
   type PublishedReplayDefinitionOutboxIntent,
   type PublishReplayDefinitionResult,
   REPLAY_DEFINITION_OUTBOX_SCHEMA_VERSION,
@@ -15,14 +32,19 @@ import {
   replayDefinitionRepositoryConformanceCases,
 } from "@proofstack/replay/testing";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
-import { PostgresReplayDefinitionRepository } from "./postgres-replay-definition-repository.js";
+import {
+  PostgresReplayDefinitionRepository,
+  readPostgresReplayPlanOnClient,
+  readPostgresTargetReleaseOnClient,
+} from "./postgres-replay-definition-repository.js";
 import {
   provisionRuntimeRoles,
   type RuntimeRoleCredentials,
   type RuntimeRoleProvisioningOptions,
 } from "./runtime-roles.js";
+import { withExactScopeTransaction } from "./tenant-transaction.js";
 
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
 if (!databaseUrl) {
@@ -560,4 +582,185 @@ describe("PostgresReplayDefinitionRepository contract", () => {
       }));
     });
   }
+});
+
+async function scopeFixture() {
+  const vectors = JSON.parse(
+    readFileSync(
+      new URL("../../replay/vectors/replay-definition-v1.json", import.meta.url),
+      "utf8",
+    ),
+  ) as {
+    vectors: { kind: string; input: ReplayPlanDefinition | TargetReleaseDefinition }[];
+  };
+  const targetDefinition = structuredClone(
+    vectors.vectors.find((v) => v.kind === "target_release")?.input,
+  ) as TargetReleaseDefinition;
+  const planDefinition = structuredClone(
+    vectors.vectors.find((v) => v.kind === "replay_plan")?.input,
+  ) as ReplayPlanDefinition;
+  const scope = { ...targetDefinition.scope, tenantId: `ten_scope_${runKey}` };
+  const receipt = {
+    createdAt: "2026-08-30T16:00:00.000Z",
+    createdByPrincipalId: "usr_scope_author",
+  };
+  targetDefinition.scope = scope;
+  const release = TargetReleaseSchema.parse({
+    ...targetDefinition,
+    ...receipt,
+    definitionSha256: digestTargetReleaseDefinition(targetDefinition),
+  });
+  planDefinition.scope = scope;
+  planDefinition.targetRelease = {
+    ...planDefinition.targetRelease,
+    definitionSha256: release.definitionSha256,
+  };
+  const plan = ReplayPlanSchema.parse({
+    ...planDefinition,
+    ...receipt,
+    definitionSha256: digestReplayPlanDefinition(planDefinition),
+  });
+  await repository.publishTargetRelease(release);
+  await repository.publishReplayPlan(plan);
+  return { release, plan, scope };
+}
+async function scopeFingerprint(scope: EvidenceScope) {
+  const state = [];
+  for (const table of [
+    "proofstack_replay_plan_resources",
+    "proofstack_replay_targets",
+    "proofstack_target_releases",
+    "proofstack_replay_plans",
+    "proofstack_replay_plan_budgets",
+    "proofstack_replay_plan_boundaries",
+    "proofstack_outbox",
+  ])
+    state.push(
+      (
+        await adminPool.query(
+          `SELECT to_jsonb(item) AS record FROM public.${table} AS item WHERE tenant_id = $1 ORDER BY to_jsonb(item)::text`,
+          [scope.tenantId],
+        )
+      ).rows,
+    );
+  return createHash("sha256").update(JSON.stringify(state)).digest("hex");
+}
+describe("replay definition scope before normalized projections and child reads", () => {
+  for (const kind of ["replay_plan", "target_release"] as const) {
+    it(`keeps damaged outside ${kind} opaque under the existing API role`, async () => {
+      const h = await scopeFixture();
+      const isPlan = kind === "replay_plan";
+      const table = isPlan ? "proofstack_replay_plans" : "proofstack_target_releases";
+      const idColumn = isPlan ? "plan_version_id" : "target_release_id";
+      const bodyColumn = isPlan ? "plan" : "release";
+      const record = isPlan ? h.plan : h.release;
+      const id = isPlan ? h.plan.planVersionId : h.release.targetReleaseId;
+      const read = (client: Pick<PoolClient, "query">, scope: EvidenceScope) =>
+        isPlan
+          ? readPostgresReplayPlanOnClient(client, scope, id)
+          : readPostgresTargetReleaseOnClient(client, scope, id);
+      const find = (scope: EvidenceScope) =>
+        isPlan ? repository.findReplayPlan(scope, id) : repository.findTargetRelease(scope, id);
+      const before = await scopeFingerprint(h.scope);
+      const outside = ["tenantId", "projectId", "environmentId"].map((dimension) => ({
+        ...h.scope,
+        [dimension]: "other_scope",
+      }));
+      for (const scope of outside) await expect(find(scope)).resolves.toBeNull();
+      try {
+        for (const [index, scope] of [...outside, h.scope].entries()) {
+          await withExactScopeTransaction(adminPool, scope, async (client) => {
+            await client.query("SAVEPOINT retained_original");
+            try {
+              await client.query("SET LOCAL session_replication_role = 'replica'");
+              const digest = `${record.definitionSha256[0] === "f" ? "e" : "f"}${record.definitionSha256.slice(1)}`;
+              expect(
+                (
+                  await client.query(
+                    `UPDATE public.${table} SET definition_sha256 = $3::text, ${bodyColumn} = jsonb_set(${bodyColumn}, '{definitionSha256}', to_jsonb($3::text)) WHERE tenant_id = $1 AND ${idColumn} = $2`,
+                    [h.scope.tenantId, id, digest],
+                  )
+                ).rowCount,
+              ).toBe(1);
+              await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+              const rows: number[] = [];
+              const view = {
+                query: async (sql: string, values?: unknown[]) => {
+                  expect(sql.trim()).toMatch(/^SELECT\b/);
+                  const result = await client.query(sql, values);
+                  rows.push(result.rows.length);
+                  return result;
+                },
+              } as Pick<PoolClient, "query">;
+              if (index < 3) {
+                await expect(read(view, scope)).resolves.toBeNull();
+                expect(rows).toEqual([0]);
+              } else await expect(read(view, scope)).rejects.toThrow(/canonical|contract/);
+            } finally {
+              await client.query("ROLLBACK TO SAVEPOINT retained_original");
+            }
+          });
+        }
+      } finally {
+        expect(await scopeFingerprint(h.scope)).toBe(before);
+        await expect(find(h.scope)).resolves.toEqual(record);
+      }
+    });
+  }
+  it("does not read damaged budget or boundary rows for an outside plan", async () => {
+    const h = await scopeFixture();
+    const before = await scopeFingerprint(h.scope);
+    try {
+      for (const [index, scope] of [
+        { ...h.scope, projectId: "other_scope" },
+        { ...h.scope, environmentId: "other_scope" },
+        h.scope,
+      ].entries()) {
+        await withExactScopeTransaction(adminPool, scope, async (client) => {
+          await client.query("SAVEPOINT retained_original");
+          try {
+            await client.query("SET LOCAL session_replication_role = 'replica'");
+            for (const table of [
+              "proofstack_replay_plan_budgets",
+              "proofstack_replay_plan_boundaries",
+            ])
+              expect(
+                (
+                  await client.query(
+                    `DELETE FROM public.${table} WHERE tenant_id = $1 AND plan_version_id = $2`,
+                    [h.scope.tenantId, h.plan.planVersionId],
+                  )
+                ).rowCount,
+              ).toBeGreaterThan(0);
+            await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+            const rows: number[] = [];
+            const view = {
+              query: async (sql: string, values?: unknown[]) => {
+                expect(sql.trim()).toMatch(/^SELECT\b/);
+                const result = await client.query(sql, values);
+                rows.push(result.rows.length);
+                return result;
+              },
+            } as Pick<PoolClient, "query">;
+            if (index < 2) {
+              await expect(
+                readPostgresReplayPlanOnClient(view, scope, h.plan.planVersionId),
+              ).resolves.toBeNull();
+              expect(rows).toEqual([0]);
+            } else
+              await expect(
+                readPostgresReplayPlanOnClient(view, scope, h.plan.planVersionId),
+              ).rejects.toThrow("budget row set is incomplete");
+          } finally {
+            await client.query("ROLLBACK TO SAVEPOINT retained_original");
+          }
+        });
+      }
+    } finally {
+      expect(await scopeFingerprint(h.scope)).toBe(before);
+      await expect(repository.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(
+        h.plan,
+      );
+    }
+  });
 });
