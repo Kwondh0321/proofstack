@@ -76,9 +76,18 @@ function fixture() {
                               },
                             ],
                           }
-                        : text.includes("proofstack_read_replay_job_snapshot")
-                          ? { rows: [{ snapshot: null }] }
-                          : { rows: [] },
+                        : text.includes("AS retained_replay_plan_storage")
+                          ? {
+                              rows: [
+                                {
+                                  retained_replay_plan_body: false,
+                                  retained_replay_plan_storage: false,
+                                },
+                              ],
+                            }
+                          : text.includes("proofstack_read_replay_job_snapshot")
+                            ? { rows: [{ snapshot: null }] }
+                            : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {

@@ -376,6 +376,13 @@ ordered children and same-cut shared-format normalized presence. Existing record
 revocation and publication conformance remain. Internal root admission, complete member/predecessor
 semantics/current authority and atomic sealed publication remain open; Workflow 2 is still 2/7.
 
+The subsequent [replay owning storage validation](workflow-2-replay-storage-integrity.md)
+checks both definitions' original full intents and plan child coordinates/bounded projections.
+One-cut child-owned plan presence preserves normal publication races and scope opacity.
+Target resources do not bind exact release versions; this does not invent a target root or
+establish complete target absence ownership. Complete parent semantics/current authority,
+internal SQL/row admission and atomic sealed publication remain open; acceptance is unchanged.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

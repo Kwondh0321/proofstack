@@ -106,12 +106,14 @@ interface ReplayPlanRow extends QueryResultRow {
 }
 
 interface BudgetRow extends QueryResultRow {
+  readonly coordinates_match: boolean;
   readonly dimension: string;
   readonly limit_value: string;
   readonly measurement: string;
 }
 
 interface BoundaryRow extends QueryResultRow {
+  readonly coordinates_match: boolean;
   readonly boundary_id: string;
   readonly boundary_kind: string;
   readonly boundary_mode: string;
@@ -263,7 +265,7 @@ function publicationIntentValues(intent: PublishedReplayDefinitionOutboxIntent):
 }
 
 async function publicationIntentStatus(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   intent: PublishedReplayDefinitionOutboxIntent,
 ): Promise<PublicationIntentStatus> {
   const result = await client.query<PublicationIntentStatusRow>(
@@ -284,7 +286,7 @@ async function publicationIntentStatus(
 }
 
 async function requireCanonicalPublicationIntent(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   intent: PublishedReplayDefinitionOutboxIntent,
 ): Promise<void> {
   if ((await publicationIntentStatus(client, intent)) !== "canonical") {
@@ -577,6 +579,7 @@ function requireBudgetRowsMatch(rows: readonly BudgetRow[], plan: ReplayPlan): v
     if (
       !row ||
       row.dimension !== dimension ||
+      row.coordinates_match !== true ||
       row.limit_value !== String(expected.limit) ||
       row.measurement !== expected.measurement
     ) {
@@ -595,6 +598,7 @@ function requireBoundaryRowsMatch(rows: readonly BoundaryRow[], plan: ReplayPlan
     if (
       !row ||
       row.boundary_position !== position ||
+      row.coordinates_match !== true ||
       row.boundary_id !== expected.boundaryId ||
       row.boundary_kind !== expected.boundaryKind ||
       row.boundary_mode !== expected.boundaryMode ||
@@ -678,14 +682,23 @@ async function loadReplayPlan(
   }
   requirePlanRowMatches(row, plan);
   const budgetResult = await client.query<BudgetRow>(
-    `SELECT dimension, limit_value::text AS limit_value, measurement
+    `SELECT dimension, limit_value::text AS limit_value, measurement,
+       (project_id = $3 AND environment_id = $4 AND plan_id = $5) AS coordinates_match
      FROM public.proofstack_replay_plan_budgets
      WHERE tenant_id = $1 AND plan_version_id = $2
-     ORDER BY dimension COLLATE "C"`,
-    [tenantId, planVersionId],
+     ORDER BY dimension COLLATE "C" LIMIT $6`,
+    [
+      tenantId,
+      planVersionId,
+      plan.scope.projectId,
+      plan.scope.environmentId,
+      plan.planId,
+      BUDGET_DIMENSIONS.length + 1,
+    ],
   );
   const boundaryResult = await client.query<BoundaryRow>(
     `SELECT
+      (project_id = $3 AND environment_id = $4 AND plan_id = $5) AS coordinates_match,
       boundary_position, boundary_id, boundary_kind, boundary_mode,
       recorded_fixture_id, recorded_fixture_version_id,
       recorded_fixture_definition_sha256, recorded_invocation_definition_sha256,
@@ -700,8 +713,15 @@ async function loadReplayPlan(
       risk_acceptance_artifact_id, declaration
      FROM public.proofstack_replay_plan_boundaries
      WHERE tenant_id = $1 AND plan_version_id = $2
-     ORDER BY boundary_position`,
-    [tenantId, planVersionId],
+     ORDER BY boundary_position LIMIT $6`,
+    [
+      tenantId,
+      planVersionId,
+      plan.scope.projectId,
+      plan.scope.environmentId,
+      plan.planId,
+      plan.boundaries.length + 1,
+    ],
   );
   requireBudgetRowsMatch(budgetResult.rows, plan);
   requireBoundaryRowsMatch(boundaryResult.rows, plan);
@@ -950,7 +970,44 @@ async function insertReplayPlan(client: PoolClient, plan: ReplayPlan): Promise<v
   }
 }
 
-/** Includes the owning normalized resource, budget and boundary validations. */
+async function inspectScopedPlanPresence(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  planVersionId: string,
+): Promise<boolean> {
+  const result = await client.query<{
+    retained_replay_plan_body: boolean;
+    retained_replay_plan_storage: boolean;
+  }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_replay_plans
+       WHERE tenant_id = $1 AND plan_version_id = $2
+         AND project_id = $3 AND environment_id = $4
+     ) AS retained_replay_plan_body,
+     (EXISTS (
+       SELECT 1 FROM public.proofstack_replay_plan_budgets
+       WHERE tenant_id = $1 AND plan_version_id = $2
+         AND project_id = $3 AND environment_id = $4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_replay_plan_boundaries
+       WHERE tenant_id = $1 AND plan_version_id = $2
+         AND project_id = $3 AND environment_id = $4
+     )) AS retained_replay_plan_storage`,
+    [scope.tenantId, planVersionId, scope.projectId, scope.environmentId],
+  );
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_replay_plan_body !== "boolean" ||
+    typeof row.retained_replay_plan_storage !== "boolean" ||
+    row.retained_replay_plan_body !== row.retained_replay_plan_storage
+  )
+    contractViolation("Stored replay plan body and exact-scope child ownership disagree");
+  return row.retained_replay_plan_body;
+}
+
+/** Includes owning normalized children, scoped presence and the original publication intent. */
 export async function readPostgresReplayPlanOnClient(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
@@ -958,8 +1015,12 @@ export async function readPostgresReplayPlanOnClient(
 ): Promise<ReplayPlan | null> {
   const scope = requireScope(scopeInput);
   const planVersionId = requireOpaqueId(planVersionIdInput);
+  if (!(await inspectScopedPlanPresence(client, scope, planVersionId))) return null;
   const plan = await loadReplayPlan(client, scope.tenantId, planVersionId, scope);
-  return !plan || !scopesEqual(plan.scope, scope) ? null : clone(plan);
+  if (!plan || !scopesEqual(plan.scope, scope))
+    contractViolation("Stored replay plan disappeared or changed scope after its presence cut");
+  await requireCanonicalPublicationIntent(client, buildReplayPlanPublishedOutboxIntent(plan));
+  return clone(plan);
 }
 
 /** The caller retains ownership of its transaction, source guards and connection. */
@@ -971,7 +1032,9 @@ export async function readPostgresTargetReleaseOnClient(
   const scope = requireScope(scopeInput);
   const targetReleaseId = requireOpaqueId(targetReleaseIdInput);
   const release = await loadTargetRelease(client, scope.tenantId, targetReleaseId, scope);
-  return !release || !scopesEqual(release.scope, scope) ? null : clone(release);
+  if (!release || !scopesEqual(release.scope, scope)) return null;
+  await requireCanonicalPublicationIntent(client, buildTargetReleasePublishedOutboxIntent(release));
+  return clone(release);
 }
 
 /** PostgreSQL authority for immutable, tenant-isolated replay definitions. */

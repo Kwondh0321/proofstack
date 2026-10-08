@@ -18,6 +18,10 @@ kinds' fixed positional lineage, original intent, logical root and normalized pr
 The [dataset/fixture storage guide](workflow-2-regression-storage-integrity.md) records exact
 logical roots, original intents, shared-format presence and remaining internal root admission.
 
+The [replay storage guide](workflow-2-replay-storage-integrity.md) records both definitions'
+original intent, plan child coordinates/limits and scoped presence. Target resources do not
+bind release versions; complete target absence ownership and current authority remain open.
+
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical/scalar/native receipt agreement, selected physical registry/lineage/resource/root/unique binding, original intent and same-cut normalized presence |
@@ -25,7 +29,7 @@ logical roots, original intents, shared-format presence and remaining internal r
 | Comparison | `readPostgresComparisonRecordOnClient` | All three kinds, normalized/native receipt agreement, selected registry/positional lineage/resource/root, original intent and same-cut normalized presence |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate, normalized/native receipt, selected registry/lineage/resource/root, original intent and scoped normalized absence witnesses |
 | Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Exact scoped/shared-format presence, normalized ordered members/events, logical resource/root and original intent; recorded ownership and revocation/tombstone/catalog metadata |
-| Replay definitions | `readPostgresReplayPlanOnClient`, `readPostgresTargetReleaseOnClient` | Exact resource, definition, budget and boundary projections |
+| Replay definitions | `readPostgresReplayPlanOnClient`, `readPostgresTargetReleaseOnClient` | Exact resource/definition/native receipt, original intent, scoped and bounded plan children, same-cut plan child presence |
 | Replay job | `readPostgresReplayJobSnapshotOnClient` | Existing fixed database snapshot function and complete job/attempt/fence/history validation |
 | Trace | `listPostgresTraceEvidenceOnClient`, `resolvePostgresExactEventsOnClient` | Exact scope, cursor presence, bounded page lookahead, ordered exact event resolution and stored envelope validation |
 

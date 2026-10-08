@@ -24,6 +24,7 @@ import {
   REPLAY_PLAN_AGGREGATE_TYPE,
   REPLAY_PLAN_PUBLISHED_EVENT_TYPE,
   type ReplayDefinitionRepository,
+  ReplayRepositoryContractError,
   TARGET_RELEASE_AGGREGATE_TYPE,
   TARGET_RELEASE_PUBLISHED_EVENT_TYPE,
 } from "@proofstack/replay";
@@ -645,6 +646,375 @@ async function scopeFingerprint(scope: EvidenceScope) {
     );
   return createHash("sha256").update(JSON.stringify(state)).digest("hex");
 }
+async function damagedReplayStorage(
+  h: Awaited<ReturnType<typeof scopeFixture>>,
+  kind: "replay_plan" | "target_release",
+  mutate: (client: PoolClient) => Promise<void>,
+  inspect?: (view: Pick<PoolClient, "query">) => Promise<void>,
+) {
+  const before = await scopeFingerprint(h.scope);
+  const read = (client: Pick<PoolClient, "query">, scope: EvidenceScope) =>
+    kind === "replay_plan"
+      ? readPostgresReplayPlanOnClient(client, scope, h.plan.planVersionId)
+      : readPostgresTargetReleaseOnClient(client, scope, h.release.targetReleaseId);
+  try {
+    await withExactScopeTransaction(adminPool, h.scope, async (client) => {
+      await client.query("SAVEPOINT retained_original");
+      try {
+        // Privileged isolated damage only; CHECKs remain active and every change rolls back.
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        await mutate(client);
+        await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+        const calls: string[] = [];
+        const view = {
+          query: async (sql: string, values: unknown[]) => {
+            expect(sql.trim()).toMatch(/^SELECT\b/);
+            calls.push(sql);
+            return client.query(sql, values);
+          },
+        } as Pick<PoolClient, "query">;
+        for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+          const previous = calls.length;
+          await expect(read(view, { ...h.scope, [dimension]: "other_scope" })).resolves.toBeNull();
+          expect(calls.length - previous).toBe(1);
+        }
+        if (inspect) await inspect(view);
+        else
+          await expect(read(view, h.scope)).rejects.toBeInstanceOf(ReplayRepositoryContractError);
+      } finally {
+        await client.query("ROLLBACK TO SAVEPOINT retained_original");
+      }
+    });
+  } finally {
+    expect(await scopeFingerprint(h.scope)).toBe(before);
+    await expect(repository.findTargetRelease(h.scope, h.release.targetReleaseId)).resolves.toEqual(
+      h.release,
+    );
+    await expect(repository.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(h.plan);
+  }
+}
+
+describe("replay owning original intents and normalized plan storage", () => {
+  it("rejects an existing body without either normalized child witness", async () => {
+    const h = await scopeFixture();
+    await damagedReplayStorage(h, "replay_plan", async (client) => {
+      for (const table of ["proofstack_replay_plan_budgets", "proofstack_replay_plan_boundaries"])
+        expect(
+          (
+            await client.query(
+              `DELETE FROM public.${table} WHERE tenant_id=$1 AND plan_version_id=$2`,
+              [h.scope.tenantId, h.plan.planVersionId],
+            )
+          ).rowCount,
+        ).toBeGreaterThan(0);
+    });
+  });
+
+  for (const kind of ["target_release", "replay_plan"] as const)
+    it(`preserves ${kind} canonical intent across ordinary delivery updates`, async () => {
+      const h = await scopeFixture();
+      const id = kind === "replay_plan" ? h.plan.planVersionId : h.release.targetReleaseId;
+      await damagedReplayStorage(
+        h,
+        kind,
+        async (client) => {
+          // Keep ordinary immutable-intent triggers active for a permitted delivery update.
+          await client.query("SET LOCAL session_replication_role = 'origin'");
+          expect(
+            (
+              await client.query(
+                "UPDATE public.proofstack_outbox SET attempt_count=attempt_count+1, available_at=available_at+interval '1 second', published_at='2026-08-30T17:00:00.000Z'::timestamptz, last_error='temporary' WHERE tenant_id=$1 AND aggregate_id=$2",
+                [h.scope.tenantId, id],
+              )
+            ).rowCount,
+          ).toBe(1);
+        },
+        async (client) => {
+          await expect(
+            kind === "replay_plan"
+              ? readPostgresReplayPlanOnClient(client, h.scope, id)
+              : readPostgresTargetReleaseOnClient(client, h.scope, id),
+          ).resolves.toEqual(kind === "replay_plan" ? h.plan : h.release);
+        },
+      );
+    });
+
+  it("rejects a plan removed after its positive presence cut", async () => {
+    const h = await scopeFixture();
+    let retainedClient: PoolClient;
+    await damagedReplayStorage(
+      h,
+      "replay_plan",
+      async (client) => {
+        retainedClient = client;
+      },
+      async (client) => {
+        let removed = false;
+        const view = {
+          query: async (sql: string, values: unknown[]) => {
+            const result = await client.query(sql, values);
+            if (sql.includes("AS retained_replay_plan_storage")) {
+              expect(result.rows).toEqual([
+                { retained_replay_plan_body: true, retained_replay_plan_storage: true },
+              ]);
+              await retainedClient.query("SET LOCAL ROLE NONE");
+              expect(
+                (
+                  await retainedClient.query(
+                    "DELETE FROM public.proofstack_replay_plans WHERE tenant_id=$1 AND plan_version_id=$2",
+                    [h.scope.tenantId, h.plan.planVersionId],
+                  )
+                ).rowCount,
+              ).toBe(1);
+              await retainedClient.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+              removed = true;
+            }
+            return result;
+          },
+        } as Pick<PoolClient, "query">;
+        await expect(
+          readPostgresReplayPlanOnClient(view, h.scope, h.plan.planVersionId),
+        ).rejects.toThrow("disappeared or changed scope");
+        expect(removed).toBe(true);
+      },
+    );
+  });
+
+  for (const table of [
+    "proofstack_replay_plan_budgets",
+    "proofstack_replay_plan_boundaries",
+  ] as const)
+    it.each(["true", null])(`requires native ${table} coordinates, not %s`, async (value) => {
+      const h = await scopeFixture();
+      await withExactScopeTransaction(runtimePool, h.scope, async (client) => {
+        let projected = false;
+        const view = {
+          query: async (sql: string, values: unknown[]) => {
+            const result = await client.query(sql, values);
+            if (sql.includes("AS coordinates_match") && sql.includes(`FROM public.${table}`)) {
+              expect(result.rows[0]?.coordinates_match).toBe(true);
+              result.rows[0].coordinates_match = value;
+              projected = true;
+            }
+            return result;
+          },
+        } as Pick<PoolClient, "query">;
+        await expect(
+          readPostgresReplayPlanOnClient(view, h.scope, h.plan.planVersionId),
+        ).rejects.toBeInstanceOf(ReplayRepositoryContractError);
+        expect(projected).toBe(true);
+      });
+      await expect(repository.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(
+        h.plan,
+      );
+    });
+
+  it.each([
+    ["retained_replay_plan_body", "true"],
+    ["retained_replay_plan_body", null],
+    ["retained_replay_plan_storage", "true"],
+    ["retained_replay_plan_storage", null],
+  ] as const)("rejects malformed native presence flag %s=%s", async (column, value) => {
+    const h = await scopeFixture();
+    await withExactScopeTransaction(runtimePool, h.scope, async (client) => {
+      let projected = false;
+      const view = {
+        query: async (sql: string, values: unknown[]) => {
+          const result = await client.query(sql, values);
+          if (sql.includes("AS retained_replay_plan_storage")) {
+            expect(result.rows[0]?.[column]).toBe(true);
+            result.rows[0][column] = value; // Explicit port corruption, not backend-produced types.
+            projected = true;
+          }
+          return result;
+        },
+      } as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresReplayPlanOnClient(view, h.scope, h.plan.planVersionId),
+      ).rejects.toBeInstanceOf(ReplayRepositoryContractError);
+      expect(projected).toBe(true);
+    });
+    await expect(repository.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(h.plan);
+  });
+
+  it.each([0, 2])("rejects %s native presence rows", async (count) => {
+    const h = await scopeFixture();
+    await withExactScopeTransaction(runtimePool, h.scope, async (client) => {
+      let projected = false;
+      const view = {
+        query: async (sql: string, values: unknown[]) => {
+          const result = await client.query(sql, values);
+          if (sql.includes("AS retained_replay_plan_storage")) {
+            expect(result.rows).toHaveLength(1);
+            result.rows = Array.from({ length: count }, () => ({ ...result.rows[0] }));
+            projected = true;
+          }
+          return result;
+        },
+      } as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresReplayPlanOnClient(view, h.scope, h.plan.planVersionId),
+      ).rejects.toBeInstanceOf(ReplayRepositoryContractError);
+      expect(projected).toBe(true);
+    });
+  });
+
+  it("keeps the absent cut when normal plan publication follows on another connection", async () => {
+    const h = await scopeFixture();
+    const {
+      createdAt,
+      createdByPrincipalId,
+      definitionSha256: _originalHash,
+      ...original
+    } = h.plan;
+    const definition = { ...original, planVersionId: `plv_race_${runKey}` };
+    const plan = ReplayPlanSchema.parse({
+      ...definition,
+      createdAt,
+      createdByPrincipalId,
+      definitionSha256: digestReplayPlanDefinition(definition),
+    });
+    await withExactScopeTransaction(runtimePool, h.scope, async (client) => {
+      let observed = false;
+      const view = {
+        query: async (sql: string, values: unknown[]) => {
+          const result = await client.query(sql, values);
+          if (sql.includes("AS retained_replay_plan_storage")) {
+            expect(result.rows).toEqual([
+              { retained_replay_plan_body: false, retained_replay_plan_storage: false },
+            ]);
+            observed = true;
+            await repository.publishReplayPlan(plan);
+          }
+          return result;
+        },
+      } as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresReplayPlanOnClient(view, h.scope, plan.planVersionId),
+      ).resolves.toBeNull();
+      expect(observed).toBe(true);
+    });
+    await expect(repository.findReplayPlan(h.scope, plan.planVersionId)).resolves.toEqual(plan);
+  });
+
+  it("returns one derived overflow row for forty additional boundaries", async () => {
+    const h = await scopeFixture();
+    expect(h.plan.boundaries).toHaveLength(1);
+    await damagedReplayStorage(
+      h,
+      "replay_plan",
+      async (client) => {
+        const result = await client.query(
+          `INSERT INTO public.proofstack_replay_plan_boundaries
+         SELECT (jsonb_populate_record(NULL::public.proofstack_replay_plan_boundaries,
+           to_jsonb(original) || jsonb_build_object('boundary_position', position,
+             'boundary_id', 'bnd_extra_' || position,
+             'declaration', original.declaration || jsonb_build_object('boundaryId', 'bnd_extra_' || position)))).*
+         FROM public.proofstack_replay_plan_boundaries AS original CROSS JOIN generate_series(1,40) AS position
+         WHERE original.tenant_id=$1 AND original.plan_version_id=$2 AND original.boundary_position=0`,
+          [h.scope.tenantId, h.plan.planVersionId],
+        );
+        expect(result.rowCount).toBe(40);
+      },
+      async (client) => {
+        let returned: number | undefined;
+        const view = {
+          query: async (sql: string, values: unknown[]) => {
+            const result = await client.query(sql, values);
+            if (sql.includes("ORDER BY boundary_position")) {
+              expect(values.at(-1)).toBe(2);
+              returned = result.rows.length;
+            }
+            return result;
+          },
+        } as Pick<PoolClient, "query">;
+        await expect(
+          readPostgresReplayPlanOnClient(view, h.scope, h.plan.planVersionId),
+        ).rejects.toThrow("boundary row set is incomplete");
+        expect(returned).toBe(2);
+      },
+    );
+  });
+
+  for (const kind of ["target_release", "replay_plan"] as const)
+    it.each(["absent", "payload", "receipt"] as const)(
+      `rejects ${kind} %s original intent damage`,
+      async (mode) => {
+        const h = await scopeFixture();
+        const id = kind === "replay_plan" ? h.plan.planVersionId : h.release.targetReleaseId;
+        await damagedReplayStorage(h, kind, async (client) => {
+          const statement =
+            mode === "absent"
+              ? "DELETE FROM public.proofstack_outbox"
+              : mode === "payload"
+                ? "UPDATE public.proofstack_outbox SET payload=jsonb_set(payload, '{unexpected}', 'true'::jsonb)"
+                : "UPDATE public.proofstack_outbox SET created_at=created_at+interval '1 second'";
+          expect(
+            (
+              await client.query(`${statement} WHERE tenant_id=$1 AND aggregate_id=$2`, [
+                h.scope.tenantId,
+                id,
+              ])
+            ).rowCount,
+          ).toBe(1);
+        });
+      },
+    );
+
+  it.each(["all", "budgets_only", "boundaries_only"] as const)(
+    "rejects missing plan bodies with %s child ownership",
+    async (mode) => {
+      const h = await scopeFixture();
+      await damagedReplayStorage(h, "replay_plan", async (client) => {
+        const values = [h.scope.tenantId, h.plan.planVersionId];
+        expect(
+          (
+            await client.query(
+              "DELETE FROM public.proofstack_replay_plans WHERE tenant_id=$1 AND plan_version_id=$2",
+              values,
+            )
+          ).rowCount,
+        ).toBe(1);
+        if (mode !== "all") {
+          const table =
+            mode === "budgets_only"
+              ? "proofstack_replay_plan_boundaries"
+              : "proofstack_replay_plan_budgets";
+          expect(
+            (
+              await client.query(
+                `DELETE FROM public.${table} WHERE tenant_id=$1 AND plan_version_id=$2`,
+                values,
+              )
+            ).rowCount,
+          ).toBeGreaterThan(0);
+        }
+      });
+    },
+  );
+
+  for (const table of [
+    "proofstack_replay_plan_budgets",
+    "proofstack_replay_plan_boundaries",
+  ] as const)
+    it.each(["project_id", "environment_id", "plan_id"] as const)(
+      `rejects ${table} %s disagreement`,
+      async (column) => {
+        const h = await scopeFixture();
+        await damagedReplayStorage(h, "replay_plan", async (client) => {
+          expect(
+            (
+              await client.query(
+                `UPDATE public.${table} SET ${column}=$3 WHERE tenant_id=$1 AND plan_version_id=$2`,
+                [h.scope.tenantId, h.plan.planVersionId, "other_coordinate"],
+              )
+            ).rowCount,
+          ).toBeGreaterThan(0);
+        });
+      },
+    );
+});
+
 describe("replay definition scope before normalized projections and child reads", () => {
   for (const kind of ["replay_plan", "target_release"] as const) {
     it(`keeps damaged outside ${kind} opaque under the existing API role`, async () => {
@@ -688,13 +1058,22 @@ describe("replay definition scope before normalized projections and child reads"
                 query: async (sql: string, values?: unknown[]) => {
                   expect(sql.trim()).toMatch(/^SELECT\b/);
                   const result = await client.query(sql, values);
+                  if (isPlan && index < 3) {
+                    expect(sql).toContain("AS retained_replay_plan_storage");
+                    expect(result.rows).toEqual([
+                      {
+                        retained_replay_plan_body: false,
+                        retained_replay_plan_storage: false,
+                      },
+                    ]);
+                  }
                   rows.push(result.rows.length);
                   return result;
                 },
               } as Pick<PoolClient, "query">;
               if (index < 3) {
                 await expect(read(view, scope)).resolves.toBeNull();
-                expect(rows).toEqual([0]);
+                expect(rows).toEqual([isPlan ? 1 : 0]);
               } else await expect(read(view, scope)).rejects.toThrow(/canonical|contract/);
             } finally {
               await client.query("ROLLBACK TO SAVEPOINT retained_original");
@@ -707,23 +1086,21 @@ describe("replay definition scope before normalized projections and child reads"
       }
     });
   }
-  it("does not read damaged budget or boundary rows for an outside plan", async () => {
-    const h = await scopeFixture();
-    const before = await scopeFingerprint(h.scope);
-    try {
-      for (const [index, scope] of [
-        { ...h.scope, projectId: "other_scope" },
-        { ...h.scope, environmentId: "other_scope" },
-        h.scope,
-      ].entries()) {
-        await withExactScopeTransaction(adminPool, scope, async (client) => {
-          await client.query("SAVEPOINT retained_original");
-          try {
-            await client.query("SET LOCAL session_replication_role = 'replica'");
-            for (const table of [
-              "proofstack_replay_plan_budgets",
-              "proofstack_replay_plan_boundaries",
-            ])
+  it.each(["proofstack_replay_plan_budgets", "proofstack_replay_plan_boundaries"] as const)(
+    "does not read damaged %s rows for an outside plan",
+    async (table) => {
+      const h = await scopeFixture();
+      const before = await scopeFingerprint(h.scope);
+      try {
+        for (const [index, scope] of [
+          { ...h.scope, projectId: "other_scope" },
+          { ...h.scope, environmentId: "other_scope" },
+          h.scope,
+        ].entries()) {
+          await withExactScopeTransaction(adminPool, scope, async (client) => {
+            await client.query("SAVEPOINT retained_original");
+            try {
+              await client.query("SET LOCAL session_replication_role = 'replica'");
               expect(
                 (
                   await client.query(
@@ -732,35 +1109,49 @@ describe("replay definition scope before normalized projections and child reads"
                   )
                 ).rowCount,
               ).toBeGreaterThan(0);
-            await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
-            const rows: number[] = [];
-            const view = {
-              query: async (sql: string, values?: unknown[]) => {
-                expect(sql.trim()).toMatch(/^SELECT\b/);
-                const result = await client.query(sql, values);
-                rows.push(result.rows.length);
-                return result;
-              },
-            } as Pick<PoolClient, "query">;
-            if (index < 2) {
-              await expect(
-                readPostgresReplayPlanOnClient(view, scope, h.plan.planVersionId),
-              ).resolves.toBeNull();
-              expect(rows).toEqual([0]);
-            } else
-              await expect(
-                readPostgresReplayPlanOnClient(view, scope, h.plan.planVersionId),
-              ).rejects.toThrow("budget row set is incomplete");
-          } finally {
-            await client.query("ROLLBACK TO SAVEPOINT retained_original");
-          }
-        });
+              await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+              const rows: number[] = [];
+              const view = {
+                query: async (sql: string, values?: unknown[]) => {
+                  expect(sql.trim()).toMatch(/^SELECT\b/);
+                  const result = await client.query(sql, values);
+                  if (index < 2) {
+                    expect(sql).toContain("AS retained_replay_plan_storage");
+                    expect(result.rows).toEqual([
+                      {
+                        retained_replay_plan_body: false,
+                        retained_replay_plan_storage: false,
+                      },
+                    ]);
+                  }
+                  rows.push(result.rows.length);
+                  return result;
+                },
+              } as Pick<PoolClient, "query">;
+              if (index < 2) {
+                await expect(
+                  readPostgresReplayPlanOnClient(view, scope, h.plan.planVersionId),
+                ).resolves.toBeNull();
+                expect(rows).toEqual([1]);
+              } else
+                await expect(
+                  readPostgresReplayPlanOnClient(view, scope, h.plan.planVersionId),
+                ).rejects.toThrow(
+                  table === "proofstack_replay_plan_budgets"
+                    ? "budget row set is incomplete"
+                    : "boundary row set is incomplete",
+                );
+            } finally {
+              await client.query("ROLLBACK TO SAVEPOINT retained_original");
+            }
+          });
+        }
+      } finally {
+        expect(await scopeFingerprint(h.scope)).toBe(before);
+        await expect(repository.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(
+          h.plan,
+        );
       }
-    } finally {
-      expect(await scopeFingerprint(h.scope)).toBe(before);
-      await expect(repository.findReplayPlan(h.scope, h.plan.planVersionId)).resolves.toEqual(
-        h.plan,
-      );
-    }
-  });
+    },
+  );
 });
