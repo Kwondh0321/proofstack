@@ -40,9 +40,12 @@ Repository identity는 implementation ID와 version을 모두 묶으며 최대 k
 만들지 않습니다.
 
 원문을 연결한 뒤에도 설치 코드·현재 권한 frontier를 남깁니다. `unresolved.references`는 이
-전체 frontier를 셉니다. Qualification policy·endpoint·protocol 원문, mutable 권한, 전체 closure,
+전체 frontier를 셉니다. Qualification policy 수집·endpoint·protocol 원문, mutable 권한, 전체 closure,
 sealed snapshot/job 발행이 남습니다. 변경 가능한 권한에는 owning guard·lifecycle·복구가 필요하며 오래된 static
 복사본을 대신 사용할 수 없습니다. 끝난 읽기 전용 보고서로 나중에 발행할 수 없습니다.
+
+독립적인 [qualification policy 정의 기반](workflow-2-qualification-policy.ko.md)만으로 해당 수집·
+권한 frontier가 닫히지는 않습니다.
 
 [Entry audit](workflow-2-policy-evaluation-entry-audit.md),
 [고정 vector](../../packages/contracts/vectors/evaluation-implementation-registration-v1.json),

@@ -12,6 +12,8 @@ export * from "./evaluation-criteria-trust.js";
 export * from "./evaluation-definition-encoding.js";
 export * from "./evaluation-implementation-registration.js";
 export * from "./evaluation-implementation-registration-encoding.js";
+export * from "./qualification-policy.js";
+export * from "./qualification-policy-encoding.js";
 export * from "./evaluation-model-assessment.js";
 export * from "./evaluation-model-assurance.js";
 export * from "./evaluation-model-assurance-api.js";

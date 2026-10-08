@@ -22,6 +22,7 @@ export * from "./evaluation/criteria-trust.js";
 export * from "./evaluation/criterion-status-history.js";
 export * from "./evaluation/derive-comparison-result.js";
 export * from "./evaluation/evaluation-implementation-registration.js";
+export * from "./evaluation/qualification-policy.js";
 export * from "./evaluation/evaluation-record-validation.js";
 export * from "./evaluation/evaluation-repository.js";
 export * from "./evaluation/evaluation-repository-errors.js";

@@ -1,0 +1,95 @@
+{
+  "format": "proofstack.qualification-policy.v1",
+  "vectors": [
+    {
+      "input": {
+        "definition": {
+          "algorithmVersion": "proofstack.qualification-cases.v1",
+          "caseMatching": "all_predeclared_cases",
+          "policyId": "qpol_all_predeclared",
+          "policyVersionId": "qpv_all_cases_v1",
+          "recordKind": "qualification_policy",
+          "requiredCaseKinds": [
+            "abstention",
+            "boundary",
+            "budget",
+            "error",
+            "malformed",
+            "negative",
+            "not_applicable",
+            "positive",
+            "timeout"
+          ],
+          "unexpectedErrorLimit": 0
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_qualification",
+          "tenantId": "tenant_qualification_a"
+        }
+      },
+      "encodedByteLength": 625,
+      "sha256": "4cdc03bb181f35d8bb644f2b612779980c44e3499e146cb71d4bf469ac8b0dc4"
+    },
+    {
+      "input": {
+        "definition": {
+          "algorithmVersion": "proofstack.qualification-cases.v1",
+          "caseMatching": "all_predeclared_cases",
+          "policyId": "qpol_all_predeclared",
+          "policyVersionId": "qpv_all_cases_v1",
+          "recordKind": "qualification_policy",
+          "requiredCaseKinds": [
+            "abstention",
+            "boundary",
+            "budget",
+            "error",
+            "malformed",
+            "negative",
+            "not_applicable",
+            "positive",
+            "timeout"
+          ],
+          "unexpectedErrorLimit": 0
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_qualification",
+          "tenantId": "tenant_qualification_b"
+        }
+      },
+      "encodedByteLength": 625,
+      "sha256": "7321e3febed902f10dbe2e0eebb24f0bed8bfdd7345f8b5dad2f0a95f053ef95"
+    },
+    {
+      "input": {
+        "definition": {
+          "algorithmVersion": "proofstack.qualification-cases.v1",
+          "caseMatching": "all_predeclared_cases",
+          "policyId": "qpol_all_predeclared",
+          "policyVersionId": "qpv_all_cases_v2",
+          "recordKind": "qualification_policy",
+          "requiredCaseKinds": [
+            "abstention",
+            "boundary",
+            "budget",
+            "error",
+            "malformed",
+            "negative",
+            "not_applicable",
+            "positive",
+            "timeout"
+          ],
+          "unexpectedErrorLimit": 0
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_qualification",
+          "tenantId": "tenant_qualification_a"
+        }
+      },
+      "encodedByteLength": 625,
+      "sha256": "44edbce35bb610b5f0c672bf677bce5afe4652d00fdb922282aae4b4e876da24"
+    }
+  ]
+}
