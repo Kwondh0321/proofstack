@@ -37,6 +37,15 @@ publisher must retain all required guards while validating complete closure and 
 then publish snapshot/job state in that same transaction. No roles, grants, HTTP routes, worker,
 snapshot contracts or outcome predicates are added here.
 
+The subsequent `runMetadata` mode acquires the complete metadata barrier and verifies the current
+migration ledger before exposing fixed exact-scope repository ports for the full record graph,
+trace events, criterion histories and fixture content metadata. It shares the same transaction
+lifetime, taint/drain and rollback machinery. Static installation/runtime records are bounded,
+validated copies made before guards, never caller resolver callbacks or live installation proof.
+This is still a read-only adapter prerequisite: complete request-owned graph reinspection and
+guarded atomic publication remain separate. The existing artifact-capture recheck is not silently
+replaced by this mode, and returned metadata cannot authorize a later seal.
+
 ## Consequences
 
 ### Positive
@@ -53,7 +62,7 @@ snapshot contracts or outcome predicates are added here.
   boundary allowlist require maintenance. This does not turn the composer into a database service.
 - Logical read/response admission does not measure every underlying SQL statement, allocation,
   transfer retry or query duration. Draining started work alone cannot stop a hung query.
-- The two-kind domain does not serialize all upstream absence/selector/authority sources, and
+- The initial two-kind domain does not serialize all upstream absence/selector/authority sources, and
   object storage is not held in a global simultaneous database snapshot.
 - Returning after commit releases guards, so this report cannot be reused as current seal authority.
 

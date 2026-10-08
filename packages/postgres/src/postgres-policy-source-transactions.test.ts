@@ -1,9 +1,23 @@
+import { readFileSync } from "node:fs";
 import type { EvidenceScope } from "@proofstack/contracts";
-import type { PolicyEvaluationSourceRecheckPorts } from "@proofstack/policy-evaluation";
+import {
+  MAX_FIXTURE_SOURCE_EVENTS,
+  type RuntimeDefinition,
+  type RuntimeDefinitionRecord,
+} from "@proofstack/contracts";
+import type { ModelAssuranceRecordKind } from "@proofstack/core";
+import { policyAuthorityFixture } from "@proofstack/core/testing";
+import type {
+  PolicyEvaluationMetadataPorts,
+  PolicyEvaluationSourceRecheckPorts,
+} from "@proofstack/policy-evaluation";
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import { loadBundledMigrations } from "./migrations.js";
-import { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
+import {
+  MAX_POLICY_METADATA_INSTALLATION_BINDINGS,
+  PostgresPolicySourceTransactions,
+} from "./postgres-policy-source-transactions.js";
 import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
 
 const scope: EvidenceScope = {
@@ -29,7 +43,9 @@ function fixture() {
             ? { rows: [{ ledger: "proofstack_schema_migrations" }] }
             : text.includes("SELECT id, checksum")
               ? { rows: migrationRows }
-              : { rows: [] },
+              : text.includes("proofstack_read_replay_job_snapshot")
+                ? { rows: [{ snapshot: null }] }
+                : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {
@@ -45,6 +61,348 @@ function fixture() {
   >);
   return { queries, release, response, connect, adapter };
 }
+
+const traceId = "5bf92f3577b34da6a3ce929d0e0e4736";
+const bindingReference = {
+  bindingVersionId: "binding_one",
+  definitionSha256: "1".repeat(64),
+  installationId: "installation_one",
+};
+const modelKinds: readonly ModelAssuranceRecordKind[] = [
+  "blinded_evaluation_plan",
+  "blinded_evaluation_result",
+  "calibration_report",
+  "human_review_protocol",
+  "human_review_record",
+  "human_reviewer_independence",
+  "independence_declaration",
+  "independent_critique",
+  "model_assisted_evaluator",
+  "model_assurance_assessment",
+  "model_evaluator_profile",
+  "model_qualification_report",
+  "model_qualification_suite",
+];
+
+function metadataReads(ports: PolicyEvaluationMetadataPorts, input = scope) {
+  const { records } = ports;
+  return [
+    ...Object.values(records.evidence.evaluation).map((read) => () => read(input, "record_one")),
+    ...modelKinds.map(
+      (kind) => () => records.evidence.modelAssurance.find(input, kind, "record_one"),
+    ),
+    ...Object.values(records.control.comparison).map((read) => () => read(input, "record_one")),
+    () => records.control.releaseCandidate.findReleaseCandidate(input, "record_one"),
+    () => records.control.releasePolicy.findReleasePolicy(input, "record_one"),
+    () =>
+      records.control.installationBinding.resolve({ scope: input, reference: bindingReference }),
+    ...Object.values(records.datasets).map((read) => () => read(input, "record_one")),
+    ...Object.values(records.replayDefinitions).map((read) => () => read(input, "record_one")),
+    () => records.replayResults.findJob(input, "record_one"),
+    () => records.runtimeDefinitions.findRuntimeProfile(input, "runtime_one", "1.0.0"),
+    () => records.runtimeDefinitions.findIsolationProfile(input, "isolation_one", "1.0.0"),
+    () => records.runtimeDefinitions.findRuntimeAdapter(input, "adapter_one"),
+    () => ports.evidence.resolveExactEvents(input, traceId, ["event_one"]),
+    () => ports.criterionStatusHistory.listCriterionSetStatuses(input, historyLimits),
+    () => ports.fixtureContent.findRecordedInteractionFixtureContent(input, "record_one"),
+  ];
+}
+
+describe("guarded policy metadata transaction ports", () => {
+  it("acquires metadata and verifies the ledger before exposing only fixed owning reads", async () => {
+    const f = fixture();
+    await f.adapter.runMetadata(scope, async (ports) => {
+      const statements = f.queries.map(({ text }) => text);
+      expect(statements.some((text) => text.includes("try_lock_policy_evaluation_metadata"))).toBe(
+        true,
+      );
+      expect(statements.some((text) => text.includes("SELECT id, checksum"))).toBe(true);
+      expect(Object.keys(ports).sort()).toEqual([
+        "criterionStatusHistory",
+        "evidence",
+        "fixtureContent",
+        "records",
+        "sources",
+      ]);
+      expect(Object.keys(ports.records).sort()).toEqual([
+        "control",
+        "datasets",
+        "evidence",
+        "replayDefinitions",
+        "replayResults",
+        "runtimeDefinitions",
+      ]);
+      expect(Object.keys(ports.records.evidence.evaluation)).toHaveLength(17);
+      for (const read of metadataReads(ports)) await read();
+    });
+    expect(f.connect).toHaveBeenCalledTimes(1);
+    expect(f.queries.filter(({ text }) => text.startsWith("BEGIN"))).toHaveLength(1);
+    expect(f.queries.at(-1)?.text).toBe("COMMIT");
+    expect(
+      f.queries.filter(({ text }) => text.includes("proofstack_evaluation_records")),
+    ).toHaveLength(18);
+    expect(
+      f.queries.filter(({ text }) => text.includes("proofstack_model_assurance_records")),
+    ).toHaveLength(13);
+  });
+
+  it.each(["guard", "ledger"])("never invokes the callback after a %s failure", async (kind) => {
+    const f = fixture();
+    const original = f.response.getMockImplementation();
+    if (!original) throw new Error("Missing query response");
+    f.response.mockImplementation(async (text) =>
+      kind === "guard" && text.includes("try_lock_policy_evaluation_metadata")
+        ? { rows: [{ acquired: false }] }
+        : kind === "ledger" && text.includes("SELECT id, checksum")
+          ? { rows: migrationRows.slice(0, -1) }
+          : original(text),
+    );
+    const callback = vi.fn(async () => null);
+    await expect(f.adapter.runMetadata(scope, callback)).rejects.toThrow();
+    expect(callback).not.toHaveBeenCalled();
+    expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+  });
+
+  it("expires every nested read when its guarded transaction returns", async () => {
+    const f = fixture();
+    const retained = await f.adapter.runMetadata(scope, async (ports) => ports);
+    const before = f.queries.length;
+    for (const read of metadataReads(retained)) await expect(read()).rejects.toThrow("expired");
+    await expect(retained.sources.observationTime()).rejects.toThrow("expired");
+    expect(f.queries).toHaveLength(before);
+  });
+
+  for (const fail of [false, true]) {
+    it(`drains an unawaited nested ${fail ? "failed" : "successful"} read before cleanup`, async () => {
+      const f = fixture();
+      const original = f.response.getMockImplementation();
+      if (!original) throw new Error("Missing query response");
+      let finish!: (value: Rows) => void;
+      let reject!: (error: Error) => void;
+      const read = new Promise<Rows>((resolve, failure) => {
+        finish = resolve;
+        reject = failure;
+      });
+      let notice!: () => void;
+      const started = new Promise<void>((resolve) => {
+        notice = resolve;
+      });
+      f.response.mockImplementation(async (sql) =>
+        sql.includes("FROM public.proofstack_evaluation_records") ? read : original(sql),
+      );
+      const failure = new Error("nested source read failed");
+      const running = f.adapter.runMetadata(scope, async (ports) => {
+        void ports.records.evidence.evaluation
+          .findCriterionSet(scope, "criterion_one")
+          .catch(() => undefined);
+        notice();
+        return "done";
+      });
+      const outcome = running.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      await started;
+      expect(f.release).not.toHaveBeenCalled();
+      expect(f.queries.map(({ text }) => text)).not.toContain("COMMIT");
+      if (fail) reject(failure);
+      else finish({ rows: [] });
+      expect(await outcome).toEqual(fail ? { error: failure } : { value: "done" });
+      expect(f.queries.at(-1)?.text).toBe(fail ? "ROLLBACK" : "COMMIT");
+      expect(f.release).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it.each(["model kind", "record ID", "trace ID"])(
+    "rejects invalid %s routing before SQL",
+    async (kind) => {
+      const f = fixture();
+      let before = 0;
+      await expect(
+        f.adapter.runMetadata(scope, async (ports) => {
+          before = f.queries.length;
+          if (kind === "model kind")
+            return ports.records.evidence.modelAssurance.find(
+              scope,
+              "unsupported" as ModelAssuranceRecordKind,
+              "record_one",
+            );
+          if (kind === "record ID")
+            return ports.records.evidence.evaluation.findCriterionSet(scope, "invalid id");
+          return ports.evidence.resolveExactEvents(scope, "00000000000000000000000000000000", [
+            "event_one",
+          ]);
+        }),
+      ).rejects.toThrow();
+      expect(f.queries).toHaveLength(before + 1);
+      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+    },
+  );
+
+  it.each(["tenantId", "projectId", "environmentId"] as const)(
+    "taints a caught %s scope escape before SQL",
+    async (field) => {
+      const f = fixture();
+      let failure: unknown;
+      let before = 0;
+      await expect(
+        f.adapter.runMetadata(scope, async (ports) => {
+          before = f.queries.length;
+          try {
+            await ports.records.evidence.evaluation.findCriterionSet(
+              { ...scope, [field]: "foreign_scope" },
+              "criterion_one",
+            );
+          } catch (error) {
+            failure = error;
+          }
+          for (const read of metadataReads(ports)) await expect(read()).rejects.toBe(failure);
+          return "must_not_commit";
+        }),
+      ).rejects.toThrow("scope differs");
+      expect(f.queries).toHaveLength(before + 1);
+      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+    },
+  );
+
+  it.each(
+    [
+      [],
+      ["event_one", "event_one"],
+      ["invalid id"],
+      Array.from({ length: MAX_FIXTURE_SOURCE_EVENTS + 1 }, (_, index) => `event_${index}`),
+    ].map((eventIds) => [eventIds]),
+  )("rejects invalid or oversized exact event input before SQL", async (eventIds) => {
+    const f = fixture();
+    let before = 0;
+    await expect(
+      f.adapter.runMetadata(scope, async (ports) => {
+        before = f.queries.length;
+        return ports.evidence.resolveExactEvents(scope, traceId, eventIds as string[]);
+      }),
+    ).rejects.toThrow();
+    expect(f.queries).toHaveLength(before + 1);
+    expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+  });
+
+  it("preserves immutable installation catalogue records and detached results without external reads", async () => {
+    const f = fixture();
+    const { binding } = policyAuthorityFixture();
+    const original = structuredClone(binding);
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { installationBindings: [binding] },
+    );
+    binding.registeredByPrincipalId = "mutated_operator";
+    const reference = {
+      installationId: original.installationId,
+      bindingVersionId: original.bindingVersionId,
+      definitionSha256: original.definitionSha256,
+    };
+    await adapter.runMetadata(original.scope, async (ports) => {
+      const before = f.queries.length;
+      const result = await ports.records.control.installationBinding.resolve({
+        scope: original.scope,
+        reference,
+      });
+      expect(result).toEqual(original);
+      if (!result) throw new Error("Missing catalogue record");
+      result.registeredByPrincipalId = "mutated_result";
+      await expect(
+        ports.records.control.installationBinding.resolve({ scope: original.scope, reference }),
+      ).resolves.toEqual(original);
+      expect(f.queries).toHaveLength(before);
+    });
+  });
+
+  it("copies all three runtime definition kinds before guards and returns detached exact versions", async () => {
+    const f = fixture();
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/runtime-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: RuntimeDefinition; scope: EvidenceScope }; sha256: string }[];
+    };
+    const records: RuntimeDefinitionRecord[] = document.vectors.map(({ input, sha256 }) => ({
+      ...input.definition,
+      scope: input.scope,
+      definitionSha256: sha256,
+      schemaVersion: "0.1",
+      registeredAt: "2026-09-26T00:00:00.000Z",
+      registeredByPrincipalId: "operator_runtime",
+    }));
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { runtimeDefinitions: records },
+    );
+    for (const record of records) record.registeredByPrincipalId = "changed_operator";
+    for (const record of originals)
+      await adapter.runMetadata(record.scope, async (ports) => {
+        const before = f.queries.length;
+        const runtime = ports.records.runtimeDefinitions;
+        const read = () =>
+          record.recordKind === "runtime_adapter"
+            ? runtime.findRuntimeAdapter(record.scope, record.adapterVersionId)
+            : record.recordKind === "replay_runtime_profile"
+              ? runtime.findRuntimeProfile(record.scope, record.id, record.version)
+              : runtime.findIsolationProfile(record.scope, record.id, record.version);
+        const result = (await read()) as RuntimeDefinitionRecord;
+        expect(result).toEqual(record);
+        result.registeredByPrincipalId = "changed_result";
+        await expect(read()).resolves.toEqual(record);
+        expect(f.queries).toHaveLength(before);
+      });
+  });
+
+  it("owns exact scope and ordered event IDs before asynchronous database work", async () => {
+    const f = fixture();
+    const original = f.response.getMockImplementation();
+    if (!original) throw new Error("Missing query response");
+    const input = { ...scope };
+    const eventIds = ["event_second", "event_first"];
+    f.response.mockImplementation(async (sql) => {
+      if (sql.includes("proofstack_evidence_events")) {
+        input.projectId = "mutated_project";
+        eventIds.reverse();
+      }
+      return original(sql);
+    });
+    await f.adapter.runMetadata(scope, (ports) =>
+      ports.evidence.resolveExactEvents(input, traceId, eventIds),
+    );
+    const query = f.queries.find(({ text }) => text.includes("proofstack_evidence_events"));
+    expect(query?.values).toEqual([
+      scope.tenantId,
+      scope.projectId,
+      scope.environmentId,
+      traceId,
+      ["event_second", "event_first"],
+    ]);
+  });
+
+  it("rejects invalid and oversized operator catalogues before connecting", () => {
+    const f = fixture();
+    for (const catalogues of [
+      { installationBindings: Array(MAX_POLICY_METADATA_INSTALLATION_BINDINGS + 1).fill(null) },
+      { installationBindings: [null] },
+      { installationBindings: null },
+      { runtimeDefinitions: [null] },
+      { runtimeDefinitions: null },
+      { runtimeDefinitions: Array(257).fill(null) },
+    ])
+      expect(
+        () =>
+          new PostgresPolicySourceTransactions(
+            { connect: f.connect } as unknown as Pick<Pool, "connect">,
+            catalogues as never,
+          ),
+      ).toThrow();
+    expect(f.connect).not.toHaveBeenCalled();
+  });
+});
 
 describe("PostgresPolicySourceTransactions", () => {
   it("sets explicit READ COMMITTED and exact scope before all locks and normalized reads on one connection", async () => {

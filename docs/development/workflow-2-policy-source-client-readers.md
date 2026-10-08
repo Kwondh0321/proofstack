@@ -26,6 +26,44 @@ it does not fetch object bytes, decrypt content or contact a key service.
 
 ## Caller responsibilities
 
+### Guarded repository ports
+
+`PostgresPolicySourceTransactions.runMetadata` provides fixed repository-shaped reads for the
+complete 44-kind record graph, exact trace events, complete criterion status history and recorded
+fixture ownership/availability metadata. It acquires the tenant metadata barrier and verifies the
+current bundled migration ledger on the same READ COMMITTED connection **before invoking the
+callback**. This mode is separate from the existing optional artifact-capture `sourceTransactions`
+recheck; that capture does not automatically invoke complete graph reinspection.
+
+Every nested port checks its requested tenant/project/environment against the transaction's owned
+scope before SQL. Invalid scope, identifiers, model kinds or exact event selections fail wholly;
+trace IDs and the bounded unique event array reuse their owning contracts. Ports expire before
+connection release. Caught or unawaited read failures still taint the transaction; started work is
+drained before commit/rollback and cleanup. No pool, SQL/client, DML, content/key, worker or
+publication interface is exposed. Each domain retains its existing owning validation; this mode
+does not newly prove physical registry/lineage/outbox agreement or all model-assurance projections.
+
+The adapter copies strict operator-owned installation bindings and runtime definitions at
+construction, outside transaction guards. Each catalogue admits at most 256 entries; duplicates
+or invalid records fail before connecting. These immutable in-process records are distinct from
+participating database metadata and live installed-code authority. The callback receives only
+their lifetime-bound exact read ports, with no external discovery or arbitrary resolver injection.
+
+Trusted composition can run the existing bounded `capturePolicyTraceEvidence` with `ports.records`
+and `ports.evidence` while the metadata barrier remains held. The composer meters actual repository
+responses; the adapter does not introduce a second response meter. Additional history/content
+metadata reads need that same cumulative request budget. This is not a hard SQL execution deadline
+or streamed transport bound. Callers must keep object/key/filesystem I/O outside guards and
+abandon the whole transaction if any later required artifact/policy guard cannot be acquired.
+
+This increment exposes the protected owning reads; it does not implement request-owned full
+before/after graph comparison, complete semantic/authority closure, worker lease/fence validation,
+sealed contracts or atomic publication. The read-only transaction ends before returning its result.
+Future publication must retain all required guards in the same still-open transaction through
+complete validation and atomic snapshot/job mutation. Returned metadata is never later seal authority.
+
+### Supplied-client helpers
+
 These are trusted adapter building blocks accepting `Pick<PoolClient, "query">`. They neither
 connect/release nor begin/commit/rollback, change scope GUCs or acquire guards. This TypeScript
 shape is not a SQL sandbox or public worker port. The caller owns authorization, exact transaction
@@ -66,3 +104,12 @@ continues through these extracted readers, including positive normalized dataset
 graphs and corruption cases. Unit regressions mutate caller inputs across query/pool awaits and
 check original-error propagation without transaction cleanup by a helper. No throughput or
 production availability claim follows from these checks.
+
+The guarded repository mode additionally routes all evaluation/model/comparison fixtures through
+the same backend under the existing forced-RLS API read role, keeps dataset/fixture/replay absence
+inside the barrier, validates exact event order and complete envelopes, and blocks an absent
+candidate's concurrent publication until guard release. A caught scope escape rolls back without
+source SQL; retained nested ports cannot run after return. Unit cases cover guard/ledger failure
+before callback, every fixed read route, invalid/bounded exact inputs, copied static catalogues,
+scope/array ownership and draining unawaited successful/failed nested reads. The admin fixture's
+private-guard acquisition does not grant the API role private guard or future worker authority.

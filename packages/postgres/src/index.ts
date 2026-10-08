@@ -76,7 +76,11 @@ export {
   MAX_OUTBOX_RETRY_DELAY_MS,
   PostgresOutboxRepository,
 } from "./postgres-outbox-repository.js";
-export { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
+export {
+  MAX_POLICY_METADATA_INSTALLATION_BINDINGS,
+  type PostgresPolicyMetadataCatalogues,
+  PostgresPolicySourceTransactions,
+} from "./postgres-policy-source-transactions.js";
 export {
   MAX_PROJECTION_CURSOR_GENERATION,
   PostgresProjectionCursorRepository,

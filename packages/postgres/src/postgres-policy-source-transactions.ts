@@ -3,8 +3,15 @@ import {
   EvidenceScopeSchema,
   OpaqueIdSchema,
   PolicyEvaluationTimeSchema,
+  type PolicyInstallationBinding,
 } from "@proofstack/contracts";
 import {
+  StaticPolicyInstallationBindingResolver,
+  StaticRuntimeDefinitionCatalogue,
+} from "@proofstack/core";
+import {
+  type PolicyEvaluationMetadataPorts,
+  type PolicyEvaluationMetadataTransactions,
   PolicyEvaluationSourceRecheckError,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
@@ -17,19 +24,66 @@ import {
   listPostgresCriterionSetStatusesOnClient,
   readPostgresEvaluationRecordOnClient,
 } from "./postgres-evaluation-repository.js";
+import { createPostgresPolicyMetadataPorts } from "./postgres-policy-metadata-ports.js";
 import {
   listPostgresReleasePolicyLifecycleEventsOnClient,
   readPostgresReleasePolicyOnClient,
 } from "./postgres-release-policy-repository.js";
 import { withExactReadCommittedScopeTransaction } from "./tenant-transaction.js";
 
+export const MAX_POLICY_METADATA_INSTALLATION_BINDINGS = 256;
+
+/** Immutable operator-owned inputs, copied at construction before any transaction. */
+export interface PostgresPolicyMetadataCatalogues {
+  readonly installationBindings?: readonly PolicyInstallationBinding[];
+  readonly runtimeDefinitions?: readonly unknown[];
+}
+
 /** Trusted read-only adapter. A pool does not confer worker or snapshot-publication authority. */
-export class PostgresPolicySourceTransactions implements PolicyEvaluationSourceTransactions {
-  constructor(private readonly pool: Pick<Pool, "connect">) {}
+export class PostgresPolicySourceTransactions
+  implements PolicyEvaluationSourceTransactions, PolicyEvaluationMetadataTransactions
+{
+  private readonly catalogues;
+
+  constructor(
+    private readonly pool: Pick<Pool, "connect">,
+    catalogues: PostgresPolicyMetadataCatalogues = {},
+  ) {
+    const bindings =
+      catalogues.installationBindings === undefined ? [] : catalogues.installationBindings;
+    if (!Array.isArray(bindings) || bindings.length > MAX_POLICY_METADATA_INSTALLATION_BINDINGS)
+      throw new TypeError("Policy metadata installation catalogue exceeds its entry limit");
+    this.catalogues = {
+      installationBinding: new StaticPolicyInstallationBindingResolver(bindings),
+      runtimeDefinitions: new StaticRuntimeDefinitionCatalogue(
+        catalogues.runtimeDefinitions === undefined ? [] : catalogues.runtimeDefinitions,
+      ),
+    };
+  }
 
   async run<T>(
     scope: EvidenceScope,
     operation: (ports: PolicyEvaluationSourceRecheckPorts) => Promise<T>,
+  ): Promise<T> {
+    return this.transact(scope, (ports) => operation(ports));
+  }
+
+  async runMetadata<T>(
+    scope: EvidenceScope,
+    operation: (ports: PolicyEvaluationMetadataPorts) => Promise<T>,
+  ): Promise<T> {
+    return this.transact(scope, async (sources, createMetadata) => {
+      await sources.tryMetadataGuard();
+      return operation({ sources, ...createMetadata() });
+    });
+  }
+
+  private async transact<T>(
+    scope: EvidenceScope,
+    operation: (
+      ports: PolicyEvaluationSourceRecheckPorts,
+      createMetadata: () => Omit<PolicyEvaluationMetadataPorts, "sources">,
+    ) => Promise<T>,
   ): Promise<T> {
     const exact = EvidenceScopeSchema.parse(scope);
     // Filesystem work precedes the transaction; schema verification itself runs under its guards.
@@ -126,7 +180,9 @@ export class PostgresPolicySourceTransactions implements PolicyEvaluationSourceT
           }),
       };
       try {
-        const result = await operation(ports);
+        const result = await operation(ports, () =>
+          createPostgresPolicyMetadataPorts(client, exact, call, this.catalogues),
+        );
         // Do not let a caught or unawaited port failure commit, or release a connection while
         // started reads are still using it. The domain composer remains sequential and bounded.
         active = false;

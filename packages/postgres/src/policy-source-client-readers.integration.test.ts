@@ -3,6 +3,7 @@ import type { EvidenceEnvelope, EvidenceScope, ReleaseCandidate } from "@proofst
 import {
   CreateModelAssuranceAssessment,
   comparisonRecordId,
+  type EvaluationRecordKind,
   evaluationRecordId,
   modelAssuranceRecordId,
 } from "@proofstack/core";
@@ -27,19 +28,24 @@ import {
 } from "./postgres-evaluation-repository.js";
 import {
   listPostgresTraceEvidenceOnClient,
+  PostgresEvidenceRepository,
   resolvePostgresExactEventsOnClient,
 } from "./postgres-evidence-repository.js";
 import {
   PostgresModelAssuranceRepository,
   readPostgresModelAssuranceRecordOnClient,
 } from "./postgres-model-assurance-repository.js";
+import { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
 import {
   readPostgresDatasetVersionOnClient,
   readPostgresFixtureVersionOnClient,
   readPostgresRecordedInteractionFixtureContentOnClient,
   readPostgresRecordedInteractionFixtureVersionOnClient,
 } from "./postgres-regression-version-repository.js";
-import { readPostgresReleaseCandidateOnClient } from "./postgres-release-candidate-repository.js";
+import {
+  PostgresReleaseCandidateRepository,
+  readPostgresReleaseCandidateOnClient,
+} from "./postgres-release-candidate-repository.js";
 import {
   readPostgresReplayPlanOnClient,
   readPostgresTargetReleaseOnClient,
@@ -152,6 +158,271 @@ function wrongScopes(scope: EvidenceScope): EvidenceScope[] {
     [key]: "other_scope",
   }));
 }
+
+function metadataAdapter() {
+  const statements: string[] = [];
+  let pid: number | undefined;
+  let connections = 0;
+  const pool = {
+    connect: async () => {
+      connections++;
+      const client = await admin.connect();
+      pid = (await client.query("SELECT pg_backend_pid() AS pid")).rows[0]?.pid;
+      return {
+        query: async (sql: string, values?: unknown[]) => {
+          statements.push(sql);
+          const result = await client.query(sql, values);
+          if (sql.includes("SELECT id, checksum")) {
+            // The isolated admin fixture acquires private guards first. All metadata reads then
+            // execute with the existing API role and forced RLS, without granting it the guard.
+            await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+          }
+          return result;
+        },
+        release: (destroy?: boolean) => client.release(destroy),
+      };
+    },
+  } as unknown as Pick<Pool, "connect">;
+  return {
+    adapter: new PostgresPolicySourceTransactions(pool),
+    statements,
+    get pid() {
+      return pid;
+    },
+    get connections() {
+      return connections;
+    },
+  };
+}
+
+const evaluationMethods = {
+  aggregation_policy: "findAggregationPolicy",
+  assessment: "findAssessment",
+  criterion_set: "findCriterionSet",
+  criterion_set_status: "findCriterionSetStatus",
+  discovery_record: "findDiscoveryRecord",
+  evaluation_aggregate: "findEvaluationAggregate",
+  evaluation_run: "findEvaluationRun",
+  evaluation_run_rejection: "findEvaluationRunRejection",
+  evaluation_run_result: "findEvaluationRunResult",
+  evaluator_spec: "findEvaluatorSpec",
+  oracle_spec: "findOracleSpec",
+  qualification_fixture_set: "findQualificationFixtureSet",
+  qualification_report: "findQualificationReport",
+  raw_observation: "findRawObservation",
+  source_review: "findSourceReview",
+  source_reviewer_qualification: "findSourceReviewerQualification",
+  source_snapshot: "findSourceSnapshot",
+} as const satisfies Record<EvaluationRecordKind, string>;
+
+describe("lifetime-bound policy metadata repository ports", () => {
+  it("routes all 17 evaluation and 13 model/human kinds on one guarded backend under forced RLS", async () => {
+    const observed = metadataAdapter();
+    await observed.adapter.runMetadata(assurance.evaluation.scope, async (ports) => {
+      for (const { kind, record } of assurance.evaluation.records) {
+        const actual = await ports.records.evidence.evaluation[evaluationMethods[kind]](
+          record.scope,
+          evaluationRecordId(kind, record),
+        );
+        expect(actual).toEqual(record);
+        expect(actual).not.toBe(record);
+      }
+      for (const { kind, record } of assurance.records) {
+        const actual = await ports.records.evidence.modelAssurance.find(
+          record.scope,
+          kind,
+          modelAssuranceRecordId(kind, record),
+        );
+        expect(actual).toEqual(record);
+        expect(actual).not.toBe(record);
+      }
+      const limits = { maxRecords: 100, maxRecordBytes: 100_000 };
+      await expect(
+        ports.criterionStatusHistory.listCriterionSetStatuses(assurance.evaluation.scope, limits),
+      ).resolves.toEqual(
+        await new PostgresEvaluationRepository(admin).listCriterionSetStatuses(
+          assurance.evaluation.scope,
+          limits,
+        ),
+      );
+      await expect(ports.sources.observationTime()).resolves.toMatch(/Z$/);
+    });
+    expect(observed.connections).toBe(1);
+    expect(observed.statements.filter((sql) => sql.startsWith("BEGIN"))).toHaveLength(1);
+    expect(observed.statements.at(-1)).toBe("COMMIT");
+  });
+
+  it("routes all comparison records through the same guarded connection", async () => {
+    const observed = metadataAdapter();
+    await observed.adapter.runMetadata(comparison.scope, async (ports) => {
+      const methods = {
+        comparison_definition: "findComparisonDefinition",
+        comparison_evidence_snapshot: "findComparisonEvidenceSnapshot",
+        comparison_result: "findComparisonResult",
+      } as const;
+      for (const { kind, record } of comparison.records) {
+        await expect(
+          ports.records.control.comparison[methods[kind]](
+            record.scope,
+            comparisonRecordId(kind, record),
+          ),
+        ).resolves.toEqual(record);
+      }
+    });
+    expect(observed.connections).toBe(1);
+  });
+
+  it("keeps absent dataset, both fixture formats, content, plan, target and replay history guarded", async () => {
+    const observed = metadataAdapter();
+    await observed.adapter.runMetadata(candidate.scope, async (ports) => {
+      for (const read of [
+        ...Object.values(ports.records.datasets),
+        ...Object.values(ports.records.replayDefinitions),
+        ports.records.replayResults.findJob,
+        ports.fixtureContent.findRecordedInteractionFixtureContent,
+      ])
+        await expect(read(candidate.scope, "missing_source")).resolves.toBeNull();
+      await expect(
+        ports.evidence.resolveExactEvents(candidate.scope, "5bf92f3577b34da6a3ce929d0e0e4736", [
+          "missing_event",
+        ]),
+      ).resolves.toBeNull();
+    });
+    expect(observed.connections).toBe(1);
+  });
+
+  it("rejects scope escape before SQL and rolls back even when the callback catches it", async () => {
+    const observed = metadataAdapter();
+    let before = 0;
+    let failure: unknown;
+    await expect(
+      observed.adapter.runMetadata(candidate.scope, async (ports) => {
+        before = observed.statements.length;
+        try {
+          await ports.records.control.releaseCandidate.findReleaseCandidate(
+            { ...candidate.scope, projectId: "foreign_project" },
+            candidate.candidate.candidateVersionId,
+          );
+        } catch (error) {
+          failure = error;
+        }
+        await expect(
+          ports.records.datasets.findDatasetVersion(candidate.scope, "missing_source"),
+        ).rejects.toBe(failure);
+        return "must_not_commit";
+      }),
+    ).rejects.toThrow("scope differs");
+    expect(observed.statements).toHaveLength(before + 1);
+    expect(observed.statements.at(-1)).toBe("ROLLBACK");
+  });
+
+  it("reads complete evidence envelopes in the requested order through guarded exact trace ports", async () => {
+    const scope = { ...candidate.scope, tenantId: `ten_meta_trace_${runKey}` };
+    const first: EvidenceEnvelope = {
+      schemaVersion: "0.1",
+      scope,
+      receivedAt: "2026-10-03T00:00:01.000Z",
+      evidence: {
+        attributes: {},
+        contentReferences: [],
+        extensions: {},
+        eventId: "evt_meta_first",
+        kind: "agent.run",
+        name: "guarded source read fixture",
+        status: "ok",
+        source: { sdkName: "test", sdkVersion: "1.0.0", serviceName: "test" },
+        spanId: "40f067aa0ba902b7",
+        traceId: "5bf92f3577b34da6a3ce929d0e0e4736",
+        startedAt: "2026-10-03T00:00:00.000Z",
+      },
+    };
+    const second = { ...first, evidence: { ...first.evidence, eventId: "evt_meta_second" } };
+    const url = new URL(databaseUrl as string);
+    url.username = credentials.api.name;
+    url.password = credentials.api.password;
+    const writerPool = new Pool({ connectionString: url.toString(), max: 1 });
+    try {
+      await new PostgresEvidenceRepository(writerPool).append([first, second]);
+    } finally {
+      await writerPool.end();
+    }
+    const observed = metadataAdapter();
+    const retained = await observed.adapter.runMetadata(scope, async (ports) => {
+      await expect(
+        ports.evidence.resolveExactEvents(scope, first.evidence.traceId, [
+          second.evidence.eventId,
+          first.evidence.eventId,
+        ]),
+      ).resolves.toEqual([second, first]);
+      await expect(
+        ports.evidence.resolveExactEvents(scope, first.evidence.traceId, [
+          first.evidence.eventId,
+          "missing_event",
+        ]),
+      ).resolves.toBeNull();
+      return ports.evidence;
+    });
+    const before = observed.statements.length;
+    await expect(
+      retained.resolveExactEvents(scope, first.evidence.traceId, [first.evidence.eventId]),
+    ).rejects.toThrow("expired");
+    expect(observed.statements).toHaveLength(before);
+  });
+
+  it("prevents an absent candidate from appearing until the complete metadata transaction ends", async () => {
+    const h = createReleaseCandidateRepositoryTestHarness(`meta_${runKey}`);
+    const observed = metadataAdapter();
+    const writer = new PostgresReleaseCandidateRepository(admin);
+    let pending: Promise<unknown> | undefined;
+    let failed = false;
+    let failure: unknown;
+    try {
+      await observed.adapter.runMetadata(h.scope, async (ports) => {
+        await expect(
+          ports.records.control.releaseCandidate.findReleaseCandidate(
+            h.scope,
+            h.candidate.candidateVersionId,
+          ),
+        ).resolves.toBeNull();
+        pending = writer.publishReleaseCandidate(h.candidate).catch((error: unknown) => {
+          failed = true;
+          failure = error;
+        });
+        await expect
+          .poll(
+            async () => {
+              if (failed) throw failure;
+              return (
+                await admin.query<{ count: number }>(
+                  "SELECT count(*)::int AS count FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)) AND wait_event = 'advisory'",
+                  [observed.pid],
+                )
+              ).rows[0]?.count;
+            },
+            { timeout: 5_000, interval: 20 },
+          )
+          .toBeGreaterThan(0);
+        await expect(
+          ports.records.control.releaseCandidate.findReleaseCandidate(
+            h.scope,
+            h.candidate.candidateVersionId,
+          ),
+        ).resolves.toBeNull();
+      });
+    } finally {
+      await pending;
+    }
+    if (failed) throw failure;
+    await expect(
+      observed.adapter.runMetadata(h.scope, (ports) =>
+        ports.records.control.releaseCandidate.findReleaseCandidate(
+          h.scope,
+          h.candidate.candidateVersionId,
+        ),
+      ),
+    ).resolves.toEqual(h.candidate);
+  });
+});
 
 function publicationCommand(record: ReleaseCandidate) {
   return {

@@ -327,6 +327,14 @@ opening another connection or ending the caller's transaction. Their extraction 
 guarded composition; it does not add complete reverse authority histories, closure publication or
 a seal, and does not change the existing source recheck report's lifetime.
 
+The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
+ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
+trace events, complete criterion histories and fixture ownership/availability metadata. Every
+requested scope must equal the held transaction scope; caught/unawaited read failures roll back
+and started reads drain before cleanup. Static installation/runtime records are bounded immutable
+operator copies, not external resolver callbacks. Complete request-owned graph comparison,
+semantic/authority closure, sealed contracts and same-transaction publication remain open.
+
 The subsequent [complete criterion status history reader](workflow-2-criterion-status-history.md)
 provides bounded exact-scope enumeration without choosing a latest status or filtering away
 branches, terminal records or later receipts. Shared memory/PostgreSQL conformance, normalized

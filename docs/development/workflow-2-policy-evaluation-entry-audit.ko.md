@@ -280,6 +280,14 @@ dataset/fixture·replay·trace의 기존 검증을 다른 연결이나 트랜잭
 이는 보호된 전체 조회를 구성할 기반이며, 전체 reverse authority 이력·closure 발행·seal을
 추가하거나 기존 source recheck 보고서의 수명을 바꾸지 않습니다.
 
+후속 `runMetadata` adapter 모드는 metadata barrier와 현재 migration ledger를 검증한 뒤
+전체 record graph·exact trace event·전체 criterion history·fixture 소유권/가용성 메타데이터의
+수명이 제한된 owning repository 포트를 제공합니다. 요청 scope는 트랜잭션 scope와 같아야 하며
+잡거나 기다리지 않은 조회 오류도 전체 롤백하고 시작한 조회를 정리한 뒤 연결을 반환합니다.
+Installation/runtime record는 한도가 있는 운영자 소유 불변 복사본이며 임의 외부 resolver를
+주입하지 않습니다. Request 소유 전체 graph 비교·의미/권한 closure·sealed 계약·같은
+트랜잭션의 발행은 아직 구현하지 않았습니다.
+
 후속 [criterion 상태 이력 전체 조회](workflow-2-criterion-status-history.ko.md)는 정확한 scope에서
 한도 내 전체 상태를 반환하며 최신 상태를 고르거나 분기·terminal·나중 receipt를 제거하지
 않습니다. 메모리/PostgreSQL 공통 검사, 평가 행 정규화와 이력별 누적 한도를 제공합니다.

@@ -21,6 +21,41 @@ Recorded fixture의 `Content` 조회는 소유권·철회·tombstone·catalog �
 
 ## 호출자 책임과 남은 경계
 
+### 보호된 저장소 조회 포트
+
+`PostgresPolicySourceTransactions.runMetadata`는 44종 record graph, 정확한 trace event,
+전체 criterion status history, recorded fixture 소유권·가용성 메타데이터를 조회하는 고정
+포트를 제공합니다. 같은 READ COMMITTED 연결에서 tenant metadata barrier를 획득하고
+현재 bundled migration ledger를 검증한 **뒤에만 콜백을 호출**합니다. 기존 artifact capture의
+선택적 `sourceTransactions` recheck와 별도 모드이며, 해당 capture가 전체 graph를 자동
+재검사한다는 뜻은 아닙니다.
+
+각 중첩 포트는 요청한 tenant/project/environment가 트랜잭션에서 소유한 scope인지 SQL 전에
+확인합니다. 잘못된 scope·ID·model kind·exact event 입력은 전체 실패이며, trace ID와 한도가
+있는 고유 event 배열은 기존 계약을 재사용합니다. 포트는 연결 반환 전에 만료됩니다. 잡거나
+기다리지 않은 조회 오류도 전체 트랜잭션을 taint하며 시작한 조회를 모두 정리한 뒤 commit/
+rollback합니다. SQL/client·pool·DML·content/key·worker·발행 인터페이스는 제공하지 않습니다.
+각 reader의 기존 실제 검증을 재사용하며 physical registry/lineage/outbox 관계나 모든
+model-assurance projection을 새로 증명하지 않습니다.
+
+운영자 소유 installation binding과 runtime definition은 생성자에서 잠금 밖에 복사합니다.
+각 catalogue는 최대 256개이며 중복·잘못된 record는 연결 전에 거절합니다. 이 불변 메모리
+record는 DB 메타데이터나 실행 중 설치 코드의 권한 증거와 구별합니다. 임의 외부 resolver를
+주입하지 않고 수명이 제한된 정확한 조회만 제공합니다.
+
+신뢰된 구성은 잠금을 유지한 상태에서 기존 `capturePolicyTraceEvidence`에 `ports.records`와
+`ports.evidence`를 전달할 수 있습니다. 구성 계층이 실제 조회 응답을 누적 계수하며 adapter는
+별도 응답 meter를 추가하지 않습니다. 추가 history/content metadata 조회도 같은 request
+budget을 사용해야 합니다. SQL 실행 deadline이나 전송 스트림 상한은 아닙니다. 객체·key·파일
+I/O는 잠금 밖에서 수행하고, 후속 artifact/policy 잠금 획득 실패는 전체 롤백해야 합니다.
+
+전체 before/after graph 비교·의미/권한 closure·worker lease/fence 검증·sealed 계약·원자적
+발행은 아직 구현하지 않았습니다. 읽기 전용 트랜잭션은 결과 반환 전에 끝납니다. 실제 발행은
+모든 잠금을 같은 연결에서 전체 검증과 snapshot/job mutation까지 유지해야 하며, 반환된
+메타데이터는 이후 seal 권한이 아닙니다.
+
+### 연결 전용 helper
+
 함수는 신뢰된 adapter 내부 구성 요소이며 `Pick<PoolClient, "query">`를 받습니다. 이 타입은
 SQL sandbox나 공개 worker port가 아닙니다. 연결 획득·반환, 트랜잭션 시작·종료, scope GUC
 설정, 잠금 획득을 수행하지 않습니다. 호출자가 권한·정확한 scope·READ COMMITTED·migration/
@@ -50,3 +85,11 @@ job을 원자적으로 발행해야 합니다. 기존 [source recheck](workflow-
 정규화 그래프와 손상 사례를 계속 검사합니다. 단위 회귀 검사는 query/pool await 중 입력
 변경과 오류 원형 전달, helper가 트랜잭션 정리를 대신하지 않는 경계를 다룹니다. 처리량이나
 운영 가용성을 보장하지 않습니다.
+
+보호된 저장소 모드도 평가·모델/사람 검증·비교 fixture를 같은 backend의 기존 강제 RLS API
+조회 권한으로 읽습니다. Dataset/fixture/replay 부재, 정확한 event 순서·전체 envelope,
+잠금 종료까지 새로운 candidate 발행 차단을 검사합니다. Scope 이탈 오류를 잡아도 source SQL
+없이 롤백되며 반환 뒤 중첩 포트는 만료됩니다. 단위 검사는 콜백 전 guard/ledger 실패, 모든
+고정 조회 경로, 잘못된·초과 exact 입력, 불변 catalogue 복사, scope/배열 소유와 기다리지 않은
+성공/실패 조회 정리를 다룹니다. 관리자의 private guard fixture는 API나 미래 worker에게
+해당 권한을 부여하지 않습니다.

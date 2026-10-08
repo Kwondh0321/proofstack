@@ -45,6 +45,10 @@ export type {
   PolicyEvaluationSourceGuardUsage,
 } from "./derive-source-guards.js";
 export type {
+  PolicyEvaluationMetadataPorts,
+  PolicyEvaluationMetadataTransactions,
+} from "./metadata-transactions.js";
+export type {
   PolicyEvaluationSourceRecheck,
   PolicyEvaluationSourceRecheckPorts,
   PolicyEvaluationSourceTransactions,
