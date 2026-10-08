@@ -1,6 +1,6 @@
 # Retained qualification policy definitions
 
-Status: strict independent policy-data prerequisite. Workflow 2 remains **2/7 accepted**;
+Status: strict independent policy data and request-owned acquisition. Workflow 2 remains **2/7 accepted**;
 checkpoint 3 is open. [Korean guide](workflow-2-qualification-policy.ko.md).
 
 `QualificationReport.policy` already binds an exact policy ID, version and definition
@@ -34,15 +34,37 @@ when only original receipts differ. Each returned record, including case arrays,
 is detached from retained state. Publication creation is outside this read-only
 catalogue and belongs to an independently authorized installation boundary.
 
-The prerequisite is not yet connected to request-owned acquisition or PostgreSQL
-metadata ports. The graph retains **45 source kinds** and existing qualification-
-policy frontiers. Parent binding, exact temporal availability at the full-precision
-cut, per-occurrence cumulative admission, current authority, endpoint/protocol
-definitions, complete closure and sealed snapshot/job publication remain open.
+The graph retains `qualification_policy` as its **46th source kind**. Its exact
+repository key includes both policy ID and version (maximum 150 ASCII characters,
+within the unchanged 168-character source-key limit). Fixed owning reads validate
+the complete body, semantic digest, all scope/reference fields and original receipt
+availability at the full-precision evaluation cut, then hash the receipt-bearing
+record. Null remains missing; invalid, mismatching or future records are unavailable.
+Storage failures propagate; a validation-shaped storage error is not missingness.
+
+Each declaration is derived from the fully revalidated original report. It already
+contains all expected coordinates, so no extra selector lookup is introduced.
+Unique policies are read once; every ordered/repeated original edge remains in
+cumulative admission. Known expected targets retain missing/unavailable nodes
+without inventing a body. Conflicting digests under one identity fail. Independent
+closure derivation rejects omitted/substituted nodes, origins, targets and full
+observations. A joined declaration still retains its current-authority frontier.
+
+`PostgresPolicySourceTransactions` copies optional `qualificationPolicies` before
+transaction entry. Its scoped metadata port enforces exact scope, original data,
+detached output, expiry, failure taint and draining without SQL/client, execution,
+credential or publication ports and without new roles/grants. Supply the same
+independent catalogue to initial graph repositories and scoped reinspection;
+different configuration is an observation change. An absent catalogue is empty.
+
+Current qualification authority, endpoint/protocol definitions, complete authority
+closure and sealed snapshot/job publication remain open. Mutable authority requires
+owning guarded lifecycle and recovery; a stale static copy does not establish it.
 Neither a matching definition nor an ended read transaction grants qualification,
 approval or later release/publication authority.
 
 See the [entry audit](workflow-2-policy-evaluation-entry-audit.md),
 [contracts](../../packages/contracts/src/qualification-policy.ts),
 [vectors](../../packages/contracts/vectors/qualification-policy-v1.json) and
-[owning validation/catalogue](../../packages/core/src/evaluation/qualification-policy.ts).
+[owning validation/catalogue](../../packages/core/src/evaluation/qualification-policy.ts) and
+[owning source reader](../../packages/core/src/policy/policy-evaluation-qualification-policy-reader.ts).

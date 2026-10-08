@@ -275,6 +275,15 @@ const cases = [
     key: "qualification_fixture_set:record_one",
   },
   {
+    kind: "qualification_policy",
+    reference: {
+      definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
+      policyId: "logical_one",
+      policyVersionId: "record_one",
+    },
+    key: "qualification_policy:logical_one:record_one",
+  },
+  {
     kind: "qualification_report",
     reference: {
       definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
@@ -438,7 +447,7 @@ const cases = [
 
 describe("exact policy evaluation source identities", () => {
   it("covers every registered source kind with independently declared identities", () => {
-    expect(cases).toHaveLength(45);
+    expect(cases).toHaveLength(46);
     expect(
       PolicyEvaluationSourceReferenceSchema.options.map((schema) => schema.shape.kind.value).sort(),
     ).toEqual(cases.map(({ kind }) => kind));
@@ -487,6 +496,29 @@ describe("exact policy evaluation source identities", () => {
         reference: { ...source.reference, implementationId: "c".repeat(64) },
       } as typeof source),
     ).not.toBe(key);
+  });
+
+  it("preserves both qualification coordinates within the existing key headroom", () => {
+    const source = PolicyEvaluationSourceReferenceSchema.parse({
+      kind: "qualification_policy",
+      reference: {
+        policyId: "a".repeat(64),
+        policyVersionId: "b".repeat(64),
+        definitionSha256: "f".repeat(64),
+      },
+    });
+    const key = policyEvaluationSourceReferenceKey(source);
+    expect(key).toHaveLength(150);
+    expect(PolicyEvaluationSourceKeySchema.parse(key)).toBe(key);
+    for (const bad of [key + ":extra", key + "b", key.split(":").slice(0, 2).join(":")])
+      expect(PolicyEvaluationSourceKeySchema.safeParse(bad).success).toBe(false);
+    for (const field of ["policyId", "policyVersionId"] as const) {
+      const changed = PolicyEvaluationSourceReferenceSchema.parse({
+        kind: source.kind,
+        reference: { ...source.reference, [field]: "other_identity" },
+      });
+      expect(policyEvaluationSourceReferenceKey(changed)).not.toBe(key);
+    }
   });
 
   it.each(cases.filter(({ kind }) => kind !== "replay_result"))(

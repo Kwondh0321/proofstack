@@ -22,6 +22,7 @@ import {
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
   type QualificationReport,
+  QualificationPolicyReferenceSchema,
   type RegressionTraceSnapshot,
   RegressionTraceSnapshotSchema,
   type SourceSnapshot,
@@ -253,7 +254,12 @@ export class PolicyEvaluationReferenceCollector {
 
   qualificationPolicy(path: string, reference: QualificationReport["policy"]): void {
     // This is not an aggregation or release policy. No retained authority is invented here.
-    this.add({ kind: "qualification_policy", path, reference });
+    const parsed = QualificationPolicyReferenceSchema.parse(reference);
+    this.add(
+      { kind: "qualification_policy", path, reference: parsed },
+      policyEvaluationSourceReferenceKey({ kind: "qualification_policy", reference: parsed }),
+      parsed,
+    );
   }
 
   implementation(path: string, reference: OracleSpec["implementation"]): void {

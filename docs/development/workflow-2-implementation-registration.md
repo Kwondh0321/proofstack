@@ -50,7 +50,7 @@ to requested descriptors or hashes.
 
 Every joined registration still retains an installed-code/current-authority frontier;
 `unresolved.references` counts that complete frontier even when a data source joined.
-Qualification-policy acquisition and endpoint/protocol definitions, mutable authority, complete
+Endpoint/protocol definitions, mutable authority, complete
 closure and sealed snapshot/job publication remain required. Mutable authority needs owning guarded
 lifecycle and recovery; a stale static copy cannot substitute for it. An ended
 read-only report cannot authorize later publication.
@@ -58,5 +58,5 @@ read-only report cannot authorize later publication.
 See the [entry audit](workflow-2-policy-evaluation-entry-audit.md),
 [registration vectors](../../packages/contracts/vectors/evaluation-implementation-registration-v1.json)
 and [catalogue](../../packages/core/src/evaluation/evaluation-implementation-registration.ts).
-The independent [qualification-policy definition prerequisite](workflow-2-qualification-policy.md)
-does not yet close the corresponding acquisition or authority frontier.
+Independent [qualification-policy acquisition](workflow-2-qualification-policy.md) retains exact
+original bodies and every report declaration; it also leaves current authority open.

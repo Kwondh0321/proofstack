@@ -447,16 +447,19 @@ The [retained implementation registration acquisition](workflow-2-implementation
 adds independently supplied canonical registration data, a bounded immutable installation catalogue,
 parent-bound complete descriptor/time checks and cumulative graph/scoped-port admission. Its 45th
 source kind retains original receipts and every occurrence. Joined data still leaves installed-code/
-current-authority frontiers; it does not attest loaded bytes or qualification. Qualification-policy
-acquisition, endpoint/protocol definitions and complete authority closure still precede complete sealing.
+current-authority frontiers; it does not attest loaded bytes or qualification. Endpoint/protocol
+definitions and complete authority closure still precede complete sealing.
 
 The [fixed qualification-policy data prerequisite](workflow-2-qualification-policy.md) retains
 an independent canonical body requiring all predeclared cases to match, all nine case categories
 and zero unexpected errors, with original publication receipts and a bounded immutable scope catalogue.
 It reuses the existing report reference and does not invent policy bodies from requested hashes,
-authenticate the declared principal or provide a qualification verdict. Graph/scoped-port acquisition,
-full-precision availability, current authority and sealed publication remain open; the 45-kind source
-inventory and qualification-policy frontiers are unchanged by this definition-only prerequisite.
+authenticate the declared principal or provide a qualification verdict. Fixed graph/scoped-port
+acquisition adds the 46th exact source kind, full-precision receipt availability and complete original
+record hashing. Original report declarations already supply all expected coordinates; unique reads
+retain every repeated origin and explicit missing/unavailable targets, with cumulative admission and
+independent closure verification. Qualification-policy current-authority frontiers, endpoint/protocol
+definitions, complete authority closure and sealed publication remain open.
 
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent

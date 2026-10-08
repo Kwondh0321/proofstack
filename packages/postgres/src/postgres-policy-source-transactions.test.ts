@@ -6,6 +6,8 @@ import {
   type RuntimeDefinitionRecord,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
+  type QualificationPolicyDefinition,
+  type QualificationPolicyRecord,
 } from "@proofstack/contracts";
 import type { ModelAssuranceRecordKind } from "@proofstack/core";
 import { policyAuthorityFixture } from "@proofstack/core/testing";
@@ -154,6 +156,14 @@ function metadataReads(ports: PolicyEvaluationMetadataPorts, input = scope) {
         "version_one",
       );
     },
+    () => {
+      if (!records.qualificationPolicies) throw new Error("Missing qualification policy port");
+      return records.qualificationPolicies.findQualificationPolicy(
+        input,
+        "policy_one",
+        "version_one",
+      );
+    },
     () => ports.evidence.resolveExactEvents(input, traceId, ["event_one"]),
     () => ports.criterionStatusHistory.listCriterionSetStatuses(input, historyLimits),
     () => ports.fixtureContent.findRecordedInteractionFixtureContent(input, "record_one"),
@@ -181,6 +191,7 @@ describe("guarded policy metadata transaction ports", () => {
         "datasets",
         "evidence",
         "implementationRegistrations",
+        "qualificationPolicies",
         "replayDefinitions",
         "replayResults",
         "runtimeDefinitions",
@@ -507,6 +518,64 @@ describe("guarded policy metadata transaction ports", () => {
     }
   });
 
+  it("copies independent qualification policies and exposes detached original receipts through expiring scoped ports", async () => {
+    const f = fixture();
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/qualification-policy-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: {
+        input: { definition: QualificationPolicyDefinition; scope: EvidenceScope };
+        sha256: string;
+      }[];
+    };
+    const records: QualificationPolicyRecord[] = document.vectors.map(({ input, sha256 }) => ({
+      ...input.definition,
+      scope: input.scope,
+      definitionSha256: sha256,
+      schemaVersion: "0.1",
+      publishedAt: "2026-09-01T00:00:00.000Z",
+      publishedByPrincipalId: "operator_retained",
+    }));
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { qualificationPolicies: records },
+    );
+    for (const record of records) record.requiredCaseKinds.reverse();
+    records.length = 0;
+    for (const record of originals) {
+      let retained: PolicyEvaluationMetadataPorts | undefined;
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.qualificationPolicies;
+        if (!reader) throw new Error("Missing guarded qualification policy port");
+        const before = f.queries.length;
+        const read = () =>
+          reader.findQualificationPolicy(record.scope, record.policyId, record.policyVersionId);
+        const result = (await read()) as QualificationPolicyRecord;
+        expect(result).toEqual(record);
+        result.requiredCaseKinds.reverse();
+        result.publishedByPrincipalId = "output_mutation";
+        await expect(read()).resolves.toEqual(record);
+        await expect(
+          reader.findQualificationPolicy(record.scope, record.policyId, "missing_version"),
+        ).resolves.toBeNull();
+        expect(f.queries).toHaveLength(before);
+      });
+      if (!retained?.records.qualificationPolicies) throw new Error("Missing retained policy port");
+      await expect(
+        retained.records.qualificationPolicies.findQualificationPolicy(
+          record.scope,
+          record.policyId,
+          record.policyVersionId,
+        ),
+      ).rejects.toThrow("expired");
+    }
+  });
+
   it("rejects invalid and oversized operator catalogues before connecting", () => {
     const f = fixture();
     for (const catalogues of [
@@ -519,6 +588,9 @@ describe("guarded policy metadata transaction ports", () => {
       { implementationRegistrations: [null] },
       { implementationRegistrations: null },
       { implementationRegistrations: Array(257).fill(null) },
+      { qualificationPolicies: [null] },
+      { qualificationPolicies: null },
+      { qualificationPolicies: Array(257).fill(null) },
     ])
       expect(
         () =>

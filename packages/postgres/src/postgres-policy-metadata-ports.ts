@@ -11,6 +11,7 @@ import type {
   PolicyInstallationBindingResolver,
   RuntimeDefinitionReader,
   EvaluationImplementationRegistrationReader,
+  QualificationPolicyReader,
 } from "@proofstack/core";
 import type { PolicyEvaluationMetadataPorts } from "@proofstack/policy-evaluation";
 import type { PoolClient } from "pg";
@@ -63,6 +64,7 @@ export function createPostgresPolicyMetadataPorts(
     readonly installationBinding: PolicyInstallationBindingResolver;
     readonly runtimeDefinitions: RuntimeDefinitionReader;
     readonly implementationRegistrations: EvaluationImplementationRegistrationReader;
+    readonly qualificationPolicies: QualificationPolicyReader;
   },
 ): Omit<PolicyEvaluationMetadataPorts, "sources"> {
   const scoped = <T>(scopeInput: EvidenceScope, work: (scope: EvidenceScope) => Promise<T>) =>
@@ -89,6 +91,12 @@ export function createPostgresPolicyMetadataPorts(
   };
   return {
     records: {
+      qualificationPolicies: {
+        findQualificationPolicy: (scope, value, version) =>
+          scoped(scope, (owned) =>
+            catalogues.qualificationPolicies.findQualificationPolicy(owned, id(value), id(version)),
+          ),
+      },
       implementationRegistrations: {
         findEvaluationImplementationRegistration: (scope, value, version) =>
           scoped(scope, (owned) =>

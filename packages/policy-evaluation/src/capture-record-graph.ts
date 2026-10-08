@@ -58,6 +58,7 @@ import {
   type PolicyRecordGraphRepositories,
   type PolicyRecordRead,
   emptyImplementationRegistrations,
+  emptyQualificationPolicies,
   enumerateCapturedPolicyRecord,
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
@@ -67,7 +68,10 @@ export interface PolicyRecordGraphEdge {
   readonly parent: PolicyEvaluationSourceReference;
   readonly parentRecordSha256: string;
   readonly reference: PolicyEvaluationEvidenceReference;
-  /** Null retains a declaration/artifact/selector frontier; it is never a successful empty edge. */
+  /**
+   * Null retains a declaration/artifact/selector frontier, never a successful empty edge.
+   * A joined declaration target still leaves current-authority validation in the frontier.
+   */
   readonly target: PolicyEvaluationSourceReference | null;
   readonly selectorFailure?:
     | { readonly status: "missing" }
@@ -147,6 +151,9 @@ function metered(
     runtimeDefinitions: budget.wrap(repositories.runtimeDefinitions),
     implementationRegistrations: budget.wrap(
       repositories.implementationRegistrations ?? emptyImplementationRegistrations,
+    ),
+    qualificationPolicies: budget.wrap(
+      repositories.qualificationPolicies ?? emptyQualificationPolicies,
     ),
   };
 }
@@ -264,6 +271,12 @@ export async function acquirePolicyRecordGraph(
         if (reference.kind === "record") {
           admitEdge({ ...parent, target: reference.source });
           enqueue(reference.source);
+        } else if (reference.kind === "qualification_policy") {
+          // The original validated declaration already supplies all expected coordinates.
+          // Retain its exact target even when independently stored data is missing/unavailable.
+          const target = { kind: "qualification_policy" as const, reference: reference.reference };
+          admitEdge({ ...parent, target });
+          enqueue(target);
         } else if (reference.kind === "registered_implementation") {
           // Charge complete parent reinspection before another read, including repeated origins.
           budget.addReferences(references.length, referenceBytes);

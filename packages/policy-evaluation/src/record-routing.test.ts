@@ -13,6 +13,7 @@ import {
   digestComparisonRecordDefinition,
   StaticRuntimeDefinitionCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
+  StaticQualificationPolicyCatalogue,
 } from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
@@ -54,6 +55,7 @@ function absentRepositories(): PolicyRecordGraphRepositories {
     replayResults: absent,
     runtimeDefinitions: absent,
     implementationRegistrations: absent,
+    qualificationPolicies: absent,
   } as PolicyRecordGraphRepositories;
 }
 
@@ -106,6 +108,25 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
 }
 
 describe("positive fixed-domain routing", () => {
+  it("routes every independent qualification policy vector without invented artifact dependencies", async () => {
+    for (const { input, sha256 } of vectors(
+      "../../contracts/vectors/qualification-policy-v1.json",
+    )) {
+      const record = {
+        ...(input["definition"] as Fields),
+        scope: input["scope"],
+        definitionSha256: sha256,
+        schemaVersion: "0.1",
+        publishedAt: "2026-09-01T00:00:00.000Z",
+        publishedByPrincipalId: "operator_retained",
+      };
+      const expansion = await verify("qualification_policy", record, {
+        ...absentRepositories(),
+        qualificationPolicies: new StaticQualificationPolicyCatalogue([record]),
+      });
+      expect(expansion.references).toEqual([]);
+    }
+  });
   it("routes a complete independent implementation registration with no invented artifact dependencies", async () => {
     const document = JSON.parse(
       readFileSync(

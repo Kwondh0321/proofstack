@@ -7,6 +7,8 @@ import {
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
+  type QualificationPolicyDefinition,
+  type QualificationPolicyRecord,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
   type RegressionDatasetVersionDefinition,
@@ -29,9 +31,11 @@ import {
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
   digestRuntimeDefinition,
+  digestQualificationPolicy,
   evaluationRecordDescriptors,
   StaticRuntimeDefinitionCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
+  StaticQualificationPolicyCatalogue,
   validatePolicyEvaluationManifest,
 } from "@proofstack/core";
 import {
@@ -173,6 +177,7 @@ function missingRepositories() {
     replayResults: port("job"),
     runtimeDefinitions: port("runtime"),
     implementationRegistrations: port("implementation"),
+    qualificationPolicies: port("qualification"),
   } as PolicyRecordGraphRepositories;
   return { repositories, calls };
 }
@@ -240,9 +245,32 @@ async function harness(
     dataset?: "matched" | "wrong_fixture";
     replayBindings?: boolean;
     plan?: (plan: ReplayPlanDefinition) => void;
+    qualificationPolicy?: boolean;
   },
 ) {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
+  // Independently define operator data first, then publish new reports referring to it.
+  // Existing placeholder report hashes are never fabricated into genuine policy bodies.
+  const qualificationPolicy = snapshots?.qualificationPolicy
+    ? (() => {
+        const document = JSON.parse(
+          readFileSync(
+            new URL("../../contracts/vectors/qualification-policy-v1.json", import.meta.url),
+            "utf8",
+          ),
+        ) as { vectors: { input: { definition: QualificationPolicyDefinition } }[] };
+        const definition = document.vectors[0]?.input.definition;
+        if (!definition) throw new Error("Missing independent qualification policy vector");
+        return {
+          ...structuredClone(definition),
+          scope: evaluation.scope,
+          schemaVersion: "0.1" as const,
+          definitionSha256: digestQualificationPolicy(evaluation.scope, definition),
+          publishedAt: "2026-09-01T00:00:00.000Z",
+          publishedByPrincipalId: "operator_retained",
+        } satisfies QualificationPolicyRecord;
+      })()
+    : undefined;
   const datasets = new MemoryRegressionVersionRepository();
   const retainedFixtures = snapshots?.dataset
     ? evaluation.records
@@ -550,6 +578,12 @@ async function harness(
         }
       }
       if (fixture.kind === "qualification_report") {
+        if (qualificationPolicy)
+          fixture.record.policy = {
+            policyId: qualificationPolicy.policyId,
+            policyVersionId: qualificationPolicy.policyVersionId,
+            definitionSha256: qualificationPolicy.definitionSha256,
+          };
         fixture.record.startedAt = "2026-09-02T00:00:00.000Z";
         fixture.record.completedAt = "2026-09-02T00:00:00.000Z";
         fixture.record.validFrom = "2026-09-02T00:00:00.000Z";
@@ -635,6 +669,9 @@ async function harness(
     ...(snapshots?.replayBindings
       ? { runtimeDefinitions: new StaticRuntimeDefinitionCatalogue(runtimeRecords) }
       : {}),
+    ...(qualificationPolicy
+      ? { qualificationPolicies: new StaticQualificationPolicyCatalogue([qualificationPolicy]) }
+      : {}),
   };
   return {
     candidate,
@@ -645,6 +682,7 @@ async function harness(
     replay,
     replayResultReference,
     input: request(candidate, policy),
+    qualificationPolicy,
   };
 }
 
@@ -997,7 +1035,13 @@ describe("independent retained record closure", () => {
       graph.edges.filter(({ target }) => target?.kind === "criterion_set").length,
     ).toBeGreaterThan(5);
     expect(derived.closure.frontier.map(({ edgeIndex }) => edgeIndex)).toEqual(
-      graph.edges.flatMap(({ target }, index) => (target === null ? [index] : [])),
+      graph.edges.flatMap(({ target, reference }, index) =>
+        target === null ||
+        reference.kind === "qualification_policy" ||
+        reference.kind === "registered_implementation"
+          ? [index]
+          : [],
+      ),
     );
     expect(new Set(derived.closure.frontier.map(({ kind }) => kind))).toEqual(
       new Set(["artifact", "trace", "retained_declaration"]),
@@ -3121,7 +3165,7 @@ describe("fixed cross-domain routing", () => {
       ),
     ) as { vectors: { input: { definition: Fields } }[] };
     const readLimits = { maxReferences: 1000, maxReferenceBytes: 1000000 };
-    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(45);
+    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(46);
     for (const option of PolicyEvaluationSourceReferenceSchema.options) {
       const kind = option.shape.kind.value;
       const runtime = runtimeVectors.vectors.find(
@@ -3156,41 +3200,43 @@ describe("fixed cross-domain routing", () => {
       });
       expect(missing.calls.length, kind).toBe(kind === "regression_fixture_version" ? 2 : 1);
       const domain =
-        kind === "evaluation_implementation_registration"
-          ? "implementation"
-          : kind.startsWith("comparison_")
-            ? "comparison"
-            : kind === "release_candidate"
-              ? "candidate"
-              : kind === "release_policy"
-                ? "policy"
-                : kind === "policy_installation_binding"
-                  ? "binding"
-                  : ["dataset_version", "regression_fixture_version"].includes(kind)
-                    ? "dataset"
-                    : ["replay_plan", "target_release"].includes(kind)
-                      ? "replay"
-                      : kind === "replay_result"
-                        ? "job"
-                        : runtime
-                          ? "runtime"
-                          : [
-                                "blinded_plan",
-                                "blinded_result",
-                                "calibration_report",
-                                "human_review_protocol",
-                                "human_review_record",
-                                "human_reviewer_independence",
-                                "independence_declaration",
-                                "independent_critique",
-                                "model_assisted_evaluator_spec",
-                                "model_assurance_assessment",
-                                "model_evaluator_profile",
-                                "model_qualification_report",
-                                "model_qualification_suite",
-                              ].includes(kind)
-                            ? "model"
-                            : "evaluation";
+        kind === "qualification_policy"
+          ? "qualification"
+          : kind === "evaluation_implementation_registration"
+            ? "implementation"
+            : kind.startsWith("comparison_")
+              ? "comparison"
+              : kind === "release_candidate"
+                ? "candidate"
+                : kind === "release_policy"
+                  ? "policy"
+                  : kind === "policy_installation_binding"
+                    ? "binding"
+                    : ["dataset_version", "regression_fixture_version"].includes(kind)
+                      ? "dataset"
+                      : ["replay_plan", "target_release"].includes(kind)
+                        ? "replay"
+                        : kind === "replay_result"
+                          ? "job"
+                          : runtime
+                            ? "runtime"
+                            : [
+                                  "blinded_plan",
+                                  "blinded_result",
+                                  "calibration_report",
+                                  "human_review_protocol",
+                                  "human_review_record",
+                                  "human_reviewer_independence",
+                                  "independence_declaration",
+                                  "independent_critique",
+                                  "model_assisted_evaluator_spec",
+                                  "model_assurance_assessment",
+                                  "model_evaluator_profile",
+                                  "model_qualification_report",
+                                  "model_qualification_suite",
+                                ].includes(kind)
+                              ? "model"
+                              : "evaluation";
       expect(
         missing.calls.every((call) => call.domain === domain),
         kind,
@@ -3833,6 +3879,238 @@ describe("candidate-owned policy assessment declarations", () => {
     if (report.status !== "inspected") throw new Error("Expected inspection");
     Object.assign(report.candidate.source.reference, { definitionSha256: "f".repeat(64) });
     expect(graph).toEqual(before);
+  });
+});
+
+describe("retained qualification policy graph acquisition", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
+
+  it("reads one exact independent policy for repeated original report declarations and retains authority frontiers", async () => {
+    const setup = await harness(undefined, { qualificationPolicy: true });
+    const record = setup.qualificationPolicy;
+    if (!record) throw new Error("Missing independently defined policy");
+    const catalogue = new StaticQualificationPolicyCatalogue([record]);
+    const lookup = vi.fn((...args: Parameters<typeof catalogue.findQualificationPolicy>) =>
+      catalogue.findQualificationPolicy(...args),
+    );
+    const graph = await capturePolicyRecordGraph(setup.input, {
+      ...setup.repositories,
+      qualificationPolicies: { findQualificationPolicy: lookup },
+    });
+    const edges = graph.edges.filter(({ reference }) => reference.kind === "qualification_policy");
+    expect(edges).toHaveLength(2);
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(
+      setup.input.scope,
+      record.policyId,
+      record.policyVersionId,
+    );
+    const target = {
+      kind: "qualification_policy",
+      reference: {
+        policyId: record.policyId,
+        policyVersionId: record.policyVersionId,
+        definitionSha256: record.definitionSha256,
+      },
+    };
+    const nodes = graph.nodes.filter(({ read }) => read.source.kind === "qualification_policy");
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]).toMatchObject({
+      read: { source: target, record, observation: { status: "verified" } },
+      references: [],
+    });
+    for (const edge of edges) {
+      expect(edge.parent.kind).toBe("qualification_report");
+      expect(edge.target).toEqual(target);
+      expect(graph.recordClosure.frontier).toContainEqual({
+        edgeIndex: graph.edges.indexOf(edge),
+        kind: "retained_declaration",
+      });
+    }
+    const derived = deriveCapturedRecordClosure(setup.input, graph, limits);
+    expect(derived.entries).toEqual(graph.entries);
+    expect(derived.closure).toEqual(graph.recordClosure);
+    expect(graph).not.toHaveProperty("sealed");
+    expect(graph).not.toHaveProperty("qualified");
+
+    // Every occurrence and unique read is included in the shared finite admission meter.
+    const exactLimits = {
+      ...setup.input.limits,
+      maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references),
+      maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
+    };
+    expect(
+      (
+        await capturePolicyRecordGraph(
+          request(setup.candidate, setup.policy, exactLimits),
+          setup.repositories,
+        )
+      ).usage,
+    ).toEqual(graph.usage);
+    for (const patch of [
+      { maxAcquisitionRecords: exactLimits.maxAcquisitionRecords - 1 },
+      { maxAcquisitionRecordBytes: exactLimits.maxAcquisitionRecordBytes - 1 },
+    ]) {
+      await expect(
+        capturePolicyRecordGraph(
+          request(setup.candidate, setup.policy, { ...exactLimits, ...patch }),
+          setup.repositories,
+        ),
+      ).rejects.toThrow();
+    }
+  });
+
+  it("retains exact declared targets and explicit missing/future/invalid observations without fabricated bodies", async () => {
+    const setup = await harness(undefined, { qualificationPolicy: true });
+    const record = setup.qualificationPolicy;
+    if (!record) throw new Error("Missing independently defined policy");
+    for (const [raw, observation] of [
+      [null, { status: "missing" }],
+      [
+        { ...record, publishedAt: "2026-10-02T00:00:00.000Z" },
+        { status: "unavailable", reason: "not_yet_available" },
+      ],
+      [
+        { ...record, approved: true },
+        { status: "unavailable", reason: "record_invalid" },
+      ],
+      [
+        { ...record, definitionSha256: "0".repeat(64) },
+        { status: "unavailable", reason: "record_invalid" },
+      ],
+    ]) {
+      const lookup = vi.fn(async () => raw);
+      const graph = await capturePolicyRecordGraph(setup.input, {
+        ...setup.repositories,
+        qualificationPolicies: { findQualificationPolicy: lookup },
+      });
+      expect(lookup).toHaveBeenCalledTimes(1);
+      const node = graph.nodes.find(({ read }) => read.source.kind === "qualification_policy");
+      expect(node).toMatchObject({ read: { observation, record: null }, references: null });
+      const edges = graph.edges.filter(
+        ({ reference }) => reference.kind === "qualification_policy",
+      );
+      expect(edges).toHaveLength(2);
+      expect(edges.every(({ target }) => target?.kind === "qualification_policy")).toBe(true);
+      expect(deriveCapturedRecordClosure(setup.input, graph, limits).entries).toEqual(
+        graph.entries,
+      );
+    }
+    const { qualificationPolicies: _absent, ...repositories } = setup.repositories;
+    const graph = await capturePolicyRecordGraph(setup.input, repositories);
+    expect(
+      graph.nodes.find(({ read }) => read.source.kind === "qualification_policy")?.read.observation,
+    ).toEqual({ status: "missing" });
+  });
+
+  it("rejects conflicting expected digests under one policy identity instead of selecting a latest body", async () => {
+    const setup = await harness(undefined, {
+      qualificationPolicy: true,
+      mutate: (item) => {
+        if (item.kind === "qualification_report" && item.record.subject.kind === "oracle")
+          item.record.policy.definitionSha256 = "0".repeat(64);
+      },
+    });
+    await expect(capturePolicyRecordGraph(setup.input, setup.repositories)).rejects.toMatchObject({
+      reason: "reference_conflict",
+    });
+  });
+
+  it("requires the same independent policy data during reinspection, including changed receipts and absent creation", async () => {
+    const setup = await harness(undefined, { qualificationPolicy: true });
+    const record = setup.qualificationPolicy;
+    if (!record) throw new Error("Missing independent policy fixture");
+    const retained = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const reread = await acquirePolicyRecordGraph(
+      setup.input,
+      setup.repositories,
+      new AcquisitionBudget(setup.input.limits),
+      retained,
+    );
+    expect(reread).toEqual(retained);
+    const missingRepositories = {
+      ...setup.repositories,
+      qualificationPolicies: new StaticQualificationPolicyCatalogue([]),
+    };
+    for (const repositories of [
+      missingRepositories,
+      {
+        ...setup.repositories,
+        qualificationPolicies: new StaticQualificationPolicyCatalogue([
+          { ...record, publishedByPrincipalId: "operator_other" },
+        ]),
+      },
+      {
+        ...setup.repositories,
+        qualificationPolicies: new StaticQualificationPolicyCatalogue([
+          { ...record, publishedAt: "2026-10-02T00:00:00.000Z" },
+        ]),
+      },
+    ]) {
+      await expect(
+        acquirePolicyRecordGraph(
+          setup.input,
+          repositories,
+          new AcquisitionBudget(setup.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({
+        code: "policy_captured_observation_recheck_failed",
+        reason: "source_revision_changed",
+      });
+    }
+    const missing = await capturePolicyRecordGraph(setup.input, missingRepositories);
+    await expect(
+      acquirePolicyRecordGraph(
+        setup.input,
+        setup.repositories,
+        new AcquisitionBudget(setup.input.limits),
+        missing,
+      ),
+    ).rejects.toMatchObject({
+      code: "policy_captured_observation_recheck_failed",
+      reason: "source_revision_changed",
+    });
+  });
+
+  it("independently rejects omitted/substituted policies, original edges, targets and full observations", async () => {
+    const setup = await harness(undefined, { qualificationPolicy: true });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const nodeIndex = graph.nodes.findIndex(
+      ({ read }) => read.source.kind === "qualification_policy",
+    );
+    const edgeIndex = graph.edges.findIndex(
+      ({ reference }) => reference.kind === "qualification_policy",
+    );
+    expect(nodeIndex).toBeGreaterThanOrEqual(0);
+    expect(edgeIndex).toBeGreaterThanOrEqual(0);
+    for (const mutate of [
+      (copy: typeof graph) => (copy.nodes as unknown[]).splice(nodeIndex, 1),
+      (copy: typeof graph) => (copy.edges as unknown[]).splice(edgeIndex, 1),
+      (copy: typeof graph) => Reflect.set(copy.edges[edgeIndex] as object, "target", null),
+      (copy: typeof graph) =>
+        Reflect.set(copy.edges[edgeIndex] as object, "target", {
+          kind: "qualification_policy",
+          reference: {
+            ...(copy.edges[edgeIndex]?.target?.reference ?? {}),
+            policyVersionId: "other_version",
+          },
+        }),
+      (copy: typeof graph) =>
+        Reflect.set(
+          copy.nodes[nodeIndex]?.read.observation as object,
+          "recordSha256",
+          "0".repeat(64),
+        ),
+      (copy: typeof graph) =>
+        Reflect.set(copy.edges[edgeIndex] as object, "selectorFailure", { status: "missing" }),
+      (copy: typeof graph) =>
+        Reflect.set(copy.edges[edgeIndex] as object, "registrationFailure", { status: "missing" }),
+    ]) {
+      const copy = structuredClone(graph);
+      mutate(copy);
+      expect(() => deriveCapturedRecordClosure(setup.input, copy, limits)).toThrow();
+    }
+    expect(deriveCapturedRecordClosure(setup.input, graph, limits).entries).toEqual(graph.entries);
   });
 });
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { OpaqueIdSchema } from "./primitives.js";
 import { EvaluationImplementationRegistrationReferenceSchema } from "./evaluation-implementation-registration.js";
+import { QualificationPolicyReferenceSchema } from "./qualification-policy.js";
 import {
   AssessmentReferenceSchema,
   EvaluationAggregateReferenceSchema,
@@ -236,6 +237,12 @@ export const PolicyEvaluationSourceReferenceSchema = z.discriminatedUnion("kind"
     })
     .strict(),
   z
+    .object({
+      kind: z.literal("qualification_policy"),
+      reference: QualificationPolicyReferenceSchema,
+    })
+    .strict(),
+  z
     .object({ kind: z.literal("raw_observation"), reference: RawObservationReferenceSchema })
     .strict(),
   z
@@ -286,10 +293,13 @@ export type PolicyEvaluationSourceReference = z.infer<typeof PolicyEvaluationSou
 /**
  * Repository identity, deliberately excluding digests and redundant logical IDs. Changing a
  * digest, parent ID, or comparison role under one record identity is a conflict, not a new entry.
- * Runtime/isolation profiles use their existing (id, version) repository identity.
+ * Runtime/isolation profiles, implementation registrations and qualification policies retain
+ * their existing composite (id, version) repository identity.
  */
 export function policyEvaluationSourceReferenceKey(value: PolicyEvaluationSourceReference): string {
   switch (value.kind) {
+    case "qualification_policy":
+      return `${value.kind}:${value.reference.policyId}:${value.reference.policyVersionId}`;
     case "evaluation_implementation_registration":
       return `${value.kind}:${value.reference.implementationId}:${value.reference.implementationVersionId}`;
     case "discovery_record":
@@ -395,14 +405,15 @@ export const PolicyEvaluationSourceKeySchema = z
       (schema) => schema.shape.kind.value === kind,
     );
     const profile = kind === "replay_runtime_profile" || kind === "replay_isolation_profile";
-    const implementation = kind === "evaluation_implementation_registration";
+    const composite =
+      kind === "evaluation_implementation_registration" || kind === "qualification_policy";
     if (
       !knownKind ||
       !OpaqueIdSchema.safeParse(id).success ||
       extra.length > 0 ||
       (profile
         ? !ReplayRuntimeProfileReferenceSchema.shape.version.safeParse(version).success
-        : implementation
+        : composite
           ? !OpaqueIdSchema.safeParse(version).success
           : version !== undefined)
     ) {

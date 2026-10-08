@@ -7,6 +7,8 @@ import {
   type ContentReference,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
+  type QualificationPolicyDefinition,
+  type QualificationPolicyRecord,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
@@ -17,6 +19,8 @@ import {
   digestEvaluationRecordDefinition,
   digestEvaluationImplementationRegistration,
   readPolicyEvaluationImplementationRecord,
+  digestQualificationPolicy,
+  readPolicyEvaluationQualificationPolicyRecord,
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
   evaluationRecordDescriptors,
@@ -470,6 +474,101 @@ async function fixture(withCriteria = false, metadataMode = false) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("retains independent qualification policies across three tenant collisions with original receipts and expiring native ports", async () => {
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/qualification-policy-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { vectors: { input: { definition: QualificationPolicyDefinition } }[] };
+    const definition = document.vectors[0]?.input.definition;
+    if (!definition) throw new Error("Missing independent qualification policy vector");
+    const records: QualificationPolicyRecord[] = [0, 1, 2].map((index) => {
+      const scope = {
+        tenantId: `tenant_qualification_${runKey}_${index}`,
+        projectId: "project_qualification",
+        environmentId: "environment_qualification",
+      };
+      return {
+        ...structuredClone(definition),
+        scope,
+        definitionSha256: digestQualificationPolicy(scope, definition),
+        schemaVersion: "0.1",
+        publishedAt: "2026-09-01T00:00:00.000Z",
+        publishedByPrincipalId: "operator_retained",
+      };
+    });
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(admin, { qualificationPolicies: records });
+    const first = records[0];
+    if (!first) throw new Error("Missing independent operator fixture");
+    await expect(
+      new PostgresPolicySourceTransactions(api, { qualificationPolicies: records }).runMetadata(
+        first.scope,
+        async () => "must not expose ports",
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    for (const record of records) record.requiredCaseKinds.reverse();
+    records.length = 0;
+    for (const record of originals) {
+      let retained: Parameters<Parameters<typeof adapter.runMetadata>[1]>[0] | undefined;
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.qualificationPolicies;
+        if (!reader) throw new Error("Missing guarded qualification policy port");
+        const cut = await ports.sources.observationTime();
+        expect(cut).toMatch(/\.\d{6}Z$/u);
+        const read = await readPolicyEvaluationQualificationPolicyRecord(
+          {
+            scope: record.scope,
+            evaluationTime: cut,
+            source: {
+              kind: "qualification_policy",
+              reference: {
+                policyId: record.policyId,
+                policyVersionId: record.policyVersionId,
+                definitionSha256: record.definitionSha256,
+              },
+            },
+          },
+          reader,
+        );
+        expect(read.observation.status).toBe("verified");
+        expect(read.record).toEqual(record);
+        if (!read.record) throw new Error("Missing original receipt-bearing policy");
+        read.record.requiredCaseKinds.reverse();
+        await expect(
+          reader.findQualificationPolicy(record.scope, record.policyId, record.policyVersionId),
+        ).resolves.toEqual(record);
+        await expect(
+          reader.findQualificationPolicy(record.scope, record.policyId, "missing_version"),
+        ).resolves.toBeNull();
+      });
+      if (!retained?.records.qualificationPolicies) throw new Error("Missing retained policy port");
+      await expect(
+        retained.records.qualificationPolicies.findQualificationPolicy(
+          record.scope,
+          record.policyId,
+          record.policyVersionId,
+        ),
+      ).rejects.toThrow("expired");
+      await expect(
+        adapter.runMetadata(record.scope, async (ports) => {
+          const reader = ports.records.qualificationPolicies;
+          if (!reader) throw new Error("Missing guarded qualification policy port");
+          await expect(
+            reader.findQualificationPolicy(
+              { ...record.scope, tenantId: "outside_scope" },
+              record.policyId,
+              record.policyVersionId,
+            ),
+          ).rejects.toThrow("scope");
+          return "caught scope escape cannot commit";
+        }),
+      ).rejects.toThrow("scope");
+    }
+  });
+
   it("retains independent registrations across three tenant collisions and expires every native scoped port", async () => {
     const document = JSON.parse(
       readFileSync(

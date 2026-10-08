@@ -3,6 +3,7 @@ import {
   enumeratePolicyEvaluationControlReferences,
   enumeratePolicyEvaluationEvidenceReferences,
   enumeratePolicyEvaluationImplementationReferences,
+  enumeratePolicyEvaluationQualificationPolicyReferences,
   enumeratePolicyEvaluationRuntimeReferences,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationControlReaderDependencies,
@@ -11,12 +12,15 @@ import {
   type PolicyEvaluationEvidenceReference,
   type PolicyEvaluationEvidenceReferenceLimits,
   type PolicyEvaluationImplementationRead,
+  type PolicyEvaluationQualificationPolicyRead,
   type PolicyEvaluationRuntimeRead,
   readPolicyEvaluationControlRecord,
   readPolicyEvaluationEvidence,
   readPolicyEvaluationImplementationRecord,
+  readPolicyEvaluationQualificationPolicyRecord,
   readPolicyEvaluationRuntimeRecord,
   StaticEvaluationImplementationRegistrationCatalogue,
+  StaticQualificationPolicyCatalogue,
 } from "@proofstack/core";
 import {
   enumeratePolicyEvaluationDatasetReferences,
@@ -42,6 +46,9 @@ export interface PolicyRecordGraphRepositories {
   readonly implementationRegistrations?: Parameters<
     typeof readPolicyEvaluationImplementationRecord
   >[1];
+  readonly qualificationPolicies?: Parameters<
+    typeof readPolicyEvaluationQualificationPolicyRecord
+  >[1];
 }
 
 export type PolicyRecordRead =
@@ -49,6 +56,7 @@ export type PolicyRecordRead =
   | PolicyEvaluationEvidenceRead
   | PolicyEvaluationRuntimeRead
   | PolicyEvaluationImplementationRead
+  | PolicyEvaluationQualificationPolicyRead
   | PolicyEvaluationDatasetRead
   | PolicyEvaluationReplayDefinitionRead
   | PolicyEvaluationReplayResultRead;
@@ -68,6 +76,7 @@ interface Context {
 /** Absent installation data remains missing, never synthesized from a parent's declaration. */
 export const emptyImplementationRegistrations =
   new StaticEvaluationImplementationRegistrationCatalogue([]);
+export const emptyQualificationPolicies = new StaticQualificationPolicyCatalogue([]);
 
 /** Fixed owning reinspection of retained bodies; no repository ports or caller validators. */
 export function enumerateCapturedPolicyRecord(
@@ -78,6 +87,12 @@ export function enumerateCapturedPolicyRecord(
 ) {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "qualification_policy":
+      return enumeratePolicyEvaluationQualificationPolicyReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationQualificationPolicyRead,
+        limits,
+      );
     case "evaluation_implementation_registration":
       return enumeratePolicyEvaluationImplementationReferences(
         { source, scope, evaluationTime },
@@ -153,6 +168,16 @@ export async function readAndExpandPolicyRecord(
 ): Promise<PolicyRecordExpansion> {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "qualification_policy": {
+      const input = { source, scope, evaluationTime };
+      return finish(
+        await readPolicyEvaluationQualificationPolicyRecord(
+          input,
+          repositories.qualificationPolicies ?? emptyQualificationPolicies,
+        ),
+        (read) => enumeratePolicyEvaluationQualificationPolicyReferences(input, read, limits),
+      );
+    }
     case "evaluation_implementation_registration": {
       const input = { source, scope, evaluationTime };
       return finish(

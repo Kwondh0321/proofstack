@@ -270,6 +270,15 @@ export function deriveCapturedRecordClosure(
         frontier.push({ edgeIndex: index, kind: "retained_declaration" });
         continue;
       }
+      if (reference.kind === "qualification_policy") {
+        const target: Source = { kind: "qualification_policy", reference: reference.reference };
+        if (edge.selectorFailure !== undefined || !same(target, edge.target))
+          throw new PolicyRecordGraphError("reference_conflict", key);
+        enqueue(target);
+        // Valid retained policy data does not authenticate current qualification authority.
+        frontier.push({ edgeIndex: index, kind: "retained_declaration" });
+        continue;
+      }
       if (reference.kind === "record") {
         if (edge.selectorFailure !== undefined || !same(reference.source, edge.target))
           throw new PolicyRecordGraphError("reference_conflict", key);
