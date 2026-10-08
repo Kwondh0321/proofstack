@@ -910,6 +910,9 @@ async function recheckHarness(eventCount = 1) {
   const calls: string[] = [];
   const state = { phase: "outside" };
   const ports = {
+    tryMetadataGuard: vi.fn(async () => true),
+    findCriterion: vi.fn(async () => null),
+    listCriterionSetStatuses: vi.fn(async () => []),
     tryGuard: vi.fn(async (kind: "artifact" | "release_policy", id: string) => {
       calls.push(`guard:${kind}:${id}`);
       return true;
@@ -994,7 +997,14 @@ describe("request-owned source recheck composition", () => {
       guards: output.sourceGuards.length,
       artifactReads: f.ports.findArtifact.mock.calls.length,
       policyReads: f.ports.findPolicy.mock.calls.length,
+      metadataGuard: false,
+      criterionReads: 0,
+      criterionHistoryReads: 0,
+      criterionHistoryRows: 0,
     });
+    expect(f.ports.tryMetadataGuard).not.toHaveBeenCalled();
+    expect(f.ports.findCriterion).not.toHaveBeenCalled();
+    expect(f.ports.listCriterionSetStatuses).not.toHaveBeenCalled();
     expect(JSON.stringify(output.sourceRecheck)).not.toContain(f.h.active.objectKey);
     expect(output).not.toHaveProperty("sealed");
     expect(output).not.toHaveProperty("verdict");

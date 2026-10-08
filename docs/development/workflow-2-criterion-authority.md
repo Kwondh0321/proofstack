@@ -56,12 +56,14 @@ than the requested evaluation; they never replace its original criterion or beco
 operands. This check does not recursively establish the successor's complete semantic authority.
 Source/reviewer/qualification replacement alone remains distinct from a revocation protocol.
 
-The two matching observations are **not a seal**. The existing optional `sourceRecheck` report
-still covers only artifact/policy guards and ends its read transaction before returning; it does
-not guard or reread the new criterion history. The next composition must use the complete metadata
-barrier, same-client reads, current migration/recovery/worker fences and atomic snapshot/job
-publication. No worker, public route, computed result, new runtime grant or production wiring is
-introduced here. Workflow 2 remains **2/7 accepted checkpoints**.
+The two matching observations are **not a seal**. With server-owned source transactions,
+the [source recheck](workflow-2-policy-source-recheck.md) now acquires the metadata barrier and
+verifies the current migration ledger, then rereads complete history, known criteria and retained
+successors on that connection. `underGuards` preserves the exact DB cut without Date rounding.
+The report returns after its read transaction ends; it cannot authorize later publication.
+All other source/absence/selector closure, live recovery/worker fence validation and atomic
+snapshot/job publication remain required. No worker, public route, computed result, new runtime
+grant or production wiring is introduced. Workflow 2 remains **2/7 accepted checkpoints**.
 
 ## Verification
 

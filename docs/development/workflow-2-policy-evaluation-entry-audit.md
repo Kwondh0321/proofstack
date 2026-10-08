@@ -337,8 +337,10 @@ The subsequent [request-owned criterion authority observation](workflow-2-criter
 connects complete history to artifact capture before/after content, preserves original selections
 and derives explicit policy/capture-time head, ambiguity and expiry observations under ADR-0028.
 It detects changed histories without upgrading stored eligibility. Matching unguarded observations
-are not sealing; the existing source recheck still covers only artifact/policy guards. Complete
-same-client history/authority composition and atomic publication remain open.
+are not sealing. The optional source recheck now rereads complete criterion history and known
+criteria/successors under the metadata barrier and a verified current migration ledger, preserving
+the exact DB cut. That read transaction ends before reporting; complete all-source/absence/selector
+closure, live execution fences and atomic snapshot/job publication remain open.
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 

@@ -101,7 +101,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly status: "artifacts_captured";
       readonly artifacts: readonly PolicyArtifactCapture[];
       readonly sourceGuards: readonly PolicyEvaluationSourceGuard[];
-      /** Existing artifact/policy guard domain only; criterion history is not rechecked by it. */
+      /** Read-only observations under source guards; not a seal or later publication authority. */
       readonly sourceRecheck?: PolicyEvaluationSourceRecheck;
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly policyAuthority: PolicyAuthorityPrerequisites;
@@ -109,6 +109,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly criterionAuthority: {
         readonly beforeArtifacts: PolicyCriterionAuthorityObservation;
         readonly afterArtifacts: PolicyCriterionAuthorityObservation;
+        readonly underGuards?: PolicyCriterionAuthorityObservation;
       };
       readonly policyLifecycle: {
         readonly beforeArtifacts: PolicyLifecycleObservation;
@@ -313,6 +314,7 @@ export async function capturePolicyArtifactEvidence(
         traceReferences: traceCapture.artifactReferences,
         artifacts,
         lifecycle: afterArtifacts,
+        criterionAuthority: criteriaAfterArtifacts,
       },
       budget,
       principal,
@@ -350,6 +352,9 @@ export async function capturePolicyArtifactEvidence(
       criterionAuthority: {
         beforeArtifacts: criteriaBeforeArtifacts,
         afterArtifacts: criteriaAfterArtifacts,
+        ...("criterionAuthority" in sourceGuardPlan
+          ? { underGuards: sourceGuardPlan.criterionAuthority }
+          : {}),
       },
       policyLifecycle: { beforeArtifacts, afterArtifacts },
       usage: usage(),

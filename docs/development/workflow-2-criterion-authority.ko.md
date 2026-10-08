@@ -43,10 +43,12 @@ control 증거로만 읽으며 원래 평가 기준이나 정책 operand를 대�
 예산에 포함한다. 제한을 넘으면 부분 성공을 반환하지 않는다. 이는 응답 수용 한계이며
 DB 비용·network buffer·메모리·미래 공개 응답 크기의 측정 결과가 아니다.
 
-일치하는 전후 관측도 sealed snapshot은 아니다. 기존 선택적 `sourceRecheck`는 여전히
-artifact/policy guard만 확인하고 반환 전에 트랜잭션을 끝낸다. 새 기준 이력을 guard하거나
-재조회하지 않는다. 다음 구현은 전체 metadata barrier와 같은 connection에서의 조회,
-migration/recovery/worker fence 검증, guard 해제 전 snapshot/job 원자 발행을 연결해야 한다.
+일치하는 전후 관측도 sealed snapshot은 아니다. 서버 소유 트랜잭션을 제공하면
+[출처 재검사](workflow-2-policy-source-recheck.ko.md)가 metadata barrier와 현재 migration 원장을
+검증한 같은 연결에서 전체 상태 이력·알려진 기준·보존된 후속 버전을 다시 읽는다.
+`underGuards`는 Date 반올림 없이 정확한 DB 시점을 보존한다. 반환 전에 트랜잭션은 끝나므로
+보고서가 이후 발행을 인가하지 않는다. 나머지 출처·부재·선택자 closure, 현재 recovery/worker
+fence 검증과 guard 해제 전 snapshot/job 원자 발행은 여전히 남아 있다.
 새 worker·공개 route·정책 결과·runtime 권한·운영 배포는 추가하지 않았다.
 Workflow 2는 여전히 **7개 체크포인트 중 2개 승인** 상태다.
 

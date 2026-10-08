@@ -71,8 +71,14 @@ selection is allowed. Charge both reads and every repeated inspected reference c
   These bounds are not memory/latency measurements or public response size guarantees.
 - Ambiguous or unresolved histories conservatively prevent an approved-head observation, even
   when one branch is favorable or an invalid later control chain has not yet become effective.
-- Matching unguarded observations do not prove a stable database cut. The current optional
-  source recheck still guards only artifact/policy observations and does not recheck this history.
+- Matching unguarded observations do not prove a stable database cut. At initial implementation,
+  optional source recheck covered artifact/policy observations without rereading this history.
+
+The subsequent scoped recheck now acquires the metadata barrier and verifies the current migration
+ledger before criterion/history reads on that connection. It compares complete history before
+successor resolution and retains an exact DB-cut `underGuards` observation without Date rounding.
+Its transaction still ends before reporting. This protects and rereads the criterion subset,
+not complete all-source semantic/absence/selector closure or atomic sealed publication.
 
 ### Follow-up
 

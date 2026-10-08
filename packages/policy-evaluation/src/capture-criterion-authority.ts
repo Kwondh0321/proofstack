@@ -6,11 +6,11 @@ import {
   type EvaluationRunRejection,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationSourceReference,
+  PolicyEvaluationTimeSchema,
   policyEvaluationSourceReferenceKey,
   policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
 import {
-  type Clock,
   type CriterionStatusHistoryLimits,
   type CriterionStatusHistoryRepository,
   inspectCriterionStatusHistory,
@@ -34,6 +34,7 @@ type SelectedParent = Extract<
   { kind: "assessment" | "evaluation_run" | "evaluation_run_rejection" }
 >;
 type Graph = Pick<PolicyRecordGraph, "scope" | "evaluationTime" | "nodes" | "edges">;
+type CriterionAuthorityClock = { now(): Date | string };
 export type CriterionAuthorityReadRepository = CriterionStatusHistoryRepository &
   Pick<PolicyRecordGraphRepositories["evidence"]["evaluation"], "findCriterionSet">;
 
@@ -119,12 +120,16 @@ function conflict(): never {
 export async function observeCapturedCriterionAuthority(
   graph: Graph,
   repository: CriterionAuthorityReadRepository,
-  clock: Clock,
+  clock: CriterionAuthorityClock,
   limits: CriterionStatusHistoryLimits,
 ): Promise<PolicyCriterionAuthorityObservation> {
   const criterionNodes = graph.nodes.filter(({ read }) => read.source.kind === "criterion_set");
   if (criterionNodes.length === 0) return { status: "not_required" };
-  const startedAt = clock.now().toISOString();
+  const time = () => {
+    const now = clock.now();
+    return PolicyEvaluationTimeSchema.parse(typeof now === "string" ? now : now.toISOString());
+  };
+  const startedAt = time();
   if (
     policyEvaluationTimestampOrderKey(startedAt) <
     policyEvaluationTimestampOrderKey(graph.evaluationTime)
@@ -215,7 +220,7 @@ export async function observeCapturedCriterionAuthority(
         source.reference.criterionSetVersionId,
       ),
     });
-  const completedAt = clock.now().toISOString();
+  const completedAt = time();
   const cut = policyEvaluationTimestampOrderKey(completedAt);
   if (
     cut < policyEvaluationTimestampOrderKey(startedAt) ||

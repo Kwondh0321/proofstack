@@ -152,6 +152,30 @@ function projection(report: Extract<PolicyCriterionAuthorityObservation, { statu
 }
 
 describe("request-owned complete criterion authority", () => {
+  it.each([
+    ["2026-10-01T01:00:00.000000000000000000000000000004Z", "approved_head"],
+    ["2026-10-01T01:00:00.000000000000000000000000000005Z", "selected_status_not_head"],
+    ["2026-10-01T01:00:00.000000000000000000000000000006Z", "selected_status_not_head"],
+  ])("uses the exact internal UTC cut %s for status activation", async (cut, expected) => {
+    const f = fixture();
+    f.append(
+      f.next({
+        recordedAt: completedAt,
+        effectiveAt: "2026-10-01T01:00:00.000000000000000000000000000005Z",
+      }),
+    );
+    const report = await observeCapturedCriterionAuthority(
+      f.graph,
+      f.repository,
+      { now: () => cut },
+      limits,
+    );
+    if (report.status !== "observed") throw new Error("Expected authority");
+    expect(report.startedAt).toBe(cut);
+    expect(report.completedAt).toBe(cut);
+    expect(report.criteria[0]?.atCapture.at).toBe(cut);
+    expect(report.selections[0]?.atCapture).toBe(expected);
+  });
   it("binds the original run, complete bodies, full receipt hashes and repeated selection provenance", async () => {
     const f = fixture();
     const report = await f.observe();

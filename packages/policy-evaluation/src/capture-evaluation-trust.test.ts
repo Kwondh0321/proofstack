@@ -42,6 +42,10 @@ import {
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedEvaluationTrust } from "./capture-evaluation-trust.js";
 import * as publicApi from "./index.js";
+import type {
+  PolicyEvaluationSourceRecheckPorts,
+  PolicyEvaluationSourceTransactions,
+} from "./recheck-captured-sources.js";
 
 interface Fields {
   [key: string]: unknown;
@@ -907,5 +911,329 @@ describe("complete criterion authority in public artifact capture", () => {
     await expect(h.execute()).rejects.toBe(failure);
     expect(get).not.toHaveBeenCalled();
     expect(decrypt).not.toHaveBeenCalled();
+  });
+});
+
+async function guardedCriterionHarness() {
+  const h = await harness();
+  const scope = h.evaluation.scope;
+  const calls: string[] = [];
+  const state: {
+    inside: boolean;
+    outcome: "initial" | "committed" | "rolled_back";
+    dbAt: string;
+    beforeRun?: () => Promise<void>;
+  } = { inside: false, outcome: "initial", dbAt: "2026-10-01T01:00:00.000001Z" };
+  const ports = {
+    tryMetadataGuard: vi.fn(async () => {
+      calls.push("metadata");
+      return true;
+    }),
+    tryGuard: vi.fn(async (kind: "artifact" | "release_policy", id: string) => {
+      calls.push(`guard:${kind}:${id}`);
+      return true;
+    }),
+    findArtifact: vi.fn(async (id: string) => {
+      calls.push("artifact");
+      return h.dependencies.catalog.find(scope, id);
+    }),
+    findPolicy: vi.fn(async (id: string) => {
+      calls.push("policy");
+      return h.repositories.control.releasePolicy.findReleasePolicy(scope, id);
+    }),
+    listPolicyHistory: vi.fn(async (id: string) =>
+      h.repositories.control.releasePolicy.listReleasePolicyLifecycleEvents(scope, id),
+    ),
+    findCriterion: vi.fn(async (id: string) => {
+      calls.push("criterion");
+      return h.evaluation.repository.findCriterionSet(scope, id);
+    }),
+    listCriterionSetStatuses: vi.fn(
+      async (limits: { maxRecords: number; maxRecordBytes: number }): Promise<unknown> => {
+        calls.push("criterion_history");
+        return h.repositories.evidence.evaluation.listCriterionSetStatuses(scope, limits);
+      },
+    ),
+    observationTime: vi.fn(async () => state.dbAt),
+  } satisfies PolicyEvaluationSourceRecheckPorts;
+  const transactions: PolicyEvaluationSourceTransactions = {
+    run: async (exact, operation) => {
+      expect(exact).toEqual(scope);
+      await state.beforeRun?.();
+      state.inside = true;
+      try {
+        const result = await operation(ports);
+        state.outcome = "committed";
+        return result;
+      } catch (error) {
+        state.outcome = "rolled_back";
+        throw error;
+      } finally {
+        state.inside = false;
+      }
+    },
+  };
+  const originalGet = h.dependencies.objects.get.bind(h.dependencies.objects);
+  const get = vi.spyOn(h.dependencies.objects, "get").mockImplementation(async (key) => {
+    expect(state.inside).toBe(false);
+    return originalGet(key);
+  });
+  const run = async (changes: Partial<PolicyEvaluationRequestDefinition> = {}) => {
+    const result = await capturePolicyArtifactEvidence(
+      h.request(changes),
+      h.actor,
+      h.repositories,
+      h.evidence,
+      { ...h.dependencies, sourceTransactions: transactions },
+    );
+    if (result.status !== "artifacts_captured") throw new Error("Expected criterion capture");
+    return result;
+  };
+  const approved = h.evaluation.records.find(
+    (entry) => entry.kind === "criterion_set_status" && entry.record.status === "approved",
+  );
+  if (approved?.kind !== "criterion_set_status") throw new Error("Missing approved criterion");
+  const withdrawal = () =>
+    criterionStatusHistoryFixture(approved.record, {
+      statusRecordId: "csr_guarded_withdrawal",
+      status: "withdrawn",
+      expiresAt: undefined,
+      previousStatus: {
+        statusRecordId: approved.record.statusRecordId,
+        definitionSha256: approved.record.definitionSha256,
+      },
+      recordedAt: observedAt,
+      effectiveAt: "2026-10-01T01:00:00.0000005Z",
+    });
+  return { h, calls, ports, state, get, run, approved: approved.record, withdrawal };
+}
+
+describe("criterion authority reinspection under source transaction guards", () => {
+  for (const changed of [false, true])
+    it(`${changed ? "rejects a changed" : "uniquely rereads a retained"} later criterion successor without replacing the semantic operand`, async () => {
+      const f = await guardedCriterionHarness();
+      const criterion = await f.h.evaluation.repository.findCriterionSet(
+        f.h.evaluation.scope,
+        f.approved.criterionSet.criterionSetVersionId,
+      );
+      if (!criterion) throw new Error("Missing original criterion");
+      const successor = {
+        ...criterion,
+        criterionSetVersionId: "crv_guarded_successor",
+        predecessor: f.approved.criterionSet,
+        publishedAt: "2026-10-01T00:15:00.000Z",
+      };
+      const definition = structuredClone(successor) as unknown as Fields;
+      for (const key of evaluationRecordDescriptors.criterion_set.receiptKeys)
+        delete definition[key];
+      successor.definitionSha256 = digestEvaluationRecordDefinition(
+        "criterion_set",
+        successor.scope,
+        definition,
+      );
+      await f.h.evaluation.repository.publishCriterionSet(successor);
+      const superseded = criterionStatusHistoryFixture(f.approved, {
+        statusRecordId: "csr_guarded_superseded",
+        status: "superseded",
+        expiresAt: undefined,
+        previousStatus: {
+          statusRecordId: f.approved.statusRecordId,
+          definitionSha256: f.approved.definitionSha256,
+        },
+        supersededBy: {
+          criterionSetId: successor.criterionSetId,
+          criterionSetVersionId: successor.criterionSetVersionId,
+          definitionSha256: successor.definitionSha256,
+        },
+        recordedAt: "2026-10-01T00:30:00.000Z",
+        effectiveAt: "2026-10-01T00:30:00Z",
+      });
+      await f.h.evaluation.repository.publishCriterionSetStatus(superseded);
+      if (changed) {
+        const original = f.ports.findCriterion.getMockImplementation();
+        if (!original) throw new Error("Missing criterion port");
+        f.ports.findCriterion.mockImplementation(async (id) => {
+          const record = await original(id);
+          return record?.criterionSetVersionId === successor.criterionSetVersionId
+            ? { ...record, publishedAt: "2026-10-01T00:20:00.000Z" }
+            : record;
+        });
+        await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+        expect(f.state.outcome).toBe("rolled_back");
+      } else {
+        const result = await f.run();
+        expect(result.sourceRecheck).toMatchObject({ criterionReads: 2, criterionHistoryRows: 3 });
+        const under = result.criterionAuthority.underGuards;
+        if (under?.status !== "observed") throw new Error("Missing guarded successor");
+        expect(under.successors).toHaveLength(1);
+        expect(under.successors[0]?.record).toEqual(successor);
+        expect(under.criteria[0]?.source.reference.criterionSetVersionId).toBe(
+          criterion.criterionSetVersionId,
+        );
+        expect(
+          under.selections.every(
+            ({ atEvaluation, atCapture }) =>
+              atEvaluation === "approved_head" && atCapture === "selected_status_not_head",
+          ),
+        ).toBe(true);
+      }
+      expect(f.ports.findCriterion.mock.calls.map(([id]) => id).sort()).toEqual(
+        [criterion.criterionSetVersionId, successor.criterionSetVersionId].sort(),
+      );
+    });
+
+  it("acquires metadata before every resource guard and retains exact DB-cut authority without content I/O inside", async () => {
+    const f = await guardedCriterionHarness();
+    const unguarded = (await f.h.execute()).capture;
+    const result = await f.run();
+    // Four control calls (metadata, both histories and DB time), every unique record read,
+    // every resource guard and both returned criterion-history rows count independently.
+    expect(result.usage.records - unguarded.usage.records).toBe(
+      f.ports.tryGuard.mock.calls.length +
+        f.ports.findArtifact.mock.calls.length +
+        f.ports.findPolicy.mock.calls.length +
+        f.ports.findCriterion.mock.calls.length +
+        6,
+    );
+    expect(f.calls.slice(0, 1 + result.sourceGuards.length)).toEqual([
+      "metadata",
+      ...result.sourceGuards.map(({ kind, id }) => `guard:${kind}:${id}`),
+    ]);
+    expect(f.state).toMatchObject({ inside: false, outcome: "committed" });
+    expect(f.get).toHaveBeenCalled();
+    expect(f.ports.findCriterion).toHaveBeenCalledTimes(1);
+    expect(f.ports.listCriterionSetStatuses).toHaveBeenCalledTimes(1);
+    expect(result.sourceRecheck).toMatchObject({
+      metadataGuard: true,
+      criterionReads: 1,
+      criterionHistoryReads: 1,
+      criterionHistoryRows: 2,
+      observedAt: f.state.dbAt,
+    });
+    const under = result.criterionAuthority.underGuards;
+    if (under?.status !== "observed") throw new Error("Missing guarded authority");
+    expect(under.startedAt).toBe(f.state.dbAt);
+    expect(under.completedAt).toBe(f.state.dbAt);
+    expect(under.history).toEqual(
+      result.criterionAuthority.afterArtifacts.status === "observed"
+        ? result.criterionAuthority.afterArtifacts.history
+        : null,
+    );
+    expect(under.criteria[0]?.atCapture.at).toBe(f.state.dbAt);
+    expect(result.completedAt).toBe(f.state.dbAt);
+    expect(result).not.toHaveProperty("sealed");
+    expect(result).not.toHaveProperty("verdict");
+  });
+
+  it.each([false, "true", null])(
+    "rolls back on metadata admission %j before any guarded source read",
+    async (value) => {
+      const f = await guardedCriterionHarness();
+      f.ports.tryMetadataGuard.mockResolvedValue(value as boolean);
+      await expect(f.run()).rejects.toMatchObject({
+        reason: value === false ? "guard_unavailable" : "guard_invalid",
+        identity: "metadata",
+      });
+      expect(f.ports.tryGuard).not.toHaveBeenCalled();
+      expect(f.ports.findArtifact).not.toHaveBeenCalled();
+      expect(f.ports.findCriterion).not.toHaveBeenCalled();
+      expect(f.ports.listCriterionSetStatuses).not.toHaveBeenCalled();
+      expect(f.state.outcome).toBe("rolled_back");
+    },
+  );
+
+  it("rejects an intervening complete-history change before querying any criterion successor", async () => {
+    const f = await guardedCriterionHarness();
+    f.state.beforeRun = async () => {
+      await f.h.evaluation.repository.publishCriterionSetStatus(f.withdrawal());
+    };
+    await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(f.ports.listCriterionSetStatuses).toHaveBeenCalledTimes(1);
+    expect(f.ports.findCriterion).not.toHaveBeenCalled();
+    expect(f.ports.observationTime).not.toHaveBeenCalled();
+    expect(f.state.outcome).toBe("rolled_back");
+  });
+
+  it.each([[null], [[]]])("rejects an invalid or truncated held history %j", async (value) => {
+    const f = await guardedCriterionHarness();
+    f.ports.listCriterionSetStatuses.mockResolvedValue(value);
+    await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(f.ports.findCriterion).not.toHaveBeenCalled();
+    expect(f.state.outcome).toBe("rolled_back");
+  });
+
+  it("rejects a changed criterion full receipt even when its definition digest is unchanged", async () => {
+    const f = await guardedCriterionHarness();
+    const original = f.ports.findCriterion.getMockImplementation();
+    if (!original) throw new Error("Missing criterion reader");
+    f.ports.findCriterion.mockImplementation(async (id) => {
+      const record = await original(id);
+      return record ? { ...record, publishedAt: "2026-01-01T00:00:00.000Z" } : null;
+    });
+    await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(f.state.outcome).toBe("rolled_back");
+  });
+
+  it("preserves a submicrosecond status activation at the DB cut rather than rounding through Date", async () => {
+    const f = await guardedCriterionHarness();
+    await f.h.evaluation.repository.publishCriterionSetStatus(f.withdrawal());
+    const result = await f.run();
+    const after = result.criterionAuthority.afterArtifacts;
+    const under = result.criterionAuthority.underGuards;
+    if (after.status !== "observed" || under?.status !== "observed")
+      throw new Error("Missing cuts");
+    expect(after.completedAt).toBe(observedAt);
+    expect(after.selections.every(({ atCapture }) => atCapture === "approved_head")).toBe(true);
+    expect(
+      under.selections.every(({ atCapture }) => atCapture === "selected_status_not_head"),
+    ).toBe(true);
+    expect(under.selections.every(({ atEvaluation }) => atEvaluation === "approved_head")).toBe(
+      true,
+    );
+    expect(under.historySha256).toBe(after.historySha256);
+    expect(f.state.outcome).toBe("committed");
+  });
+
+  it("rolls back on a caught complete-history storage failure", async () => {
+    const f = await guardedCriterionHarness();
+    const failure = new Error("Guarded history unavailable");
+    f.ports.listCriterionSetStatuses.mockRejectedValue(failure);
+    await expect(f.run()).rejects.toBe(failure);
+    expect(f.ports.findCriterion).not.toHaveBeenCalled();
+    expect(f.state.outcome).toBe("rolled_back");
+  });
+
+  it("charges every unrelated history row and rolls back one record below exact cumulative admission", async () => {
+    const f = await guardedCriterionHarness();
+    const original = await f.h.repositories.evidence.evaluation.listCriterionSetStatuses(
+      f.h.evaluation.scope,
+      { maxRecords: 10000, maxRecordBytes: 8_388_608 },
+    );
+    const unrelated = Array.from({ length: 400 }, (_, index) =>
+      criterionStatusHistoryFixture(f.approved, {
+        statusRecordId: `csr_unrelated_${index.toString().padStart(4, "0")}`,
+        status: "draft",
+        expiresAt: undefined,
+        criterionSet: { ...f.approved.criterionSet, criterionSetVersionId: "crv_other" },
+        previousStatus: undefined,
+      }),
+    );
+    const history = [...original, ...unrelated].sort((a, b) =>
+      a.statusRecordId < b.statusRecordId ? -1 : 1,
+    );
+    vi.spyOn(f.h.repositories.evidence.evaluation, "listCriterionSetStatuses").mockImplementation(
+      async () => structuredClone(history),
+    );
+    const baseline = await f.run();
+    expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(402);
+    expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
+    const limits = { ...f.h.request().limits, maxAcquisitionRecords: baseline.usage.records };
+    const exact = await f.run({ limits });
+    expect(exact.usage).toEqual(baseline.usage);
+    await expect(
+      f.run({ limits: { ...limits, maxAcquisitionRecords: limits.maxAcquisitionRecords - 1 } }),
+    ).rejects.toMatchObject({ reason: "record_limit" });
+    expect(f.state.outcome).toBe("rolled_back");
+    expect(f.ports.listCriterionSetStatuses).toHaveBeenCalledTimes(3);
   });
 });

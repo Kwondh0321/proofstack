@@ -10,7 +10,13 @@ import {
   type PolicyEvaluationSourceTransactions,
 } from "@proofstack/policy-evaluation";
 import type { Pool } from "pg";
+import { assertMigrationsCurrentOnClient } from "./migration-runner.js";
+import { loadBundledMigrations } from "./migrations.js";
 import { readPostgresArtifactCatalogOnClient } from "./postgres-artifact-catalog-repository.js";
+import {
+  listPostgresCriterionSetStatusesOnClient,
+  readPostgresEvaluationRecordOnClient,
+} from "./postgres-evaluation-repository.js";
 import {
   listPostgresReleasePolicyLifecycleEventsOnClient,
   readPostgresReleasePolicyOnClient,
@@ -26,6 +32,8 @@ export class PostgresPolicySourceTransactions implements PolicyEvaluationSourceT
     operation: (ports: PolicyEvaluationSourceRecheckPorts) => Promise<T>,
   ): Promise<T> {
     const exact = EvidenceScopeSchema.parse(scope);
+    // Filesystem work precedes the transaction; schema verification itself runs under its guards.
+    const migrations = await loadBundledMigrations();
     return withExactReadCommittedScopeTransaction(this.pool, exact, async (client) => {
       let active = true;
       let failed = false;
@@ -50,7 +58,37 @@ export class PostgresPolicySourceTransactions implements PolicyEvaluationSourceT
         return task;
       };
       const id = (value: string) => OpaqueIdSchema.parse(value);
+      let metadataGuarded = false;
+      const requireMetadataGuard = () => {
+        if (!metadataGuarded)
+          throw new PolicyEvaluationSourceRecheckError("guard_unavailable", "metadata");
+      };
       const ports: PolicyEvaluationSourceRecheckPorts = {
+        tryMetadataGuard: () =>
+          call(async () => {
+            const result = await client.query<{ acquired: unknown }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            );
+            const acquired = result.rows.length === 1 ? result.rows[0]?.acquired : undefined;
+            if (acquired !== true)
+              throw new PolicyEvaluationSourceRecheckError(
+                acquired === false ? "guard_unavailable" : "guard_invalid",
+                "metadata",
+              );
+            await assertMigrationsCurrentOnClient(client, migrations);
+            metadataGuarded = true;
+            return true;
+          }),
+        findCriterion: (value) =>
+          call(async () => {
+            requireMetadataGuard();
+            return readPostgresEvaluationRecordOnClient(client, exact, "criterion_set", id(value));
+          }),
+        listCriterionSetStatuses: (limits) =>
+          call(async () => {
+            requireMetadataGuard();
+            return listPostgresCriterionSetStatusesOnClient(client, exact, limits);
+          }),
         tryGuard: (kind, value) =>
           call(async () => {
             if (kind !== "artifact" && kind !== "release_policy")

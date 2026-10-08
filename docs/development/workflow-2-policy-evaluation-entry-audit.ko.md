@@ -288,8 +288,10 @@ dataset/fixture·replay·trace의 기존 검증을 다른 연결이나 트랜잭
 후속 [요청 소유 기준 상태 권한 관측](workflow-2-criterion-authority.ko.md)은 전체 이력을
 콘텐츠 수집 전후에 연결하며 ADR-0028에 따라 원래 선택과 평가·수집 시점의 head·모호함·
 만료를 보존합니다. 이력 변경을 탐지하지만 저장된 eligibility를 올려주지 않습니다.
-일치하는 비보호 관측은 seal이 아니며 기존 source recheck는 artifact/policy guard만
-다룹니다. 같은 연결에서 보호된 전체 권한 이력 검증과 원자 발행은 여전히 남아 있습니다.
+일치하는 비보호 관측은 seal이 아닙니다. 선택적 source recheck는 현재 migration 원장을
+검증한 metadata barrier 아래 같은 연결에서 기준 이력·알려진 기준·후속 버전을 다시 읽고
+정확한 DB 시점을 보존합니다. 보고 전에 읽기 트랜잭션이 끝나므로 전체 출처·부재·선택자
+closure, 현재 실행 fence와 snapshot/job 원자 발행은 여전히 남아 있습니다.
 
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 

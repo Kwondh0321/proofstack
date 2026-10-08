@@ -5,18 +5,24 @@ import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
 import {
   type ArtifactMetadata,
   type ContentReference,
+  encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
 } from "@proofstack/contracts";
 import {
+  digestEvaluationRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
+  evaluationRecordDescriptors,
   releaseCandidateReference,
   releasePolicyReference,
 } from "@proofstack/core";
 import {
+  createEvaluationRepositoryTestHarness,
+  criterionStatusHistoryFixture,
   MemoryEvidenceRepository,
   MemoryReleaseCandidateRepository,
+  publishEvaluationFixture,
   releaseCandidateFixture,
   releasePolicyFixtureScope,
   releasePolicyLifecycleFixture,
@@ -32,6 +38,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
+import { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 import { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
 import { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
@@ -92,9 +99,56 @@ afterAll(async () => {
   await admin.end();
 });
 
-async function fixture() {
+async function fixture(withCriteria = false) {
   const namespace = `recheck_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
-  const scope = releasePolicyFixtureScope(namespace);
+  const evaluation = withCriteria ? createEvaluationRepositoryTestHarness(namespace) : undefined;
+  const evaluationRepository = new PostgresEvaluationRepository(api);
+  if (evaluation) {
+    const hashes = new Map<string, string>();
+    const normalize = (input: unknown): void => {
+      if (!input || typeof input !== "object") return;
+      const value = input as Record<string, unknown> & {
+        artifactId?: unknown;
+        sha256?: unknown;
+        datasetVersionId?: unknown;
+        fixtureVersionId?: unknown;
+        definitionSha256?: unknown;
+      };
+      if (typeof value.artifactId === "string" && typeof value.sha256 === "string") {
+        // Synthetic upstream descriptors remain unavailable. Distinct sample content must not
+        // reuse an artifact ID; this is not an additional retained-byte acceptance fixture.
+        const bytes = encodeEvaluationCanonicalJson(value);
+        const sha256 = createHash("sha256").update(bytes).digest("hex");
+        Object.assign(value, {
+          artifactId: `criterion_${sha256.slice(0, 24)}`,
+          sha256,
+          sizeBytes: bytes.byteLength,
+        });
+        return;
+      }
+      if (value.datasetVersionId === "dtv_regression_v1") value.definitionSha256 = "7".repeat(64);
+      if (value.fixtureVersionId === "fxv_boundary") value.definitionSha256 = "2".repeat(64);
+      if (typeof value.definitionSha256 === "string" && hashes.has(value.definitionSha256))
+        value.definitionSha256 = hashes.get(value.definitionSha256);
+      for (const child of Object.values(value)) normalize(child);
+    };
+    for (const record of evaluation.records) {
+      const original = record.record.definitionSha256;
+      normalize(record.record);
+      const definition = structuredClone(record.record) as unknown as Record<string, unknown>;
+      for (const key of evaluationRecordDescriptors[record.kind].receiptKeys)
+        delete definition[key];
+      record.record.definitionSha256 = digestEvaluationRecordDefinition(
+        record.kind,
+        evaluation.scope,
+        definition,
+      );
+      hashes.set(original, record.record.definitionSha256);
+      // Disposable admin fixtures seed control and execution records without widening API grants.
+      await publishEvaluationFixture(new PostgresEvaluationRepository(admin), record);
+    }
+  }
+  const scope = evaluation?.scope ?? releasePolicyFixtureScope(namespace);
   const applicationName = `proofstack_${namespace}`;
   const observer = new Pool({
     connectionString: databaseUrl,
@@ -148,6 +202,21 @@ async function fixture() {
   const policy = releasePolicyRepositoryFixture(namespace, scope);
   await policies.publishReleasePolicy(policy);
   const candidate = releaseCandidateFixture(namespace, scope);
+  if (evaluation) {
+    const assessment = evaluation.records.find(({ kind }) => kind === "assessment");
+    const run = evaluation.records.find(({ kind }) => kind === "evaluation_run");
+    if (assessment?.kind !== "assessment" || run?.kind !== "evaluation_run")
+      throw new Error("Missing criterion graph fixture");
+    candidate.assessments = [
+      {
+        assessmentId: assessment.record.assessmentId,
+        definitionSha256: assessment.record.definitionSha256,
+      },
+    ];
+    candidate.datasets = [run.record.dataset];
+    candidate.targetRelease = run.record.replay.targetRelease;
+    candidate.modelAssuranceAssessments = [];
+  }
   const build = candidate.buildArtifacts[0];
   if (!build) throw new Error("Expected build artifact fixture");
   build.artifact = reference;
@@ -162,8 +231,8 @@ async function fixture() {
   candidate.definitionSha256 = digestReleaseCandidateDefinition(scope, body);
   const candidates = new MemoryReleaseCandidateRepository();
   await candidates.publishReleaseCandidate(candidate);
-  // Only candidate and unavailable upstream ports are memory fixtures. The catalog, policy,
-  // lifecycle, source guards, normalized rereads and competing writes below are real PostgreSQL.
+  // Candidate and unavailable remaining upstream ports are explicit memory fixtures. Criterion
+  // scenarios also use real PostgreSQL evaluation records, complete history and competing writers.
   const absent = new Proxy({}, { get: () => async () => null });
   const repositories = {
     control: {
@@ -172,7 +241,7 @@ async function fixture() {
       releaseCandidate: candidates,
       releasePolicy: policies,
     },
-    evidence: { evaluation: absent, modelAssurance: absent },
+    evidence: { evaluation: evaluation ? evaluationRepository : absent, modelAssurance: absent },
     datasets: absent,
     replayDefinitions: absent,
     replayResults: absent,
@@ -206,7 +275,7 @@ async function fixture() {
   };
   const actor = PrincipalContextSchema.parse({
     authentication: { method: "development", authenticatedAt: "2026-09-01T00:00:00.000Z" },
-    capabilities: ["artifact:read"],
+    capabilities: withCriteria ? ["artifact:read", "artifact:read:restricted"] : ["artifact:read"],
     principalId: "principal_capture",
     principalType: "service",
     requestId: "request_capture",
@@ -280,6 +349,8 @@ async function fixture() {
       .toBeGreaterThan(0);
   return {
     namespace,
+    evaluation,
+    evaluationRepository,
     scope,
     policy,
     reference,
@@ -297,6 +368,100 @@ async function fixture() {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("reinspects complete criterion authority on the held client with no metadata guard during object I/O", async () => {
+    const f = await fixture(true);
+    f.hooks.readContent = () =>
+      withExactScopeTransaction(admin, f.scope, async (client) => {
+        expect(
+          (
+            await client.query<{ acquired: boolean }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows[0]?.acquired,
+        ).toBe(true);
+      });
+    const result = await f.run();
+    if (result.status !== "artifacts_captured") throw new Error("Expected acquired criteria");
+    expect(result.sourceRecheck).toMatchObject({
+      metadataGuard: true,
+      criterionReads: 1,
+      criterionHistoryReads: 1,
+      criterionHistoryRows: 2,
+    });
+    const under = result.criterionAuthority.underGuards;
+    if (under?.status !== "observed") throw new Error("Missing guarded authority");
+    expect(under.scope).toEqual(f.scope);
+    expect(under.history).toHaveLength(2);
+    expect(under.completedAt).toBe(result.sourceRecheck?.observedAt);
+    expect(under.completedAt).toMatch(/\.\d{6}Z$/);
+    expect(f.objectReads()).toBe(1);
+    expect(result).not.toHaveProperty("sealed");
+    await f.cleanContext();
+  });
+
+  for (const intervening of [false, true])
+    it(`${intervening ? "rejects a committed" : "blocks a new"} criterion withdrawal at guarded reinspection`, async () => {
+      const f = await fixture(true);
+      const approved = f.evaluation?.records.find(
+        (entry) => entry.kind === "criterion_set_status" && entry.record.status === "approved",
+      );
+      if (approved?.kind !== "criterion_set_status") throw new Error("Missing approved criterion");
+      const withdrawal = criterionStatusHistoryFixture(approved.record, {
+        statusRecordId: "csr_after_content",
+        status: "withdrawn",
+        expiresAt: undefined,
+        previousStatus: {
+          statusRecordId: approved.record.statusRecordId,
+          definitionSha256: approved.record.definitionSha256,
+        },
+        recordedAt: "2026-10-08T00:00:00.000Z",
+        effectiveAt: "2026-10-08T00:00:00Z",
+      });
+      const write = () => f.evaluationRepository.publishCriterionSetStatus(withdrawal);
+      let pending: Promise<{ value: unknown } | { error: unknown }> | undefined;
+      if (intervening)
+        f.hooks.beforeRun = async () => {
+          await write();
+        };
+      else
+        f.hooks.underGuards = async (ports) => {
+          pending = write().then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error }),
+          );
+          await f.waitForWriter();
+          expect(
+            await ports.listCriterionSetStatuses({ maxRecords: 10, maxRecordBytes: 100_000 }),
+          ).toHaveLength(2);
+        };
+      try {
+        if (intervening) {
+          await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+          await f.transactions.run(f.scope, (ports) => ports.tryMetadataGuard());
+        } else {
+          const result = await f.run();
+          if (result.status !== "artifacts_captured") throw new Error("Expected guarded criteria");
+          expect(result.sourceRecheck?.criterionHistoryRows).toBe(2);
+          expect(
+            result.criterionAuthority.underGuards?.status === "observed"
+              ? result.criterionAuthority.underGuards.history.length
+              : 0,
+          ).toBe(2);
+          if (!pending) throw new Error("Writer did not reach barrier");
+          const outcome = await pending;
+          if ("error" in outcome) throw outcome.error;
+        }
+        expect(
+          await f.evaluationRepository.listCriterionSetStatuses(f.scope, {
+            maxRecords: 10,
+            maxRecordBytes: 100_000,
+          }),
+        ).toHaveLength(3);
+        await f.cleanContext();
+      } finally {
+        await pending;
+      }
+    });
   it("rechecks real normalized sources under one READ COMMITTED connection with no guard during content I/O", async () => {
     const f = await fixture();
     f.hooks.readContent = () =>
@@ -442,6 +607,9 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
       new PostgresPolicySourceTransactions(api).run(f.scope, (ports) =>
         ports.tryGuard("artifact", f.reference.artifactId),
       ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      new PostgresPolicySourceTransactions(api).run(f.scope, (ports) => ports.tryMetadataGuard()),
     ).rejects.toMatchObject({ code: "42501" });
     const context = await api.query(
       "SELECT NULLIF(current_setting('proofstack.tenant_id', true), '') AS tenant",

@@ -4,22 +4,37 @@ import {
 } from "@proofstack/artifacts";
 import {
   ArtifactContentReferenceSchema,
+  type CriterionSet,
+  type CriterionSetStatusRecord,
   type EvidenceScope,
   encodeEvaluationCanonicalJson,
   PolicyEvaluationTimeSchema,
   type PrincipalContext,
+  policyEvaluationTimestampOrderKey,
   type ReleasePolicy,
   type ReleasePolicyLifecycleEvent,
-  policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
-import { inspectPolicyEvaluationControlRecord } from "@proofstack/core";
-import { AcquisitionBudget } from "./acquisition-budget.js";
+import {
+  type CriterionStatusHistoryLimits,
+  inspectPolicyEvaluationControlRecord,
+  inspectPolicyEvaluationEvidenceRecord,
+} from "@proofstack/core";
+import type { AcquisitionBudget } from "./acquisition-budget.js";
+import {
+  criterionAuthorityMaterialFingerprint,
+  observeCapturedCriterionAuthority,
+  type PolicyCriterionAuthorityObservation,
+} from "./capture-criterion-authority.js";
 import { observeCapturedPolicyLifecycle } from "./capture-policy-lifecycle.js";
 import { deriveCapturedPolicySourceGuards } from "./derive-source-guards.js";
 
 /** Trusted same-connection ports; no content/key I/O, caller SQL or publication operation. */
 export interface PolicyEvaluationSourceRecheckPorts {
+  tryMetadataGuard(): Promise<boolean>;
   tryGuard(kind: "artifact" | "release_policy", id: string): Promise<boolean>;
+  /** Require the metadata guard and current migration ledger before any SQL. */
+  findCriterion(id: string): Promise<unknown>;
+  listCriterionSetStatuses(limits: CriterionStatusHistoryLimits): Promise<unknown>;
   findArtifact(id: string): Promise<unknown>;
   findPolicy(id: string): Promise<unknown>;
   listPolicyHistory(id: string): Promise<unknown>;
@@ -41,6 +56,10 @@ export interface PolicyEvaluationSourceRecheck {
   readonly guards: number;
   readonly artifactReads: number;
   readonly policyReads: number;
+  readonly metadataGuard: boolean;
+  readonly criterionReads: number;
+  readonly criterionHistoryReads: number;
+  readonly criterionHistoryRows: number;
 }
 
 export class PolicyEvaluationSourceRecheckError extends Error {
@@ -64,17 +83,38 @@ function canonical(value: unknown): string {
 
 /** Internal request-owning composition. Never accepts a precomputed guard subset or public graph. */
 export async function deriveAndRecheckCapturedPolicySources(
-  input: Parameters<typeof deriveCapturedPolicySourceGuards>[0],
+  input: Parameters<typeof deriveCapturedPolicySourceGuards>[0] & {
+    readonly criterionAuthority: PolicyCriterionAuthorityObservation;
+  },
   budget: AcquisitionBudget,
   principal: PrincipalContext,
   captureCompletedAt: string,
   transactions?: PolicyEvaluationSourceTransactions,
-) {
+): Promise<
+  | ReturnType<typeof deriveCapturedPolicySourceGuards>
+  | (ReturnType<typeof deriveCapturedPolicySourceGuards> & {
+      readonly recheck: PolicyEvaluationSourceRecheck;
+      readonly criterionAuthority: PolicyCriterionAuthorityObservation;
+    })
+> {
   const plan = deriveCapturedPolicySourceGuards(input, budget);
   if (!transactions) return plan;
-  const { request, graph, artifacts, lifecycle } = input;
-  const recheck = await transactions.run(structuredClone(request.scope), async (supplied) => {
+  const { request, graph, artifacts, lifecycle, criterionAuthority } = input;
+  const inspection = await transactions.run(structuredClone(request.scope), async (supplied) => {
     const ports = budget.wrap(supplied);
+    const metadataGuard = criterionAuthority.status === "observed";
+    const historyLimits = {
+      maxRecords: request.limits.maxAcquisitionRecords,
+      maxRecordBytes: request.limits.maxAcquisitionRecordBytes,
+    };
+    if (metadataGuard) {
+      const acquired: unknown = await ports.tryMetadataGuard();
+      if (acquired !== true)
+        throw new PolicyEvaluationSourceRecheckError(
+          acquired === false ? "guard_unavailable" : "guard_invalid",
+          "metadata",
+        );
+    }
     for (const { kind, id } of plan.guards) {
       const acquired: unknown = await ports.tryGuard(kind, id);
       if (acquired !== true)
@@ -100,6 +140,33 @@ export async function deriveAndRecheckCapturedPolicySources(
       }
     }
     const history = await ports.listPolicyHistory(request.policy.policyVersionId);
+    const criterionRecords = new Map<string, unknown>();
+    let criterionHistory: unknown;
+    if (criterionAuthority.status === "observed") {
+      criterionHistory = await ports.listCriterionSetStatuses(historyLimits);
+      // Reject a changed complete inventory before reading any new successor identity.
+      if (
+        canonical(criterionHistory) !==
+        canonical(criterionAuthority.history.map(({ record }) => record))
+      )
+        throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+      const ids = new Set<string>();
+      for (const { read } of graph.nodes)
+        if (read.source.kind === "criterion_set")
+          ids.add(read.source.reference.criterionSetVersionId);
+      for (const { source } of criterionAuthority.successors)
+        if (source.kind === "criterion_set") ids.add(source.reference.criterionSetVersionId);
+      for (const id of [...ids].sort()) criterionRecords.set(id, await ports.findCriterion(id));
+      for (const { read } of graph.nodes) {
+        if (read.source.kind !== "criterion_set") continue;
+        const current = inspectPolicyEvaluationEvidenceRecord(
+          { source: read.source, scope: request.scope, evaluationTime: request.evaluationTime },
+          criterionRecords.get(read.source.reference.criterionSetVersionId),
+        );
+        if (canonical(current.observation) !== canonical(read.observation))
+          throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+      }
+    }
     const observedAt = PolicyEvaluationTimeSchema.safeParse(await ports.observationTime());
     if (
       !observedAt.success ||
@@ -161,14 +228,44 @@ export async function deriveAndRecheckCapturedPolicySources(
     );
     if (currentLifecycle.observationSha256 !== lifecycle.observationSha256)
       throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+    const guardedCriterionAuthority = await observeCapturedCriterionAuthority(
+      graph,
+      {
+        listCriterionSetStatuses: async () =>
+          structuredClone(criterionHistory) as CriterionSetStatusRecord[],
+        findCriterionSet: async (_scope, id) =>
+          structuredClone(criterionRecords.get(id)) as CriterionSet | null,
+      },
+      // This internal clock preserves the database cut; the public content clock remains Date.
+      { now: () => observedAt.data },
+      historyLimits,
+    );
+    if (
+      criterionAuthorityMaterialFingerprint(guardedCriterionAuthority) !==
+      criterionAuthorityMaterialFingerprint(criterionAuthority)
+    )
+      throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+    if (guardedCriterionAuthority.status === "observed")
+      budget.addReferences(
+        guardedCriterionAuthority.inspectionUsage.references,
+        guardedCriterionAuthority.inspectionUsage.referenceBytes,
+      );
     return {
-      status: "observations_rechecked" as const,
-      observedAt: observedAt.data,
-      guards: plan.guards.length,
-      artifactReads: artifactRecords.size,
-      policyReads: policyRecords.size,
-    } satisfies PolicyEvaluationSourceRecheck;
+      criterionAuthority: guardedCriterionAuthority,
+      recheck: {
+        status: "observations_rechecked" as const,
+        observedAt: observedAt.data,
+        guards: plan.guards.length,
+        artifactReads: artifactRecords.size,
+        policyReads: policyRecords.size,
+        metadataGuard,
+        criterionReads: criterionRecords.size,
+        criterionHistoryReads: metadataGuard ? 1 : 0,
+        criterionHistoryRows:
+          criterionAuthority.status === "observed" ? criterionAuthority.history.length : 0,
+      } satisfies PolicyEvaluationSourceRecheck,
+    };
   });
   // The read transaction has ended here. This observation report is NOT a publication authority.
-  return { ...plan, recheck };
+  return { ...plan, ...inspection };
 }

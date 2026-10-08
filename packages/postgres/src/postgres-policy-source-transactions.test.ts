@@ -2,6 +2,7 @@ import type { EvidenceScope } from "@proofstack/contracts";
 import type { PolicyEvaluationSourceRecheckPorts } from "@proofstack/policy-evaluation";
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
+import { loadBundledMigrations } from "./migrations.js";
 import { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
 import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
 
@@ -12,6 +13,8 @@ const scope: EvidenceScope = {
 };
 const at = "2026-10-01T02:00:00.000001Z";
 type Rows = { rows: Record<string, unknown>[] };
+const migrationRows = (await loadBundledMigrations()).map(({ id, checksum }) => ({ id, checksum }));
+const historyLimits = { maxRecords: 10, maxRecordBytes: 100_000 };
 
 function fixture() {
   const queries: { text: string; values?: readonly unknown[] }[] = [];
@@ -22,7 +25,11 @@ function fixture() {
         ? { rows: [{ acquired: true }] }
         : text.includes("clock_timestamp")
           ? { rows: [{ observed_at: at }] }
-          : { rows: [] },
+          : text.includes("to_regclass")
+            ? { rows: [{ ledger: "proofstack_schema_migrations" }] }
+            : text.includes("SELECT id, checksum")
+              ? { rows: migrationRows }
+              : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {
@@ -45,16 +52,22 @@ describe("PostgresPolicySourceTransactions", () => {
     const result = await f.adapter.run(scope, async (ports) => {
       expect(Object.keys(ports).sort()).toEqual([
         "findArtifact",
+        "findCriterion",
         "findPolicy",
+        "listCriterionSetStatuses",
         "listPolicyHistory",
         "observationTime",
         "tryGuard",
+        "tryMetadataGuard",
       ]);
+      expect(await ports.tryMetadataGuard()).toBe(true);
       expect(await ports.tryGuard("artifact", "artifact_one")).toBe(true);
       expect(await ports.tryGuard("release_policy", "policy_one")).toBe(true);
       expect(await ports.findArtifact("artifact_one")).toBeNull();
       expect(await ports.findPolicy("policy_one")).toBeNull();
       expect(await ports.listPolicyHistory("policy_one")).toEqual([]);
+      expect(await ports.findCriterion("criterion_one")).toBeNull();
+      expect(await ports.listCriterionSetStatuses(historyLimits)).toEqual([]);
       return ports.observationTime();
     });
     expect(result).toBe(at);
@@ -81,6 +94,20 @@ describe("PostgresPolicySourceTransactions", () => {
         scope.projectId,
         scope.environmentId,
       ]);
+    const criterionReads = f.queries.filter(({ text }) =>
+      text.includes("FROM public.proofstack_evaluation_records"),
+    );
+    expect(criterionReads.map(({ values }) => values)).toEqual([
+      [scope.tenantId, "criterion_set", "criterion_one"],
+      [scope.tenantId, scope.projectId, scope.environmentId, historyLimits.maxRecords + 1],
+    ]);
+    const ledgerIndex = f.queries.findIndex(({ text }) => text.includes("SELECT id, checksum"));
+    expect(ledgerIndex).toBeGreaterThan(
+      f.queries.findIndex(({ text }) => text.includes("try_lock_policy_evaluation_metadata")),
+    );
+    expect(ledgerIndex).toBeLessThan(
+      f.queries.findIndex(({ text }) => text.includes("FROM public.proofstack_evaluation_records")),
+    );
     expect(f.queries.at(-1)?.text).toBe("COMMIT");
     expect(f.release.mock.calls).toEqual([[]]);
   });
@@ -192,7 +219,10 @@ describe("PostgresPolicySourceTransactions", () => {
     const ports = retained;
     const before = f.queries.length;
     for (const call of [
+      () => ports.tryMetadataGuard(),
       () => ports.tryGuard("artifact", "artifact_one"),
+      () => ports.findCriterion("criterion_one"),
+      () => ports.listCriterionSetStatuses(historyLimits),
       () => ports.findArtifact("artifact_one"),
       () => ports.findPolicy("policy_one"),
       () => ports.listPolicyHistory("policy_one"),
@@ -201,6 +231,109 @@ describe("PostgresPolicySourceTransactions", () => {
       await expect(call()).rejects.toThrow("expired");
     expect(f.queries).toHaveLength(before);
   });
+
+  it.each(["criterion", "history"])(
+    "rejects a %s read before metadata acquisition without SQL",
+    async (kind) => {
+      const f = fixture();
+      await expect(
+        f.adapter.run(scope, (ports) =>
+          kind === "criterion"
+            ? ports.findCriterion("criterion_one")
+            : ports.listCriterionSetStatuses(historyLimits),
+        ),
+      ).rejects.toMatchObject({ reason: "guard_unavailable", identity: "metadata" });
+      expect(f.queries.some(({ text }) => text.includes("proofstack_evaluation_records"))).toBe(
+        false,
+      );
+      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+    },
+  );
+
+  it.each([
+    { rows: [], reason: "guard_invalid" },
+    { rows: [{ acquired: false }], reason: "guard_unavailable" },
+    { rows: [{ acquired: "true" }], reason: "guard_invalid" },
+    { rows: [{ acquired: null }], reason: "guard_invalid" },
+    { rows: [{ acquired: true }, { acquired: true }], reason: "guard_invalid" },
+  ])("abandons partial metadata guards on $reason response $rows", async ({ rows, reason }) => {
+    const f = fixture();
+    f.response.mockImplementation(async (text) =>
+      text.includes("try_lock_policy_evaluation_metadata") ? { rows } : { rows: [] },
+    );
+    await expect(f.adapter.run(scope, (ports) => ports.tryMetadataGuard())).rejects.toMatchObject({
+      reason,
+      identity: "metadata",
+    });
+    expect(f.queries.some(({ text }) => text.includes("to_regclass"))).toBe(false);
+    expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+  });
+
+  it.each(["missing", "pending", "checksum", "unknown"])(
+    "taints a caught %s migration ledger failure before source reads",
+    async (kind) => {
+      const f = fixture();
+      const original = f.response.getMockImplementation();
+      if (!original) throw new Error("Missing query fixture");
+      f.response.mockImplementation(async (text) => {
+        if (kind === "missing" && text.includes("to_regclass")) return { rows: [{ ledger: null }] };
+        if (text.includes("SELECT id, checksum"))
+          return {
+            rows:
+              kind === "pending"
+                ? migrationRows.slice(0, -1)
+                : kind === "checksum"
+                  ? migrationRows.map((row, index) =>
+                      index === 0 ? { ...row, checksum: "0".repeat(64) } : row,
+                    )
+                  : [...migrationRows, { id: "9999_unknown", checksum: "0".repeat(64) }],
+          };
+        return original(text);
+      });
+      let failure: unknown;
+      await expect(
+        f.adapter.run(scope, async (ports) => {
+          try {
+            await ports.tryMetadataGuard();
+          } catch (error) {
+            failure = error;
+          }
+          await expect(ports.findCriterion("criterion_one")).rejects.toBe(failure);
+          await expect(ports.listCriterionSetStatuses(historyLimits)).rejects.toBe(failure);
+          return "must_not_commit";
+        }),
+      ).rejects.toBeDefined();
+      expect(failure).toMatchObject({
+        name:
+          kind === "missing" || kind === "pending"
+            ? "MigrationRequiredError"
+            : "MigrationIntegrityError",
+      });
+      expect(f.queries.some(({ text }) => text.includes("proofstack_evaluation_records"))).toBe(
+        false,
+      );
+      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+    },
+  );
+
+  it.each(["id", "limits"])(
+    "validates new %s inputs before their SQL and taints the whole operation",
+    async (kind) => {
+      const f = fixture();
+      await expect(
+        f.adapter.run(scope, async (ports) => {
+          await ports.tryMetadataGuard();
+          return kind === "id"
+            ? ports.findCriterion("invalid id")
+            : ports.listCriterionSetStatuses({ ...historyLimits, maxRecords: -1 });
+        }),
+      ).rejects.toThrow();
+      expect(f.queries.some(({ text }) => text.includes("proofstack_evaluation_records"))).toBe(
+        false,
+      );
+      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+    },
+  );
 
   for (const fail of [false, true])
     it(`drains an unawaited ${fail ? "failed" : "successful"} read before transaction cleanup`, async () => {

@@ -28,8 +28,9 @@ The [normalized source readers](workflow-2-policy-transaction-reads.md) use that
 retain all owning adapter validation. Pool/role isolation defaults cannot create a stale pre-lock
 repeatable-read snapshot. Commit/rollback clear the scope without changing the session default.
 
-The ports expose only `tryGuard`, `findArtifact`, `findPolicy`, `listPolicyHistory` and
-`observationTime`; they do not expose a client, caller SQL, DML, content/key I/O or publication.
+The ports expose only `tryMetadataGuard`, `tryGuard`, `findCriterion`, `listCriterionSetStatuses`,
+`findArtifact`, `findPolicy`, `listPolicyHistory` and `observationTime`. They do not expose a client,
+caller SQL, DML, content/key I/O or publication.
 Their lifetime ends before transaction cleanup. Started reads are drained before commit/rollback
 and connection release. A caught or unawaited port failure still taints the whole operation; later
 calls cannot query. A rollback failure preserves the original error and destroys the connection.
@@ -40,6 +41,15 @@ Owning validators do not move into PostgreSQL and the composer does not import p
 [ADR-0026](../architecture/0026-recheck-policy-sources-through-scoped-transaction-ports.md)
 records this dependency change. Existing API credentials are denied guard-function execution;
 constructing an adapter does not confer dedicated worker or snapshot authority.
+
+When the request graph requires criterion authority, the composer first acquires the private
+[0052 metadata barrier](workflow-2-policy-metadata-barrier.md), including migration/recovery
+coordination, before all resource guards. The adapter loads bundled migration files before
+connecting and validates the complete current ledger on the guarded connection. New criterion
+and complete-history reads reject before SQL unless that acquisition and verification succeeded.
+A false/invalid barrier or ledger failure taints and rolls back the whole transaction. Graphs
+without criterion sources retain the original artifact/policy protocol; `not_required` does not
+prove unavailable upstream parents have no criteria.
 
 ## What is compared under the complete installed-domain guard set
 
@@ -53,10 +63,20 @@ constructing an adapter does not confer dedicated worker or snapshot authority.
 - Re-read the root's complete terminal history. Compare it before successor resolution, so a newly
   introduced successor is never queried without its guard. Reuse owning lifecycle validation on
   the cached guarded records and compare full event/successor observation hashes.
+- Re-read complete criterion status history and compare every retained row before querying any
+  successor. Read each known criterion and already retained successor uniquely on that connection;
+  compare graph observations and complete control-read material, including full receipt hashes.
+  Preserve the original criterion and status selections; no newer approval replaces them.
 - Obtain the database clock after the metadata reads, while all guards remain held. Reject an invalid
   cut or one preceding capture-phase completion. Preserve its native precision for artifact receipt
   and exact expiry comparisons. Existing policy/event and fixture-ownership receipt contracts remain
   milliseconds; this change does not admit microsecond ownership records.
+
+The internal criterion interpreter uses the exact UTC database cut without passing through Date.
+`criterionAuthority.underGuards` retains its own history/control reads and policy/capture-time
+projections alongside both content-phase observations. A status becoming effective or expiring
+between those cuts changes the projection even when stored material is identical. Its `completedAt`
+and `atCapture.at` equal the held database cut; they do not promise authority after it.
 
 A previously byte-verified artifact, missing object or failed content-integrity observation must
 reinspect as `content_pending` with the same complete catalog. That means catalog eligibility for
@@ -85,8 +105,12 @@ A throwing invocation has no success usage envelope; durable failure/retry accou
 future worker obligation. Finite counts and JSON limits do not replace statement deadlines.
 
 Successful optional output is `sourceRecheck` with status `observations_rechecked`, exact `observedAt`,
-guard count and unique artifact/policy read counts. It includes no plaintext, key, locator, seal,
-snapshot digest, evaluator verdict or new capability. Typed composition failures use
+guard count and unique artifact/policy read counts. Additional fields are `metadataGuard`,
+`criterionReads`, `criterionHistoryReads` and `criterionHistoryRows`. The shared meter charges
+every reread history row and repeated interpreter reference; cached interpretation does not charge
+the actual reads twice. The metadata flag is false and all criterion counters zero when no
+criterion source is captured. The output contains no plaintext, key, locator, seal, snapshot digest,
+evaluator verdict, live execution fence or new capability. Typed composition failures use
 `policy_evaluation_source_recheck_failed` with reasons `guard_unavailable`, `guard_invalid`,
 `source_revision_changed` or `clock_invalid`; owning integrity/storage/admission errors retain
 their own failure. This report returns **after the read-only transaction has ended**.
@@ -99,18 +123,21 @@ catalog/policy/history changes, malformed absence, later successors, unsupported
 retained failed content attempts, precise cuts, root failure and shared exact-limit admission.
 The [adapter unit suite](../../packages/postgres/src/postgres-policy-source-transactions.test.ts)
 checks one connection, exact scope, isolation, strict guard responses, taint, lifetime, deferred
-read draining and rollback failure.
+read draining, migration-ledger failure, required metadata admission and rollback failure.
 The [PostgreSQL composition suite](../../packages/postgres/src/postgres-policy-source-transactions.integration.test.ts)
-uses actual catalog/policy/lifecycle adapters, guards and competing writes. It observes advisory
+uses actual catalog/policy/lifecycle and criterion/history adapters, guards and competing writes.
+The criterion scenarios seed synthetic control/execution records using an isolated admin fixture;
+existing API credentials still cannot publish execution records. It observes advisory
 waits via `pg_blocking_pids`, rejects committed intervening changes and known-absence creation,
 proves rollback releases earlier guards, checks pool reuse and existing runtime permission denial.
 Its privileged observation pool is a disposable test fixture, not production worker provisioning.
-Candidate/upstream fixtures and encrypted memory objects are explicit: this is not a complete
+Candidate/remaining upstream fixtures and encrypted memory objects are explicit: this is not a complete
 real-service sealed-policy acceptance flow or a new S3 integration test.
 
-The installed serialization domain still covers exactly artifacts and policy versions. It does
-not close every immutable upstream absence, selector, logical root, mutable source authority or
-complete semantic lineage. Before publication, a future trusted publisher must keep every required
+The conditional metadata barrier protects the installed tenant source-write domain, while this
+composer rereads only artifacts, policies and captured criteria/status history. It does not close
+every upstream absence, selector, logical root, mutable source authority or complete semantic
+lineage. Before publication, a future trusted publisher must keep every required
 guard **in the same still-open transaction**, validate all remaining closure and execution
 lease/fence conditions, and atomically publish snapshot and job state. It must not accept this
 post-transaction report as fresh authority or release guards between reinspection and publication.
