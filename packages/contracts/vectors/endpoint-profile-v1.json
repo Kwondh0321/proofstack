@@ -1,0 +1,104 @@
+{
+  "format": "proofstack.endpoint-profile.v1",
+  "vectors": [
+    {
+      "input": {
+        "definition": {
+          "boundaryKinds": ["model", "tool"],
+          "configuration": {
+            "artifactId": "artifact_endpoint_configuration",
+            "classification": "confidential",
+            "mediaType": "application/json",
+            "redactedAt": "source",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128
+          },
+          "destination": {
+            "hostname": "model.reference.example",
+            "port": 443,
+            "scheme": "https"
+          },
+          "endpointProfileId": "endpoint_reference",
+          "endpointProfileVersion": "V1.0+RC-1",
+          "operations": ["chat", "generate_content"],
+          "provider": "reference/model-provider+V1",
+          "recordKind": "endpoint_profile"
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_endpoint",
+          "tenantId": "tenant_endpoint_a"
+        }
+      },
+      "encodedByteLength": 805,
+      "sha256": "d4940f3bb41ba8ad1e8999c4ad1232974586720f613afa55458b779ebcdbe5b2",
+      "canonical": "{\"definition\":{\"boundaryKinds\":[\"model\",\"tool\"],\"configuration\":{\"artifactId\":\"artifact_endpoint_configuration\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128},\"destination\":{\"hostname\":\"model.reference.example\",\"port\":443,\"scheme\":\"https\"},\"endpointProfileId\":\"endpoint_reference\",\"endpointProfileVersion\":\"V1.0+RC-1\",\"operations\":[\"chat\",\"generate_content\"],\"provider\":\"reference/model-provider+V1\",\"recordKind\":\"endpoint_profile\"},\"definitionDomain\":\"proofstack.endpoint-profile.v1\",\"encodingVersion\":\"proofstack.endpoint-profile-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_reference\",\"projectId\":\"project_endpoint\",\"tenantId\":\"tenant_endpoint_a\"}}"
+    },
+    {
+      "input": {
+        "definition": {
+          "boundaryKinds": ["model", "tool"],
+          "configuration": {
+            "artifactId": "artifact_endpoint_configuration",
+            "classification": "confidential",
+            "mediaType": "application/json",
+            "redactedAt": "source",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128
+          },
+          "destination": {
+            "hostname": "model.reference.example",
+            "port": 443,
+            "scheme": "https"
+          },
+          "endpointProfileId": "endpoint_reference",
+          "endpointProfileVersion": "V1.0+RC-1",
+          "operations": ["chat", "generate_content"],
+          "provider": "reference/model-provider+V1",
+          "recordKind": "endpoint_profile"
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_endpoint",
+          "tenantId": "tenant_endpoint_b"
+        }
+      },
+      "encodedByteLength": 805,
+      "sha256": "d44d6be5d344c41b414909c17fe6cd0f31b42201fee87ae014ac3d221614af07",
+      "canonical": "{\"definition\":{\"boundaryKinds\":[\"model\",\"tool\"],\"configuration\":{\"artifactId\":\"artifact_endpoint_configuration\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128},\"destination\":{\"hostname\":\"model.reference.example\",\"port\":443,\"scheme\":\"https\"},\"endpointProfileId\":\"endpoint_reference\",\"endpointProfileVersion\":\"V1.0+RC-1\",\"operations\":[\"chat\",\"generate_content\"],\"provider\":\"reference/model-provider+V1\",\"recordKind\":\"endpoint_profile\"},\"definitionDomain\":\"proofstack.endpoint-profile.v1\",\"encodingVersion\":\"proofstack.endpoint-profile-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_reference\",\"projectId\":\"project_endpoint\",\"tenantId\":\"tenant_endpoint_b\"}}"
+    },
+    {
+      "input": {
+        "definition": {
+          "boundaryKinds": ["model", "tool"],
+          "configuration": {
+            "artifactId": "artifact_endpoint_configuration",
+            "classification": "confidential",
+            "mediaType": "application/json",
+            "redactedAt": "source",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128
+          },
+          "destination": {
+            "hostname": "model.reference.example",
+            "port": 443,
+            "scheme": "https"
+          },
+          "endpointProfileId": "endpoint_reference",
+          "endpointProfileVersion": "V2.0+RC-1",
+          "operations": ["chat", "generate_content"],
+          "provider": "reference/model-provider+V1",
+          "recordKind": "endpoint_profile"
+        },
+        "scope": {
+          "environmentId": "environment_reference",
+          "projectId": "project_endpoint",
+          "tenantId": "tenant_endpoint_a"
+        }
+      },
+      "encodedByteLength": 805,
+      "sha256": "198189eefbf7c7e074fab9990f16cf2e201c8036b8521c4653ac89b0653660bd",
+      "canonical": "{\"definition\":{\"boundaryKinds\":[\"model\",\"tool\"],\"configuration\":{\"artifactId\":\"artifact_endpoint_configuration\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128},\"destination\":{\"hostname\":\"model.reference.example\",\"port\":443,\"scheme\":\"https\"},\"endpointProfileId\":\"endpoint_reference\",\"endpointProfileVersion\":\"V2.0+RC-1\",\"operations\":[\"chat\",\"generate_content\"],\"provider\":\"reference/model-provider+V1\",\"recordKind\":\"endpoint_profile\"},\"definitionDomain\":\"proofstack.endpoint-profile.v1\",\"encodingVersion\":\"proofstack.endpoint-profile-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_reference\",\"projectId\":\"project_endpoint\",\"tenantId\":\"tenant_endpoint_a\"}}"
+    }
+  ]
+}

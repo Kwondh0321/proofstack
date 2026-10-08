@@ -461,6 +461,16 @@ retain every repeated origin and explicit missing/unavailable targets, with cumu
 independent closure verification. Qualification-policy current-authority frontiers, endpoint/protocol
 definitions, complete authority closure and sealed publication remain open.
 
+The [retained endpoint profile data prerequisite](workflow-2-endpoint-profiles.md)
+reuses exact existing ID/version, HTTPS destination and provider token contracts,
+binding ordered bounded operation/boundary declarations and exact configuration
+artifact descriptors under an independent canonical domain. Original registration
+receipts and a copied bounded scope catalogue are retained separately from semantic
+digests. This does not authenticate providers, resolve credentials or establish
+actual compatibility/current authority. Endpoint graph/selector/scoped-port acquisition
+is subsequent work; the source inventory remains 46, with complete closure and
+sealed publication open.
+
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
 status function; raw outbox access and new definition publication remain denied. Native role
