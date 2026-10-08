@@ -11,16 +11,20 @@ import {
   type ModelAssuranceRepositoryFixtureRecord,
   publishEvaluationFixture,
 } from "@proofstack/core/testing";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
-import { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
+import {
+  PostgresModelAssuranceRepository,
+  readPostgresModelAssuranceRecordOnClient,
+} from "./postgres-model-assurance-repository.js";
 import {
   provisionRuntimeRoles,
   type RuntimeRoleCredentials,
   type RuntimeRoleProvisioningOptions,
 } from "./runtime-roles.js";
+import { withExactScopeTransaction } from "./tenant-transaction.js";
 
 const { PROOFSTACK_TEST_DATABASE_URL: databaseUrl } = process.env;
 if (!databaseUrl) {
@@ -143,19 +147,228 @@ async function publishBaseGraph(
   }
 }
 
-function repositoryFor(fixture: ModelAssuranceRepositoryFixtureRecord) {
+function poolFor(fixture: ModelAssuranceRepositoryFixtureRecord) {
   if (fixture.kind === "human_review_record") {
-    return new PostgresModelAssuranceRepository(humanReviewerPool);
+    return humanReviewerPool;
   }
   if (modelExecutionKinds.has(fixture.kind)) {
-    return new PostgresModelAssuranceRepository(modelWorkerPool);
+    return modelWorkerPool;
   }
-  return new PostgresModelAssuranceRepository(apiPool);
+  return apiPool;
+}
+
+function repositoryFor(fixture: ModelAssuranceRepositoryFixtureRecord) {
+  return new PostgresModelAssuranceRepository(poolFor(fixture));
 }
 
 async function publishAssuranceFixture(fixture: ModelAssuranceRepositoryFixtureRecord) {
   return repositoryFor(fixture).publish(fixture.kind, fixture.record as never);
 }
+
+function rawCommand(fixture: ModelAssuranceRepositoryFixtureRecord) {
+  const r = fixture.record as unknown as Record<string, unknown>;
+  return {
+    actorPrincipalId:
+      r["publishedByPrincipalId"] ??
+      r["recordedByPrincipalId"] ??
+      r["executedByPrincipalId"] ??
+      r["reviewedByPrincipalId"] ??
+      (r["reviewer"] as { principalId?: string } | undefined)?.principalId ??
+      null,
+    definitionSha256: fixture.record.definitionSha256,
+    environmentId: fixture.record.scope.environmentId,
+    lifecycleState:
+      r["status"] ??
+      r["action"] ??
+      r["reviewStatus"] ??
+      (r["outcome"] as { status?: string } | undefined)?.status ??
+      r["eligibility"] ??
+      null,
+    projectId: fixture.record.scope.projectId,
+    record: fixture.record,
+    recordedAt: r["publishedAt"] ?? r["recordedAt"],
+    recordId: modelAssuranceRecordId(fixture.kind, fixture.record),
+    recordKind: fixture.kind,
+    schemaVersion: fixture.record.schemaVersion,
+    tenantId: fixture.record.scope.tenantId,
+  };
+}
+
+async function rawPublish(fixture: ModelAssuranceRepositoryFixtureRecord, command: unknown) {
+  const fn =
+    fixture.kind === "human_review_record"
+      ? "public.proofstack_publish_model_assurance_human_review_record"
+      : modelExecutionKinds.has(fixture.kind)
+        ? "public.proofstack_publish_model_assurance_execution_record"
+        : "public.proofstack_publish_model_assurance_control_record";
+  await withExactScopeTransaction(poolFor(fixture), fixture.record.scope, async (client) => {
+    await client.query(`SELECT ${fn}($1::jsonb)`, [JSON.stringify(command)]);
+  });
+}
+
+async function retainedState(tenantId: string) {
+  const state: unknown[] = [];
+  for (const table of [
+    "proofstack_evaluation_record_registry",
+    "proofstack_evaluation_lineage",
+    "proofstack_model_assurance_records",
+    "proofstack_outbox",
+  ]) {
+    state.push(
+      (
+        await adminPool.query(
+          `SELECT to_jsonb(item) AS record FROM public.${table} AS item
+       WHERE tenant_id = $1 ORDER BY to_jsonb(item)::text`,
+          [tenantId],
+        )
+      ).rows,
+    );
+  }
+  return state;
+}
+
+const requiredActors = [
+  "blinded_evaluation_plan",
+  "blinded_evaluation_result",
+  "calibration_report",
+  "human_review_protocol",
+  "human_review_record",
+  "human_reviewer_independence",
+  "independence_declaration",
+  "independent_critique",
+  "model_assisted_evaluator",
+  "model_evaluator_profile",
+  "model_qualification_report",
+  "model_qualification_suite",
+] as const satisfies readonly ModelAssuranceRecordKind[];
+const requiredStates = [
+  "blinded_evaluation_result",
+  "calibration_report",
+  "human_review_record",
+  "human_reviewer_independence",
+  "independence_declaration",
+  "independent_critique",
+  "model_assurance_assessment",
+  "model_qualification_report",
+] as const satisfies readonly ModelAssuranceRecordKind[];
+
+describe("model-assurance scalar integrity through actual runtime publication", () => {
+  it.each([
+    ...requiredActors.map((kind) => ({ kind, field: "actorPrincipalId" as const })),
+    ...requiredStates.map((kind) => ({ kind, field: "lifecycleState" as const })),
+  ])(
+    "rejects missing $field for $kind without partial records or intent",
+    async ({ kind, field }) => {
+      const harness = await createModelAssuranceRepositoryTestHarness(
+        `sc_${runKey}_${randomUUID().replaceAll("-", "").slice(0, 6)}`,
+      );
+      let fixture = harness.records.find((f) => f.kind === kind);
+      if (kind === "model_assurance_assessment") {
+        const result = await new CreateModelAssuranceAssessment({
+          clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+          evaluationRepository: harness.evaluation.repository,
+          modelAssuranceRepository: harness.repository,
+        }).execute(harness.command);
+        fixture = { kind, record: result.record };
+      }
+      if (!fixture) throw new Error("Missing scalar integrity fixture");
+      await publishBaseGraph(harness);
+      for (const f of harness.records) {
+        if (f === fixture) break;
+        await publishAssuranceFixture(f);
+      }
+      const before = await retainedState(fixture.record.scope.tenantId);
+      await expect(
+        rawPublish(fixture, { ...rawCommand(fixture), [field]: null }),
+      ).rejects.toMatchObject({
+        code: "23514",
+        constraint: "proofstack_model_assurance_records_scalar_integrity",
+      });
+      expect(await retainedState(fixture.record.scope.tenantId)).toEqual(before);
+      await expect(publishAssuranceFixture(fixture)).resolves.toMatchObject({
+        created: true,
+        record: fixture.record,
+      });
+      await expect(
+        repositoryFor(fixture).find(
+          fixture.record.scope,
+          kind,
+          modelAssuranceRecordId(kind, fixture.record),
+        ),
+      ).resolves.toEqual(fixture.record);
+    },
+  );
+
+  it.each([
+    "schemaVersion",
+    "definitionSha256",
+    "tenantId",
+    "projectId",
+    "environmentId",
+    "modelProfileVersionId",
+    "publishedAt",
+    "publishedByPrincipalId",
+  ])("rejects an absent canonical %s instead of accepting SQL UNKNOWN", async (key) => {
+    const harness = await createModelAssuranceRepositoryTestHarness(
+      `ms_${runKey}_${randomUUID().replaceAll("-", "").slice(0, 6)}`,
+    );
+    const fixture = harness.records.find((f) => f.kind === "model_evaluator_profile");
+    if (!fixture) throw new Error("Missing profile fixture");
+    const body = structuredClone(fixture.record) as unknown as Record<string, unknown>;
+    const scope = body["scope"] as Record<string, unknown>;
+    if (["tenantId", "projectId", "environmentId"].includes(key)) delete scope[key];
+    else delete body[key];
+    const before = await retainedState(fixture.record.scope.tenantId);
+    await expect(
+      rawPublish(fixture, { ...rawCommand(fixture), record: body }),
+    ).rejects.toMatchObject({
+      code: "23514",
+      constraint: "proofstack_model_assurance_records_scalar_integrity",
+    });
+    expect(await retainedState(fixture.record.scope.tenantId)).toEqual(before);
+  });
+
+  it.each(["false::boolean", "'true'::text"])(
+    "rejects a nonmatching native receipt projection %s",
+    async (projection) => {
+      const harness = await createModelAssuranceRepositoryTestHarness(
+        `native_${runKey}_${projection.startsWith("false") ? "false" : "text"}`,
+      );
+      const fixture = harness.records.find((f) => f.kind === "model_evaluator_profile");
+      if (!fixture) throw new Error("Missing profile fixture");
+      await publishAssuranceFixture(fixture);
+      await withExactScopeTransaction(apiPool, fixture.record.scope, async (client) => {
+        const view = {
+          query: (sql: string, parameters: unknown[]) => {
+            const expression =
+              "recorded_at = recorded_at_lexical::timestamptz AS recorded_at_matches";
+            expect(sql).toContain(expression);
+            // Real backend response, intentionally wrong boolean/type projection; no stored row mutation.
+            return client.query(
+              sql.replace(expression, `${projection} AS recorded_at_matches`),
+              parameters,
+            );
+          },
+        } as Pick<PoolClient, "query">;
+        await expect(
+          readPostgresModelAssuranceRecordOnClient(
+            view,
+            fixture.record.scope,
+            fixture.kind,
+            modelAssuranceRecordId(fixture.kind, fixture.record),
+          ),
+        ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+      });
+      await expect(
+        repositoryFor(fixture).find(
+          fixture.record.scope,
+          fixture.kind,
+          modelAssuranceRecordId(fixture.kind, fixture.record),
+        ),
+      ).resolves.toEqual(fixture.record);
+    },
+  );
+});
 
 describe("PostgresModelAssuranceRepository", () => {
   it("persists and reads a complete eligible graph through disjoint authorities", async () => {
@@ -311,5 +524,12 @@ describe("PostgresModelAssuranceRepository", () => {
     await expect(
       repository.find(harness.evaluation.scope, profile.kind, recordId),
     ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+    for (const outside of [
+      { ...harness.evaluation.scope, tenantId: `ten_outside_${runKey}` },
+      { ...harness.evaluation.scope, projectId: `prj_outside_${runKey}` },
+      { ...harness.evaluation.scope, environmentId: `env_outside_${runKey}` },
+    ]) {
+      await expect(repository.find(outside, profile.kind, recordId)).resolves.toBeNull();
+    }
   });
 });

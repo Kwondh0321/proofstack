@@ -280,6 +280,12 @@ dataset/fixture·replay·trace의 기존 검증을 다른 연결이나 트랜잭
 이는 보호된 전체 조회를 구성할 기반이며, 전체 reverse authority 이력·closure 발행·seal을
 추가하거나 기존 source recheck 보고서의 수명을 바꾸지 않습니다.
 
+후속 [모델·사람 기록 필드 무결성 수정](workflow-2-model-assurance-projections.ko.md)은 실제로
+재현한 SQL UNKNOWN/NULL 주체 저장 문제를 전진 CHECK와 owning 행 검증으로 닫습니다.
+다른 scope의 손상 원문을 파싱하기 전에 정확한 scope를 필터링하며 정상 NULL 예외·과거 원문·
+시각을 보존합니다. Physical registry/lineage/outbox 관계와 전체 권한 closure는 남아 있고
+추가 checkpoint 승인은 아닙니다.
+
 후속 `runMetadata` adapter 모드는 metadata barrier와 현재 migration ledger를 검증한 뒤
 전체 record graph·exact trace event·전체 criterion history·fixture 소유권/가용성 메타데이터의
 수명이 제한된 owning repository 포트를 제공합니다. 요청 scope는 트랜잭션 scope와 같아야 하며

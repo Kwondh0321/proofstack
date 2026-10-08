@@ -327,6 +327,12 @@ opening another connection or ending the caller's transaction. Their extraction 
 guarded composition; it does not add complete reverse authority histories, closure publication or
 a seal, and does not change the existing source recheck report's lifetime.
 
+The subsequent [model/human scalar integrity correction](workflow-2-model-assurance-projections.md)
+closes a reproduced SQL UNKNOWN/null-actor admission gap through a forward validated constraint
+and owning full scalar row checks. Exact scope is filtered before parsing outside-scope damage;
+normal null cases and original historical data/receipts remain intact. Physical registry/lineage/
+outbox agreement and complete authority closure remain open; this is not checkpoint acceptance.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

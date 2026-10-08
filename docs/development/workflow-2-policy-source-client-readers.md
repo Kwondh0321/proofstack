@@ -11,7 +11,7 @@ repository reads through those same functions. Workflow 2 remains **2/7 accepted
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical record/digest, normalized scope |
-| Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, normalized scope |
+| Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope and full scalar identity/schema/receipt/actor/lifecycle agreement |
 | Comparison | `readPostgresComparisonRecordOnClient` | Definition, operand snapshots and result; normalized projections and lineage count |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate and normalized projections |
 | Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Identity-first scope filtering, normalized ordered members/events; recorded fixture ownership/root binding and canonical publication intent; revocation/tombstone/catalog metadata for content availability |
@@ -41,7 +41,9 @@ trace IDs and the bounded unique event array reuse their owning contracts. Ports
 connection release. Caught or unawaited read failures still taint the transaction; started work is
 drained before commit/rollback and cleanup. No pool, SQL/client, DML, content/key, worker or
 publication interface is exposed. Each domain retains its existing owning validation; this mode
-does not newly prove physical registry/lineage/outbox agreement or all model-assurance projections.
+does not newly prove physical registry/lineage/outbox agreement. The subsequent
+[model/human scalar validation](workflow-2-model-assurance-projections.md) strengthens owning
+row checks without establishing complete physical reference agreement or current authority.
 
 The adapter copies strict operator-owned installation bindings and runtime definitions at
 construction, outside transaction guards. Each catalogue admits at most 256 entries; duplicates
@@ -94,7 +96,8 @@ Scope, event-ID arrays and page cursors/limits are owned before the first asynch
 ordinary repository wrappers also own them before pool acquisition. Returned records retain the
 existing validation and detached-result behavior. The evaluation reader's return type follows
 its fixed record kind. Publication paths retain their tenant-wide conflict and lineage queries.
-No SQL migration, runtime grant or external dependency is added.
+Runtime grants and external dependencies remain unchanged. The subsequent model/human scalar
+integrity migration validates old and new rows without changing the helper transaction boundary.
 
 Each helper preserves its owning reader's actual checks. An exact record read does not newly
 prove every reverse history, logical selector, upstream absence or publication intent. In

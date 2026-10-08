@@ -36,7 +36,9 @@ Recorded fixture의 `Content` 조회는 소유권·철회·tombstone·catalog �
 기다리지 않은 조회 오류도 전체 트랜잭션을 taint하며 시작한 조회를 모두 정리한 뒤 commit/
 rollback합니다. SQL/client·pool·DML·content/key·worker·발행 인터페이스는 제공하지 않습니다.
 각 reader의 기존 실제 검증을 재사용하며 physical registry/lineage/outbox 관계나 모든
-model-assurance projection을 새로 증명하지 않습니다.
+model-assurance의 모든 physical 참조 관계를 새로 증명하지 않습니다. 후속
+[모델·사람 기록 필드 검증](workflow-2-model-assurance-projections.ko.md)은 owning 행의
+ID·schema·scope·시각·주체·상태 일치를 강화하지만 현재 권한이나 전체 관계를 닫지 않습니다.
 
 운영자 소유 installation binding과 runtime definition은 생성자에서 잠금 밖에 복사합니다.
 각 catalogue는 최대 256개이며 중복·잘못된 record는 연결 전에 거절합니다. 이 불변 메모리
@@ -83,7 +85,8 @@ recovery/resource 잠금·누적 한도·실패 taint·취소/진행 중 작업 
 Scope, event ID 배열, cursor와 limit은 첫 await 전에 복사하며 일반 저장소도 pool 연결을
 기다리기 전에 입력을 소유합니다. 반환 record의 기존 검증과 복사 동작을 보존합니다. 평가
 record의 반환 타입은 kind에 따라 결정됩니다. 발행 경로의 tenant 단위 충돌·lineage 검사는
-변경하지 않으며 새 migration·runtime grant·외부 dependency를 추가하지 않습니다.
+변경하지 않습니다. Runtime grant·외부 dependency는 그대로이며 후속 모델·사람 기록 필드
+무결성 migration은 기존/신규 행을 검증하되 helper의 트랜잭션 경계를 바꾸지 않습니다.
 
 이 함수들은 전체 reverse history·논리 selector·upstream 부재·권한 closure를 새로 증명하지
 않습니다. [메타데이터 잠금](workflow-2-policy-metadata-barrier.ko.md) 역시 이 조회들을 자동으로

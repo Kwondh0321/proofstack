@@ -171,6 +171,7 @@ describe("PostgreSQL evidence schema", () => {
       "0050_policy_evaluation_source_locks",
       "0051_artifact_timestamp_integrity",
       "0052_policy_evaluation_metadata_barrier",
+      "0053_model_assurance_scalar_integrity",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

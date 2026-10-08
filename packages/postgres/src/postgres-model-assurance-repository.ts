@@ -18,6 +18,13 @@ import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { withTenantTransaction } from "./tenant-transaction.js";
 
 interface StoredRecordRow extends QueryResultRow {
+  readonly record_kind: string;
+  readonly record_id: string;
+  readonly schema_version: string;
+  readonly recorded_at_lexical: string;
+  readonly recorded_at_matches: boolean;
+  readonly actor_principal_id: string | null;
+  readonly lifecycle_state: string | null;
   readonly definition_sha256: string;
   readonly environment_id: string;
   readonly project_id: string;
@@ -230,12 +237,19 @@ async function loadStored(
   kind: ModelAssuranceRecordKind,
   tenantId: string,
   recordId: string,
+  exactScope?: EvidenceScope,
 ): Promise<StoredRecordRow | null> {
   const result = await client.query<StoredRecordRow>(
-    `SELECT tenant_id, project_id, environment_id, definition_sha256, record
+    `SELECT tenant_id, project_id, environment_id, record_kind, record_id,
+       schema_version, definition_sha256, recorded_at_lexical, actor_principal_id,
+       lifecycle_state, record,
+       recorded_at = recorded_at_lexical::timestamptz AS recorded_at_matches
      FROM public.proofstack_model_assurance_records
-     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3`,
-    [tenantId, kind, recordId],
+     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
+       ${exactScope ? "AND project_id = $4 AND environment_id = $5" : ""}`,
+    exactScope
+      ? [tenantId, kind, recordId, exactScope.projectId, exactScope.environmentId]
+      : [tenantId, kind, recordId],
   );
   return result.rows[0] ?? null;
 }
@@ -243,11 +257,19 @@ async function loadStored(
 function parseStored(kind: ModelAssuranceRecordKind, row: StoredRecordRow): ModelAssuranceRecord {
   try {
     const record = validateModelAssuranceRecord(kind, row.record);
+    const projected = projection(kind, record);
     if (
       record.scope.tenantId !== row.tenant_id ||
       record.scope.projectId !== row.project_id ||
       record.scope.environmentId !== row.environment_id ||
-      record.definitionSha256 !== row.definition_sha256
+      record.definitionSha256 !== row.definition_sha256 ||
+      kind !== row.record_kind ||
+      modelAssuranceRecordId(kind, record) !== row.record_id ||
+      record.schemaVersion !== row.schema_version ||
+      projected.recordedAt !== row.recorded_at_lexical ||
+      row.recorded_at_matches !== true ||
+      projected.actorPrincipalId !== row.actor_principal_id ||
+      projected.lifecycleState !== row.lifecycle_state
     ) {
       throw new Error("normalized columns differ from the canonical record");
     }
@@ -298,7 +320,7 @@ function publicationFunction(kind: ModelAssuranceRecordKind): string {
   return "public.proofstack_publish_model_assurance_control_record";
 }
 
-/** Uses only the supplied client and retains the owning record/scope/digest checks. */
+/** Uses only the supplied client; exact scope is filtered before canonical scalar validation. */
 export async function readPostgresModelAssuranceRecordOnClient<K extends ModelAssuranceRecordKind>(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
@@ -306,7 +328,7 @@ export async function readPostgresModelAssuranceRecordOnClient<K extends ModelAs
   recordId: string,
 ): Promise<ModelAssuranceRecordByKind[K] | null> {
   const scope = { ...scopeInput };
-  const row = await loadStored(client, kind, scope.tenantId, recordId);
+  const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
   if (!row) return null;
   const record = parseStored(kind, row);
   return scopesEqual(record.scope, scope) ? (clone(record) as ModelAssuranceRecordByKind[K]) : null;
