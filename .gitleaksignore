@@ -1,0 +1,5 @@
+# Historical synthetic prefix passed to createValues' prefix argument in a
+# PostgreSQL tenant-context rejection test; not a complete API key or secret.
+# This exact finding only: new commits, paths, rules and lines remain scanned.
+# Rationale and verification: docs/security/historical-test-prefix-scan.md
+d7c1f08358d2a1128381c5d73ab8ccadc4abd85e:packages/postgres/src/workload-identity-migration.integration.test.ts:generic-api-key:177
