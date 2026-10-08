@@ -80,10 +80,11 @@ rules; runtime API credentials cannot acquire the private metadata guard. This p
 reads a copied trusted catalogue, not a newly persisted PostgreSQL profile table.
 No migration, role/grant, route, worker or production composition is introduced.
 
-Hashless model-parent `endpoint_profile_selector` resolution is still open. It must
-derive the expected hash from independent data after revalidating the complete
-original fixture, provider context and exact configuration descriptor, preserving
-every repeated origin and explicit missing/unavailable mapping. Known live targets
+[Owning hashless model resolution](workflow-2-model-endpoint-resolution.md) now
+derives the expected hash from validated independent data after revalidating the
+complete original fixture and exact provider occurrence. Four separate context
+checks retain provider, operation, boundary and full configuration mismatches.
+Graph acquisition/reinspection of these mappings is still open. Known live targets
 retain current-authority frontiers. Complete semantic/authority closure and sealed
 snapshot/job publication remain open; an ended observation transaction cannot
 authorize later publication.

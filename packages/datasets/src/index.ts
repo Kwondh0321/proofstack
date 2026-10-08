@@ -5,6 +5,7 @@ export * from "./policy-evaluation-dataset-reader.js";
 export * from "./policy-evaluation-dataset-references.js";
 export * from "./policy-evaluation-dataset-relations.js";
 export * from "./policy-evaluation-fixture-bindings.js";
+export * from "./policy-evaluation-model-endpoint-resolution.js";
 export * from "./publish-recorded-interaction-fixture-version.js";
 export * from "./publish-regression-dataset-version.js";
 export * from "./publish-regression-fixture-version.js";

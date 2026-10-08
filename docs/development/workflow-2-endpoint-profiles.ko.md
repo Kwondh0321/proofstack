@@ -66,9 +66,10 @@ runtime API 자격증명은 private metadata guard를 획득할 수 없습니다
 profile 테이블이 아니라 복사된 신뢰 catalogue를 읽으며 migration·role/grant·route·
 worker·production 조합을 추가하지 않습니다.
 
-digest 없는 model 부모의 `endpoint_profile_selector` 해석은 아직 열려 있습니다.
-전체 원본 fixture·provider 문맥·정확한 configuration descriptor를 재검증한 후 독립된
-데이터에서 hash를 도출하고 반복 origin·누락/가용성 mapping을 모두 보존해야 합니다.
+[소유 hashless model resolver](workflow-2-model-endpoint-resolution.ko.md)는 전체 원본
+fixture와 정확한 provider occurrence를 재검증한 후 유효한 독립 데이터에서 hash를
+도출합니다. provider·operation·경계·전체 설정 불일치는 네 문맥 검사로 별도 보존합니다.
+이 mapping의 graph 획득과 reinspection은 아직 열려 있습니다.
 live target은 현재 권한 frontier를 유지합니다. 전체 의미/권한 closure와 sealed
 snapshot/job publication은 열려 있으며 종료된 관측 transaction은 이후 publication을
 승인하지 않습니다.

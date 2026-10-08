@@ -472,7 +472,10 @@ acquisition adds the 47th source kind, retains complete configuration occurrence
 original full receipts and every repeated origin, and checks declared destination,
 operation and boundary-kind context. Independent closure/reinspection and shared
 finite admission preserve missing/unavailable targets and current-authority frontiers.
-Hashless model-parent endpoint selectors, protocol acquisition, complete authority
+The [owning hashless model resolver](workflow-2-model-endpoint-resolution.md) revalidates
+the complete original fixture before exact independent lookup, derives a digest only
+from valid retained data and keeps four original-context checks separate from data integrity.
+Graph integration/reinspection of these model mappings, protocol acquisition, complete authority
 closure and sealed publication remain open.
 
 Replay owning definition reads validate original intents under both API and replay-worker
