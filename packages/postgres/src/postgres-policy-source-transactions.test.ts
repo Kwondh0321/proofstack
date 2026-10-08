@@ -51,9 +51,15 @@ function fixture() {
                         { retained_evaluation_body: false, retained_evaluation_storage: false },
                       ],
                     }
-                  : text.includes("proofstack_read_replay_job_snapshot")
-                    ? { rows: [{ snapshot: null }] }
-                    : { rows: [] },
+                  : text.includes("AS retained_comparison_storage")
+                    ? {
+                        rows: [
+                          { retained_comparison_body: false, retained_comparison_storage: false },
+                        ],
+                      }
+                    : text.includes("proofstack_read_replay_job_snapshot")
+                      ? { rows: [{ snapshot: null }] }
+                      : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {

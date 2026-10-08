@@ -6,6 +6,11 @@ import type {
   EvidenceScope,
 } from "@proofstack/contracts";
 import {
+  COMPARISON_DEFINITION_SCHEMA_VERSION,
+  COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
+  COMPARISON_RESULT_SCHEMA_VERSION,
+} from "@proofstack/contracts";
+import {
   ComparisonLineageError,
   type ComparisonRecord,
   ComparisonRecordConflictError,
@@ -28,6 +33,7 @@ interface StoredComparisonRow extends QueryResultRow {
   readonly comparison_role: string | null;
   readonly comparison_version_id: string;
   readonly created_at_lexical: string;
+  readonly created_at_matches: boolean;
   readonly definition_sha256: string;
   readonly environment_id: string;
   readonly lineage_count: number;
@@ -42,6 +48,39 @@ interface StoredComparisonRow extends QueryResultRow {
 interface OutboxIntentRow extends QueryResultRow {
   readonly status: string;
 }
+
+interface RegistryRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly schema_version: string;
+  readonly definition_sha256: string;
+}
+interface LineageRow extends QueryResultRow {
+  readonly edge_position: number;
+  readonly parent_record_kind: ComparisonRecordKind;
+  readonly parent_record_id: string;
+  readonly parent_definition_sha256: string;
+  readonly parent_schema_version: string;
+  readonly child_matches: boolean;
+  readonly parent_matches: boolean;
+}
+interface ResourceRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly root_record_kind: string;
+  readonly root_record_id: string;
+  readonly root_definition_sha256: string;
+}
+interface PresenceRow extends QueryResultRow {
+  readonly retained_comparison_body: boolean;
+  readonly retained_comparison_storage: boolean;
+}
+
+const schemaVersions = {
+  comparison_definition: COMPARISON_DEFINITION_SCHEMA_VERSION,
+  comparison_evidence_snapshot: COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
+  comparison_result: COMPARISON_RESULT_SCHEMA_VERSION,
+} satisfies Record<ComparisonRecordKind, string>;
 
 interface ComparisonProjection {
   readonly actorPrincipalId: string;
@@ -197,7 +236,9 @@ async function loadStored(
 ): Promise<StoredComparisonRow | null> {
   const result = await client.query<StoredComparisonRow>(
     `SELECT tenant_id, project_id, environment_id, record_kind, record_id,
-       schema_version, definition_sha256, created_at_lexical, actor_principal_id,
+       schema_version, definition_sha256, created_at_lexical,
+       isfinite(created_at) AND created_at = created_at_lexical::timestamptz AS created_at_matches,
+       actor_principal_id,
        comparison_id, comparison_version_id, comparison_role, lineage_count, record
      FROM public.proofstack_comparison_records
      WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
@@ -225,6 +266,7 @@ function parseStored(kind: ComparisonRecordKind, row: StoredComparisonRow): Comp
       record.schemaVersion !== row.schema_version ||
       record.definitionSha256 !== row.definition_sha256 ||
       projected.createdAt !== row.created_at_lexical ||
+      row.created_at_matches !== true ||
       projected.actorPrincipalId !== row.actor_principal_id ||
       projected.comparisonId !== row.comparison_id ||
       projected.comparisonVersionId !== row.comparison_version_id ||
@@ -243,7 +285,7 @@ function parseStored(kind: ComparisonRecordKind, row: StoredComparisonRow): Comp
 }
 
 async function requireCanonicalOutbox(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   intent: ComparisonOutboxIntent,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
@@ -266,6 +308,173 @@ async function requireCanonicalOutbox(
   }
 }
 
+async function requireRegistryAndLineage(
+  client: Pick<PoolClient, "query">,
+  kind: ComparisonRecordKind,
+  record: ComparisonRecord,
+): Promise<void> {
+  const scope = record.scope;
+  const id = comparisonRecordId(kind, record);
+  const references = comparisonRecordReferences(kind, record);
+  if (references.length > 3)
+    throw new ComparisonRepositoryContractError("Comparison physical reference limit exceeded");
+  const registry = await client.query<RegistryRow>(
+    `SELECT project_id, environment_id, schema_version, definition_sha256
+     FROM public.proofstack_comparison_record_registry
+     WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3 LIMIT 2`,
+    [scope.tenantId, kind, id],
+  );
+  const child = registry.rows[0];
+  if (
+    registry.rows.length !== 1 ||
+    !child ||
+    child.project_id !== scope.projectId ||
+    child.environment_id !== scope.environmentId ||
+    child.schema_version !== record.schemaVersion ||
+    child.definition_sha256 !== record.definitionSha256
+  )
+    throw new ComparisonRepositoryContractError(
+      "Stored comparison registry differs from its canonical body",
+    );
+  const lineage = await client.query<LineageRow>(
+    `SELECT edge.edge_position, edge.parent_record_kind, edge.parent_record_id,
+       edge.parent_definition_sha256, parent.schema_version AS parent_schema_version,
+       (edge.project_id=$4 AND edge.environment_id=$5 AND edge.child_definition_sha256=$6) AS child_matches,
+       (parent.record_id IS NOT NULL) AS parent_matches
+     FROM public.proofstack_comparison_lineage AS edge
+     LEFT JOIN public.proofstack_comparison_record_registry AS parent
+       ON parent.tenant_id=edge.tenant_id AND parent.project_id=edge.project_id
+       AND parent.environment_id=edge.environment_id AND parent.record_kind=edge.parent_record_kind
+       AND parent.record_id=edge.parent_record_id AND parent.definition_sha256=edge.parent_definition_sha256
+     WHERE edge.tenant_id=$1 AND edge.child_record_kind=$2 AND edge.child_record_id=$3
+     ORDER BY edge.edge_position LIMIT $7`,
+    [
+      scope.tenantId,
+      kind,
+      id,
+      scope.projectId,
+      scope.environmentId,
+      record.definitionSha256,
+      references.length + 1,
+    ],
+  );
+  if (lineage.rows.length !== references.length)
+    throw new ComparisonRepositoryContractError(
+      "Stored comparison physical lineage is incomplete or excessive",
+    );
+  for (const [position, edge] of lineage.rows.entries()) {
+    const expected = references[position];
+    if (
+      !expected ||
+      edge.edge_position !== position ||
+      edge.child_matches !== true ||
+      edge.parent_matches !== true ||
+      edge.parent_record_kind !== expected.recordKind ||
+      edge.parent_record_id !== expected.recordId ||
+      edge.parent_definition_sha256 !== expected.definitionSha256 ||
+      edge.parent_schema_version !== schemaVersions[expected.recordKind]
+    )
+      throw new ComparisonRepositoryContractError(
+        "Stored comparison physical lineage differs from its canonical positional references",
+      );
+  }
+  await requireCanonicalOutbox(
+    client,
+    outboxIntent(kind, id, record, projection(kind, record).createdAt),
+  );
+}
+
+async function requirePhysicalIntegrity(
+  client: Pick<PoolClient, "query">,
+  kind: ComparisonRecordKind,
+  record: ComparisonRecord,
+): Promise<void> {
+  await requireRegistryAndLineage(client, kind, record);
+  const scope = record.scope;
+  const comparisonId = projection(kind, record).comparisonId;
+  const resources = await client.query<ResourceRow>(
+    `SELECT project_id, environment_id, root_record_kind, root_record_id, root_definition_sha256
+     FROM public.proofstack_comparison_resource_bindings
+     WHERE tenant_id=$1 AND comparison_id=$2 LIMIT 2`,
+    [scope.tenantId, comparisonId],
+  );
+  const binding = resources.rows[0];
+  if (
+    resources.rows.length !== 1 ||
+    !binding ||
+    binding.project_id !== scope.projectId ||
+    binding.environment_id !== scope.environmentId ||
+    binding.root_record_kind !== "comparison_definition"
+  )
+    throw new ComparisonRepositoryContractError(
+      "Stored comparison logical resource binding is inconsistent",
+    );
+  let root: ComparisonRecord = record;
+  if (
+    kind !== "comparison_definition" ||
+    binding.root_record_id !== comparisonRecordId(kind, record)
+  ) {
+    const stored = await loadStored(
+      client,
+      "comparison_definition",
+      scope.tenantId,
+      binding.root_record_id,
+      scope,
+    );
+    if (!stored)
+      throw new ComparisonRepositoryContractError("Stored comparison logical root body is missing");
+    root = parseStored("comparison_definition", stored);
+  }
+  const definition = root as ComparisonDefinition;
+  if (
+    !scopesEqual(root.scope, scope) ||
+    root.schemaVersion !== COMPARISON_DEFINITION_SCHEMA_VERSION ||
+    definition.comparisonId !== comparisonId ||
+    definition.comparisonVersionId !== binding.root_record_id ||
+    root.definitionSha256 !== binding.root_definition_sha256
+  )
+    throw new ComparisonRepositoryContractError(
+      "Stored comparison logical root differs from its canonical resource",
+    );
+  if (root !== record) await requireRegistryAndLineage(client, "comparison_definition", root);
+}
+
+async function inspectScopedPresence(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  kind: ComparisonRecordKind,
+  id: string,
+): Promise<boolean> {
+  const result = await client.query<PresenceRow>(
+    `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_comparison_records
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND record_kind=$4 AND record_id=$5
+     ) AS retained_comparison_body, EXISTS (
+       SELECT 1 FROM public.proofstack_comparison_record_registry
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND record_kind=$4 AND record_id=$5
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_comparison_lineage
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND child_record_kind=$4 AND child_record_id=$5
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_comparison_resource_bindings
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND root_record_kind=$4 AND root_record_id=$5
+     ) AS retained_comparison_storage`,
+    [scope.tenantId, scope.projectId, scope.environmentId, kind, id],
+  );
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_comparison_body !== "boolean" ||
+    typeof row.retained_comparison_storage !== "boolean" ||
+    row.retained_comparison_body !== row.retained_comparison_storage
+  )
+    throw new ComparisonRepositoryContractError(
+      "Stored comparison scoped presence violates its storage contract",
+    );
+  return row.retained_comparison_body;
+}
+
 type ComparisonRecordByKind = {
   readonly comparison_definition: ComparisonDefinition;
   readonly comparison_evidence_snapshot: ComparisonEvidenceSnapshot;
@@ -280,10 +489,16 @@ export async function readPostgresComparisonRecordOnClient<K extends ComparisonR
   recordId: string,
 ): Promise<ComparisonRecordByKind[K] | null> {
   const scope = { ...scopeInput };
+  if (!(await inspectScopedPresence(client, scope, kind, recordId))) return null;
   const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
-  if (!row) return null;
+  if (!row)
+    throw new ComparisonRepositoryContractError(
+      "Stored comparison body disappeared after its scoped presence observation",
+    );
   const record = parseStored(kind, row);
-  return scopesEqual(record.scope, scope) ? (clone(record) as ComparisonRecordByKind[K]) : null;
+  if (!scopesEqual(record.scope, scope)) return null;
+  await requirePhysicalIntegrity(client, kind, record);
+  return clone(record) as ComparisonRecordByKind[K];
 }
 
 export class PostgresComparisonRepository implements ComparisonRepository {
@@ -326,11 +541,7 @@ export class PostgresComparisonRepository implements ComparisonRepository {
           if (existing.definitionSha256 !== record.definitionSha256) {
             throw new ComparisonRecordConflictError(kind, recordId);
           }
-          const existingProjection = projection(kind, existing);
-          await requireCanonicalOutbox(
-            client,
-            outboxIntent(kind, recordId, existing, existingProjection.createdAt),
-          );
+          await requirePhysicalIntegrity(client, kind, existing);
           return {
             created: false,
             record: clone(existing) as ComparisonRecordByKind[K],
@@ -355,7 +566,25 @@ export class PostgresComparisonRepository implements ComparisonRepository {
         await client.query("SELECT public.proofstack_publish_comparison_record($1::jsonb)", [
           JSON.stringify(command),
         ]);
-        return { created: true, record: clone(record) };
+        const storedRow = await loadStored(
+          client,
+          kind,
+          record.scope.tenantId,
+          recordId,
+          record.scope,
+        );
+        if (!storedRow)
+          throw new ComparisonRepositoryContractError("Published comparison body is missing");
+        const stored = parseStored(kind, storedRow);
+        if (
+          !scopesEqual(stored.scope, record.scope) ||
+          stored.definitionSha256 !== record.definitionSha256
+        )
+          throw new ComparisonRepositoryContractError(
+            "Published comparison differs from its requested definition",
+          );
+        await requirePhysicalIntegrity(client, kind, stored);
+        return { created: true, record: clone(stored) as ComparisonRecordByKind[K] };
       });
     } catch (error) {
       mapPersistenceError(error, kind, recordId, projected.comparisonId, references);

@@ -119,7 +119,7 @@ afterAll(async () => {
 });
 
 interface Fixture {
-  readonly presenceQuery?: "retained_candidate" | "retained_evaluation";
+  readonly presenceQuery?: "retained_candidate" | "retained_evaluation" | "retained_comparison";
   readonly record: { readonly scope: EvidenceScope; readonly definitionSha256: string };
   readonly read: (
     client: Pick<PoolClient, "query">,
@@ -160,6 +160,7 @@ function comparisonFixture(kind: (typeof comparisonKinds)[number]): Fixture {
   if (!f) throw new Error("Missing comparison scope fixture");
   const id = comparisonRecordId(kind, f.record);
   return {
+    presenceQuery: "retained_comparison",
     record: f.record,
     read: (client, scope, requestedId = id) =>
       readPostgresComparisonRecordOnClient(client, scope, kind, requestedId),

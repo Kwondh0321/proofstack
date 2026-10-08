@@ -357,6 +357,12 @@ intent, including complete criterion history after admission. Same-definition re
 original receipt; same-cut normalized presence preserves normal publication races and scope opacity.
 Complete root admission, semantic/current authority closure and sealed publication remain open.
 
+The subsequent [comparison owning storage validation](workflow-2-comparison-storage-integrity.md)
+checks all three kinds' native receipt, registry, complete fixed positional edges, logical resource/
+root and original intent on the supplied connection. Same-cut normalized presence preserves normal
+atomic publication races and outside-scope opacity. Complete parent semantics/current authority,
+root admission and sealed publication remain open; checkpoint acceptance is unchanged.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

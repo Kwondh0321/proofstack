@@ -12,11 +12,14 @@ The [evaluation owning storage guide](workflow-2-evaluation-storage-integrity.md
 singular/history/retry validation, original receipts and remaining root admission, authority and
 sealing requirements.
 
+The [comparison owning storage guide](workflow-2-comparison-storage-integrity.md) records the three
+kinds' fixed positional lineage, original intent, logical root and normalized presence checks.
+
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical/scalar/native receipt agreement, selected physical registry/lineage/resource/root/unique binding, original intent and same-cut normalized presence |
 | Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage and original intent |
-| Comparison | `readPostgresComparisonRecordOnClient` | Definition, operand snapshots and result; normalized projections and lineage count |
+| Comparison | `readPostgresComparisonRecordOnClient` | All three kinds, normalized/native receipt agreement, selected registry/positional lineage/resource/root, original intent and same-cut normalized presence |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate, normalized/native receipt, selected registry/lineage/resource/root, original intent and scoped normalized absence witnesses |
 | Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Identity-first scope filtering, normalized ordered members/events; recorded fixture ownership/root binding and canonical publication intent; revocation/tombstone/catalog metadata for content availability |
 | Replay definitions | `readPostgresReplayPlanOnClient`, `readPostgresTargetReleaseOnClient` | Exact resource, definition, budget and boundary projections |
