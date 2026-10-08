@@ -43,6 +43,10 @@ ID·schema·scope·시각·주체·상태 일치를 강화하지만 현재 권�
 owning 조회에 이 13종의 선택된 cross-domain registry/lineage·최초 intent 검사를 추가합니다.
 다른 모든 도메인의 관계나 전체 현재 권한을 증명하는 것은 아닙니다.
 
+후속 [candidate 저장 무결성](workflow-2-candidate-storage-integrity.ko.md)은 선택된 registry/
+predecessor/resource/root·최초 intent와 같은 scope의 정규화된 orphan 증거를 검사합니다.
+전체 부재·최초 발행 chronology·권한·sealed 발행은 남아 있습니다.
+
 운영자 소유 installation binding과 runtime definition은 생성자에서 잠금 밖에 복사합니다.
 각 catalogue는 최대 256개이며 중복·잘못된 record는 연결 전에 거절합니다. 이 불변 메모리
 record는 DB 메타데이터나 실행 중 설치 코드의 권한 증거와 구별합니다. 임의 외부 resolver를

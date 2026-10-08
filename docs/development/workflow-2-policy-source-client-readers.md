@@ -13,7 +13,7 @@ repository reads through those same functions. Workflow 2 remains **2/7 accepted
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical record/digest, normalized scope |
 | Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage and original intent |
 | Comparison | `readPostgresComparisonRecordOnClient` | Definition, operand snapshots and result; normalized projections and lineage count |
-| Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate and normalized projections |
+| Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate, normalized/native receipt, selected registry/lineage/resource/root, original intent and scoped normalized absence witnesses |
 | Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Identity-first scope filtering, normalized ordered members/events; recorded fixture ownership/root binding and canonical publication intent; revocation/tombstone/catalog metadata for content availability |
 | Replay definitions | `readPostgresReplayPlanOnClient`, `readPostgresTargetReleaseOnClient` | Exact resource, definition, budget and boundary projections |
 | Replay job | `readPostgresReplayJobSnapshotOnClient` | Existing fixed database snapshot function and complete job/attempt/fence/history validation |
@@ -47,6 +47,10 @@ row checks without establishing complete physical reference agreement or current
 The subsequent [model/human physical validation](workflow-2-model-assurance-storage-integrity.md)
 adds those thirteen kinds' selected cross-domain registry/lineage and original intent checks to
 the same owning reads, without proving every domain's graph or complete current authority.
+
+The subsequent [candidate storage validation](workflow-2-candidate-storage-integrity.md) adds its
+selected registry/predecessor/resource/root and original-intent checks plus scoped normalized
+orphan witnesses. Complete absence, first-publication chronology, authority and sealing remain open.
 
 The adapter copies strict operator-owned installation bindings and runtime definitions at
 construction, outside transaction guards. Each catalogue admits at most 256 entries; duplicates

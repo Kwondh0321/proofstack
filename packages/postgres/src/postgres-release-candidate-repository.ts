@@ -17,6 +17,7 @@ interface StoredReleaseCandidateRow extends QueryResultRow {
   readonly candidate_id: string;
   readonly candidate_version_id: string;
   readonly created_at_lexical: string;
+  readonly created_at_matches: boolean;
   readonly created_by_principal_id: string;
   readonly definition_sha256: string;
   readonly environment_id: string;
@@ -29,6 +30,32 @@ interface StoredReleaseCandidateRow extends QueryResultRow {
 
 interface OutboxIntentRow extends QueryResultRow {
   readonly status: string;
+}
+
+interface CandidateRegistryRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly schema_version: string;
+  readonly definition_sha256: string;
+}
+
+interface CandidateLineageRow extends QueryResultRow {
+  readonly parent_candidate_version_id: string;
+  readonly parent_definition_sha256: string;
+  readonly child_matches: boolean;
+  readonly parent_matches: boolean;
+}
+
+interface CandidateResourceRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly root_candidate_version_id: string;
+  readonly root_definition_sha256: string;
+  readonly root_matches: boolean;
+}
+
+interface CandidatePresenceRow extends QueryResultRow {
+  readonly retained_candidate_storage: boolean;
 }
 
 function clone<Value>(value: Value): Value {
@@ -107,7 +134,8 @@ async function loadStored(
   const result = await client.query<StoredReleaseCandidateRow>(
     `SELECT tenant_id, project_id, environment_id, candidate_id, candidate_version_id,
        schema_version, definition_sha256, created_at_lexical, created_by_principal_id,
-       lineage_count, record
+       lineage_count, record,
+       created_at = created_at_lexical::timestamptz AS created_at_matches
      FROM public.proofstack_release_candidates
      WHERE tenant_id = $1 AND candidate_version_id = $2
        ${exactScope ? "AND project_id = $3 AND environment_id = $4" : ""}`,
@@ -132,6 +160,7 @@ function parseStored(row: StoredReleaseCandidateRow): ReleaseCandidate {
       candidate.schemaVersion !== row.schema_version ||
       candidate.definitionSha256 !== row.definition_sha256 ||
       candidate.createdAt !== row.created_at_lexical ||
+      row.created_at_matches !== true ||
       candidate.createdByPrincipalId !== row.created_by_principal_id ||
       Number(candidate.predecessor !== undefined) !== row.lineage_count
     ) {
@@ -151,7 +180,7 @@ function outboxPayload(candidate: ReleaseCandidate): Readonly<Record<string, unk
 }
 
 async function requireCanonicalOutbox(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   candidate: ReleaseCandidate,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
@@ -172,6 +201,166 @@ async function requireCanonicalOutbox(
   }
 }
 
+async function requireRegistryAndLineage(
+  client: Pick<PoolClient, "query">,
+  candidate: ReleaseCandidate,
+): Promise<void> {
+  const values = [
+    candidate.scope.tenantId,
+    candidate.candidateVersionId,
+    candidate.scope.projectId,
+    candidate.scope.environmentId,
+    candidate.definitionSha256,
+    candidate.schemaVersion,
+  ];
+  const registry = await client.query<CandidateRegistryRow>(
+    `SELECT project_id, environment_id, schema_version, definition_sha256
+     FROM public.proofstack_release_candidate_registry
+     WHERE tenant_id = $1 AND candidate_version_id = $2 LIMIT 2`,
+    values.slice(0, 2),
+  );
+  const child = registry.rows[0];
+  if (
+    registry.rows.length !== 1 ||
+    !child ||
+    child.project_id !== candidate.scope.projectId ||
+    child.environment_id !== candidate.scope.environmentId ||
+    child.schema_version !== candidate.schemaVersion ||
+    child.definition_sha256 !== candidate.definitionSha256
+  ) {
+    throw new ReleaseCandidateRepositoryContractError(
+      "Stored release candidate registry differs from its canonical body",
+    );
+  }
+  const lineage = await client.query<CandidateLineageRow>(
+    `SELECT edge.parent_candidate_version_id, edge.parent_definition_sha256,
+       edge.project_id = $3 AND edge.environment_id = $4
+         AND edge.child_definition_sha256 = $5 AS child_matches,
+       EXISTS (
+         SELECT 1 FROM public.proofstack_release_candidate_registry AS parent
+         WHERE parent.tenant_id = edge.tenant_id
+           AND parent.project_id = edge.project_id
+           AND parent.environment_id = edge.environment_id
+           AND parent.candidate_version_id = edge.parent_candidate_version_id
+           AND parent.definition_sha256 = edge.parent_definition_sha256
+           AND parent.schema_version = $6
+       ) AS parent_matches
+     FROM public.proofstack_release_candidate_lineage AS edge
+     WHERE edge.tenant_id = $1 AND edge.child_candidate_version_id = $2 LIMIT 2`,
+    values,
+  );
+  const expected = candidate.predecessor;
+  const edge = lineage.rows[0];
+  if (
+    lineage.rows.length !== Number(expected !== undefined) ||
+    (expected &&
+      (!edge ||
+        edge.parent_candidate_version_id !== expected.candidateVersionId ||
+        edge.parent_definition_sha256 !== expected.definitionSha256 ||
+        edge.child_matches !== true ||
+        edge.parent_matches !== true))
+  ) {
+    throw new ReleaseCandidateRepositoryContractError(
+      "Stored release candidate lineage differs from its canonical predecessor",
+    );
+  }
+}
+
+async function requirePhysicalIntegrity(
+  client: Pick<PoolClient, "query">,
+  candidate: ReleaseCandidate,
+): Promise<void> {
+  await requireRegistryAndLineage(client, candidate);
+  const resources = await client.query<CandidateResourceRow>(
+    `SELECT binding.project_id, binding.environment_id, binding.root_candidate_version_id,
+       binding.root_definition_sha256,
+       EXISTS (
+         SELECT 1 FROM public.proofstack_release_candidate_registry AS root
+         WHERE root.tenant_id = binding.tenant_id
+           AND root.project_id = binding.project_id
+           AND root.environment_id = binding.environment_id
+           AND root.candidate_version_id = binding.root_candidate_version_id
+           AND root.definition_sha256 = binding.root_definition_sha256
+           AND root.schema_version = $3
+       ) AS root_matches
+     FROM public.proofstack_release_candidate_resources AS binding
+     WHERE binding.tenant_id = $1 AND binding.candidate_id = $2 LIMIT 2`,
+    [candidate.scope.tenantId, candidate.candidateId, candidate.schemaVersion],
+  );
+  const binding = resources.rows[0];
+  if (
+    resources.rows.length !== 1 ||
+    !binding ||
+    binding.project_id !== candidate.scope.projectId ||
+    binding.environment_id !== candidate.scope.environmentId ||
+    binding.root_matches !== true
+  ) {
+    throw new ReleaseCandidateRepositoryContractError(
+      "Stored release candidate logical resource binding is inconsistent",
+    );
+  }
+  let root = candidate;
+  if (binding.root_candidate_version_id !== candidate.candidateVersionId) {
+    const row = await loadStored(
+      client,
+      candidate.scope.tenantId,
+      binding.root_candidate_version_id,
+      candidate.scope,
+    );
+    if (!row) {
+      throw new ReleaseCandidateRepositoryContractError(
+        "Stored release candidate logical root is missing its exact body",
+      );
+    }
+    root = parseStored(row);
+  }
+  if (
+    root.candidateId !== candidate.candidateId ||
+    root.candidateVersionId !== binding.root_candidate_version_id ||
+    root.definitionSha256 !== binding.root_definition_sha256 ||
+    root.schemaVersion !== candidate.schemaVersion ||
+    !scopesEqual(root.scope, candidate.scope) ||
+    root.predecessor !== undefined
+  ) {
+    throw new ReleaseCandidateRepositoryContractError(
+      "Stored release candidate logical root differs from its canonical body",
+    );
+  }
+  if (root !== candidate) {
+    await requireRegistryAndLineage(client, root);
+    await requireCanonicalOutbox(client, root);
+  }
+  await requireCanonicalOutbox(client, candidate);
+}
+
+async function requireAbsentStorage(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  candidateVersionId: string,
+): Promise<void> {
+  const result = await client.query<CandidatePresenceRow>(
+    `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_release_candidate_registry
+       WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
+         AND candidate_version_id = $4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_candidate_lineage
+       WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
+         AND child_candidate_version_id = $4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_candidate_resources
+       WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
+         AND root_candidate_version_id = $4
+     ) AS retained_candidate_storage`,
+    [scope.tenantId, scope.projectId, scope.environmentId, candidateVersionId],
+  );
+  if (result.rows.length !== 1 || result.rows[0]?.retained_candidate_storage !== false) {
+    throw new ReleaseCandidateRepositoryContractError(
+      "Stored release candidate scoped metadata is inconsistent with its absent body",
+    );
+  }
+}
+
 /** Exact normalized candidate read on the caller-owned scoped connection. */
 export async function readPostgresReleaseCandidateOnClient(
   client: Pick<PoolClient, "query">,
@@ -180,9 +369,14 @@ export async function readPostgresReleaseCandidateOnClient(
 ): Promise<ReleaseCandidate | null> {
   const scope = { ...scopeInput };
   const row = await loadStored(client, scope.tenantId, candidateVersionId, scope);
-  if (!row) return null;
+  if (!row) {
+    await requireAbsentStorage(client, scope, candidateVersionId);
+    return null;
+  }
   const candidate = parseStored(row);
-  return scopesEqual(candidate.scope, scope) ? clone(candidate) : null;
+  if (!scopesEqual(candidate.scope, scope)) return null;
+  await requirePhysicalIntegrity(client, candidate);
+  return clone(candidate);
 }
 
 export class PostgresReleaseCandidateRepository implements ReleaseCandidateRepository {
@@ -222,7 +416,7 @@ export class PostgresReleaseCandidateRepository implements ReleaseCandidateRepos
           if (existing.definitionSha256 !== candidate.definitionSha256) {
             throw new ReleaseCandidateVersionConflictError(candidate.candidateVersionId);
           }
-          await requireCanonicalOutbox(client, existing);
+          await requirePhysicalIntegrity(client, existing);
           return { candidate: clone(existing), created: false };
         }
 
@@ -253,7 +447,7 @@ export class PostgresReleaseCandidateRepository implements ReleaseCandidateRepos
           );
         }
         const stored = parseStored(storedRow);
-        await requireCanonicalOutbox(client, stored);
+        await requirePhysicalIntegrity(client, stored);
         return { candidate: clone(stored), created: true };
       });
     } catch (error) {

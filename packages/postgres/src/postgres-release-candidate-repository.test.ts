@@ -18,6 +18,7 @@ interface FakeStoredRow {
   readonly candidate_id: string;
   readonly candidate_version_id: string;
   readonly created_at_lexical: string;
+  readonly created_at_matches: boolean;
   readonly created_by_principal_id: string;
   readonly definition_sha256: string;
   readonly environment_id: string;
@@ -33,6 +34,7 @@ function storedRow(candidate: ReleaseCandidate): FakeStoredRow {
     candidate_id: candidate.candidateId,
     candidate_version_id: candidate.candidateVersionId,
     created_at_lexical: candidate.createdAt,
+    created_at_matches: true,
     created_by_principal_id: candidate.createdByPrincipalId,
     definition_sha256: candidate.definitionSha256,
     environment_id: candidate.scope.environmentId,
@@ -61,6 +63,49 @@ class FakeClient {
     values?: readonly unknown[],
   ): Promise<{ readonly rows: readonly unknown[] }> {
     this.statements.push(text.trim());
+    if (text.includes("AS retained_candidate_storage")) {
+      return { rows: [{ retained_candidate_storage: false }] };
+    }
+    if (text.includes("FROM public.proofstack_release_candidate_resources AS binding")) {
+      const root = [...this.records.values()].find(
+        (row) =>
+          row.tenant_id === values?.[0] &&
+          row.candidate_id === values?.[1] &&
+          !(row.record as ReleaseCandidate).predecessor,
+      );
+      return {
+        rows: root
+          ? [
+              {
+                ...root,
+                root_candidate_version_id: root.candidate_version_id,
+                root_definition_sha256: root.definition_sha256,
+                root_matches: true,
+              },
+            ]
+          : [],
+      };
+    }
+    if (text.includes("FROM public.proofstack_release_candidate_lineage AS edge")) {
+      const row = this.records.get(`${String(values?.[0])}:${String(values?.[1])}`);
+      const predecessor = (row?.record as ReleaseCandidate | undefined)?.predecessor;
+      return {
+        rows: predecessor
+          ? [
+              {
+                parent_candidate_version_id: predecessor.candidateVersionId,
+                parent_definition_sha256: predecessor.definitionSha256,
+                child_matches: true,
+                parent_matches: true,
+              },
+            ]
+          : [],
+      };
+    }
+    if (text.includes("FROM public.proofstack_release_candidate_registry")) {
+      const row = this.records.get(`${String(values?.[0])}:${String(values?.[1])}`);
+      return { rows: row ? [structuredClone(row)] : [] };
+    }
     if (text.includes("FROM public.proofstack_release_candidates")) {
       const key = `${String(values?.[0])}:${String(values?.[1])}`;
       const row = this.records.get(key);
@@ -96,6 +141,251 @@ function repositoryWith(client: FakeClient): PostgresReleaseCandidateRepository 
 }
 
 describe("PostgresReleaseCandidateRepository", () => {
+  it.each([false, null, undefined, "true", "false", 1])(
+    "rejects non-native or false retained timestamp agreement %s",
+    async (flag) => {
+      const h = createReleaseCandidateRepositoryTestHarness("candidate_native_receipt");
+      const client = new FakeClient();
+      client.records.set(`${h.scope.tenantId}:${h.candidate.candidateVersionId}`, {
+        ...storedRow(h.candidate),
+        created_at_matches: flag as boolean,
+      });
+      await expect(
+        repositoryWith(client).findReleaseCandidate(h.scope, h.candidate.candidateVersionId),
+      ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
+    },
+  );
+
+  it.each([
+    { name: "missing", rows: [] },
+    {
+      name: "duplicate",
+      rows: [{ retained_candidate_storage: false }, { retained_candidate_storage: false }],
+    },
+    ...[true, null, undefined, "false", 0].map((flag) => ({
+      name: `invalid_${String(flag)}`,
+      rows: [{ retained_candidate_storage: flag }],
+    })),
+  ])("rejects $name absence witnesses without transaction cleanup", async ({ rows }) => {
+    const h = createReleaseCandidateRepositoryTestHarness("candidate_absence_witness");
+    const client = new FakeClient();
+    const view = {
+      query: async (sql: string, values?: readonly unknown[]) => {
+        const result = await client.query(sql, values);
+        return sql.includes("AS retained_candidate_storage") ? { rows } : result;
+      },
+    } as unknown as Pick<PoolClient, "query">;
+    await expect(
+      readPostgresReleaseCandidateOnClient(view, h.scope, "candidate_missing"),
+    ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
+    expect(client.releases).toEqual([]);
+    expect(client.statements.every((sql) => sql.startsWith("SELECT"))).toBe(true);
+  });
+
+  it.each([
+    {
+      name: "missing registry",
+      target: "FROM public.proofstack_release_candidate_registry",
+      field: null,
+      value: null,
+    },
+    {
+      name: "registry project",
+      target: "FROM public.proofstack_release_candidate_registry",
+      field: "project_id",
+      value: "project_other",
+    },
+    {
+      name: "registry environment",
+      target: "FROM public.proofstack_release_candidate_registry",
+      field: "environment_id",
+      value: "environment_other",
+    },
+    {
+      name: "registry schema",
+      target: "FROM public.proofstack_release_candidate_registry",
+      field: "schema_version",
+      value: "0.2",
+    },
+    {
+      name: "registry digest",
+      target: "FROM public.proofstack_release_candidate_registry",
+      field: "definition_sha256",
+      value: "f".repeat(64),
+    },
+    {
+      name: "missing lineage",
+      target: "FROM public.proofstack_release_candidate_lineage AS edge",
+      field: null,
+      value: null,
+    },
+    {
+      name: "lineage parent",
+      target: "FROM public.proofstack_release_candidate_lineage AS edge",
+      field: "parent_candidate_version_id",
+      value: "candidate_other",
+    },
+    {
+      name: "lineage digest",
+      target: "FROM public.proofstack_release_candidate_lineage AS edge",
+      field: "parent_definition_sha256",
+      value: "f".repeat(64),
+    },
+    {
+      name: "lineage child native flag",
+      target: "FROM public.proofstack_release_candidate_lineage AS edge",
+      field: "child_matches",
+      value: "true",
+    },
+    {
+      name: "lineage parent native flag",
+      target: "FROM public.proofstack_release_candidate_lineage AS edge",
+      field: "parent_matches",
+      value: "true",
+    },
+    {
+      name: "missing binding",
+      target: "FROM public.proofstack_release_candidate_resources AS binding",
+      field: null,
+      value: null,
+    },
+    {
+      name: "binding project",
+      target: "FROM public.proofstack_release_candidate_resources AS binding",
+      field: "project_id",
+      value: "project_other",
+    },
+    {
+      name: "binding environment",
+      target: "FROM public.proofstack_release_candidate_resources AS binding",
+      field: "environment_id",
+      value: "environment_other",
+    },
+    {
+      name: "binding root native flag",
+      target: "FROM public.proofstack_release_candidate_resources AS binding",
+      field: "root_matches",
+      value: "true",
+    },
+    {
+      name: "binding root digest",
+      target: "FROM public.proofstack_release_candidate_resources AS binding",
+      field: "root_definition_sha256",
+      value: "f".repeat(64),
+    },
+  ])("rejects $name before accepting a canonical successor", async ({ target, field, value }) => {
+    const h = createReleaseCandidateRepositoryTestHarness("candidate_physical_unit");
+    const client = new FakeClient();
+    client.records.set(
+      `${h.scope.tenantId}:${h.candidate.candidateVersionId}`,
+      storedRow(h.candidate),
+    );
+    client.records.set(
+      `${h.scope.tenantId}:${h.successor.candidateVersionId}`,
+      storedRow(h.successor),
+    );
+    const view = {
+      query: async (sql: string, values?: readonly unknown[]) => {
+        const result = await client.query(sql, values);
+        // Change only the owning child response; nested parent predicates remain actual flags.
+        if (!sql.includes(target)) return result;
+        return {
+          rows:
+            field === null
+              ? []
+              : result.rows.map((row) => ({ ...(row as object), [field]: value })),
+        };
+      },
+    } as unknown as Pick<PoolClient, "query">;
+    await expect(
+      readPostgresReleaseCandidateOnClient(view, h.scope, h.successor.candidateVersionId),
+    ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
+    expect(client.releases).toEqual([]);
+  });
+
+  it("does not accept a successor as a logical root or an extra edge on a root", async () => {
+    const h = createReleaseCandidateRepositoryTestHarness("candidate_root_unit");
+    for (const failure of ["successor_root", "unexpected_root_edge"] as const) {
+      const client = new FakeClient();
+      client.records.set(
+        `${h.scope.tenantId}:${h.candidate.candidateVersionId}`,
+        storedRow(h.candidate),
+      );
+      client.records.set(
+        `${h.scope.tenantId}:${h.successor.candidateVersionId}`,
+        storedRow(h.successor),
+      );
+      const view = {
+        query: async (sql: string, values?: readonly unknown[]) => {
+          const result = await client.query(sql, values);
+          if (
+            failure === "successor_root" &&
+            sql.includes("FROM public.proofstack_release_candidate_resources AS binding")
+          )
+            return {
+              rows: [
+                {
+                  project_id: h.scope.projectId,
+                  environment_id: h.scope.environmentId,
+                  root_candidate_version_id: h.successor.candidateVersionId,
+                  root_definition_sha256: h.successor.definitionSha256,
+                  root_matches: true,
+                },
+              ],
+            };
+          if (
+            failure === "unexpected_root_edge" &&
+            sql.includes("FROM public.proofstack_release_candidate_lineage AS edge") &&
+            values?.[1] === h.candidate.candidateVersionId
+          )
+            return {
+              rows: [
+                {
+                  parent_candidate_version_id: h.successor.candidateVersionId,
+                  parent_definition_sha256: h.successor.definitionSha256,
+                  child_matches: true,
+                  parent_matches: true,
+                },
+              ],
+            };
+          return result;
+        },
+      } as unknown as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresReleaseCandidateOnClient(view, h.scope, h.successor.candidateVersionId),
+      ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
+    }
+  });
+
+  it("rejects a missing exact logical-root body despite an asserted root registry match", async () => {
+    const h = createReleaseCandidateRepositoryTestHarness("candidate_root_missing");
+    const client = new FakeClient();
+    client.records.set(
+      `${h.scope.tenantId}:${h.successor.candidateVersionId}`,
+      storedRow(h.successor),
+    );
+    const view = {
+      query: async (sql: string, values?: readonly unknown[]) => {
+        const result = await client.query(sql, values);
+        if (sql.includes("FROM public.proofstack_release_candidate_resources AS binding"))
+          return {
+            rows: [
+              {
+                project_id: h.scope.projectId,
+                environment_id: h.scope.environmentId,
+                root_candidate_version_id: h.candidate.candidateVersionId,
+                root_definition_sha256: h.candidate.definitionSha256,
+                root_matches: true,
+              },
+            ],
+          };
+        return result;
+      },
+    } as unknown as Pick<PoolClient, "query">;
+    await expect(
+      readPostgresReleaseCandidateOnClient(view, h.scope, h.successor.candidateVersionId),
+    ).rejects.toThrow("missing its exact body");
+  });
   it("owns read scope before awaiting the supplied client or pool", async () => {
     const { candidate } = createReleaseCandidateRepositoryTestHarness("client_scope_copy");
     const scope = { ...candidate.scope };

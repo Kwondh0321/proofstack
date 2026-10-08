@@ -346,6 +346,11 @@ through existing read grants. Scope opacity and original retry receipts remain i
 closes those thirteen kinds' storage checks, not every other domain's graph, complete parent
 semantics, reverse/mutable/live authority, sealing or checkpoint acceptance.
 
+The subsequent [candidate owning storage validation](workflow-2-candidate-storage-integrity.md)
+checks its exact registry/predecessor/resource/root, native receipt and original intent, and
+rejects scoped normalized metadata without a body. It preserves opaque outside scope and original
+retry receipts. Complete orphan/first-publication/authority closure and sealing remain open.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

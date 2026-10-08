@@ -119,6 +119,7 @@ afterAll(async () => {
 });
 
 interface Fixture {
+  readonly reconcilesAbsence?: boolean;
   readonly record: { readonly scope: EvidenceScope; readonly definitionSha256: string };
   readonly read: (
     client: Pick<PoolClient, "query">,
@@ -185,6 +186,7 @@ function comparisonFixture(kind: (typeof comparisonKinds)[number]): Fixture {
 function candidateFixture(): Fixture {
   const record = candidate.candidate;
   return {
+    reconcilesAbsence: true,
     record,
     read: (client, scope, id = record.candidateVersionId) =>
       readPostgresReleaseCandidateOnClient(client, scope, id),
@@ -259,8 +261,12 @@ async function verifyScope(f: Fixture) {
           } as Pick<PoolClient, "query">;
           if (index < 3) {
             await expect(f.read(view, scope)).resolves.toBeNull();
-            expect(calls).toHaveLength(1);
+            expect(calls).toHaveLength(f.reconcilesAbsence ? 2 : 1);
             expect(calls[0]?.rows).toBe(0);
+            if (f.reconcilesAbsence) {
+              expect(calls[1]?.sql).toContain("AS retained_candidate_storage");
+              expect(calls[1]?.rows).toBe(1);
+            }
           } else await expect(f.read(view, scope)).rejects.toThrow(/canonical|contract/);
         } finally {
           await client.query("ROLLBACK TO SAVEPOINT retained_original");

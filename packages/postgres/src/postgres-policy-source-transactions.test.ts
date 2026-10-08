@@ -43,9 +43,11 @@ function fixture() {
             ? { rows: [{ ledger: "proofstack_schema_migrations" }] }
             : text.includes("SELECT id, checksum")
               ? { rows: migrationRows }
-              : text.includes("proofstack_read_replay_job_snapshot")
-                ? { rows: [{ snapshot: null }] }
-                : { rows: [] },
+              : text.includes("AS retained_candidate_storage")
+                ? { rows: [{ retained_candidate_storage: false }] }
+                : text.includes("proofstack_read_replay_job_snapshot")
+                  ? { rows: [{ snapshot: null }] }
+                  : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {
