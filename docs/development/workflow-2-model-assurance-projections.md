@@ -52,6 +52,19 @@ mutable/live authority, complete closure, worker leases/fences, sealed contracts
 snapshot/job publication remain open. Returned read reports still end before publication authority
 could be exercised; the same-transaction guarded/sealed protocol remains required.
 
+## Same-definition retries retain original receipts
+
+A retry with the same canonical definition may carry a different publication/recording receipt
+and, where excluded from that definition, a different recording principal. Memory and PostgreSQL
+repositories return the original immutable record with `created: false`; they never replace its
+receipt or outbox. PostgreSQL validates the canonical outbox against the stored original body and
+original receipt, rather than against the incoming retry's receipt. A different definition still
+conflicts. Both candidates and returned records remain detached from repository state.
+
+An absent or conflicting original intent fails the entire retry. Even an intent matching only the
+incoming retry cannot stand in for the original. This publication check does not yet add complete
+physical registry/lineage/outbox validation to ordinary reads, nor establish current authority.
+
 ## Verification
 
 Real PostgreSQL runtime-role cases omit every required actor and lifecycle across control,
@@ -66,3 +79,11 @@ are validated, and repeat migration is idempotent. A legacy null-actor mismatch 
 owning reader before upgrade and prevents migration without changing retained state or advancing
 the ledger. Existing forced-RLS supplied-client coverage reads all 13 kinds under the metadata
 barrier. These fixtures establish no production readiness or additional checkpoint acceptance.
+
+Shared memory and real PostgreSQL cases cover receipt changes across all 13 kinds, including
+actor changes where permitted by the canonical definition. PostgreSQL writes use their existing
+control/model-worker/human-review roles; retries preserve registry, body, lineage and outbox.
+Isolated administrator corruption fixtures separately cover absent, conflicting-original and
+incoming-only intents. The normal role's fixed intent-status function confirms each fixture before
+the retry rejects without changing retained state. Runtime privileges and canonical checks remain
+unchanged.

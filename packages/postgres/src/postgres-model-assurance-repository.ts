@@ -356,7 +356,6 @@ export class PostgresModelAssuranceRepository implements ModelAssuranceRepositor
     const recordId = modelAssuranceRecordId(kind, record);
     const references = modelAssuranceRecordReferences(kind, record);
     const projected = projection(kind, record);
-    const intent = outboxIntent(kind, recordId, record, projected.recordedAt);
     const lockPrefix = `proofstack:model-assurance:${record.scope.tenantId}`;
     const lockKeys = [
       `${lockPrefix}:record:${kind}:${recordId}`,
@@ -374,7 +373,10 @@ export class PostgresModelAssuranceRepository implements ModelAssuranceRepositor
           if (existing.definitionSha256 !== record.definitionSha256) {
             throw new ModelAssuranceRecordConflictError(kind, recordId);
           }
-          await requireCanonicalOutbox(client, intent);
+          await requireCanonicalOutbox(
+            client,
+            outboxIntent(kind, recordId, existing, projection(kind, existing).recordedAt),
+          );
           return {
             created: false,
             record: clone(existing) as ModelAssuranceRecordByKind[K],

@@ -6,15 +6,19 @@ import type {
   ModelEvaluatorProfile,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
+import { CreateModelAssuranceAssessment } from "../evaluation/create-model-assurance-assessment.js";
 import { digestModelAssuranceRecordDefinition } from "../evaluation/model-assurance-record-validation.js";
 import {
   InvalidModelAssuranceRecordInputError,
   ModelAssuranceLineageError,
-  ModelAssuranceRecordConflictError,
   type ModelAssuranceRecord,
+  ModelAssuranceRecordConflictError,
   type ModelAssuranceRecordKind,
 } from "../evaluation/model-assurance-repository.js";
+import { FixedClock } from "./fixed-clock.js";
 import { MemoryModelAssuranceRepository } from "./memory-model-assurance-repository.js";
+import { createModelAssuranceRepositoryTestHarness } from "./model-assurance-repository-fixtures.js";
+import { modelAssuranceRetryConformanceCases } from "./model-assurance-retry-conformance.js";
 
 interface PublicVector {
   readonly input: { readonly definition: Record<string, unknown>; readonly scope: EvidenceScope };
@@ -130,6 +134,27 @@ function redigest(kind: ModelAssuranceRecordKind, record: ModelAssuranceRecord):
 }
 
 describe("MemoryModelAssuranceRepository", () => {
+  for (const testCase of modelAssuranceRetryConformanceCases) {
+    it(testCase.name, async () => {
+      const h = await createModelAssuranceRepositoryTestHarness("memory_retry");
+      const assessment = await new CreateModelAssuranceAssessment({
+        clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+        evaluationRepository: h.evaluation.repository,
+        modelAssuranceRepository: h.repository,
+      }).execute(h.command);
+      await testCase.run({
+        repository: h.repository,
+        records: [
+          ...h.records,
+          {
+            kind: "model_assurance_assessment",
+            record: assessment.record,
+          },
+        ],
+      });
+    });
+  }
+
   it("owns values, returns exact-scope reads, and preserves idempotent originals", async () => {
     const repository = new MemoryModelAssuranceRepository();
     const candidate = profile();

@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 import {
+  AuthoritySplitModelAssuranceRepository,
   CreateModelAssuranceAssessment,
   type ModelAssuranceRecordKind,
   ModelAssuranceRepositoryContractError,
   modelAssuranceRecordId,
+  validateModelAssuranceRecord,
 } from "@proofstack/core";
 import {
   createModelAssuranceRepositoryTestHarness,
   FixedClock,
   type ModelAssuranceRepositoryFixtureRecord,
+  modelAssuranceRetryConformanceCases,
   publishEvaluationFixture,
 } from "@proofstack/core/testing";
 import { Pool, type PoolClient } from "pg";
@@ -371,6 +374,117 @@ describe("model-assurance scalar integrity through actual runtime publication", 
 });
 
 describe("PostgresModelAssuranceRepository", () => {
+  it.each(["absent", "conflicting_original", "incoming_only"] as const)(
+    "rejects %s intent on a same-definition retry without repairing or rewriting evidence",
+    async (mode) => {
+      const h = await createModelAssuranceRepositoryTestHarness(
+        `intent_${runKey}_${mode === "absent" ? "a" : mode === "incoming_only" ? "i" : "c"}`,
+      );
+      const f = h.records.find(({ kind }) => kind === "model_evaluator_profile");
+      if (f?.kind !== "model_evaluator_profile") throw new Error("Missing retry intent fixture");
+      const repository = new PostgresModelAssuranceRepository(apiPool);
+      await repository.publish(f.kind, f.record);
+      const candidate = {
+        ...f.record,
+        publishedAt: "2026-09-02T00:00:00.000Z",
+        publishedByPrincipalId: "usr_retry_publisher",
+      };
+      expect(validateModelAssuranceRecord(f.kind, candidate).definitionSha256).toBe(
+        f.record.definitionSha256,
+      );
+      const id = modelAssuranceRecordId(f.kind, f.record);
+      await withExactScopeTransaction(adminPool, f.record.scope, async (client) => {
+        // Deliberately damaged task-owned fixture; ordinary roles cannot mutate original intents.
+        // CHECK constraints remain active, and the scope/replication setting is transaction-local.
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        if (mode === "absent") {
+          await client.query(
+            "DELETE FROM public.proofstack_outbox WHERE tenant_id=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+            [f.record.scope.tenantId, `model_assurance_${f.kind}`, id],
+          );
+        } else {
+          await client.query(
+            "UPDATE public.proofstack_outbox SET payload=$4::jsonb, created_at=$5::timestamptz WHERE tenant_id=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+            [
+              f.record.scope.tenantId,
+              `model_assurance_${f.kind}`,
+              id,
+              JSON.stringify(
+                mode === "incoming_only"
+                  ? { record: candidate, recordKind: f.kind }
+                  : { damaged: true },
+              ),
+              mode === "incoming_only" ? candidate.publishedAt : f.record.publishedAt,
+            ],
+          );
+        }
+      });
+      await withExactScopeTransaction(apiPool, f.record.scope, async (client) => {
+        const statuses: string[] = [];
+        for (const record of [f.record, candidate]) {
+          const result = await client.query(
+            "SELECT public.proofstack_evaluation_intent_status($1, $2, $3, $4, $5::jsonb, $6::timestamptz) AS status",
+            [
+              "model_assurance.definition.published",
+              `model_assurance_${f.kind}`,
+              id,
+              record.schemaVersion,
+              JSON.stringify({ record, recordKind: f.kind }),
+              record.publishedAt,
+            ],
+          );
+          statuses.push(result.rows[0]?.status);
+        }
+        expect(statuses).toEqual(
+          mode === "absent"
+            ? ["absent", "absent"]
+            : mode === "incoming_only"
+              ? ["conflict", "canonical"]
+              : ["conflict", "conflict"],
+        );
+      });
+      const before = await retainedState(f.record.scope.tenantId);
+      await expect(repository.publish(f.kind, candidate)).rejects.toBeInstanceOf(
+        ModelAssuranceRepositoryContractError,
+      );
+      expect(await retainedState(f.record.scope.tenantId)).toEqual(before);
+      await expect(repository.find(f.record.scope, f.kind, id)).resolves.toEqual(f.record);
+    },
+  );
+
+  for (const [index, testCase] of modelAssuranceRetryConformanceCases.entries()) {
+    it(testCase.name, async () => {
+      const h = await createModelAssuranceRepositoryTestHarness(`retry_${runKey}_${index}`);
+      await publishBaseGraph(h);
+      for (const fixture of h.records) await publishAssuranceFixture(fixture);
+      const repository = new PostgresModelAssuranceRepository(apiPool);
+      const assessment = await new CreateModelAssuranceAssessment({
+        clock: new FixedClock(new Date("2026-09-02T06:00:00.000Z")),
+        evaluationRepository: new PostgresEvaluationRepository(apiPool),
+        modelAssuranceRepository: repository,
+      }).execute(h.command);
+      const before = await retainedState(h.evaluation.scope.tenantId);
+      // Writes still use the kind's real control/model-worker/human-review authority.
+      const split = new AuthoritySplitModelAssuranceRepository({
+        control: repository,
+        execution: new PostgresModelAssuranceRepository(modelWorkerPool),
+        humanReview: new PostgresModelAssuranceRepository(humanReviewerPool),
+        read: repository,
+      });
+      await testCase.run({
+        repository: split,
+        records: [
+          ...h.records,
+          {
+            kind: "model_assurance_assessment",
+            record: assessment.record,
+          },
+        ],
+      });
+      expect(await retainedState(h.evaluation.scope.tenantId)).toEqual(before);
+    });
+  }
+
   it("persists and reads a complete eligible graph through disjoint authorities", async () => {
     const harness = await createModelAssuranceRepositoryTestHarness(`pg_assurance_${runKey}`);
     await publishBaseGraph(harness);
@@ -466,13 +580,21 @@ describe("PostgresModelAssuranceRepository", () => {
       throw new Error("Expected model profile race fixture");
     }
     const repository = new PostgresModelAssuranceRepository(apiPool);
+    const candidates = Array.from({ length: 8 }, (_, index) => ({
+      ...structuredClone(profile.record),
+      publishedAt: new Date(Date.parse(profile.record.publishedAt) + index * 1000).toISOString(),
+      publishedByPrincipalId: `usr_race_${index}`,
+    }));
+    const before = structuredClone(candidates);
     const results = await Promise.all(
-      Array.from({ length: 8 }, () =>
-        repository.publish(profile.kind, structuredClone(profile.record)),
-      ),
+      candidates.map((candidate) => repository.publish(profile.kind, candidate)),
     );
     expect(results.filter(({ created }) => created)).toHaveLength(1);
     expect(results.filter(({ created }) => !created)).toHaveLength(7);
+    const original = results.find(({ created }) => created)?.record;
+    expect(original).toBeDefined();
+    expect(results.map(({ record }) => record)).toEqual(results.map(() => original));
+    expect(candidates).toEqual(before);
 
     const recordId = modelAssuranceRecordId(profile.kind, profile.record);
     const persisted = await adminPool.query<{ readonly count: string }>(
@@ -489,6 +611,9 @@ describe("PostgresModelAssuranceRepository", () => {
     );
     expect(persisted.rows).toEqual([{ count: "1" }]);
     expect(intents.rows).toEqual([{ count: "1" }]);
+    await expect(
+      repository.find(harness.evaluation.scope, profile.kind, recordId),
+    ).resolves.toEqual(original);
   });
 
   it("fails closed when stored semantics no longer match the retained digest", async () => {

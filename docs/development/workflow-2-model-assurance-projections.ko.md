@@ -44,6 +44,18 @@ Reverse 이력·mutable/live 권한·전체 closure·worker lease/fence·sealed 
 발행은 남아 있습니다. 반환된 읽기 보고서는 이후 발행 권한이 아니며 같은 트랜잭션의 보호된
 검증/봉인 절차가 필요합니다.
 
+## 같은 정의의 재시도는 최초 기록을 보존
+
+같은 canonical 정의에 대한 재시도에는 다른 발행/기록 시각과, 정의에서 제외된 경우 다른
+기록 주체가 포함될 수 있습니다. 메모리와 PostgreSQL 저장소 모두 최초 불변 기록을
+`created: false`로 반환하고 원 시각이나 outbox를 교체하지 않습니다. PostgreSQL은 재시도
+요청의 시각이 아니라 저장된 최초 원문과 시각으로 canonical outbox를 확인합니다. 정의가
+다르면 계속 충돌합니다. 후보와 반환 기록은 저장소 상태와 분리된 객체입니다.
+
+최초 intent가 없거나 불일치하면 재시도 전체가 실패합니다. 재시도 원문에만 일치하는 intent도
+최초 intent를 대신할 수 없습니다. 이 발행 검사가 일반 조회의 전체 physical registry/
+lineage/outbox 검증이나 현재 권한 검증을 추가하는 것은 아닙니다.
+
 ## 검증
 
 실제 런타임 role에서 control/model worker/human review 종류의 필수 주체와 상태를 각각
@@ -56,3 +68,10 @@ Reverse 이력·mutable/live 권한·전체 closure·worker lease/fence·sealed 
 전 owning 조회에서 거절되며 원문·원장을 바꾸지 않고 migration을 실패시킵니다. 기존 강제 RLS
 연결 전용 검사는 metadata barrier 아래 13종 조회를 유지합니다. 운영 준비나 추가 체크포인트
 승인을 주장하지 않습니다.
+
+메모리와 실제 PostgreSQL의 공통 검사는 13종의 시각 변경과 canonical 정의가 허용하는
+주체 변경을 다룹니다. PostgreSQL은 기존 control/model worker/human review role을 사용하며
+재시도 전후 registry·원문·lineage·outbox를 보존합니다. 별도의 격리 관리자 손상 fixture로
+최초 intent 부재·불일치·재시도 원문에만 일치하는 세 경우를 구성합니다. 정상 role의 고정
+intent-status 함수로 각 상태를 확인한 뒤 전체 거절과 저장 상태 보존을 검사합니다.
+런타임 권한과 canonical 검증은 유지합니다.

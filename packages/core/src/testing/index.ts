@@ -45,6 +45,10 @@ export {
   type ModelAssuranceRepositoryTestHarness,
 } from "./model-assurance-repository-fixtures.js";
 export {
+  type ModelAssuranceRetryTestHarness,
+  modelAssuranceRetryConformanceCases,
+} from "./model-assurance-retry-conformance.js";
+export {
   type ReleaseCandidateRepositoryConformanceCase,
   type ReleaseCandidateRepositoryTestFactory,
   releaseCandidateRepositoryConformanceCases,
