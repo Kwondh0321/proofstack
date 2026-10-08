@@ -50,10 +50,12 @@ import {
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import * as publicApi from "./index.js";
+import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
 import type {
   PolicyEvaluationSourceRecheckPorts,
   PolicyEvaluationSourceTransactions,
 } from "./recheck-captured-sources.js";
+import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
 const scope = comparisonFixtureScope("artifact_graph");
 const traceId = "0123456789abcdef0123456789abcdef";
@@ -959,6 +961,229 @@ async function recheckHarness(eventCount = 1) {
     });
   return { h, calls, ports, state, transactions, run };
 }
+
+async function metadataRecheckHarness() {
+  const f = await recheckHarness();
+  const track = <T extends object>(repository: T, domain: string): T =>
+    new Proxy(repository, {
+      get(target, property) {
+        const method: unknown = Reflect.get(target, property);
+        if (typeof method !== "function") return method;
+        return (...args: unknown[]) => {
+          expect(f.state.phase).toBe("inside");
+          f.calls.push(`record:${domain}:${String(property)}`);
+          return Reflect.apply(method, target, args);
+        };
+      },
+    });
+  const original = f.h.repositories;
+  const records: PolicyRecordGraphRepositories = {
+    control: {
+      comparison: track(original.control.comparison, "comparison"),
+      releaseCandidate: track(original.control.releaseCandidate, "candidate"),
+      releasePolicy: track(original.control.releasePolicy, "policy"),
+      installationBinding: track(original.control.installationBinding, "installation"),
+    },
+    evidence: {
+      evaluation: track(original.evidence.evaluation, "evaluation"),
+      modelAssurance: track(original.evidence.modelAssurance, "model"),
+    },
+    datasets: track(original.datasets, "datasets"),
+    replayDefinitions: track(original.replayDefinitions, "replay"),
+    replayResults: track(original.replayResults, "results"),
+    runtimeDefinitions: track(original.runtimeDefinitions, "runtime"),
+  };
+  const evidence = {
+    resolveExactEvents: async (...args: Parameters<typeof f.h.evidence.resolveExactEvents>) => {
+      expect(f.state.phase).toBe("inside");
+      f.calls.push("trace");
+      return f.h.evidence.resolveExactEvents(...args);
+    },
+  };
+  const metadataTransactions: PolicyEvaluationMetadataTransactions = {
+    runMetadata: async (scope, operation) =>
+      f.transactions.run(scope, async (sources) => {
+        // Explicit memory-only adapter contract; actual PostgreSQL barrier/lifetime has separate tests.
+        await sources.tryMetadataGuard();
+        f.calls.push("metadata");
+        return operation({
+          sources,
+          records,
+          evidence,
+          criterionStatusHistory: { listCriterionSetStatuses: async () => [] },
+          fixtureContent: { findRecordedInteractionFixtureContent: async () => null },
+        });
+      }),
+  };
+  const run = (request = f.h.request) =>
+    capturePolicyArtifactEvidence(request, f.h.actor, f.h.repositories, f.h.evidence, {
+      ...f.h.dependencies,
+      metadataTransactions,
+    });
+  return { ...f, records, metadataTransactions, run };
+}
+
+describe("request-owned metadata/artifact recheck composition", () => {
+  it("holds all source guards before graph/trace reads, preserves repeated observations and returns only a historical report", async () => {
+    const f = await metadataRecheckHarness();
+    const objectGet = MemoryArtifactObjectStore.prototype.get;
+    f.h.get.mockImplementation(async (key) => {
+      expect(f.state.phase).toBe("outside");
+      return objectGet.call(f.h.dependencies.objects, key);
+    });
+    const output = await f.run();
+    if (output.status !== "artifacts_captured" || output.traceCapture.status !== "traces_captured")
+      throw new Error("Expected artifact capture");
+    expect(f.calls.slice(0, 2)).toEqual(["begin", "metadata"]);
+    expect(f.calls.slice(2, 2 + output.sourceGuards.length)).toEqual(
+      output.sourceGuards.map(({ kind, id }) => `guard:${kind}:${id}`),
+    );
+    expect(f.calls[2 + output.sourceGuards.length]).toMatch(/^record:/u);
+    expect(f.calls.filter((call) => call === "begin")).toHaveLength(1);
+    expect(f.calls.at(-1)).toBe("commit");
+    expect(f.h.get).toHaveBeenCalledTimes(3);
+    expect(f.h.decrypt).toHaveBeenCalledTimes(3);
+    expect(f.h.exact).toHaveBeenCalledTimes(2);
+    expect(output.sourceRecheck).toMatchObject({
+      status: "observations_rechecked",
+      metadataGuard: true,
+      criterionHistoryReads: 0,
+      criterionHistoryRows: 0,
+      metadata: {
+        recordObservations: output.traceCapture.comparisonCapture.graph.nodes.length,
+        traceObservations: output.traceCapture.traces.length,
+        recordReads: f.calls.filter((call) => call.startsWith("record:")).length,
+        traceReads: 1,
+      },
+    });
+    expect(output.usage.reads).toBeGreaterThan(output.traceCapture.usage.reads * 2);
+    expect(output).not.toHaveProperty("sealed");
+    expect(output).not.toHaveProperty("verdict");
+  });
+
+  it("rejects ambiguous trusted transaction configuration before any content I/O", async () => {
+    const f = await metadataRecheckHarness();
+    await expect(
+      capturePolicyArtifactEvidence(f.h.request, f.h.actor, f.h.repositories, f.h.evidence, {
+        ...f.h.dependencies,
+        sourceTransactions: f.transactions,
+        metadataTransactions: f.metadataTransactions,
+      }),
+    ).rejects.toThrow("Expected one policy recheck transaction mode");
+    expect(f.h.get).not.toHaveBeenCalled();
+    expect(f.h.root).not.toHaveBeenCalled();
+    expect(f.calls).toEqual([]);
+  });
+
+  it.each(["first", "last", "invalid"] as const)(
+    "never starts graph reads after %s source guard failure",
+    async (where) => {
+      const f = await metadataRecheckHarness();
+      const baseline = await f.h.execute();
+      if (baseline.status !== "artifacts_captured") throw new Error("Expected artifacts");
+      let index = 0;
+      const failure = where === "last" ? baseline.sourceGuards.length - 1 : 0;
+      f.ports.tryGuard.mockImplementation(async () =>
+        index++ === failure ? (where === "invalid" ? (null as unknown as boolean) : false) : true,
+      );
+      await expect(f.run()).rejects.toMatchObject({
+        reason: where === "invalid" ? "guard_invalid" : "guard_unavailable",
+      });
+      expect(f.calls.some((call) => call.startsWith("record:") || call === "trace")).toBe(false);
+      expect(f.calls.at(-1)).toBe("rollback");
+    },
+  );
+
+  it("rejects a changed candidate receipt under guards before any descendant reinspection", async () => {
+    const f = await metadataRecheckHarness();
+    f.h.root.mockImplementation(async (...args) => {
+      const record = await MemoryReleaseCandidateRepository.prototype.findReleaseCandidate.call(
+        f.h.repositories.control.releaseCandidate,
+        ...args,
+      );
+      return f.state.phase === "inside" && record
+        ? { ...record, createdByPrincipalId: "changed_candidate_receipt" }
+        : record;
+    });
+    await expect(f.run()).rejects.toMatchObject({
+      code: "policy_evaluation_source_recheck_failed",
+      reason: "source_revision_changed",
+      identity: expect.stringContaining("release_candidate"),
+    });
+    expect(f.calls.filter((call) => call.startsWith("record:"))).toEqual([
+      "record:candidate:findReleaseCandidate",
+    ]);
+    expect(f.calls.at(-1)).toBe("rollback");
+  });
+
+  it("rejects changed exact trace evidence under guards without repeating content/key I/O", async () => {
+    const f = await metadataRecheckHarness();
+    f.h.exact.mockImplementation(async (...args) =>
+      f.state.phase === "inside"
+        ? null
+        : MemoryEvidenceRepository.prototype.resolveExactEvents.call(f.h.evidence, ...args),
+    );
+    await expect(f.run()).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: "trace:0",
+    });
+    expect(f.h.get).toHaveBeenCalledTimes(3);
+    expect(f.h.decrypt).toHaveBeenCalledTimes(3);
+    expect(f.calls.at(-1)).toBe("rollback");
+  });
+
+  it.each(["record_and_reference", "bytes"] as const)(
+    "uses exact cumulative %s admission and rolls back one below it",
+    async (kind) => {
+      const baseline = await (await metadataRecheckHarness()).run();
+      const admitted =
+        kind === "bytes"
+          ? baseline.usage.bytes + baseline.usage.referenceBytes
+          : Math.max(baseline.usage.records, baseline.usage.references);
+      const exact = await metadataRecheckHarness();
+      const exactInput = withLimits(
+        exact.h.request,
+        kind === "bytes"
+          ? { maxAcquisitionRecordBytes: admitted }
+          : { maxAcquisitionRecords: admitted },
+      );
+      const output = await exact.run(exactInput);
+      expect(output.status).toBe("artifacts_captured");
+      expect(exact.calls.at(-1)).toBe("commit");
+      const below = await metadataRecheckHarness();
+      const input = withLimits(
+        below.h.request,
+        kind === "bytes"
+          ? { maxAcquisitionRecordBytes: admitted - 1 }
+          : { maxAcquisitionRecords: admitted - 1 },
+      );
+      await expect(below.run(input)).rejects.toMatchObject({
+        code: "policy_record_graph_failed",
+        reason:
+          kind === "bytes"
+            ? "byte_limit"
+            : baseline.usage.records >= baseline.usage.references
+              ? "record_limit"
+              : "reference_limit",
+      });
+      expect(below.calls.at(-1)).toBe("rollback");
+    },
+  );
+
+  it("propagates metadata storage failures without disguising them as revision changes", async () => {
+    const f = await metadataRecheckHarness();
+    const failure = new Error("guarded candidate database offline");
+    f.h.root.mockImplementation(async (...args) => {
+      if (f.state.phase === "inside") throw failure;
+      return MemoryReleaseCandidateRepository.prototype.findReleaseCandidate.call(
+        f.h.repositories.control.releaseCandidate,
+        ...args,
+      );
+    });
+    await expect(f.run()).rejects.toBe(failure);
+    expect(f.calls.at(-1)).toBe("rollback");
+  });
+});
 
 describe("request-owned source recheck composition", () => {
   it("does not start a source transaction for unavailable roots or claim a successful empty recheck", async () => {

@@ -70,11 +70,14 @@ repeated owning inspection consumes its original finite limits. Cumulative usage
 material equality only. Revision failures remain distinct from storage and budget failures. The
 retained-input composers and matchers are not package-root exports or public request contracts.
 
-The artifact capture's optional `sourceTransactions` still does not invoke these graph/trace
-comparisons. Combining them with all request-owned artifact/policy guards on the same held metadata
-transaction, fixture ownership/history reinspection, complete semantic/authority closure, worker
-lease/fence validation, sealed contracts and atomic publication remains open. A successful internal
-comparison alone does not establish any guard. The read-only transaction ends before returning its result.
+Artifact capture's alternative optional `metadataTransactions` now invokes these graph/trace
+comparisons after acquiring all request-owned artifact/policy guards on the same held metadata
+connection, then performs its catalog/policy/criterion reinspection. The old `sourceTransactions`
+mode remains source-only; supplying both modes fails before content I/O. See the
+[composition and report boundaries](workflow-2-policy-source-recheck.md).
+Complete semantic/mutable authority and physical integrity closure, worker lease/fence validation,
+sealed contracts and atomic publication remain open. A successful internal comparison alone does
+not establish any guard. The read-only transaction ends before returning its result.
 Future publication must retain all required guards in the same still-open transaction through
 complete validation and atomic snapshot/job mutation. Returned metadata is never later seal authority.
 

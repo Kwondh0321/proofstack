@@ -8,6 +8,8 @@ import {
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
+  type RegressionDatasetVersionDefinition,
+  type RegressionFixtureVersionDefinition,
 } from "@proofstack/contracts";
 import {
   digestEvaluationRecordDefinition,
@@ -29,8 +31,13 @@ import {
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import {
+  digestRegressionDatasetVersionDefinition,
+  digestRegressionFixtureVersionDefinition,
+} from "@proofstack/datasets";
+import {
   capturePolicyArtifactEvidence,
   type PolicyArtifactEvidenceRepositories,
+  type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
 } from "@proofstack/policy-evaluation";
@@ -38,9 +45,16 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
+import { PostgresComparisonRepository } from "./postgres-comparison-repository.js";
 import { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
+import { PostgresEvidenceRepository } from "./postgres-evidence-repository.js";
+import { PostgresModelAssuranceRepository } from "./postgres-model-assurance-repository.js";
 import { PostgresPolicySourceTransactions } from "./postgres-policy-source-transactions.js";
+import { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
+import { PostgresReleaseCandidateRepository } from "./postgres-release-candidate-repository.js";
 import { PostgresReleasePolicyRepository } from "./postgres-release-policy-repository.js";
+import { PostgresReplayDefinitionRepository } from "./postgres-replay-definition-repository.js";
+import { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
 import { withExactScopeTransaction } from "./tenant-transaction.js";
 
@@ -99,7 +113,7 @@ afterAll(async () => {
   await admin.end();
 });
 
-async function fixture(withCriteria = false) {
+async function fixture(withCriteria = false, metadataMode = false) {
   const namespace = `recheck_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const evaluation = withCriteria ? createEvaluationRepositoryTestHarness(namespace) : undefined;
   const evaluationRepository = new PostgresEvaluationRepository(api);
@@ -202,6 +216,49 @@ async function fixture(withCriteria = false) {
   const policy = releasePolicyRepositoryFixture(namespace, scope);
   await policies.publishReleasePolicy(policy);
   const candidate = releaseCandidateFixture(namespace, scope);
+  const versions = new PostgresRegressionVersionRepository(api);
+  const fixtureDefinition: RegressionFixtureVersionDefinition = {
+    schemaVersion: "0.1",
+    scope,
+    fixtureId: `fixture_${namespace}`,
+    fixtureVersionId: `fxv_${namespace}`,
+    name: "Missing dataset metadata member",
+    replayability: "evidence_only",
+    source: {
+      kind: "trace_snapshot",
+      traceId: "0123456789abcdef0123456789abcdef",
+      eventIds: ["event_metadata_member"],
+      observedEventCount: 1,
+      sourceCompleteness: "observed_snapshot",
+    },
+  };
+  const fixtureVersion = {
+    ...fixtureDefinition,
+    source: { ...fixtureDefinition.source, capturedAt: "2026-09-01T00:00:00.000Z" },
+    definitionSha256: digestRegressionFixtureVersionDefinition(fixtureDefinition),
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdByPrincipalId: "principal_writer",
+  };
+  const datasetDefinition: RegressionDatasetVersionDefinition = {
+    schemaVersion: "0.1",
+    scope,
+    name: "Initially missing exact dataset",
+    datasetId: `dataset_${namespace}`,
+    datasetVersionId: `dtv_${namespace}`,
+    fixtureVersions: [
+      {
+        fixtureId: fixtureVersion.fixtureId,
+        fixtureVersionId: fixtureVersion.fixtureVersionId,
+        definitionSha256: fixtureVersion.definitionSha256,
+      },
+    ],
+  };
+  const futureDataset = {
+    ...datasetDefinition,
+    definitionSha256: digestRegressionDatasetVersionDefinition(datasetDefinition),
+    createdAt: "2026-09-02T00:00:00.000Z",
+    createdByPrincipalId: "principal_writer",
+  };
   if (evaluation) {
     const assessment = evaluation.records.find(({ kind }) => kind === "assessment");
     const run = evaluation.records.find(({ kind }) => kind === "evaluation_run");
@@ -217,6 +274,16 @@ async function fixture(withCriteria = false) {
     candidate.targetRelease = run.record.replay.targetRelease;
     candidate.modelAssuranceAssessments = [];
   }
+  if (metadataMode) {
+    await versions.publishFixtureVersion(fixtureVersion);
+    candidate.datasets = [
+      {
+        datasetId: futureDataset.datasetId,
+        datasetVersionId: futureDataset.datasetVersionId,
+        definitionSha256: futureDataset.definitionSha256,
+      },
+    ];
+  }
   const build = candidate.buildArtifacts[0];
   if (!build) throw new Error("Expected build artifact fixture");
   build.artifact = reference;
@@ -229,22 +296,28 @@ async function fixture(withCriteria = false) {
     ...body
   } = candidate;
   candidate.definitionSha256 = digestReleaseCandidateDefinition(scope, body);
-  const candidates = new MemoryReleaseCandidateRepository();
+  const candidates = metadataMode
+    ? new PostgresReleaseCandidateRepository(api)
+    : new MemoryReleaseCandidateRepository();
   await candidates.publishReleaseCandidate(candidate);
-  // Candidate and unavailable remaining upstream ports are explicit memory fixtures. Criterion
-  // scenarios also use real PostgreSQL evaluation records, complete history and competing writers.
+  // Legacy source-only scenarios retain their explicit memory candidate/upstream fixtures.
+  // Metadata mode uses owning PostgreSQL reads and stored candidate/policy roots with missing
+  // subordinate evidence; this observational test graph is not an eligible sealed snapshot.
   const absent = new Proxy({}, { get: () => async () => null });
   const repositories = {
     control: {
-      comparison: absent,
+      comparison: metadataMode ? new PostgresComparisonRepository(api) : absent,
       installationBinding: absent,
       releaseCandidate: candidates,
       releasePolicy: policies,
     },
-    evidence: { evaluation: evaluation ? evaluationRepository : absent, modelAssurance: absent },
-    datasets: absent,
-    replayDefinitions: absent,
-    replayResults: absent,
+    evidence: {
+      evaluation: evaluation || metadataMode ? evaluationRepository : absent,
+      modelAssurance: metadataMode ? new PostgresModelAssuranceRepository(api) : absent,
+    },
+    datasets: metadataMode ? versions : absent,
+    replayDefinitions: metadataMode ? new PostgresReplayDefinitionRepository(api) : absent,
+    replayResults: metadataMode ? new PostgresReplayJobControlRepository(api) : absent,
     runtimeDefinitions: absent,
   } as unknown as PolicyArtifactEvidenceRepositories;
   const vector = JSON.parse(
@@ -303,20 +376,43 @@ async function fixture(withCriteria = false) {
     },
   };
   let objectReads = 0;
+  const metadataTransactions: PolicyEvaluationMetadataTransactions = {
+    runMetadata: async (exact, operation) => {
+      await hooks.beforeRun?.();
+      return transactions.runMetadata(exact, (ports) =>
+        operation({
+          ...ports,
+          sources: {
+            ...ports.sources,
+            observationTime: async () => {
+              await hooks.underGuards?.(ports.sources);
+              return ports.sources.observationTime();
+            },
+          },
+        }),
+      );
+    },
+  };
   const run = () =>
-    capturePolicyArtifactEvidence(request, actor, repositories, new MemoryEvidenceRepository(), {
-      catalog,
-      objects: {
-        get: async (key) => {
-          objectReads++;
-          await hooks.readContent?.();
-          return objects.get(key);
+    capturePolicyArtifactEvidence(
+      request,
+      actor,
+      repositories,
+      metadataMode ? new PostgresEvidenceRepository(api) : new MemoryEvidenceRepository(),
+      {
+        catalog,
+        objects: {
+          get: async (key) => {
+            objectReads++;
+            await hooks.readContent?.();
+            return objects.get(key);
+          },
         },
+        encryption,
+        clock: { now: () => new Date() },
+        ...(metadataMode ? { metadataTransactions } : { sourceTransactions }),
       },
-      encryption,
-      clock: { now: () => new Date() },
-      sourceTransactions,
-    });
+    );
   const tombstone = () =>
     maintenance.tombstone(scope, {
       artifactId: reference.artifactId,
@@ -360,6 +456,8 @@ async function fixture(withCriteria = false) {
     run,
     observer,
     transactions,
+    versions,
+    futureDataset,
     tombstone,
     cleanContext,
     waitForWriter,
@@ -368,6 +466,140 @@ async function fixture(withCriteria = false) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("rechecks real candidate/policy roots and explicit missing sources on one held metadata client", async () => {
+    const f = await fixture(false, true);
+    f.hooks.readContent = () =>
+      withExactScopeTransaction(admin, f.scope, async (client) => {
+        expect(
+          (
+            await client.query<{ acquired: boolean }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows[0]?.acquired,
+        ).toBe(true);
+      });
+    const result = await f.run();
+    if (result.status !== "artifacts_captured") throw new Error("Expected metadata recheck");
+    expect(result.sourceRecheck).toMatchObject({
+      metadataGuard: true,
+      metadata: {
+        recordObservations: result.traceCapture.comparisonCapture.graph.nodes.length,
+        traceObservations: 0,
+        traceReads: 0,
+      },
+    });
+    expect(result.traceCapture.comparisonCapture.graph.unresolved.records).toBeGreaterThan(0);
+    expect(result.sourceRecheck?.metadata?.recordReads).toBeGreaterThan(2);
+    expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
+    expect(f.objectReads()).toBe(1);
+    expect(result).not.toHaveProperty("sealed");
+    await f.cleanContext();
+  });
+
+  it("combines the complete graph reinspection with guarded criterion history on the same client", async () => {
+    const f = await fixture(true, true);
+    const result = await f.run();
+    if (result.status !== "artifacts_captured")
+      throw new Error("Expected metadata/criterion recheck");
+    expect(result.sourceRecheck).toMatchObject({
+      metadataGuard: true,
+      criterionReads: 1,
+      criterionHistoryReads: 1,
+      criterionHistoryRows: 2,
+    });
+    expect(result.sourceRecheck?.metadata?.recordObservations).toBe(
+      result.traceCapture.comparisonCapture.graph.nodes.length,
+    );
+    const under = result.criterionAuthority.underGuards;
+    if (under?.status !== "observed") throw new Error("Expected guarded criterion authority");
+    expect(under.completedAt).toBe(result.sourceRecheck?.observedAt);
+    expect(f.objectReads()).toBe(1);
+    await f.cleanContext();
+  });
+
+  it("rolls back when a valid missing dataset is created during content I/O", async () => {
+    const f = await fixture(false, true);
+    f.hooks.readContent = async () => {
+      await f.versions.publishDatasetVersion(f.futureDataset);
+    };
+    await expect(f.run()).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: `dataset_version:${f.futureDataset.datasetVersionId}`,
+    });
+    expect(await f.versions.findDatasetVersion(f.scope, f.futureDataset.datasetVersionId)).toEqual(
+      f.futureDataset,
+    );
+    expect(f.objectReads()).toBe(1);
+    await f.transactions.runMetadata(f.scope, async (ports) => {
+      expect(await ports.sources.findPolicy(f.policy.policyVersionId)).toEqual(f.policy);
+    });
+    await f.cleanContext();
+  });
+
+  it("retains the missing-source report while a competing metadata publisher waits for transaction release", async () => {
+    const f = await fixture(false, true);
+    let pending: Promise<unknown> | undefined;
+    f.hooks.underGuards = async () => {
+      pending = f.versions.publishDatasetVersion(f.futureDataset);
+      // Install a rejection handler immediately; final cleanup still observes the original outcome.
+      void pending.catch(() => {});
+      await f.waitForWriter();
+    };
+    try {
+      const result = await f.run();
+      if (result.status !== "artifacts_captured") throw new Error("Expected held metadata report");
+      expect(
+        result.traceCapture.comparisonCapture.graph.nodes.find(
+          ({ read }) =>
+            read.source.kind === "dataset_version" &&
+            read.source.reference.datasetVersionId === f.futureDataset.datasetVersionId,
+        )?.read.observation.status,
+      ).toBe("missing");
+      if (!pending) throw new Error("Missing competing publisher");
+      await pending;
+      expect(
+        await f.versions.findDatasetVersion(f.scope, f.futureDataset.datasetVersionId),
+      ).toEqual(f.futureDataset);
+      expect(f.objectReads()).toBe(1);
+      expect(result.sourceRecheck?.metadataGuard).toBe(true);
+      await f.cleanContext();
+    } finally {
+      await pending;
+    }
+  });
+
+  it("fails wholly when another transaction owns the metadata barrier and cleans the held pool", async () => {
+    const f = await fixture(false, true);
+    const writer = await admin.connect();
+    try {
+      await writer.query("BEGIN");
+      await writer.query(
+        "SELECT set_config('proofstack.tenant_id', $1, true), set_config('proofstack.project_id', $2, true), set_config('proofstack.environment_id', $3, true)",
+        [f.scope.tenantId, f.scope.projectId, f.scope.environmentId],
+      );
+      expect(
+        (
+          await writer.query<{ acquired: boolean }>(
+            "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+          )
+        ).rows[0]?.acquired,
+      ).toBe(true);
+      await expect(f.run()).rejects.toMatchObject({
+        reason: "guard_unavailable",
+        identity: "metadata",
+      });
+      expect(f.objectReads()).toBe(1);
+      await f.cleanContext();
+    } finally {
+      await writer.query("ROLLBACK");
+      writer.release();
+    }
+    await f.transactions.runMetadata(f.scope, async (ports) => {
+      expect(await ports.sources.findPolicy(f.policy.policyVersionId)).toEqual(f.policy);
+    });
+    await f.cleanContext();
+  });
+
   it("reinspects complete criterion authority on the held client with no metadata guard during object I/O", async () => {
     const f = await fixture(true);
     f.hooks.readContent = () =>

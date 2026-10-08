@@ -62,10 +62,12 @@ I/O는 잠금 밖에서 수행하고, 후속 artifact/policy 잠금 획득 실�
 저장소·한도 오류는 구별합니다. 보존 입력을 받는 구성과 matcher는 package root나 공개
 request 계약으로 제공하지 않습니다.
 
-Artifact capture의 선택적 `sourceTransactions`는 이 graph/trace 비교를 아직 호출하지
-않습니다. 같은 metadata 트랜잭션의 request 소유 전체 artifact/policy 잠금과 결합, fixture
-소유권/이력 재검사·전체 의미/권한 closure·worker lease/fence 검증·sealed 계약·원자적
-발행은 남아 있습니다. 내부 비교 성공 자체가 잠금 획득을 증명하지 않습니다. 읽기 전용
+Artifact capture의 대체 모드인 선택적 `metadataTransactions`는 같은 metadata 연결에서
+request 소유 전체 artifact/policy 잠금을 획득한 뒤 이 graph/trace 비교와 catalog/policy/
+criterion 재검사를 수행합니다. 기존 `sourceTransactions`는 source-only 모드이며 둘 다
+설정하면 content I/O 전에 실패합니다. [구성과 보고서 경계](workflow-2-policy-source-recheck.ko.md)를
+따릅니다. 전체 의미/mutable 권한과 physical 무결성 closure·worker lease/fence 검증·sealed
+계약·원자적 발행은 남아 있습니다. 내부 비교 성공 자체가 잠금 획득을 증명하지 않습니다. 읽기 전용
 트랜잭션은 결과 반환 전에 끝납니다. 실제 발행은
 모든 잠금을 같은 연결에서 전체 검증과 snapshot/job mutation까지 유지해야 하며, 반환된
 메타데이터는 이후 seal 권한이 아닙니다.

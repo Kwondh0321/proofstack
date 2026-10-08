@@ -8,7 +8,8 @@
 
 ## 소유권과 연결
 
-`capturePolicyArtifactEvidence`에 서버가 소유한 선택적 `sourceTransactions` 의존성을 전달합니다.
+`capturePolicyArtifactEvidence`에 서버가 소유한 선택적 `sourceTransactions` 또는
+`metadataTransactions` 중 하나를 전달합니다. 둘 다 설정하면 인가 후 content I/O 전에 실패합니다.
 생략하면 기존 관측·잠금 계획만 반환하고 `sourceRecheck`는 없습니다. 루트가 이용 불가이면
 출처 트랜잭션을 시작하거나 성공한 빈 재검사를 보고하지 않습니다. 요청은 트랜잭션·잠금 부분
 목록·그래프·SQL·출처 URL·발행 콜백을 제출할 수 없습니다. 메타데이터·트레이스 포트의 별도
@@ -27,12 +28,41 @@
 풀·역할의 기본 격리 수준 때문에 잠금 전의 오래된 repeatable-read 스냅샷을 쓰지 않습니다.
 종료 시 스코프는 지우되 세션 기본값은 바꾸지 않습니다.
 
-포트는 `tryMetadataGuard`, `tryGuard`, `findCriterion`, `listCriterionSetStatuses`,
+Source-only 포트는 `tryMetadataGuard`, `tryGuard`, `findCriterion`, `listCriterionSetStatuses`,
 `findArtifact`, `findPolicy`, `listPolicyHistory`, `observationTime`뿐입니다.
 DB 클라이언트·임의 SQL·DML·파일/키 I/O·발행은 노출하지 않습니다. 정리 전에 수명이 끝나며,
 이미 시작한 읽기는 commit/rollback·연결 반환 전에 정리합니다. 호출자가 잡아 숨기거나 await하지
 않은 포트 실패도 전체 작업을 오염시켜 후속 쿼리와 commit을 막습니다. 롤백까지 실패하면
 원래 오류를 보존하고 연결을 폐기합니다. 멈춘 조회를 기다리는 것은 타임아웃·취소 기능이 아닙니다.
+
+### 보존된 전체 graph/trace 모드
+
+`metadataTransactions`는 callback 전에 테넌트 metadata barrier와 현재 migration ledger를
+검증하는 `PostgresPolicySourceTransactions.runMetadata`를 사용합니다. 고정 구성은 원래의
+모든 artifact/policy resource 잠금을 획득한 뒤 graph·trace·catalog·이력을 재조회합니다.
+같은 연결의 [owning metadata 포트](workflow-2-policy-source-client-readers.ko.md)와 원래 누적
+acquisition budget을 사용하며 content/key I/O를 잠금 아래 반복하지 않습니다.
+
+새로 읽은 parent와 selector가 미리 읽은 record는 하위 참조를 따라가기 전에 원래 관측과
+검증된 전체 receipt가 일치해야 합니다. Target을 queue에 넣기 전 ordered edge와 selector
+결과를 비교해 새로 생성된 missing record나 해결된 selector의 새 artifact/policy 참조를
+따라가지 않습니다. 파생 graph/comparison·정확한 trace 원문·반복 artifact 발생도 모두
+일치해야 합니다. 그대로인 unreadable 관측은 보존하지만 버린 잘못된 원문 바이트의 동일성을
+증명하지 않습니다. 변경은 기존 source-recheck 오류이며 한도·저장소 오류는 별도로 보존합니다.
+
+Catalog·root policy lifecycle·전체 criterion history와 알려진 successor를 같은 트랜잭션에서
+검사합니다. 새 successor 조회 전에 전체 이력 목록을 비교합니다. 선택적
+`sourceRecheck.metadata`는 보존 record/trace 관측 수와 실제 graph/selector·trace 재조회 수를
+기록합니다. Graph 조회에는 별도 source 계수로 검사하는 policy/criterion도 포함될 수 있으며,
+node 수는 repository 조회 수가 아닙니다. Criterion authority가 없으면 metadata barrier
+획득만으로 criterion history를 읽었다고 계수하지 않습니다.
+
+실제 PostgreSQL 검사는 저장된 candidate/policy와 명시적인 upstream 누락을 사용해 missing
+dataset의 생성·경쟁 발행 대기·barrier 충돌과 정리를 검사합니다. Object bytes는 인증 암호화된
+메모리 fixture이며 추가 S3 인수가 아닙니다. 읽기 트랜잭션 종료 후 대기하던 publisher가 누락된
+자료를 바로 생성할 수 있으므로 보고서는 과거 관측입니다. 전체 mutable/reverse/logical 권한,
+physical registry/lineage/outbox 무결성·live installation/worker 권한을 모두 닫지 않습니다.
+Checkpoint 승인 전 sealed 계약과 원자적 snapshot/job/fence 발행이 여전히 필요합니다.
 
 의존 방향은 `postgres -> policy-evaluation -> artifacts/core/contracts/datasets/replay`이며
 순환을 만들지 않습니다. 검증기를 PostgreSQL로 옮기거나 조합 계층이 DB를 import하지 않습니다.

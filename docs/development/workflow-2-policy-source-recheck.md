@@ -8,8 +8,9 @@ lease/fence, policy result, release approval or a token of freshness after trans
 
 ## Ownership and connection
 
-`capturePolicyArtifactEvidence` accepts an optional server-owned `sourceTransactions` dependency.
-Without it, capture retains its existing observation/guard-plan behavior and has no `sourceRecheck`
+`capturePolicyArtifactEvidence` accepts one optional server-owned `sourceTransactions` or
+`metadataTransactions` dependency. Supplying both fails after authorization and before content I/O.
+Without either, capture retains its existing observation/guard-plan behavior and has no `sourceRecheck`
 field. Unavailable roots never start a source transaction or report a successful empty recheck.
 The request cannot supply a transaction, guard subset, graph, SQL, source URL or publication callback.
 The composer still requires independently authorized metadata/trace ports and an authenticated
@@ -28,13 +29,44 @@ The [normalized source readers](workflow-2-policy-transaction-reads.md) use that
 retain all owning adapter validation. Pool/role isolation defaults cannot create a stale pre-lock
 repeatable-read snapshot. Commit/rollback clear the scope without changing the session default.
 
-The ports expose only `tryMetadataGuard`, `tryGuard`, `findCriterion`, `listCriterionSetStatuses`,
+The source-only ports expose `tryMetadataGuard`, `tryGuard`, `findCriterion`, `listCriterionSetStatuses`,
 `findArtifact`, `findPolicy`, `listPolicyHistory` and `observationTime`. They do not expose a client,
 caller SQL, DML, content/key I/O or publication.
 Their lifetime ends before transaction cleanup. Started reads are drained before commit/rollback
 and connection release. A caught or unawaited port failure still taints the whole operation; later
 calls cannot query. A rollback failure preserves the original error and destroys the connection.
 Draining a hung query is not a statement timeout, job deadline or cancellation mechanism.
+
+### Complete retained graph/trace mode
+
+`metadataTransactions` uses `PostgresPolicySourceTransactions.runMetadata`, which admits the tenant
+metadata barrier and current migration ledger before its callback. The fixed composer then acquires
+all original artifact/policy resource guards before any graph, trace, catalog or history re-read.
+It uses the [owning metadata ports](workflow-2-policy-source-client-readers.md) on that same held
+connection and the original cumulative acquisition budget. No content/key I/O is repeated under guards.
+
+Each newly read parent and selector-prefetched record must match its original observation and full
+verified receipt before following descendants. Ordered edges and selector outcomes must agree before
+enqueueing targets; newly created missing records and newly resolved selectors cannot expand a new
+unguarded artifact/policy frontier. Complete derived graph/comparison material, exact trace envelopes
+and repeated artifact occurrences must agree. Stable unreadable observations remain explicit; equal
+unavailable classifications do not prove equality of discarded invalid bytes. Revision mismatches
+use the existing source-recheck error; budget and storage failures retain their own errors.
+
+Existing catalog, root policy lifecycle and complete criterion history/known successor inspections
+run within the same transaction. Complete history inventories still compare before reading a new
+successor. Optional `sourceRecheck.metadata` counts retained record/trace observations and actual
+graph/selector and trace re-reads. Graph read counts can include policies/criteria also inspected by
+the separate source counters; node inventory size is not a repository-read count. A metadata barrier
+does not imply a criterion-history read when no criterion authority was observed.
+
+Real PostgreSQL tests use stored candidate/policy roots and explicit missing upstream evidence,
+including actual missing-dataset creation, competing publication waits and barrier-conflict cleanup.
+Object bytes remain authenticated memory fixtures in these tests, not additional S3 acceptance.
+The report is historical as soon as its read transaction ends: a waiting publisher can create a
+previously missing source immediately afterward. This mode does not close all mutable/reverse/logical
+authority, physical registry/lineage/outbox integrity or live installation/worker authority. Complete
+sealed contracts and atomic snapshot/job/fence publication remain required before checkpoint acceptance.
 
 The acyclic workspace dependency is `postgres -> policy-evaluation -> artifacts/core/contracts/datasets/replay`.
 Owning validators do not move into PostgreSQL and the composer does not import persistence.

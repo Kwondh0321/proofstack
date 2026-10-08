@@ -54,6 +54,7 @@ import type {
   PolicyEvaluationSourceGuard,
   PolicyEvaluationSourceGuardUsage,
 } from "./derive-source-guards.js";
+import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
 import {
   deriveAndRecheckCapturedPolicySources,
   type PolicyEvaluationSourceRecheck,
@@ -64,6 +65,8 @@ import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
   /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
   readonly sourceTransactions?: PolicyEvaluationSourceTransactions;
+  /** Alternative whole-graph metadata mode; cannot be combined with sourceTransactions. */
+  readonly metadataTransactions?: PolicyEvaluationMetadataTransactions;
 };
 
 /** Artifact capture also requires complete policy terminal and criterion status histories. */
@@ -139,10 +142,13 @@ export async function capturePolicyArtifactEvidence(
   const request = validatePolicyEvaluationRequestRecord(input);
   const principal = PrincipalContextSchema.parse(actor);
   const sourceTransactions = dependencies.sourceTransactions;
+  const metadataTransactions = dependencies.metadataTransactions;
   requireCapability(principal, "artifact:read");
   if (principal.tenantId !== request.scope.tenantId)
     throw new ForbiddenError("Artifact capture scope does not match principal");
   requireEnvironmentAccess(principal, request.scope.projectId, request.scope.environmentId);
+  if (sourceTransactions && metadataTransactions)
+    throw new TypeError("Expected one policy recheck transaction mode");
 
   let previousTime: string | undefined;
   const clock = {
@@ -318,8 +324,9 @@ export async function capturePolicyArtifactEvidence(
       },
       budget,
       principal,
-      sourceTransactions ? clock.now().toISOString() : startedAt,
+      sourceTransactions || metadataTransactions ? clock.now().toISOString() : startedAt,
       sourceTransactions,
+      metadataTransactions ? { transactions: metadataTransactions, traceCapture } : undefined,
     );
     sourceGuardUsage = sourceGuardPlan.usage;
     const localCompletedAt = clock.now().toISOString();

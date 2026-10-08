@@ -334,9 +334,11 @@ requested scope must equal the held transaction scope; caught/unawaited read fai
 and started reads drain before cleanup. Static installation/runtime records are bounded immutable
 operator copies, not external resolver callbacks. Internal request-owned graph/trace reinspection
 now rejects changed observations, selector outcomes and full receipts before following new
-descendants, preserves repeated occurrences and reuses the original cumulative budget. Combining
-it with all resource guards and history/ownership reads in artifact capture, complete
-semantic/authority closure, sealed contracts and same-transaction publication remains open.
+descendants, preserves repeated occurrences and reuses the original cumulative budget. Artifact
+capture's alternative `metadataTransactions` now combines that comparison with all request-owned
+resource guards and catalog/policy/criterion reinspection on one held connection. Complete
+semantic/mutable authority and physical integrity closure, sealed contracts and same-transaction
+publication remain open; the returned read-only report cannot authorize publication later.
 
 The subsequent [complete criterion status history reader](workflow-2-criterion-status-history.md)
 provides bounded exact-scope enumeration without choosing a latest status or filtering away

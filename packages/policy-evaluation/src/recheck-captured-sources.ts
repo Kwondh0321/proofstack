@@ -26,7 +26,16 @@ import {
   type PolicyCriterionAuthorityObservation,
 } from "./capture-criterion-authority.js";
 import { observeCapturedPolicyLifecycle } from "./capture-policy-lifecycle.js";
+import {
+  acquirePolicyTraceEvidence,
+  type PolicyTraceEvidenceCapture,
+} from "./capture-trace-evidence.js";
 import { deriveCapturedPolicySourceGuards } from "./derive-source-guards.js";
+import type {
+  PolicyEvaluationMetadataPorts,
+  PolicyEvaluationMetadataTransactions,
+} from "./metadata-transactions.js";
+import { PolicyCapturedObservationRecheckError } from "./reinspect-captured-observations.js";
 
 /** Trusted same-connection ports; no content/key I/O, caller SQL or publication operation. */
 export interface PolicyEvaluationSourceRecheckPorts {
@@ -60,6 +69,13 @@ export interface PolicyEvaluationSourceRecheck {
   readonly criterionReads: number;
   readonly criterionHistoryReads: number;
   readonly criterionHistoryRows: number;
+  /** Present only for request-owned graph/trace reinspection on the held metadata connection. */
+  readonly metadata?: {
+    readonly recordObservations: number;
+    readonly traceObservations: number;
+    readonly recordReads: number;
+    readonly traceReads: number;
+  };
 }
 
 export class PolicyEvaluationSourceRecheckError extends Error {
@@ -90,6 +106,10 @@ export async function deriveAndRecheckCapturedPolicySources(
   principal: PrincipalContext,
   captureCompletedAt: string,
   transactions?: PolicyEvaluationSourceTransactions,
+  metadata?: {
+    readonly transactions: PolicyEvaluationMetadataTransactions;
+    readonly traceCapture: Extract<PolicyTraceEvidenceCapture, { status: "traces_captured" }>;
+  },
 ): Promise<
   | ReturnType<typeof deriveCapturedPolicySourceGuards>
   | (ReturnType<typeof deriveCapturedPolicySourceGuards> & {
@@ -97,17 +117,27 @@ export async function deriveAndRecheckCapturedPolicySources(
       readonly criterionAuthority: PolicyCriterionAuthorityObservation;
     })
 > {
+  if (transactions && metadata) throw new TypeError("Expected one policy recheck transaction mode");
+  if (
+    metadata &&
+    (metadata.traceCapture.comparisonCapture.graph !== input.graph ||
+      metadata.traceCapture.artifactReferences !== input.traceReferences)
+  )
+    throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
   const plan = deriveCapturedPolicySourceGuards(input, budget);
-  if (!transactions) return plan;
+  if (!transactions && !metadata) return plan;
   const { request, graph, artifacts, lifecycle, criterionAuthority } = input;
-  const inspection = await transactions.run(structuredClone(request.scope), async (supplied) => {
+  const reinspect = async (
+    supplied: PolicyEvaluationSourceRecheckPorts,
+    metadataPorts?: PolicyEvaluationMetadataPorts,
+  ) => {
     const ports = budget.wrap(supplied);
-    const metadataGuard = criterionAuthority.status === "observed";
+    const metadataGuard = metadataPorts !== undefined || criterionAuthority.status === "observed";
     const historyLimits = {
       maxRecords: request.limits.maxAcquisitionRecords,
       maxRecordBytes: request.limits.maxAcquisitionRecordBytes,
     };
-    if (metadataGuard) {
+    if (metadataGuard && !metadataPorts) {
       const acquired: unknown = await ports.tryMetadataGuard();
       if (acquired !== true)
         throw new PolicyEvaluationSourceRecheckError(
@@ -124,6 +154,32 @@ export async function deriveAndRecheckCapturedPolicySources(
         );
     }
     // No authoritative read is allowed until the entire required guard set has succeeded.
+    let metadataRecheck: PolicyEvaluationSourceRecheck["metadata"];
+    if (metadataPorts && metadata) {
+      const before = budget.usage();
+      let recaptured: PolicyTraceEvidenceCapture;
+      try {
+        recaptured = await acquirePolicyTraceEvidence(
+          request,
+          metadataPorts.records,
+          metadataPorts.evidence,
+          budget,
+          metadata.traceCapture,
+        );
+      } catch (error) {
+        if (error instanceof PolicyCapturedObservationRecheckError)
+          throw new PolicyEvaluationSourceRecheckError("source_revision_changed", error.identity);
+        throw error;
+      }
+      if (recaptured.status !== "traces_captured")
+        throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+      metadataRecheck = {
+        recordObservations: recaptured.comparisonCapture.graph.nodes.length,
+        traceObservations: recaptured.traces.length,
+        recordReads: recaptured.comparisonCapture.graph.usage.reads - before.reads,
+        traceReads: recaptured.usage.reads - recaptured.comparisonCapture.graph.usage.reads,
+      };
+    }
     const policyRecords = new Map<string, unknown>();
     const artifactRecords = new Map<string, unknown>();
     for (const { kind, id, origins } of plan.guards) {
@@ -260,12 +316,19 @@ export async function deriveAndRecheckCapturedPolicySources(
         policyReads: policyRecords.size,
         metadataGuard,
         criterionReads: criterionRecords.size,
-        criterionHistoryReads: metadataGuard ? 1 : 0,
+        criterionHistoryReads: criterionAuthority.status === "observed" ? 1 : 0,
         criterionHistoryRows:
           criterionAuthority.status === "observed" ? criterionAuthority.history.length : 0,
+        ...(metadataRecheck ? { metadata: metadataRecheck } : {}),
       } satisfies PolicyEvaluationSourceRecheck,
     };
-  });
+  };
+  const scope = structuredClone(request.scope);
+  const inspection = metadata
+    ? await metadata.transactions.runMetadata(scope, (ports) => reinspect(ports.sources, ports))
+    : await (transactions as PolicyEvaluationSourceTransactions).run(scope, (ports) =>
+        reinspect(ports),
+      );
   // The read transaction has ended here. This observation report is NOT a publication authority.
   return { ...plan, ...inspection };
 }

@@ -42,9 +42,13 @@ migration ledger before exposing fixed exact-scope repository ports for the full
 trace events, criterion histories and fixture content metadata. It shares the same transaction
 lifetime, taint/drain and rollback machinery. Static installation/runtime records are bounded,
 validated copies made before guards, never caller resolver callbacks or live installation proof.
-This is still a read-only adapter prerequisite: complete request-owned graph reinspection and
-guarded atomic publication remain separate. The existing artifact-capture recheck is not silently
-replaced by this mode, and returned metadata cannot authorize a later seal.
+Artifact capture's explicit alternative `metadataTransactions` mode now acquires all original
+resource guards, then reinspects retained graph/trace observations and catalogs/policy/criterion
+histories on that held connection using one cumulative budget. Changed observations and selector
+outcomes fail before new descendant traversal; no content/key I/O runs under guards. The old
+source-only mode remains available; specifying both fails before content I/O. Complete authority
+and physical integrity closure and guarded atomic publication remain separate. Returned metadata
+cannot authorize a later seal.
 
 ## Consequences
 
