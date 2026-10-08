@@ -44,8 +44,9 @@ model-assurance의 모든 physical 참조 관계를 새로 증명하지 않습�
 [모델·사람 기록 필드 검증](workflow-2-model-assurance-projections.ko.md)은 owning 행의
 ID·schema·scope·시각·주체·상태 일치를 강화하지만 현재 권한이나 전체 관계를 닫지 않습니다.
 후속 [모델·사람 물리적 저장 검증](workflow-2-model-assurance-storage-integrity.ko.md)은 같은
-owning 조회에 이 13종의 선택된 cross-domain registry/lineage·최초 intent 검사를 추가합니다.
-다른 모든 도메인의 관계나 전체 현재 권한을 증명하는 것은 아닙니다.
+owning 조회에 이 13종의 선택된 cross-domain registry/lineage·최초 intent와 같은 시점의
+child 소유 정규화 부재 증거 검사를 추가합니다. 다른 모든 도메인의 관계나 outbox만 남은
+부재의 소유권·전체 현재 권한을 증명하는 것은 아닙니다.
 
 후속 [평가 저장 무결성](workflow-2-evaluation-storage-integrity.ko.md)은 17종의 단일/전체 이력/
 retry에서 registry·lineage·resource/root·unique binding·최초 intent와 같은 시점의 정규화

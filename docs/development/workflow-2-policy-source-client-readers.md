@@ -21,7 +21,7 @@ logical roots, original intents, shared-format presence and remaining internal r
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical/scalar/native receipt agreement, selected physical registry/lineage/resource/root/unique binding, original intent and same-cut normalized presence |
-| Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage and original intent |
+| Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage, original intent and same-cut normalized presence |
 | Comparison | `readPostgresComparisonRecordOnClient` | All three kinds, normalized/native receipt agreement, selected registry/positional lineage/resource/root, original intent and same-cut normalized presence |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate, normalized/native receipt, selected registry/lineage/resource/root, original intent and scoped normalized absence witnesses |
 | Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Exact scoped/shared-format presence, normalized ordered members/events, logical resource/root and original intent; recorded ownership and revocation/tombstone/catalog metadata |
@@ -56,7 +56,8 @@ does not newly prove physical registry/lineage/outbox agreement. The subsequent
 row checks without establishing complete physical reference agreement or current authority.
 The subsequent [model/human physical validation](workflow-2-model-assurance-storage-integrity.md)
 adds those thirteen kinds' selected cross-domain registry/lineage and original intent checks to
-the same owning reads, without proving every domain's graph or complete current authority.
+the same owning reads, now including same-cut child-owned normalized absence witnesses, without
+proving every domain's graph, outbox-only absence ownership or complete current authority.
 
 The subsequent [candidate storage validation](workflow-2-candidate-storage-integrity.md) adds its
 selected registry/predecessor/resource/root and original-intent checks plus scoped normalized

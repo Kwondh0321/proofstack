@@ -346,6 +346,13 @@ through existing read grants. Scope opacity and original retry receipts remain i
 closes those thirteen kinds' storage checks, not every other domain's graph, complete parent
 semantics, reverse/mutable/live authority, sealing or checkpoint acceptance.
 
+The later model/human absence correction observes exact-scope body and child-owned registry/
+lineage presence in one statement for all thirteen kinds. Retained ownership without a body,
+malformed native presence projections and disappearance after a positive cut fail. Normal
+publication after an absent cut and outside-scope opacity remain intact. Parent-only references
+and outbox-only aggregate IDs do not establish absent-child ownership. Complete parent semantics,
+current authority, internal SQL admission and sealed publication remain open.
+
 The subsequent [candidate owning storage validation](workflow-2-candidate-storage-integrity.md)
 checks its exact registry/predecessor/resource/root, native receipt and original intent, and
 rejects scoped normalized metadata without a body. It preserves opaque outside scope and original

@@ -273,6 +273,50 @@ async function loadStored(
   return result.rows[0] ?? null;
 }
 
+async function inspectScopedPresence(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  kind: ModelAssuranceRecordKind,
+  recordId: string,
+): Promise<boolean> {
+  // One statement observes an absence cut before any subsequent READ COMMITTED read.
+  // Child-owned normalized coordinates establish scope; parent-only edges and
+  // outbox aggregate IDs cannot establish ownership of an absent child body.
+  const result = await client.query<{
+    retained_model_assurance_body: boolean;
+    retained_model_assurance_storage: boolean;
+  }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_model_assurance_records
+       WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
+         AND project_id = $4 AND environment_id = $5
+     ) AS retained_model_assurance_body,
+     (EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_record_registry
+       WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
+         AND project_id = $4 AND environment_id = $5
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_lineage
+       WHERE tenant_id = $1 AND child_record_kind = $2 AND child_record_id = $3
+         AND project_id = $4 AND environment_id = $5
+     )) AS retained_model_assurance_storage`,
+    [scope.tenantId, kind, recordId, scope.projectId, scope.environmentId],
+  );
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_model_assurance_body !== "boolean" ||
+    typeof row.retained_model_assurance_storage !== "boolean" ||
+    row.retained_model_assurance_body !== row.retained_model_assurance_storage
+  ) {
+    throw new ModelAssuranceRepositoryContractError(
+      "Stored model-assurance body and exact-scope ownership disagree",
+    );
+  }
+  return row.retained_model_assurance_body;
+}
+
 function parseStored(kind: ModelAssuranceRecordKind, row: StoredRecordRow): ModelAssuranceRecord {
   try {
     const record = validateModelAssuranceRecord(kind, row.record);
@@ -447,10 +491,19 @@ export async function readPostgresModelAssuranceRecordOnClient<K extends ModelAs
   recordId: string,
 ): Promise<ModelAssuranceRecordByKind[K] | null> {
   const scope = { ...scopeInput };
+  if (!(await inspectScopedPresence(client, scope, kind, recordId))) return null;
   const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
-  if (!row) return null;
+  if (!row) {
+    throw new ModelAssuranceRepositoryContractError(
+      "Stored model-assurance body disappeared after its presence observation",
+    );
+  }
   const record = parseStored(kind, row);
-  if (!scopesEqual(record.scope, scope)) return null;
+  if (!scopesEqual(record.scope, scope)) {
+    throw new ModelAssuranceRepositoryContractError(
+      "Stored model-assurance body changed scope after its presence observation",
+    );
+  }
   await requirePhysicalIntegrity(client, kind, record, row);
   return clone(record) as ModelAssuranceRecordByKind[K];
 }

@@ -341,11 +341,14 @@ describe("model-assurance scalar integrity through actual runtime publication", 
       if (!fixture) throw new Error("Missing profile fixture");
       await publishAssuranceFixture(fixture);
       await withExactScopeTransaction(apiPool, fixture.record.scope, async (client) => {
+        let projected = false;
         const view = {
           query: (sql: string, parameters: unknown[]) => {
             const expression =
               "recorded_at = recorded_at_lexical::timestamptz AS recorded_at_matches";
+            if (!sql.includes("AS recorded_at_matches")) return client.query(sql, parameters);
             expect(sql).toContain(expression);
+            projected = true;
             // Real backend response, intentionally wrong boolean/type projection; no stored row mutation.
             return client.query(
               sql.replace(expression, `${projection} AS recorded_at_matches`),
@@ -361,6 +364,7 @@ describe("model-assurance scalar integrity through actual runtime publication", 
             modelAssuranceRecordId(fixture.kind, fixture.record),
           ),
         ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+        expect(projected).toBe(true);
       });
       await expect(
         repositoryFor(fixture).find(

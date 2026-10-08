@@ -1,9 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   CreateModelAssuranceAssessment,
+  digestModelAssuranceRecordDefinition,
   type ModelAssuranceRecordKind,
   ModelAssuranceRepositoryContractError,
   modelAssuranceRecordId,
+  validateModelAssuranceRecord,
 } from "@proofstack/core";
 import {
   createModelAssuranceRepositoryTestHarness,
@@ -117,55 +119,331 @@ interface ReadCall {
   readonly values: readonly unknown[];
   readonly rows: number;
 }
+async function retainedFingerprint(tenantId: string) {
+  const state: unknown[] = [];
+  for (const table of [
+    "proofstack_evaluation_record_registry",
+    "proofstack_evaluation_lineage",
+    "proofstack_model_assurance_records",
+    "proofstack_outbox",
+  ]) {
+    state.push(
+      (
+        await admin.query(
+          `SELECT to_jsonb(item) AS record FROM public.${table} AS item
+           WHERE tenant_id = $1 ORDER BY to_jsonb(item)::text`,
+          [tenantId],
+        )
+      ).rows,
+    );
+  }
+  return createHash("sha256").update(JSON.stringify(state)).digest("hex");
+}
 async function damaged(
   f: ModelAssuranceRepositoryFixtureRecord,
   mutate: (client: PoolClient, values: readonly unknown[]) => Promise<void>,
   inspect?: (view: Pick<PoolClient, "query">, calls: ReadCall[]) => Promise<void>,
 ) {
-  await withExactScopeTransaction(admin, f.record.scope, async (client) => {
-    await client.query("SAVEPOINT retained_original");
-    try {
-      // Administrator-only disposable damage; CHECKs stay active. All changes roll back.
-      await client.query("SET LOCAL session_replication_role = 'replica'");
-      await mutate(client, [
-        f.record.scope.tenantId,
-        f.kind,
-        modelAssuranceRecordId(f.kind, f.record),
-      ]);
-      await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
-      const calls: ReadCall[] = [];
+  const original = await retainedFingerprint(f.record.scope.tenantId);
+  try {
+    await withExactScopeTransaction(admin, f.record.scope, async (client) => {
+      await client.query("SAVEPOINT retained_original");
+      try {
+        // Administrator-only disposable damage; CHECKs stay active. All changes roll back.
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        await mutate(client, [
+          f.record.scope.tenantId,
+          f.kind,
+          modelAssuranceRecordId(f.kind, f.record),
+        ]);
+        await client.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+        const calls: ReadCall[] = [];
+        const view = {
+          query: async (sql: string, values: unknown[]) => {
+            expect(sql.trim()).toMatch(/^SELECT\b/);
+            const result = await client.query(sql, values);
+            calls.push({ sql, values, rows: result.rows.length });
+            return result;
+          },
+        } as Pick<PoolClient, "query">;
+        if (inspect) await inspect(view, calls);
+        else
+          await expect(
+            readPostgresModelAssuranceRecordOnClient(
+              view,
+              f.record.scope,
+              f.kind,
+              modelAssuranceRecordId(f.kind, f.record),
+            ),
+          ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+      } finally {
+        await client.query("ROLLBACK TO SAVEPOINT retained_original");
+      }
+    });
+  } finally {
+    expect(await retainedFingerprint(f.record.scope.tenantId)).toBe(original);
+    for (const retained of records)
+      await expect(
+        new PostgresModelAssuranceRepository(pool("api")).find(
+          retained.record.scope,
+          retained.kind,
+          modelAssuranceRecordId(retained.kind, retained.record),
+        ),
+      ).resolves.toEqual(retained.record);
+  }
+}
+
+describe("model-assurance physical integrity on actual PostgreSQL", () => {
+  it.each([
+    "blinded_evaluation_plan",
+    "blinded_evaluation_result",
+    "calibration_report",
+    "human_review_protocol",
+    "human_review_record",
+    "human_reviewer_independence",
+    "independence_declaration",
+    "independent_critique",
+    "model_assisted_evaluator",
+    "model_evaluator_profile",
+    "model_qualification_report",
+    "model_qualification_suite",
+    "model_assurance_assessment",
+  ] as const)("rejects missing %s bodies with retained normalized ownership", async (kind) => {
+    await damaged(fixture(kind), async (client, values) => {
+      expect(
+        (
+          await client.query(
+            "DELETE FROM public.proofstack_model_assurance_records WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3",
+            [...values],
+          )
+        ).rowCount,
+      ).toBe(1);
+    });
+  });
+
+  it.each(["registry_only", "child_lineage_only"] as const)(
+    "rejects bodyless %s ownership while hiding all outside scopes",
+    async (mode) => {
+      const f = fixture("model_assisted_evaluator");
+      await damaged(
+        f,
+        async (client, values) => {
+          expect(
+            (
+              await client.query(
+                "DELETE FROM public.proofstack_model_assurance_records WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3",
+                [...values],
+              )
+            ).rowCount,
+          ).toBe(1);
+          if (mode === "registry_only")
+            expect(
+              (
+                await client.query(
+                  "DELETE FROM public.proofstack_evaluation_lineage WHERE tenant_id=$1 AND child_record_kind=$2 AND child_record_id=$3",
+                  [...values],
+                )
+              ).rowCount,
+            ).toBeGreaterThan(0);
+          else
+            expect(
+              (
+                await client.query(
+                  "DELETE FROM public.proofstack_evaluation_record_registry WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3",
+                  [...values],
+                )
+              ).rowCount,
+            ).toBe(1);
+        },
+        async (view, calls) => {
+          const id = modelAssuranceRecordId(f.kind, f.record);
+          await expect(
+            readPostgresModelAssuranceRecordOnClient(view, f.record.scope, f.kind, id),
+          ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+          for (const scope of [
+            { ...f.record.scope, tenantId: "ten_other" },
+            { ...f.record.scope, projectId: "prj_other" },
+            { ...f.record.scope, environmentId: "env_other" },
+          ]) {
+            const before = calls.length;
+            await expect(
+              readPostgresModelAssuranceRecordOnClient(view, scope, f.kind, id),
+            ).resolves.toBeNull();
+            expect(calls.length - before).toBe(1);
+          }
+        },
+      );
+    },
+  );
+
+  it("retains an absent database cut across normal publication on another connection", async () => {
+    const f = fixture("model_evaluator_profile");
+    const definition = structuredClone(f.record) as unknown as Record<string, unknown>;
+    for (const receipt of [
+      "definitionSha256",
+      "schemaVersion",
+      "scope",
+      "publishedAt",
+      "publishedByPrincipalId",
+    ])
+      delete definition[receipt];
+    const id = `mdl_race_${key}`;
+    definition["modelProfileVersionId"] = id;
+    const record = validateModelAssuranceRecord("model_evaluator_profile", {
+      ...f.record,
+      ...definition,
+      definitionSha256: digestModelAssuranceRecordDefinition(
+        "model_evaluator_profile",
+        f.record.scope,
+        definition,
+      ),
+    });
+    if (!("modelProfileVersionId" in record)) throw new Error("Expected a profile record");
+    const repository = new PostgresModelAssuranceRepository(pool("api"));
+    await withExactScopeTransaction(pool("api"), f.record.scope, async (client) => {
+      let cutObserved = false;
       const view = {
         query: async (sql: string, values: unknown[]) => {
-          expect(sql.trim()).toMatch(/^SELECT\b/);
           const result = await client.query(sql, values);
-          calls.push({ sql, values, rows: result.rows.length });
+          if (sql.includes("AS retained_model_assurance_storage")) {
+            expect(result.rows).toEqual([
+              {
+                retained_model_assurance_body: false,
+                retained_model_assurance_storage: false,
+              },
+            ]);
+            cutObserved = true;
+            await repository.publish("model_evaluator_profile", record);
+          }
           return result;
         },
       } as Pick<PoolClient, "query">;
-      if (inspect) await inspect(view, calls);
-      else
+      await expect(
+        readPostgresModelAssuranceRecordOnClient(
+          view,
+          f.record.scope,
+          "model_evaluator_profile",
+          id,
+        ),
+      ).resolves.toBeNull();
+      expect(cutObserved).toBe(true);
+    });
+    await expect(repository.find(f.record.scope, "model_evaluator_profile", id)).resolves.toEqual(
+      record,
+    );
+  });
+
+  it("rejects a body removed after its positive database presence cut", async () => {
+    const f = fixture("model_evaluator_profile");
+    let retainedClient: PoolClient;
+    await damaged(
+      f,
+      async (client) => {
+        retainedClient = client;
+      },
+      async (view) => {
+        let removed = false;
+        const racing = {
+          query: async (sql: string, values: unknown[]) => {
+            const result = await view.query(sql, values);
+            if (sql.includes("AS retained_model_assurance_storage")) {
+              expect(result.rows).toEqual([
+                {
+                  retained_model_assurance_body: true,
+                  retained_model_assurance_storage: true,
+                },
+              ]);
+              // Privileged disposable damage inside the existing rollback fixture only.
+              await retainedClient.query("SET LOCAL ROLE NONE");
+              expect(
+                (
+                  await retainedClient.query(
+                    "DELETE FROM public.proofstack_model_assurance_records WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3",
+                    [f.record.scope.tenantId, f.kind, modelAssuranceRecordId(f.kind, f.record)],
+                  )
+                ).rowCount,
+              ).toBe(1);
+              await retainedClient.query(`SET LOCAL ROLE "${credentials.api.name}"`);
+              removed = true;
+            }
+            return result;
+          },
+        } as Pick<PoolClient, "query">;
         await expect(
           readPostgresModelAssuranceRecordOnClient(
-            view,
+            racing,
             f.record.scope,
             f.kind,
             modelAssuranceRecordId(f.kind, f.record),
           ),
         ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
-    } finally {
-      await client.query("ROLLBACK TO SAVEPOINT retained_original");
-    }
+        expect(removed).toBe(true);
+      },
+    );
   });
-  await expect(
-    new PostgresModelAssuranceRepository(pool("api")).find(
-      f.record.scope,
-      f.kind,
-      modelAssuranceRecordId(f.kind, f.record),
-    ),
-  ).resolves.toEqual(f.record);
-}
 
-describe("model-assurance physical integrity on actual PostgreSQL", () => {
+  it.each([
+    ["retained_model_assurance_body", "true"],
+    ["retained_model_assurance_body", null],
+    ["retained_model_assurance_body", 1],
+    ["retained_model_assurance_storage", "true"],
+    ["retained_model_assurance_storage", null],
+    ["retained_model_assurance_storage", 1],
+  ] as const)("rejects nonboolean port projection %s=%s", async (column, value) => {
+    const f = fixture("model_evaluator_profile");
+    await withExactScopeTransaction(pool("api"), f.record.scope, async (client) => {
+      let projected = false;
+      const view = {
+        query: async (sql: string, values: unknown[]) => {
+          const result = await client.query(sql, values);
+          if (sql.includes("AS retained_model_assurance_storage")) {
+            // Deliberate port-response corruption, not a claim PostgreSQL emits these types.
+            expect(result.rows).toHaveLength(1);
+            result.rows[0][column] = value;
+            projected = true;
+          }
+          return result;
+        },
+      } as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresModelAssuranceRecordOnClient(
+          view,
+          f.record.scope,
+          f.kind,
+          modelAssuranceRecordId(f.kind, f.record),
+        ),
+      ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+      expect(projected).toBe(true);
+    });
+  });
+
+  it.each([0, 2])("requires exactly one native presence projection, not %s", async (count) => {
+    const f = fixture("model_evaluator_profile");
+    await withExactScopeTransaction(pool("api"), f.record.scope, async (client) => {
+      let projected = false;
+      const view = {
+        query: async (sql: string, values: unknown[]) => {
+          const result = await client.query(sql, values);
+          if (sql.includes("AS retained_model_assurance_storage")) {
+            expect(result.rows).toHaveLength(1);
+            result.rows = Array.from({ length: count }, () => ({ ...result.rows[0] }));
+            projected = true;
+          }
+          return result;
+        },
+      } as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresModelAssuranceRecordOnClient(
+          view,
+          f.record.scope,
+          f.kind,
+          modelAssuranceRecordId(f.kind, f.record),
+        ),
+      ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
+      expect(projected).toBe(true);
+    });
+  });
+
   it.each(["absent", "project", "environment", "digest"] as const)(
     "rejects %s child registry damage without changing the original",
     async (mode) => {
@@ -313,7 +591,7 @@ describe("model-assurance physical integrity on actual PostgreSQL", () => {
   });
 
   it.each([0, 2])(
-    "rejects stored count %s before any physical registry/edge query",
+    "rejects stored count %s before detailed physical registry/edge validation",
     async (count) => {
       const f = fixture("model_assisted_evaluator");
       await damaged(
@@ -337,8 +615,9 @@ describe("model-assurance physical integrity on actual PostgreSQL", () => {
               modelAssuranceRecordId(f.kind, f.record),
             ),
           ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
-          expect(calls).toHaveLength(1);
-          expect(calls[0]?.sql).toContain("FROM public.proofstack_model_assurance_records");
+          expect(calls).toHaveLength(2);
+          expect(calls[0]?.sql).toContain("AS retained_model_assurance_storage");
+          expect(calls[1]?.sql).toContain("FROM public.proofstack_model_assurance_records");
         },
       );
     },
@@ -376,9 +655,7 @@ describe("model-assurance physical integrity on actual PostgreSQL", () => {
             modelAssuranceRecordId(f.kind, f.record),
           ),
         ).rejects.toBeInstanceOf(ModelAssuranceRepositoryContractError);
-        const edges = calls.find((call) =>
-          call.sql.includes("FROM public.proofstack_evaluation_lineage"),
-        );
+        const edges = calls.find((call) => call.sql.includes("AS position_matches"));
         expect(edges?.values.at(-1)).toBe(1);
         expect(edges?.rows).toBe(1);
       },
@@ -427,7 +704,7 @@ describe("model-assurance physical integrity on actual PostgreSQL", () => {
         let projected = false;
         const view = {
           query: (sql: string, values: unknown[]) => {
-            if (sql.includes("FROM public.proofstack_evaluation_lineage")) {
+            if (sql.includes(`AS ${column}`)) {
               const expression =
                 column === "position_matches"
                   ? "inspected.edge_position = inspected.expected_position"

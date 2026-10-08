@@ -20,7 +20,7 @@ For example, the retained test assessment has thirteen physical references and t
 logical references. Those fixture counts are not fixed limits or checkpoint completion metrics.
 
 The independently derived set must contain at most 4096 distinct references. The stored normalized
-count must match before registry/edge queries. The child registry must match the canonical scope,
+count must match before detailed registry/edge validation. The child registry must match the canonical scope,
 schema and digest. Edge queries return at most the derived count plus one overflow sentinel, even
 for a zero-reference body. Returned edges must exactly cover the expected set, have contiguous
 positions in the original database-native ordering, match child coordinates and resolve their
@@ -29,6 +29,13 @@ collation; a JavaScript string sorter does not replace it. The returned-row boun
 that PostgreSQL avoids scanning or sorting every stored edge.
 
 ## Existing connection and receipt boundaries
+
+One exact-scope SELECT first observes native boolean body presence and normalized ownership
+from the child registry or child-owned lineage in the same database cut. Both absent is opaque
+absence; disagreement or a malformed projection fails. Parent-only edges and outbox aggregate IDs
+cannot establish an absent child's tenant/project/environment ownership. A normal publication
+after an absent cut does not cause a second positive lookup or a false corruption error. A body
+that disappears after a positive cut fails. Detailed found-body integrity remains mandatory.
 
 Ordinary repository reads and `readPostgresModelAssuranceRecordOnClient` share this validation.
 Exact SQL scope filtering precedes body parsing and physical checks, so damaged outside-scope
@@ -45,7 +52,7 @@ byte, execution deadline or performance guarantee. [Scalar validation](workflow-
 and [held-client capture](workflow-2-policy-source-recheck.md) retain their existing boundaries.
 
 This validates the thirteen model/human kinds' storage agreement. It does not establish every
-other domain's physical graph, orphaned registry presence when no body is found, complete parent
+other domain's physical graph, outbox-only absence ownership, complete parent
 semantics, reverse/mutable/live authority, source
 truth, sealed snapshots, worker leases/fences or atomic snapshot/job publication. A read-only
 recheck still returns after transaction/guard release and cannot authorize later publication.
@@ -60,8 +67,15 @@ rolls back and a subsequent ordinary read returns the original. Existing retry c
 reject absent, conflicting-original and incoming-only intents on ordinary reads.
 
 A zero-reference record with forty unexpected edges returns one sentinel and fails. Cross-scope
-reads execute only the initial body query. Real backend projections reject truthy strings in
+reads execute only the initial presence query. Real backend projections reject truthy strings in
 child/parent/order checks. An ordinary trigger-enabled delivery update preserves canonical read
 behavior. Pure tests cover tuple deduplication, nested arrays, root exclusion, selected cross-domain
 references, depth 64/65 and exact/over-limit counts. Existing forced-RLS, held-connection, original
 receipt, concurrency and disjoint publication-role coverage remains required.
+
+Additional actual PostgreSQL regressions remove bodies across all thirteen kinds, isolate
+registry-only and child-lineage-only witnesses and preserve opacity in each outside scope.
+Controlled normal publication on another connection preserves the initial absent cut; privileged
+rollback damage after a positive cut fails. Four-table fingerprints and every original owning
+read verify restoration even when an assertion fails. Explicit port-response mutations reject
+nonboolean flags and zero/multiple presence rows; these are not backend-emitted malformed types.
