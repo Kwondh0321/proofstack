@@ -49,8 +49,24 @@ record는 DB 메타데이터나 실행 중 설치 코드의 권한 증거와 구
 budget을 사용해야 합니다. SQL 실행 deadline이나 전송 스트림 상한은 아닙니다. 객체·key·파일
 I/O는 잠금 밖에서 수행하고, 후속 artifact/policy 잠금 획득 실패는 전체 롤백해야 합니다.
 
-전체 before/after graph 비교·의미/권한 closure·worker lease/fence 검증·sealed 계약·원자적
-발행은 아직 구현하지 않았습니다. 읽기 전용 트랜잭션은 결과 반환 전에 끝납니다. 실제 발행은
+내부 request 소유 graph/trace 구성은 같은 호출이 보존한 capture를 재검사할 수 있습니다.
+하위 참조를 처리하기 전에 owning read와 검증된 전체 receipt를 비교하고, target을 queue에
+넣기 전에 순서가 있는 각 edge와 selector 결과를 비교합니다. Selector가 미리 읽은 record도
+즉시 비교합니다. 없던 record의 생성·receipt 변경·selector 결과 변경은 새 하위 의존성을
+따라가기 전에 실패합니다. 파생 graph/comparison 자료·정확한 trace 원문·반복 artifact
+발생 모두 일치해야 합니다. 그대로인 missing/unavailable 관측은 보존하지만, 읽을 수 없어서
+버린 잘못된 원문의 바이트까지 같다는 증거는 아닙니다.
+
+재검사는 원 호출의 누적 acquisition budget을 사용해 실제 재조회와 반복 owning 검사를
+기존 유한 한도에 포함합니다. 자료 동일성 비교에서만 누적 usage를 제외합니다. 변경 오류와
+저장소·한도 오류는 구별합니다. 보존 입력을 받는 구성과 matcher는 package root나 공개
+request 계약으로 제공하지 않습니다.
+
+Artifact capture의 선택적 `sourceTransactions`는 이 graph/trace 비교를 아직 호출하지
+않습니다. 같은 metadata 트랜잭션의 request 소유 전체 artifact/policy 잠금과 결합, fixture
+소유권/이력 재검사·전체 의미/권한 closure·worker lease/fence 검증·sealed 계약·원자적
+발행은 남아 있습니다. 내부 비교 성공 자체가 잠금 획득을 증명하지 않습니다. 읽기 전용
+트랜잭션은 결과 반환 전에 끝납니다. 실제 발행은
 모든 잠금을 같은 연결에서 전체 검증과 snapshot/job mutation까지 유지해야 하며, 반환된
 메타데이터는 이후 seal 권한이 아닙니다.
 

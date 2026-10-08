@@ -56,9 +56,25 @@ metadata reads need that same cumulative request budget. This is not a hard SQL 
 or streamed transport bound. Callers must keep object/key/filesystem I/O outside guards and
 abandon the whole transaction if any later required artifact/policy guard cannot be acquired.
 
-This increment exposes the protected owning reads; it does not implement request-owned full
-before/after graph comparison, complete semantic/authority closure, worker lease/fence validation,
-sealed contracts or atomic publication. The read-only transaction ends before returning its result.
+The internal request-owning graph/trace composers now accept their own retained capture for
+reinspection. Before traversing references they compare each owning read and full verified receipt
+against the original observation, then compare each ordered edge and selector outcome before
+enqueueing targets. Selector-prefetched records are compared immediately. Missing-record creation,
+changed receipts and changed selector outcomes fail before following newly introduced descendants.
+Complete derived graph/comparison material, exact trace envelopes and all repeated artifact
+occurrences must still agree. Stable missing/unavailable observations remain explicit; unchanged
+unreadable observations do not prove equality of discarded invalid bytes.
+
+Reinspection reuses the invocation's cumulative acquisition budget: every actual re-read and
+repeated owning inspection consumes its original finite limits. Cumulative usage is excluded from
+material equality only. Revision failures remain distinct from storage and budget failures. The
+retained-input composers and matchers are not package-root exports or public request contracts.
+
+The artifact capture's optional `sourceTransactions` still does not invoke these graph/trace
+comparisons. Combining them with all request-owned artifact/policy guards on the same held metadata
+transaction, fixture ownership/history reinspection, complete semantic/authority closure, worker
+lease/fence validation, sealed contracts and atomic publication remains open. A successful internal
+comparison alone does not establish any guard. The read-only transaction ends before returning its result.
 Future publication must retain all required guards in the same still-open transaction through
 complete validation and atomic snapshot/job mutation. Returned metadata is never later seal authority.
 

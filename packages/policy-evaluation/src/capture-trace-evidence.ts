@@ -16,6 +16,7 @@ import {
 } from "./capture-comparison-evidence.js";
 import { acquirePolicyRecordGraph } from "./capture-record-graph.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+import { CapturedTraceReinspection } from "./reinspect-captured-observations.js";
 
 export interface PolicyTraceCapture {
   /** Index into comparisonCapture.graph.edges; binds parent identity, receipt hash and JSON path. */
@@ -64,18 +65,35 @@ export async function capturePolicyTraceEvidence(
   return acquirePolicyTraceEvidence(request, repositories, evidence, budget);
 }
 
-/** Internal only: one request-owning composition must supply the same meter for every phase. */
+/**
+ * Internal only: one request-owning composition supplies the same meter for every phase and may
+ * reinspect its own retained capture. Public callers cannot supply retained graph/trace material.
+ */
 export async function acquirePolicyTraceEvidence(
   request: PolicyEvaluationRequest,
   repositories: PolicyRecordGraphRepositories,
   evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
   budget: AcquisitionBudget,
+  retained?: PolicyTraceEvidenceCapture,
 ): Promise<PolicyTraceEvidenceCapture> {
   try {
-    const graph = await acquirePolicyRecordGraph(request, repositories, budget);
+    const reinspection = retained ? new CapturedTraceReinspection(retained) : undefined;
+    const graph = await acquirePolicyRecordGraph(
+      request,
+      repositories,
+      budget,
+      retained?.comparisonCapture.graph,
+    );
     const comparisonCapture = resolveCapturedComparisonEvidence(request, graph);
-    if (comparisonCapture.status === "roots_unavailable")
-      return { status: "roots_unavailable", comparisonCapture, usage: budget.usage() };
+    if (comparisonCapture.status === "roots_unavailable") {
+      const capture = {
+        status: "roots_unavailable" as const,
+        comparisonCapture,
+        usage: budget.usage(),
+      };
+      reinspection?.complete(capture);
+      return capture;
+    }
     const port = budget.wrap(evidence);
     const traces: PolicyTraceCapture[] = [];
     const artifactReferences: PolicyTraceArtifactReference[] = [];
@@ -97,6 +115,7 @@ export async function acquirePolicyTraceEvidence(
         },
         port,
       );
+      reinspection?.trace(traces.length, { edgeIndex, read });
       const key = canonical(read.selector);
       const observation = canonical(read.observation);
       const previous = observations.get(key);
@@ -140,13 +159,15 @@ export async function acquirePolicyTraceEvidence(
         });
       }
     }
-    return {
+    const capture: PolicyTraceEvidenceCapture = {
       status: "traces_captured",
       comparisonCapture,
       traces,
       artifactReferences,
       usage: budget.usage(),
     };
+    reinspection?.complete(capture);
+    return capture;
   } finally {
     await budget.settle();
   }

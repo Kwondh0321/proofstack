@@ -332,8 +332,11 @@ ledger before exposing lifetime-bound owning repository ports for the full recor
 trace events, complete criterion histories and fixture ownership/availability metadata. Every
 requested scope must equal the held transaction scope; caught/unawaited read failures roll back
 and started reads drain before cleanup. Static installation/runtime records are bounded immutable
-operator copies, not external resolver callbacks. Complete request-owned graph comparison,
-semantic/authority closure, sealed contracts and same-transaction publication remain open.
+operator copies, not external resolver callbacks. Internal request-owned graph/trace reinspection
+now rejects changed observations, selector outcomes and full receipts before following new
+descendants, preserves repeated occurrences and reuses the original cumulative budget. Combining
+it with all resource guards and history/ownership reads in artifact capture, complete
+semantic/authority closure, sealed contracts and same-transaction publication remains open.
 
 The subsequent [complete criterion status history reader](workflow-2-criterion-status-history.md)
 provides bounded exact-scope enumeration without choosing a latest status or filtering away

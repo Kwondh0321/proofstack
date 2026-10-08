@@ -30,8 +30,12 @@ import {
 } from "@proofstack/datasets";
 import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
 import { describe, expect, it, vi } from "vitest";
+import { AcquisitionBudget } from "./acquisition-budget.js";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
-import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
+import {
+  acquirePolicyTraceEvidence,
+  capturePolicyTraceEvidence,
+} from "./capture-trace-evidence.js";
 import * as publicApi from "./index.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
@@ -210,6 +214,146 @@ async function harness(selectors = [["event_one", "event_two"]]) {
   const pages = vi.spyOn(evidence, "listByTrace");
   return { request, repositories, evidence, exact, pages, events, fixtures, candidate };
 }
+
+describe("request-owned trace reinspection", () => {
+  it("preserves exact repeated parent occurrences and counts each re-read on the original meter", async () => {
+    const h = await harness([["event_one"], ["event_one"]]);
+    const budget = new AcquisitionBudget(h.request.limits);
+    const retained = await acquirePolicyTraceEvidence(
+      h.request,
+      h.repositories,
+      h.evidence,
+      budget,
+    );
+    const current = await acquirePolicyTraceEvidence(
+      h.request,
+      h.repositories,
+      h.evidence,
+      budget,
+      retained,
+    );
+    if (retained.status !== "traces_captured" || current.status !== "traces_captured")
+      throw new Error("Expected traces");
+    expect(current.traces).toEqual(retained.traces);
+    expect(current.artifactReferences).toEqual(retained.artifactReferences);
+    expect(current.artifactReferences).toHaveLength(4);
+    expect(h.exact).toHaveBeenCalledTimes(4);
+    for (const key of Object.keys(retained.usage) as (keyof typeof retained.usage)[])
+      expect(current.usage[key], key).toBe(retained.usage[key] * 2);
+  });
+
+  it.each(["missing", "body", "receipt", "scope", "cut"] as const)(
+    "rejects changed trace %s before reading a subsequent selector",
+    async (change) => {
+      const h = await harness([["event_one"], ["event_two"]]);
+      const retained = await capturePolicyTraceEvidence(h.request, h.repositories, h.evidence);
+      const changed = event("event_one");
+      if (change === "body") changed.evidence.name = "new body";
+      if (change === "receipt") changed.receivedAt = "2026-09-04T01:00:00.000Z";
+      if (change === "scope") changed.scope.environmentId = "other_environment";
+      if (change === "cut") changed.receivedAt = "2026-09-06T00:00:00.000Z";
+      h.exact.mockClear();
+      h.exact.mockResolvedValue(change === "missing" ? null : [changed]);
+      await expect(
+        acquirePolicyTraceEvidence(
+          h.request,
+          h.repositories,
+          h.evidence,
+          new AcquisitionBudget(h.request.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({ reason: "source_revision_changed", identity: "trace:0" });
+      expect(h.exact).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["missing", "invalid"] as const)(
+    "preserves a stable %s trace observation",
+    async (state) => {
+      const h = await harness([["event_one"]]);
+      const invalid = { ...event("event_one"), extra: true };
+      h.exact.mockResolvedValue(state === "missing" ? null : [invalid]);
+      const retained = await capturePolicyTraceEvidence(h.request, h.repositories, h.evidence);
+      const current = await acquirePolicyTraceEvidence(
+        h.request,
+        h.repositories,
+        h.evidence,
+        new AcquisitionBudget(h.request.limits),
+        retained,
+      );
+      expect(current).toEqual(retained);
+    },
+  );
+
+  it("rejects creation of formerly missing exact evidence", async () => {
+    const h = await harness([["event_one"]]);
+    h.exact.mockResolvedValue(null);
+    const retained = await capturePolicyTraceEvidence(h.request, h.repositories, h.evidence);
+    h.exact.mockResolvedValue([event("event_one")]);
+    await expect(
+      acquirePolicyTraceEvidence(
+        h.request,
+        h.repositories,
+        h.evidence,
+        new AcquisitionBudget(h.request.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({ reason: "source_revision_changed", identity: "trace:0" });
+  });
+
+  it("preserves unavailable roots without starting trace I/O", async () => {
+    const h = await harness();
+    vi.spyOn(h.repositories.control.releaseCandidate, "findReleaseCandidate").mockResolvedValue(
+      null,
+    );
+    const retained = await capturePolicyTraceEvidence(h.request, h.repositories, h.evidence);
+    const current = await acquirePolicyTraceEvidence(
+      h.request,
+      h.repositories,
+      h.evidence,
+      new AcquisitionBudget(h.request.limits),
+      retained,
+    );
+    expect(current).toEqual(retained);
+    expect(current.status).toBe("roots_unavailable");
+    expect(h.exact).not.toHaveBeenCalled();
+  });
+
+  it.each(["extra_trace", "artifact_occurrence", "comparison_status"] as const)(
+    "rejects incomplete retained %s material",
+    async (change) => {
+      const h = await harness();
+      const retained = await capturePolicyTraceEvidence(h.request, h.repositories, h.evidence);
+      if (retained.status !== "traces_captured") throw new Error("Expected traces");
+      if (change === "extra_trace")
+        Reflect.set(retained, "traces", [...retained.traces, retained.traces[0]]);
+      if (change === "artifact_occurrence")
+        Reflect.set(retained, "artifactReferences", retained.artifactReferences.slice(1));
+      if (change === "comparison_status")
+        Reflect.set(retained.comparisonCapture, "status", "roots_unavailable");
+      await expect(
+        acquirePolicyTraceEvidence(
+          h.request,
+          h.repositories,
+          h.evidence,
+          new AcquisitionBudget(h.request.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({ reason: "source_revision_changed", identity: "trace_capture" });
+    },
+  );
+
+  it("does not expose retained-input composers or revision matchers through the package root", () => {
+    for (const name of [
+      "acquirePolicyRecordGraph",
+      "acquirePolicyTraceEvidence",
+      "CapturedGraphReinspection",
+      "CapturedTraceReinspection",
+      "PolicyCapturedObservationRecheckError",
+    ])
+      expect(publicApi).not.toHaveProperty(name);
+  });
+});
 
 describe("request-rooted exact trace capture", () => {
   it("connects exact parent-bound events and repeated artifact occurrences under one acquisition budget", async () => {

@@ -60,6 +60,7 @@ import {
   type PolicyRecordRead,
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
+import { CapturedGraphReinspection } from "./reinspect-captured-observations.js";
 
 export interface PolicyRecordGraphEdge {
   readonly parent: PolicyEvaluationSourceReference;
@@ -154,12 +155,17 @@ export async function capturePolicyRecordGraph(
   return acquirePolicyRecordGraph(request, repositories, budget);
 }
 
-/** Internal composition boundary: only request-owning entry points may supply this shared meter. */
+/**
+ * Internal composition boundary: only request-owning entry points supply this shared meter and
+ * their own retained graph. This optional comparison neither acquires guards nor grants a seal.
+ */
 export async function acquirePolicyRecordGraph(
   request: PolicyEvaluationRequest,
   repositories: PolicyRecordGraphRepositories,
   budget: AcquisitionBudget,
+  retained?: PolicyRecordGraph,
 ): Promise<PolicyRecordGraph> {
+  let reinspection: CapturedGraphReinspection | undefined;
   const { evaluationTime, scope } = request;
   const ports = metered(repositories, budget);
   const limits = {
@@ -180,6 +186,10 @@ export async function acquirePolicyRecordGraph(
   const expanded = new Map<string, PolicyRecordExpansion>();
   const artifacts = new Map<string, string>();
   const edges: PolicyRecordGraphEdge[] = [];
+  const admitEdge = (edge: PolicyRecordGraphEdge) => {
+    reinspection?.edge(edges.length, edge);
+    edges.push(edge);
+  };
 
   const enqueue = (source: PolicyEvaluationSourceReference, read?: PolicyRecordRead) => {
     const key = policyEvaluationSourceReferenceKey(source);
@@ -200,6 +210,7 @@ export async function acquirePolicyRecordGraph(
   for (const root of roots) enqueue(root);
 
   try {
+    reinspection = retained ? new CapturedGraphReinspection(request, retained) : undefined;
     for (let cursor = 0; cursor < queue.length; cursor++) {
       const source = queue[cursor] as PolicyEvaluationSourceReference;
       const key = policyEvaluationSourceReferenceKey(source);
@@ -234,6 +245,7 @@ export async function acquirePolicyRecordGraph(
         );
         enqueue(source, expansion.read);
       }
+      reinspection?.expansion(expansion);
       expanded.set(key, expansion);
       const { read, references } = expansion;
       if (references === null || read.observation.status !== "verified") continue;
@@ -249,8 +261,8 @@ export async function acquirePolicyRecordGraph(
           reference,
         };
         if (reference.kind === "record") {
+          admitEdge({ ...parent, target: reference.source });
           enqueue(reference.source);
-          edges.push({ ...parent, target: reference.source });
         } else if (
           reference.kind === "criterion_selector" ||
           reference.kind === "model_evaluator_selector" ||
@@ -274,10 +286,11 @@ export async function acquirePolicyRecordGraph(
             },
           );
           if (resolved.status === "resolved") {
+            admitEdge({ ...parent, target: resolved.evidence.source });
+            reinspection?.read(resolved.evidence as PolicyRecordRead);
             enqueue(resolved.evidence.source, resolved.evidence as PolicyRecordRead);
-            edges.push({ ...parent, target: resolved.evidence.source });
           } else
-            edges.push({
+            admitEdge({
               ...parent,
               target: null,
               selectorFailure:
@@ -294,7 +307,7 @@ export async function acquirePolicyRecordGraph(
               throw new PolicyRecordGraphError("reference_conflict", `artifact:${id}`);
             artifacts.set(id, descriptor);
           }
-          edges.push({ ...parent, target: null });
+          admitEdge({ ...parent, target: null });
         }
       }
     }
@@ -390,7 +403,7 @@ export async function acquirePolicyRecordGraph(
         limits,
       ),
     );
-    return {
+    const graph: PolicyRecordGraph = {
       request: policyEvaluationRequestReference(request),
       scope,
       evaluationTime,
@@ -425,6 +438,8 @@ export async function acquirePolicyRecordGraph(
         references: edges.filter(({ target }) => target === null).length,
       },
     };
+    reinspection?.complete(graph);
+    return graph;
   } finally {
     await budget.settle();
   }

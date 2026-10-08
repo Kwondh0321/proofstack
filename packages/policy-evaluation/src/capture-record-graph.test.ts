@@ -55,12 +55,13 @@ import {
   MemoryReplayJobRepository,
 } from "@proofstack/replay/testing";
 import { describe, expect, it, vi } from "vitest";
+import { AcquisitionBudget } from "./acquisition-budget.js";
 import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
 import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
-import { capturePolicyRecordGraph } from "./capture-record-graph.js";
+import { acquirePolicyRecordGraph, capturePolicyRecordGraph } from "./capture-record-graph.js";
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
@@ -586,6 +587,297 @@ async function harness(
     input: request(candidate, policy),
   };
 }
+
+describe("request-owned record graph reinspection", () => {
+  async function predecessorHarness() {
+    const h = await harness();
+    const repository = new MemoryComparisonRepository();
+    const prior = comparisonDefinitionFixture("graph", h.input.scope);
+    const successor = comparisonDefinitionFixture("graph", h.input.scope, {
+      predecessor: {
+        comparisonVersionId: prior.comparisonVersionId,
+        definitionSha256: prior.definitionSha256,
+      },
+      version: "v2",
+    });
+    await repository.publishComparisonDefinition(prior);
+    await repository.publishComparisonDefinition(successor);
+    const rule = structuredClone(
+      h.policy.rules.find(({ predicate }) => predicate.kind === "comparison_threshold"),
+    );
+    if (rule?.predicate.kind !== "comparison_threshold") throw new Error("Missing comparison rule");
+    rule.predicate.comparison = {
+      comparisonId: successor.comparisonId,
+      comparisonVersionId: successor.comparisonVersionId,
+      definitionSha256: successor.definitionSha256,
+    };
+    const policy = policyDigest({
+      ...h.policy,
+      rules: [
+        rule,
+        ...h.policy.rules.filter(({ predicate }) => predicate.kind === "approval_required"),
+      ].sort((a, b) => (a.ruleId < b.ruleId ? -1 : a.ruleId > b.ruleId ? 1 : 0)),
+    });
+    const missing = missingRepositories();
+    const repositories: PolicyRecordGraphRepositories = {
+      ...missing.repositories,
+      control: {
+        ...missing.repositories.control,
+        comparison: repository,
+        releasePolicy: { findReleasePolicy: async () => policy },
+      },
+    };
+    return { repositories, prior, repository, input: request(h.candidate, policy) };
+  }
+
+  it.each(["created", "removed"] as const)(
+    "rejects a %s comparison predecessor at its selector boundary",
+    async (change) => {
+      const h = await predecessorHarness();
+      const original = h.repository.findComparisonDefinition.bind(h.repository);
+      let missing = change === "created";
+      const read = vi
+        .spyOn(h.repository, "findComparisonDefinition")
+        .mockImplementation(async (scope, id) =>
+          missing && id === h.prior.comparisonVersionId ? null : original(scope, id),
+        );
+      const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+      const edgeIndex = retained.edges.findIndex(
+        ({ reference }) => reference.path === "/predecessor",
+      );
+      expect(edgeIndex).toBeGreaterThanOrEqual(0);
+      missing = !missing;
+      read.mockClear();
+      await expect(
+        acquirePolicyRecordGraph(
+          h.input,
+          h.repositories,
+          new AcquisitionBudget(h.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({ reason: "source_revision_changed", identity: `edge:${edgeIndex}` });
+      expect(read).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("compares a selector-prefetched full receipt before expanding the selected definition", async () => {
+    const h = await predecessorHarness();
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    const original = h.repository.findComparisonDefinition.bind(h.repository);
+    const read = vi
+      .spyOn(h.repository, "findComparisonDefinition")
+      .mockImplementation(async (scope, id) => {
+        const record = await original(scope, id);
+        return record && id === h.prior.comparisonVersionId
+          ? { ...record, createdByPrincipalId: "changed_selector_receipt" }
+          : record;
+      });
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: `comparison_definition:${h.prior.comparisonVersionId}`,
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves repeated edges and unresolved observations while charging the same cumulative meter", async () => {
+    const h = await harness();
+    const budget = new AcquisitionBudget(h.input.limits);
+    const retained = await acquirePolicyRecordGraph(h.input, h.repositories, budget);
+    const current = await acquirePolicyRecordGraph(h.input, h.repositories, budget, retained);
+    const { usage: firstUsage, ...first } = retained;
+    const { usage: secondUsage, ...second } = current;
+    expect(second).toEqual(first);
+    expect(retained.unresolved.records).toBeGreaterThan(0);
+    expect(
+      retained.edges.filter(({ target }) => target?.kind === "criterion_set").length,
+    ).toBeGreaterThan(5);
+    for (const key of Object.keys(firstUsage) as (keyof typeof firstUsage)[])
+      expect(secondUsage[key], key).toBe(firstUsage[key] * 2);
+  });
+
+  it("rejects a changed root receipt before reading its children or the second root", async () => {
+    const h = await harness();
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    const policy = vi.spyOn(h.repositories.control.releasePolicy, "findReleasePolicy");
+    const assessment = vi.spyOn(h.repositories.evidence.evaluation, "findAssessment");
+    vi.spyOn(h.repositories.control.releaseCandidate, "findReleaseCandidate").mockResolvedValue({
+      ...h.candidate,
+      createdAt: "2026-09-03T00:00:00.000Z",
+    });
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      code: "policy_captured_observation_recheck_failed",
+      reason: "source_revision_changed",
+    });
+    expect(policy).not.toHaveBeenCalled();
+    expect(assessment).not.toHaveBeenCalled();
+  });
+
+  it("rejects creation of a formerly missing valid dataset before traversing its fixture members", async () => {
+    const h = await harness(undefined, { dataset: "matched" });
+    const dataset = vi.spyOn(h.repositories.datasets, "findDatasetVersion").mockResolvedValue(null);
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(
+      retained.nodes.find(({ read }) => read.source.kind === "dataset_version")?.read.observation
+        .status,
+    ).toBe("missing");
+    dataset.mockRestore();
+    const fixture = vi.spyOn(h.repositories.datasets, "findFixtureVersion");
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: expect.stringContaining("dataset_version"),
+    });
+    expect(fixture).not.toHaveBeenCalled();
+  });
+
+  it.each(["missing", "not_yet_available"] as const)(
+    "rejects a formerly %s criterion at its earlier exact-read boundary",
+    async (state) => {
+      const h = await harness();
+      const evaluation = h.repositories.evidence.evaluation;
+      const original = evaluation.findCriterionSet.bind(evaluation);
+      const criterion = vi
+        .spyOn(evaluation, "findCriterionSet")
+        .mockImplementation(async (...args) => {
+          const record = await original(...args);
+          return state === "missing"
+            ? null
+            : record && { ...record, publishedAt: "2027-01-01T00:00:00.000Z" };
+        });
+      const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+      expect(retained.edges.some(({ selectorFailure }) => selectorFailure !== undefined)).toBe(
+        true,
+      );
+      criterion.mockRestore();
+      await expect(
+        acquirePolicyRecordGraph(
+          h.input,
+          h.repositories,
+          new AcquisitionBudget(h.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({
+        reason: "source_revision_changed",
+        identity: "criterion_set:csv_response_v1",
+      });
+    },
+  );
+
+  it("rejects a disappeared criterion at its earlier exact-read boundary", async () => {
+    const h = await harness();
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    vi.spyOn(h.repositories.evidence.evaluation, "findCriterionSet").mockResolvedValue(null);
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: "criterion_set:csv_response_v1",
+    });
+  });
+
+  it("rejects a changed criterion receipt even when its definition is unchanged", async () => {
+    const h = await harness();
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    const evaluation = h.repositories.evidence.evaluation;
+    const original = evaluation.findCriterionSet.bind(evaluation);
+    vi.spyOn(evaluation, "findCriterionSet").mockImplementation(async (...args) => {
+      const record = await original(...args);
+      return record && { ...record, publishedByPrincipalId: "principal_changed_receipt" };
+    });
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: expect.stringContaining("criterion_set"),
+    });
+  });
+
+  it("keeps cumulative record limit failures distinct from revision changes", async () => {
+    const h = await harness();
+    const input = request(h.candidate, h.policy, {
+      ...h.input.limits,
+      maxAcquisitionRecords: 2,
+    });
+    const repositories = missingRepositories().repositories;
+    const budget = new AcquisitionBudget(input.limits);
+    const retained = await acquirePolicyRecordGraph(input, repositories, budget);
+    await expect(
+      acquirePolicyRecordGraph(input, repositories, budget, retained),
+    ).rejects.toMatchObject({ code: "policy_record_graph_failed", reason: "record_limit" });
+  });
+
+  it("propagates owning repository failures without reporting a revision change", async () => {
+    const h = await harness();
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    const failure = new Error("candidate storage unavailable");
+    vi.spyOn(h.repositories.control.releaseCandidate, "findReleaseCandidate").mockRejectedValue(
+      failure,
+    );
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toBe(failure);
+  });
+
+  it.each(["request", "duplicate_node", "missing_node", "extra_edge", "derived_binding"] as const)(
+    "rejects inconsistent retained %s material",
+    async (change) => {
+      const h = await harness();
+      const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+      if (change === "request")
+        Reflect.set(retained, "scope", { ...retained.scope, projectId: "other_project" });
+      if (change === "duplicate_node")
+        Reflect.set(retained, "nodes", [...retained.nodes, retained.nodes[0]]);
+      if (change === "missing_node") Reflect.set(retained, "nodes", retained.nodes.slice(1));
+      if (change === "extra_edge")
+        Reflect.set(retained, "edges", [...retained.edges, retained.edges[0]]);
+      if (change === "derived_binding")
+        Reflect.set(retained, "unresolved", { records: 0, references: 0 });
+      await expect(
+        acquirePolicyRecordGraph(
+          h.input,
+          h.repositories,
+          new AcquisitionBudget(h.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({ reason: "source_revision_changed" });
+    },
+  );
+});
 
 describe("independent retained record closure", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 4 * 1024 * 1024 };
