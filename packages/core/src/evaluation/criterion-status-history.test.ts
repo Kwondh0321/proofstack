@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { encodeEvaluationCanonicalJson } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import { criterionStatusHistoryConformanceCases } from "../testing/criterion-status-history-conformance.js";
@@ -7,6 +8,7 @@ import {
   admitCriterionStatusHistory,
   CriterionStatusHistoryLimitError,
   type CriterionStatusHistoryLimits,
+  inspectCriterionStatusHistory,
   requireCriterionStatusHistoryLimits,
 } from "./criterion-status-history.js";
 import { EvaluationRepositoryContractError } from "./evaluation-repository-errors.js";
@@ -22,6 +24,42 @@ const limits = {
 };
 
 describe("complete criterion status history admission", () => {
+  it("hashes full receipts and scope-bound complete history after admission", () => {
+    const observed = inspectCriterionStatusHistory(harness.scope, records, limits);
+    expect(observed.history.map(({ record }) => record)).toEqual(records);
+    for (const { record, recordSha256 } of observed.history)
+      expect(recordSha256).toBe(
+        createHash("sha256").update(encodeEvaluationCanonicalJson(record)).digest("hex"),
+      );
+    const changed = records.map((record) => ({
+      ...record,
+      recordedByPrincipalId: "other_recorder",
+    }));
+    const updated = inspectCriterionStatusHistory(harness.scope, changed, {
+      ...limits,
+      maxRecordBytes: 100000,
+    });
+    expect(updated.historySha256).not.toBe(observed.historySha256);
+    expect(updated.history[0]?.recordSha256).not.toBe(observed.history[0]?.recordSha256);
+    expect(updated.history[0]?.record.definitionSha256).toBe(
+      observed.history[0]?.record.definitionSha256,
+    );
+    expect(observed.history[0]?.record).not.toBe(records[0]);
+  });
+
+  it("binds empty-history scope and rejects invalid/over-limit inputs before returning hashes", () => {
+    const empty = { maxRecords: 0, maxRecordBytes: 2 };
+    expect(inspectCriterionStatusHistory(harness.scope, [], empty).historySha256).not.toBe(
+      inspectCriterionStatusHistory({ ...harness.scope, environmentId: "other" }, [], empty)
+        .historySha256,
+    );
+    expect(() => inspectCriterionStatusHistory(harness.scope, records, empty)).toThrow(
+      CriterionStatusHistoryLimitError,
+    );
+    expect(() =>
+      inspectCriterionStatusHistory(harness.scope, [...records].reverse(), limits),
+    ).toThrow(EvaluationRepositoryContractError);
+  });
   for (const testCase of criterionStatusHistoryConformanceCases) {
     it(testCase.name, () =>
       testCase.run((namespace) => ({

@@ -333,6 +333,13 @@ branches, terminal records or later receipts. Shared memory/PostgreSQL conforman
 evaluation-row checks and per-history-row cumulative admission support the later authority
 interpreter. It does not itself select a current head, add capture/sealing or accept checkpoint 3.
 
+The subsequent [request-owned criterion authority observation](workflow-2-criterion-authority.md)
+connects complete history to artifact capture before/after content, preserves original selections
+and derives explicit policy/capture-time head, ambiguity and expiry observations under ADR-0028.
+It detects changed histories without upgrading stored eligibility. Matching unguarded observations
+are not sealing; the existing source recheck still covers only artifact/policy guards. Complete
+same-client history/authority composition and atomic publication remain open.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

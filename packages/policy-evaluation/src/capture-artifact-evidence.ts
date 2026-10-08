@@ -24,6 +24,12 @@ import {
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import {
+  type CriterionAuthorityReadRepository,
+  criterionAuthorityMaterialFingerprint,
+  observeCapturedCriterionAuthority,
+  type PolicyCriterionAuthorityObservation,
+} from "./capture-criterion-authority.js";
+import {
   inspectCapturedEvaluationTrust,
   type PolicyEvaluationTrustPrerequisites,
 } from "./capture-evaluation-trust.js";
@@ -44,24 +50,28 @@ import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
-import type { PolicyRecordGraphRepositories } from "./record-routing.js";
-import {
-  type PolicyEvaluationSourceGuard,
-  type PolicyEvaluationSourceGuardUsage,
+import type {
+  PolicyEvaluationSourceGuard,
+  PolicyEvaluationSourceGuardUsage,
 } from "./derive-source-guards.js";
 import {
   deriveAndRecheckCapturedPolicySources,
   type PolicyEvaluationSourceRecheck,
   type PolicyEvaluationSourceTransactions,
 } from "./recheck-captured-sources.js";
+import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
 export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
   /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
   readonly sourceTransactions?: PolicyEvaluationSourceTransactions;
 };
 
-/** Artifact capture additionally observes the complete authoritative terminal policy history. */
+/** Artifact capture also requires complete policy terminal and criterion status histories. */
 export type PolicyArtifactEvidenceRepositories = PolicyRecordGraphRepositories & {
+  readonly evidence: PolicyRecordGraphRepositories["evidence"] & {
+    readonly evaluation: PolicyRecordGraphRepositories["evidence"]["evaluation"] &
+      CriterionAuthorityReadRepository;
+  };
   readonly control: PolicyRecordGraphRepositories["control"] & {
     readonly releasePolicy: PolicyLifecycleReadRepository;
   };
@@ -91,10 +101,15 @@ export type PolicyArtifactEvidenceCapture = {
       readonly status: "artifacts_captured";
       readonly artifacts: readonly PolicyArtifactCapture[];
       readonly sourceGuards: readonly PolicyEvaluationSourceGuard[];
+      /** Existing artifact/policy guard domain only; criterion history is not rechecked by it. */
       readonly sourceRecheck?: PolicyEvaluationSourceRecheck;
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly policyAuthority: PolicyAuthorityPrerequisites;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
+      readonly criterionAuthority: {
+        readonly beforeArtifacts: PolicyCriterionAuthorityObservation;
+        readonly afterArtifacts: PolicyCriterionAuthorityObservation;
+      };
       readonly policyLifecycle: {
         readonly beforeArtifacts: PolicyLifecycleObservation;
         readonly afterArtifacts: PolicyLifecycleObservation;
@@ -178,6 +193,25 @@ export async function capturePolicyArtifactEvidence(
       policyRepository,
       clock,
     );
+    const criterionRepository = budget.wrap(repositories.evidence.evaluation);
+    const observeCriteria = async () => {
+      const observation = await observeCapturedCriterionAuthority(
+        traceCapture.comparisonCapture.graph,
+        criterionRepository,
+        clock,
+        {
+          maxRecords: request.limits.maxAcquisitionRecords,
+          maxRecordBytes: request.limits.maxAcquisitionRecordBytes,
+        },
+      );
+      if (observation.status === "observed")
+        budget.addReferences(
+          observation.inspectionUsage.references,
+          observation.inspectionUsage.referenceBytes,
+        );
+      return observation;
+    };
+    const criteriaBeforeArtifacts = await observeCriteria();
     const occurrences: { origin: PolicyArtifactCaptureOrigin; reference: ContentReference }[] = [];
     traceCapture.comparisonCapture.graph.edges.forEach((edge, edgeIndex) => {
       if (edge.reference.kind === "artifact")
@@ -266,6 +300,12 @@ export async function capturePolicyArtifactEvidence(
     );
     if (beforeArtifacts.observationSha256 !== afterArtifacts.observationSha256)
       throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+    const criteriaAfterArtifacts = await observeCriteria();
+    if (
+      criterionAuthorityMaterialFingerprint(criteriaBeforeArtifacts) !==
+      criterionAuthorityMaterialFingerprint(criteriaAfterArtifacts)
+    )
+      throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
     const sourceGuardPlan = await deriveAndRecheckCapturedPolicySources(
       {
         request,
@@ -307,6 +347,10 @@ export async function capturePolicyArtifactEvidence(
       fixtureBindings,
       policyAuthority,
       evaluationTrust,
+      criterionAuthority: {
+        beforeArtifacts: criteriaBeforeArtifacts,
+        afterArtifacts: criteriaAfterArtifacts,
+      },
       policyLifecycle: { beforeArtifacts, afterArtifacts },
       usage: usage(),
     };

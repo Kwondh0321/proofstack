@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   type CriterionSetStatusRecord,
   type EvidenceScope,
@@ -89,4 +90,26 @@ export function admitCriterionStatusHistory(
     records.push(normalized);
   }
   return records;
+}
+
+/** Owning full-record/history digests after complete response admission, not a completeness proof. */
+export function inspectCriterionStatusHistory(
+  scopeInput: EvidenceScope,
+  input: readonly unknown[],
+  limits: CriterionStatusHistoryLimits,
+): {
+  readonly historySha256: string;
+  readonly history: readonly {
+    readonly record: CriterionSetStatusRecord;
+    readonly recordSha256: string;
+  }[];
+} {
+  const scope = EvidenceScopeSchema.parse(scopeInput);
+  const records = admitCriterionStatusHistory(scope, input, limits);
+  const digest = (value: unknown) =>
+    createHash("sha256").update(encodeEvaluationCanonicalJson(value)).digest("hex");
+  return {
+    historySha256: digest({ format: "proofstack.criterion-status-history.v1", scope, records }),
+    history: records.map((record) => ({ record, recordSha256: digest(record) })),
+  };
 }

@@ -9,6 +9,7 @@ export {
   capturePolicyComparisonEvidence,
   type PolicyComparisonEvidenceCapture,
 } from "./capture-comparison-evidence.js";
+export type { PolicyCriterionAuthorityObservation } from "./capture-criterion-authority.js";
 export type {
   PolicyEvaluationReplayBindings,
   PolicyEvaluationReplayCheck,

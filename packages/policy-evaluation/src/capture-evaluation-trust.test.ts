@@ -26,6 +26,7 @@ import {
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
+  criterionStatusHistoryFixture,
   type EvaluationRepositoryFixtureRecord,
   MemoryEvidenceRepository,
   MemoryReleaseCandidateRepository,
@@ -457,6 +458,10 @@ describe("retained evaluation trust prerequisites", () => {
   ] as const)("retains missing %s as an unavailable prerequisite", async (method, reason) => {
     const h = await harness();
     vi.spyOn(h.evaluation.repository, method).mockResolvedValue(null);
+    if (method === "findCriterionSetStatus")
+      vi.spyOn(h.repositories.evidence.evaluation, "listCriterionSetStatuses").mockResolvedValue(
+        [],
+      );
     const { capture } = await h.execute();
     for (const parent of capture.evaluationTrust.parents) {
       expect(parent.observation).toEqual({
@@ -733,16 +738,30 @@ describe("retained evaluation trust prerequisites", () => {
     async (dimension) => {
       const h = await harness();
       const { capture } = await h.execute();
+      const criterionObservations = Object.values(capture.criterionAuthority);
+      const criterionReferences = criterionObservations.reduce(
+        (count, observation) =>
+          count + (observation.status === "observed" ? observation.inspectionUsage.references : 0),
+        0,
+      );
+      const criterionBytes = criterionObservations.reduce(
+        (count, observation) =>
+          count +
+          (observation.status === "observed" ? observation.inspectionUsage.referenceBytes : 0),
+        0,
+      );
       expect(capture.usage.references).toBe(
         capture.traceCapture.usage.references +
           capture.policyAuthority.inspectionUsage.references +
-          capture.evaluationTrust.inspectionUsage.references,
+          capture.evaluationTrust.inspectionUsage.references +
+          criterionReferences,
       );
       expect(capture.usage.referenceBytes).toBe(
         capture.traceCapture.usage.referenceBytes +
           capture.policyAuthority.inspectionUsage.referenceBytes +
           capture.evaluationTrust.inspectionUsage.referenceBytes +
-          capture.usage.sourceGuards.canonicalBytes,
+          capture.usage.sourceGuards.canonicalBytes +
+          criterionBytes,
       );
       const exact = {
         ...h.request().limits,
@@ -775,4 +794,118 @@ describe("retained evaluation trust prerequisites", () => {
       expect(sourceTransactions.run).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("complete criterion authority in public artifact capture", () => {
+  it("retains all original run/assessment selections alongside both complete history observations", async () => {
+    const h = await harness();
+    const { capture } = await h.execute();
+    const before = capture.criterionAuthority.beforeArtifacts;
+    const after = capture.criterionAuthority.afterArtifacts;
+    if (before.status !== "observed" || after.status !== "observed")
+      throw new Error("Expected criterion authority");
+    expect(after.historySha256).toBe(before.historySha256);
+    expect(after.history).toHaveLength(2);
+    expect(after.selections.map(({ parent }) => parent.kind).sort()).toEqual([
+      "assessment",
+      "evaluation_run",
+      "evaluation_run",
+    ]);
+    for (const selection of after.selections)
+      expect(selection).toMatchObject({
+        atEvaluation: "approved_head",
+        atCapture: "approved_head",
+      });
+  });
+
+  it("rejects a newly committed withdrawal during retained content I/O", async () => {
+    const h = await harness();
+    const approved = h.evaluation.records.find(
+      (entry) => entry.kind === "criterion_set_status" && entry.record.status === "approved",
+    );
+    if (approved?.kind !== "criterion_set_status") throw new Error("Missing approved fixture");
+    const record = criterionStatusHistoryFixture(approved.record, {
+      statusRecordId: "csr_during_content",
+      status: "withdrawn",
+      expiresAt: undefined,
+      previousStatus: {
+        statusRecordId: approved.record.statusRecordId,
+        definitionSha256: approved.record.definitionSha256,
+      },
+      recordedAt: "2026-10-01T00:30:00.000Z",
+      effectiveAt: "2026-10-01T00:30:00Z",
+    });
+    const originalGet = h.dependencies.objects.get.bind(h.dependencies.objects);
+    const get = vi.spyOn(h.dependencies.objects, "get").mockImplementationOnce(async (key) => {
+      await h.evaluation.repository.publishCriterionSetStatus(record);
+      return originalGet(key);
+    });
+    await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(get).toHaveBeenCalled();
+    expect(
+      await h.evaluation.repository.findCriterionSetStatus(
+        h.evaluation.scope,
+        record.statusRecordId,
+      ),
+    ).toEqual(record);
+  });
+
+  it("retains a preexisting withdrawal without upgrading or rewriting the original run", async () => {
+    const h = await harness();
+    const approved = h.evaluation.records.find(
+      (entry) => entry.kind === "criterion_set_status" && entry.record.status === "approved",
+    );
+    if (approved?.kind !== "criterion_set_status") throw new Error("Missing approved fixture");
+    await h.evaluation.repository.publishCriterionSetStatus(
+      criterionStatusHistoryFixture(approved.record, {
+        statusRecordId: "csr_already_withdrawn",
+        status: "withdrawn",
+        expiresAt: undefined,
+        previousStatus: {
+          statusRecordId: approved.record.statusRecordId,
+          definitionSha256: approved.record.definitionSha256,
+        },
+        recordedAt: "2026-09-30T00:00:00.000Z",
+        effectiveAt: "2026-09-30T00:00:00Z",
+      }),
+    );
+    const { capture } = await h.execute();
+    const after = capture.criterionAuthority.afterArtifacts;
+    if (after.status !== "observed") throw new Error("Expected criterion authority");
+    for (const selection of after.selections)
+      expect(selection).toMatchObject({
+        status: { reference: { statusRecordId: approved.record.statusRecordId } },
+        atEvaluation: "selected_status_not_head",
+        atCapture: "selected_status_not_head",
+      });
+    // Selected-record trust and current complete-history authority are deliberately distinct.
+    expect(
+      capture.evaluationTrust.parents.every(
+        (parent) =>
+          parent.observation.status === "inspected" &&
+          parent.observation.requirements.status === "eligible",
+      ),
+    ).toBe(true);
+  });
+
+  it("requires history admission before content and rejects disagreement with exact status reads", async () => {
+    const h = await harness();
+    const get = vi.spyOn(h.dependencies.objects, "get");
+    vi.spyOn(h.evaluation.repository, "findCriterionSetStatus").mockResolvedValue(null);
+    await expect(h.execute()).rejects.toMatchObject({ reason: "observation_conflict" });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("propagates a history storage failure without performing any content/key acquisition", async () => {
+    const h = await harness();
+    const failure = new Error("Injected history storage failure");
+    vi.spyOn(h.repositories.evidence.evaluation, "listCriterionSetStatuses").mockRejectedValue(
+      failure,
+    );
+    const get = vi.spyOn(h.dependencies.objects, "get");
+    const decrypt = vi.spyOn(h.dependencies.encryption, "decrypt");
+    await expect(h.execute()).rejects.toBe(failure);
+    expect(get).not.toHaveBeenCalled();
+    expect(decrypt).not.toHaveBeenCalled();
+  });
 });

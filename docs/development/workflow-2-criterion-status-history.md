@@ -7,6 +7,10 @@ exposes `listPostgresCriterionSetStatusesOnClient` for a connection that already
 barrier. Workflow 2 remains **2/7 accepted checkpoints**.
 [Korean guide](workflow-2-criterion-status-history.ko.md).
 
+The subsequent [request-owned authority capture](workflow-2-criterion-authority.md) consumes this
+reader before/after artifact content and interprets both time cuts. The reader itself remains a
+complete inventory port, without status selection or snapshot-publication authority.
+
 ## Completeness and finite admission
 
 The reader deliberately scans the scope's status kind without filtering by an unvalidated JSON
