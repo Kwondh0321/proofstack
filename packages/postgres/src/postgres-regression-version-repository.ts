@@ -9,6 +9,9 @@ import {
   EvidenceScopeSchema,
   type InteractionFixtureContentRevocation,
   InteractionFixtureContentRevocationSchema,
+  MAX_CAPTURE_ARTIFACTS,
+  MAX_DATASET_FIXTURE_VERSIONS,
+  MAX_FIXTURE_SOURCE_EVENTS,
   OpaqueIdSchema,
   type RecordedInteractionFixtureVersion,
   type RegressionDatasetVersion,
@@ -49,6 +52,12 @@ import { withTenantTransaction } from "./tenant-transaction.js";
 
 interface PresenceRow extends QueryResultRow {
   readonly present: boolean;
+}
+
+interface StoredRegressionPresenceRow extends QueryResultRow {
+  readonly retained_regression_body: boolean;
+  readonly retained_regression_storage: boolean;
+  readonly retained_fixture_format?: boolean;
 }
 
 interface FixtureResourceRow extends QueryResultRow {
@@ -1042,18 +1051,23 @@ async function loadFixtureVersions(
   client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
+  scope?: EvidenceScope,
 ): Promise<Map<string, StoredFixtureRecord>> {
   if (versionIds.length === 0) return new Map();
   const uniqueIds = [...new Set(versionIds)];
-  const headers = await client.query<FixtureVersionRow>(SELECT_FIXTURE_VERSIONS_SQL, [
-    tenantId,
-    uniqueIds,
-  ]);
+  const headers = await client.query<FixtureVersionRow>(
+    `${SELECT_FIXTURE_VERSIONS_SQL}${scope ? " AND project_id=$3 AND environment_id=$4" : ""}`,
+    [tenantId, uniqueIds, ...(scope ? [scope.projectId, scope.environmentId] : [])],
+  );
   const headerIds = headers.rows.map(({ fixture_version_id }) => fixture_version_id);
   const events =
     headerIds.length === 0
       ? { rows: [] as FixtureEventRow[] }
-      : await client.query<FixtureEventRow>(SELECT_FIXTURE_EVENTS_SQL, [tenantId, headerIds]);
+      : await client.query<FixtureEventRow>(`${SELECT_FIXTURE_EVENTS_SQL} LIMIT $3`, [
+          tenantId,
+          headerIds,
+          headerIds.length * MAX_FIXTURE_SOURCE_EVENTS + 1,
+        ]);
 
   const eventsByVersion = new Map<string, FixtureEventRow[]>();
   for (const event of events.rows) {
@@ -1090,29 +1104,31 @@ async function loadRecordedFixtureVersions(
   client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
+  scope?: EvidenceScope,
 ): Promise<Map<string, StoredRecordedFixtureRecord>> {
   if (versionIds.length === 0) return new Map();
   const uniqueIds = [...new Set(versionIds)];
-  const headers = await client.query<FixtureVersionRow>(SELECT_RECORDED_FIXTURE_HEADERS_SQL, [
-    tenantId,
-    uniqueIds,
-  ]);
+  const headers = await client.query<FixtureVersionRow>(
+    `${SELECT_RECORDED_FIXTURE_HEADERS_SQL}${scope ? " AND project_id=$3 AND environment_id=$4" : ""}`,
+    [tenantId, uniqueIds, ...(scope ? [scope.projectId, scope.environmentId] : [])],
+  );
   const headerIds = headers.rows.map(({ fixture_version_id }) => fixture_version_id);
   if (headerIds.length === 0) return new Map();
   // One transaction owns this connection. Await each query before issuing the next so
   // failures cannot leave sibling reads running past rollback or connection release.
-  const events = await client.query<FixtureEventRow>(SELECT_FIXTURE_EVENTS_SQL, [
+  const events = await client.query<FixtureEventRow>(`${SELECT_FIXTURE_EVENTS_SQL} LIMIT $3`, [
     tenantId,
     headerIds,
+    headerIds.length * MAX_FIXTURE_SOURCE_EVENTS + 1,
   ]);
   const manifests = await client.query<RecordedFixtureManifestRow>(
     SELECT_RECORDED_FIXTURE_MANIFESTS_SQL,
     [tenantId, headerIds],
   );
-  const ownerships = await client.query<ArtifactOwnershipRow>(SELECT_INTERACTION_OWNERSHIPS_SQL, [
-    tenantId,
-    headerIds,
-  ]);
+  const ownerships = await client.query<ArtifactOwnershipRow>(
+    `${SELECT_INTERACTION_OWNERSHIPS_SQL} LIMIT $3`,
+    [tenantId, headerIds, headerIds.length * MAX_CAPTURE_ARTIFACTS + 1],
+  );
 
   const eventsByVersion = new Map<string, FixtureEventRow[]>();
   for (const event of events.rows) {
@@ -1222,17 +1238,24 @@ async function loadDatasetVersions(
   client: Pick<PoolClient, "query">,
   tenantId: string,
   versionIds: readonly string[],
+  scope?: EvidenceScope,
 ): Promise<Map<string, StoredDatasetRecord>> {
   if (versionIds.length === 0) return new Map();
   const uniqueIds = [...new Set(versionIds)];
-  const headers = await client.query<DatasetVersionRow>(SELECT_DATASET_VERSIONS_SQL, [
-    tenantId,
-    uniqueIds,
-  ]);
-  const members = await client.query<DatasetMemberRow>(SELECT_DATASET_MEMBERS_SQL, [
-    tenantId,
-    uniqueIds,
-  ]);
+  const headers = await client.query<DatasetVersionRow>(
+    `${SELECT_DATASET_VERSIONS_SQL}${scope ? " AND project_id=$3 AND environment_id=$4" : ""}`,
+    [tenantId, uniqueIds, ...(scope ? [scope.projectId, scope.environmentId] : [])],
+  );
+  const headerIds = headers.rows.map(({ dataset_version_id }) => dataset_version_id);
+  const memberIds = scope ? headerIds : uniqueIds;
+  const members =
+    memberIds.length === 0
+      ? { rows: [] as DatasetMemberRow[] }
+      : await client.query<DatasetMemberRow>(`${SELECT_DATASET_MEMBERS_SQL} LIMIT $3`, [
+          tenantId,
+          memberIds,
+          memberIds.length * MAX_DATASET_FIXTURE_VERSIONS + 1,
+        ]);
 
   const membersByVersion = new Map<string, DatasetMemberRow[]>();
   for (const member of members.rows) {
@@ -1307,7 +1330,7 @@ async function loadFixtureBinding(
 }
 
 async function loadDatasetBinding(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   tenantId: string,
   datasetId: string,
 ): Promise<ResourceBinding | null> {
@@ -1881,6 +1904,162 @@ async function storedInteractionFixtureContent(
   };
 }
 
+async function inspectScopedRegressionPresence(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  id: string,
+  kind: "dataset" | "evidence_only" | "recorded_interactions",
+): Promise<boolean> {
+  const statement =
+    kind === "dataset"
+      ? `
+    SELECT EXISTS (
+      SELECT 1 FROM public.proofstack_regression_dataset_versions
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND dataset_version_id=$4
+    ) AS retained_regression_body, EXISTS (
+      SELECT 1 FROM public.proofstack_regression_dataset_members
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND dataset_version_id=$4
+    ) OR EXISTS (
+      SELECT 1 FROM public.proofstack_regression_datasets
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND root_dataset_version_id=$4
+    ) AS retained_regression_storage`
+      : `
+    SELECT EXISTS (
+      SELECT 1 FROM public.proofstack_regression_fixture_versions
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND fixture_version_id=$4
+    ) AS retained_regression_body, EXISTS (
+      SELECT 1 FROM public.proofstack_regression_fixture_versions
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND fixture_version_id=$4
+        AND replayability=$5
+    ) AS retained_fixture_format, EXISTS (
+      SELECT 1 FROM public.proofstack_regression_fixture_events
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND fixture_version_id=$4
+    ) OR EXISTS (
+      SELECT 1 FROM public.proofstack_regression_fixtures
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND root_fixture_version_id=$4
+    ) OR EXISTS (
+      SELECT 1 FROM public.proofstack_recorded_interaction_fixture_versions
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND fixture_version_id=$4
+    ) OR EXISTS (
+      SELECT 1 FROM public.proofstack_interaction_fixture_artifact_ownerships
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND fixture_version_id=$4
+    ) OR EXISTS (
+      SELECT 1 FROM public.proofstack_interaction_fixture_content_revocations
+      WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND fixture_version_id=$4
+    ) AS retained_regression_storage`;
+  const result = await client.query<StoredRegressionPresenceRow>(statement, [
+    scope.tenantId,
+    scope.projectId,
+    scope.environmentId,
+    id,
+    ...(kind === "dataset" ? [] : [kind]),
+  ]);
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_regression_body !== "boolean" ||
+    typeof row.retained_regression_storage !== "boolean" ||
+    row.retained_regression_body !== row.retained_regression_storage ||
+    (kind !== "dataset" &&
+      (typeof row.retained_fixture_format !== "boolean" ||
+        (row.retained_fixture_format && !row.retained_regression_body)))
+  )
+    contractViolation("Stored regression scoped presence violates its storage contract");
+  // Both fixture formats share one header: a healthy different format is typed absence.
+  return kind === "dataset" ? row.retained_regression_body : row.retained_fixture_format === true;
+}
+
+async function requireStoredFixtureStorage(
+  client: Pick<PoolClient, "query">,
+  stored: StoredFixtureRecord | StoredRecordedFixtureRecord,
+): Promise<void> {
+  const { version } = stored;
+  const binding = await loadFixtureBinding(client, version.scope.tenantId, version.fixtureId);
+  if (version.replayability === "evidence_only") {
+    requireBindingMatchesStoredFixture(binding, stored as StoredFixtureRecord);
+  } else {
+    requireBindingMatchesStoredRecordedFixture(binding, stored as StoredRecordedFixtureRecord);
+  }
+  await requireCanonicalPublicationIntent(
+    client,
+    version.replayability === "evidence_only"
+      ? buildRegressionFixtureVersionPublishedOutboxIntent(version)
+      : buildRecordedInteractionFixtureVersionPublishedOutboxIntent(version),
+  );
+  // The deployed regression grammar requires a predecessor-free evidence-only root.
+  const root =
+    stored.rootVersionId === version.fixtureVersionId
+      ? stored
+      : (
+          await loadFixtureVersions(
+            client,
+            version.scope.tenantId,
+            [stored.rootVersionId],
+            version.scope,
+          )
+        ).get(stored.rootVersionId);
+  if (
+    !root ||
+    root.version.replayability !== "evidence_only" ||
+    root.version.predecessor ||
+    root.version.fixtureId !== version.fixtureId ||
+    !scopesEqual(root.version.scope, version.scope) ||
+    root.version.fixtureVersionId !== stored.rootVersionId ||
+    root.version.definitionSha256 !== stored.rootDefinitionSha256 ||
+    root.rootVersionId !== stored.rootVersionId ||
+    root.rootDefinitionSha256 !== stored.rootDefinitionSha256
+  )
+    contractViolation("Stored regression fixture logical root is invalid");
+  requireBindingMatchesStoredFixture(binding, root as StoredFixtureRecord);
+  if (root !== stored)
+    await requireCanonicalPublicationIntent(
+      client,
+      buildRegressionFixtureVersionPublishedOutboxIntent(root.version),
+    );
+}
+
+async function requireStoredDatasetStorage(
+  client: Pick<PoolClient, "query">,
+  stored: StoredDatasetRecord,
+): Promise<void> {
+  const { version } = stored;
+  const binding = await loadDatasetBinding(client, version.scope.tenantId, version.datasetId);
+  requireBindingMatchesStoredDataset(binding, stored);
+  await requireCanonicalPublicationIntent(
+    client,
+    buildRegressionDatasetVersionPublishedOutboxIntent(version),
+  );
+  const root =
+    stored.rootVersionId === version.datasetVersionId
+      ? stored
+      : (
+          await loadDatasetVersions(
+            client,
+            version.scope.tenantId,
+            [stored.rootVersionId],
+            version.scope,
+          )
+        ).get(stored.rootVersionId);
+  if (
+    !root ||
+    root.version.predecessor ||
+    root.version.datasetId !== version.datasetId ||
+    !scopesEqual(root.version.scope, version.scope) ||
+    root.version.datasetVersionId !== stored.rootVersionId ||
+    root.version.definitionSha256 !== stored.rootDefinitionSha256 ||
+    root.rootVersionId !== stored.rootVersionId ||
+    root.rootDefinitionSha256 !== stored.rootDefinitionSha256
+  )
+    contractViolation("Stored regression dataset logical root is invalid");
+  requireBindingMatchesStoredDataset(binding, root);
+  if (root !== stored)
+    await requireCanonicalPublicationIntent(
+      client,
+      buildRegressionDatasetVersionPublishedOutboxIntent(root.version),
+    );
+}
+
 /** Uses the owning normalized reads on the caller-owned scoped connection. */
 export async function readPostgresDatasetVersionOnClient(
   client: Pick<PoolClient, "query">,
@@ -1889,21 +2068,15 @@ export async function readPostgresDatasetVersionOnClient(
 ): Promise<RegressionDatasetVersion | null> {
   const scope = requireScope(scopeInput);
   const datasetVersionId = requireOpaqueId(datasetVersionIdInput);
-  const identity = (
-    await loadDatasetVersionIdentities(client, scope.tenantId, [datasetVersionId])
-  ).get(datasetVersionId);
-  if (
-    !identity ||
-    identity.tenant_id !== scope.tenantId ||
-    identity.project_id !== scope.projectId ||
-    identity.environment_id !== scope.environmentId
-  ) {
+  if (!(await inspectScopedRegressionPresence(client, scope, datasetVersionId, "dataset")))
     return null;
-  }
-  const stored = (await loadDatasetVersions(client, scope.tenantId, [datasetVersionId])).get(
+  const stored = (await loadDatasetVersions(client, scope.tenantId, [datasetVersionId], scope)).get(
     datasetVersionId,
   );
-  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
+  if (!stored || !scopesEqual(stored.version.scope, scope)) {
+    contractViolation("A present scoped regression dataset body disappeared or changed scope");
+  }
+  await requireStoredDatasetStorage(client, stored);
   return clone(stored.version);
 }
 
@@ -1915,21 +2088,15 @@ export async function readPostgresFixtureVersionOnClient(
 ): Promise<RegressionFixtureVersion | null> {
   const scope = requireScope(scopeInput);
   const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-  const identity = (
-    await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
-  ).get(fixtureVersionId);
-  if (
-    !identity ||
-    identity.tenant_id !== scope.tenantId ||
-    identity.project_id !== scope.projectId ||
-    identity.environment_id !== scope.environmentId
-  ) {
+  if (!(await inspectScopedRegressionPresence(client, scope, fixtureVersionId, "evidence_only")))
     return null;
-  }
-  const stored = (await loadFixtureVersions(client, scope.tenantId, [fixtureVersionId])).get(
+  const stored = (await loadFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)).get(
     fixtureVersionId,
   );
-  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
+  if (!stored || !scopesEqual(stored.version.scope, scope)) {
+    contractViolation("A present scoped regression fixture body disappeared or changed scope");
+  }
+  await requireStoredFixtureStorage(client, stored);
   return clone(stored.version);
 }
 
@@ -1941,29 +2108,22 @@ export async function readPostgresRecordedInteractionFixtureVersionOnClient(
 ): Promise<StoredRecordedInteractionFixtureVersion | null> {
   const scope = requireScope(scopeInput);
   const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-  const identity = (
-    await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
-  ).get(fixtureVersionId);
   if (
-    !identity ||
-    identity.tenant_id !== scope.tenantId ||
-    identity.project_id !== scope.projectId ||
-    identity.environment_id !== scope.environmentId
-  ) {
+    !(await inspectScopedRegressionPresence(
+      client,
+      scope,
+      fixtureVersionId,
+      "recorded_interactions",
+    ))
+  )
     return null;
-  }
   const stored = (
-    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId])
+    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)
   ).get(fixtureVersionId);
-  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
-  requireBindingMatchesStoredRecordedFixture(
-    await loadFixtureBinding(client, scope.tenantId, stored.version.fixtureId),
-    stored,
-  );
-  await requireCanonicalPublicationIntent(
-    client,
-    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored.version),
-  );
+  if (!stored || !scopesEqual(stored.version.scope, scope)) {
+    contractViolation("A present scoped recorded fixture body disappeared or changed scope");
+  }
+  await requireStoredFixtureStorage(client, stored);
   return { ownerships: clone(stored.ownerships), version: clone(stored.version) };
 }
 
@@ -1975,29 +2135,22 @@ export async function readPostgresRecordedInteractionFixtureContentOnClient(
 ): Promise<StoredInteractionFixtureContent | null> {
   const scope = requireScope(scopeInput);
   const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-  const identity = (
-    await loadFixtureVersionIdentities(client, scope.tenantId, [fixtureVersionId])
-  ).get(fixtureVersionId);
   if (
-    !identity ||
-    identity.tenant_id !== scope.tenantId ||
-    identity.project_id !== scope.projectId ||
-    identity.environment_id !== scope.environmentId
-  ) {
+    !(await inspectScopedRegressionPresence(
+      client,
+      scope,
+      fixtureVersionId,
+      "recorded_interactions",
+    ))
+  )
     return null;
-  }
   const stored = (
-    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId])
+    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)
   ).get(fixtureVersionId);
-  if (!stored || !scopesEqual(stored.version.scope, scope)) return null;
-  requireBindingMatchesStoredRecordedFixture(
-    await loadFixtureBinding(client, scope.tenantId, stored.version.fixtureId),
-    stored,
-  );
-  await requireCanonicalPublicationIntent(
-    client,
-    buildRecordedInteractionFixtureVersionPublishedOutboxIntent(stored.version),
-  );
+  if (!stored || !scopesEqual(stored.version.scope, scope)) {
+    contractViolation("A present scoped recorded fixture body disappeared or changed scope");
+  }
+  await requireStoredFixtureStorage(client, stored);
   return storedInteractionFixtureContent(client, stored);
 }
 

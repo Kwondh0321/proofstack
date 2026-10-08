@@ -57,9 +57,19 @@ function fixture() {
                           { retained_comparison_body: false, retained_comparison_storage: false },
                         ],
                       }
-                    : text.includes("proofstack_read_replay_job_snapshot")
-                      ? { rows: [{ snapshot: null }] }
-                      : { rows: [] },
+                    : text.includes("AS retained_regression_storage")
+                      ? {
+                          rows: [
+                            {
+                              retained_regression_body: false,
+                              retained_regression_storage: false,
+                              retained_fixture_format: false,
+                            },
+                          ],
+                        }
+                      : text.includes("proofstack_read_replay_job_snapshot")
+                        ? { rows: [{ snapshot: null }] }
+                        : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {

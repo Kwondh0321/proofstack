@@ -15,13 +15,16 @@ sealing requirements.
 The [comparison owning storage guide](workflow-2-comparison-storage-integrity.md) records the three
 kinds' fixed positional lineage, original intent, logical root and normalized presence checks.
 
+The [dataset/fixture storage guide](workflow-2-regression-storage-integrity.md) records exact
+logical roots, original intents, shared-format presence and remaining internal root admission.
+
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical/scalar/native receipt agreement, selected physical registry/lineage/resource/root/unique binding, original intent and same-cut normalized presence |
 | Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage and original intent |
 | Comparison | `readPostgresComparisonRecordOnClient` | All three kinds, normalized/native receipt agreement, selected registry/positional lineage/resource/root, original intent and same-cut normalized presence |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate, normalized/native receipt, selected registry/lineage/resource/root, original intent and scoped normalized absence witnesses |
-| Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Identity-first scope filtering, normalized ordered members/events; recorded fixture ownership/root binding and canonical publication intent; revocation/tombstone/catalog metadata for content availability |
+| Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Exact scoped/shared-format presence, normalized ordered members/events, logical resource/root and original intent; recorded ownership and revocation/tombstone/catalog metadata |
 | Replay definitions | `readPostgresReplayPlanOnClient`, `readPostgresTargetReleaseOnClient` | Exact resource, definition, budget and boundary projections |
 | Replay job | `readPostgresReplayJobSnapshotOnClient` | Existing fixed database snapshot function and complete job/attempt/fence/history validation |
 | Trace | `listPostgresTraceEvidenceOnClient`, `resolvePostgresExactEventsOnClient` | Exact scope, cursor presence, bounded page lookahead, ordered exact event resolution and stored envelope validation |

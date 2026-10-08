@@ -363,6 +363,12 @@ root and original intent on the supplied connection. Same-cut normalized presenc
 atomic publication races and outside-scope opacity. Complete parent semantics/current authority,
 root admission and sealed publication remain open; checkpoint acceptance is unchanged.
 
+The subsequent [dataset/fixture owning storage validation](workflow-2-regression-storage-integrity.md)
+checks singular reads' exact logical resources/roots and original full intents, with bounded
+ordered children and same-cut shared-format normalized presence. Existing recorded ownership/
+revocation and publication conformance remain. Internal root admission, complete member/predecessor
+semantics/current authority and atomic sealed publication remain open; Workflow 2 is still 2/7.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

@@ -19,6 +19,10 @@ Recorded fixture의 `Content` 조회는 소유권·철회·tombstone·catalog �
 각 reader가 수행하던 실제 검사를 보존하며, 모든 reader가 canonical outbox intent까지
 검증한다는 뜻은 아닙니다.
 
+후속 [dataset/fixture 저장 검증](workflow-2-regression-storage-integrity.ko.md)은 단일 조회의
+정확한 논리 루트·최초 intent·공유 형식 존재 확인을 추가합니다. 기존 ordered event/member와
+recorded ownership/철회 검증을 유지하며 내부 root admission과 전체 권한 closure는 남습니다.
+
 ## 호출자 책임과 남은 경계
 
 ### 보호된 저장소 조회 포트

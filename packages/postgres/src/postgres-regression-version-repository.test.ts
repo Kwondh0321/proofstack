@@ -480,6 +480,36 @@ function fixtureResource(value: RegressionFixtureVersion): Record<string, unknow
   };
 }
 
+function regressionPresenceRows(
+  values: readonly unknown[] | undefined,
+  versions: readonly (
+    | RegressionFixtureVersion
+    | RecordedInteractionFixtureVersion
+    | RegressionDatasetVersion
+  )[],
+): { readonly rows: readonly Record<string, unknown>[] } {
+  const version = versions.find(
+    (record) =>
+      record.scope.tenantId === values?.[0] &&
+      record.scope.projectId === values?.[1] &&
+      record.scope.environmentId === values?.[2] &&
+      ("fixtureVersionId" in record ? record.fixtureVersionId : record.datasetVersionId) ===
+        values?.[3],
+  );
+  return {
+    rows: [
+      {
+        retained_regression_body: version !== undefined,
+        retained_regression_storage: version !== undefined,
+        retained_fixture_format:
+          version !== undefined &&
+          "replayability" in version &&
+          version.replayability === values?.[4],
+      },
+    ],
+  };
+}
+
 function rowsForFixtureReads(
   text: string,
   values: readonly unknown[] | undefined,
@@ -518,6 +548,12 @@ function rowsForRecordedReads(
   values: readonly unknown[] | undefined,
   state: RecordedReadState,
 ): { readonly rowCount?: number; readonly rows: readonly Record<string, unknown>[] } | undefined {
+  if (text.includes("AS retained_regression_storage")) {
+    return regressionPresenceRows(values, [
+      state.predecessor,
+      ...(state.candidateStored ? [state.candidate] : []),
+    ]);
+  }
   const requested = Array.isArray(values?.[1]) ? values[1] : [];
   const includes = (versionId: string) => requested.includes(versionId);
   if (
@@ -650,6 +686,8 @@ describe("PostgresRegressionVersionRepository scoped reads", () => {
       const matches = (text: string) => text.includes(needle) && text.includes(qualifier);
       const testHarness = harness((text, values) => {
         if (matches(text)) throw failure;
+        if (text.includes("AS retained_regression_storage"))
+          return regressionPresenceRows(values, [predecessor, stored, storedDataset]);
         if (text.includes("SELECT EXISTS")) return { rows: [{ present: false }] };
         if (text.includes("FROM public.proofstack_regression_dataset_versions"))
           return { rows: [datasetHeader(storedDataset)] };
@@ -734,7 +772,26 @@ describe("PostgresRegressionVersionRepository scoped reads", () => {
     const storedDataset = dataset(storedFixture, {
       createdAt: "2026-08-29T01:02:00.987Z",
     });
-    const testHarness = harness((text) => {
+    const testHarness = harness((text, values) => {
+      if (text.includes("AS retained_regression_storage"))
+        return regressionPresenceRows(values, [storedFixture, storedDataset]);
+      if (text.includes("proofstack_regression_publication_intent_status"))
+        return { rows: [{ status: "canonical" }] };
+      if (text.includes("FROM public.proofstack_regression_fixtures"))
+        return { rows: [fixtureResource(storedFixture)] };
+      if (text.includes("FROM public.proofstack_regression_datasets"))
+        return {
+          rows: [
+            {
+              tenant_id: storedDataset.scope.tenantId,
+              project_id: storedDataset.scope.projectId,
+              environment_id: storedDataset.scope.environmentId,
+              dataset_id: storedDataset.datasetId,
+              root_dataset_version_id: storedDataset.datasetVersionId,
+              root_definition_sha256: storedDataset.definitionSha256,
+            },
+          ],
+        };
       if (text.includes("proofstack_regression_fixture_versions")) {
         return { rows: [fixtureHeader(storedFixture)] };
       }
@@ -988,6 +1045,8 @@ describe("PostgresRegressionVersionRepository publication", () => {
   it("preflights tenant-wide target identity without reconstructing hidden corrupt data", async () => {
     const candidate = fixture();
     const testHarness = harness((text) => {
+      if (text.includes("AS retained_regression_storage"))
+        return regressionPresenceRows(undefined, []);
       if (
         text.includes(
           "SELECT tenant_id, project_id, environment_id, fixture_id, fixture_version_id",
@@ -1151,6 +1210,10 @@ describe("PostgresRegressionVersionRepository recorded interaction fixtures", ()
       ownerships: expectedInteractionOwnerships(stored),
       version: stored,
     };
+
+    await expect(
+      testHarness.repository.findFixtureVersion(stored.scope, stored.fixtureVersionId),
+    ).resolves.toBeNull();
 
     await expect(
       testHarness.repository.findRecordedInteractionFixtureVersion(
