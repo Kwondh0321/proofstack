@@ -43,6 +43,10 @@ ID·schema·scope·시각·주체·상태 일치를 강화하지만 현재 권�
 owning 조회에 이 13종의 선택된 cross-domain registry/lineage·최초 intent 검사를 추가합니다.
 다른 모든 도메인의 관계나 전체 현재 권한을 증명하는 것은 아닙니다.
 
+후속 [평가 저장 무결성](workflow-2-evaluation-storage-integrity.ko.md)은 17종의 단일/전체 이력/
+retry에서 registry·lineage·resource/root·unique binding·최초 intent와 같은 시점의 정규화
+presence를 검사합니다. 전체 root admission·현재 권한·sealed 발행은 여전히 남아 있습니다.
+
 후속 [candidate 저장 무결성](workflow-2-candidate-storage-integrity.ko.md)은 선택된 registry/
 predecessor/resource/root·최초 intent와 같은 scope의 정규화된 orphan 증거를 검사합니다.
 전체 부재·최초 발행 chronology·권한·sealed 발행은 남아 있습니다.

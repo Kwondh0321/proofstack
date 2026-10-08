@@ -119,7 +119,7 @@ afterAll(async () => {
 });
 
 interface Fixture {
-  readonly reconcilesAbsence?: boolean;
+  readonly presenceQuery?: "retained_candidate" | "retained_evaluation";
   readonly record: { readonly scope: EvidenceScope; readonly definitionSha256: string };
   readonly read: (
     client: Pick<PoolClient, "query">,
@@ -134,6 +134,7 @@ function evaluationFixture(kind: EvaluationRecordKind): Fixture {
   if (!f) throw new Error("Missing evaluation scope fixture");
   const id = evaluationRecordId(kind, f.record);
   return {
+    presenceQuery: "retained_evaluation",
     record: f.record,
     read: (client, scope, requestedId = id) =>
       readPostgresEvaluationRecordOnClient(client, scope, kind, requestedId),
@@ -186,7 +187,7 @@ function comparisonFixture(kind: (typeof comparisonKinds)[number]): Fixture {
 function candidateFixture(): Fixture {
   const record = candidate.candidate;
   return {
-    reconcilesAbsence: true,
+    presenceQuery: "retained_candidate",
     record,
     read: (client, scope, id = record.candidateVersionId) =>
       readPostgresReleaseCandidateOnClient(client, scope, id),
@@ -262,9 +263,9 @@ async function verifyScope(f: Fixture) {
           if (index < 3) {
             await expect(f.read(view, scope)).resolves.toBeNull();
             expect(calls).toHaveLength(1);
-            if (f.reconcilesAbsence) {
-              expect(calls[0]?.sql).toContain("AS retained_candidate_body");
-              expect(calls[0]?.sql).toContain("AS retained_candidate_storage");
+            if (f.presenceQuery) {
+              expect(calls[0]?.sql).toContain(`AS ${f.presenceQuery}_body`);
+              expect(calls[0]?.sql).toContain(`AS ${f.presenceQuery}_storage`);
               expect(calls[0]?.rows).toBe(1);
             } else expect(calls[0]?.rows).toBe(0);
           } else await expect(f.read(view, scope)).rejects.toThrow(/canonical|contract/);

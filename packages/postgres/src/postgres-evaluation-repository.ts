@@ -74,6 +74,38 @@ interface OutboxIntentRow extends QueryResultRow {
   readonly status: string;
 }
 
+interface RegistryRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly schema_version: string;
+  readonly definition_sha256: string;
+}
+interface LineageRow extends QueryResultRow {
+  readonly edge_position: number;
+  readonly parent_record_kind: string;
+  readonly parent_record_id: string;
+  readonly parent_definition_sha256: string;
+  readonly child_matches: boolean;
+  readonly parent_matches: boolean;
+  readonly position_matches: boolean;
+}
+interface PhysicalResourceRow extends ResourceBindingRow {
+  readonly root_record_kind: EvaluationRecordKind;
+  readonly root_record_id: string;
+  readonly root_definition_sha256: string;
+}
+interface UniqueBindingRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly binding_kind: string;
+  readonly binding_key: string;
+  readonly definition_sha256: string;
+}
+interface PresenceRow extends QueryResultRow {
+  readonly retained_evaluation_body: boolean;
+  readonly retained_evaluation_storage: boolean;
+}
+
 interface EvaluationProjection {
   readonly actorPrincipalId: string;
   readonly attemptId: string | null;
@@ -442,7 +474,7 @@ function parseStored(kind: EvaluationRecordKind, row: StoredRecordRow): Evaluati
 }
 
 async function requireCanonicalOutbox(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   intent: EvaluationOutboxIntent,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
@@ -464,6 +496,214 @@ async function requireCanonicalOutbox(
       `Stored evaluation record ${intent.aggregateId} is missing its canonical outbox intent`,
     );
   }
+}
+
+async function requireRegistryAndLineage(
+  client: Pick<PoolClient, "query">,
+  kind: EvaluationRecordKind,
+  record: EvaluationStoredRecord,
+): Promise<void> {
+  const id = evaluationRecordId(kind, record);
+  const scope = record.scope;
+  const references = evaluationRecordReferences(kind, record);
+  const expected = new Map<string, (typeof references)[number]>();
+  for (const reference of references) {
+    const key = JSON.stringify([reference.recordKind, reference.recordId]);
+    const previous = expected.get(key);
+    if (previous && previous.definitionSha256 !== reference.definitionSha256) {
+      throw new EvaluationRepositoryContractError("Canonical evaluation references conflict");
+    }
+    expected.set(key, reference);
+  }
+  if (expected.size > 4096) {
+    throw new EvaluationRepositoryContractError("Evaluation physical reference limit exceeded");
+  }
+  const registry = await client.query<RegistryRow>(
+    `SELECT project_id, environment_id, schema_version, definition_sha256
+     FROM public.proofstack_evaluation_record_registry
+     WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3 LIMIT 2`,
+    [scope.tenantId, kind, id],
+  );
+  const child = registry.rows[0];
+  if (
+    registry.rows.length !== 1 ||
+    !child ||
+    child.project_id !== scope.projectId ||
+    child.environment_id !== scope.environmentId ||
+    child.schema_version !== record.schemaVersion ||
+    child.definition_sha256 !== record.definitionSha256
+  )
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation registry differs from its canonical body",
+    );
+  const lineage = await client.query<LineageRow>(
+    `SELECT inspected.*, inspected.edge_position=inspected.expected_position AS position_matches
+     FROM (
+       SELECT edge.edge_position, edge.parent_record_kind, edge.parent_record_id,
+         edge.parent_definition_sha256,
+         (edge.project_id=$4 AND edge.environment_id=$5 AND edge.child_definition_sha256=$6) AS child_matches,
+         (parent.record_id IS NOT NULL AND parent.schema_version=$7) AS parent_matches,
+         row_number() OVER (ORDER BY edge.parent_record_kind, edge.parent_record_id, edge.parent_definition_sha256)-1 AS expected_position
+       FROM public.proofstack_evaluation_lineage AS edge
+       LEFT JOIN public.proofstack_evaluation_record_registry AS parent
+         ON parent.tenant_id=edge.tenant_id AND parent.project_id=edge.project_id
+         AND parent.environment_id=edge.environment_id AND parent.record_kind=edge.parent_record_kind
+         AND parent.record_id=edge.parent_record_id AND parent.definition_sha256=edge.parent_definition_sha256
+       WHERE edge.tenant_id=$1 AND edge.child_record_kind=$2 AND edge.child_record_id=$3
+     ) AS inspected ORDER BY inspected.edge_position LIMIT $8`,
+    [
+      scope.tenantId,
+      kind,
+      id,
+      scope.projectId,
+      scope.environmentId,
+      record.definitionSha256,
+      record.schemaVersion,
+      expected.size + 1,
+    ],
+  );
+  if (lineage.rows.length !== expected.size)
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation physical lineage is incomplete or excessive",
+    );
+  for (const [index, edge] of lineage.rows.entries()) {
+    const key = JSON.stringify([edge.parent_record_kind, edge.parent_record_id]);
+    const reference = expected.get(key);
+    if (
+      !reference ||
+      edge.edge_position !== index ||
+      edge.position_matches !== true ||
+      edge.child_matches !== true ||
+      edge.parent_matches !== true ||
+      (reference.definitionSha256 !== undefined &&
+        reference.definitionSha256 !== edge.parent_definition_sha256)
+    )
+      throw new EvaluationRepositoryContractError(
+        "Stored evaluation physical lineage differs from its canonical body",
+      );
+    expected.delete(key);
+  }
+  await requireCanonicalOutbox(
+    client,
+    outboxIntent(kind, id, record, projection(kind, record).recordedAt),
+  );
+}
+
+async function requirePhysicalIntegrity(
+  client: Pick<PoolClient, "query">,
+  kind: EvaluationRecordKind,
+  record: EvaluationStoredRecord,
+): Promise<void> {
+  await requireRegistryAndLineage(client, kind, record);
+  const id = evaluationRecordId(kind, record);
+  const scope = record.scope;
+  const binding = evaluationRecordUniqueBinding(kind, record);
+  const unique = await client.query<UniqueBindingRow>(
+    `SELECT project_id, environment_id, binding_kind, binding_key, definition_sha256
+     FROM public.proofstack_evaluation_unique_bindings
+     WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3 LIMIT 2`,
+    [scope.tenantId, kind, id],
+  );
+  const row = unique.rows[0];
+  const bindingKind =
+    kind === "raw_observation" ? "raw_observation_attempt" : "evaluation_run_result";
+  if (
+    unique.rows.length !== Number(binding !== null) ||
+    (binding &&
+      (!row ||
+        row.project_id !== scope.projectId ||
+        row.environment_id !== scope.environmentId ||
+        row.binding_kind !== bindingKind ||
+        row.binding_key !== binding.key ||
+        row.definition_sha256 !== record.definitionSha256))
+  )
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation unique binding differs from its canonical body",
+    );
+  const resource = evaluationResource(kind, record);
+  if (!resource) return;
+  const resources = await client.query<PhysicalResourceRow>(
+    `SELECT project_id, environment_id, root_record_kind, root_record_id, root_definition_sha256
+     FROM public.proofstack_evaluation_resource_bindings
+     WHERE tenant_id=$1 AND resource_kind=$2 AND resource_id=$3 LIMIT 2`,
+    [scope.tenantId, resource.kind, resource.resourceId],
+  );
+  const rootBinding = resources.rows[0];
+  if (
+    resources.rows.length !== 1 ||
+    !rootBinding ||
+    rootBinding.project_id !== scope.projectId ||
+    rootBinding.environment_id !== scope.environmentId ||
+    rootBinding.root_record_kind !== kind
+  )
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation logical resource binding is inconsistent",
+    );
+  let root = record;
+  if (rootBinding.root_record_id !== id) {
+    const stored = await loadStored(
+      client,
+      kind,
+      scope.tenantId,
+      rootBinding.root_record_id,
+      scope,
+    );
+    if (!stored)
+      throw new EvaluationRepositoryContractError("Stored evaluation logical root body is missing");
+    root = parseStored(kind, stored);
+  }
+  const rootResource = evaluationResource(kind, root);
+  if (
+    !scopesEqual(root.scope, scope) ||
+    root.schemaVersion !== record.schemaVersion ||
+    root.definitionSha256 !== rootBinding.root_definition_sha256 ||
+    evaluationRecordId(kind, root) !== rootBinding.root_record_id ||
+    rootResource?.kind !== resource.kind ||
+    rootResource.resourceId !== resource.resourceId
+  )
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation logical root differs from its canonical resource",
+    );
+  if (root !== record) await requirePhysicalIntegrity(client, kind, root);
+}
+
+async function inspectScopedPresence(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  kind: EvaluationRecordKind,
+  id: string,
+): Promise<boolean> {
+  const result = await client.query<PresenceRow>(
+    `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_records
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND record_kind=$4 AND record_id=$5
+     ) AS retained_evaluation_body, EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_record_registry
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND record_kind=$4 AND record_id=$5
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_lineage
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND child_record_kind=$4 AND child_record_id=$5
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_resource_bindings
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND root_record_kind=$4 AND root_record_id=$5
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_evaluation_unique_bindings
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND record_kind=$4 AND record_id=$5
+     ) AS retained_evaluation_storage`,
+    [scope.tenantId, scope.projectId, scope.environmentId, kind, id],
+  );
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_evaluation_body !== "boolean" ||
+    typeof row.retained_evaluation_storage !== "boolean" ||
+    row.retained_evaluation_body !== row.retained_evaluation_storage
+  )
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation scoped presence violates its storage contract",
+    );
+  return row.retained_evaluation_body;
 }
 
 export type PostgresEvaluationRecordByKind = {
@@ -494,12 +734,16 @@ export async function readPostgresEvaluationRecordOnClient<K extends EvaluationR
   recordId: string,
 ): Promise<PostgresEvaluationRecordByKind[K] | null> {
   const scope = { ...scopeInput };
+  if (!(await inspectScopedPresence(client, scope, kind, recordId))) return null;
   const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
-  if (!row) return null;
+  if (!row)
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation body disappeared after its scoped presence observation",
+    );
   const record = parseStored(kind, row);
-  return scopesEqual(record.scope, scope)
-    ? (clone(record) as PostgresEvaluationRecordByKind[K])
-    : null;
+  if (!scopesEqual(record.scope, scope)) return null;
+  await requirePhysicalIntegrity(client, kind, record);
+  return clone(record) as PostgresEvaluationRecordByKind[K];
 }
 
 /**
@@ -523,11 +767,14 @@ export async function listPostgresCriterionSetStatusesOnClient(
   );
   // Reject the overflow sentinel before parsing or accepting any partial list.
   if (result.rows.length > limits.maxRecords) throw new CriterionStatusHistoryLimitError("records");
-  return admitCriterionStatusHistory(
+  const history = admitCriterionStatusHistory(
     scope,
     result.rows.map((row) => parseStored("criterion_set_status", row)),
     limits,
   );
+  for (const record of history)
+    await requirePhysicalIntegrity(client, "criterion_set_status", record);
+  return history;
 }
 
 export class PostgresEvaluationRepository
@@ -567,7 +814,6 @@ export class PostgresEvaluationRepository
     const references = evaluationRecordReferences(kind, record);
     const uniqueBinding = evaluationRecordUniqueBinding(kind, record);
     const projected = projection(kind, record);
-    const intent = outboxIntent(kind, recordId, record, projected.recordedAt);
     const lockPrefix = `proofstack:evaluation:${record.scope.tenantId}`;
     const lockKeys = [
       `${lockPrefix}:record:${kind}:${recordId}`,
@@ -587,7 +833,7 @@ export class PostgresEvaluationRepository
           if (existing.definitionSha256 !== record.definitionSha256) {
             throw new EvaluationRecordConflictError(kind, recordId);
           }
-          await requireCanonicalOutbox(client, intent);
+          await requirePhysicalIntegrity(client, kind, existing);
           return { created: false, record: clone(existing) as RecordType };
         }
 
@@ -677,7 +923,26 @@ export class PostgresEvaluationRepository
             [commandJson],
           );
         }
-        return { created: true, record: clone(record) };
+        const storedRow = await loadStored(
+          client,
+          kind,
+          record.scope.tenantId,
+          recordId,
+          record.scope,
+        );
+        if (!storedRow)
+          throw new EvaluationRepositoryContractError("Published evaluation body is missing");
+        const stored = parseStored(kind, storedRow);
+        if (
+          !scopesEqual(stored.scope, record.scope) ||
+          stored.definitionSha256 !== record.definitionSha256
+        ) {
+          throw new EvaluationRepositoryContractError(
+            "Published evaluation record differs from the requested definition",
+          );
+        }
+        await requirePhysicalIntegrity(client, kind, stored);
+        return { created: true, record: clone(stored) as RecordType };
       });
     } catch (error) {
       mapPersistenceError(error, kind, recordId);

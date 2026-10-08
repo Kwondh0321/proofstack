@@ -8,9 +8,13 @@ repository reads through those same functions. Workflow 2 remains **2/7 accepted
 
 ## Read inventory
 
+The [evaluation owning storage guide](workflow-2-evaluation-storage-integrity.md) records shared
+singular/history/retry validation, original receipts and remaining root admission, authority and
+sealing requirements.
+
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
-| Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical record/digest, normalized scope |
+| Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical/scalar/native receipt agreement, selected physical registry/lineage/resource/root/unique binding, original intent and same-cut normalized presence |
 | Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage and original intent |
 | Comparison | `readPostgresComparisonRecordOnClient` | Definition, operand snapshots and result; normalized projections and lineage count |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate, normalized/native receipt, selected registry/lineage/resource/root, original intent and scoped normalized absence witnesses |

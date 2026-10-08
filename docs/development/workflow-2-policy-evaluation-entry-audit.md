@@ -351,6 +351,12 @@ checks its exact registry/predecessor/resource/root, native receipt and original
 rejects scoped normalized metadata without a body. It preserves opaque outside scope and original
 retry receipts. Complete orphan/first-publication/authority closure and sealing remain open.
 
+The subsequent [evaluation owning storage validation](workflow-2-evaluation-storage-integrity.md)
+checks all seventeen kinds' selected registry/lineage/resource/root/unique binding and original
+intent, including complete criterion history after admission. Same-definition retries return the
+original receipt; same-cut normalized presence preserves normal publication races and scope opacity.
+Complete root admission, semantic/current authority closure and sealed publication remain open.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

@@ -45,9 +45,15 @@ function fixture() {
               ? { rows: migrationRows }
               : text.includes("AS retained_candidate_storage")
                 ? { rows: [{ retained_candidate_body: false, retained_candidate_storage: false }] }
-                : text.includes("proofstack_read_replay_job_snapshot")
-                  ? { rows: [{ snapshot: null }] }
-                  : { rows: [] },
+                : text.includes("AS retained_evaluation_storage")
+                  ? {
+                      rows: [
+                        { retained_evaluation_body: false, retained_evaluation_storage: false },
+                      ],
+                    }
+                  : text.includes("proofstack_read_replay_job_snapshot")
+                    ? { rows: [{ snapshot: null }] }
+                    : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {
@@ -208,7 +214,8 @@ describe("guarded policy metadata transaction ports", () => {
       expect(f.release).not.toHaveBeenCalled();
       expect(f.queries.map(({ text }) => text)).not.toContain("COMMIT");
       if (fail) reject(failure);
-      else finish({ rows: [] });
+      else
+        finish({ rows: [{ retained_evaluation_body: false, retained_evaluation_storage: false }] });
       expect(await outcome).toEqual(fail ? { error: failure } : { value: "done" });
       expect(f.queries.at(-1)?.text).toBe(fail ? "ROLLBACK" : "COMMIT");
       expect(f.release).toHaveBeenCalledTimes(1);
@@ -458,7 +465,7 @@ describe("PostgresPolicySourceTransactions", () => {
       text.includes("FROM public.proofstack_evaluation_records"),
     );
     expect(criterionReads.map(({ values }) => values)).toEqual([
-      [scope.tenantId, "criterion_set", "criterion_one", scope.projectId, scope.environmentId],
+      [scope.tenantId, scope.projectId, scope.environmentId, "criterion_set", "criterion_one"],
       [scope.tenantId, scope.projectId, scope.environmentId, historyLimits.maxRecords + 1],
     ]);
     const ledgerIndex = f.queries.findIndex(({ text }) => text.includes("SELECT id, checksum"));
