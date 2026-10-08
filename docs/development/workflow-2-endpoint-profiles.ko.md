@@ -1,6 +1,6 @@
 # Endpoint profile 정의 보존
 
-상태: 독립 정의 데이터 선행 작업입니다. Workflow 2는 **2/7 승인**이며
+상태: 정의 데이터 보존과 정확한 live 선언 acquisition입니다. Workflow 2는 **2/7 승인**이며
 checkpoint 3은 열려 있습니다. [영문 가이드](workflow-2-endpoint-profiles.md).
 
 기존 live replay boundary는 endpoint profile ID·정확한 버전·정의 digest를,
@@ -37,16 +37,46 @@ schema `0.1`에 묶습니다. 독립된 공개 벡터 3개는 각각 805 bytes�
 artifact 가용성, 네트워크·credential·실행·release 권한을 증명하지 않습니다.
 현재 권한에는 소유한 guarded lifecycle과 recovery가 필요합니다.
 
-source acquisition은 후속 작업이며 source kind는 **46개**를 유지합니다.
-이번에는 endpoint source·PostgreSQL port·selector 해석·migration·role/grant·route·
-worker·production 조합을 추가하지 않습니다. 후속 구현은 digest가 있는 live 선언과
-digest 없는 model 부모 selector를 구별하고, 전체 원본 부모·반복 origin·누락/가용성·
-누적 예산·receipt cut을 검증하면서 현재 권한 frontier를 보존해야 합니다.
-전체 의미/권한 closure와 sealed snapshot/job publication은 열려 있습니다.
-종료된 관측 transaction은 이후 publication을 승인하지 않습니다.
+## 정확한 보존 소스 acquisition
+
+`endpoint_profile`은 **47번째 source kind**입니다. 정확한 key는 ID와 대소문자를
+구별하는 버전을 보존하며 최대 146 ASCII bytes로 기존 168-byte 제한 안에 있습니다.
+소유 reader는 요청 hash 없이 scope·ID·버전을 조회하고 전체 엄격한 본문과 원래
+예상 digest를 검증합니다. 원본 등록 receipt를 전체 정밀도 UTC cut과 비교하며,
+관측 hash에는 등록 시각·principal을 포함한 전체 원본 record가 들어갑니다.
+enumerator는 전체 관측을 재검증한 뒤 `/configuration`의 정확한 artifact descriptor를
+보존하며 object·key·network I/O를 수행하지 않습니다.
+
+digest가 있는 live replay 선언은 모든 예상 좌표를 제공합니다. graph는 원본 선언마다
+path·정확한 target을 보존하고, 공유 identity는 한 번 조회합니다. 알려진 target의
+누락/가용성도 명시합니다. 독립 closure 검증은 생략한 node·edge, 충돌 target과 전체
+관측 변경을 거부합니다. 재검사는 receipt 변경·삭제·이전에 없던 record 생성을 거부합니다.
+실제 조회와 반복 참조는 기존 공유 유한 acquisition 예산을 소비합니다. 선택적 catalogue가
+없어도 데이터를 만들지 않고 누락 target을 보존합니다.
+
+소유 replay-plan 검사는 전체 원본 plan과 child 관측을 재검증하고 정확한 HTTPS 주소,
+operation 포함 여부와 boundary-kind 포함 여부를 확인합니다. 누락/가용성 부족은
+unavailable, 유효하지만 원래 선언과 충돌하는 문맥은 mismatch입니다. retained data의
+matched 결과는 실제 provider 호환성이나 실행 권한을 증명하지 않습니다. credential
+선언은 계속 미해결입니다.
+
+선택적 `PostgresPolicyMetadataCatalogues.endpointProfiles` 설치 입력은 연결 전 검증·복사됩니다.
+조회 port는 기존 held metadata transaction의 정확한 scope·만료·실패 taint·drain을 공유합니다.
+runtime API 자격증명은 private metadata guard를 획득할 수 없습니다. 새 PostgreSQL
+profile 테이블이 아니라 복사된 신뢰 catalogue를 읽으며 migration·role/grant·route·
+worker·production 조합을 추가하지 않습니다.
+
+digest 없는 model 부모의 `endpoint_profile_selector` 해석은 아직 열려 있습니다.
+전체 원본 fixture·provider 문맥·정확한 configuration descriptor를 재검증한 후 독립된
+데이터에서 hash를 도출하고 반복 origin·누락/가용성 mapping을 모두 보존해야 합니다.
+live target은 현재 권한 frontier를 유지합니다. 전체 의미/권한 closure와 sealed
+snapshot/job publication은 열려 있으며 종료된 관측 transaction은 이후 publication을
+승인하지 않습니다.
 
 [진입 감사](workflow-2-policy-evaluation-entry-audit.md),
 [보존 ADR](../architecture/0023-retain-runtime-definitions-separately-from-installation.ko.md),
 [계약](../../packages/contracts/src/endpoint-profile.ts),
 [공개 벡터](../../packages/contracts/vectors/endpoint-profile-v1.json),
-[소유 validator/catalogue](../../packages/core/src/runtime/endpoint-profile.ts)를 참고하세요.
+[소유 validator/catalogue](../../packages/core/src/runtime/endpoint-profile.ts),
+[정확한 source reader](../../packages/core/src/policy/policy-evaluation-endpoint-profile-reader.ts),
+[소유 replay binding 검사](../../packages/replay/src/policy-evaluation-replay-plan-bindings.ts)를 참고하세요.

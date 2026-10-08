@@ -4,6 +4,7 @@ import {
   enumeratePolicyEvaluationEvidenceReferences,
   enumeratePolicyEvaluationImplementationReferences,
   enumeratePolicyEvaluationQualificationPolicyReferences,
+  enumeratePolicyEvaluationEndpointProfileReferences,
   enumeratePolicyEvaluationRuntimeReferences,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationControlReaderDependencies,
@@ -13,14 +14,17 @@ import {
   type PolicyEvaluationEvidenceReferenceLimits,
   type PolicyEvaluationImplementationRead,
   type PolicyEvaluationQualificationPolicyRead,
+  type PolicyEvaluationEndpointProfileRead,
   type PolicyEvaluationRuntimeRead,
   readPolicyEvaluationControlRecord,
   readPolicyEvaluationEvidence,
   readPolicyEvaluationImplementationRecord,
   readPolicyEvaluationQualificationPolicyRecord,
+  readPolicyEvaluationEndpointProfileRecord,
   readPolicyEvaluationRuntimeRecord,
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticQualificationPolicyCatalogue,
+  StaticEndpointProfileCatalogue,
 } from "@proofstack/core";
 import {
   enumeratePolicyEvaluationDatasetReferences,
@@ -37,6 +41,7 @@ import {
 } from "@proofstack/replay";
 
 export interface PolicyRecordGraphRepositories {
+  readonly endpointProfiles?: Parameters<typeof readPolicyEvaluationEndpointProfileRecord>[1];
   readonly control: PolicyEvaluationControlReaderDependencies;
   readonly evidence: PolicyEvaluationEvidenceReaderDependencies;
   readonly datasets: Parameters<typeof readPolicyEvaluationDataset>[1];
@@ -52,6 +57,7 @@ export interface PolicyRecordGraphRepositories {
 }
 
 export type PolicyRecordRead =
+  | PolicyEvaluationEndpointProfileRead
   | PolicyEvaluationControlRead
   | PolicyEvaluationEvidenceRead
   | PolicyEvaluationRuntimeRead
@@ -77,6 +83,7 @@ interface Context {
 export const emptyImplementationRegistrations =
   new StaticEvaluationImplementationRegistrationCatalogue([]);
 export const emptyQualificationPolicies = new StaticQualificationPolicyCatalogue([]);
+export const emptyEndpointProfiles = new StaticEndpointProfileCatalogue([]);
 
 /** Fixed owning reinspection of retained bodies; no repository ports or caller validators. */
 export function enumerateCapturedPolicyRecord(
@@ -87,6 +94,12 @@ export function enumerateCapturedPolicyRecord(
 ) {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "endpoint_profile":
+      return enumeratePolicyEvaluationEndpointProfileReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationEndpointProfileRead,
+        limits,
+      );
     case "qualification_policy":
       return enumeratePolicyEvaluationQualificationPolicyReferences(
         { source, scope, evaluationTime },
@@ -168,6 +181,16 @@ export async function readAndExpandPolicyRecord(
 ): Promise<PolicyRecordExpansion> {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "endpoint_profile": {
+      const input = { source, scope, evaluationTime };
+      return finish(
+        await readPolicyEvaluationEndpointProfileRecord(
+          input,
+          repositories.endpointProfiles ?? emptyEndpointProfiles,
+        ),
+        (read) => enumeratePolicyEvaluationEndpointProfileReferences(input, read, limits),
+      );
+    }
     case "qualification_policy": {
       const input = { source, scope, evaluationTime };
       return finish(

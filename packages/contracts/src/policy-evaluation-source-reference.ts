@@ -2,6 +2,7 @@ import { z } from "zod";
 import { OpaqueIdSchema } from "./primitives.js";
 import { EvaluationImplementationRegistrationReferenceSchema } from "./evaluation-implementation-registration.js";
 import { QualificationPolicyReferenceSchema } from "./qualification-policy.js";
+import { EndpointProfileReferenceSchema } from "./endpoint-profile.js";
 import {
   AssessmentReferenceSchema,
   EvaluationAggregateReferenceSchema,
@@ -68,6 +69,9 @@ import {
 
 /** Exact immutable source references; artifact observations and lifecycle guards are separate. */
 export const PolicyEvaluationSourceReferenceSchema = z.discriminatedUnion("kind", [
+  z
+    .object({ kind: z.literal("endpoint_profile"), reference: EndpointProfileReferenceSchema })
+    .strict(),
   z
     .object({
       kind: z.literal("aggregation_policy"),
@@ -293,11 +297,13 @@ export type PolicyEvaluationSourceReference = z.infer<typeof PolicyEvaluationSou
 /**
  * Repository identity, deliberately excluding digests and redundant logical IDs. Changing a
  * digest, parent ID, or comparison role under one record identity is a conflict, not a new entry.
- * Runtime/isolation profiles, implementation registrations and qualification policies retain
+ * Runtime/isolation/endpoint profiles, implementation registrations and qualification policies retain
  * their existing composite (id, version) repository identity.
  */
 export function policyEvaluationSourceReferenceKey(value: PolicyEvaluationSourceReference): string {
   switch (value.kind) {
+    case "endpoint_profile":
+      return `${value.kind}:${value.reference.endpointProfileId}:${value.reference.endpointProfileVersion}`;
     case "qualification_policy":
       return `${value.kind}:${value.reference.policyId}:${value.reference.policyVersionId}`;
     case "evaluation_implementation_registration":
@@ -405,17 +411,20 @@ export const PolicyEvaluationSourceKeySchema = z
       (schema) => schema.shape.kind.value === kind,
     );
     const profile = kind === "replay_runtime_profile" || kind === "replay_isolation_profile";
+    const endpoint = kind === "endpoint_profile";
     const composite =
       kind === "evaluation_implementation_registration" || kind === "qualification_policy";
     if (
       !knownKind ||
       !OpaqueIdSchema.safeParse(id).success ||
       extra.length > 0 ||
-      (profile
-        ? !ReplayRuntimeProfileReferenceSchema.shape.version.safeParse(version).success
-        : composite
-          ? !OpaqueIdSchema.safeParse(version).success
-          : version !== undefined)
+      (endpoint
+        ? !EndpointProfileReferenceSchema.shape.endpointProfileVersion.safeParse(version).success
+        : profile
+          ? !ReplayRuntimeProfileReferenceSchema.shape.version.safeParse(version).success
+          : composite
+            ? !OpaqueIdSchema.safeParse(version).success
+            : version !== undefined)
     ) {
       context.addIssue({
         code: "custom",

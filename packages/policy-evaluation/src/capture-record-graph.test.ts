@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   type EvaluationRun,
+  type EndpointProfileDefinition,
+  type EndpointProfileRecord,
   type EvaluationImplementationRegistrationRecord,
   type EvaluatorSpec,
   encodeEvaluationCanonicalJson,
@@ -32,10 +34,12 @@ import {
   digestReleasePolicyDefinition,
   digestRuntimeDefinition,
   digestQualificationPolicy,
+  digestEndpointProfile,
   evaluationRecordDescriptors,
   StaticRuntimeDefinitionCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticQualificationPolicyCatalogue,
+  StaticEndpointProfileCatalogue,
   validatePolicyEvaluationManifest,
 } from "@proofstack/core";
 import {
@@ -178,6 +182,7 @@ function missingRepositories() {
     runtimeDefinitions: port("runtime"),
     implementationRegistrations: port("implementation"),
     qualificationPolicies: port("qualification"),
+    endpointProfiles: port("endpoint"),
   } as PolicyRecordGraphRepositories;
   return { repositories, calls };
 }
@@ -246,9 +251,31 @@ async function harness(
     replayBindings?: boolean;
     plan?: (plan: ReplayPlanDefinition) => void;
     qualificationPolicy?: boolean;
+    endpointProfile?: boolean;
   },
 ) {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
+  // Define independent operator data before publishing new plans that refer to its hash.
+  const endpointProfile = snapshots?.endpointProfile
+    ? (() => {
+        const document = JSON.parse(
+          readFileSync(
+            new URL("../../contracts/vectors/endpoint-profile-v1.json", import.meta.url),
+            "utf8",
+          ),
+        ) as { vectors: { input: { definition: EndpointProfileDefinition } }[] };
+        const definition = document.vectors[0]?.input.definition;
+        if (!definition) throw new Error("Missing independent endpoint profile vector");
+        return {
+          ...structuredClone(definition),
+          scope: evaluation.scope,
+          schemaVersion: "0.1" as const,
+          definitionSha256: digestEndpointProfile(evaluation.scope, definition),
+          registeredAt: "2026-09-01T00:00:00.001Z",
+          registeredByPrincipalId: "operator_retained",
+        } satisfies EndpointProfileRecord;
+      })()
+    : undefined;
   // Independently define operator data first, then publish new reports referring to it.
   // Existing placeholder report hashes are never fabricated into genuine policy bodies.
   const qualificationPolicy = snapshots?.qualificationPolicy
@@ -356,7 +383,10 @@ async function harness(
         const targetDefinition = document.vectors.find((v) => v.kind === "target_release")
           ?.input as TargetReleaseDefinition;
         targetDefinition.scope = evaluation.scope;
-        if (snapshots?.replayBindings) targetDefinition.supportedBoundaryModes = ["simulation"];
+        if (snapshots?.replayBindings)
+          targetDefinition.supportedBoundaryModes = endpointProfile
+            ? ["live_provider", "simulation"]
+            : ["simulation"];
         if (replayCase === "unsupported_kind") targetDefinition.supportedBoundaryKinds = ["tool"];
         const receipt = {
           createdAt:
@@ -390,7 +420,9 @@ async function harness(
           // This is retained metadata; the test does not claim a simulator actually ran.
           planDefinition.boundaries = [
             {
-              boundaryId: "boundary_shared_simulation",
+              boundaryId: endpointProfile
+                ? "boundary_0_shared_simulation"
+                : "boundary_shared_simulation",
               kind: "model",
               mode: "simulation",
               configurationSha256: "7".repeat(64),
@@ -446,6 +478,27 @@ async function harness(
                 definitionSha256: record.definitionSha256,
               };
           }
+        }
+        if (endpointProfile) {
+          planDefinition.boundaries.push({
+            boundaryId: "boundary_1_endpoint",
+            mode: "live_provider",
+            kind: "model",
+            endpointProfile: {
+              endpointProfileId: endpointProfile.endpointProfileId,
+              endpointProfileVersion: endpointProfile.endpointProfileVersion,
+              definitionSha256: endpointProfile.definitionSha256,
+            },
+            destination: structuredClone(endpointProfile.destination),
+            operation: "chat",
+            credential: {
+              credentialId: "credential_endpoint",
+              credentialVersionId: "credential_endpoint_v1",
+            },
+            requestLimits: { requestBytes: 1024, responseBytes: 4096 },
+            sideEffect: { kind: "read_only" },
+            usageSource: "provider_reported",
+          });
         }
         snapshots?.plan?.(planDefinition);
         if (replayCase === "invalid_digest") {
@@ -672,6 +725,9 @@ async function harness(
     ...(qualificationPolicy
       ? { qualificationPolicies: new StaticQualificationPolicyCatalogue([qualificationPolicy]) }
       : {}),
+    ...(endpointProfile
+      ? { endpointProfiles: new StaticEndpointProfileCatalogue([endpointProfile]) }
+      : {}),
   };
   return {
     candidate,
@@ -683,6 +739,7 @@ async function harness(
     replayResultReference,
     input: request(candidate, policy),
     qualificationPolicy,
+    endpointProfile,
   };
 }
 
@@ -3165,7 +3222,7 @@ describe("fixed cross-domain routing", () => {
       ),
     ) as { vectors: { input: { definition: Fields } }[] };
     const readLimits = { maxReferences: 1000, maxReferenceBytes: 1000000 };
-    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(46);
+    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(47);
     for (const option of PolicyEvaluationSourceReferenceSchema.options) {
       const kind = option.shape.kind.value;
       const runtime = runtimeVectors.vectors.find(
@@ -3200,43 +3257,45 @@ describe("fixed cross-domain routing", () => {
       });
       expect(missing.calls.length, kind).toBe(kind === "regression_fixture_version" ? 2 : 1);
       const domain =
-        kind === "qualification_policy"
-          ? "qualification"
-          : kind === "evaluation_implementation_registration"
-            ? "implementation"
-            : kind.startsWith("comparison_")
-              ? "comparison"
-              : kind === "release_candidate"
-                ? "candidate"
-                : kind === "release_policy"
-                  ? "policy"
-                  : kind === "policy_installation_binding"
-                    ? "binding"
-                    : ["dataset_version", "regression_fixture_version"].includes(kind)
-                      ? "dataset"
-                      : ["replay_plan", "target_release"].includes(kind)
-                        ? "replay"
-                        : kind === "replay_result"
-                          ? "job"
-                          : runtime
-                            ? "runtime"
-                            : [
-                                  "blinded_plan",
-                                  "blinded_result",
-                                  "calibration_report",
-                                  "human_review_protocol",
-                                  "human_review_record",
-                                  "human_reviewer_independence",
-                                  "independence_declaration",
-                                  "independent_critique",
-                                  "model_assisted_evaluator_spec",
-                                  "model_assurance_assessment",
-                                  "model_evaluator_profile",
-                                  "model_qualification_report",
-                                  "model_qualification_suite",
-                                ].includes(kind)
-                              ? "model"
-                              : "evaluation";
+        kind === "endpoint_profile"
+          ? "endpoint"
+          : kind === "qualification_policy"
+            ? "qualification"
+            : kind === "evaluation_implementation_registration"
+              ? "implementation"
+              : kind.startsWith("comparison_")
+                ? "comparison"
+                : kind === "release_candidate"
+                  ? "candidate"
+                  : kind === "release_policy"
+                    ? "policy"
+                    : kind === "policy_installation_binding"
+                      ? "binding"
+                      : ["dataset_version", "regression_fixture_version"].includes(kind)
+                        ? "dataset"
+                        : ["replay_plan", "target_release"].includes(kind)
+                          ? "replay"
+                          : kind === "replay_result"
+                            ? "job"
+                            : runtime
+                              ? "runtime"
+                              : [
+                                    "blinded_plan",
+                                    "blinded_result",
+                                    "calibration_report",
+                                    "human_review_protocol",
+                                    "human_review_record",
+                                    "human_reviewer_independence",
+                                    "independence_declaration",
+                                    "independent_critique",
+                                    "model_assisted_evaluator_spec",
+                                    "model_assurance_assessment",
+                                    "model_evaluator_profile",
+                                    "model_qualification_report",
+                                    "model_qualification_suite",
+                                  ].includes(kind)
+                                ? "model"
+                                : "evaluation";
       expect(
         missing.calls.every((call) => call.domain === domain),
         kind,
@@ -3879,6 +3938,244 @@ describe("candidate-owned policy assessment declarations", () => {
     if (report.status !== "inspected") throw new Error("Expected inspection");
     Object.assign(report.candidate.source.reference, { definitionSha256: "f".repeat(64) });
     expect(graph).toEqual(before);
+  });
+});
+
+describe("retained live endpoint profile graph acquisition", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
+  const setup = () =>
+    harness("valid", {
+      dataset: "matched",
+      replayBindings: true,
+      endpointProfile: true,
+      plan: (plan) => {
+        const live = plan.boundaries.find((b) => b.mode === "live_provider");
+        if (!live) throw new Error("Missing independently bound live endpoint");
+        plan.boundaries.push({
+          ...structuredClone(live),
+          boundaryId: "boundary_2_endpoint_repeat",
+        });
+      },
+    });
+  type Graph = Awaited<ReturnType<typeof capturePolicyRecordGraph>>;
+  const endpointEdges = (graph: Graph) =>
+    graph.edges.filter(
+      ({ reference }) =>
+        reference.kind === "replay_declaration" &&
+        reference.declaration.kind === "endpoint_profile",
+    );
+
+  it("retains both original live declarations, one exact read and the complete configuration descriptor without closing current authority", async () => {
+    const h = await setup();
+    const record = h.endpointProfile;
+    if (!record || !h.repositories.endpointProfiles) throw new Error("Missing endpoint catalogue");
+    const lookup = vi.spyOn(h.repositories.endpointProfiles, "findEndpointProfile");
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(
+      h.input.scope,
+      record.endpointProfileId,
+      record.endpointProfileVersion,
+    );
+    const edges = endpointEdges(graph);
+    expect(edges.map(({ reference }) => reference.path)).toEqual([
+      "/boundaries/1/endpointProfile",
+      "/boundaries/2/endpointProfile",
+    ]);
+    const target = {
+      kind: "endpoint_profile",
+      reference: {
+        endpointProfileId: record.endpointProfileId,
+        endpointProfileVersion: record.endpointProfileVersion,
+        definitionSha256: record.definitionSha256,
+      },
+    };
+    const nodes = graph.nodes.filter(({ read }) => read.source.kind === "endpoint_profile");
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]).toMatchObject({
+      read: { source: target, record, observation: { status: "verified" } },
+      references: [{ kind: "artifact", path: "/configuration", reference: record.configuration }],
+    });
+    for (const edge of edges) {
+      expect(edge.parent.kind).toBe("replay_plan");
+      expect(edge.target).toEqual(target);
+      expect(graph.recordClosure.frontier).toContainEqual({
+        edgeIndex: graph.edges.indexOf(edge),
+        kind: "retained_declaration",
+      });
+    }
+    const checks = graph.replayPlans.plans[0]?.checks.filter((c) => c.kind.startsWith("endpoint_"));
+    expect(checks).toHaveLength(6);
+    expect(checks?.every((c) => c.observation.status === "matched")).toBe(true);
+    const derived = deriveCapturedRecordClosure(h.input, graph, limits);
+    expect(derived.entries).toEqual(graph.entries);
+    expect(derived.closure).toEqual(graph.recordClosure);
+    expect(graph).not.toHaveProperty("sealed");
+    expect(graph).not.toHaveProperty("authority");
+
+    const exact = {
+      ...h.input.limits,
+      maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references),
+      maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
+    };
+    expect(
+      (await capturePolicyRecordGraph(request(h.candidate, h.policy, exact), h.repositories)).usage,
+    ).toEqual(graph.usage);
+    for (const patch of [
+      { maxAcquisitionRecords: exact.maxAcquisitionRecords - 1 },
+      { maxAcquisitionRecordBytes: exact.maxAcquisitionRecordBytes - 1 },
+    ])
+      await expect(
+        capturePolicyRecordGraph(
+          request(h.candidate, h.policy, { ...exact, ...patch }),
+          h.repositories,
+        ),
+      ).rejects.toThrow();
+  });
+
+  it("retains known exact targets for missing, future and invalid profiles, including an absent optional catalogue", async () => {
+    const h = await setup();
+    const record = h.endpointProfile;
+    if (!record) throw new Error("Missing independently defined endpoint");
+    for (const [raw, observation] of [
+      [null, { status: "missing" }],
+      [
+        { ...record, registeredAt: "2026-10-02T00:00:00.001Z" },
+        { status: "unavailable", reason: "not_yet_available" },
+      ],
+      [
+        { ...record, authority: "approved" },
+        { status: "unavailable", reason: "record_invalid" },
+      ],
+      [
+        { ...record, definitionSha256: "0".repeat(64) },
+        { status: "unavailable", reason: "record_invalid" },
+      ],
+    ]) {
+      const lookup = vi.fn(async () => raw);
+      const graph = await capturePolicyRecordGraph(h.input, {
+        ...h.repositories,
+        endpointProfiles: { findEndpointProfile: lookup },
+      });
+      expect(lookup).toHaveBeenCalledTimes(1);
+      expect(graph.nodes.find(({ read }) => read.source.kind === "endpoint_profile")).toMatchObject(
+        {
+          read: { observation, record: null },
+          references: null,
+        },
+      );
+      expect(endpointEdges(graph)).toHaveLength(2);
+      expect(endpointEdges(graph).every(({ target }) => target?.kind === "endpoint_profile")).toBe(
+        true,
+      );
+      expect(
+        graph.replayPlans.plans[0]?.checks
+          .filter((c) => c.kind.startsWith("endpoint_"))
+          .every((c) => c.observation.status === "unavailable"),
+      ).toBe(true);
+      expect(deriveCapturedRecordClosure(h.input, graph, limits).entries).toEqual(graph.entries);
+    }
+    const { endpointProfiles: _absent, ...repositories } = h.repositories;
+    const graph = await capturePolicyRecordGraph(h.input, repositories);
+    expect(
+      graph.nodes.find(({ read }) => read.source.kind === "endpoint_profile")?.read.observation,
+    ).toEqual({ status: "missing" });
+  });
+
+  it("rejects conflicting original expected hashes instead of selecting a body", async () => {
+    const h = await harness("valid", {
+      dataset: "matched",
+      replayBindings: true,
+      endpointProfile: true,
+      plan: (plan) => {
+        const live = plan.boundaries.find((b) => b.mode === "live_provider");
+        if (!live || live.mode !== "live_provider") throw new Error("Missing live boundary");
+        plan.boundaries.push({
+          ...structuredClone(live),
+          boundaryId: "boundary_2_conflict",
+          endpointProfile: { ...live.endpointProfile, definitionSha256: "0".repeat(64) },
+        });
+      },
+    });
+    await expect(capturePolicyRecordGraph(h.input, h.repositories)).rejects.toMatchObject({
+      reason: "reference_conflict",
+    });
+  });
+
+  it("rejects changed full receipts, disappearing profiles and formerly missing creation on reinspection", async () => {
+    const h = await setup();
+    const record = h.endpointProfile;
+    if (!record) throw new Error("Missing independent endpoint fixture");
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(
+      await acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).toEqual(retained);
+    const missing = { ...h.repositories, endpointProfiles: new StaticEndpointProfileCatalogue([]) };
+    for (const repositories of [
+      missing,
+      {
+        ...h.repositories,
+        endpointProfiles: new StaticEndpointProfileCatalogue([
+          { ...record, registeredByPrincipalId: "operator_changed" },
+        ]),
+      },
+      {
+        ...h.repositories,
+        endpointProfiles: new StaticEndpointProfileCatalogue([
+          { ...record, registeredAt: "2026-10-02T00:00:00.001Z" },
+        ]),
+      },
+    ])
+      await expect(
+        acquirePolicyRecordGraph(
+          h.input,
+          repositories,
+          new AcquisitionBudget(h.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({
+        code: "policy_captured_observation_recheck_failed",
+        reason: "source_revision_changed",
+      });
+    const absent = await capturePolicyRecordGraph(h.input, missing);
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        absent,
+      ),
+    ).rejects.toMatchObject({ reason: "source_revision_changed" });
+  });
+
+  it("independently rejects omitted endpoint nodes, original declarations, targets and observations", async () => {
+    const h = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const nodeIndex = graph.nodes.findIndex(({ read }) => read.source.kind === "endpoint_profile");
+    const edgeIndex = graph.edges.indexOf(endpointEdges(graph)[0] as Graph["edges"][number]);
+    expect(nodeIndex).toBeGreaterThanOrEqual(0);
+    expect(edgeIndex).toBeGreaterThanOrEqual(0);
+    for (const mutate of [
+      (copy: Graph) => (copy.nodes as unknown[]).splice(nodeIndex, 1),
+      (copy: Graph) => (copy.edges as unknown[]).splice(edgeIndex, 1),
+      (copy: Graph) => Reflect.set(copy.edges[edgeIndex] as object, "target", null),
+      (copy: Graph) =>
+        Reflect.set(copy.edges[edgeIndex] as object, "selectorFailure", { status: "missing" }),
+      (copy: Graph) =>
+        Reflect.set(
+          copy.nodes[nodeIndex]?.read.observation as object,
+          "recordSha256",
+          "0".repeat(64),
+        ),
+    ]) {
+      const copy = structuredClone(graph);
+      mutate(copy);
+      expect(() => deriveCapturedRecordClosure(h.input, copy, limits)).toThrow();
+    }
   });
 });
 

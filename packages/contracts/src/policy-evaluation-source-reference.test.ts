@@ -113,6 +113,15 @@ const cases = [
     key: "discovery_record:record_one",
   },
   {
+    kind: "endpoint_profile",
+    reference: {
+      endpointProfileId: "logical_one",
+      endpointProfileVersion: "V1.0+RC-1",
+      definitionSha256: "1".repeat(64),
+    },
+    key: "endpoint_profile:logical_one:V1.0+RC-1",
+  },
+  {
     kind: "evaluation_aggregate",
     reference: {
       definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
@@ -447,7 +456,7 @@ const cases = [
 
 describe("exact policy evaluation source identities", () => {
   it("covers every registered source kind with independently declared identities", () => {
-    expect(cases).toHaveLength(46);
+    expect(cases).toHaveLength(47);
     expect(
       PolicyEvaluationSourceReferenceSchema.options.map((schema) => schema.shape.kind.value).sort(),
     ).toEqual(cases.map(({ kind }) => kind));
@@ -519,6 +528,38 @@ describe("exact policy evaluation source identities", () => {
       });
       expect(policyEvaluationSourceReferenceKey(changed)).not.toBe(key);
     }
+  });
+
+  it("preserves exact endpoint versions and the 146-character maximal key within unchanged headroom", () => {
+    const source = PolicyEvaluationSourceReferenceSchema.parse({
+      kind: "endpoint_profile",
+      reference: {
+        endpointProfileId: "a".repeat(64),
+        endpointProfileVersion: `V+RC-1.${"x".repeat(57)}`,
+        definitionSha256: "f".repeat(64),
+      },
+    });
+    const key = policyEvaluationSourceReferenceKey(source);
+    expect(key).toHaveLength(146);
+    expect(PolicyEvaluationSourceKeySchema.parse(key)).toBe(key);
+    if (source.kind !== "endpoint_profile") throw new Error("Expected exact endpoint source");
+    for (const bad of [key + "x", key + ":extra", key.split(":").slice(0, 2).join(":")])
+      expect(PolicyEvaluationSourceKeySchema.safeParse(bad).success).toBe(false);
+    for (const field of ["endpointProfileId", "endpointProfileVersion"] as const) {
+      const changed = PolicyEvaluationSourceReferenceSchema.parse({
+        kind: source.kind,
+        reference: { ...source.reference, [field]: "other_identity" },
+      });
+      expect(policyEvaluationSourceReferenceKey(changed)).not.toBe(key);
+    }
+    const lower = PolicyEvaluationSourceReferenceSchema.parse({
+      kind: source.kind,
+      reference: {
+        ...source.reference,
+        endpointProfileVersion: source.reference.endpointProfileVersion.toLowerCase(),
+      },
+    });
+    expect(policyEvaluationSourceReferenceKey(lower)).not.toBe(key);
   });
 
   it.each(cases.filter(({ kind }) => kind !== "replay_result"))(

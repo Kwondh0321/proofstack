@@ -270,6 +270,20 @@ export function deriveCapturedRecordClosure(
         frontier.push({ edgeIndex: index, kind: "retained_declaration" });
         continue;
       }
+      if (
+        reference.kind === "replay_declaration" &&
+        reference.declaration.kind === "endpoint_profile"
+      ) {
+        const target: Source = {
+          kind: "endpoint_profile",
+          reference: reference.declaration.reference,
+        };
+        if (edge.selectorFailure !== undefined || !same(target, edge.target))
+          throw new PolicyRecordGraphError("reference_conflict", key);
+        enqueue(target);
+        frontier.push({ edgeIndex: index, kind: "retained_declaration" });
+        continue;
+      }
       if (reference.kind === "qualification_policy") {
         const target: Source = { kind: "qualification_policy", reference: reference.reference };
         if (edge.selectorFailure !== undefined || !same(target, edge.target))

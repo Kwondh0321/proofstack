@@ -5,6 +5,8 @@ import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
 import {
   type ArtifactMetadata,
   type ContentReference,
+  type EndpointProfileDefinition,
+  type EndpointProfileRecord,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
   type QualificationPolicyDefinition,
@@ -17,6 +19,8 @@ import {
 } from "@proofstack/contracts";
 import {
   digestEvaluationRecordDefinition,
+  digestEndpointProfile,
+  readPolicyEvaluationEndpointProfileRecord,
   digestEvaluationImplementationRegistration,
   readPolicyEvaluationImplementationRecord,
   digestQualificationPolicy,
@@ -474,6 +478,120 @@ async function fixture(withCriteria = false, metadataMode = false) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("retains independent endpoint profiles across three tenant collisions with exact case-sensitive versions and expiring native ports", async () => {
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/endpoint-profile-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { vectors: { input: { definition: EndpointProfileDefinition } }[] };
+    const definition = document.vectors[0]?.input.definition;
+    if (!definition) throw new Error("Missing independent endpoint profile vector");
+    const records: EndpointProfileRecord[] = [0, 1, 2].map((index) => {
+      const scope = {
+        tenantId: `tenant_endpoint_${runKey}_${index}`,
+        projectId: "project_endpoint",
+        environmentId: "environment_endpoint",
+      };
+      return {
+        ...structuredClone(definition),
+        scope,
+        definitionSha256: digestEndpointProfile(scope, definition),
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.001Z",
+        registeredByPrincipalId: "operator_endpoint",
+      };
+    });
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(admin, { endpointProfiles: records });
+    const first = records[0];
+    if (!first) throw new Error("Missing independent endpoint fixture");
+    await expect(
+      new PostgresPolicySourceTransactions(api, { endpointProfiles: records }).runMetadata(
+        first.scope,
+        async () => "must not expose guarded ports",
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    for (const record of records) {
+      record.destination.hostname = "mutated.reference.example";
+      record.configuration.sha256 = "0".repeat(64);
+      record.operations.length = 0;
+    }
+    records.length = 0;
+    for (const record of originals) {
+      let retained: Parameters<Parameters<typeof adapter.runMetadata>[1]>[0] | undefined;
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.endpointProfiles;
+        if (!reader) throw new Error("Missing guarded endpoint profile port");
+        const cut = await ports.sources.observationTime();
+        expect(cut).toMatch(/\.\d{6}Z$/u);
+        const input = {
+          scope: record.scope,
+          evaluationTime: cut,
+          source: {
+            kind: "endpoint_profile" as const,
+            reference: {
+              endpointProfileId: record.endpointProfileId,
+              endpointProfileVersion: record.endpointProfileVersion,
+              definitionSha256: record.definitionSha256,
+            },
+          },
+        };
+        const read = await readPolicyEvaluationEndpointProfileRecord(input, reader);
+        expect(read.observation.status).toBe("verified");
+        expect(read.record).toEqual(record);
+        if (!read.record) throw new Error("Missing receipt-bearing endpoint");
+        read.record.destination.hostname = "output_changed.reference.example";
+        read.record.configuration.sha256 = "0".repeat(64);
+        await expect(
+          reader.findEndpointProfile(
+            record.scope,
+            record.endpointProfileId,
+            record.endpointProfileVersion,
+          ),
+        ).resolves.toEqual(record);
+        await expect(
+          reader.findEndpointProfile(
+            record.scope,
+            record.endpointProfileId,
+            record.endpointProfileVersion.toLowerCase(),
+          ),
+        ).resolves.toBeNull();
+        expect(
+          (
+            await readPolicyEvaluationEndpointProfileRecord(
+              { ...input, evaluationTime: "2026-09-01T00:00:00.000999Z" },
+              reader,
+            )
+          ).observation,
+        ).toEqual({ status: "unavailable", reason: "not_yet_available" });
+      });
+      if (!retained?.records.endpointProfiles) throw new Error("Missing retained endpoint port");
+      await expect(
+        retained.records.endpointProfiles.findEndpointProfile(
+          record.scope,
+          record.endpointProfileId,
+          record.endpointProfileVersion,
+        ),
+      ).rejects.toThrow("expired");
+      await expect(
+        adapter.runMetadata(record.scope, async (ports) => {
+          const reader = ports.records.endpointProfiles;
+          if (!reader) throw new Error("Missing guarded endpoint port");
+          await expect(
+            reader.findEndpointProfile(
+              { ...record.scope, tenantId: "outside_scope" },
+              record.endpointProfileId,
+              record.endpointProfileVersion,
+            ),
+          ).rejects.toThrow("scope");
+          return "caught scope escape cannot commit";
+        }),
+      ).rejects.toThrow("scope");
+    }
+  });
+
   it("retains independent qualification policies across three tenant collisions with original receipts and expiring native ports", async () => {
     const document = JSON.parse(
       readFileSync(

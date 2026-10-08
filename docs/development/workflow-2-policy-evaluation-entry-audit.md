@@ -467,9 +467,13 @@ binding ordered bounded operation/boundary declarations and exact configuration
 artifact descriptors under an independent canonical domain. Original registration
 receipts and a copied bounded scope catalogue are retained separately from semantic
 digests. This does not authenticate providers, resolve credentials or establish
-actual compatibility/current authority. Endpoint graph/selector/scoped-port acquisition
-is subsequent work; the source inventory remains 46, with complete closure and
-sealed publication open.
+actual compatibility/current authority. Exact digest-bearing live graph/scoped-port
+acquisition adds the 47th source kind, retains complete configuration occurrences,
+original full receipts and every repeated origin, and checks declared destination,
+operation and boundary-kind context. Independent closure/reinspection and shared
+finite admission preserve missing/unavailable targets and current-authority frontiers.
+Hashless model-parent endpoint selectors, protocol acquisition, complete authority
+closure and sealed publication remain open.
 
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent

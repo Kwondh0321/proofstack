@@ -1,6 +1,6 @@
 # Retained endpoint profile definitions
 
-Status: independent definition data prerequisite. Workflow 2 remains **2/7 accepted**;
+Status: retained definition data and exact live-declaration acquisition. Workflow 2 remains **2/7 accepted**;
 checkpoint 3 is open. [Korean guide](workflow-2-endpoint-profiles.ko.md).
 
 Existing live replay boundaries retain an endpoint profile ID, exact version and
@@ -46,18 +46,52 @@ artifact availability or grant network/credential/execution/release authority.
 Current authority needs owning guarded lifecycle and recovery. A copied record
 does not establish mutable authority at publication time.
 
-Source acquisition is a subsequent slice. The inventory remains **46 source kinds**;
-no endpoint source kind, scoped PostgreSQL port, selector resolution, migration,
-role/grant, route, worker or production composition is added here. Later acquisition
-must distinguish digest-bearing live declarations from hashless model-parent
-selectors, revalidate complete original parents, preserve all repeated origins and
-explicit missing/unavailable observations, meter cumulative reads/bytes, validate
-receipt cuts and retain current-authority frontiers. Complete semantic/authority
-closure and sealed snapshot/job publication remain open. An ended observation
-transaction cannot authorize later publication.
+## Exact retained source acquisition
+
+`endpoint_profile` is the **47th source kind**. Its exact key preserves ID and
+case-sensitive version and is bounded to 146 ASCII bytes inside the existing
+168-byte source-key limit. The owning reader selects scope/ID/version without a
+requested hash, validates the complete strict body against the original expected
+digest and compares the original registration receipt with full-precision UTC cuts.
+The observation hashes the entire retained record, including both registration
+receipts. Its enumerator revalidates that observation before retaining the complete
+configuration descriptor at `/configuration`; it does no object/key/network I/O.
+
+Digest-bearing live replay declarations supply all expected coordinates. Graph
+acquisition retains each original declaration path and exact target, including a
+known missing/unavailable profile, while reading a shared identity once. Independent
+closure derivation rejects omitted nodes, edges, conflicting targets and changed
+full observations. Reinspection requires the same observations and rejects changed
+receipts, removal and formerly absent creation. Each actual lookup and repeated
+reference consumes the existing shared finite acquisition budget. Optional absent
+catalogues preserve missing targets rather than fabricate data.
+
+Owning replay-plan inspection revalidates complete original plans and child reads,
+then checks exact HTTPS destination, declared operation membership and boundary-kind
+membership against the profile. Missing/unavailable data keeps these contextual
+checks unavailable; independently valid but conflicting context is a mismatch.
+Matched retained declarations do not prove actual provider compatibility or execution
+authority. Credential declarations remain unresolved.
+
+The optional `PostgresPolicyMetadataCatalogues.endpointProfiles` installation data
+is validated/copied before connection acquisition. The exact read port shares the
+existing held metadata transaction and its scope, expiry, failure-taint and drain
+rules; runtime API credentials cannot acquire the private metadata guard. This port
+reads a copied trusted catalogue, not a newly persisted PostgreSQL profile table.
+No migration, role/grant, route, worker or production composition is introduced.
+
+Hashless model-parent `endpoint_profile_selector` resolution is still open. It must
+derive the expected hash from independent data after revalidating the complete
+original fixture, provider context and exact configuration descriptor, preserving
+every repeated origin and explicit missing/unavailable mapping. Known live targets
+retain current-authority frontiers. Complete semantic/authority closure and sealed
+snapshot/job publication remain open; an ended observation transaction cannot
+authorize later publication.
 
 See the [entry audit](workflow-2-policy-evaluation-entry-audit.md),
 [runtime retention ADR](../architecture/0023-retain-runtime-definitions-separately-from-installation.md),
 [contracts](../../packages/contracts/src/endpoint-profile.ts),
 [public vectors](../../packages/contracts/vectors/endpoint-profile-v1.json) and
-[owning validator/catalogue](../../packages/core/src/runtime/endpoint-profile.ts).
+[owning validator/catalogue](../../packages/core/src/runtime/endpoint-profile.ts),
+[exact source reader](../../packages/core/src/policy/policy-evaluation-endpoint-profile-reader.ts) and
+[owning replay binding inspection](../../packages/replay/src/policy-evaluation-replay-plan-bindings.ts).

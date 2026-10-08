@@ -1,6 +1,7 @@
 import {
   type EvidenceScope,
   EvidenceScopeSchema,
+  EndpointProfileReferenceSchema,
   OpaqueIdSchema,
   RegressionTraceSnapshotDefinitionSchema,
   TraceIdSchema,
@@ -12,6 +13,7 @@ import type {
   RuntimeDefinitionReader,
   EvaluationImplementationRegistrationReader,
   QualificationPolicyReader,
+  EndpointProfileReader,
 } from "@proofstack/core";
 import type { PolicyEvaluationMetadataPorts } from "@proofstack/policy-evaluation";
 import type { PoolClient } from "pg";
@@ -65,6 +67,7 @@ export function createPostgresPolicyMetadataPorts(
     readonly runtimeDefinitions: RuntimeDefinitionReader;
     readonly implementationRegistrations: EvaluationImplementationRegistrationReader;
     readonly qualificationPolicies: QualificationPolicyReader;
+    readonly endpointProfiles: EndpointProfileReader;
   },
 ): Omit<PolicyEvaluationMetadataPorts, "sources"> {
   const scoped = <T>(scopeInput: EvidenceScope, work: (scope: EvidenceScope) => Promise<T>) =>
@@ -91,6 +94,16 @@ export function createPostgresPolicyMetadataPorts(
   };
   return {
     records: {
+      endpointProfiles: {
+        findEndpointProfile: (scope, value, version) =>
+          scoped(scope, (owned) =>
+            catalogues.endpointProfiles.findEndpointProfile(
+              owned,
+              id(value),
+              EndpointProfileReferenceSchema.shape.endpointProfileVersion.parse(version),
+            ),
+          ),
+      },
       qualificationPolicies: {
         findQualificationPolicy: (scope, value, version) =>
           scoped(scope, (owned) =>

@@ -8,6 +8,8 @@ import {
   type EvaluationImplementationRegistrationRecord,
   type QualificationPolicyDefinition,
   type QualificationPolicyRecord,
+  type EndpointProfileDefinition,
+  type EndpointProfileRecord,
 } from "@proofstack/contracts";
 import type { ModelAssuranceRecordKind } from "@proofstack/core";
 import { policyAuthorityFixture } from "@proofstack/core/testing";
@@ -164,6 +166,10 @@ function metadataReads(ports: PolicyEvaluationMetadataPorts, input = scope) {
         "version_one",
       );
     },
+    () => {
+      if (!records.endpointProfiles) throw new Error("Missing endpoint profile port");
+      return records.endpointProfiles.findEndpointProfile(input, "endpoint_one", "V1.0+RC-1");
+    },
     () => ports.evidence.resolveExactEvents(input, traceId, ["event_one"]),
     () => ports.criterionStatusHistory.listCriterionSetStatuses(input, historyLimits),
     () => ports.fixtureContent.findRecordedInteractionFixtureContent(input, "record_one"),
@@ -189,6 +195,7 @@ describe("guarded policy metadata transaction ports", () => {
       expect(Object.keys(ports.records).sort()).toEqual([
         "control",
         "datasets",
+        "endpointProfiles",
         "evidence",
         "implementationRegistrations",
         "qualificationPolicies",
@@ -518,6 +525,88 @@ describe("guarded policy metadata transaction ports", () => {
     }
   });
 
+  it("copies exact endpoint versions and original configuration through scoped expiring metadata ports", async () => {
+    const f = fixture();
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/endpoint-profile-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: {
+        input: { definition: EndpointProfileDefinition; scope: EvidenceScope };
+        sha256: string;
+      }[];
+    };
+    const records: EndpointProfileRecord[] = document.vectors.map(({ input, sha256 }) => ({
+      ...input.definition,
+      scope: input.scope,
+      definitionSha256: sha256,
+      schemaVersion: "0.1",
+      registeredAt: "2026-09-01T00:00:00.001Z",
+      registeredByPrincipalId: "operator_endpoint",
+    }));
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { endpointProfiles: records },
+    );
+    for (const row of records) {
+      row.operations.reverse();
+      row.destination.hostname = "input.example";
+      row.configuration.sha256 = "f".repeat(64);
+    }
+    records.length = 0;
+    for (const row of originals) {
+      let retained: PolicyEvaluationMetadataPorts | undefined;
+      await adapter.runMetadata(row.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.endpointProfiles;
+        if (!reader) throw new Error("Missing endpoint metadata port");
+        const before = f.queries.length;
+        const read = () =>
+          reader.findEndpointProfile(row.scope, row.endpointProfileId, row.endpointProfileVersion);
+        const result = (await read()) as EndpointProfileRecord;
+        expect(result).toEqual(row);
+        result.operations.reverse();
+        result.destination.hostname = "output.example";
+        result.configuration.sha256 = "e".repeat(64);
+        result.registeredByPrincipalId = "output_mutation";
+        await expect(read()).resolves.toEqual(row);
+        await expect(
+          reader.findEndpointProfile(row.scope, row.endpointProfileId, "V0.0+Missing"),
+        ).resolves.toBeNull();
+        await expect(
+          reader.findEndpointProfile(
+            row.scope,
+            row.endpointProfileId,
+            row.endpointProfileVersion.toLowerCase(),
+          ),
+        ).resolves.toBeNull();
+        expect(f.queries).toHaveLength(before);
+      });
+      if (!retained?.records.endpointProfiles) throw new Error("Missing retained endpoint port");
+      await expect(
+        retained.records.endpointProfiles.findEndpointProfile(
+          row.scope,
+          row.endpointProfileId,
+          row.endpointProfileVersion,
+        ),
+      ).rejects.toThrow("expired");
+    }
+    const row = originals[0];
+    if (!row) throw new Error("Missing original endpoint");
+    await expect(
+      adapter.runMetadata(row.scope, async (ports) => {
+        if (!ports.records.endpointProfiles) throw new Error("Missing endpoint metadata port");
+        await ports.records.endpointProfiles
+          .findEndpointProfile(row.scope, row.endpointProfileId, "Version:invalid")
+          .catch(() => undefined);
+        return "caught invalid version must not commit";
+      }),
+    ).rejects.toThrow();
+  });
+
   it("copies independent qualification policies and exposes detached original receipts through expiring scoped ports", async () => {
     const f = fixture();
     const document = JSON.parse(
@@ -591,6 +680,9 @@ describe("guarded policy metadata transaction ports", () => {
       { qualificationPolicies: [null] },
       { qualificationPolicies: null },
       { qualificationPolicies: Array(257).fill(null) },
+      { endpointProfiles: [null] },
+      { endpointProfiles: null },
+      { endpointProfiles: Array(257).fill(null) },
     ])
       expect(
         () =>

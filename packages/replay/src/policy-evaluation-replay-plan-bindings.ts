@@ -1,6 +1,7 @@
 import {
   encodeEvaluationCanonicalJson,
   type EvidenceScope,
+  type EndpointProfileRecord,
   EvidenceScopeSchema,
   type PolicyEvaluationManifestEntry,
   PolicyEvaluationManifestEntrySchema,
@@ -14,6 +15,8 @@ import {
 } from "@proofstack/contracts";
 import {
   inspectPolicyEvaluationRuntimeRecord,
+  inspectPolicyEvaluationEndpointProfileRecord,
+  type PolicyEvaluationEndpointProfileRead,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
   PolicyEvaluationEvidenceReferenceError,
@@ -43,10 +46,12 @@ type Source = Extract<
       | "dataset_version"
       | "regression_fixture_version"
       | "replay_runtime_profile"
-      | "replay_isolation_profile";
+      | "replay_isolation_profile"
+      | "endpoint_profile";
   }
 >;
 type RecordBody =
+  | EndpointProfileRecord
   | ReplayPlan
   | TargetRelease
   | PolicyEvaluationDatasetRecord
@@ -61,6 +66,7 @@ function sameCanonicalValue(left: unknown, right: unknown): boolean {
 }
 
 export type PolicyReplayPlanBindingRead =
+  | PolicyEvaluationEndpointProfileRead
   | PolicyEvaluationReplayDefinitionRead
   | PolicyEvaluationDatasetRead
   | PolicyEvaluationRuntimeRead;
@@ -74,7 +80,10 @@ export interface PolicyReplayPlanCheck {
     | "boundary_mode"
     | "invocation_digest"
     | "fixture_membership"
-    | "fixture_format";
+    | "fixture_format"
+    | "endpoint_destination"
+    | "endpoint_operation"
+    | "endpoint_boundary_kind";
   readonly observation:
     | { readonly status: "matched" }
     | { readonly status: "unavailable" }
@@ -103,6 +112,8 @@ export interface PolicyReplayPlanBindings {
 function inspect(input: PolicyEvaluationDefinitionReadInput<Source>, raw: unknown): Read {
   const { source, ...context } = input;
   switch (source.kind) {
+    case "endpoint_profile":
+      return inspectPolicyEvaluationEndpointProfileRecord({ ...context, source }, raw);
     case "replay_plan":
     case "target_release":
       return inspectPolicyEvaluationReplayDefinition({ ...context, source }, raw);
@@ -141,7 +152,8 @@ function inventory(
       source.kind !== "dataset_version" &&
       source.kind !== "regression_fixture_version" &&
       source.kind !== "replay_runtime_profile" &&
-      source.kind !== "replay_isolation_profile"
+      source.kind !== "replay_isolation_profile" &&
+      source.kind !== "endpoint_profile"
     )
       throw new PolicyEvaluationEvidenceReferenceError("input_invalid");
     const key = policyEvaluationSourceReferenceKey(source);
@@ -264,12 +276,34 @@ export function inspectPolicyEvaluationReplayPlanBindings(
           `${path}/mode`,
           target ? target.supportedBoundaryModes.includes(boundary.mode) : null,
         );
-        if (boundary.mode === "simulation") {
+        if (boundary.mode === "live_provider") {
+          const endpoint = resolve(`${path}/endpointProfile`, {
+            kind: "endpoint_profile",
+            reference: boundary.endpointProfile,
+          }) as EndpointProfileRecord | null;
+          check(
+            "endpoint_destination",
+            `${path}/destination`,
+            endpoint ? sameCanonicalValue(endpoint.destination, boundary.destination) : null,
+          );
+          check(
+            "endpoint_operation",
+            `${path}/operation`,
+            endpoint ? endpoint.operations.includes(boundary.operation) : null,
+          );
+          check(
+            "endpoint_boundary_kind",
+            `${path}/kind`,
+            endpoint ? endpoint.boundaryKinds.includes(boundary.kind) : null,
+          );
+        } else if (boundary.mode === "simulation") {
           resolve(`${path}/simulatorRelease`, {
             kind: "target_release",
             reference: boundary.simulatorRelease,
           });
-        } else if (boundary.mode === "recorded_stub") {
+        } else {
+          // The owning strict union has exactly three modes. This exhaustive remaining branch
+          // keeps a future mode addition a type error until its bindings are handled explicitly.
           check(
             "invocation_digest",
             `${path}/invocationDefinitionSha256`,

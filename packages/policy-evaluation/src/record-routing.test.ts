@@ -14,6 +14,7 @@ import {
   StaticRuntimeDefinitionCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticQualificationPolicyCatalogue,
+  StaticEndpointProfileCatalogue,
 } from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
@@ -108,6 +109,29 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
 }
 
 describe("positive fixed-domain routing", () => {
+  it("routes every independent endpoint profile vector and its exact retained configuration occurrence", async () => {
+    for (const { input, sha256 } of vectors("../../contracts/vectors/endpoint-profile-v1.json")) {
+      const record = {
+        ...(input["definition"] as Fields),
+        scope: input["scope"],
+        definitionSha256: sha256,
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.001Z",
+        registeredByPrincipalId: "operator_retained",
+      };
+      const expansion = await verify("endpoint_profile", record, {
+        ...absentRepositories(),
+        endpointProfiles: new StaticEndpointProfileCatalogue([record]),
+      });
+      expect(expansion.references).toEqual([
+        {
+          kind: "artifact",
+          path: "/configuration",
+          reference: (input["definition"] as Fields)["configuration"],
+        },
+      ]);
+    }
+  });
   it("routes every independent qualification policy vector without invented artifact dependencies", async () => {
     for (const { input, sha256 } of vectors(
       "../../contracts/vectors/qualification-policy-v1.json",

@@ -59,6 +59,7 @@ import {
   type PolicyRecordRead,
   emptyImplementationRegistrations,
   emptyQualificationPolicies,
+  emptyEndpointProfiles,
   enumerateCapturedPolicyRecord,
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
@@ -155,6 +156,7 @@ function metered(
     qualificationPolicies: budget.wrap(
       repositories.qualificationPolicies ?? emptyQualificationPolicies,
     ),
+    endpointProfiles: budget.wrap(repositories.endpointProfiles ?? emptyEndpointProfiles),
   };
 }
 
@@ -271,6 +273,16 @@ export async function acquirePolicyRecordGraph(
         if (reference.kind === "record") {
           admitEdge({ ...parent, target: reference.source });
           enqueue(reference.source);
+        } else if (
+          reference.kind === "replay_declaration" &&
+          reference.declaration.kind === "endpoint_profile"
+        ) {
+          const target = {
+            kind: "endpoint_profile" as const,
+            reference: reference.declaration.reference,
+          };
+          admitEdge({ ...parent, target });
+          enqueue(target);
         } else if (reference.kind === "qualification_policy") {
           // The original validated declaration already supplies all expected coordinates.
           // Retain its exact target even when independently stored data is missing/unavailable.
@@ -429,7 +441,8 @@ export async function acquirePolicyRecordGraph(
               read.source.kind === "dataset_version" ||
               read.source.kind === "regression_fixture_version" ||
               read.source.kind === "replay_runtime_profile" ||
-              read.source.kind === "replay_isolation_profile",
+              read.source.kind === "replay_isolation_profile" ||
+              read.source.kind === "endpoint_profile",
           ),
         limits,
       ),

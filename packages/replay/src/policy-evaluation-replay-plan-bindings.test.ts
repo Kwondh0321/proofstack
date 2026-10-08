@@ -5,9 +5,16 @@ import {
   type RegressionDatasetVersionDefinition,
   type ReplayPlanDefinition,
   type RuntimeDefinition,
+  type EndpointProfileDefinition,
+  type EndpointProfileRecord,
   type TargetReleaseDefinition,
 } from "@proofstack/contracts";
-import { digestRuntimeDefinition, inspectPolicyEvaluationRuntimeRecord } from "@proofstack/core";
+import {
+  digestRuntimeDefinition,
+  inspectPolicyEvaluationRuntimeRecord,
+  digestEndpointProfile,
+  inspectPolicyEvaluationEndpointProfileRecord,
+} from "@proofstack/core";
 import {
   digestRecordedInteractionFixtureVersionDefinition,
   digestRegressionDatasetVersionDefinition,
@@ -51,6 +58,8 @@ const time = "2026-09-09T00:00:00.000Z";
 const receipt = { createdAt: time, createdByPrincipalId: "principal_plan" };
 const limits = { maxReferences: 1000, maxReferenceBytes: 1_000_000 };
 interface Changes {
+  liveEndpoint?: boolean;
+  endpointObservation?: "missing" | "future";
   plan?: (value: ReplayPlanDefinition) => void;
   target?: (value: TargetReleaseDefinition) => void;
   runtime?: (value: Extract<RuntimeDefinition, { recordKind: "replay_runtime_profile" }>) => void;
@@ -65,6 +74,10 @@ function harness(changes: Changes = {}) {
   const targetDefinition = structuredClone(
     replayVectors.vectors.find((v) => v.kind === "target_release")?.input,
   ) as TargetReleaseDefinition;
+  if (changes.liveEndpoint)
+    targetDefinition.supportedBoundaryModes = [
+      ...new Set([...targetDefinition.supportedBoundaryModes, "live_provider" as const]),
+    ].sort();
   changes.target?.(targetDefinition);
   const scope = planDefinition.scope;
   const context = { scope, evaluationTime: time };
@@ -171,6 +184,47 @@ function harness(changes: Changes = {}) {
     kind: isolation.kind,
     definitionSha256: isolationRecord.definitionSha256,
   };
+  let endpoint: EndpointProfileRecord | undefined;
+  if (changes.liveEndpoint) {
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/endpoint-profile-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { vectors: { input: { definition: EndpointProfileDefinition } }[] };
+    const definition = document.vectors[0]?.input.definition;
+    if (!definition) throw new Error("Missing independent endpoint vector");
+    endpoint = {
+      ...structuredClone(definition),
+      scope,
+      definitionSha256: digestEndpointProfile(scope, definition),
+      schemaVersion: "0.1",
+      registeredAt:
+        changes.endpointObservation === "future"
+          ? "2026-09-10T00:00:00.001Z"
+          : "2026-09-01T00:00:00.001Z",
+      registeredByPrincipalId: "operator_endpoint",
+    };
+    planDefinition.boundaries.push({
+      boundaryId: "boundary_endpoint",
+      mode: "live_provider",
+      kind: "model",
+      endpointProfile: {
+        endpointProfileId: endpoint.endpointProfileId,
+        endpointProfileVersion: endpoint.endpointProfileVersion,
+        definitionSha256: endpoint.definitionSha256,
+      },
+      destination: structuredClone(endpoint.destination),
+      operation: "chat",
+      credential: {
+        credentialId: "credential_endpoint",
+        credentialVersionId: "credential_endpoint_v1",
+      },
+      requestLimits: { requestBytes: 1024, responseBytes: 4096 },
+      sideEffect: { kind: "read_only" },
+      usageSource: "provider_reported",
+    });
+  }
   changes.plan?.(planDefinition);
   const plan = {
     ...planDefinition,
@@ -218,6 +272,25 @@ function harness(changes: Changes = {}) {
     ),
   ];
   for (const read of reads) expect(read.observation.status).toBe("verified");
+  const observedEndpoints = new Set<string>();
+  for (const boundary of plan.boundaries) {
+    if (boundary.mode !== "live_provider") continue;
+    const key = JSON.stringify(boundary.endpointProfile);
+    if (observedEndpoints.has(key)) continue;
+    observedEndpoints.add(key);
+    const retained =
+      endpoint &&
+      endpoint.endpointProfileId === boundary.endpointProfile.endpointProfileId &&
+      endpoint.endpointProfileVersion === boundary.endpointProfile.endpointProfileVersion
+        ? endpoint
+        : null;
+    reads.push(
+      inspectPolicyEvaluationEndpointProfileRecord(
+        { ...context, source: { kind: "endpoint_profile", reference: boundary.endpointProfile } },
+        changes.endpointObservation === "missing" ? null : retained,
+      ),
+    );
+  }
   return {
     context,
     reads,
@@ -225,11 +298,112 @@ function harness(changes: Changes = {}) {
     target,
     dataset,
     fixture,
+    endpoint,
     execute: () => inspect(context, reads, limits),
   };
 }
 
 describe("captured replay plan bindings", () => {
+  it("binds exact independent live endpoint data while preserving the original destination, operation and boundary context", () => {
+    const h = harness({ liveEndpoint: true });
+    const report = h.execute().plans[0];
+    const endpointChecks = report?.checks.filter((c) => c.kind.startsWith("endpoint_"));
+    expect(endpointChecks?.map((c) => [c.kind, c.observation])).toEqual([
+      ["endpoint_destination", { status: "matched" }],
+      ["endpoint_operation", { status: "matched" }],
+      ["endpoint_boundary_kind", { status: "matched" }],
+    ]);
+    expect(
+      report?.dependencies.find((d) => d.source.kind === "endpoint_profile")?.source.reference,
+    ).toEqual({
+      endpointProfileId: h.endpoint?.endpointProfileId,
+      endpointProfileVersion: h.endpoint?.endpointProfileVersion,
+      definitionSha256: h.endpoint?.definitionSha256,
+    });
+  });
+
+  it.each(["destination", "operation", "kind"] as const)(
+    "retains a valid endpoint's conflicting original live %s as a contextual mismatch",
+    (field) => {
+      const h = harness({
+        liveEndpoint: true,
+        plan: (plan) => {
+          const boundary = plan.boundaries.find((b) => b.mode === "live_provider");
+          if (!boundary || boundary.mode !== "live_provider")
+            throw new Error("Missing original live boundary");
+          if (field === "destination") boundary.destination.hostname = "other.reference.example";
+          else if (field === "operation") boundary.operation = "unsupported_operation";
+          else boundary.kind = "data";
+        },
+      });
+      expect(h.reads.find((r) => r.source.kind === "endpoint_profile")?.observation.status).toBe(
+        "verified",
+      );
+      const checks = h.execute().plans[0]?.checks.filter((c) => c.kind.startsWith("endpoint_"));
+      const wanted = field === "kind" ? "endpoint_boundary_kind" : `endpoint_${field}`;
+      expect(checks?.filter((c) => c.observation.status === "mismatch").map((c) => c.kind)).toEqual(
+        [wanted],
+      );
+    },
+  );
+
+  it.each(["missing", "future"] as const)(
+    "keeps %s endpoint data unavailable to every live contextual check",
+    (endpointObservation) => {
+      const h = harness({ liveEndpoint: true, endpointObservation });
+      const report = h.execute().plans[0];
+      expect(
+        report?.checks.filter((c) => c.kind.startsWith("endpoint_")).map((c) => c.observation),
+      ).toEqual(Array(3).fill({ status: "unavailable" }));
+      expect(
+        report?.dependencies.find((d) => d.source.kind === "endpoint_profile")?.recordObservation
+          .status,
+      ).toBe(endpointObservation === "missing" ? "missing" : "unavailable");
+    },
+  );
+
+  it("rejects omitted endpoint nodes and substituted full-record receipts, and bounds repeated live dependencies", () => {
+    const h = harness({
+      liveEndpoint: true,
+      plan: (plan) => {
+        const boundary = plan.boundaries.find((b) => b.mode === "live_provider");
+        if (!boundary) throw new Error("Missing repeated endpoint boundary");
+        plan.boundaries.push({
+          ...structuredClone(boundary),
+          boundaryId: "boundary_endpoint_repeat",
+        });
+      },
+    });
+    const result = h.execute();
+    expect(
+      result.plans[0]?.dependencies.filter((d) => d.source.kind === "endpoint_profile"),
+    ).toHaveLength(2);
+    expect(result.plans[0]?.checks.filter((c) => c.kind.startsWith("endpoint_"))).toHaveLength(6);
+    expect(() =>
+      inspect(
+        h.context,
+        h.reads.filter((r) => r.source.kind !== "endpoint_profile"),
+        limits,
+      ),
+    ).toThrow();
+    const changed = structuredClone(h.reads);
+    const row = changed.find((r) => r.source.kind === "endpoint_profile");
+    if (!row || row.observation.status !== "verified" || row.record === null)
+      throw new Error("Missing retained endpoint");
+    Reflect.set(row.record, "registeredByPrincipalId", "operator_substituted");
+    expect(() => inspect(h.context, changed, limits)).toThrow();
+    const bounds = {
+      maxReferences: result.inspectionUsage.references,
+      maxReferenceBytes: result.inspectionUsage.referenceBytes,
+    };
+    expect(inspect(h.context, h.reads, bounds)).toEqual(result);
+    expect(() =>
+      inspect(h.context, h.reads, { ...bounds, maxReferenceBytes: bounds.maxReferenceBytes - 1 }),
+    ).toThrow();
+    expect(() =>
+      inspect(h.context, h.reads, { ...bounds, maxReferences: bounds.maxReferences - 1 }),
+    ).toThrow();
+  });
   it("preserves exact dependencies and original hashes, with stable sorted detached output", () => {
     const h = harness();
     const result = h.execute();
@@ -389,9 +563,30 @@ describe("captured replay plan bindings", () => {
       },
     });
     const plan = h.execute().plans[0];
-    expect(plan?.dependencies).toHaveLength(6);
-    expect(plan?.checks).toHaveLength(11);
-    expect(plan?.checks.every((c) => c.observation.status === "matched")).toBe(true);
+    expect(plan?.dependencies).toHaveLength(7);
+    expect(plan?.checks).toHaveLength(14);
+    expect(
+      plan?.checks
+        .filter((c) => !c.kind.startsWith("endpoint_"))
+        .every((c) => c.observation.status === "matched"),
+    ).toBe(true);
+    expect(plan?.checks.filter((c) => c.kind.startsWith("endpoint_"))).toEqual([
+      expect.objectContaining({
+        kind: "endpoint_destination",
+        observation: { status: "unavailable" },
+      }),
+      expect.objectContaining({
+        kind: "endpoint_operation",
+        observation: { status: "unavailable" },
+      }),
+      expect.objectContaining({
+        kind: "endpoint_boundary_kind",
+        observation: { status: "unavailable" },
+      }),
+    ]);
+    expect(
+      plan?.dependencies.find((d) => d.source.kind === "endpoint_profile")?.recordObservation,
+    ).toEqual({ status: "missing" });
     expect(
       plan?.dependencies.filter((d) => d.source.kind === "target_release").map((d) => d.path),
     ).toEqual(["/targetRelease", "/boundaries/1/simulatorRelease"]);
