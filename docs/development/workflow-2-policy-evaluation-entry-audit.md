@@ -443,6 +443,12 @@ detector.
 
 ## Exact source binding and acquisition
 
+The [retained implementation registration prerequisite](workflow-2-implementation-registration.md)
+adds strict independently supplied registration data, complete canonical scope/descriptor binding
+and a bounded immutable installation catalogue. It does not yet resolve graph frontiers or attest
+loaded bytes/current authority/qualification. Parent-bound integration, cumulative admission and
+remaining qualification-policy/endpoint/protocol definitions still precede complete sealing.
+
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
 status function; raw outbox access and new definition publication remain denied. Native role

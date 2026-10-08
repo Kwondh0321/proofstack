@@ -1,0 +1,89 @@
+{
+  "format": "proofstack.evaluation-implementation-registration.v1",
+  "vectors": [
+    {
+      "input": {
+        "scope": {
+          "environmentId": "env_test",
+          "projectId": "project_registration",
+          "tenantId": "tenant_registration"
+        },
+        "definition": {
+          "implementation": {
+            "dependencySnapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "entryPointId": "entry_exact_bytes",
+            "implementationId": "impl_exact_bytes",
+            "implementationSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "implementationVersionId": "impv_exact_v1",
+            "runtime": {
+              "architecture": "x64",
+              "family": "node",
+              "platform": "linux",
+              "version": "24.13.1"
+            },
+            "sourceRevision": "cccccccccccccccccccccccccccccccccccccccc"
+          },
+          "recordKind": "evaluation_implementation_registration"
+        }
+      },
+      "encodedByteLength": 814,
+      "sha256": "4e759c8bcfaa5a4410f4114f187a5279af49e60c36c12d9098acf1fdc5c5bddd"
+    },
+    {
+      "input": {
+        "scope": {
+          "environmentId": "env_test",
+          "projectId": "project_registration",
+          "tenantId": "tenant_other"
+        },
+        "definition": {
+          "implementation": {
+            "dependencySnapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "entryPointId": "entry_exact_bytes",
+            "implementationId": "impl_exact_bytes",
+            "implementationSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "implementationVersionId": "impv_exact_v1",
+            "runtime": {
+              "architecture": "x64",
+              "family": "node",
+              "platform": "linux",
+              "version": "24.13.1"
+            },
+            "sourceRevision": "cccccccccccccccccccccccccccccccccccccccc"
+          },
+          "recordKind": "evaluation_implementation_registration"
+        }
+      },
+      "encodedByteLength": 807,
+      "sha256": "5ecb46f48a87c12b2ab477bb87b5979a6e040c0ac853827fa05c6aa375158aff"
+    },
+    {
+      "input": {
+        "scope": {
+          "environmentId": "env_test",
+          "projectId": "project_registration",
+          "tenantId": "tenant_registration"
+        },
+        "definition": {
+          "implementation": {
+            "dependencySnapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "entryPointId": "entry_portable",
+            "implementationId": "impl_portable",
+            "implementationSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "implementationVersionId": "impv_portable_v1",
+            "runtime": {
+              "architecture": "wasm32",
+              "family": "wasm",
+              "platform": "portable",
+              "version": "1"
+            },
+            "sourceRevision": "cccccccccccccccccccccccccccccccccccccccc"
+          },
+          "recordKind": "evaluation_implementation_registration"
+        }
+      },
+      "encodedByteLength": 811,
+      "sha256": "49d89f5a87941a5036a5c1bc3f7484b8d3c6b1075aa4cf784dc2b4fec1207410"
+    }
+  ]
+}
