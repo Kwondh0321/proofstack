@@ -44,6 +44,10 @@ Reverse 이력·mutable/live 권한·전체 closure·worker lease/fence·sealed 
 발행은 남아 있습니다. 반환된 읽기 보고서는 이후 발행 권한이 아니며 같은 트랜잭션의 보호된
 검증/봉인 절차가 필요합니다.
 
+후속 [물리적 저장 검증](workflow-2-model-assurance-storage-integrity.ko.md)은 같은 owning 조회에서
+이 13종의 선택된 cross-domain 관계와 최초 intent를 검사합니다. 저장 관계의 일치와 전체
+현재 권한은 여전히 구별합니다.
+
 ## 같은 정의의 재시도는 최초 기록을 보존
 
 같은 canonical 정의에 대한 재시도에는 다른 발행/기록 시각과, 정의에서 제외된 경우 다른
@@ -53,8 +57,8 @@ Reverse 이력·mutable/live 권한·전체 closure·worker lease/fence·sealed 
 다르면 계속 충돌합니다. 후보와 반환 기록은 저장소 상태와 분리된 객체입니다.
 
 최초 intent가 없거나 불일치하면 재시도 전체가 실패합니다. 재시도 원문에만 일치하는 intent도
-최초 intent를 대신할 수 없습니다. 이 발행 검사가 일반 조회의 전체 physical registry/
-lineage/outbox 검증이나 현재 권한 검증을 추가하는 것은 아닙니다.
+최초 intent를 대신할 수 없습니다. 이 재시도 수정과 후속 physical 조회 검증은 별도 변경이며,
+어느 쪽도 전체 현재 권한 검증을 뜻하지 않습니다.
 
 ## 검증
 

@@ -52,6 +52,10 @@ mutable/live authority, complete closure, worker leases/fences, sealed contracts
 snapshot/job publication remain open. Returned read reports still end before publication authority
 could be exercised; the same-transaction guarded/sealed protocol remains required.
 
+The subsequent [physical storage validation](workflow-2-model-assurance-storage-integrity.md)
+now verifies these thirteen kinds' selected cross-domain graph and original intent using the
+same owning read. It preserves the distinction between physical agreement and complete authority.
+
 ## Same-definition retries retain original receipts
 
 A retry with the same canonical definition may carry a different publication/recording receipt
@@ -62,8 +66,8 @@ original receipt, rather than against the incoming retry's receipt. A different 
 conflicts. Both candidates and returned records remain detached from repository state.
 
 An absent or conflicting original intent fails the entire retry. Even an intent matching only the
-incoming retry cannot stand in for the original. This publication check does not yet add complete
-physical registry/lineage/outbox validation to ordinary reads, nor establish current authority.
+incoming retry cannot stand in for the original. This retry correction is distinct from the
+subsequent physical read validation; neither establishes complete current authority.
 
 ## Verification
 

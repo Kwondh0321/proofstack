@@ -11,7 +11,7 @@ repository reads through those same functions. Workflow 2 remains **2/7 accepted
 | Domain | Supplied-client functions | Retained owning behavior |
 | --- | --- | --- |
 | Evaluation | `readPostgresEvaluationRecordOnClient` | All 17 kinds, canonical record/digest, normalized scope |
-| Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope and full scalar identity/schema/receipt/actor/lifecycle agreement |
+| Model/human assurance | `readPostgresModelAssuranceRecordOnClient` | All 13 kinds, canonical record/digest, exact scope, full scalar identity/schema/receipt/actor/lifecycle agreement, selected physical registry/lineage and original intent |
 | Comparison | `readPostgresComparisonRecordOnClient` | Definition, operand snapshots and result; normalized projections and lineage count |
 | Candidate | `readPostgresReleaseCandidateOnClient` | Exact immutable candidate and normalized projections |
 | Dataset/fixture | `readPostgresDatasetVersionOnClient`, `readPostgresFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureVersionOnClient`, `readPostgresRecordedInteractionFixtureContentOnClient` | Identity-first scope filtering, normalized ordered members/events; recorded fixture ownership/root binding and canonical publication intent; revocation/tombstone/catalog metadata for content availability |
@@ -44,6 +44,9 @@ publication interface is exposed. Each domain retains its existing owning valida
 does not newly prove physical registry/lineage/outbox agreement. The subsequent
 [model/human scalar validation](workflow-2-model-assurance-projections.md) strengthens owning
 row checks without establishing complete physical reference agreement or current authority.
+The subsequent [model/human physical validation](workflow-2-model-assurance-storage-integrity.md)
+adds those thirteen kinds' selected cross-domain registry/lineage and original intent checks to
+the same owning reads, without proving every domain's graph or complete current authority.
 
 The adapter copies strict operator-owned installation bindings and runtime definitions at
 construction, outside transaction guards. Each catalogue admits at most 256 entries; duplicates

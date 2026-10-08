@@ -15,6 +15,7 @@ import {
   validateModelAssuranceRecord,
 } from "@proofstack/core";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import { modelAssuranceStorageReferences } from "./model-assurance-storage-references.js";
 import { withTenantTransaction } from "./tenant-transaction.js";
 
 interface StoredRecordRow extends QueryResultRow {
@@ -25,6 +26,7 @@ interface StoredRecordRow extends QueryResultRow {
   readonly recorded_at_matches: boolean;
   readonly actor_principal_id: string | null;
   readonly lifecycle_state: string | null;
+  readonly lineage_count: number;
   readonly definition_sha256: string;
   readonly environment_id: string;
   readonly project_id: string;
@@ -34,6 +36,23 @@ interface StoredRecordRow extends QueryResultRow {
 
 interface OutboxIntentRow extends QueryResultRow {
   readonly status: string;
+}
+
+interface RegistryRow extends QueryResultRow {
+  readonly project_id: string;
+  readonly environment_id: string;
+  readonly schema_version: string;
+  readonly definition_sha256: string;
+}
+
+interface LineageRow extends QueryResultRow {
+  readonly edge_position: number;
+  readonly parent_record_kind: string;
+  readonly parent_record_id: string;
+  readonly parent_definition_sha256: string;
+  readonly child_matches: boolean;
+  readonly parent_matches: boolean;
+  readonly position_matches: boolean;
 }
 
 interface ModelAssuranceProjection {
@@ -242,7 +261,7 @@ async function loadStored(
   const result = await client.query<StoredRecordRow>(
     `SELECT tenant_id, project_id, environment_id, record_kind, record_id,
        schema_version, definition_sha256, recorded_at_lexical, actor_principal_id,
-       lifecycle_state, record,
+       lifecycle_state, lineage_count, record,
        recorded_at = recorded_at_lexical::timestamptz AS recorded_at_matches
      FROM public.proofstack_model_assurance_records
      WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3
@@ -283,7 +302,7 @@ function parseStored(kind: ModelAssuranceRecordKind, row: StoredRecordRow): Mode
 }
 
 async function requireCanonicalOutbox(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   intent: ModelAssuranceOutboxIntent,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
@@ -304,6 +323,106 @@ async function requireCanonicalOutbox(
       `Stored model-assurance record ${intent.aggregateId} is missing its canonical outbox intent`,
     );
   }
+}
+
+async function requirePhysicalIntegrity(
+  client: Pick<PoolClient, "query">,
+  kind: ModelAssuranceRecordKind,
+  record: ModelAssuranceRecord,
+  row: StoredRecordRow,
+): Promise<void> {
+  const id = modelAssuranceRecordId(kind, record);
+  const scope = record.scope;
+  const references = modelAssuranceStorageReferences(kind, id, record);
+  if (row.lineage_count !== references.length) {
+    throw new ModelAssuranceRepositoryContractError(
+      "Stored model-assurance lineage count differs from its canonical body",
+    );
+  }
+  const registry = await client.query<RegistryRow>(
+    `SELECT project_id, environment_id, schema_version, definition_sha256
+     FROM public.proofstack_evaluation_record_registry
+     WHERE tenant_id = $1 AND record_kind = $2 AND record_id = $3 LIMIT 2`,
+    [scope.tenantId, kind, id],
+  );
+  const child = registry.rows[0];
+  if (
+    registry.rows.length !== 1 ||
+    !child ||
+    child.project_id !== scope.projectId ||
+    child.environment_id !== scope.environmentId ||
+    child.schema_version !== record.schemaVersion ||
+    child.definition_sha256 !== record.definitionSha256
+  ) {
+    throw new ModelAssuranceRepositoryContractError(
+      "Stored model-assurance registry differs from its canonical body",
+    );
+  }
+  // Native ordering preserves the deployed publication function's collation. The
+  // independently derived count bounds returned rows, including a zero-ref sentinel.
+  const lineage = await client.query<LineageRow>(
+    `SELECT inspected.*, inspected.edge_position = inspected.expected_position AS position_matches
+     FROM (
+       SELECT edge.edge_position, edge.parent_record_kind, edge.parent_record_id,
+         edge.parent_definition_sha256,
+         (edge.project_id = $4 AND edge.environment_id = $5
+          AND edge.child_definition_sha256 = $6) AS child_matches,
+         (parent.record_id IS NOT NULL AND parent.schema_version = $7) AS parent_matches,
+         row_number() OVER (ORDER BY edge.parent_record_kind, edge.parent_record_id,
+           edge.parent_definition_sha256) - 1 AS expected_position
+       FROM public.proofstack_evaluation_lineage AS edge
+       LEFT JOIN public.proofstack_evaluation_record_registry AS parent
+         ON parent.tenant_id = edge.tenant_id AND parent.project_id = edge.project_id
+         AND parent.environment_id = edge.environment_id
+         AND parent.record_kind = edge.parent_record_kind AND parent.record_id = edge.parent_record_id
+         AND parent.definition_sha256 = edge.parent_definition_sha256
+       WHERE edge.tenant_id = $1 AND edge.child_record_kind = $2 AND edge.child_record_id = $3
+     ) AS inspected
+     ORDER BY inspected.edge_position LIMIT $8`,
+    [
+      scope.tenantId,
+      kind,
+      id,
+      scope.projectId,
+      scope.environmentId,
+      record.definitionSha256,
+      record.schemaVersion,
+      references.length + 1,
+    ],
+  );
+  const expected = new Set(
+    references.map(({ recordKind, recordId, definitionSha256 }) =>
+      JSON.stringify([recordKind, recordId, definitionSha256]),
+    ),
+  );
+  if (lineage.rows.length !== references.length) {
+    throw new ModelAssuranceRepositoryContractError(
+      "Stored model-assurance physical lineage is incomplete or excessive",
+    );
+  }
+  for (const [index, edge] of lineage.rows.entries()) {
+    if (
+      edge.edge_position !== index ||
+      edge.position_matches !== true ||
+      edge.child_matches !== true ||
+      edge.parent_matches !== true ||
+      !expected.delete(
+        JSON.stringify([
+          edge.parent_record_kind,
+          edge.parent_record_id,
+          edge.parent_definition_sha256,
+        ]),
+      )
+    ) {
+      throw new ModelAssuranceRepositoryContractError(
+        "Stored model-assurance physical lineage differs from its canonical body",
+      );
+    }
+  }
+  await requireCanonicalOutbox(
+    client,
+    outboxIntent(kind, id, record, projection(kind, record).recordedAt),
+  );
 }
 
 function publicationFunction(kind: ModelAssuranceRecordKind): string {
@@ -331,7 +450,9 @@ export async function readPostgresModelAssuranceRecordOnClient<K extends ModelAs
   const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
   if (!row) return null;
   const record = parseStored(kind, row);
-  return scopesEqual(record.scope, scope) ? (clone(record) as ModelAssuranceRecordByKind[K]) : null;
+  if (!scopesEqual(record.scope, scope)) return null;
+  await requirePhysicalIntegrity(client, kind, record, row);
+  return clone(record) as ModelAssuranceRecordByKind[K];
 }
 
 export class PostgresModelAssuranceRepository implements ModelAssuranceRepository {
@@ -373,10 +494,7 @@ export class PostgresModelAssuranceRepository implements ModelAssuranceRepositor
           if (existing.definitionSha256 !== record.definitionSha256) {
             throw new ModelAssuranceRecordConflictError(kind, recordId);
           }
-          await requireCanonicalOutbox(
-            client,
-            outboxIntent(kind, recordId, existing, projection(kind, existing).recordedAt),
-          );
+          await requirePhysicalIntegrity(client, kind, existing, existingRow);
           return {
             created: false,
             record: clone(existing) as ModelAssuranceRecordByKind[K],

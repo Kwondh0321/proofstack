@@ -39,6 +39,9 @@ rollback합니다. SQL/client·pool·DML·content/key·worker·발행 인터페�
 model-assurance의 모든 physical 참조 관계를 새로 증명하지 않습니다. 후속
 [모델·사람 기록 필드 검증](workflow-2-model-assurance-projections.ko.md)은 owning 행의
 ID·schema·scope·시각·주체·상태 일치를 강화하지만 현재 권한이나 전체 관계를 닫지 않습니다.
+후속 [모델·사람 물리적 저장 검증](workflow-2-model-assurance-storage-integrity.ko.md)은 같은
+owning 조회에 이 13종의 선택된 cross-domain registry/lineage·최초 intent 검사를 추가합니다.
+다른 모든 도메인의 관계나 전체 현재 권한을 증명하는 것은 아닙니다.
 
 운영자 소유 installation binding과 runtime definition은 생성자에서 잠금 밖에 복사합니다.
 각 catalogue는 최대 256개이며 중복·잘못된 record는 연결 전에 거절합니다. 이 불변 메모리

@@ -448,7 +448,9 @@ describe("PostgresModelAssuranceRepository", () => {
         ModelAssuranceRepositoryContractError,
       );
       expect(await retainedState(f.record.scope.tenantId)).toEqual(before);
-      await expect(repository.find(f.record.scope, f.kind, id)).resolves.toEqual(f.record);
+      await expect(repository.find(f.record.scope, f.kind, id)).rejects.toBeInstanceOf(
+        ModelAssuranceRepositoryContractError,
+      );
     },
   );
 

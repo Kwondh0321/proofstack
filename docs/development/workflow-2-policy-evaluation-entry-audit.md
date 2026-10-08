@@ -333,6 +333,13 @@ and owning full scalar row checks. Exact scope is filtered before parsing outsid
 normal null cases and original historical data/receipts remain intact. Physical registry/lineage/
 outbox agreement and complete authority closure remain open; this is not checkpoint acceptance.
 
+The subsequent [model/human physical read integrity](workflow-2-model-assurance-storage-integrity.md)
+independently reconstructs the deployed selected cross-domain reference set, validates child and
+parent registry agreement, complete bounded native-ordered lineage and original canonical intent
+through existing read grants. Scope opacity and original retry receipts remain intact. This
+closes those thirteen kinds' storage checks, not every other domain's graph, complete parent
+semantics, reverse/mutable/live authority, sealing or checkpoint acceptance.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every
