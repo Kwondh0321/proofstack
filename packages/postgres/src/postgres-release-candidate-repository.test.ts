@@ -64,7 +64,9 @@ class FakeClient {
   ): Promise<{ readonly rows: readonly unknown[] }> {
     this.statements.push(text.trim());
     if (text.includes("AS retained_candidate_storage")) {
-      return { rows: [{ retained_candidate_storage: false }] };
+      const row = this.records.get(`${String(values?.[0])}:${String(values?.[3])}`);
+      const present = row?.project_id === values?.[1] && row?.environment_id === values?.[2];
+      return { rows: [{ retained_candidate_body: present, retained_candidate_storage: present }] };
     }
     if (text.includes("FROM public.proofstack_release_candidate_resources AS binding")) {
       const root = [...this.records.values()].find(
@@ -156,15 +158,41 @@ describe("PostgresReleaseCandidateRepository", () => {
     },
   );
 
+  it("rejects a body that disappears after a successful scoped presence observation", async () => {
+    const h = createReleaseCandidateRepositoryTestHarness("candidate_presence_changed");
+    const client = new FakeClient();
+    client.records.set(
+      `${h.scope.tenantId}:${h.candidate.candidateVersionId}`,
+      storedRow(h.candidate),
+    );
+    const view = {
+      query: async (sql: string, values?: readonly unknown[]) => {
+        const result = await client.query(sql, values);
+        return sql.includes("created_at_matches") ? { rows: [] } : result;
+      },
+    } as unknown as Pick<PoolClient, "query">;
+    await expect(
+      readPostgresReleaseCandidateOnClient(view, h.scope, h.candidate.candidateVersionId),
+    ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
+    expect(client.releases).toEqual([]);
+  });
+
   it.each([
     { name: "missing", rows: [] },
     {
       name: "duplicate",
-      rows: [{ retained_candidate_storage: false }, { retained_candidate_storage: false }],
+      rows: [
+        { retained_candidate_body: false, retained_candidate_storage: false },
+        { retained_candidate_body: false, retained_candidate_storage: false },
+      ],
     },
     ...[true, null, undefined, "false", 0].map((flag) => ({
       name: `invalid_${String(flag)}`,
-      rows: [{ retained_candidate_storage: flag }],
+      rows: [{ retained_candidate_body: false, retained_candidate_storage: flag }],
+    })),
+    ...[true, null, undefined, "true", "false", 1, 0].map((flag) => ({
+      name: `invalid_body_${String(flag)}`,
+      rows: [{ retained_candidate_body: flag, retained_candidate_storage: false }],
     })),
   ])("rejects $name absence witnesses without transaction cleanup", async ({ rows }) => {
     const h = createReleaseCandidateRepositoryTestHarness("candidate_absence_witness");

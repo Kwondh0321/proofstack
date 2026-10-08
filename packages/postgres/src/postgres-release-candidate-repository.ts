@@ -55,6 +55,7 @@ interface CandidateResourceRow extends QueryResultRow {
 }
 
 interface CandidatePresenceRow extends QueryResultRow {
+  readonly retained_candidate_body: boolean;
   readonly retained_candidate_storage: boolean;
 }
 
@@ -333,13 +334,17 @@ async function requirePhysicalIntegrity(
   await requireCanonicalOutbox(client, candidate);
 }
 
-async function requireAbsentStorage(
+async function inspectScopedPresence(
   client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   candidateVersionId: string,
-): Promise<void> {
+): Promise<boolean> {
   const result = await client.query<CandidatePresenceRow>(
     `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_release_candidates
+       WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
+         AND candidate_version_id = $4
+     ) AS retained_candidate_body, EXISTS (
        SELECT 1 FROM public.proofstack_release_candidate_registry
        WHERE tenant_id = $1 AND project_id = $2 AND environment_id = $3
          AND candidate_version_id = $4
@@ -354,11 +359,19 @@ async function requireAbsentStorage(
      ) AS retained_candidate_storage`,
     [scope.tenantId, scope.projectId, scope.environmentId, candidateVersionId],
   );
-  if (result.rows.length !== 1 || result.rows[0]?.retained_candidate_storage !== false) {
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_candidate_body !== "boolean" ||
+    typeof row.retained_candidate_storage !== "boolean" ||
+    row.retained_candidate_body !== row.retained_candidate_storage
+  ) {
     throw new ReleaseCandidateRepositoryContractError(
-      "Stored release candidate scoped metadata is inconsistent with its absent body",
+      "Stored release candidate scoped presence violates its storage contract",
     );
   }
+  return row.retained_candidate_body;
 }
 
 /** Exact normalized candidate read on the caller-owned scoped connection. */
@@ -368,10 +381,12 @@ export async function readPostgresReleaseCandidateOnClient(
   candidateVersionId: string,
 ): Promise<ReleaseCandidate | null> {
   const scope = { ...scopeInput };
+  if (!(await inspectScopedPresence(client, scope, candidateVersionId))) return null;
   const row = await loadStored(client, scope.tenantId, candidateVersionId, scope);
   if (!row) {
-    await requireAbsentStorage(client, scope, candidateVersionId);
-    return null;
+    throw new ReleaseCandidateRepositoryContractError(
+      "Stored release candidate body disappeared after its scoped presence observation",
+    );
   }
   const candidate = parseStored(row);
   if (!scopesEqual(candidate.scope, scope)) return null;

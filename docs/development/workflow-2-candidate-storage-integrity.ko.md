@@ -32,10 +32,11 @@ timestamp에서 최초 발행 순서를 추정하거나 latest를 선택하거�
 
 ## 부재와 scope
 
-정확한 본문 조회가 비어 있으면 같은 정규화 scope/version의 registry·child lineage·논리
-resource root index를 고정 쿼리로 검사합니다. 소유한 증거가 남아 있는데 본문이 없으면 contract
-오류입니다. 부재 응답 자체도 native boolean `false` 한 행이어야 하며 누락·중복·잘못된 값은
-실패합니다. 요청 범위 밖에만 존재하는 정상/손상 데이터는 여전히 부재로 처리합니다.
+고정 presence 쿼리 하나에서 같은 정규화 scope/version의 본문과 registry·child lineage·논리
+resource root 증거를 같은 DB 시점으로 관측합니다. 부재 반환에는 두 native boolean `false`가
+필요하며 응답 누락·중복·다른 타입·본문/증거 존재 여부 불일치는 실패합니다. 그 시점 뒤의 정상
+발행이 관측된 부재를 저장 오류로 바꾸지 않습니다. 본문이 있으면 기존 canonical/물리 검사를
+계속하며 다음 읽기 전 사라지면 실패합니다. 범위 밖에만 있는 정상/손상 데이터는 여전히 부재입니다.
 
 모든 DB orphan을 닫는 검사는 아닙니다. Outbox만 남은 행에는 정규화된 project/environment
 소유자가 없으며 foreign/malformed payload를 읽어 소유자를 만들어내지 않습니다. 전체 presence/
@@ -69,6 +70,10 @@ Parent registry 일치가 별도 predecessor 본문의 전체 의미나 transiti
 역할로 읽고 CHECK는 유지하며 모든 변경을 롤백합니다. Fingerprint와 최초 owning 조회로
 복구를 확인합니다. 세 scope 차원·최초 재시도 receipt·정상 outbox 배송 상태 변경과 기존
 저장소/guarded-port/scope conformance를 유지합니다.
+
+별도 API 연결이 초기 부재 관측 뒤 정상 원자적 발행을 완료하는 경합도 검사합니다. Reader는
+관측한 부재를 반환하고 다음 owning 조회는 전체 새 기록을 확인합니다. 데이터 손상·trigger
+비활성화·임의 sleep·자동 읽기 재시도로 경합을 숨기지 않습니다.
 
 단위 검사는 잘못된 native timestamp/부재/관계 응답과 연결/정리 경계도 검사합니다. 실험적인
 저장 증거이며 운영 준비·provider 사실성·전체 release 권한을 보장하지 않습니다.

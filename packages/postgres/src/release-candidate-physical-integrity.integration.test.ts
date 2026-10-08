@@ -131,6 +131,40 @@ async function remove(client: PoolClient, table: string, column: string, id: str
 }
 
 describe("owning release candidate physical and scoped presence integrity", () => {
+  it("returns observed absence when normal publication commits after the presence cut", async () => {
+    const concurrent = createReleaseCandidateRepositoryTestHarness(`race_${key}`);
+    const id = concurrent.candidate.candidateVersionId;
+    await expect(repository.findReleaseCandidate(concurrent.scope, id)).resolves.toBeNull();
+    let published = false;
+    await withExactScopeTransaction(api, concurrent.scope, async (client) => {
+      const view = {
+        query: async (sql: string, values?: readonly unknown[]) => {
+          const result = await client.query(sql, values ? [...values] : undefined);
+          if (
+            !published &&
+            sql.includes("FROM public.proofstack_release_candidates") &&
+            (result.rows.length === 0 || result.rows[0]?.["retained_candidate_body"] === false)
+          ) {
+            await expect(repository.publishReleaseCandidate(concurrent.candidate)).resolves.toEqual(
+              {
+                candidate: concurrent.candidate,
+                created: true,
+              },
+            );
+            published = true;
+          }
+          return result;
+        },
+      } as unknown as Pick<PoolClient, "query">;
+      await expect(
+        readPostgresReleaseCandidateOnClient(view, concurrent.scope, id),
+      ).resolves.toBeNull();
+    });
+    expect(published).toBe(true);
+    await expect(repository.findReleaseCandidate(concurrent.scope, id)).resolves.toEqual(
+      concurrent.candidate,
+    );
+  });
   it("retains canonical roots, successors, independent versions and original retry receipts", async () => {
     for (const record of [h.candidate, h.successor, sibling]) {
       await expect(

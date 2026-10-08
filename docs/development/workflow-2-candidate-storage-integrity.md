@@ -37,11 +37,12 @@ time or outbox payload. Missing/conflicting original intents fail wholly.
 
 ## Absence and scope
 
-When the exact body lookup is empty, a fixed query checks exact normalized scope and version in
-the candidate registry, child lineage and logical-resource root index. Any retained owned witness
-without its body is a repository contract failure. The absence response itself must contain one
-native boolean `false`; missing/duplicate/malformed responses fail. Valid or damaged rows solely
-outside the requested scope remain opaque absence.
+A fixed presence query first observes the exact normalized scope/version body and registry,
+child lineage and logical-resource root witnesses in one statement/database cut. Both absence
+booleans must be native `false` before returning absence; missing/duplicate/non-native responses
+or body/witness disagreement fail. A normal publication after that cut cannot turn the observed
+absence into a storage error. A present body then receives all canonical/physical checks; its
+disappearance before that read fails. Valid or damaged rows solely outside scope remain opaque.
 
 This does not reconcile every orphan in the database. An outbox row alone has no normalized
 project/environment owner; the reader does not parse a foreign or malformed payload to invent one.
@@ -77,6 +78,10 @@ presence. Reads use the actual API role on the same backend; CHECKs stay enabled
 rolls back. Retained fingerprints and original owning reads verify restoration. All three scope
 dimensions remain opaque, original retry receipts survive and legitimate outbox delivery metadata
 does not alter canonical intent. Existing repository, guarded-port and scope conformance still run.
+
+A controlled second API-role connection commits normal atomic publication after the initial
+absence cut. The reader returns its observed absence and a subsequent owning read verifies the
+complete new record, without damage, disabled triggers, arbitrary sleeps or automatic read retries.
 
 Unit regressions additionally reject malformed native timestamp/absence/relationship responses and
 preserve supplied-client ownership and transaction cleanup boundaries. These checks are experimental
