@@ -8,6 +8,9 @@ import {
 } from "@proofstack/contracts";
 import {
   inspectPolicyEvaluationSelector,
+  inspectPolicyEvaluationImplementationResolution,
+  type PolicyEvaluationEvidenceRead,
+  type PolicyEvaluationImplementationParentSource,
   type PolicyEvaluationEvidenceReference,
   PolicyEvaluationEvidenceReferenceError,
   type PolicyEvaluationEvidenceReferenceLimits,
@@ -199,12 +202,74 @@ export function deriveCapturedRecordClosure(
         !same(edge.reference, reference) ||
         Object.keys(edge).some(
           (field) =>
-            !["parent", "parentRecordSha256", "reference", "target", "selectorFailure"].includes(
-              field,
-            ),
+            ![
+              "parent",
+              "parentRecordSha256",
+              "reference",
+              "target",
+              "selectorFailure",
+              "registrationFailure",
+            ].includes(field),
         )
       )
         throw new PolicyRecordGraphError("reference_conflict", key);
+      if (reference.kind !== "registered_implementation" && edge.registrationFailure !== undefined)
+        throw new PolicyRecordGraphError("reference_conflict", key);
+      if (reference.kind === "registered_implementation") {
+        if (edge.selectorFailure !== undefined)
+          throw new PolicyRecordGraphError("reference_conflict", key);
+        const child = nodes.get(
+          `evaluation_implementation_registration:${reference.reference.implementationId}:${reference.reference.implementationVersionId}`,
+        )?.read;
+        let resolved:
+          | ReturnType<typeof inspectPolicyEvaluationImplementationResolution>
+          | undefined;
+        if (child?.observation.status === "verified") {
+          if (derived.references.length > limits.maxReferences - references)
+            throw new PolicyEvaluationEvidenceReferenceError("reference_limit_exceeded");
+          if (derived.referenceBytes > limits.maxReferenceBytes - referenceBytes)
+            throw new PolicyEvaluationEvidenceReferenceError("reference_bytes_exceeded");
+          references += derived.references.length;
+          referenceBytes += derived.referenceBytes;
+          resolved = inspectPolicyEvaluationImplementationResolution(
+            {
+              source: source as PolicyEvaluationImplementationParentSource,
+              scope: request.scope,
+              evaluationTime: request.evaluationTime,
+              path: reference.path,
+              limits,
+            },
+            read as PolicyEvaluationEvidenceRead,
+            child.record,
+          );
+        }
+        if (edge.target !== null) {
+          if (
+            edge.registrationFailure !== undefined ||
+            resolved?.status !== "resolved" ||
+            !same(resolved.evidence.source, edge.target) ||
+            !same(resolved.evidence.observation, child?.observation)
+          )
+            throw new PolicyRecordGraphError("observation_conflict", key);
+          enqueue(resolved.evidence.source);
+        } else {
+          const failure = edge.registrationFailure;
+          if (
+            !validFailure(failure) ||
+            (failure?.status === "unavailable" &&
+              !["record_invalid", "reference_mismatch", "not_yet_available"].includes(
+                failure.reason,
+              )) ||
+            (resolved !== undefined &&
+              (resolved.status !== "unavailable" ||
+                !same(failure, { status: resolved.status, reason: resolved.reason })))
+          )
+            throw new PolicyRecordGraphError("observation_conflict", key);
+        }
+        // A joined declaration still does not prove installed bytes/current external authority.
+        frontier.push({ edgeIndex: index, kind: "retained_declaration" });
+        continue;
+      }
       if (reference.kind === "record") {
         if (edge.selectorFailure !== undefined || !same(reference.source, edge.target))
           throw new PolicyRecordGraphError("reference_conflict", key);

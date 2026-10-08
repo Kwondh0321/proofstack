@@ -5,6 +5,14 @@ import { OpaqueIdSchema, Sha256Schema, UtcMillisecondTimestampSchema } from "./p
 
 export const EVALUATION_IMPLEMENTATION_REGISTRATION_SCHEMA_VERSION = "0.1" as const;
 
+export const EvaluationImplementationRegistrationReferenceSchema = z
+  .object({
+    definitionSha256: Sha256Schema,
+    implementationId: OpaqueIdSchema,
+    implementationVersionId: OpaqueIdSchema,
+  })
+  .strict();
+
 /** Retained installation registration data, not executable code or qualification approval. */
 export const EvaluationImplementationRegistrationDefinitionSchema = z
   .object({

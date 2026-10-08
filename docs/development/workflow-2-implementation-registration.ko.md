@@ -1,6 +1,6 @@
 # 평가 implementation 등록 원문
 
-현재 상태는 엄격한 등록 데이터 계약과 조회 기반입니다. Workflow 2는 **2/7 승인**이며
+현재 상태는 parent와 결합된 한도 있는 등록 원문 수집입니다. Workflow 2는 **2/7 승인**이며
 checkpoint 3은 열려 있습니다. [영문 가이드](workflow-2-implementation-registration.md).
 
 기존 descriptor의 implementation·version·entry point ID, implementation/dependency digest,
@@ -18,13 +18,30 @@ hash로 원문을 만들거나 latest를 고르지 않습니다. 부재·scope �
 생성은 요청과 독립된 신뢰할 수 있는 설치 구성 경계의 책임입니다. 데이터 무결성은 등록 주체의
 인증, 실행된 코드/의존성 bytes, 현재 외부 설치 권한, evaluator qualification 또는 release
 승인을 증명하지 않습니다. 등록 시각은 기존 UTC millisecond receipt 형식이며 DB cut 정밀도를
-바꾸지 않습니다. 소비자는 시간상 이용 가능성과 captured parent의 전체 descriptor를 별도로
-비교해야 합니다. Implementation digest 하나만 비교해서는 안 됩니다.
+바꾸지 않습니다. 고정 source inspector가 nested identity·semantic digest·scope와 원래 receipt의
+이용 가능성을 전체 정밀도 policy cut에서 검증하고 receipt를 포함한 전체 원문을 hash합니다.
+Parent resolver는 captured oracle/evaluator 또는 run/rejection의 정확한 occurrence를 재검증하고
+descriptor의 모든 필드를 비교합니다. 나중 등록된 원문이 cut에서 보이더라도 과거 실행을
+소급해서 허가하거나 증명하지 않습니다.
 
-아직 request-owned graph 또는 PostgreSQL metadata port에 연결하지 않았습니다. 기존 manifest
-44종과 retained implementation frontier는 그대로입니다. Parent-bound 해석, 누적 admission,
-qualification policy·endpoint·protocol 원문, mutable 권한, 전체 closure, sealed snapshot/job
-발행이 남습니다. 변경 가능한 권한에는 owning guard·lifecycle·복구가 필요하며 오래된 static
+Graph는 `evaluation_implementation_registration`을 **45번째 source 종류**로 보존합니다.
+Repository identity는 implementation ID와 version을 모두 묶으며 최대 key는 ASCII 168자입니다.
+기존 page/response 한도는 유지하고 최대 root descriptor의 여유를 검사합니다. 각 occurrence는
+독립적인 정확한 조회와 그 전에 전체 parent 재검증 비용을 누적 admission에 반영합니다.
+부재·원문 오류·불일치·미래 등록은 source digest를 만들지 않고 명시적 실패로 보존합니다.
+유일한 유효 원문은 한 번 보존하고 반복된 origin은 모두 남깁니다. 독립 closure 재도출은 전체
+관측 hash와 각각의 parent 결합을 확인합니다.
+
+`PostgresPolicySourceTransactions`는 선택적인 `implementationRegistrations`를 생성 시 복사합니다.
+고정 metadata port는 정확한 transaction scope·만료·caught/unawaited failure taint·draining을
+유지하며 새 SQL role/grant나 외부 I/O를 도입하지 않습니다. 최초 graph와 scoped adapter에는
+같은 독립 catalogue를 제공해야 합니다. 서로 다른 구성은 관측 변경이며 검사를 약하게 할
+근거가 아닙니다. Catalogue가 없으면 비어 있는 설치 데이터이고 요청 descriptor/hash로 대신
+만들지 않습니다.
+
+원문을 연결한 뒤에도 설치 코드·현재 권한 frontier를 남깁니다. `unresolved.references`는 이
+전체 frontier를 셉니다. Qualification policy·endpoint·protocol 원문, mutable 권한, 전체 closure,
+sealed snapshot/job 발행이 남습니다. 변경 가능한 권한에는 owning guard·lifecycle·복구가 필요하며 오래된 static
 복사본을 대신 사용할 수 없습니다. 끝난 읽기 전용 보고서로 나중에 발행할 수 없습니다.
 
 [Entry audit](workflow-2-policy-evaluation-entry-audit.md),

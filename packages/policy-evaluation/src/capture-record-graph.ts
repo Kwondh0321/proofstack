@@ -6,16 +6,15 @@ import {
   policyEvaluationSourceReferenceKey,
 } from "@proofstack/contracts";
 import {
-  enumeratePolicyEvaluationControlReferences,
-  enumeratePolicyEvaluationEvidenceReferences,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationEvidenceRead,
   type PolicyEvaluationEvidenceReference,
-  type PolicyEvaluationEvidenceSource,
+  type PolicyEvaluationImplementationParentSource,
   type PolicyEvaluationSelectorParentSource,
   type PolicyEvaluationSelectorRead,
   policyEvaluationRequestReference,
   readPolicyEvaluationSelector,
+  readPolicyEvaluationImplementationResolution,
   validatePolicyEvaluationRequestRecord,
 } from "@proofstack/core";
 import {
@@ -58,6 +57,8 @@ import {
   type PolicyRecordExpansion,
   type PolicyRecordGraphRepositories,
   type PolicyRecordRead,
+  emptyImplementationRegistrations,
+  enumerateCapturedPolicyRecord,
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
 import { CapturedGraphReinspection } from "./reinspect-captured-observations.js";
@@ -71,6 +72,13 @@ export interface PolicyRecordGraphEdge {
   readonly selectorFailure?:
     | { readonly status: "missing" }
     | Pick<Extract<PolicyEvaluationSelectorRead, { status: "unavailable" }>, "status" | "reason">;
+  /** Retained registration data resolution only; installed bytes/current authority remain open. */
+  readonly registrationFailure?:
+    | { readonly status: "missing" }
+    | {
+        readonly status: "unavailable";
+        readonly reason: "record_invalid" | "reference_mismatch" | "not_yet_available";
+      };
 }
 
 export interface PolicyRecordGraph {
@@ -137,6 +145,9 @@ function metered(
     replayDefinitions: budget.wrap(repositories.replayDefinitions),
     replayResults: budget.wrap(repositories.replayResults),
     runtimeDefinitions: budget.wrap(repositories.runtimeDefinitions),
+    implementationRegistrations: budget.wrap(
+      repositories.implementationRegistrations ?? emptyImplementationRegistrations,
+    ),
   };
 }
 
@@ -217,24 +228,14 @@ export async function acquirePolicyRecordGraph(
       let expansion: PolicyRecordExpansion;
       const prefetched = captured.get(key);
       if (prefetched) {
-        // Only a fixed selector reader can prefetch a node. Reinspect its original observation before
+        // Only fixed parent-bound readers prefetch nodes. Reinspect their original observations before
         // traversal; do not query it again or discard the reciprocal edge that led back to a parent.
-        const frontier =
-          source.kind === "comparison_definition"
-            ? enumeratePolicyEvaluationControlReferences(
-                { evaluationTime, scope, source },
-                prefetched as PolicyEvaluationControlRead,
-                limits,
-              )
-            : enumeratePolicyEvaluationEvidenceReferences(
-                {
-                  evaluationTime,
-                  scope,
-                  source: source as PolicyEvaluationEvidenceSource,
-                },
-                prefetched as PolicyEvaluationEvidenceRead,
-                limits,
-              );
+        const frontier = enumerateCapturedPolicyRecord(
+          { evaluationTime, scope, source },
+          prefetched,
+          limits,
+          replayLimits,
+        );
         expansion = { read: prefetched, references: frontier.references };
       } else {
         expansion = await readAndExpandPolicyRecord(
@@ -263,6 +264,34 @@ export async function acquirePolicyRecordGraph(
         if (reference.kind === "record") {
           admitEdge({ ...parent, target: reference.source });
           enqueue(reference.source);
+        } else if (reference.kind === "registered_implementation") {
+          // Charge complete parent reinspection before another read, including repeated origins.
+          budget.addReferences(references.length, referenceBytes);
+          const resolved = await readPolicyEvaluationImplementationResolution(
+            {
+              evaluationTime,
+              scope,
+              source: source as PolicyEvaluationImplementationParentSource,
+              path: reference.path,
+              limits,
+            },
+            read as PolicyEvaluationEvidenceRead,
+            ports.implementationRegistrations ?? emptyImplementationRegistrations,
+          );
+          if (resolved.status === "resolved") {
+            admitEdge({ ...parent, target: resolved.evidence.source });
+            reinspection?.read(resolved.evidence);
+            enqueue(resolved.evidence.source, resolved.evidence);
+          } else {
+            admitEdge({
+              ...parent,
+              target: null,
+              registrationFailure:
+                resolved.status === "missing"
+                  ? { status: "missing" }
+                  : { status: "unavailable", reason: resolved.reason },
+            });
+          }
         } else if (
           reference.kind === "criterion_selector" ||
           reference.kind === "model_evaluator_selector" ||
@@ -435,7 +464,7 @@ export async function acquirePolicyRecordGraph(
       usage: budget.usage(),
       unresolved: {
         records: nodes.filter(({ read }) => read.observation.status !== "verified").length,
-        references: edges.filter(({ target }) => target === null).length,
+        references: recordClosure.frontier.length,
       },
     };
     reinspection?.complete(graph);

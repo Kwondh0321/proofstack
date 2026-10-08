@@ -10,6 +10,7 @@ import type {
   ModelAssuranceRecordKind,
   PolicyInstallationBindingResolver,
   RuntimeDefinitionReader,
+  EvaluationImplementationRegistrationReader,
 } from "@proofstack/core";
 import type { PolicyEvaluationMetadataPorts } from "@proofstack/policy-evaluation";
 import type { PoolClient } from "pg";
@@ -61,6 +62,7 @@ export function createPostgresPolicyMetadataPorts(
   catalogues: {
     readonly installationBinding: PolicyInstallationBindingResolver;
     readonly runtimeDefinitions: RuntimeDefinitionReader;
+    readonly implementationRegistrations: EvaluationImplementationRegistrationReader;
   },
 ): Omit<PolicyEvaluationMetadataPorts, "sources"> {
   const scoped = <T>(scopeInput: EvidenceScope, work: (scope: EvidenceScope) => Promise<T>) =>
@@ -87,6 +89,16 @@ export function createPostgresPolicyMetadataPorts(
   };
   return {
     records: {
+      implementationRegistrations: {
+        findEvaluationImplementationRegistration: (scope, value, version) =>
+          scoped(scope, (owned) =>
+            catalogues.implementationRegistrations.findEvaluationImplementationRegistration(
+              owned,
+              id(value),
+              id(version),
+            ),
+          ),
+      },
       control: {
         comparison: {
           findComparisonDefinition: (scope, value) =>

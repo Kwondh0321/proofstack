@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   type EvaluationRun,
+  type EvaluationImplementationRegistrationRecord,
   type EvaluatorSpec,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
@@ -23,12 +24,14 @@ import {
   assemblePolicyEvaluationManifest,
   CreateModelAssuranceAssessment,
   digestEvaluationRecordDefinition,
+  digestEvaluationImplementationRegistration,
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
   digestRuntimeDefinition,
   evaluationRecordDescriptors,
   StaticRuntimeDefinitionCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
   validatePolicyEvaluationManifest,
 } from "@proofstack/core";
 import {
@@ -169,8 +172,65 @@ function missingRepositories() {
     replayDefinitions: port("replay"),
     replayResults: port("job"),
     runtimeDefinitions: port("runtime"),
+    implementationRegistrations: port("implementation"),
   } as PolicyRecordGraphRepositories;
   return { repositories, calls };
+}
+
+function registrationInspectionUsage(graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) {
+  const references = graph.edges
+    .filter(({ reference }) => reference.kind === "registered_implementation")
+    .flatMap(({ parent }) => {
+      const node = graph.nodes.find(
+        ({ read }) =>
+          policyEvaluationSourceReferenceKey(read.source) ===
+          policyEvaluationSourceReferenceKey(parent),
+      );
+      if (!node?.references) throw new Error("Missing registration parent frontier");
+      return node.references;
+    });
+  return {
+    references: references.length,
+    referenceBytes: references.reduce(
+      (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
+      0,
+    ),
+  };
+}
+
+function retainedRegistrations(setup: Awaited<ReturnType<typeof harness>>) {
+  const records = new Map<string, EvaluationImplementationRegistrationRecord>();
+  for (const item of setup.evaluation.records) {
+    const implementation =
+      item.kind === "oracle_spec" || item.kind === "evaluator_spec"
+        ? item.record.implementation
+        : item.kind === "evaluation_run" || item.kind === "evaluation_run_rejection"
+          ? item.record.applicability.interpreter
+          : undefined;
+    if (!implementation) continue;
+    const key = JSON.stringify([
+      implementation.implementationId,
+      implementation.implementationVersionId,
+    ]);
+    const prior = records.get(key);
+    if (prior) {
+      expect(prior.implementation).toEqual(implementation);
+      continue;
+    }
+    const definition = {
+      recordKind: "evaluation_implementation_registration" as const,
+      implementation: structuredClone(implementation),
+    };
+    records.set(key, {
+      ...definition,
+      scope: structuredClone(setup.input.scope),
+      schemaVersion: "0.1",
+      definitionSha256: digestEvaluationImplementationRegistration(setup.input.scope, definition),
+      registeredAt: "2026-09-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_retained",
+    });
+  }
+  return [...records.values()];
 }
 
 async function harness(
@@ -2537,6 +2597,7 @@ describe("request-rooted recursive record graph", () => {
       graph.datasetRelations,
       graph.replayPlans,
     ].map((report) => report.inspectionUsage);
+    inspections.push(registrationInspectionUsage(graph));
     expect(graph.usage.references).toBe(
       graph.edges.length + inspections.reduce((sum, usage) => sum + usage.references, 0),
     );
@@ -2583,12 +2644,15 @@ describe("request-rooted recursive record graph", () => {
       for (const report of reports) expect(report.inspectionUsage.references).toBeGreaterThan(0);
       const referenceCount =
         graph.edges.length +
-        reports.reduce((sum, report) => sum + report.inspectionUsage.references, 0);
+        reports.reduce((sum, report) => sum + report.inspectionUsage.references, 0) +
+        registrationInspectionUsage(graph).references;
       const referenceBytes =
         graph.edges.reduce(
           (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
           0,
-        ) + reports.reduce((sum, report) => sum + report.inspectionUsage.referenceBytes, 0);
+        ) +
+        reports.reduce((sum, report) => sum + report.inspectionUsage.referenceBytes, 0) +
+        registrationInspectionUsage(graph).referenceBytes;
       expect(graph.modelAssurance.inspectionUsage.references).toBe(0);
       expect(graph.usage.records).toBeLessThan(referenceCount);
       expect(graph.usage).toMatchObject({ references: referenceCount, referenceBytes });
@@ -3057,7 +3121,7 @@ describe("fixed cross-domain routing", () => {
       ),
     ) as { vectors: { input: { definition: Fields } }[] };
     const readLimits = { maxReferences: 1000, maxReferenceBytes: 1000000 };
-    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(44);
+    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(45);
     for (const option of PolicyEvaluationSourceReferenceSchema.options) {
       const kind = option.shape.kind.value;
       const runtime = runtimeVectors.vectors.find(
@@ -3091,39 +3155,42 @@ describe("fixed cross-domain routing", () => {
         references: null,
       });
       expect(missing.calls.length, kind).toBe(kind === "regression_fixture_version" ? 2 : 1);
-      const domain = kind.startsWith("comparison_")
-        ? "comparison"
-        : kind === "release_candidate"
-          ? "candidate"
-          : kind === "release_policy"
-            ? "policy"
-            : kind === "policy_installation_binding"
-              ? "binding"
-              : ["dataset_version", "regression_fixture_version"].includes(kind)
-                ? "dataset"
-                : ["replay_plan", "target_release"].includes(kind)
-                  ? "replay"
-                  : kind === "replay_result"
-                    ? "job"
-                    : runtime
-                      ? "runtime"
-                      : [
-                            "blinded_plan",
-                            "blinded_result",
-                            "calibration_report",
-                            "human_review_protocol",
-                            "human_review_record",
-                            "human_reviewer_independence",
-                            "independence_declaration",
-                            "independent_critique",
-                            "model_assisted_evaluator_spec",
-                            "model_assurance_assessment",
-                            "model_evaluator_profile",
-                            "model_qualification_report",
-                            "model_qualification_suite",
-                          ].includes(kind)
-                        ? "model"
-                        : "evaluation";
+      const domain =
+        kind === "evaluation_implementation_registration"
+          ? "implementation"
+          : kind.startsWith("comparison_")
+            ? "comparison"
+            : kind === "release_candidate"
+              ? "candidate"
+              : kind === "release_policy"
+                ? "policy"
+                : kind === "policy_installation_binding"
+                  ? "binding"
+                  : ["dataset_version", "regression_fixture_version"].includes(kind)
+                    ? "dataset"
+                    : ["replay_plan", "target_release"].includes(kind)
+                      ? "replay"
+                      : kind === "replay_result"
+                        ? "job"
+                        : runtime
+                          ? "runtime"
+                          : [
+                                "blinded_plan",
+                                "blinded_result",
+                                "calibration_report",
+                                "human_review_protocol",
+                                "human_review_record",
+                                "human_reviewer_independence",
+                                "independence_declaration",
+                                "independent_critique",
+                                "model_assisted_evaluator_spec",
+                                "model_assurance_assessment",
+                                "model_evaluator_profile",
+                                "model_qualification_report",
+                                "model_qualification_suite",
+                              ].includes(kind)
+                            ? "model"
+                            : "evaluation";
       expect(
         missing.calls.every((call) => call.domain === domain),
         kind,
@@ -3766,5 +3833,119 @@ describe("candidate-owned policy assessment declarations", () => {
     if (report.status !== "inspected") throw new Error("Expected inspection");
     Object.assign(report.candidate.source.reference, { definitionSha256: "f".repeat(64) });
     expect(graph).toEqual(before);
+  });
+});
+
+describe("retained registration graph acquisition", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
+  it("retains unique owning records, every repeated origin and unresolved installed authority", async () => {
+    const setup = await harness();
+    const records = retainedRegistrations(setup);
+    const catalogue = new StaticEvaluationImplementationRegistrationCatalogue(records);
+    const calls: unknown[][] = [];
+    const graph = await capturePolicyRecordGraph(setup.input, {
+      ...setup.repositories,
+      implementationRegistrations: {
+        findEvaluationImplementationRegistration: async (...args) => {
+          calls.push(structuredClone(args));
+          return catalogue.findEvaluationImplementationRegistration(...args);
+        },
+      },
+    });
+    const edges = graph.edges.filter(
+      ({ reference }) => reference.kind === "registered_implementation",
+    );
+    expect(edges.length).toBeGreaterThan(records.length);
+    expect(calls).toHaveLength(edges.length);
+    expect(
+      edges.every(
+        ({ target, registrationFailure }) =>
+          target?.kind === "evaluation_implementation_registration" &&
+          registrationFailure === undefined,
+      ),
+    ).toBe(true);
+    expect(
+      graph.nodes.filter(
+        ({ read }) => read.source.kind === "evaluation_implementation_registration",
+      ),
+    ).toHaveLength(records.length);
+    for (const edge of edges) {
+      const index = graph.edges.indexOf(edge);
+      expect(graph.recordClosure.frontier).toContainEqual({
+        edgeIndex: index,
+        kind: "retained_declaration",
+      });
+    }
+    expect(graph.unresolved.references).toBe(graph.recordClosure.frontier.length);
+    expect(deriveCapturedRecordClosure(setup.input, graph, limits).entries).toEqual(graph.entries);
+    expect(graph).not.toHaveProperty("sealed");
+    expect(graph).not.toHaveProperty("verdict");
+  });
+
+  it("retains missing and future registration failures without fabricating child sources", async () => {
+    const setup = await harness();
+    const records = retainedRegistrations(setup);
+    for (const future of [false, true]) {
+      const catalogue = new StaticEvaluationImplementationRegistrationCatalogue(
+        future
+          ? records.map((record) => ({ ...record, registeredAt: "2026-10-02T00:00:00.000Z" }))
+          : [],
+      );
+      const graph = await capturePolicyRecordGraph(setup.input, {
+        ...setup.repositories,
+        implementationRegistrations: catalogue,
+      });
+      const edges = graph.edges.filter(
+        ({ reference }) => reference.kind === "registered_implementation",
+      );
+      expect(edges.length).toBeGreaterThan(0);
+      for (const edge of edges) {
+        expect(edge.target).toBeNull();
+        expect(edge.registrationFailure).toEqual(
+          future ? { status: "unavailable", reason: "not_yet_available" } : { status: "missing" },
+        );
+      }
+      expect(
+        graph.nodes.some(
+          ({ read }) => read.source.kind === "evaluation_implementation_registration",
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it("rejects missing/substituted registration nodes and origin edges during independent closure derivation", async () => {
+    const setup = await harness();
+    const graph = await capturePolicyRecordGraph(setup.input, {
+      ...setup.repositories,
+      implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue(
+        retainedRegistrations(setup),
+      ),
+    });
+    const nodeIndex = graph.nodes.findIndex(
+      ({ read }) => read.source.kind === "evaluation_implementation_registration",
+    );
+    const edgeIndex = graph.edges.findIndex(
+      ({ reference }) => reference.kind === "registered_implementation",
+    );
+    expect(nodeIndex).toBeGreaterThanOrEqual(0);
+    expect(edgeIndex).toBeGreaterThanOrEqual(0);
+    const missingNode = structuredClone(graph);
+    (missingNode.nodes as unknown[]).splice(nodeIndex, 1);
+    expect(() => deriveCapturedRecordClosure(setup.input, missingNode, limits)).toThrow();
+    const missingEdge = structuredClone(graph);
+    (missingEdge.edges as unknown[]).splice(edgeIndex, 1);
+    expect(() => deriveCapturedRecordClosure(setup.input, missingEdge, limits)).toThrow();
+    const changed = structuredClone(graph);
+    const node = changed.nodes[nodeIndex];
+    if (!node || node.read.observation.status !== "verified")
+      throw new Error("Missing registered body");
+    expect(Reflect.set(node.read.observation, "recordSha256", "d".repeat(64))).toBe(true);
+    expect(() => deriveCapturedRecordClosure(setup.input, changed, limits)).toThrow();
+    const falseMissing = structuredClone(graph);
+    const edge = falseMissing.edges[edgeIndex];
+    if (!edge) throw new Error("Missing origin");
+    expect(Reflect.set(edge, "target", null)).toBe(true);
+    expect(Reflect.set(edge, "registrationFailure", { status: "missing" })).toBe(true);
+    expect(() => deriveCapturedRecordClosure(setup.input, falseMissing, limits)).toThrow();
   });
 });

@@ -359,14 +359,33 @@ describe("captured model and human assurance bindings", () => {
       ];
       expect(graph.modelAssurance.parents).toHaveLength(3);
       expect(graph.modelAssurance.inspectionUsage.references).toBeGreaterThan(0);
+      const registrationReferences = graph.edges
+        .filter(({ reference }) => reference.kind === "registered_implementation")
+        .flatMap(({ parent }) => {
+          const node = graph.nodes.find(
+            ({ read }) =>
+              policyEvaluationSourceReferenceKey(read.source) ===
+              policyEvaluationSourceReferenceKey(parent),
+          );
+          if (!node?.references) throw new Error("Missing registration parent frontier");
+          return node.references;
+        });
+      expect(registrationReferences.length).toBeGreaterThan(0);
       expect(graph.usage.references).toBe(
-        graph.edges.length + reports.reduce((sum, r) => sum + r.inspectionUsage.references, 0),
+        graph.edges.length +
+          reports.reduce((sum, r) => sum + r.inspectionUsage.references, 0) +
+          registrationReferences.length,
       );
       expect(graph.usage.referenceBytes).toBe(
         graph.edges.reduce(
           (sum, e) => sum + encodeEvaluationCanonicalJson(e.reference).byteLength,
           0,
-        ) + reports.reduce((sum, r) => sum + r.inspectionUsage.referenceBytes, 0),
+        ) +
+          reports.reduce((sum, r) => sum + r.inspectionUsage.referenceBytes, 0) +
+          registrationReferences.reduce(
+            (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
+            0,
+          ),
       );
       const {
         scope,

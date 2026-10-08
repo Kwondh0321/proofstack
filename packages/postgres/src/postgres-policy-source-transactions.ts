@@ -8,6 +8,7 @@ import {
 import {
   StaticPolicyInstallationBindingResolver,
   StaticRuntimeDefinitionCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
 } from "@proofstack/core";
 import {
   type PolicyEvaluationMetadataPorts,
@@ -37,6 +38,7 @@ export const MAX_POLICY_METADATA_INSTALLATION_BINDINGS = 256;
 export interface PostgresPolicyMetadataCatalogues {
   readonly installationBindings?: readonly PolicyInstallationBinding[];
   readonly runtimeDefinitions?: readonly unknown[];
+  readonly implementationRegistrations?: readonly unknown[];
 }
 
 /** Trusted read-only adapter. A pool does not confer worker or snapshot-publication authority. */
@@ -57,6 +59,11 @@ export class PostgresPolicySourceTransactions
       installationBinding: new StaticPolicyInstallationBindingResolver(bindings),
       runtimeDefinitions: new StaticRuntimeDefinitionCatalogue(
         catalogues.runtimeDefinitions === undefined ? [] : catalogues.runtimeDefinitions,
+      ),
+      implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue(
+        catalogues.implementationRegistrations === undefined
+          ? []
+          : catalogues.implementationRegistrations,
       ),
     };
   }

@@ -308,8 +308,8 @@ describe("manifest response representation headroom", () => {
     const value = manifest(MAX_POLICY_EVALUATION_MANIFEST_ENTRIES);
     expect(value.pages).toHaveLength(MAX_POLICY_EVALUATION_MANIFEST_PAGES);
     for (const [index, item] of value.pages.entries()) {
-      item.firstKey = `replay_isolation_profile:${id(index * 128)}:${"v".repeat(64)}`;
-      item.lastKey = `replay_isolation_profile:${id(index * 128 + item.entryCount - 1)}:${"v".repeat(64)}`;
+      item.firstKey = `evaluation_implementation_registration:${id()}:${id(index * 128)}`;
+      item.lastKey = `evaluation_implementation_registration:${id()}:${id(index * 128 + item.entryCount - 1)}`;
     }
     const result = ReadPolicyEvaluationManifestResponseSchema.parse({
       manifest: { ...value, definitionSha256: hash, schemaVersion: "0.1", scope },

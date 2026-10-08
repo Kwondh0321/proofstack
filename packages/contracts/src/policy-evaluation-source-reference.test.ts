@@ -121,6 +121,15 @@ const cases = [
     key: "evaluation_aggregate:record_one",
   },
   {
+    kind: "evaluation_implementation_registration",
+    reference: {
+      definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
+      implementationId: "logical_one",
+      implementationVersionId: "record_one",
+    },
+    key: "evaluation_implementation_registration:logical_one:record_one",
+  },
+  {
     kind: "evaluation_run",
     reference: {
       definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
@@ -429,7 +438,7 @@ const cases = [
 
 describe("exact policy evaluation source identities", () => {
   it("covers every registered source kind with independently declared identities", () => {
-    expect(cases).toHaveLength(44);
+    expect(cases).toHaveLength(45);
     expect(
       PolicyEvaluationSourceReferenceSchema.options.map((schema) => schema.shape.kind.value).sort(),
     ).toEqual(cases.map(({ kind }) => kind));
@@ -457,6 +466,28 @@ describe("exact policy evaluation source identities", () => {
       );
     },
   );
+
+  it("preserves both implementation coordinates and admits the exact maximum key", () => {
+    const source = PolicyEvaluationSourceReferenceSchema.parse({
+      kind: "evaluation_implementation_registration",
+      reference: {
+        definitionSha256: "f".repeat(64),
+        implementationId: "a".repeat(64),
+        implementationVersionId: "b".repeat(64),
+      },
+    });
+    const key = policyEvaluationSourceReferenceKey(source);
+    expect(key).toHaveLength(168);
+    expect(PolicyEvaluationSourceKeySchema.parse(key)).toBe(key);
+    for (const bad of [key + "b", key + ":extra", key.split(":").slice(0, 2).join(":")])
+      expect(PolicyEvaluationSourceKeySchema.safeParse(bad).success).toBe(false);
+    expect(
+      policyEvaluationSourceReferenceKey({
+        ...source,
+        reference: { ...source.reference, implementationId: "c".repeat(64) },
+      } as typeof source),
+    ).not.toBe(key);
+  });
 
   it.each(cases.filter(({ kind }) => kind !== "replay_result"))(
     "does not turn a $kind digest conflict into another identity",

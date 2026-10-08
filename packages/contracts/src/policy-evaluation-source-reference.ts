@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { OpaqueIdSchema } from "./primitives.js";
+import { EvaluationImplementationRegistrationReferenceSchema } from "./evaluation-implementation-registration.js";
 import {
   AssessmentReferenceSchema,
   EvaluationAggregateReferenceSchema,
@@ -153,6 +154,12 @@ export const PolicyEvaluationSourceReferenceSchema = z.discriminatedUnion("kind"
   z.object({ kind: z.literal("evaluation_run"), reference: EvaluationRunReferenceSchema }).strict(),
   z
     .object({
+      kind: z.literal("evaluation_implementation_registration"),
+      reference: EvaluationImplementationRegistrationReferenceSchema,
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("evaluation_run_result"),
       reference: EvaluationRunResultReferenceSchema,
     })
@@ -283,6 +290,8 @@ export type PolicyEvaluationSourceReference = z.infer<typeof PolicyEvaluationSou
  */
 export function policyEvaluationSourceReferenceKey(value: PolicyEvaluationSourceReference): string {
   switch (value.kind) {
+    case "evaluation_implementation_registration":
+      return `${value.kind}:${value.reference.implementationId}:${value.reference.implementationVersionId}`;
     case "discovery_record":
       return `${value.kind}:${value.reference.discoveryId}`;
     case "evaluation_run_rejection":
@@ -378,7 +387,7 @@ export function policyEvaluationSourceReferenceKey(value: PolicyEvaluationSource
 export const PolicyEvaluationSourceKeySchema = z
   .string()
   .min(7)
-  .max(160)
+  .max(168)
   .superRefine((value, context) => {
     if (context.issues.length > 0) return;
     const [kind, id, version, ...extra] = value.split(":");
@@ -386,13 +395,16 @@ export const PolicyEvaluationSourceKeySchema = z
       (schema) => schema.shape.kind.value === kind,
     );
     const profile = kind === "replay_runtime_profile" || kind === "replay_isolation_profile";
+    const implementation = kind === "evaluation_implementation_registration";
     if (
       !knownKind ||
       !OpaqueIdSchema.safeParse(id).success ||
       extra.length > 0 ||
       (profile
         ? !ReplayRuntimeProfileReferenceSchema.shape.version.safeParse(version).success
-        : version !== undefined)
+        : implementation
+          ? !OpaqueIdSchema.safeParse(version).success
+          : version !== undefined)
     ) {
       context.addIssue({
         code: "custom",

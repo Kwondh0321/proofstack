@@ -4,6 +4,8 @@ import {
   MAX_FIXTURE_SOURCE_EVENTS,
   type RuntimeDefinition,
   type RuntimeDefinitionRecord,
+  type EvaluationImplementationRegistrationDefinition,
+  type EvaluationImplementationRegistrationRecord,
 } from "@proofstack/contracts";
 import type { ModelAssuranceRecordKind } from "@proofstack/core";
 import { policyAuthorityFixture } from "@proofstack/core/testing";
@@ -144,6 +146,14 @@ function metadataReads(ports: PolicyEvaluationMetadataPorts, input = scope) {
     () => records.runtimeDefinitions.findRuntimeProfile(input, "runtime_one", "1.0.0"),
     () => records.runtimeDefinitions.findIsolationProfile(input, "isolation_one", "1.0.0"),
     () => records.runtimeDefinitions.findRuntimeAdapter(input, "adapter_one"),
+    () => {
+      if (!records.implementationRegistrations) throw new Error("Missing registration port");
+      return records.implementationRegistrations.findEvaluationImplementationRegistration(
+        input,
+        "implementation_one",
+        "version_one",
+      );
+    },
     () => ports.evidence.resolveExactEvents(input, traceId, ["event_one"]),
     () => ports.criterionStatusHistory.listCriterionSetStatuses(input, historyLimits),
     () => ports.fixtureContent.findRecordedInteractionFixtureContent(input, "record_one"),
@@ -170,6 +180,7 @@ describe("guarded policy metadata transaction ports", () => {
         "control",
         "datasets",
         "evidence",
+        "implementationRegistrations",
         "replayDefinitions",
         "replayResults",
         "runtimeDefinitions",
@@ -426,6 +437,76 @@ describe("guarded policy metadata transaction ports", () => {
     ]);
   });
 
+  it("copies complete independent implementation registrations and exposes detached scoped reads without SQL", async () => {
+    const f = fixture();
+    const document = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../contracts/vectors/evaluation-implementation-registration-v1.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as {
+      vectors: {
+        input: { definition: EvaluationImplementationRegistrationDefinition; scope: EvidenceScope };
+        sha256: string;
+      }[];
+    };
+    const records: EvaluationImplementationRegistrationRecord[] = document.vectors.map(
+      ({ input, sha256 }) => ({
+        ...input.definition,
+        scope: input.scope,
+        definitionSha256: sha256,
+        schemaVersion: "0.1",
+        registeredAt: "2026-10-08T00:00:00.000Z",
+        registeredByPrincipalId: "operator_retained",
+      }),
+    );
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { implementationRegistrations: records },
+    );
+    for (const record of records) record.implementation.runtime.version = "input_mutation";
+    records.length = 0;
+    for (const record of originals) {
+      let retained: PolicyEvaluationMetadataPorts | undefined;
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.implementationRegistrations;
+        if (!reader) throw new Error("Missing installation registration port");
+        const before = f.queries.length;
+        const read = () =>
+          reader.findEvaluationImplementationRegistration(
+            record.scope,
+            record.implementation.implementationId,
+            record.implementation.implementationVersionId,
+          );
+        const result = (await read()) as EvaluationImplementationRegistrationRecord;
+        expect(result).toEqual(record);
+        result.implementation.runtime.version = "output_mutation";
+        await expect(read()).resolves.toEqual(record);
+        await expect(
+          reader.findEvaluationImplementationRegistration(
+            record.scope,
+            record.implementation.implementationId,
+            "version_missing",
+          ),
+        ).resolves.toBeNull();
+        expect(f.queries).toHaveLength(before);
+      });
+      if (!retained?.records.implementationRegistrations) throw new Error("Missing retained port");
+      await expect(
+        retained.records.implementationRegistrations.findEvaluationImplementationRegistration(
+          record.scope,
+          record.implementation.implementationId,
+          record.implementation.implementationVersionId,
+        ),
+      ).rejects.toThrow("expired");
+    }
+  });
+
   it("rejects invalid and oversized operator catalogues before connecting", () => {
     const f = fixture();
     for (const catalogues of [
@@ -435,6 +516,9 @@ describe("guarded policy metadata transaction ports", () => {
       { runtimeDefinitions: [null] },
       { runtimeDefinitions: null },
       { runtimeDefinitions: Array(257).fill(null) },
+      { implementationRegistrations: [null] },
+      { implementationRegistrations: null },
+      { implementationRegistrations: Array(257).fill(null) },
     ])
       expect(
         () =>

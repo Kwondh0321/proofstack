@@ -2,6 +2,7 @@ import type { EvidenceScope, PolicyEvaluationSourceReference } from "@proofstack
 import {
   enumeratePolicyEvaluationControlReferences,
   enumeratePolicyEvaluationEvidenceReferences,
+  enumeratePolicyEvaluationImplementationReferences,
   enumeratePolicyEvaluationRuntimeReferences,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationControlReaderDependencies,
@@ -9,10 +10,13 @@ import {
   type PolicyEvaluationEvidenceReaderDependencies,
   type PolicyEvaluationEvidenceReference,
   type PolicyEvaluationEvidenceReferenceLimits,
+  type PolicyEvaluationImplementationRead,
   type PolicyEvaluationRuntimeRead,
   readPolicyEvaluationControlRecord,
   readPolicyEvaluationEvidence,
+  readPolicyEvaluationImplementationRecord,
   readPolicyEvaluationRuntimeRecord,
+  StaticEvaluationImplementationRegistrationCatalogue,
 } from "@proofstack/core";
 import {
   enumeratePolicyEvaluationDatasetReferences,
@@ -35,12 +39,16 @@ export interface PolicyRecordGraphRepositories {
   readonly replayDefinitions: Parameters<typeof readPolicyEvaluationReplayDefinition>[1];
   readonly replayResults: Parameters<typeof readPolicyEvaluationReplayResult>[1];
   readonly runtimeDefinitions: Parameters<typeof readPolicyEvaluationRuntimeRecord>[1];
+  readonly implementationRegistrations?: Parameters<
+    typeof readPolicyEvaluationImplementationRecord
+  >[1];
 }
 
 export type PolicyRecordRead =
   | PolicyEvaluationControlRead
   | PolicyEvaluationEvidenceRead
   | PolicyEvaluationRuntimeRead
+  | PolicyEvaluationImplementationRead
   | PolicyEvaluationDatasetRead
   | PolicyEvaluationReplayDefinitionRead
   | PolicyEvaluationReplayResultRead;
@@ -57,6 +65,10 @@ interface Context {
   readonly source: PolicyEvaluationSourceReference;
 }
 
+/** Absent installation data remains missing, never synthesized from a parent's declaration. */
+export const emptyImplementationRegistrations =
+  new StaticEvaluationImplementationRegistrationCatalogue([]);
+
 /** Fixed owning reinspection of retained bodies; no repository ports or caller validators. */
 export function enumerateCapturedPolicyRecord(
   context: Context,
@@ -66,6 +78,12 @@ export function enumerateCapturedPolicyRecord(
 ) {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "evaluation_implementation_registration":
+      return enumeratePolicyEvaluationImplementationReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationImplementationRead,
+        limits,
+      );
     case "comparison_definition":
     case "comparison_snapshot":
     case "comparison_result":
@@ -135,6 +153,16 @@ export async function readAndExpandPolicyRecord(
 ): Promise<PolicyRecordExpansion> {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "evaluation_implementation_registration": {
+      const input = { source, scope, evaluationTime };
+      return finish(
+        await readPolicyEvaluationImplementationRecord(
+          input,
+          repositories.implementationRegistrations ?? emptyImplementationRegistrations,
+        ),
+        (read) => enumeratePolicyEvaluationImplementationReferences(input, read, limits),
+      );
+    }
     case "comparison_definition":
     case "comparison_snapshot":
     case "comparison_result":

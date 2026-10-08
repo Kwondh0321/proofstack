@@ -1,6 +1,6 @@
 # Retained evaluation implementation registration
 
-Status: a strict registration-data prerequisite. Workflow 2 remains **2/7 accepted**;
+Status: bounded parent-bound registration-data acquisition. Workflow 2 remains **2/7 accepted**;
 checkpoint 3 is open. [Korean guide](workflow-2-implementation-registration.ko.md).
 
 The existing registered implementation descriptor names exact implementation,
@@ -24,14 +24,34 @@ Data integrity does not authenticate the declared registering principal, attest
 loaded code/dependency bytes, establish current external installation authority,
 qualify an evaluator, or approve release. Registration timestamps use the existing
 canonical UTC millisecond receipt shape; this does not change database-cut precision.
-Consumers must separately validate temporal availability and compare the entire
-captured parent descriptor, not merely its implementation digest.
+The fixed source inspector validates nested identity, complete semantic digest,
+scope and original receipt availability against the full-precision policy cut.
+It hashes the complete receipt-bearing record. The parent resolver reinspects an
+exact captured oracle/evaluator or run/rejection occurrence and compares every
+descriptor field, not merely the implementation digest. A later registration
+available at the policy cut does not retroactively authorize historical execution.
 
-This prerequisite is not yet wired into request-owned graph acquisition or PostgreSQL
-metadata ports. The existing 44 manifest source kinds and retained implementation
-frontiers are unchanged. Parent-bound resolution, cumulative admission, qualification
-policy/endpoint/protocol definitions, mutable authority, complete closure and sealed
-snapshot/job publication remain required. Mutable authority needs owning guarded
+The graph now retains `evaluation_implementation_registration` as its **45th source
+kind**. Repository identity binds both implementation ID and version; maximum keys
+are 168 ASCII characters. Existing page/response limits remain unchanged and maximum
+root descriptor headroom is checked. Each original occurrence performs independent
+exact lookup and charges whole-parent reinspection before I/O. Null, malformed,
+mismatching and future records preserve explicit failures without fabricated source
+digests. Unique valid bodies are retained once, with every repeated origin preserved.
+Independent closure derivation checks both full observations and each parent binding.
+
+`PostgresPolicySourceTransactions` copies optional `implementationRegistrations`
+at construction. Its fixed metadata port enforces exact transaction scope, expiry,
+caught/unawaited failure taint and draining, with no new SQL role/grant or external
+I/O. Supply the same independent catalogue to initial graph repositories and the
+scoped adapter; differing configuration is a changed observation, not permission to
+weaken reinspection. An absent catalogue is empty installation data, never a fallback
+to requested descriptors or hashes.
+
+Every joined registration still retains an installed-code/current-authority frontier;
+`unresolved.references` counts that complete frontier even when a data source joined.
+Qualification-policy/endpoint/protocol definitions, mutable authority, complete
+closure and sealed snapshot/job publication remain required. Mutable authority needs owning guarded
 lifecycle and recovery; a stale static copy cannot substitute for it. An ended
 read-only report cannot authorize later publication.
 

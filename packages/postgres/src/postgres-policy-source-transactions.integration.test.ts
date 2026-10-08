@@ -5,6 +5,8 @@ import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
 import {
   type ArtifactMetadata,
   type ContentReference,
+  type EvaluationImplementationRegistrationDefinition,
+  type EvaluationImplementationRegistrationRecord,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
@@ -13,6 +15,8 @@ import {
 } from "@proofstack/contracts";
 import {
   digestEvaluationRecordDefinition,
+  digestEvaluationImplementationRegistration,
+  readPolicyEvaluationImplementationRecord,
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
   evaluationRecordDescriptors,
@@ -466,6 +470,98 @@ async function fixture(withCriteria = false, metadataMode = false) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("retains independent registrations across three tenant collisions and expires every native scoped port", async () => {
+    const document = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../contracts/vectors/evaluation-implementation-registration-v1.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: EvaluationImplementationRegistrationDefinition } }[];
+    };
+    const definition = document.vectors[0]?.input.definition;
+    if (!definition) throw new Error("Missing independent registration vector");
+    const records: EvaluationImplementationRegistrationRecord[] = [0, 1, 2].map((index) => {
+      const scope = {
+        tenantId: `tenant_registration_${runKey}_${index}`,
+        projectId: "project_registration",
+        environmentId: "environment_registration",
+      };
+      return {
+        ...structuredClone(definition),
+        scope,
+        definitionSha256: digestEvaluationImplementationRegistration(scope, definition),
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.000Z",
+        registeredByPrincipalId: "operator_retained",
+      };
+    });
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(admin, {
+      implementationRegistrations: records,
+    });
+    const first = records[0];
+    if (!first) throw new Error("Missing operator fixture");
+    // The private metadata reader guard remains unavailable to runtime API credentials.
+    await expect(
+      new PostgresPolicySourceTransactions(api, {
+        implementationRegistrations: records,
+      }).runMetadata(first.scope, async () => "must not expose ports"),
+    ).rejects.toMatchObject({ code: "42501" });
+    for (const record of records) record.implementation.runtime.version = "input_mutation";
+    for (const record of originals) {
+      let retained: Parameters<Parameters<typeof adapter.runMetadata>[1]>[0] | undefined;
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.implementationRegistrations;
+        if (!reader) throw new Error("Missing guarded registration port");
+        const cut = await ports.sources.observationTime();
+        const read = await readPolicyEvaluationImplementationRecord(
+          {
+            scope: record.scope,
+            evaluationTime: cut,
+            source: {
+              kind: "evaluation_implementation_registration",
+              reference: {
+                implementationId: record.implementation.implementationId,
+                implementationVersionId: record.implementation.implementationVersionId,
+                definitionSha256: record.definitionSha256,
+              },
+            },
+          },
+          reader,
+        );
+        expect(read.observation.status).toBe("verified");
+        expect(read.record).toEqual(record);
+      });
+      if (!retained?.records.implementationRegistrations) throw new Error("Missing retained port");
+      await expect(
+        retained.records.implementationRegistrations.findEvaluationImplementationRegistration(
+          record.scope,
+          record.implementation.implementationId,
+          record.implementation.implementationVersionId,
+        ),
+      ).rejects.toThrow("expired");
+      await expect(
+        adapter.runMetadata(record.scope, async (ports) => {
+          const reader = ports.records.implementationRegistrations;
+          if (!reader) throw new Error("Missing guarded registration port");
+          await expect(
+            reader.findEvaluationImplementationRegistration(
+              { ...record.scope, projectId: "outside_scope" },
+              record.implementation.implementationId,
+              record.implementation.implementationVersionId,
+            ),
+          ).rejects.toThrow("scope");
+          return "caught scope escape cannot commit";
+        }),
+      ).rejects.toThrow("scope");
+    }
+  });
+
   it("rechecks real candidate/policy roots and explicit missing sources on one held metadata client", async () => {
     const f = await fixture(false, true);
     f.hooks.readContent = () =>

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
   type EvidenceScope,
+  type EvaluationImplementationRegistrationDefinition,
   PolicyEvaluationSourceReferenceSchema,
   REPLAY_BUDGET_DIMENSIONS,
   type ReplayJobSnapshot,
@@ -11,6 +12,7 @@ import {
   CreateModelAssuranceAssessment,
   digestComparisonRecordDefinition,
   StaticRuntimeDefinitionCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
 } from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
@@ -51,6 +53,7 @@ function absentRepositories(): PolicyRecordGraphRepositories {
     replayDefinitions: absent,
     replayResults: absent,
     runtimeDefinitions: absent,
+    implementationRegistrations: absent,
   } as PolicyRecordGraphRepositories;
 }
 
@@ -63,7 +66,12 @@ function source(kind: string, record: object) {
   return schema.parse({
     kind,
     reference: Object.fromEntries(
-      Object.keys(schema.shape.reference.shape).map((key) => [key, body[key]]),
+      Object.keys(schema.shape.reference.shape).map((key) => [
+        key,
+        kind === "evaluation_implementation_registration" && key !== "definitionSha256"
+          ? (body["implementation"] as Fields)[key]
+          : body[key],
+      ]),
     ),
   });
 }
@@ -98,6 +106,40 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
 }
 
 describe("positive fixed-domain routing", () => {
+  it("routes a complete independent implementation registration with no invented artifact dependencies", async () => {
+    const document = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../contracts/vectors/evaluation-implementation-registration-v1.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as {
+      vectors: {
+        input: { definition: EvaluationImplementationRegistrationDefinition; scope: EvidenceScope };
+        sha256: string;
+      }[];
+    };
+    for (const vector of document.vectors) {
+      const record = {
+        ...vector.input.definition,
+        scope: vector.input.scope,
+        definitionSha256: vector.sha256,
+        schemaVersion: "0.1" as const,
+        registeredAt: "2026-09-01T00:00:00.000Z",
+        registeredByPrincipalId: "operator_retained",
+      };
+      const expansion = await verify("evaluation_implementation_registration", record, {
+        ...absentRepositories(),
+        implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue([
+          record,
+        ]),
+      });
+      expect(expansion.references).toEqual([]);
+    }
+  });
+
   it("reads and expands all thirty evaluation/model/human kinds through actual repositories", async () => {
     const harness = await createModelAssuranceRepositoryTestHarness("routing");
     const assessment = await new CreateModelAssuranceAssessment({
