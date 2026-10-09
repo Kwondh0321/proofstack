@@ -79,9 +79,11 @@ existing distinct assurance domain.
 
 Exact source acquisition, complete dependency enumeration and scoped catalogue
 ports are now implemented as described in the [protocol guide](../development/workflow-2-protocol-definitions.md).
-Whole-parent resolution, bounded complete match inspection and graph/reinspection
-remain separate work after those acquisition gates. Retain original occurrences,
-artifact dependencies, authority frontiers and full observation hashes. Complete semantic/current authority closure, sealed
+Whole-parent resolution and graph/reinspection are implemented in separately gated
+slices, retaining every original occurrence, all bounded candidates (including
+future/unavailable members), artifact dependencies, authority frontiers and full
+original observation hashes. A null single target does not discard ambiguous candidates.
+Complete semantic/current authority closure, sealed
 snapshot/job/fence publication and independent checkpoint acceptance remain open.
 
 ## Alternatives considered

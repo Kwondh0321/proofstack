@@ -19,6 +19,7 @@ import {
   type PolicyEvaluationSelectorParentRead,
   type PolicyEvaluationSelectorParentSource,
   validatePolicyEvaluationRequestRecord,
+  MAX_STATIC_PROTOCOL_DEFINITIONS,
 } from "@proofstack/core";
 import {
   inspectPolicyEvaluationModelEndpointResolution,
@@ -28,6 +29,11 @@ import {
 import { PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
 import { enumerateCapturedPolicyRecord, type PolicyRecordExpansion } from "./record-routing.js";
+import {
+  isResolvableProtocolReference,
+  inspectParentProtocolResolution,
+  type PolicyProtocolParentSource,
+} from "./resolve-parent-protocol.js";
 
 type Source = PolicyEvaluationSourceReference;
 type FrontierKind = "artifact" | "trace" | "retained_declaration" | "unresolved_selector";
@@ -216,6 +222,7 @@ export function deriveCapturedRecordClosure(
               "registrationFailure",
               "endpointFailure",
               "endpointChecks",
+              "protocolResolution",
             ].includes(field),
         )
       )
@@ -227,6 +234,51 @@ export function deriveCapturedRecordClosure(
         (edge.endpointFailure !== undefined || edge.endpointChecks !== undefined)
       )
         throw new PolicyRecordGraphError("reference_conflict", key);
+      if (!isResolvableProtocolReference(reference) && edge.protocolResolution !== undefined)
+        throw new PolicyRecordGraphError("reference_conflict", key);
+      if (isResolvableProtocolReference(reference)) {
+        const retained = edge.protocolResolution;
+        if (
+          edge.target !== null ||
+          edge.selectorFailure !== undefined ||
+          !retained ||
+          !Array.isArray(retained.matches) ||
+          retained.matches.length > MAX_STATIC_PROTOCOL_DEFINITIONS
+        )
+          throw new PolicyRecordGraphError("reference_conflict", key);
+        if (derived.references.length > limits.maxReferences - references)
+          throw new PolicyEvaluationEvidenceReferenceError("reference_limit_exceeded");
+        if (derived.referenceBytes > limits.maxReferenceBytes - referenceBytes)
+          throw new PolicyEvaluationEvidenceReferenceError("reference_bytes_exceeded");
+        references += derived.references.length;
+        referenceBytes += derived.referenceBytes;
+        const resolved = inspectParentProtocolResolution(
+          {
+            source: source as PolicyProtocolParentSource,
+            scope: request.scope,
+            evaluationTime: request.evaluationTime,
+            path: reference.path,
+            limits,
+            replayLimits: {
+              maximumRecords: request.limits.maxAcquisitionRecords,
+              maximumRecordBytes: request.limits.maxAcquisitionRecordBytes,
+            },
+          },
+          read,
+          retained.matches.map((member) => (member?.status === "retained" ? member.record : null)),
+        );
+        if (!same(resolved, retained))
+          throw new PolicyRecordGraphError("observation_conflict", key);
+        for (const member of resolved.matches) {
+          if (member.status !== "retained") continue;
+          const child = nodes.get(policyEvaluationSourceReferenceKey(member.read.source))?.read;
+          if (!child || !same(child, member.read))
+            throw new PolicyRecordGraphError("observation_conflict", key);
+          enqueue(member.read.source);
+        }
+        frontier.push({ edgeIndex: index, kind: "retained_declaration" });
+        continue;
+      }
       if (reference.kind === "endpoint_profile_selector") {
         if (edge.selectorFailure !== undefined)
           throw new PolicyRecordGraphError("reference_conflict", key);

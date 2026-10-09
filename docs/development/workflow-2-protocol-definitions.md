@@ -114,8 +114,13 @@ composition uses the existing held metadata ports and database cut; those ports 
 when the transaction ends. This resolution is not a replacement for independent complete
 graph closure or a seal.
 
-Graph mapping and retained graph reinspection remain open. They must preserve every
-original occurrence, all ambiguous members and authority frontiers. Complete
+Graph mapping retains the whole resolution on each original edge with a null single
+target, traverses every valid member source and preserves unreadable nodes. Separate
+retained derivation recomputes each whole-parent resolution and binds all candidate
+reads to exact nodes; retained reinspection compares ordered lists and complete
+original receipts before descendants. Ambiguous members and authority frontiers
+remain explicit. See [retained record closure](workflow-2-policy-record-closure.md).
+Complete
 semantic/current authority closure, sealed snapshot/job/fence publication and
 whole-checkpoint acceptance remain open. An ended observation report cannot authorize
 later publication.

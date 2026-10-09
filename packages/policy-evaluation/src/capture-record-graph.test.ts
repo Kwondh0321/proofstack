@@ -25,6 +25,9 @@ import {
   type RuntimeDefinition,
   type RuntimeDefinitionRecord,
   type TargetReleaseDefinition,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSchema,
 } from "@proofstack/contracts";
 import {
   assemblePolicyEvaluationManifest,
@@ -43,6 +46,8 @@ import {
   StaticQualificationPolicyCatalogue,
   StaticRuntimeDefinitionCatalogue,
   validatePolicyEvaluationManifest,
+  digestProtocolDefinition,
+  StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   comparisonDefinitionFixture,
@@ -79,6 +84,7 @@ import { acquirePolicyRecordGraph, capturePolicyRecordGraph } from "./capture-re
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
+import { isResolvableProtocolReference } from "./resolve-parent-protocol.js";
 
 type Fields = Record<string, unknown>;
 const requestVector = JSON.parse(
@@ -167,7 +173,7 @@ function missingRepositories() {
           (_target, method) =>
           async (...args: unknown[]) => {
             calls.push({ domain, method: String(method), args: structuredClone(args) });
-            return null;
+            return domain === "protocol" && method === "listProtocolDefinitions" ? [] : null;
           },
       },
     );
@@ -193,7 +199,10 @@ function missingRepositories() {
 
 function registrationInspectionUsage(graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) {
   const references = graph.edges
-    .filter(({ reference }) => reference.kind === "registered_implementation")
+    .filter(
+      ({ reference }) =>
+        reference.kind === "registered_implementation" || isResolvableProtocolReference(reference),
+    )
     .flatMap(({ parent }) => {
       const node = graph.nodes.find(
         ({ read }) =>
@@ -1608,10 +1617,26 @@ describe("independent retained record closure", () => {
   it("uses independent repeated occurrence counts and canonical bytes for exact and one-below admission", async () => {
     const setup = await harness("history", { dataset: "matched", replayBindings: true });
     const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    // Protocol lookup/derivation reinspects each whole original parent, including missing mappings.
+    // Count retained occurrences independently rather than trusting the reported usage total.
+    const occurrences = [
+      ...graph.edges.map((edge) => edge.reference),
+      ...graph.edges
+        .filter((edge) => isResolvableProtocolReference(edge.reference))
+        .flatMap((edge) => {
+          const parent = graph.nodes.find(
+            (node) =>
+              policyEvaluationSourceReferenceKey(node.read.source) ===
+              policyEvaluationSourceReferenceKey(edge.parent),
+          );
+          if (!parent?.references) throw new Error("Missing original protocol parent inventory");
+          return parent.references;
+        }),
+    ];
     const exact = {
-      maxReferences: graph.edges.length,
-      maxReferenceBytes: graph.edges.reduce(
-        (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
+      maxReferences: occurrences.length,
+      maxReferenceBytes: occurrences.reduce(
+        (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
         0,
       ),
     };
@@ -5047,5 +5072,509 @@ describe("retained registration graph acquisition", () => {
     expect(Reflect.set(edge, "target", null)).toBe(true);
     expect(Reflect.set(edge, "registrationFailure", { status: "missing" })).toBe(true);
     expect(() => deriveCapturedRecordClosure(setup.input, falseMissing, limits)).toThrow();
+  });
+});
+
+describe("complete retained protocol graph mappings", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
+  async function setup(mode: "model" | "replay" = "model") {
+    const h =
+      mode === "replay"
+        ? await harness("history")
+        : await harness(undefined, {
+            dataset: "matched",
+            endpointProfile: true,
+            modelEndpoint: true,
+            modelCapture: (definition) => {
+              const model = definition.interactionCapture.interactions[0];
+              const attempt = model?.kind === "model" ? model.attempts[0] : undefined;
+              if (model?.kind !== "model" || !attempt)
+                throw new Error("Missing original model attempt");
+              model.attempts.push({
+                ...structuredClone(attempt),
+                attemptId: "attempt_protocol_repeated",
+                sequence: 1,
+              });
+              for (const [artifactId, role] of [
+                ["protocol_tool_arguments", "tool.arguments"],
+                ["protocol_tool_contract", "tool.contract"],
+                ["protocol_tool_normalized", "tool.normalized_request"],
+                ["protocol_tool_result", "tool.result"],
+              ] as const)
+                definition.interactionCapture.artifacts.push({
+                  contentReference: {
+                    artifactId,
+                    classification: "confidential",
+                    mediaType: "application/json",
+                    sha256: "b".repeat(64),
+                    sizeBytes: 32,
+                  },
+                  redaction: { status: "not_required" },
+                  retention: { mode: "retain" },
+                  role,
+                });
+              definition.interactionCapture.interactions.push({
+                kind: "tool",
+                interactionId: "interaction_protocol_tool",
+                callId: "call_protocol_tool",
+                sequence: 1,
+                terminalOutcome: "succeeded",
+                tool: {
+                  toolId: "tool_protocol",
+                  toolVersion: "1",
+                  artifactId: "protocol_tool_contract",
+                  definitionSha256: "b".repeat(64),
+                },
+                attempts: [
+                  {
+                    attemptId: "attempt_protocol_tool",
+                    sequence: 0,
+                    outcome: "succeeded",
+                    startedAt: attempt.endedAt,
+                    endedAt: attempt.endedAt,
+                    sideEffect: "read_only",
+                    effectMayHaveOccurred: false,
+                    normalizedRequest: {
+                      adapterName: "tool.json",
+                      adapterVersion: "1",
+                      artifactId: "protocol_tool_normalized",
+                      sha256: "b".repeat(64),
+                    },
+                    artifacts: {
+                      argumentsArtifactId: "protocol_tool_arguments",
+                      resultArtifactId: "protocol_tool_result",
+                    },
+                  },
+                ],
+              });
+              definition.interactionCapture.artifacts.sort((a, b) =>
+                a.contentReference.artifactId < b.contentReference.artifactId ? -1 : 1,
+              );
+            },
+          });
+    const empty = await capturePolicyRecordGraph(h.input, h.repositories);
+    const vectors = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: ProtocolDefinition } }[];
+    };
+    const definitions = new Map<string, ProtocolDefinitionRecord>();
+    for (const edge of empty.edges) {
+      const selector = edge.protocolResolution?.selector;
+      if (!selector) continue;
+      const key = JSON.stringify(selector);
+      if (definitions.has(key)) continue;
+      const vector = vectors.vectors.find((v) => v.input.definition.family === selector.family);
+      if (!vector) throw new Error("Missing independent protocol vector");
+      const id = `protocol_graph_${definitions.size}`;
+      const body = ProtocolDefinitionSchema.parse({
+        ...structuredClone(vector.input.definition),
+        ...selector,
+        protocolDefinitionId: id,
+      });
+      body.specification.artifactId = `${id}_specification`;
+      if ("implementation" in body) {
+        body.implementation.artifactId = `${id}_implementation`;
+        body.configuration.artifactId = `${id}_configuration`;
+      }
+      definitions.set(key, {
+        ...body,
+        scope: h.input.scope,
+        definitionSha256: digestProtocolDefinition(h.input.scope, body),
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.000Z",
+        registeredByPrincipalId: "operator_protocol_graph",
+      });
+    }
+    const records = [...definitions.values()];
+    expect(records.length).toBeGreaterThan(0);
+    const repositories = {
+      ...h.repositories,
+      protocolDefinitions: new StaticProtocolDefinitionCatalogue(records),
+    };
+    return { h, records, repositories, empty };
+  }
+  const derive = (
+    h: Awaited<ReturnType<typeof setup>>["h"],
+    graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>,
+  ) => deriveCapturedRecordClosure(h.input, graph, limits);
+
+  it.each(["model", "replay"] as const)(
+    "traverses every %s protocol occurrence and independent definition without a selected winner",
+    async (mode) => {
+      const { h, records, repositories, empty } = await setup(mode);
+      expect(
+        empty.edges
+          .filter((e) => e.protocolResolution)
+          .every((e) => e.protocolResolution?.status === "missing"),
+      ).toBe(true);
+      const graph = await capturePolicyRecordGraph(h.input, repositories);
+      const edges = graph.edges.filter((e) => e.protocolResolution);
+      expect(edges.length).toBeGreaterThanOrEqual(records.length);
+      if (mode === "model") {
+        expect(
+          edges
+            .filter((e) => e.protocolResolution?.selector.family === "request_normalizer")
+            .map((e) => e.reference.path),
+        ).toEqual([
+          "/interactionCapture/interactions/0/attempts/0/normalizedRequest",
+          "/interactionCapture/interactions/0/attempts/1/normalizedRequest",
+          "/interactionCapture/interactions/1/attempts/0/normalizedRequest",
+        ]);
+      }
+      expect(new Set(edges.map((e) => e.protocolResolution?.selector.family))).toEqual(
+        new Set(
+          mode === "model"
+            ? ["capture_adapter", "source_format", "request_normalizer"]
+            : ["recorded_target_adapter", "released_target_adapter", "worker_protocol"],
+        ),
+      );
+      for (const edge of edges) {
+        expect(edge.target).toBeNull();
+        expect(edge.protocolResolution?.status).toBe("unique");
+        expect(graph.recordClosure.frontier).toContainEqual({
+          edgeIndex: graph.edges.indexOf(edge),
+          kind: "retained_declaration",
+        });
+      }
+      const nodes = graph.nodes.filter((n) => n.read.source.kind === "protocol_definition");
+      expect(nodes).toHaveLength(records.length);
+      expect(
+        nodes.every(
+          (n) => n.read.observation.status === "verified" && (n.references?.length ?? 0) >= 1,
+        ),
+      ).toBe(true);
+      expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
+      expect(graph).not.toHaveProperty("sealed");
+      expect(graph).not.toHaveProperty("verdict");
+    },
+  );
+
+  it("retains every ambiguous/future node and body while unreadable prefetched nodes keep null frontiers", async () => {
+    const { h, records, repositories } = await setup();
+    const first = records[0];
+    if (!first) throw new Error("Missing independent protocol");
+    const {
+      scope,
+      schemaVersion: _schema,
+      definitionSha256: _sha,
+      registeredAt: _at,
+      registeredByPrincipalId: _by,
+      ...body
+    } = first;
+    const aliasBody = { ...body, protocolDefinitionId: "protocol_future" };
+    const future = {
+      ...aliasBody,
+      scope,
+      schemaVersion: "0.1" as const,
+      definitionSha256: digestProtocolDefinition(scope, aliasBody),
+      registeredAt: "2099-01-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_future",
+    };
+    const graph = await capturePolicyRecordGraph(h.input, {
+      ...repositories,
+      protocolDefinitions: new StaticProtocolDefinitionCatalogue([...records, future]),
+    });
+    const edge = graph.edges.find((e) => e.protocolResolution?.status === "multiple");
+    expect(edge).toBeDefined();
+    expect(edge?.protocolResolution?.matches).toHaveLength(2);
+    const member = edge?.protocolResolution?.matches.find(
+      (m) => m.status === "retained" && m.record.protocolDefinitionId === "protocol_future",
+    );
+    expect(member).toMatchObject({
+      status: "retained",
+      record: future,
+      read: { record: null, observation: { status: "unavailable", reason: "not_yet_available" } },
+    });
+    expect(
+      graph.nodes.find(
+        (n) =>
+          n.read.source.kind === "protocol_definition" &&
+          n.read.source.reference.protocolDefinitionId === "protocol_future",
+      ),
+    ).toMatchObject({
+      references: null,
+      read: { record: null, observation: { status: "unavailable", reason: "not_yet_available" } },
+    });
+    expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
+  });
+
+  it("reaches runtime protocols through the original candidate model adapter reference", async () => {
+    const h = await harness();
+    const runtimeVectors = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/runtime-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: RuntimeDefinition } }[];
+    };
+    const runtimeBody = runtimeVectors.vectors
+      .map((v) => v.input.definition)
+      .find((d) => d.recordKind === "runtime_adapter");
+    const protocolVectors = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: ProtocolDefinition } }[];
+    };
+    const template = protocolVectors.vectors
+      .map((v) => v.input.definition)
+      .find((d) => d.family === "runtime_protocol");
+    if (!runtimeBody || !template)
+      throw new Error("Missing independent runtime/protocol templates");
+    const runtime = {
+      ...runtimeBody,
+      scope: h.input.scope,
+      schemaVersion: "0.1" as const,
+      definitionSha256: digestRuntimeDefinition(h.input.scope, runtimeBody),
+      registeredAt: "2026-09-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_runtime",
+    };
+    const body = ProtocolDefinitionSchema.parse({ ...template, descriptor: runtimeBody.protocol });
+    const protocol = {
+      ...body,
+      scope: h.input.scope,
+      schemaVersion: "0.1" as const,
+      definitionSha256: digestProtocolDefinition(h.input.scope, body),
+      registeredAt: "2026-09-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_protocol",
+    };
+    const candidateDraft = structuredClone(h.candidate);
+    candidateDraft.candidateId += "_runtime";
+    candidateDraft.candidateVersionId += "_runtime";
+    const model = candidateDraft.runtimeComponents.find((c) => c.kind === "model");
+    if (!model) throw new Error("Missing original candidate model component");
+    model.adapter = {
+      adapterId: runtime.adapterId,
+      adapterVersionId: runtime.adapterVersionId,
+      definitionSha256: runtime.definitionSha256,
+    };
+    const candidate = candidateDigest(candidateDraft);
+    const releaseCandidate = new MemoryReleaseCandidateRepository();
+    await releaseCandidate.publishReleaseCandidate(candidate);
+    const input = request(candidate, h.policy);
+    const graph = await capturePolicyRecordGraph(input, {
+      ...h.repositories,
+      control: { ...h.repositories.control, releaseCandidate },
+      runtimeDefinitions: new StaticRuntimeDefinitionCatalogue([runtime]),
+      protocolDefinitions: new StaticProtocolDefinitionCatalogue([protocol]),
+    });
+    const edge = graph.edges.find(
+      (e) => e.parent.kind === "runtime_adapter" && e.reference.path === "/protocol",
+    );
+    expect(edge?.target).toBeNull();
+    expect(edge?.protocolResolution).toMatchObject({
+      status: "unique",
+      selector: { family: "runtime_protocol", descriptor: runtimeBody.protocol },
+    });
+    expect(
+      graph.nodes.find((n) => n.read.source.kind === "protocol_definition")?.read.record,
+    ).toEqual(protocol);
+    expect(deriveCapturedRecordClosure(input, graph, limits)).toEqual({
+      entries: graph.entries,
+      closure: graph.recordClosure,
+    });
+  });
+
+  it("preserves malformed siblings without fabricating an identity or losing valid nodes", async () => {
+    const { h, repositories } = await setup();
+    const catalogue = repositories.protocolDefinitions;
+    const graph = await capturePolicyRecordGraph(h.input, {
+      ...repositories,
+      protocolDefinitions: {
+        findProtocolDefinition: catalogue.findProtocolDefinition.bind(catalogue),
+        listProtocolDefinitions: async (scope, selector) => [
+          ...(await catalogue.listProtocolDefinitions(scope, selector)),
+          null,
+        ],
+      },
+    });
+    for (const edge of graph.edges.filter((e) => e.protocolResolution)) {
+      expect(edge.protocolResolution).toMatchObject({
+        status: "unavailable",
+        reason: "record_invalid",
+      });
+      expect(edge.protocolResolution?.matches.at(-1)).toEqual({
+        index: 1,
+        status: "invalid",
+        reason: "record_invalid",
+      });
+    }
+    expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
+  });
+
+  it("independently rejects missing/extra/substituted mappings, bodies, hashes and nodes", async () => {
+    const { h, repositories } = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, repositories);
+    const index = graph.edges.findIndex((e) => e.protocolResolution);
+    expect(index).toBeGreaterThanOrEqual(0);
+    for (const fault of [
+      "missing",
+      "outcome",
+      "selector",
+      "receipt",
+      "hash",
+      "members",
+      "node",
+      "target",
+      "extra",
+      "unrelated",
+    ] as const) {
+      const changed = structuredClone(graph);
+      const edge = changed.edges[index];
+      const resolution = edge?.protocolResolution;
+      if (!edge || !resolution) throw new Error("Missing complete protocol resolution");
+      const member = resolution.matches[0];
+      if (member?.status !== "retained") throw new Error("Missing retained member");
+      if (fault === "missing") Reflect.deleteProperty(edge, "protocolResolution");
+      else if (fault === "outcome") Reflect.set(resolution, "status", "missing");
+      else if (fault === "selector") resolution.selector.descriptor.version = "changed";
+      else if (fault === "receipt") member.record.registeredByPrincipalId = "operator_changed";
+      else if (fault === "hash") Reflect.set(member, "recordSha256", "0".repeat(64));
+      else if (fault === "members") Reflect.set(resolution, "matches", []);
+      else if (fault === "node")
+        Reflect.set(
+          changed,
+          "nodes",
+          changed.nodes.filter(
+            (n) =>
+              policyEvaluationSourceReferenceKey(n.read.source) !==
+              policyEvaluationSourceReferenceKey(member.read.source),
+          ),
+        );
+      else if (fault === "target") Reflect.set(edge, "target", member.read.source);
+      else if (fault === "extra") Reflect.set(resolution, "approved", true);
+      else {
+        const other = changed.edges.find((e) => !isResolvableProtocolReference(e.reference));
+        if (!other) throw new Error("Missing unrelated edge");
+        Reflect.set(other, "protocolResolution", resolution);
+      }
+      expect(() => derive(h, changed), fault).toThrow();
+    }
+  });
+
+  it("retains valid substituted scope/descriptor members as unavailable instead of choosing a sibling", async () => {
+    const { h, repositories, records } = await setup();
+    const first = records[0];
+    if (!first) throw new Error("Missing original protocol definition");
+    const {
+      scope,
+      schemaVersion: _schema,
+      definitionSha256: _sha,
+      registeredAt,
+      registeredByPrincipalId,
+      ...body
+    } = first;
+    for (const fault of ["scope", "descriptor"] as const) {
+      const definition = ProtocolDefinitionSchema.parse({
+        ...body,
+        protocolDefinitionId: "protocol_substituted",
+        descriptor: {
+          ...body.descriptor,
+          ...(fault === "descriptor" ? { version: "DifferentVersion" } : {}),
+        },
+      });
+      const changedScope = fault === "scope" ? { ...scope, tenantId: "tenant_other" } : scope;
+      const substituted = {
+        ...definition,
+        scope: changedScope,
+        schemaVersion: "0.1" as const,
+        definitionSha256: digestProtocolDefinition(changedScope, definition),
+        registeredAt,
+        registeredByPrincipalId,
+      };
+      const catalogue = repositories.protocolDefinitions;
+      const graph = await capturePolicyRecordGraph(h.input, {
+        ...repositories,
+        protocolDefinitions: {
+          findProtocolDefinition: catalogue.findProtocolDefinition.bind(catalogue),
+          listProtocolDefinitions: async (exact, selector) => [
+            ...(await catalogue.listProtocolDefinitions(exact, selector)),
+            substituted,
+          ],
+        },
+      });
+      for (const edge of graph.edges.filter((e) => e.protocolResolution))
+        expect(edge.protocolResolution).toMatchObject({
+          status: "unavailable",
+          reason: "reference_mismatch",
+        });
+      expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
+    }
+  });
+
+  it("reinspects complete candidate lists and original future receipts before descendants", async () => {
+    const { h, records, repositories, empty } = await setup();
+    const retained = await capturePolicyRecordGraph(h.input, repositories);
+    expect(
+      await acquirePolicyRecordGraph(
+        h.input,
+        repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).toEqual(retained);
+    const first = records[0];
+    if (!first) throw new Error("Missing original definition");
+    for (const protocolDefinitions of [
+      new StaticProtocolDefinitionCatalogue([]),
+      new StaticProtocolDefinitionCatalogue(
+        records.map((r) => ({ ...r, registeredByPrincipalId: "changed" })),
+      ),
+    ])
+      await expect(
+        acquirePolicyRecordGraph(
+          h.input,
+          { ...repositories, protocolDefinitions },
+          new AcquisitionBudget(h.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({ reason: "source_revision_changed" });
+    await expect(
+      acquirePolicyRecordGraph(h.input, repositories, new AcquisitionBudget(h.input.limits), empty),
+    ).rejects.toMatchObject({ reason: "source_revision_changed" });
+    const futureRecords = records.map((r) => ({ ...r, registeredAt: "2099-01-01T00:00:00.000Z" }));
+    const futurePorts = {
+      ...repositories,
+      protocolDefinitions: new StaticProtocolDefinitionCatalogue(futureRecords),
+    };
+    const future = await capturePolicyRecordGraph(h.input, futurePorts);
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        {
+          ...repositories,
+          protocolDefinitions: new StaticProtocolDefinitionCatalogue(
+            futureRecords.map((r) => ({ ...r, registeredByPrincipalId: "changed_future" })),
+          ),
+        },
+        new AcquisitionBudget(h.input.limits),
+        future,
+      ),
+    ).rejects.toMatchObject({ reason: "source_revision_changed" });
+  });
+
+  it("propagates failed list calls rather than converting them into missing protocols", async () => {
+    const { h, repositories } = await setup();
+    const cause = new Error("protocol storage offline");
+    await expect(
+      capturePolicyRecordGraph(h.input, {
+        ...repositories,
+        protocolDefinitions: {
+          findProtocolDefinition: repositories.protocolDefinitions.findProtocolDefinition.bind(
+            repositories.protocolDefinitions,
+          ),
+          listProtocolDefinitions: async () => {
+            throw cause;
+          },
+        },
+      }),
+    ).rejects.toBe(cause);
   });
 });

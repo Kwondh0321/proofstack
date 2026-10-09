@@ -43,8 +43,11 @@ core 의존성 방향은 유지하며, 개별 기록 관찰이 재귀 계보, �
 독립 원본, 정확한 source 조회와 scoped catalogue port를 제공합니다. 고정 소유 위치의
 family/descriptor를 도출하기 전에 fixture/replay/runtime 부모 전체와 모든 참조를
 검증합니다. 미래 후보도 원본 body·receipt hash와 함께 보존하고 missing·unique·multiple·
-unavailable을 구별하며 잘못된 구성원을 삭제해 승자를 만들지 않습니다. protocol graph
-mapping·재검사, 현재 권한 closure와 sealed publication은 아직 열려 있습니다.
+unavailable을 구별하며 잘못된 구성원을 삭제해 승자를 만들지 않습니다. protocol graph는
+전체 순서 있는 후보와 원본 receipt를 간선에 보존하고 모든 유효 source와 unavailable node를
+유지합니다. 별도 도출·재검사는 전체 join과 정확한 node를 대조하며 단일 승자를 고르지 않습니다.
+원본 occurrence마다 부모 전체 재검사 비용과 현재 권한 frontier를 남깁니다. 전체 현재 권한
+closure와 sealed publication은 아직 열려 있습니다.
 
 - 상태: 구현 진입 승인, 체크포인트는 미완료
 - 검토일: 2026-09-07

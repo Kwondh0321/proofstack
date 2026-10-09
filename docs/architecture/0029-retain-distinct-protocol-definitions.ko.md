@@ -74,8 +74,9 @@ unavailable을 보존해야 합니다. 손상되거나 미래인 항목을 버�
 
 정확한 source 획득, 전체 의존성 열거와 scoped catalogue port는
 [protocol 가이드](../development/workflow-2-protocol-definitions.ko.md)에 기록한 대로 구현됐습니다.
-조회 검증 후 부모 전체 해석, 유한한 모든 일치 항목 검사와 graph 재검사를
-이어갑니다. 모든 원본 occurrence·artifact 의존성·권한 frontier·전체 hash를 보존합니다. 완전한
+부모 전체 해석과 graph 재검사는 별도 검증한 구현에서 모든 원본 occurrence,
+미래·unavailable을 포함한 유한 후보, artifact 의존성, 권한 frontier와 전체 원본 hash를
+보존합니다. null 단일 target 때문에 복수 후보를 버리지 않습니다. 완전한
 semantic/current authority closure, snapshot/job/fence의 원자적 publication과
 독립 checkpoint 승인은 열려 있습니다.
 

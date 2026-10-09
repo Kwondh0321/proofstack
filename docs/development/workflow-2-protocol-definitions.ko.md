@@ -102,8 +102,12 @@ identity 중복은 전체 응답을 거부합니다. scope·family·모든 descr
 port와 DB cut을 쓰며 트랜잭션 종료 후 port는 만료됩니다. 이 해석은 독립적인 전체
 graph closure나 seal을 대체하지 않습니다.
 
-graph mapping과 보존된 graph 재검사는 아직 열려 있으며 모든 원본 occurrence,
-복수 후보와 authority frontier를 보존해야 합니다. 완전한 semantic/current authority
+graph mapping은 각 원래 간선에 전체 resolution과 null 단일 target을 보존하고 모든
+유효 후보 source를 순회하며 읽을 수 없는 node를 유지합니다. 별도 도출은 부모 전체
+resolution을 재계산하고 모든 후보 read를 정확한 node와 결합합니다. 보존된 재검사는
+하위 조회 전에 목록 순서와 전체 원본 receipt를 대조합니다. 복수 후보와 authority
+frontier는 명시적으로 남습니다. [보존 기록 closure](workflow-2-policy-record-closure.ko.md)를
+참고하세요. 완전한 semantic/current authority
 closure, snapshot/job/fence의 sealed publication과 전체 checkpoint 승인은 열려 있습니다.
 끝난 observation report는 나중 publication을 승인할 수 없습니다.
 

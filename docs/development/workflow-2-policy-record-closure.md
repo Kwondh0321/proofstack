@@ -9,7 +9,7 @@ Status: separate retained-metadata derivation implemented; Workflow 2 checkpoint
 candidate and policy roots. The internal
 [`deriveCapturedRecordClosure`](../../packages/policy-evaluation/src/derive-record-closure.ts)
 does not accept the previously assembled manifest entries as its expected inventory. It reuses the
-fixed owning validators and enumerators for all 44 source kinds, then reconstructs breadth-first
+fixed owning validators and enumerators for all 48 source kinds, then reconstructs breadth-first
 reachability and every original reference occurrence. This is a separate derivation pass, not an
 independent implementation of those owning schemas or a third-party audit.
 
@@ -27,6 +27,21 @@ comparison-family predecessors without another repository read. A missing select
 with a verified exact child elsewhere in the same graph fails. A genuine membership mismatch may
 coexist with an independently reached, verified criterion set and remains unavailable. No missing
 selector receives an invented digest or a replacement version.
+
+Protocol occurrences retain a complete `protocolResolution` on their original edge, with a null
+single target. All valid candidate sources enter the graph, including ambiguous and future
+members; unreadable prefetched nodes keep null bodies/frontiers. The separate derivation replays
+the fixed whole-parent protocol resolver over every retained original member, recomputes scope,
+descriptor, receipt, full hash and outcome, and binds each resulting read to its exact node. It
+rejects missing/extra mappings, fabricated targets, changed members or inappropriate resolution
+fields. Every protocol join keeps its declaration/current-authority frontier. Whole-parent
+reinspection costs are admitted cumulatively even for missing matches.
+
+Complete ordered candidates and valid original bodies remain on the edge even when ordinary
+receipt-cut acquisition returns an unavailable null record. Guarded reinspection compares this
+material before descendants, detecting new/removed candidates and future receipt-only changes.
+Malformed members retain failure markers without invented identities; this does not independently
+prove storage absence or authenticate specification compatibility/current installation.
 
 Unreadable parents retain `record: null` and `references: null`. A missing subordinate remains an
 explicit manifest observation, not an omitted member or a verified empty leaf. The pass cannot

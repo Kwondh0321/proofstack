@@ -68,6 +68,12 @@ import {
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
 import { CapturedGraphReinspection } from "./reinspect-captured-observations.js";
+import {
+  isResolvableProtocolReference,
+  readParentProtocolResolution,
+  type PolicyProtocolResolution,
+  type PolicyProtocolParentSource,
+} from "./resolve-parent-protocol.js";
 
 export interface PolicyRecordGraphEdge {
   readonly parent: PolicyEvaluationSourceReference;
@@ -96,6 +102,8 @@ export interface PolicyRecordGraphEdge {
         readonly reason: "record_invalid" | "reference_mismatch" | "not_yet_available";
       };
   readonly endpointChecks?: readonly PolicyEvaluationModelEndpointCheck[];
+  /** All original protocol candidates; null target never silently selects an ambiguous winner. */
+  readonly protocolResolution?: PolicyProtocolResolution;
 }
 
 export interface PolicyRecordGraph {
@@ -252,13 +260,18 @@ export async function acquirePolicyRecordGraph(
       if (prefetched) {
         // Only fixed parent-bound readers prefetch nodes. Reinspect their original observations before
         // traversal; do not query it again or discard the reciprocal edge that led back to a parent.
-        const frontier = enumerateCapturedPolicyRecord(
-          { evaluationTime, scope, source },
-          prefetched,
-          limits,
-          replayLimits,
-        );
-        expansion = { read: prefetched, references: frontier.references };
+        expansion = {
+          read: prefetched,
+          references:
+            prefetched.observation.status === "verified"
+              ? enumerateCapturedPolicyRecord(
+                  { evaluationTime, scope, source },
+                  prefetched,
+                  limits,
+                  replayLimits,
+                ).references
+              : null,
+        };
       } else {
         expansion = await readAndExpandPolicyRecord(
           { evaluationTime, scope, source },
@@ -302,6 +315,27 @@ export async function acquirePolicyRecordGraph(
           const target = { kind: "qualification_policy" as const, reference: reference.reference };
           admitEdge({ ...parent, target });
           enqueue(target);
+        } else if (isResolvableProtocolReference(reference)) {
+          // Every occurrence admits the entire parent and every returned candidate before selection.
+          budget.addReferences(references.length, referenceBytes);
+          const resolved = await readParentProtocolResolution(
+            {
+              evaluationTime,
+              scope,
+              source: source as PolicyProtocolParentSource,
+              path: reference.path,
+              limits,
+              replayLimits,
+            },
+            read,
+            ports.protocolDefinitions ?? emptyProtocolDefinitions,
+          );
+          admitEdge({ ...parent, target: null, protocolResolution: resolved });
+          for (const member of resolved.matches) {
+            if (member.status !== "retained") continue;
+            reinspection?.read(member.read);
+            enqueue(member.read.source, member.read);
+          }
         } else if (reference.kind === "endpoint_profile_selector") {
           // Every original occurrence reinspects the complete parent before its exact lookup.
           budget.addReferences(references.length, referenceBytes);

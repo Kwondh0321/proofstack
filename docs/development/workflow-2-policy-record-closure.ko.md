@@ -7,7 +7,7 @@
 
 `capturePolicyRecordGraph`는 불변 요청의 후보·정책 루트에서 `entries`를 별도로 다시 계산합니다.
 내부 [`deriveCapturedRecordClosure`](../../packages/policy-evaluation/src/derive-record-closure.ts)는
-이미 만들어진 manifest 목록을 정답으로 받지 않습니다. 44개 기록 종류의 기존 검증기·열거기로
+이미 만들어진 manifest 목록을 정답으로 받지 않습니다. 48개 기록 종류의 기존 검증기·열거기로
 원본 레코드와 참조를 다시 확인하고 너비 우선 도달성과 모든 참조 발생 위치를 대조합니다.
 별도 도출 과정이며 기존 스키마를 독립적으로 재구현하거나 제삼자가 감사했다는 뜻은 아닙니다.
 
@@ -22,6 +22,19 @@
 모델 프로필 상호 참조, 실행 ID, 비교 계열 이전 버전을 기존 알고리즘으로 확인합니다.
 동일 그래프의 검증된 자식과 모순되는 선택자 부재는 실패합니다. 실제 기준 구성원 불일치는
 해당 기준 집합 본문을 읽을 수 있더라도 unavailable로 남깁니다. 없는 해시를 만들지 않습니다.
+
+protocol occurrence는 원래 간선에 전체 `protocolResolution`을 보존하며 단일 target은
+null로 둡니다. 복수·미래 후보를 포함한 모든 유효 source를 graph에 넣고 읽을 수 없는
+prefetched node는 null body/frontier를 유지합니다. 별도 도출은 원본 후보 전체로 고정된
+부모 resolver를 다시 실행해 scope·descriptor·receipt·전체 hash·결과를 재계산하고 각 read를
+정확한 node에 결합합니다. 누락·추가 mapping, 가상 target, 바뀐 구성원과 무관한 resolution
+필드를 거부하며, 모든 join에 선언·현재 권한 frontier를 남깁니다. 후보가 없어도 부모 전체
+재검사의 참조·byte 비용을 누적 admission합니다.
+
+일반 receipt-cut 조회가 unavailable/null record여도 전체 후보 순서와 유효 원본 body는
+간선에 남습니다. 보호된 재검사는 하위 조회 전에 이를 대조해 후보 생성·제거와 미래 receipt만
+바뀐 경우도 검출합니다. 잘못된 항목은 identity를 만들지 않고 실패 marker로 보존합니다.
+저장소 부재, specification 호환성이나 실제 설치의 현재 권한을 독립적으로 증명하지 않습니다.
 
 읽을 수 없는 부모는 `record: null`, `references: null`로 유지합니다. 하위 기록 부재는 명시적
 관측이며 검증된 빈 목록이 아닙니다. 폐기된 본문만으로 저장소의 부재·이용 불가 관측을 독립적으로

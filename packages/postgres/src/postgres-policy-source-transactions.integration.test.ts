@@ -10,6 +10,7 @@ import {
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
   ProtocolDefinitionSelectorSchema,
+  ProtocolDefinitionSchema,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
   type QualificationPolicyDefinition,
@@ -42,6 +43,7 @@ import {
   StaticEndpointProfileCatalogue,
   digestRuntimeDefinition,
   readPolicyEvaluationRuntimeRecord,
+  StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -140,7 +142,12 @@ afterAll(async () => {
   await admin.end();
 });
 
-async function fixture(withCriteria = false, metadataMode = false, withModelEndpoint = false) {
+async function fixture(
+  withCriteria = false,
+  metadataMode = false,
+  withModelEndpoint = false,
+  withProtocols = false,
+) {
   const namespace = `recheck_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const evaluation = withCriteria ? createEvaluationRepositoryTestHarness(namespace) : undefined;
   const evaluationRepository = new PostgresEvaluationRepository(api);
@@ -228,9 +235,6 @@ async function fixture(withCriteria = false, metadataMode = false, withModelEndp
   observedPools.push(observer);
   // Prove that the adapter overrides the pool's isolation default without changing that default.
   await observer.query("SET default_transaction_isolation = 'repeatable read'");
-  const transactions = new PostgresPolicySourceTransactions(observer, {
-    endpointProfiles: endpointProfile ? [endpointProfile] : [],
-  });
   const contents = Buffer.from("actual guarded policy source bytes");
   const reference: ContentReference = {
     artifactId: "artifact_recheck",
@@ -239,6 +243,86 @@ async function fixture(withCriteria = false, metadataMode = false, withModelEndp
     sizeBytes: contents.byteLength,
     sha256: createHash("sha256").update(contents).digest("hex"),
   };
+  const protocolRecords: ProtocolDefinitionRecord[] = [];
+  if (withProtocols) {
+    if (!withModelEndpoint) throw new Error("Protocol graph fixture requires original capture");
+    const captured = JSON.parse(
+      readFileSync(
+        new URL("../../datasets/vectors/interaction-fixture-definition-v2.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: RecordedInteractionFixtureVersionDefinition }[];
+    };
+    const capture = captured.vectors[0]?.input.interactionCapture;
+    const model = capture?.interactions[0];
+    const attempt = model?.kind === "model" ? model.attempts[0] : undefined;
+    if (!capture || !attempt) throw new Error("Missing original capture descriptors");
+    const selectors = [
+      { family: "capture_adapter", descriptor: capture.source.captureAdapter },
+      { family: "source_format", descriptor: capture.source.sourceFormat },
+      {
+        family: "request_normalizer",
+        descriptor: {
+          name: attempt.normalizedRequest.adapterName,
+          version: attempt.normalizedRequest.adapterVersion,
+        },
+      },
+    ] as const;
+    const vectors = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: ProtocolDefinition } }[];
+    };
+    for (const [index, selector] of selectors.entries()) {
+      const template = vectors.vectors.find((v) => v.input.definition.family === selector.family)
+        ?.input.definition;
+      if (!template) throw new Error("Missing independent protocol template");
+      const definition = ProtocolDefinitionSchema.parse({
+        ...template,
+        ...selector,
+        protocolDefinitionId: `protocol_${namespace}_${index}`,
+        specification: reference,
+        ...("implementation" in template
+          ? { implementation: reference, configuration: reference }
+          : {}),
+      });
+      protocolRecords.push({
+        ...definition,
+        scope,
+        schemaVersion: "0.1",
+        definitionSha256: digestProtocolDefinition(scope, definition),
+        registeredAt: "2026-09-01T00:00:00.000Z",
+        registeredByPrincipalId: "operator_protocol_graph",
+      });
+    }
+    const first = protocolRecords[0];
+    if (!first) throw new Error("Missing independent protocol");
+    const {
+      scope: _scope,
+      definitionSha256: _sha,
+      schemaVersion: _schema,
+      registeredAt: _at,
+      registeredByPrincipalId: _by,
+      ...body
+    } = first;
+    const alias = { ...body, protocolDefinitionId: `protocol_${namespace}_future` };
+    protocolRecords.push({
+      ...alias,
+      scope,
+      schemaVersion: "0.1",
+      definitionSha256: digestProtocolDefinition(scope, alias),
+      registeredAt: "2099-01-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_future",
+    });
+  }
+  const transactions = new PostgresPolicySourceTransactions(observer, {
+    endpointProfiles: endpointProfile ? [endpointProfile] : [],
+    protocolDefinitions: protocolRecords,
+  });
   const metadata: ArtifactMetadata = {
     schemaVersion: "0.1",
     scope,
@@ -503,6 +587,9 @@ async function fixture(withCriteria = false, metadataMode = false, withModelEndp
     ...(endpointProfile
       ? { endpointProfiles: new StaticEndpointProfileCatalogue([endpointProfile]) }
       : {}),
+    ...(withProtocols
+      ? { protocolDefinitions: new StaticProtocolDefinitionCatalogue(protocolRecords) }
+      : {}),
   } as unknown as PolicyArtifactEvidenceRepositories;
   const vector = JSON.parse(
     readFileSync(
@@ -644,6 +731,7 @@ async function fixture(withCriteria = false, metadataMode = false, withModelEndp
     futureDataset,
     endpointProfile,
     modelFixture,
+    protocolRecords,
     tombstone,
     cleanContext,
     waitForWriter,
@@ -652,6 +740,67 @@ async function fixture(withCriteria = false, metadataMode = false, withModelEndp
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("reinspects complete protocol candidates and encrypted occurrences under the same native metadata guard", async () => {
+    const f = await fixture(false, true, true, true);
+    let cuts = 0;
+    f.hooks.underGuards = async () => {
+      cuts++;
+      const locked = await withExactScopeTransaction(
+        admin,
+        f.scope,
+        async (client) =>
+          (
+            await client.query<{ acquired: boolean }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows[0]?.acquired,
+      );
+      expect(locked).toBe(false);
+    };
+    const result = await f.run();
+    if (result.status !== "artifacts_captured")
+      throw new Error("Expected complete protocol graph report");
+    const graph = result.traceCapture.comparisonCapture.graph;
+    const edges = graph.edges.filter((e) => e.protocolResolution);
+    expect(edges).toHaveLength(4);
+    expect(
+      edges.map((e) => ({ path: e.reference.path, status: e.protocolResolution?.status })),
+    ).toEqual([
+      { path: "/interactionCapture/interactions/0/attempts/0/normalizedRequest", status: "unique" },
+      { path: "/interactionCapture/interactions/0/attempts/1/normalizedRequest", status: "unique" },
+      { path: "/interactionCapture/source/captureAdapter", status: "multiple" },
+      { path: "/interactionCapture/source/sourceFormat", status: "unique" },
+    ]);
+    expect(edges.every((e) => e.target === null)).toBe(true);
+    for (const edge of edges)
+      expect(graph.recordClosure.frontier).toContainEqual({
+        edgeIndex: graph.edges.indexOf(edge),
+        kind: "retained_declaration",
+      });
+    const nodes = graph.nodes.filter((n) => n.read.source.kind === "protocol_definition");
+    expect(nodes).toHaveLength(4);
+    expect(nodes.filter((n) => n.read.observation.status === "verified")).toHaveLength(3);
+    const future = nodes.find((n) => n.read.observation.status === "unavailable");
+    expect(future).toMatchObject({
+      references: null,
+      read: { record: null, observation: { status: "unavailable", reason: "not_yet_available" } },
+    });
+    expect(result.sourceRecheck).toMatchObject({
+      status: "observations_rechecked",
+      metadataGuard: true,
+    });
+    expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
+    expect(cuts).toBe(1);
+    const verified = result.artifacts.filter((a) => a.read.observation.status === "verified");
+    expect(f.objectReads()).toBe(verified.length);
+    expect(
+      verified.filter((a) => a.read.reference.artifactId === f.reference.artifactId).length,
+    ).toBeGreaterThan(5);
+    expect(result).not.toHaveProperty("sealed");
+    expect(result).not.toHaveProperty("authority");
+    await f.cleanContext();
+  });
+
   it("reinspects original model endpoint mappings and configuration on one held metadata client without sealing", async () => {
     const f = await fixture(false, true, true);
     if (!f.endpointProfile || !f.modelFixture) throw new Error("Missing independent model fixture");

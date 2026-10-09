@@ -190,6 +190,19 @@ function prepare(input: PolicyProtocolResolutionInput, evidence: PolicyRecordRea
 }
 type Prepared = ReturnType<typeof prepare>;
 
+/** Classification only; the fixed resolver still validates the entire owning parent and position. */
+export function isResolvableProtocolReference(
+  reference: PolicyEvaluationEvidenceReference,
+): boolean {
+  return (
+    reference.kind === "protocol_declaration" ||
+    (reference.kind === "replay_declaration" &&
+      ["recorded_adapter", "target_adapter", "worker_protocol"].includes(
+        reference.declaration.kind,
+      ))
+  );
+}
+
 function inspect(prepared: Prepared, raw: unknown): PolicyProtocolResolution {
   if (!Array.isArray(raw) || raw.length > MAX_STATIC_PROTOCOL_DEFINITIONS)
     throw new TypeError("Expected a bounded complete protocol match array");

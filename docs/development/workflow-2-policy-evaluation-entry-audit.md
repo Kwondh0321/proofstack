@@ -496,8 +496,13 @@ parent and admits all references before deriving the family/descriptor at an exa
 It preserves ordered missing/unique/multiple/unavailable outcomes and original valid bodies/full
 receipt hashes, including future siblings; invalid/substituted members cannot be dropped to choose
 a winner. Duplicate storage identities fail. Native composition uses the held metadata ports and
-database cut. Protocol graph mapping/reinspection, current authority and sealed publication remain
-open; a copied catalogue or ended resolution report is not a durable registry or publication authority.
+database cut. Protocol graph mappings now retain complete ordered resolutions with no single
+selected target, traverse every valid member source and preserve unavailable nodes. Separate
+closure derivation recomputes the whole join and binds all reads/hashes to exact nodes; retained
+reinspection compares candidate lists and future original receipts before descendants. Each
+occurrence keeps its current-authority frontier and charges full-parent reinspection. Complete
+current authority and sealed publication remain open; a copied catalogue or ended resolution
+report is not a durable registry or publication authority.
 
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
