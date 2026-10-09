@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   digestProtocolDefinition,
+  digestProtocolDefinitionRecord,
   InvalidProtocolDefinitionRecordError,
   MAX_STATIC_PROTOCOL_DEFINITIONS,
   StaticProtocolDefinitionCatalogue,
@@ -62,6 +63,35 @@ function rehash(r: ProtocolDefinitionRecord) {
 }
 
 describe("copied independently retained protocol catalogue", () => {
+  it("hashes every whole original record including receipts with an independent ordered-JSON oracle", () => {
+    function canonical(value: unknown): string {
+      if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+      if (value !== null && typeof value === "object")
+        return `{${Object.entries(value)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
+          .join(",")}}`;
+      return JSON.stringify(value);
+    }
+    for (let index = 0; index < vectors.length; index++) {
+      const original = record(index);
+      const expected = createHash("sha256").update(canonical(original)).digest("hex");
+      expect(digestProtocolDefinitionRecord(original)).toBe(expected);
+      expect(
+        digestProtocolDefinitionRecord({ ...original, registeredByPrincipalId: "operator_other" }),
+      ).not.toBe(expected);
+      expect(
+        digestProtocolDefinitionRecord({ ...original, registeredAt: "2099-01-01T00:00:00.000Z" }),
+      ).not.toBe(expected);
+      expect(() =>
+        digestProtocolDefinitionRecord({ ...original, definitionSha256: "0".repeat(64) }),
+      ).toThrow(InvalidProtocolDefinitionRecordError);
+    }
+    expect(() => digestProtocolDefinitionRecord(null)).toThrow(
+      InvalidProtocolDefinitionRecordError,
+    );
+  });
+
   it.each(vectors.map((v, i) => ({ name: v.name, index: i })))(
     "retains complete independent $name bytes and original receipts",
     ({ index }) => {

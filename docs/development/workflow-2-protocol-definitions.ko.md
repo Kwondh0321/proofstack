@@ -1,6 +1,7 @@
 # 독립적으로 보존한 protocol 정의
 
-상태: 보존 데이터, 정확한 source 조회, 의존성 열거와 scoped catalogue port입니다.
+상태: 보존 데이터, 정확한 source 조회, 의존성 열거, scoped catalogue port와
+원본 부모 전체에 결합된 protocol 해석입니다.
 Workflow 2는 **2/7 승인**이며 checkpoint 3은 열려 있습니다.
 [English](workflow-2-protocol-definitions.md).
 
@@ -69,11 +70,41 @@ private metadata guard를 획득할 수 없습니다. 목록은 미래 receipt�
 계산합니다. 복사된 operator 데이터이며 새 durable PostgreSQL registry가 아닙니다.
 SQL table·migration·role/grant·route·worker·production 조합은 추가하지 않습니다.
 
-hash 없는 부모 해석과 graph mapping은 아직 열려 있습니다. 후속 해석은 원본 부모
-전체를 재검증하고 고정된 소유 위치에서 family를 도출하며 모든 일치 항목의 사용량과
-zero/unique/multiple/unavailable을 보존해야 합니다. 정확한 조회만으로 현재 권한이나
-호환성을 증명하지 않습니다. 완전한 semantic/current authority closure,
-snapshot/job/fence의 sealed publication과 전체 checkpoint 승인은 열려 있습니다.
+## 원본 부모 전체에 결합된 protocol 해석
+
+`readParentProtocolResolution`은 정확한 부모 source/scope/cut, 원본 occurrence 경로와
+유한 reference/replay-history 한도를 받습니다. 고정 dispatcher는 원본 부모 전체의
+body·source·receipt hash·observation을 재검증하고 모든 참조를 admission한 뒤에만
+경로를 선택하거나 catalogue를 조회합니다. 호출자가 validator·family·descriptor·
+child digest·선택된 승자를 제공할 수 없습니다.
+
+fixture의 소유 위치에서 capture adapter·source format·모델/도구 request normalizer를
+구별하고 반복 시도를 각각 보존합니다. replay의 위치에서 recorded adapter,
+`protocolVersion`을 포함한 released adapter와 plan·target·원본 result attempt의 worker
+protocol을 구별합니다. runtime adapter enumerator도 정확한 `/protocol` occurrence를
+보존합니다. 원래 소유 위치만 family와 전체 descriptor를 도출하며 무관한 artifact·
+credential·digest·runtime-profile 선언은 protocol 선택이 될 수 없습니다.
+
+전체 조회 응답은 순서와 256개 한도를 유지하고 missing·unique·multiple·unavailable을
+구별합니다. 모든 항목의 엄격한 body/digest와 원본 receipt cut을 소유 validator로
+검사합니다. 미래 등록이어도 유효한 원본 body와 전체 receipt hash를 보존합니다.
+미래 항목을 포함한 두 유효 후보는 multiple로 남기며 unavailable 항목을 버려서
+유일성을 만들지 않습니다. 잘못되거나 대체된 항목은 명시적 실패로 보존하고 같은 저장
+identity 중복은 전체 응답을 거부합니다. scope·family·모든 descriptor 필드를 별도로
+검사합니다. 공유 acquisition meter로 reader를 감싸 모든 항목과 byte를 해석 전에
+계산해야 하며, 부모 전체 reference 한도는 catalogue I/O 전에 항상 적용합니다.
+조회 자체의 실패는 그대로 전달합니다.
+
+`inspectParentProtocolResolution`은 조회 없이 같은 materialized join을 재계산합니다.
+결과는 정확한 부모 source/hash, 원본 occurrence, selector, 순서 있는 항목과 부모 전체
+검사 사용량을 포함합니다. specification/adapter를 실행하거나 호환성·현재 권한을
+검증하거나 snapshot을 게시하지 않습니다. 실제 PostgreSQL 조합은 기존 held metadata
+port와 DB cut을 쓰며 트랜잭션 종료 후 port는 만료됩니다. 이 해석은 독립적인 전체
+graph closure나 seal을 대체하지 않습니다.
+
+graph mapping과 보존된 graph 재검사는 아직 열려 있으며 모든 원본 occurrence,
+복수 후보와 authority frontier를 보존해야 합니다. 완전한 semantic/current authority
+closure, snapshot/job/fence의 sealed publication과 전체 checkpoint 승인은 열려 있습니다.
 끝난 observation report는 나중 publication을 승인할 수 없습니다.
 
 [ADR-0029](../architecture/0029-retain-distinct-protocol-definitions.ko.md),

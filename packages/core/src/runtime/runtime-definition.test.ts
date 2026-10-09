@@ -222,7 +222,7 @@ describe("exact runtime definition acquisition and dependency expansion", () => 
         inspectPolicyEvaluationRuntimeRecord(input(record), changedReceipt).observation,
       ).not.toEqual(inspectPolicyEvaluationRuntimeRecord(input(record), record).observation);
     });
-    it(`${kind}: expands all exact artifact occurrences with independent byte and full-record hashes`, async () => {
+    it(`${kind}: expands all exact artifact and protocol occurrences with independent byte and full-record hashes`, async () => {
       const query = input(record);
       const evidence = await readPolicyEvaluationRuntimeRecord(query, fixture().catalogue);
       const actual = enumeratePolicyEvaluationRuntimeReferences(query, evidence, limits);
@@ -235,6 +235,12 @@ describe("exact runtime definition acquisition and dependency expansion", () => 
         kind: "artifact",
         reference: (record as unknown as Record<string, unknown>)[key],
       }));
+      if (record.recordKind === "runtime_adapter")
+        expected.push({
+          path: "/protocol",
+          kind: "protocol_declaration",
+          reference: record.protocol,
+        });
       expect(actual.references).toEqual(expected);
       expect(actual.referenceBytes).toBe(
         expected.reduce((sum, entry) => sum + Buffer.byteLength(canonical(entry)), 0),
@@ -242,7 +248,7 @@ describe("exact runtime definition acquisition and dependency expansion", () => 
       expect(actual.recordSha256).toBe(
         createHash("sha256").update(canonical(record)).digest("hex"),
       );
-      const exact = { maxReferences: paths.length, maxReferenceBytes: actual.referenceBytes };
+      const exact = { maxReferences: expected.length, maxReferenceBytes: actual.referenceBytes };
       expect(enumeratePolicyEvaluationRuntimeReferences(query, evidence, exact)).toEqual(actual);
       for (const [key, reason] of [
         ["maxReferences", "reference_limit_exceeded"],
@@ -261,7 +267,7 @@ describe("exact runtime definition acquisition and dependency expansion", () => 
           inspectPolicyEvaluationRuntimeRecord(input(repeated), repeated),
           limits,
         ).references,
-      ).toHaveLength(paths.length);
+      ).toHaveLength(expected.length);
       const conflict = rehash({
         ...repeated,
         implementation: { ...repeated.configuration, sha256: "f".repeat(64) },

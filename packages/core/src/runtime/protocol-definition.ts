@@ -47,6 +47,13 @@ export function validateProtocolDefinitionRecord(raw: unknown): ProtocolDefiniti
   }
 }
 
+/** Complete original-record integrity, including registration receipts; not current authority. */
+export function digestProtocolDefinitionRecord(raw: unknown): string {
+  return createHash("sha256")
+    .update(encodeEvaluationCanonicalJson(validateProtocolDefinitionRecord(raw)))
+    .digest("hex");
+}
+
 export interface ProtocolDefinitionReader {
   findProtocolDefinition(scope: EvidenceScope, protocolDefinitionId: string): Promise<unknown>;
   /** All exact matches; no requested digest, latest lookup or dropping an ambiguous member. */

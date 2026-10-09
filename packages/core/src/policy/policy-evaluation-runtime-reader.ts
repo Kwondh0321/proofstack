@@ -87,8 +87,10 @@ export function enumeratePolicyEvaluationRuntimeReferences(
   >(input, evidence, inspectPolicyEvaluationRuntimeRecord);
   out.artifact("/configuration", checked.record.configuration);
   out.artifact("/implementation", checked.record.implementation);
-  if (checked.record.recordKind === "runtime_adapter")
+  if (checked.record.recordKind === "runtime_adapter") {
     out.artifact("/interfaceContract", checked.record.interfaceContract);
+    out.protocol("/protocol", checked.record.protocol);
+  }
   return {
     ...out.result(),
     source: checked.source,

@@ -1,7 +1,8 @@
 # Independently retained protocol definitions
 
-Status: retained data, exact source acquisition, dependency enumeration and scoped
-catalogue ports. Workflow 2 remains **2/7 accepted**; checkpoint 3 is open.
+Status: retained data, exact source acquisition, dependency enumeration, scoped
+catalogue ports and whole-parent protocol resolution. Workflow 2 remains **2/7 accepted**;
+checkpoint 3 is open.
 [한국어](workflow-2-protocol-definitions.ko.md).
 
 The seven protocol families retain distinct meanings despite similar descriptors:
@@ -77,13 +78,47 @@ returned member and byte before later owning selection. These are copied operato
 new durable PostgreSQL registry. No SQL table, migration, role/grant, route,
 worker or production composition is added.
 
-Hashless parent resolution and graph mapping remain open. Later resolution must
-revalidate each whole original parent, derive family from its fixed owning
-position, admit every matching member and preserve zero/unique/multiple/unavailable
-outcomes. Exact acquisition cannot infer current authority or compatibility from
-matching data. Complete semantic/current authority closure, sealed snapshot/job/fence
-publication and whole-checkpoint acceptance remain open. An ended observation
-report cannot authorize later publication.
+## Whole-parent protocol resolution
+
+`readParentProtocolResolution` takes the exact parent source/scope/cut, original
+occurrence path and finite reference/replay-history limits. Its fixed dispatcher
+revalidates the complete original parent body, source, full receipt hash and
+observation, then admits its entire reference list before selecting a path or
+reading any protocol catalogue. The caller cannot supply a validator, family,
+descriptor, child digest or selected winner.
+
+Owning fixture positions distinguish capture adapters, source formats and model/tool
+request normalizers, retaining repeated attempts separately. Replay positions distinguish
+recorded adapters, released adapters (including `protocolVersion`), and worker protocols
+on plans, targets and original result attempts. The runtime adapter enumerator also
+retains its exact `/protocol` occurrence. Only these owning positions derive the family
+and complete descriptor; unrelated artifact, credential, digest and runtime-profile
+declarations cannot become protocol selections.
+
+The complete ordered lookup response has a 256-member bound and preserves missing,
+unique, multiple and unavailable outcomes. Every member uses the protocol owner's strict
+body/digest validation and original receipt-cut inspection. Valid original bodies and
+full receipt hashes remain retained even when their registration is in the future.
+Two valid matches remain multiple, including a future sibling: unavailable data is not
+discarded to create uniqueness. Malformed or substituted members retain explicit failure;
+duplicate storage identities reject the whole response. Scope/family/all descriptor
+fields are checked independently. The shared acquisition meter must wrap the reader to
+charge all returned members and bytes before resolution; whole-parent reference limits
+are always enforced before catalogue I/O. Rejected storage calls propagate unchanged.
+
+`inspectParentProtocolResolution` recomputes the same materialized join without lookup.
+Outputs contain the exact parent source/hash, original occurrence, selector, ordered
+members and whole-parent inspection usage. They do not execute specification or adapter
+bytes, verify compatibility/current authority or publish a snapshot. Native PostgreSQL
+composition uses the existing held metadata ports and database cut; those ports expire
+when the transaction ends. This resolution is not a replacement for independent complete
+graph closure or a seal.
+
+Graph mapping and retained graph reinspection remain open. They must preserve every
+original occurrence, all ambiguous members and authority frontiers. Complete
+semantic/current authority closure, sealed snapshot/job/fence publication and
+whole-checkpoint acceptance remain open. An ended observation report cannot authorize
+later publication.
 
 See [ADR-0029](../architecture/0029-retain-distinct-protocol-definitions.md), the
 [entry audit](workflow-2-policy-evaluation-entry-audit.md),

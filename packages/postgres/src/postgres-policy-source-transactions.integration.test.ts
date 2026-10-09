@@ -20,6 +20,8 @@ import {
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
   type RecordedInteractionFixtureVersionDefinition,
+  type RuntimeDefinition,
+  type RuntimeDefinitionRecord,
 } from "@proofstack/contracts";
 import {
   digestEvaluationRecordDefinition,
@@ -38,6 +40,8 @@ import {
   releaseCandidateReference,
   releasePolicyReference,
   StaticEndpointProfileCatalogue,
+  digestRuntimeDefinition,
+  readPolicyEvaluationRuntimeRecord,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -61,6 +65,8 @@ import {
   type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
+  readParentProtocolResolution,
+  inspectParentProtocolResolution,
 } from "@proofstack/policy-evaluation";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -1016,6 +1022,139 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
           return "caught protocol read must still roll back";
         }),
       ).rejects.toThrow();
+  });
+
+  it("joins whole runtime parents to missing, unique and ambiguous original protocols on held native metadata ports", async () => {
+    const runtimeDocument = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/runtime-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: RuntimeDefinition } }[];
+    };
+    const runtimeBody = runtimeDocument.vectors
+      .map(({ input }) => input.definition)
+      .find((d) => d.recordKind === "runtime_adapter");
+    const protocolDocument = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: ProtocolDefinition } }[];
+    };
+    const protocolBody = protocolDocument.vectors
+      .map(({ input }) => input.definition)
+      .find((d) => d.family === "runtime_protocol");
+    if (!runtimeBody || !protocolBody)
+      throw new Error("Missing independent runtime/protocol vectors");
+    const parents: RuntimeDefinitionRecord[] = [0, 1, 2].map((index) => {
+      const scope = {
+        tenantId: `tenant_parent_protocol_${runKey}_${index}`,
+        projectId: "project_protocol",
+        environmentId: "environment_protocol",
+      };
+      return {
+        ...structuredClone(runtimeBody),
+        scope,
+        definitionSha256: digestRuntimeDefinition(scope, runtimeBody),
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.000Z",
+        registeredByPrincipalId: "operator_parent",
+      };
+    });
+    const protocols: ProtocolDefinitionRecord[] = parents.slice(0, 2).map((parent) => {
+      const definition = { ...structuredClone(protocolBody), descriptor: runtimeBody.protocol };
+      return {
+        ...definition,
+        scope: parent.scope,
+        definitionSha256: digestProtocolDefinition(parent.scope, definition),
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.001Z",
+        registeredByPrincipalId: "operator_protocol",
+      };
+    });
+    const first = protocols[0];
+    if (!first) throw new Error("Missing retained protocol");
+    const {
+      scope,
+      definitionSha256: _sha,
+      schemaVersion: _schema,
+      registeredAt: _at,
+      registeredByPrincipalId: _by,
+      ...firstBody
+    } = first;
+    const aliasBody = { ...firstBody, protocolDefinitionId: "protocol_future_alias" };
+    protocols.push({
+      ...aliasBody,
+      scope,
+      definitionSha256: digestProtocolDefinition(scope, aliasBody),
+      schemaVersion: "0.1",
+      registeredAt: "2099-01-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_protocol",
+    });
+    const adapter = new PostgresPolicySourceTransactions(admin, {
+      runtimeDefinitions: parents,
+      protocolDefinitions: protocols,
+    });
+    for (const [index, parent] of parents.entries()) {
+      if (parent.recordKind !== "runtime_adapter")
+        throw new Error("Missing actual runtime adapter");
+      const source = {
+        kind: "runtime_adapter" as const,
+        reference: {
+          adapterId: parent.adapterId,
+          adapterVersionId: parent.adapterVersionId,
+          definitionSha256: parent.definitionSha256,
+        },
+      };
+      let retained: Parameters<Parameters<typeof adapter.runMetadata>[1]>[0] | undefined;
+      const captured = await adapter.runMetadata(parent.scope, async (ports) => {
+        retained = ports;
+        const evaluationTime = await ports.sources.observationTime();
+        expect(evaluationTime).toMatch(/\.\d{6}Z$/u);
+        const evidence = await readPolicyEvaluationRuntimeRecord(
+          { scope: parent.scope, source, evaluationTime },
+          ports.records.runtimeDefinitions,
+        );
+        const input = {
+          scope: parent.scope,
+          source,
+          evaluationTime,
+          path: "/protocol",
+          limits: { maxReferences: 4, maxReferenceBytes: 10000 },
+          replayLimits: { maximumRecords: 2, maximumRecordBytes: 10000 },
+        };
+        const reader = ports.records.protocolDefinitions;
+        if (!reader) throw new Error("Missing protocol ports");
+        const result = await readParentProtocolResolution(input, evidence, reader);
+        expect(result.status).toBe(["multiple", "unique", "missing"][index]);
+        expect(result.parent.source).toEqual(source);
+        expect(result.reference.path).toBe("/protocol");
+        const expected = protocols
+          .filter((p) => p.scope.tenantId === parent.scope.tenantId)
+          .sort((a, b) => (a.protocolDefinitionId < b.protocolDefinitionId ? -1 : 1));
+        expect(result).toEqual(inspectParentProtocolResolution(input, evidence, expected));
+        expect(result.matches).toHaveLength(expected.length);
+        for (const member of result.matches) {
+          if (member.status !== "retained")
+            throw new Error("Expected complete original protocol member");
+          expect(member.recordSha256).toBe(
+            createHash("sha256").update(encodeEvaluationCanonicalJson(member.record)).digest("hex"),
+          );
+          expect(member.read.observation.status).toBe(
+            member.record.registeredAt.startsWith("2099") ? "unavailable" : "verified",
+          );
+        }
+        return { input, evidence };
+      });
+      const reader = retained?.records.protocolDefinitions;
+      if (!reader) throw new Error("Missing expired protocol ports");
+      await expect(
+        readParentProtocolResolution(captured.input, captured.evidence, reader),
+      ).rejects.toThrow("expired");
+    }
   });
 
   it("retains independent qualification policies across three tenant collisions with original receipts and expiring native ports", async () => {

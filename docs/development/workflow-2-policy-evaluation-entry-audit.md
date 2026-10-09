@@ -491,8 +491,13 @@ Exact source acquisition and scoped catalogue ports add the 48th source kind, co
 receipt hashing, full-precision availability and fixed specification/adapter artifact enumeration.
 Absent optional catalogues retain missingness. Descriptor-list ports retain every matching member,
 including future receipts, while cumulative admission charges all returned members and bytes.
-Hashless parent resolution/graph mapping, complete ambiguity inspection, current authority and
-sealed publication remain open; a copied catalogue is not a durable registry or publication authority.
+Whole-parent protocol resolution now revalidates each complete original fixture/replay/runtime
+parent and admits all references before deriving the family/descriptor at an exact owned path.
+It preserves ordered missing/unique/multiple/unavailable outcomes and original valid bodies/full
+receipt hashes, including future siblings; invalid/substituted members cannot be dropped to choose
+a winner. Duplicate storage identities fail. Native composition uses the held metadata ports and
+database cut. Protocol graph mapping/reinspection, current authority and sealed publication remain
+open; a copied catalogue or ended resolution report is not a durable registry or publication authority.
 
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
