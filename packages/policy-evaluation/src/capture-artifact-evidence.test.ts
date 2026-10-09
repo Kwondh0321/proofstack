@@ -56,6 +56,7 @@ import {
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
+import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
 import {
   observeCapturedCandidateAuthority,
   type PolicyCandidateAuthorities,
@@ -443,6 +444,328 @@ async function harness(
     fixtureDefinition,
   };
 }
+
+describe("complete ordered policy rule inputs", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
+  async function setup() {
+    const h = await harness();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing original rule capture");
+    return { h, output };
+  }
+
+  it("retains all seven kinds and every original rule field in policy order", async () => {
+    const { h, output } = await setup();
+    const report = output.ruleInputs;
+    expect(report.authorityBoundary).toBe("retained_inputs_only");
+    expect(report.request).toEqual(output.traceCapture.comparisonCapture.graph.request);
+    expect(report.scope).toEqual(h.request.scope);
+    expect(report.evaluationTime).toBe(h.request.evaluationTime);
+    expect(report.ruleCount).toBe(7);
+    expect(report.rules.map(({ ruleIndex }) => ruleIndex)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(report.rules.map(({ rule }) => rule)).toEqual(h.policy.rules);
+    expect(report.rules.map(({ binding }) => binding.kind)).toEqual([
+      "approval",
+      "artifact",
+      "comparison",
+      "comparison",
+      "assessment",
+      "comparison",
+      "assessment",
+    ]);
+    for (const frame of report.rules) {
+      const binding = frame.binding;
+      if (binding.kind === "approval") {
+        expect(binding).toEqual({
+          kind: "approval",
+          status: "not_evaluated",
+          reason: "approval_not_evaluated",
+          declaration: frame.rule.predicate,
+        });
+        expect(binding.declaration).toMatchObject({
+          quorum: 2,
+          excludeCandidateAuthor: true,
+          excludePolicyAuthor: true,
+          humanReviewerGroupIds: ["group_release_review"],
+          independenceGroupIds: ["group_release_review", "group_security_review"],
+          reviewerRoleIds: ["release_reviewer", "security_reviewer"],
+        });
+      } else {
+        const family =
+          binding.kind === "artifact"
+            ? output.artifactRules
+            : binding.kind === "comparison"
+              ? output.comparisonRules
+              : output.assessmentRules;
+        expect(family.rules[binding.inputIndex]).toMatchObject({
+          ruleIndex: frame.ruleIndex,
+          ruleId: frame.rule.ruleId,
+          predicate: frame.rule.predicate,
+        });
+      }
+      expect(frame).not.toHaveProperty("outcome");
+      expect(frame.rule).toHaveProperty("rationale");
+      expect(frame.rule.sources.length).toBeGreaterThan(0);
+    }
+    expect(report).not.toHaveProperty("outcome");
+    expect(publicApi).not.toHaveProperty("inspectCapturedRuleInputs");
+  });
+
+  it.each(["comparison_metric_samples", "assessment_samples"] as const)(
+    "keeps the %s coverage source in its exact owning family",
+    async (sourceKind) => {
+      const h = await harness(false, 1, {
+        mutatePolicy(policy) {
+          const template = policy.rules[0];
+          const comparison = policy.rules.find(
+            ({ predicate }) => predicate.kind === "comparison_threshold",
+          )?.predicate;
+          const assessment = policy.rules.find(
+            ({ predicate }) =>
+              predicate.kind === "eligibility_required" &&
+              predicate.assessmentClass === "evaluation",
+          )?.predicate;
+          if (
+            !template ||
+            comparison?.kind !== "comparison_threshold" ||
+            assessment?.kind !== "eligibility_required" ||
+            assessment.assessmentClass !== "evaluation"
+          )
+            throw new Error("Missing original coverage declarations");
+          policy.rules.push({
+            ...structuredClone(template),
+            ruleId: "additional_coverage",
+            predicate:
+              sourceKind === "comparison_metric_samples"
+                ? {
+                    kind: "coverage_floor",
+                    sourceKind,
+                    comparison: comparison.comparison,
+                    metricId: comparison.metricId,
+                    minimumCount: 1,
+                    sampleClass: "paired_total",
+                    unit: "cases",
+                  }
+                : {
+                    kind: "coverage_floor",
+                    sourceKind,
+                    assessment: assessment.assessment,
+                    minimumCount: 1,
+                    sampleClass: "decided",
+                    unit: "cases",
+                  },
+          });
+          policy.rules.sort((a, b) => (a.ruleId < b.ruleId ? -1 : 1));
+        },
+      });
+      const output = await h.execute();
+      if (output.status !== "artifacts_captured")
+        throw new Error("Missing original coverage capture");
+      const frame = output.ruleInputs.rules.find(
+        ({ rule }) => rule.ruleId === "additional_coverage",
+      );
+      const kind = sourceKind === "assessment_samples" ? "assessment" : "comparison";
+      if (!frame || frame.binding.kind === "approval")
+        throw new Error("Missing original coverage frame");
+      expect(frame.binding.kind).toBe(kind);
+      const family = kind === "assessment" ? output.assessmentRules : output.comparisonRules;
+      expect(family.rules[frame.binding.inputIndex]).toMatchObject({
+        ruleId: "additional_coverage",
+        ruleIndex: frame.ruleIndex,
+        predicate: { sourceKind },
+      });
+      expect(output.ruleInputs.rules.map(({ rule }) => rule)).toEqual(h.policy.rules);
+    },
+  );
+
+  it("retains the separate model eligibility source and its explicit missing observation", async () => {
+    const model = {
+      assessmentExtensionId: "model_rule_assembly",
+      definitionSha256: "3".repeat(64),
+    };
+    const h = await harness(false, 1, {
+      mutateCandidate(candidate) {
+        candidate.modelAssuranceAssessments.push(model);
+        candidate.modelAssuranceAssessments.sort((a, b) =>
+          a.assessmentExtensionId < b.assessmentExtensionId ? -1 : 1,
+        );
+      },
+      mutatePolicy(policy) {
+        const template = policy.rules[0];
+        if (!template) throw new Error("Missing original model rule template");
+        policy.rules.push({
+          ...structuredClone(template),
+          ruleId: "additional_model_eligibility",
+          predicate: {
+            kind: "eligibility_required",
+            assessmentClass: "model_assurance",
+            assessment: model,
+            expected: "eligible",
+          },
+        });
+        policy.rules.sort((a, b) => (a.ruleId < b.ruleId ? -1 : 1));
+      },
+    });
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing model input capture");
+    const frame = output.ruleInputs.rules.find(
+      ({ rule }) => rule.ruleId === "additional_model_eligibility",
+    );
+    if (frame?.binding.kind !== "assessment") throw new Error("Missing exact model input family");
+    expect(output.assessmentRules.rules[frame.binding.inputIndex]).toMatchObject({
+      predicate: { assessmentClass: "model_assurance", assessment: model },
+      source: { kind: "model_assurance_assessment", reference: model },
+      binding: { status: "assessment_unavailable", observation: { status: "missing" } },
+    });
+    expect(frame).not.toHaveProperty("outcome");
+  });
+
+  it("preserves repeated comparisons with distinct full source and waiver metadata and one approval", async () => {
+    const h = await harness(false, 1, {
+      mutatePolicy(policy) {
+        const comparison = policy.rules.find(
+          ({ predicate }) => predicate.kind === "comparison_threshold",
+        );
+        if (!comparison) throw new Error("Missing original comparison rule");
+        policy.rules.push({
+          ...structuredClone(comparison),
+          ruleId: "comparison_secondary",
+          nonWaivable: true,
+          rationale: "Separate retained prerequisite.",
+        });
+        policy.rules.sort((a, b) => (a.ruleId < b.ruleId ? -1 : 1));
+      },
+    });
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing repeated rule capture");
+    expect(output.ruleInputs.ruleCount).toBe(8);
+    expect(output.ruleInputs.rules.map(({ rule }) => rule)).toEqual(h.policy.rules);
+    const repeated = output.ruleInputs.rules.filter(
+      ({ rule }) => rule.predicate.kind === "comparison_threshold",
+    );
+    expect(repeated).toHaveLength(2);
+    expect(repeated.map(({ rule }) => rule.nonWaivable)).toEqual([false, true]);
+    const first = repeated[0]?.binding;
+    const second = repeated[1]?.binding;
+    if (first?.kind !== "comparison" || second?.kind !== "comparison")
+      throw new Error("Missing repeated original inputs");
+    expect(first.inputIndex).not.toBe(second.inputIndex);
+    expect(output.comparisonRules.rules[first.inputIndex]?.binding).toEqual(
+      output.comparisonRules.rules[second.inputIndex]?.binding,
+    );
+    expect(
+      output.ruleInputs.rules.filter(({ binding }) => binding.kind === "approval"),
+    ).toHaveLength(1);
+  });
+
+  it("owns full rules and performs no extra repository, object or key I/O", async () => {
+    const { h, output } = await setup();
+    const capture = output.traceCapture.comparisonCapture;
+    const original = structuredClone({ capture, artifacts: output.artifacts });
+    for (const spy of [h.find, h.get, h.decrypt, h.exact, h.root]) spy.mockClear();
+    const assembled = inspectCapturedRuleInputs(h.request, capture, output.artifacts, limits);
+    expect(assembled.ruleInputs).toEqual(output.ruleInputs);
+    const approval = assembled.ruleInputs.rules.find(({ binding }) => binding.kind === "approval");
+    if (approval?.binding.kind !== "approval") throw new Error("Missing original approval");
+    Reflect.set(approval.rule, "sources", []);
+    Reflect.set(approval.binding.declaration, "quorum", 1);
+    Reflect.set(assembled.ruleInputs, "rules", []);
+    expect({ capture, artifacts: output.artifacts }).toEqual(original);
+    for (const spy of [h.find, h.get, h.decrypt, h.exact, h.root])
+      expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("admits all family and full-rule frames at exact canonical count/byte limits and rejects one below", async () => {
+    const { h, output } = await setup();
+    const capture = output.traceCapture.comparisonCapture;
+    const assembled = inspectCapturedRuleInputs(h.request, capture, output.artifacts, limits);
+    const { rules, inspectionUsage: _usage, ...context } = assembled.ruleInputs;
+    const frames = [context, ...rules];
+    expect(assembled.ruleInputs.inspectionUsage).toEqual({
+      references: frames.length,
+      referenceBytes: frames.reduce(
+        (sum, frame) => sum + encodeEvaluationCanonicalJson(frame).byteLength,
+        0,
+      ),
+    });
+    const families = [
+      assembled.artifactRules,
+      assembled.comparisonRules,
+      assembled.assessmentRules,
+    ];
+    const exact = {
+      maxReferences:
+        frames.length +
+        families.reduce((sum, report) => sum + report.inspectionUsage.references, 0),
+      maxReferenceBytes:
+        assembled.ruleInputs.inspectionUsage.referenceBytes +
+        families.reduce((sum, report) => sum + report.inspectionUsage.referenceBytes, 0),
+    };
+    expect(inspectCapturedRuleInputs(h.request, capture, output.artifacts, exact)).toEqual(
+      assembled,
+    );
+    expect(() =>
+      inspectCapturedRuleInputs(h.request, capture, output.artifacts, {
+        ...exact,
+        maxReferences: exact.maxReferences - 1,
+      }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspectCapturedRuleInputs(h.request, capture, output.artifacts, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow("reference_bytes_exceeded");
+  });
+
+  it.each([
+    "request",
+    "scope",
+    "time",
+    "roots",
+    "policy_body",
+    "policy_receipt",
+    "policy_hash",
+    "rule_order",
+    "rule_missing",
+    "edge",
+    "inventory",
+    "assessment_report",
+  ] as const)("rejects substituted %s before assembling the full original rules", async (fault) => {
+    const { h, output } = await setup();
+    const capture = structuredClone(output.traceCapture.comparisonCapture);
+    const graph = capture.graph;
+    const policy = graph.nodes.find(({ read }) => read.source.kind === "release_policy");
+    if (!policy || policy.read.record === null) throw new Error("Missing exact original policy");
+    if (fault === "request") Reflect.set(graph.request, "evaluationRequestId", "other_request");
+    if (fault === "scope") Reflect.set(graph.scope, "projectId", "other_project");
+    if (fault === "time") Reflect.set(graph, "evaluationTime", "2027-01-01T00:00:00.000Z");
+    if (fault === "roots") Reflect.set(graph, "roots", [...graph.roots].reverse());
+    if (fault === "policy_body")
+      Reflect.set(policy.read.record, "changeRationale", "Substituted definition.");
+    if (fault === "policy_receipt")
+      Reflect.set(policy.read.record, "publishedByPrincipalId", "other_principal");
+    if (fault === "policy_hash")
+      Reflect.set(policy.read.observation, "recordSha256", "0".repeat(64));
+    if (fault === "rule_order" || fault === "rule_missing") {
+      const record = policy.read.record as ReleasePolicy;
+      Reflect.set(
+        record,
+        "rules",
+        fault === "rule_order" ? [...record.rules].reverse() : record.rules.slice(1),
+      );
+    }
+    if (fault === "edge") {
+      const edge = graph.edges.find(({ parent }) => parent.kind === "release_policy");
+      if (!edge) throw new Error("Missing original policy edge");
+      Reflect.set(edge, "parentRecordSha256", "0".repeat(64));
+    }
+    if (fault === "inventory" && capture.status === "inventory_captured")
+      Reflect.set(capture, "inventory", {});
+    if (fault === "assessment_report") Reflect.set(graph.policyAssessments, "rules", []);
+    expect(() => inspectCapturedRuleInputs(h.request, capture, output.artifacts, limits)).toThrow();
+  });
+});
 
 describe("candidate external-authority capture", () => {
   async function setup(changes: Parameters<typeof harness>[2] = {}) {
@@ -1022,6 +1345,7 @@ describe("request-rooted authorized artifact capture", () => {
         output.applicability.inspectionUsage.references +
         output.comparisonRules.inspectionUsage.references +
         output.assessmentRules.inspectionUsage.references +
+        output.ruleInputs.inspectionUsage.references +
         output.artifactRules.inspectionUsage.references,
     );
     expect(output.usage.artifacts).toEqual({
@@ -2030,7 +2354,7 @@ describe("request-owned source recheck composition", () => {
   });
 
   it("charges each retained terminal-history row as well as its reread operation", async () => {
-    const f = await recheckHarness(150);
+    const f = await recheckHarness(160);
     // Keep record admission, rather than reference admission, the limiting dimension.
     f.h.events.forEach((event, index) => {
       event.evidence.contentReferences =
@@ -2053,7 +2377,7 @@ describe("request-owned source recheck composition", () => {
       recheck.guards + recheck.artifactReads + recheck.policyReads + 2 + 1,
     );
     expect(output.usage.records).toBeGreaterThan(output.usage.references);
-    const fresh = await recheckHarness(150);
+    const fresh = await recheckHarness(160);
     fresh.h.events.forEach((event, index) => {
       event.evidence.contentReferences =
         index < 4 ? Array.from({ length: 24 }, () => reference) : [];

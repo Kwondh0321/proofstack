@@ -23,24 +23,16 @@ import {
   validatePolicyEvaluationRequestRecord,
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
-import {
-  inspectCapturedArtifactRules,
-  type PolicyArtifactRuleBindings,
-} from "./capture-artifact-rules.js";
+import type { PolicyArtifactRuleBindings } from "./capture-artifact-rules.js";
 import {
   candidateAuthorityMaterialFingerprint,
   observeCapturedCandidateAuthority,
   type PolicyCandidateAuthorities,
   type PolicyCandidateAuthorityObservation,
 } from "./capture-candidate-authority.js";
-import {
-  inspectCapturedComparisonRules,
-  type PolicyComparisonRuleBindings,
-} from "./capture-comparison-rules.js";
-import {
-  inspectCapturedAssessmentRules,
-  type PolicyAssessmentRuleInputs,
-} from "./capture-assessment-rules.js";
+import type { PolicyComparisonRuleBindings } from "./capture-comparison-rules.js";
+import type { PolicyAssessmentRuleInputs } from "./capture-assessment-rules.js";
+import { inspectCapturedRuleInputs, type PolicyRuleInputs } from "./capture-rule-inputs.js";
 import {
   type CriterionAuthorityReadRepository,
   criterionAuthorityMaterialFingerprint,
@@ -137,6 +129,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly applicability: PolicyApplicabilityInputs;
       readonly comparisonRules: PolicyComparisonRuleBindings;
       readonly assessmentRules: PolicyAssessmentRuleInputs;
+      readonly ruleInputs: PolicyRuleInputs;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly criterionAuthority: {
         readonly beforeArtifacts: PolicyCriterionAuthorityObservation;
@@ -330,19 +323,16 @@ export async function capturePolicyArtifactEvidence(
       evaluationTrust.inspectionUsage.references,
       evaluationTrust.inspectionUsage.referenceBytes,
     );
-    const artifactRules = inspectCapturedArtifactRules(
-      request,
-      traceCapture.comparisonCapture.graph,
-      artifacts,
-      {
+    const { artifactRules, comparisonRules, assessmentRules, ruleInputs } =
+      inspectCapturedRuleInputs(request, traceCapture.comparisonCapture, artifacts, {
         maxReferences: request.limits.maxAcquisitionRecords,
         maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
-      },
-    );
-    budget.addReferences(
-      artifactRules.inspectionUsage.references,
-      artifactRules.inspectionUsage.referenceBytes,
-    );
+      });
+    for (const report of [artifactRules, comparisonRules, assessmentRules, ruleInputs])
+      budget.addReferences(
+        report.inspectionUsage.references,
+        report.inspectionUsage.referenceBytes,
+      );
     const candidateAfterArtifacts = await observeCandidateAuthority();
     if (
       candidateAuthorityMaterialFingerprint(candidateBeforeArtifacts) !==
@@ -369,30 +359,6 @@ export async function capturePolicyArtifactEvidence(
     budget.addReferences(
       policyAuthority.inspectionUsage.references + applicability.inspectionUsage.references,
       policyAuthority.inspectionUsage.referenceBytes + applicability.inspectionUsage.referenceBytes,
-    );
-    const comparisonRules = inspectCapturedComparisonRules(
-      request,
-      traceCapture.comparisonCapture,
-      {
-        maxReferences: request.limits.maxAcquisitionRecords,
-        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
-      },
-    );
-    budget.addReferences(
-      comparisonRules.inspectionUsage.references,
-      comparisonRules.inspectionUsage.referenceBytes,
-    );
-    const assessmentRules = inspectCapturedAssessmentRules(
-      request,
-      traceCapture.comparisonCapture.graph,
-      {
-        maxReferences: request.limits.maxAcquisitionRecords,
-        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
-      },
-    );
-    budget.addReferences(
-      assessmentRules.inspectionUsage.references,
-      assessmentRules.inspectionUsage.referenceBytes,
     );
     const criteriaAfterArtifacts = await observeCriteria();
     if (
@@ -450,6 +416,7 @@ export async function capturePolicyArtifactEvidence(
       applicability,
       comparisonRules,
       assessmentRules,
+      ruleInputs,
       evaluationTrust,
       criterionAuthority: {
         beforeArtifacts: criteriaBeforeArtifacts,

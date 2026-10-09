@@ -35,6 +35,7 @@ export type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js
 export type { PolicyApplicabilityInputs } from "./capture-policy-applicability.js";
 export type { PolicyComparisonRuleBindings } from "./capture-comparison-rules.js";
 export type { PolicyAssessmentRuleInputs } from "./capture-assessment-rules.js";
+export type { PolicyRuleInputs } from "./capture-rule-inputs.js";
 export type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 export {
   capturePolicyRecordGraph,

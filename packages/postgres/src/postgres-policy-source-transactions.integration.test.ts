@@ -877,6 +877,25 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
     }
     expect(result.assessmentRules.rules.length).toBeGreaterThan(0);
     expect(result.assessmentRules).not.toHaveProperty("outcome");
+    expect(result.ruleInputs.authorityBoundary).toBe("retained_inputs_only");
+    expect(result.ruleInputs.request).toEqual(graph.request);
+    expect(result.ruleInputs.scope).toEqual(graph.scope);
+    expect(result.ruleInputs.evaluationTime).toBe(graph.evaluationTime);
+    expect(result.ruleInputs.candidate).toEqual(result.artifactRules.candidate);
+    expect(result.ruleInputs.policy).toEqual(result.artifactRules.policy);
+    expect(result.ruleInputs.ruleCount).toBe(result.ruleInputs.rules.length);
+    expect(result.ruleInputs.rules.map(({ ruleIndex }) => ruleIndex)).toEqual(
+      result.ruleInputs.rules.map((_, index) => index),
+    );
+    for (const frame of result.ruleInputs.rules) {
+      expect(frame).not.toHaveProperty("outcome");
+      if (frame.binding.kind === "approval")
+        expect(frame.binding).toMatchObject({
+          status: "not_evaluated",
+          reason: "approval_not_evaluated",
+        });
+    }
+    expect(result.ruleInputs).not.toHaveProperty("outcome");
     expect(result.artifactRules.candidate.source).toEqual(
       graph.roots.find((root) => root.kind === "release_candidate"),
     );

@@ -277,6 +277,14 @@ sources, contradictory prerequisite checks and repeated rules remain explicit.
 Complete inspection shares finite admission; retained values are not current authority,
 qualified operands, policy results or a seal. Checkpoint 3 remains open.
 
+The [complete ordered rule inputs](workflow-2-complete-rule-inputs.md) compose all
+three fixed owning input families exactly once and retain every full original rule
+in policy order, bound to the request/scope/time and exact candidate/policy hashes.
+All seven kinds keep distinct original family indexes; the single permitted approval
+declaration remains explicitly not_evaluated with approval_not_evaluated. Full frames
+share canonical admission. This does not complete current authority, sealed contracts,
+deterministic outcomes or checkpoint 3 acceptance.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture
