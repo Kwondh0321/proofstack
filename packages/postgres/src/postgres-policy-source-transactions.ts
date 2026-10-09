@@ -6,11 +6,12 @@ import {
   type PolicyInstallationBinding,
 } from "@proofstack/contracts";
 import {
-  StaticPolicyInstallationBindingResolver,
-  StaticRuntimeDefinitionCatalogue,
-  StaticEvaluationImplementationRegistrationCatalogue,
-  StaticQualificationPolicyCatalogue,
   StaticEndpointProfileCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
+  StaticPolicyInstallationBindingResolver,
+  StaticProtocolDefinitionCatalogue,
+  StaticQualificationPolicyCatalogue,
+  StaticRuntimeDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   type PolicyEvaluationMetadataPorts,
@@ -43,6 +44,7 @@ export interface PostgresPolicyMetadataCatalogues {
   readonly implementationRegistrations?: readonly unknown[];
   readonly qualificationPolicies?: readonly unknown[];
   readonly endpointProfiles?: readonly unknown[];
+  readonly protocolDefinitions?: readonly unknown[];
 }
 
 /** Trusted read-only adapter. A pool does not confer worker or snapshot-publication authority. */
@@ -60,6 +62,9 @@ export class PostgresPolicySourceTransactions
     if (!Array.isArray(bindings) || bindings.length > MAX_POLICY_METADATA_INSTALLATION_BINDINGS)
       throw new TypeError("Policy metadata installation catalogue exceeds its entry limit");
     this.catalogues = {
+      protocolDefinitions: new StaticProtocolDefinitionCatalogue(
+        catalogues.protocolDefinitions === undefined ? [] : catalogues.protocolDefinitions,
+      ),
       endpointProfiles: new StaticEndpointProfileCatalogue(
         catalogues.endpointProfiles === undefined ? [] : catalogues.endpointProfiles,
       ),

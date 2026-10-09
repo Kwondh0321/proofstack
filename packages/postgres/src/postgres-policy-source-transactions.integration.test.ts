@@ -7,6 +7,9 @@ import {
   type ContentReference,
   type EndpointProfileDefinition,
   type EndpointProfileRecord,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSelectorSchema,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
   type QualificationPolicyDefinition,
@@ -21,6 +24,9 @@ import {
 import {
   digestEvaluationRecordDefinition,
   digestEndpointProfile,
+  digestProtocolDefinition,
+  readPolicyEvaluationProtocolRecord,
+  enumeratePolicyEvaluationProtocolReferences,
   readPolicyEvaluationEndpointProfileRecord,
   digestEvaluationImplementationRegistration,
   readPolicyEvaluationImplementationRecord,
@@ -837,6 +843,179 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
         }),
       ).rejects.toThrow("scope");
     }
+  });
+
+  it("retains exact and ambiguous protocol declarations across three native tenant scopes with expiring guarded ports", async () => {
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: { input: { definition: ProtocolDefinition } }[];
+    };
+    const definitions = document.vectors.slice(0, 7).map(({ input }) => input.definition);
+    expect(definitions).toHaveLength(7);
+    const rows: ProtocolDefinitionRecord[] = [0, 1, 2].flatMap((index) => {
+      const scope = {
+        tenantId: `tenant_protocol_${runKey}_${index}`,
+        projectId: "project_protocol",
+        environmentId: "environment_protocol",
+      };
+      return definitions.map((definition) => ({
+        ...structuredClone(definition),
+        scope,
+        definitionSha256: digestProtocolDefinition(scope, definition),
+        schemaVersion: "0.1" as const,
+        registeredAt: "2026-09-01T00:00:00.001Z",
+        registeredByPrincipalId: "operator_protocol",
+      }));
+    });
+    const original = rows[0];
+    const firstDefinition = definitions[0];
+    if (!original || !firstDefinition) throw new Error("Missing protocol fixture");
+    const aliasDefinition = { ...firstDefinition, protocolDefinitionId: "protocol_alias" };
+    const alias: ProtocolDefinitionRecord = {
+      ...aliasDefinition,
+      scope: original.scope,
+      definitionSha256: digestProtocolDefinition(original.scope, aliasDefinition),
+      schemaVersion: "0.1",
+      registeredAt: "2099-01-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_protocol",
+    };
+    rows.push(alias);
+    const retainedRows = structuredClone(rows);
+    const adapter = new PostgresPolicySourceTransactions(admin, { protocolDefinitions: rows });
+    await expect(
+      new PostgresPolicySourceTransactions(api, { protocolDefinitions: rows }).runMetadata(
+        original.scope,
+        async () => "guard must deny API",
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    for (const record of rows) {
+      record.specification.sha256 = "0".repeat(64);
+      record.descriptor.version = "mutated_input";
+    }
+    rows.length = 0;
+    for (const record of retainedRows) {
+      let retained: Parameters<Parameters<typeof adapter.runMetadata>[1]>[0] | undefined;
+      const selector = ProtocolDefinitionSelectorSchema.parse({
+        family: record.family,
+        descriptor: record.descriptor,
+      });
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.protocolDefinitions;
+        if (!reader) throw new Error("Missing native protocol ports");
+        const cut = await ports.sources.observationTime();
+        expect(cut).toMatch(/\.\d{6}Z$/u);
+        const input = {
+          scope: record.scope,
+          evaluationTime: cut,
+          source: {
+            kind: "protocol_definition" as const,
+            reference: {
+              protocolDefinitionId: record.protocolDefinitionId,
+              definitionSha256: record.definitionSha256,
+            },
+          },
+        };
+        const result = await readPolicyEvaluationProtocolRecord(input, reader);
+        if (record.registeredAt.startsWith("2099")) {
+          expect(result.observation).toEqual({
+            status: "unavailable",
+            reason: "not_yet_available",
+          });
+        } else {
+          expect(result.observation.status).toBe("verified");
+          expect(result.record).toEqual(record);
+          const references = enumeratePolicyEvaluationProtocolReferences(input, result, {
+            maxReferences: 3,
+            maxReferenceBytes: 10_000,
+          }).references;
+          expect(references.map(({ path }) => path)).toEqual(
+            "implementation" in record
+              ? ["/specification", "/implementation", "/configuration"]
+              : ["/specification"],
+          );
+          expect(
+            (
+              await readPolicyEvaluationProtocolRecord(
+                { ...input, evaluationTime: "2026-09-01T00:00:00.000999Z" },
+                reader,
+              )
+            ).observation,
+          ).toEqual({ status: "unavailable", reason: "not_yet_available" });
+        }
+        const matches = (await reader.listProtocolDefinitions(
+          record.scope,
+          selector,
+        )) as ProtocolDefinitionRecord[];
+        const expected = retainedRows
+          .filter(
+            (r) =>
+              r.scope.tenantId === record.scope.tenantId &&
+              r.family === record.family &&
+              JSON.stringify(r.descriptor) === JSON.stringify(record.descriptor),
+          )
+          .sort((a, b) => (a.protocolDefinitionId < b.protocolDefinitionId ? -1 : 1));
+        expect(matches).toEqual(expected);
+        const first = matches[0];
+        if (!first) throw new Error("Missing retained matches");
+        first.specification.sha256 = "f".repeat(64);
+        matches.length = 0;
+        await expect(reader.listProtocolDefinitions(record.scope, selector)).resolves.toEqual(
+          expected,
+        );
+        await expect(
+          reader.findProtocolDefinition(record.scope, "protocol_missing"),
+        ).resolves.toBeNull();
+        await expect(
+          reader.listProtocolDefinitions(
+            record.scope,
+            ProtocolDefinitionSelectorSchema.parse({
+              family: record.family,
+              descriptor: {
+                ...record.descriptor,
+                version: record.descriptor.version.toLowerCase(),
+              },
+            }),
+          ),
+        ).resolves.toEqual([]);
+      });
+      if (!retained?.records.protocolDefinitions) throw new Error("Missing expired protocol ports");
+      await expect(
+        retained.records.protocolDefinitions.findProtocolDefinition(
+          record.scope,
+          record.protocolDefinitionId,
+        ),
+      ).rejects.toThrow("expired");
+      await expect(
+        retained.records.protocolDefinitions.listProtocolDefinitions(record.scope, selector),
+      ).rejects.toThrow("expired");
+    }
+    const retainedOriginal = retainedRows[0];
+    if (!retainedOriginal) throw new Error("Missing original protocol");
+    for (const kind of ["scope", "selector"])
+      await expect(
+        adapter.runMetadata(retainedOriginal.scope, async ({ records }) => {
+          const reader = records.protocolDefinitions;
+          if (!reader) throw new Error("Missing guarded protocol ports");
+          const scope =
+            kind === "scope"
+              ? { ...retainedOriginal.scope, tenantId: "tenant_outside" }
+              : retainedOriginal.scope;
+          const selector =
+            kind === "selector"
+              ? {
+                  family: "worker_protocol",
+                  descriptor: { name: "wire", version: "v1", extra: true },
+                }
+              : { family: "worker_protocol", descriptor: { name: "wire", version: "v1" } };
+          await reader.listProtocolDefinitions(scope, selector as never).catch(() => undefined);
+          return "caught protocol read must still roll back";
+        }),
+      ).rejects.toThrow();
   });
 
   it("retains independent qualification policies across three tenant collisions with original receipts and expiring native ports", async () => {

@@ -1,30 +1,35 @@
 import type { EvidenceScope, PolicyEvaluationSourceReference } from "@proofstack/contracts";
 import {
   enumeratePolicyEvaluationControlReferences,
+  enumeratePolicyEvaluationEndpointProfileReferences,
   enumeratePolicyEvaluationEvidenceReferences,
   enumeratePolicyEvaluationImplementationReferences,
+  enumeratePolicyEvaluationProtocolReferences,
   enumeratePolicyEvaluationQualificationPolicyReferences,
-  enumeratePolicyEvaluationEndpointProfileReferences,
   enumeratePolicyEvaluationRuntimeReferences,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationControlReaderDependencies,
+  type PolicyEvaluationEndpointProfileRead,
   type PolicyEvaluationEvidenceRead,
   type PolicyEvaluationEvidenceReaderDependencies,
   type PolicyEvaluationEvidenceReference,
   type PolicyEvaluationEvidenceReferenceLimits,
   type PolicyEvaluationImplementationRead,
+  type PolicyEvaluationProtocolRead,
   type PolicyEvaluationQualificationPolicyRead,
-  type PolicyEvaluationEndpointProfileRead,
   type PolicyEvaluationRuntimeRead,
+  type ProtocolDefinitionReader,
   readPolicyEvaluationControlRecord,
+  readPolicyEvaluationEndpointProfileRecord,
   readPolicyEvaluationEvidence,
   readPolicyEvaluationImplementationRecord,
+  readPolicyEvaluationProtocolRecord,
   readPolicyEvaluationQualificationPolicyRecord,
-  readPolicyEvaluationEndpointProfileRecord,
   readPolicyEvaluationRuntimeRecord,
-  StaticEvaluationImplementationRegistrationCatalogue,
-  StaticQualificationPolicyCatalogue,
   StaticEndpointProfileCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
+  StaticProtocolDefinitionCatalogue,
+  StaticQualificationPolicyCatalogue,
 } from "@proofstack/core";
 import {
   enumeratePolicyEvaluationDatasetReferences,
@@ -41,6 +46,7 @@ import {
 } from "@proofstack/replay";
 
 export interface PolicyRecordGraphRepositories {
+  readonly protocolDefinitions?: ProtocolDefinitionReader;
   readonly endpointProfiles?: Parameters<typeof readPolicyEvaluationEndpointProfileRecord>[1];
   readonly control: PolicyEvaluationControlReaderDependencies;
   readonly evidence: PolicyEvaluationEvidenceReaderDependencies;
@@ -57,6 +63,7 @@ export interface PolicyRecordGraphRepositories {
 }
 
 export type PolicyRecordRead =
+  | PolicyEvaluationProtocolRead
   | PolicyEvaluationEndpointProfileRead
   | PolicyEvaluationControlRead
   | PolicyEvaluationEvidenceRead
@@ -84,6 +91,7 @@ export const emptyImplementationRegistrations =
   new StaticEvaluationImplementationRegistrationCatalogue([]);
 export const emptyQualificationPolicies = new StaticQualificationPolicyCatalogue([]);
 export const emptyEndpointProfiles = new StaticEndpointProfileCatalogue([]);
+export const emptyProtocolDefinitions = new StaticProtocolDefinitionCatalogue([]);
 
 /** Fixed owning reinspection of retained bodies; no repository ports or caller validators. */
 export function enumerateCapturedPolicyRecord(
@@ -94,6 +102,12 @@ export function enumerateCapturedPolicyRecord(
 ) {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "protocol_definition":
+      return enumeratePolicyEvaluationProtocolReferences(
+        { source, scope, evaluationTime },
+        read as PolicyEvaluationProtocolRead,
+        limits,
+      );
     case "endpoint_profile":
       return enumeratePolicyEvaluationEndpointProfileReferences(
         { source, scope, evaluationTime },
@@ -181,6 +195,16 @@ export async function readAndExpandPolicyRecord(
 ): Promise<PolicyRecordExpansion> {
   const { source, scope, evaluationTime } = context;
   switch (source.kind) {
+    case "protocol_definition": {
+      const input = { source, scope, evaluationTime };
+      return finish(
+        await readPolicyEvaluationProtocolRecord(
+          input,
+          repositories.protocolDefinitions ?? emptyProtocolDefinitions,
+        ),
+        (read) => enumeratePolicyEvaluationProtocolReferences(input, read, limits),
+      );
+    }
     case "endpoint_profile": {
       const input = { source, scope, evaluationTime };
       return finish(

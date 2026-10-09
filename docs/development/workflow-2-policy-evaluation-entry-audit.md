@@ -487,8 +487,12 @@ original families, complete exact descriptors and independent opaque storage ide
 canonical definitions retain specification artifacts and adapter implementation/configuration
 dependencies, original receipts and a copied 256-record catalogue. Duplicate storage identities
 fail; distinct exact descriptor matches remain explicit rather than becoming a selected winner.
-The source inventory remains 47: protocol source/parent/graph/scoped-port acquisition, bounded
-complete ambiguity inspection, current authority and sealed publication remain open.
+Exact source acquisition and scoped catalogue ports add the 48th source kind, complete original
+receipt hashing, full-precision availability and fixed specification/adapter artifact enumeration.
+Absent optional catalogues retain missingness. Descriptor-list ports retain every matching member,
+including future receipts, while cumulative admission charges all returned members and bytes.
+Hashless parent resolution/graph mapping, complete ambiguity inspection, current authority and
+sealed publication remain open; a copied catalogue is not a durable registry or publication authority.
 
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent

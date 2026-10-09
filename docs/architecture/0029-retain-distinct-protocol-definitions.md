@@ -77,10 +77,11 @@ existing distinct assurance domain.
 
 ### Follow-up
 
-Add exact source acquisition, whole-parent resolution, bounded complete match
-inspection, graph/reinspection and scoped metadata ports after this data slice's
-gates. Retain original occurrences, artifact dependencies, authority frontiers and
-full observation hashes. Complete semantic/current authority closure, sealed
+Exact source acquisition, complete dependency enumeration and scoped catalogue
+ports are now implemented as described in the [protocol guide](../development/workflow-2-protocol-definitions.md).
+Whole-parent resolution, bounded complete match inspection and graph/reinspection
+remain separate work after those acquisition gates. Retain original occurrences,
+artifact dependencies, authority frontiers and full observation hashes. Complete semantic/current authority closure, sealed
 snapshot/job/fence publication and independent checkpoint acceptance remain open.
 
 ## Alternatives considered

@@ -1,17 +1,20 @@
 import { readFileSync } from "node:fs";
 import type { EvidenceScope } from "@proofstack/contracts";
 import {
-  MAX_FIXTURE_SOURCE_EVENTS,
-  type RuntimeDefinition,
-  type RuntimeDefinitionRecord,
-  type EvaluationImplementationRegistrationDefinition,
-  type EvaluationImplementationRegistrationRecord,
-  type QualificationPolicyDefinition,
-  type QualificationPolicyRecord,
   type EndpointProfileDefinition,
   type EndpointProfileRecord,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSelectorSchema,
+  type EvaluationImplementationRegistrationDefinition,
+  type EvaluationImplementationRegistrationRecord,
+  MAX_FIXTURE_SOURCE_EVENTS,
+  type QualificationPolicyDefinition,
+  type QualificationPolicyRecord,
+  type RuntimeDefinition,
+  type RuntimeDefinitionRecord,
 } from "@proofstack/contracts";
-import type { ModelAssuranceRecordKind } from "@proofstack/core";
+import { type ModelAssuranceRecordKind, digestProtocolDefinition } from "@proofstack/core";
 import { policyAuthorityFixture } from "@proofstack/core/testing";
 import type {
   PolicyEvaluationMetadataPorts,
@@ -170,6 +173,17 @@ function metadataReads(ports: PolicyEvaluationMetadataPorts, input = scope) {
       if (!records.endpointProfiles) throw new Error("Missing endpoint profile port");
       return records.endpointProfiles.findEndpointProfile(input, "endpoint_one", "V1.0+RC-1");
     },
+    () => {
+      if (!records.protocolDefinitions) throw new Error("Missing protocol port");
+      return records.protocolDefinitions.findProtocolDefinition(input, "protocol_one");
+    },
+    () => {
+      if (!records.protocolDefinitions) throw new Error("Missing protocol port");
+      return records.protocolDefinitions.listProtocolDefinitions(input, {
+        family: "worker_protocol",
+        descriptor: { name: "protocol:worker", version: "V1+RC" },
+      });
+    },
     () => ports.evidence.resolveExactEvents(input, traceId, ["event_one"]),
     () => ports.criterionStatusHistory.listCriterionSetStatuses(input, historyLimits),
     () => ports.fixtureContent.findRecordedInteractionFixtureContent(input, "record_one"),
@@ -198,6 +212,7 @@ describe("guarded policy metadata transaction ports", () => {
         "endpointProfiles",
         "evidence",
         "implementationRegistrations",
+        "protocolDefinitions",
         "qualificationPolicies",
         "replayDefinitions",
         "replayResults",
@@ -525,6 +540,180 @@ describe("guarded policy metadata transaction ports", () => {
     }
   });
 
+  it("copies all protocol families and their original receipts through both scoped expiring catalogue ports", async () => {
+    const f = fixture();
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: {
+        input: { definition: ProtocolDefinition; scope: EvidenceScope };
+        sha256: string;
+      }[];
+    };
+    const records: ProtocolDefinitionRecord[] = document.vectors.map(({ input, sha256 }) => ({
+      ...structuredClone(input.definition),
+      scope: structuredClone(input.scope),
+      definitionSha256: sha256,
+      schemaVersion: "0.1",
+      registeredAt: "2026-09-01T00:00:00.001Z",
+      registeredByPrincipalId: "operator_protocol",
+    }));
+    const originals = structuredClone(records);
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { protocolDefinitions: records },
+    );
+    for (const record of records) {
+      record.specification.sha256 = "0".repeat(64);
+      record.descriptor.version = "input_changed";
+    }
+    records.length = 0;
+    for (const record of originals) {
+      let retained: PolicyEvaluationMetadataPorts | undefined;
+      const selector = ProtocolDefinitionSelectorSchema.parse({
+        family: record.family,
+        descriptor: record.descriptor,
+      });
+      await adapter.runMetadata(record.scope, async (ports) => {
+        retained = ports;
+        const reader = ports.records.protocolDefinitions;
+        if (!reader) throw new Error("Missing protocol metadata ports");
+        const before = f.queries.length;
+        const first = (await reader.findProtocolDefinition(
+          record.scope,
+          record.protocolDefinitionId,
+        )) as ProtocolDefinitionRecord;
+        expect(first).toEqual(record);
+        first.specification.sha256 = "f".repeat(64);
+        first.registeredByPrincipalId = "output_mutation";
+        await expect(
+          reader.findProtocolDefinition(record.scope, record.protocolDefinitionId),
+        ).resolves.toEqual(record);
+        const matches = (await reader.listProtocolDefinitions(
+          record.scope,
+          selector,
+        )) as ProtocolDefinitionRecord[];
+        expect(matches).toEqual([record]);
+        const returned = matches[0];
+        if (!returned) throw new Error("Missing protocol match");
+        returned.specification.sizeBytes++;
+        matches.length = 0;
+        await expect(reader.listProtocolDefinitions(record.scope, selector)).resolves.toEqual([
+          record,
+        ]);
+        await expect(
+          reader.findProtocolDefinition(record.scope, "protocol_absent"),
+        ).resolves.toBeNull();
+        await expect(
+          reader.listProtocolDefinitions(
+            record.scope,
+            ProtocolDefinitionSelectorSchema.parse({
+              family: record.family,
+              descriptor: {
+                ...record.descriptor,
+                version: record.descriptor.version.toLowerCase(),
+              },
+            }),
+          ),
+        ).resolves.toEqual([]);
+        expect(f.queries).toHaveLength(before);
+      });
+      if (!retained?.records.protocolDefinitions)
+        throw new Error("Missing retained protocol ports");
+      await expect(
+        retained.records.protocolDefinitions.findProtocolDefinition(
+          record.scope,
+          record.protocolDefinitionId,
+        ),
+      ).rejects.toThrow("expired");
+      await expect(
+        retained.records.protocolDefinitions.listProtocolDefinitions(record.scope, selector),
+      ).rejects.toThrow("expired");
+    }
+  });
+
+  it("retains ambiguous descriptor matches including future receipts without filtering a winner", async () => {
+    const f = fixture();
+    const document = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as {
+      vectors: {
+        input: { definition: ProtocolDefinition; scope: EvidenceScope };
+        sha256: string;
+      }[];
+    };
+    const v = document.vectors[0];
+    if (!v) throw new Error("Missing independent protocol vector");
+    const original: ProtocolDefinitionRecord = {
+      ...v.input.definition,
+      scope: v.input.scope,
+      definitionSha256: v.sha256,
+      schemaVersion: "0.1",
+      registeredAt: "2026-09-01T00:00:00.001Z",
+      registeredByPrincipalId: "operator_protocol",
+    };
+    const definition = { ...v.input.definition, protocolDefinitionId: "protocol_alias" };
+    const alias: ProtocolDefinitionRecord = {
+      ...definition,
+      scope: v.input.scope,
+      definitionSha256: digestProtocolDefinition(v.input.scope, definition),
+      schemaVersion: "0.1",
+      registeredAt: "2099-01-01T00:00:00.000Z",
+      registeredByPrincipalId: "operator_protocol",
+    };
+    const adapter = new PostgresPolicySourceTransactions(
+      { connect: f.connect } as unknown as Pick<Pool, "connect">,
+      { protocolDefinitions: [original, alias] },
+    );
+    await adapter.runMetadata(v.input.scope, async ({ records }) => {
+      if (!records.protocolDefinitions) throw new Error("Missing protocol ports");
+      expect(
+        await records.protocolDefinitions.listProtocolDefinitions(
+          v.input.scope,
+          ProtocolDefinitionSelectorSchema.parse({
+            family: original.family,
+            descriptor: original.descriptor,
+          }),
+        ),
+      ).toEqual([alias, original]);
+    });
+  });
+
+  it.each(["ID", "selector", "scope"])(
+    "taints the whole metadata transaction after a caught invalid protocol %s",
+    async (kind) => {
+      const f = fixture();
+      await expect(
+        f.adapter.runMetadata(scope, async ({ records }) => {
+          const reader = records.protocolDefinitions;
+          if (!reader) throw new Error("Missing protocol ports");
+          const failed =
+            kind === "ID"
+              ? reader.findProtocolDefinition(scope, "bad:identity")
+              : kind === "scope"
+                ? reader.listProtocolDefinitions(
+                    { ...scope, tenantId: "tenant_other" },
+                    { family: "worker_protocol", descriptor: { name: "wire", version: "v1" } },
+                  )
+                : reader.listProtocolDefinitions(scope, {
+                    family: "worker_protocol",
+                    descriptor: { name: "wire", version: "v1", extra: true },
+                  } as never);
+          await failed.catch(() => undefined);
+          return "caught failure cannot commit";
+        }),
+      ).rejects.toThrow();
+      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+      expect(f.queries.map(({ text }) => text)).not.toContain("COMMIT");
+    },
+  );
+
   it("copies exact endpoint versions and original configuration through scoped expiring metadata ports", async () => {
     const f = fixture();
     const document = JSON.parse(
@@ -683,6 +872,9 @@ describe("guarded policy metadata transaction ports", () => {
       { endpointProfiles: [null] },
       { endpointProfiles: null },
       { endpointProfiles: Array(257).fill(null) },
+      { protocolDefinitions: [null] },
+      { protocolDefinitions: null },
+      { protocolDefinitions: Array(257).fill(null) },
     ])
       expect(
         () =>

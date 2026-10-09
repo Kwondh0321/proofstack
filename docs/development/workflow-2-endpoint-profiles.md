@@ -84,8 +84,11 @@ No migration, role/grant, route, worker or production composition is introduced.
 derives the expected hash from validated independent data after revalidating the
 complete original fixture and exact provider occurrence. Four separate context
 checks retain provider, operation, boundary and full configuration mismatches.
-Graph acquisition/reinspection of these mappings is still open. Known live targets
-retain current-authority frontiers. Complete semantic/authority closure and sealed
+Graph acquisition retains every model origin, exact child, four ordered contextual
+checks and explicit missing/unavailable mappings; independent closure derivation
+and reinspection reject changed mappings, full receipts, removal and absent creation.
+Both model mappings and known live targets retain current-authority frontiers.
+Complete semantic/authority closure and sealed
 snapshot/job publication remain open; an ended observation transaction cannot
 authorize later publication.
 

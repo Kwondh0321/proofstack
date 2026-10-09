@@ -15,8 +15,8 @@ import {
   type QualificationPolicyRecord,
   type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
-  type RegressionFixtureVersionDefinition,
   type RegressionFixtureVersion,
+  type RegressionFixtureVersionDefinition,
   type ReleaseCandidate,
   type ReleaseCandidateDefinition,
   type ReleasePolicy,
@@ -186,6 +186,7 @@ function missingRepositories() {
     implementationRegistrations: port("implementation"),
     qualificationPolicies: port("qualification"),
     endpointProfiles: port("endpoint"),
+    protocolDefinitions: port("protocol"),
   } as PolicyRecordGraphRepositories;
   return { repositories, calls };
 }
@@ -3330,7 +3331,7 @@ describe("fixed cross-domain routing", () => {
       ),
     ) as { vectors: { input: { definition: Fields } }[] };
     const readLimits = { maxReferences: 1000, maxReferenceBytes: 1000000 };
-    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(47);
+    expect(PolicyEvaluationSourceReferenceSchema.options).toHaveLength(48);
     for (const option of PolicyEvaluationSourceReferenceSchema.options) {
       const kind = option.shape.kind.value;
       const runtime = runtimeVectors.vectors.find(
@@ -3365,45 +3366,47 @@ describe("fixed cross-domain routing", () => {
       });
       expect(missing.calls.length, kind).toBe(kind === "regression_fixture_version" ? 2 : 1);
       const domain =
-        kind === "endpoint_profile"
-          ? "endpoint"
-          : kind === "qualification_policy"
-            ? "qualification"
-            : kind === "evaluation_implementation_registration"
-              ? "implementation"
-              : kind.startsWith("comparison_")
-                ? "comparison"
-                : kind === "release_candidate"
-                  ? "candidate"
-                  : kind === "release_policy"
-                    ? "policy"
-                    : kind === "policy_installation_binding"
-                      ? "binding"
-                      : ["dataset_version", "regression_fixture_version"].includes(kind)
-                        ? "dataset"
-                        : ["replay_plan", "target_release"].includes(kind)
-                          ? "replay"
-                          : kind === "replay_result"
-                            ? "job"
-                            : runtime
-                              ? "runtime"
-                              : [
-                                    "blinded_plan",
-                                    "blinded_result",
-                                    "calibration_report",
-                                    "human_review_protocol",
-                                    "human_review_record",
-                                    "human_reviewer_independence",
-                                    "independence_declaration",
-                                    "independent_critique",
-                                    "model_assisted_evaluator_spec",
-                                    "model_assurance_assessment",
-                                    "model_evaluator_profile",
-                                    "model_qualification_report",
-                                    "model_qualification_suite",
-                                  ].includes(kind)
-                                ? "model"
-                                : "evaluation";
+        kind === "protocol_definition"
+          ? "protocol"
+          : kind === "endpoint_profile"
+            ? "endpoint"
+            : kind === "qualification_policy"
+              ? "qualification"
+              : kind === "evaluation_implementation_registration"
+                ? "implementation"
+                : kind.startsWith("comparison_")
+                  ? "comparison"
+                  : kind === "release_candidate"
+                    ? "candidate"
+                    : kind === "release_policy"
+                      ? "policy"
+                      : kind === "policy_installation_binding"
+                        ? "binding"
+                        : ["dataset_version", "regression_fixture_version"].includes(kind)
+                          ? "dataset"
+                          : ["replay_plan", "target_release"].includes(kind)
+                            ? "replay"
+                            : kind === "replay_result"
+                              ? "job"
+                              : runtime
+                                ? "runtime"
+                                : [
+                                      "blinded_plan",
+                                      "blinded_result",
+                                      "calibration_report",
+                                      "human_review_protocol",
+                                      "human_review_record",
+                                      "human_reviewer_independence",
+                                      "independence_declaration",
+                                      "independent_critique",
+                                      "model_assisted_evaluator_spec",
+                                      "model_assurance_assessment",
+                                      "model_evaluator_profile",
+                                      "model_qualification_report",
+                                      "model_qualification_suite",
+                                    ].includes(kind)
+                                  ? "model"
+                                  : "evaluation";
       expect(
         missing.calls.every((call) => call.domain === domain),
         kind,

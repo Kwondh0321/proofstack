@@ -59,6 +59,7 @@ import { deriveCapturedRecordClosure, type PolicyRecordClosure } from "./derive-
 import {
   emptyEndpointProfiles,
   emptyImplementationRegistrations,
+  emptyProtocolDefinitions,
   emptyQualificationPolicies,
   enumerateCapturedPolicyRecord,
   type PolicyRecordExpansion,
@@ -168,6 +169,7 @@ function metered(
       repositories.qualificationPolicies ?? emptyQualificationPolicies,
     ),
     endpointProfiles: budget.wrap(repositories.endpointProfiles ?? emptyEndpointProfiles),
+    protocolDefinitions: budget.wrap(repositories.protocolDefinitions ?? emptyProtocolDefinitions),
   };
 }
 

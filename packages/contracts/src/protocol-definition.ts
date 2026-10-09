@@ -129,6 +129,11 @@ export const ProtocolDefinitionRecordSchema = z.discriminatedUnion("family", [
   runtime.extend({ ...definition, ...receipt }).strict(),
 ]);
 
+export const ProtocolDefinitionReferenceSchema = z
+  .object({ protocolDefinitionId: OpaqueIdSchema, definitionSha256: Sha256Schema })
+  .strict();
+
 export type ProtocolDefinitionSelector = z.infer<typeof ProtocolDefinitionSelectorSchema>;
 export type ProtocolDefinition = z.infer<typeof ProtocolDefinitionSchema>;
 export type ProtocolDefinitionRecord = z.infer<typeof ProtocolDefinitionRecordSchema>;
+export type ProtocolDefinitionReference = z.infer<typeof ProtocolDefinitionReferenceSchema>;

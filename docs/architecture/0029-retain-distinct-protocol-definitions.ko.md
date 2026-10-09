@@ -47,7 +47,7 @@ publication 권한은 아닙니다.
 분리하여 외부 변경이 catalogue를 바꾸지 못하게 합니다. latest·요청 digest·
 network·credential port는 없습니다.
 
-이번 변경은 데이터 계약, 독립 canonical vector, 소유 검증과 유한 catalogue입니다.
+첫 변경은 데이터 계약, 독립 canonical vector, 소유 검증과 유한 catalogue입니다.
 source kind·reader, 부모 기반 해석, graph/guard 구성과 sealed publication은
 별도 작업입니다. 향후 resolver는 원본 부모 전체를 검증하고 소유 위치에서
 family를 도출하며 모든 일치 항목의 사용량을 반영하고 zero/unique/multiple/
@@ -72,9 +72,10 @@ unavailable을 보존해야 합니다. 손상되거나 미래인 항목을 버�
 
 ### 후속 작업
 
-이 데이터 변경의 검증 후 정확한 source 획득, 부모 전체 해석, 유한한 모든
-일치 항목 검사, graph 재검사와 scoped metadata port를 추가합니다. 모든 원본
-occurrence·artifact 의존성·권한 frontier·전체 hash를 보존합니다. 완전한
+정확한 source 획득, 전체 의존성 열거와 scoped catalogue port는
+[protocol 가이드](../development/workflow-2-protocol-definitions.ko.md)에 기록한 대로 구현됐습니다.
+조회 검증 후 부모 전체 해석, 유한한 모든 일치 항목 검사와 graph 재검사를
+이어갑니다. 모든 원본 occurrence·artifact 의존성·권한 frontier·전체 hash를 보존합니다. 완전한
 semantic/current authority closure, snapshot/job/fence의 원자적 publication과
 독립 checkpoint 승인은 열려 있습니다.
 

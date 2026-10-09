@@ -15,6 +15,7 @@ import {
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticQualificationPolicyCatalogue,
   StaticEndpointProfileCatalogue,
+  StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
@@ -109,6 +110,60 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
 }
 
 describe("positive fixed-domain routing", () => {
+  it("routes all independently retained protocol families with full original dependency occurrences", async () => {
+    for (const { input, sha256 } of vectors(
+      "../../contracts/vectors/protocol-definition-v1.json",
+    )) {
+      const record = {
+        ...(input["definition"] as Fields),
+        scope: input["scope"],
+        definitionSha256: sha256,
+        schemaVersion: "0.1",
+        registeredAt: "2026-09-01T00:00:00.001Z",
+        registeredByPrincipalId: "operator_protocol",
+      };
+      const expansion = await verify("protocol_definition", record, {
+        ...absentRepositories(),
+        protocolDefinitions: new StaticProtocolDefinitionCatalogue([record]),
+      });
+      const definition = input["definition"] as Fields;
+      const expected = [
+        { kind: "artifact", path: "/specification", reference: definition["specification"] },
+      ];
+      if (definition["implementation"] !== undefined)
+        expected.push(
+          { kind: "artifact", path: "/implementation", reference: definition["implementation"] },
+          { kind: "artifact", path: "/configuration", reference: definition["configuration"] },
+        );
+      expect(expansion.references).toEqual(expected);
+    }
+  });
+
+  it("preserves missing protocol data when the optional catalogue is absent", async () => {
+    const source = PolicyEvaluationSourceReferenceSchema.parse({
+      kind: "protocol_definition",
+      reference: {
+        protocolDefinitionId: "protocol_missing",
+        definitionSha256: "a".repeat(64),
+      },
+    });
+    const scope: EvidenceScope = {
+      tenantId: "tenant_protocol",
+      projectId: "project_protocol",
+      environmentId: "environment_protocol",
+    };
+    expect(
+      await readAndExpandPolicyRecord(
+        { source, scope, evaluationTime: time },
+        absentRepositories(),
+        limits,
+        replayLimits,
+      ),
+    ).toEqual({
+      read: { source, record: null, observation: { status: "missing" } },
+      references: null,
+    });
+  });
   it("routes every independent endpoint profile vector and its exact retained configuration occurrence", async () => {
     for (const { input, sha256 } of vectors("../../contracts/vectors/endpoint-profile-v1.json")) {
       const record = {

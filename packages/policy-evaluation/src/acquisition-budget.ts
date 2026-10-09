@@ -146,6 +146,7 @@ export class AcquisitionBudget {
             if (
               (property === "listReleasePolicyLifecycleEvents" ||
                 property === "listCriterionSetStatuses" ||
+                property === "listProtocolDefinitions" ||
                 property === "listPolicyHistory") &&
               Array.isArray(value)
             )

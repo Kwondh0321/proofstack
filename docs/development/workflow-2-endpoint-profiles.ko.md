@@ -69,8 +69,10 @@ worker·production 조합을 추가하지 않습니다.
 [소유 hashless model resolver](workflow-2-model-endpoint-resolution.ko.md)는 전체 원본
 fixture와 정확한 provider occurrence를 재검증한 후 유효한 독립 데이터에서 hash를
 도출합니다. provider·operation·경계·전체 설정 불일치는 네 문맥 검사로 별도 보존합니다.
-이 mapping의 graph 획득과 reinspection은 아직 열려 있습니다.
-live target은 현재 권한 frontier를 유지합니다. 전체 의미/권한 closure와 sealed
+graph 획득은 모든 model origin, 정확한 child, 순서가 고정된 네 문맥 검사와 명시적인
+missing/unavailable mapping을 보존합니다. 독립 closure 도출과 reinspection은 mapping·
+전체 receipt 변경, 삭제와 기존 누락 데이터 생성을 거부합니다. model mapping과 live
+target은 현재 권한 frontier를 유지합니다. 전체 의미/권한 closure와 sealed
 snapshot/job publication은 열려 있으며 종료된 관측 transaction은 이후 publication을
 승인하지 않습니다.
 

@@ -1,7 +1,7 @@
 # Independently retained protocol definitions
 
-Status: data contracts, canonical vectors, owning validation and a copied bounded
-catalogue. Workflow 2 remains **2/7 accepted**; checkpoint 3 is open.
+Status: retained data, exact source acquisition, dependency enumeration and scoped
+catalogue ports. Workflow 2 remains **2/7 accepted**; checkpoint 3 is open.
 [한국어](workflow-2-protocol-definitions.ko.md).
 
 The seven protocol families retain distinct meanings despite similar descriptors:
@@ -39,7 +39,7 @@ Exact ID reads never use a requested digest or latest record. Descriptor lookup
 returns all exact family/descriptor matches in deterministic storage-ID order.
 Distinct IDs can declare the same descriptor: both remain visible, including
 original receipts. The catalogue does not choose a winner or filter future data
-to make a set unique; receipt-cut checks belong to later owning source resolution.
+to make a set unique; receipt-cut checks belong to owning source acquisition/resolution.
 Scope coordinates, all descriptor fields and case participate in exact lookup.
 Malformed or coercible lookup inputs fail before a missing result is produced.
 
@@ -49,16 +49,44 @@ authority, content availability or release permission. The ports do no artifact,
 credential, key, network, publication or executable I/O. Operators must retain
 actual bodies/receipts rather than construct them from historical requested hashes.
 
-No policy source kind, parent resolver, graph acquisition, SQL, migration, grant,
-public route, worker or production composition is introduced in this slice.
-The current source inventory remains 47. Later resolution must revalidate each
-whole original parent, derive family from the fixed owning position, admit every
-matching member and preserve zero/unique/multiple/unavailable outcomes. Full
-semantic/current authority closure, sealed snapshot/job/fence publication and
-whole-checkpoint acceptance remain open. An ended observation report cannot
-authorize later publication.
+## Exact source acquisition and scoped ports
+
+`protocol_definition` is the 48th exact source kind. Its source reference binds
+the independent storage ID and semantic digest; the key is at most 84 ASCII
+characters within unchanged 168-character headroom. Exact acquisition selects
+all three scope coordinates and storage ID without a requested hash, validates
+the complete independent body and expected digest, compares original millisecond
+registration with full-precision UTC cuts, and hashes the entire original record.
+Null remains missing; malformed, substituted and future records remain explicitly
+unavailable. Rejected storage calls propagate rather than becoming missing data.
+
+The fixed enumerator revalidates the whole captured body, source and complete
+observation before retaining `/specification` and, for adapters, `/implementation`
+and `/configuration`. Full descriptors, repeated occurrences and conflicting
+shared artifact identities retain the existing bounded reference rules. There is
+no content/key/network/executable I/O. Fixed routing supports the new source; an
+absent optional catalogue remains missing, never a synthesized declaration.
+
+`PostgresPolicyMetadataCatalogues.protocolDefinitions` validates and copies the
+bounded catalogue before opening any connection. Exact-ID and full family/descriptor
+list ports run within the existing held metadata transaction, sharing its exact
+scope, expiry, caught-failure taint and draining. API credentials cannot acquire
+the private metadata guard. List ports preserve every matching member, including
+future receipts. Composition through the shared acquisition meter charges every
+returned member and byte before later owning selection. These are copied operator data, not a
+new durable PostgreSQL registry. No SQL table, migration, role/grant, route,
+worker or production composition is added.
+
+Hashless parent resolution and graph mapping remain open. Later resolution must
+revalidate each whole original parent, derive family from its fixed owning
+position, admit every matching member and preserve zero/unique/multiple/unavailable
+outcomes. Exact acquisition cannot infer current authority or compatibility from
+matching data. Complete semantic/current authority closure, sealed snapshot/job/fence
+publication and whole-checkpoint acceptance remain open. An ended observation
+report cannot authorize later publication.
 
 See [ADR-0029](../architecture/0029-retain-distinct-protocol-definitions.md), the
 [entry audit](workflow-2-policy-evaluation-entry-audit.md),
 [contracts](../../packages/contracts/src/protocol-definition.ts) and
-[owning catalogue](../../packages/core/src/runtime/protocol-definition.ts).
+[owning catalogue](../../packages/core/src/runtime/protocol-definition.ts) and
+[exact reader/enumerator](../../packages/core/src/policy/policy-evaluation-protocol-reader.ts).

@@ -1,7 +1,5 @@
 import { z } from "zod";
-import { OpaqueIdSchema } from "./primitives.js";
-import { EvaluationImplementationRegistrationReferenceSchema } from "./evaluation-implementation-registration.js";
-import { QualificationPolicyReferenceSchema } from "./qualification-policy.js";
+import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
 import { EndpointProfileReferenceSchema } from "./endpoint-profile.js";
 import {
   AssessmentReferenceSchema,
@@ -17,14 +15,15 @@ import {
   EvaluatorReferenceSchema,
   OracleReferenceSchema,
 } from "./evaluation-criteria.js";
+import { EvaluationImplementationRegistrationReferenceSchema } from "./evaluation-implementation-registration.js";
 import { ModelAssuranceAssessmentReferenceSchema } from "./evaluation-model-assessment.js";
 import {
   BlindedEvaluationPlanReferenceSchema,
   BlindedEvaluationResultReferenceSchema,
   CalibrationReportReferenceSchema,
+  HumanReviewerIndependenceReferenceSchema,
   HumanReviewProtocolReferenceSchema,
   HumanReviewRecordReferenceSchema,
-  HumanReviewerIndependenceReferenceSchema,
   IndependenceDeclarationReferenceSchema,
   IndependentCritiqueReferenceSchema,
   ModelEvaluatorProfileReferenceSchema,
@@ -34,41 +33,49 @@ import { ModelQualificationSuiteReferenceSchema } from "./evaluation-model-quali
 import {
   EvaluationAggregationPolicyReferenceSchema,
   EvaluationDatasetVersionReferenceSchema,
-  EvaluationRunRejectionSchema,
+  EvaluationReplayResultReferenceSchema,
   EvaluationRunReferenceSchema,
+  EvaluationRunRejectionSchema,
   EvaluationRunResultReferenceSchema,
   RawObservationReferenceSchema,
-  EvaluationReplayResultReferenceSchema,
 } from "./evaluation-run.js";
 import {
   DiscoveryRecordSchema,
   SourceReferenceSchema,
-  SourceReviewReferenceSchema,
   SourceReviewerQualificationReferenceSchema,
+  SourceReviewReferenceSchema,
 } from "./evaluation-source.js";
 import {
   QualificationFixtureSetReferenceSchema,
   QualificationReportReferenceSchema,
 } from "./evaluation-spec.js";
-import { RegressionFixtureVersionReferenceSchema } from "./dataset.js";
+import { OpaqueIdSchema } from "./primitives.js";
+import { ProtocolDefinitionReferenceSchema } from "./protocol-definition.js";
+import { QualificationPolicyReferenceSchema } from "./qualification-policy.js";
 import {
-  ReleaseCandidateReferenceSchema,
-  ReleaseCandidateComparisonReferenceSchema,
   ReleaseCandidateAdapterReferenceSchema,
+  ReleaseCandidateComparisonReferenceSchema,
+  ReleaseCandidateReferenceSchema,
 } from "./release-candidate.js";
 import {
-  ReleasePolicyReferenceSchema,
   PolicyInstallationBindingReferenceSchema,
+  ReleasePolicyReferenceSchema,
 } from "./release-policy.js";
 import { ReplayPlanJobReferenceSchema } from "./replay-job.js";
 import {
-  TargetReleaseReferenceSchema,
-  ReplayRuntimeProfileReferenceSchema,
   ReplayIsolationProfileReferenceSchema,
+  ReplayRuntimeProfileReferenceSchema,
+  TargetReleaseReferenceSchema,
 } from "./replay-plan.js";
 
 /** Exact immutable source references; artifact observations and lifecycle guards are separate. */
 export const PolicyEvaluationSourceReferenceSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("protocol_definition"),
+      reference: ProtocolDefinitionReferenceSchema,
+    })
+    .strict(),
   z
     .object({ kind: z.literal("endpoint_profile"), reference: EndpointProfileReferenceSchema })
     .strict(),
@@ -302,6 +309,8 @@ export type PolicyEvaluationSourceReference = z.infer<typeof PolicyEvaluationSou
  */
 export function policyEvaluationSourceReferenceKey(value: PolicyEvaluationSourceReference): string {
   switch (value.kind) {
+    case "protocol_definition":
+      return `${value.kind}:${value.reference.protocolDefinitionId}`;
     case "endpoint_profile":
       return `${value.kind}:${value.reference.endpointProfileId}:${value.reference.endpointProfileVersion}`;
     case "qualification_policy":

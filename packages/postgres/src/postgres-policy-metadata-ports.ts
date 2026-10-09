@@ -1,19 +1,21 @@
 import {
+  EndpointProfileReferenceSchema,
   type EvidenceScope,
   EvidenceScopeSchema,
-  EndpointProfileReferenceSchema,
   OpaqueIdSchema,
+  ProtocolDefinitionSelectorSchema,
   RegressionTraceSnapshotDefinitionSchema,
   TraceIdSchema,
 } from "@proofstack/contracts";
 import type {
   CriterionStatusHistoryRepository,
+  EndpointProfileReader,
+  EvaluationImplementationRegistrationReader,
   ModelAssuranceRecordKind,
   PolicyInstallationBindingResolver,
-  RuntimeDefinitionReader,
-  EvaluationImplementationRegistrationReader,
+  ProtocolDefinitionReader,
   QualificationPolicyReader,
-  EndpointProfileReader,
+  RuntimeDefinitionReader,
 } from "@proofstack/core";
 import type { PolicyEvaluationMetadataPorts } from "@proofstack/policy-evaluation";
 import type { PoolClient } from "pg";
@@ -68,6 +70,7 @@ export function createPostgresPolicyMetadataPorts(
     readonly implementationRegistrations: EvaluationImplementationRegistrationReader;
     readonly qualificationPolicies: QualificationPolicyReader;
     readonly endpointProfiles: EndpointProfileReader;
+    readonly protocolDefinitions: ProtocolDefinitionReader;
   },
 ): Omit<PolicyEvaluationMetadataPorts, "sources"> {
   const scoped = <T>(scopeInput: EvidenceScope, work: (scope: EvidenceScope) => Promise<T>) =>
@@ -94,6 +97,19 @@ export function createPostgresPolicyMetadataPorts(
   };
   return {
     records: {
+      protocolDefinitions: {
+        findProtocolDefinition: (scope, value) =>
+          scoped(scope, (owned) =>
+            catalogues.protocolDefinitions.findProtocolDefinition(owned, id(value)),
+          ),
+        listProtocolDefinitions: (scope, selector) =>
+          scoped(scope, (owned) =>
+            catalogues.protocolDefinitions.listProtocolDefinitions(
+              owned,
+              ProtocolDefinitionSelectorSchema.parse(selector),
+            ),
+          ),
+      },
       endpointProfiles: {
         findEndpointProfile: (scope, value, version) =>
           scoped(scope, (owned) =>

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  PolicyEvaluationSourceReferenceSchema,
-  PolicyEvaluationSourceKeySchema,
-  policyEvaluationSourceReferenceKey,
-} from "./policy-evaluation-source-reference.js";
-import {
   PolicyEvaluationExpectedSourcesSchema,
   PolicyEvaluationManifestPageDefinitionSchema,
 } from "./policy-evaluation-manifest.js";
+import {
+  PolicyEvaluationSourceKeySchema,
+  PolicyEvaluationSourceReferenceSchema,
+  policyEvaluationSourceReferenceKey,
+} from "./policy-evaluation-source-reference.js";
 
 const cases = [
   {
@@ -275,6 +275,14 @@ const cases = [
     key: "policy_installation_binding:record_one",
   },
   {
+    kind: "protocol_definition",
+    reference: {
+      protocolDefinitionId: "record_one",
+      definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
+    },
+    key: "protocol_definition:record_one",
+  },
+  {
     kind: "qualification_fixture_set",
     reference: {
       definitionSha256: "1111111111111111111111111111111111111111111111111111111111111111",
@@ -456,7 +464,7 @@ const cases = [
 
 describe("exact policy evaluation source identities", () => {
   it("covers every registered source kind with independently declared identities", () => {
-    expect(cases).toHaveLength(47);
+    expect(cases).toHaveLength(48);
     expect(
       PolicyEvaluationSourceReferenceSchema.options.map((schema) => schema.shape.kind.value).sort(),
     ).toEqual(cases.map(({ kind }) => kind));
@@ -505,6 +513,27 @@ describe("exact policy evaluation source identities", () => {
         reference: { ...source.reference, implementationId: "c".repeat(64) },
       } as typeof source),
     ).not.toBe(key);
+  });
+
+  it("keeps a maximal protocol storage identity within unchanged source-key headroom", () => {
+    const source = PolicyEvaluationSourceReferenceSchema.parse({
+      kind: "protocol_definition",
+      reference: { protocolDefinitionId: "p".repeat(64), definitionSha256: "f".repeat(64) },
+    });
+    const key = policyEvaluationSourceReferenceKey(source);
+    expect(key).toHaveLength(84);
+    expect(PolicyEvaluationSourceKeySchema.parse(key)).toBe(key);
+    for (const bad of [key + "p", key + ":extra", "protocol_definition:name:V1+RC"])
+      expect(PolicyEvaluationSourceKeySchema.safeParse(bad).success).toBe(false);
+    expect(
+      PolicyEvaluationSourceReferenceSchema.safeParse({
+        kind: "protocol_definition",
+        reference: {
+          protocolDefinitionId: "reference/protocol:wire",
+          definitionSha256: "f".repeat(64),
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("preserves both qualification coordinates within the existing key headroom", () => {

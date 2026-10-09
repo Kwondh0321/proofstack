@@ -168,6 +168,50 @@ describe("record acquisition budget", () => {
     });
   });
 
+  it("admits every protocol descriptor member and byte before an unavailable member can be discarded", async () => {
+    const rows = [
+      { protocolDefinitionId: "protocol_future", registeredAt: "2099-01-01T00:00:00.000Z" },
+      { protocolDefinitionId: "protocol_invalid", definitionSha256: "invalid" },
+    ];
+    const bytes = Buffer.byteLength(JSON.stringify(rows));
+    const list = vi.fn(async () => rows);
+    const budget = new AcquisitionBudget({
+      ...limits,
+      maxAcquisitionRecords: 3,
+      maxAcquisitionRecordBytes: bytes,
+    });
+    expect(await budget.wrap({ listProtocolDefinitions: list }).listProtocolDefinitions()).toEqual(
+      rows,
+    );
+    expect(budget.usage()).toMatchObject({ reads: 1, records: 3, bytes });
+    for (const bounded of [
+      { ...limits, maxAcquisitionRecords: 2 },
+      { ...limits, maxAcquisitionRecordBytes: bytes - 1 },
+    ])
+      await expect(
+        new AcquisitionBudget(bounded)
+          .wrap({ listProtocolDefinitions: list })
+          .listProtocolDefinitions(),
+      ).rejects.toBeInstanceOf(PolicyRecordGraphError);
+  });
+
+  it("charges repeated protocol lists and empty match sets without refunding prior reads", async () => {
+    const budget = new AcquisitionBudget({ ...limits, maxAcquisitionRecords: 6 });
+    const list = vi.fn(async () => [
+      { protocolDefinitionId: "protocol_one" },
+      { protocolDefinitionId: "protocol_two" },
+    ]);
+    const port = budget.wrap({ listProtocolDefinitions: list });
+    await port.listProtocolDefinitions();
+    await port.listProtocolDefinitions();
+    expect(budget.usage()).toMatchObject({ reads: 2, records: 6 });
+    await expect(port.listProtocolDefinitions()).rejects.toMatchObject({ reason: "record_limit" });
+    expect(list).toHaveBeenCalledTimes(2);
+    const empty = new AcquisitionBudget(limits);
+    await empty.wrap({ listProtocolDefinitions: async () => [] }).listProtocolDefinitions();
+    expect(empty.usage()).toMatchObject({ reads: 1, records: 1, bytes: 2 });
+  });
+
   it("shares the exact byte ceiling between raw responses and reference occurrences", async () => {
     const value = { text: "한글" };
     const bytes = Buffer.byteLength(JSON.stringify(value));
