@@ -31,6 +31,7 @@ import {
 } from "@proofstack/contracts";
 import {
   assemblePolicyEvaluationManifest,
+  buildReferenceAggregate,
   CreateModelAssuranceAssessment,
   digestEndpointProfile,
   digestEvaluationImplementationRegistration,
@@ -80,6 +81,7 @@ import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-re
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
+import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import { acquirePolicyRecordGraph, capturePolicyRecordGraph } from "./capture-record-graph.js";
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
@@ -860,6 +862,463 @@ async function harness(
     endpointProfile,
   };
 }
+
+describe("candidate-owned assessment rule input projection", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
+  async function inputs(
+    configure?: (h: Awaited<ReturnType<typeof harness>>) => void,
+    snapshots?: Parameters<typeof harness>[1],
+  ) {
+    const h = await harness("history", { dataset: "matched", ...snapshots });
+    const reference = h.candidate.assessments[0];
+    const template = h.policy.rules[0];
+    if (!reference || !template) throw new Error("Missing original assessment fixture");
+    const predicates: ReleasePolicy["rules"][number]["predicate"][] = [
+      {
+        kind: "coverage_floor",
+        sourceKind: "assessment_samples",
+        assessment: reference,
+        sampleClass: "observed",
+        minimumCount: 1,
+        unit: "cases",
+      },
+      {
+        kind: "coverage_floor",
+        sourceKind: "assessment_samples",
+        assessment: reference,
+        sampleClass: "decided",
+        minimumCount: 1,
+        unit: "cases",
+      },
+      {
+        kind: "uncertainty_bound",
+        assessment: reference,
+        bound: "lower",
+        comparator: "at_least",
+        confidenceLevelBasisPoints: 9500,
+        intervalMethod: "wilson_score_interval",
+        intervalMethodVersion: "1.0.0",
+        thresholdBasisPoints: 0,
+        unit: "basis_points",
+      },
+      {
+        kind: "uncertainty_bound",
+        assessment: reference,
+        bound: "upper",
+        comparator: "at_most",
+        confidenceLevelBasisPoints: 9500,
+        intervalMethod: "wilson_score_interval",
+        intervalMethodVersion: "1.0.0",
+        thresholdBasisPoints: 10000,
+        unit: "basis_points",
+      },
+      {
+        kind: "eligibility_required",
+        assessmentClass: "evaluation",
+        assessment: reference,
+        expected: "eligible",
+      },
+      {
+        kind: "eligibility_required",
+        assessmentClass: "evaluation",
+        assessment: reference,
+        expected: "eligible",
+      },
+    ];
+    h.policy.rules = [
+      ...h.policy.rules.filter(({ predicate }) => !("assessment" in predicate)),
+      ...predicates.map((predicate, index) => ({
+        ...structuredClone(template),
+        ruleId: `assessment_input_${index}`,
+        predicate,
+      })),
+    ].sort((a, b) => (a.ruleId < b.ruleId ? -1 : 1));
+    configure?.(h);
+    h.candidate = candidateDigest(h.candidate);
+    h.policy = policyDigest(h.policy);
+    h.input = request(h.candidate, h.policy);
+    h.repositories = {
+      ...h.repositories,
+      control: {
+        ...h.repositories.control,
+        releaseCandidate: { findReleaseCandidate: async () => h.candidate },
+        releasePolicy: { findReleasePolicy: async () => h.policy },
+      },
+    };
+    return h;
+  }
+
+  it("retains original coverage, Wilson bounds and repeated eligibility without computing outcomes", async () => {
+    const h = await inputs();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const original = structuredClone(graph);
+    const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+    expect(report.authorityBoundary).toBe("retained_inputs_only");
+    expect(report.rules).toHaveLength(6);
+    expect(report.members).toEqual(
+      graph.policyAssessments.status === "inspected" ? graph.policyAssessments.members : null,
+    );
+    for (const rule of report.rules) {
+      expect(rule.predicate).toEqual(h.policy.rules[rule.ruleIndex]?.predicate);
+      expect(graph.edges[rule.policyEdgeIndex]?.reference.path).toBe(
+        `/rules/${rule.ruleIndex}/predicate/assessment`,
+      );
+      if (rule.binding.status !== "inputs_retained")
+        throw new Error("Missing retained original inputs");
+      const { operand, prerequisites } = rule.binding;
+      expect(prerequisites.candidateLineageIndex).toBe(0);
+      expect(prerequisites.assessmentSnapshotIndex).not.toBeNull();
+      if (operand.kind === "coverage_count") {
+        if (operand.aggregate.status !== "verified") throw new Error("Missing original aggregate");
+        expect(operand.count).toBe(operand.aggregate.record.counts[operand.field]);
+        expect(Object.keys(operand.aggregate.record.counts)).toHaveLength(9);
+        expect(operand.field).toBe(
+          rule.ruleId === "assessment_input_0" ? "attemptedCount" : "decidedCount",
+        );
+      }
+      if (operand.kind === "uncertainty_interval") {
+        if (operand.aggregate.status !== "verified")
+          throw new Error("Missing exact interval source");
+        const interval = operand.aggregate.record.passInterval;
+        expect(operand.bound).toBe(
+          interval.status === "reported" ? interval.interval[operand.field] : null,
+        );
+        expect(operand.field).toBe(
+          rule.ruleId === "assessment_input_2" ? "lowerBound" : "upperBound",
+        );
+      }
+      expect(rule.binding).not.toHaveProperty("outcome");
+    }
+    expect(report.rules[4]?.binding).toEqual(report.rules[5]?.binding);
+    expect(graph).toEqual(original);
+    expect(report).not.toHaveProperty("outcome");
+  });
+
+  it("does not turn a readable but undeclared assessment into candidate-owned numeric inputs", async () => {
+    const h = await inputs((h) => {
+      h.candidate.assessments = [
+        { assessmentId: "other_candidate_assessment", definitionSha256: "a".repeat(64) },
+      ];
+    });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+    expect(report.members).toHaveLength(1);
+    expect(report.members[0]).toMatchObject({
+      source: { kind: "assessment", reference: { assessmentId: "other_candidate_assessment" } },
+      observation: { status: "missing" },
+    });
+    expect(report.rules).toHaveLength(6);
+    for (const rule of report.rules) expect(rule.binding).toEqual({ status: "not_declared" });
+    expect(
+      graph.nodes.some(
+        ({ read }) => read.source.kind === "assessment" && read.observation.status === "verified",
+      ),
+    ).toBe(true);
+  });
+
+  it.each(["assessment", "aggregate", "policy"] as const)(
+    "retains missing %s without fabricating empty populations or zero bounds",
+    async (missing) => {
+      const h = await inputs();
+      const repository = h.repositories.evidence.evaluation;
+      if (missing === "assessment") vi.spyOn(repository, "findAssessment").mockResolvedValue(null);
+      if (missing === "aggregate")
+        vi.spyOn(repository, "findEvaluationAggregate").mockResolvedValue(null);
+      if (missing === "policy")
+        vi.spyOn(repository, "findAggregationPolicy").mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+      for (const rule of report.rules) {
+        if (missing === "assessment")
+          expect(rule.binding).toEqual({
+            status: "assessment_unavailable",
+            observation: { status: "missing" },
+          });
+        else {
+          if (rule.binding.status !== "inputs_retained")
+            throw new Error("Missing original assessment");
+          const operand = rule.binding.operand;
+          if (operand.kind === "coverage_count" && missing === "aggregate")
+            expect(operand.count).toBeNull();
+          if (operand.kind === "uncertainty_interval") {
+            expect(operand.compatibility.status).toBe("incompatible");
+            expect(operand.compatibility.reasons).toContain(
+              missing === "aggregate" ? "aggregate_unavailable" : "policy_unavailable",
+            );
+            if (missing === "aggregate") expect(operand.bound).toBeNull();
+          }
+        }
+      }
+    },
+  );
+
+  it("preserves a requested confidence mismatch and both original bounds without recalculating an interval", async () => {
+    const h = await inputs((h) => {
+      for (const rule of h.policy.rules)
+        if (rule.predicate.kind === "uncertainty_bound")
+          rule.predicate.confidenceLevelBasisPoints = 5000;
+    });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+    const intervals = report.rules.filter(
+      ({ predicate }) => predicate.kind === "uncertainty_bound",
+    );
+    expect(intervals).toHaveLength(2);
+    for (const { binding } of intervals) {
+      if (binding.status !== "inputs_retained" || binding.operand.kind !== "uncertainty_interval")
+        throw new Error("Missing original interval inputs");
+      expect(binding.operand.compatibility).toEqual({
+        status: "incompatible",
+        reasons: ["confidence"],
+      });
+      const aggregate = binding.operand.aggregate;
+      if (aggregate.status !== "verified" || aggregate.record.passInterval.status !== "reported")
+        throw new Error("Missing owning reported Wilson interval");
+      expect(aggregate.record.passInterval.interval.confidenceLevelBasisPoints).toBe(9500);
+      expect(binding.operand.bound).toBe(
+        aggregate.record.passInterval.interval[binding.operand.field],
+      );
+    }
+  });
+
+  it("admits complete original and repeated inspection at exact count/byte ceilings and fails one below", async () => {
+    const h = await inputs();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+    const { rules, inspectionUsage: _usage, ...context } = report;
+    const frames = [
+      ...graph.nodes.flatMap(({ references }) => references ?? []),
+      context,
+      ...rules,
+    ];
+    const reused = [
+      graph.policyAssessments,
+      graph.evaluationSnapshots,
+      graph.modelAssurance,
+      graph.candidateAssessmentLineage,
+    ];
+    const expected = {
+      maxReferences:
+        frames.length + reused.reduce((sum, part) => sum + part.inspectionUsage.references, 0),
+      maxReferenceBytes:
+        frames.reduce((sum, frame) => sum + encodeEvaluationCanonicalJson(frame).byteLength, 0) +
+        reused.reduce((sum, part) => sum + part.inspectionUsage.referenceBytes, 0),
+    };
+    expect(report.inspectionUsage).toEqual({
+      references: expected.maxReferences,
+      referenceBytes: expected.maxReferenceBytes,
+    });
+    expect(inspectCapturedAssessmentRules(h.input, graph, expected)).toEqual(report);
+    expect(() =>
+      inspectCapturedAssessmentRules(h.input, graph, {
+        ...expected,
+        maxReferences: expected.maxReferences - 1,
+      }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspectCapturedAssessmentRules(h.input, graph, {
+        ...expected,
+        maxReferenceBytes: expected.maxReferenceBytes - 1,
+      }),
+    ).toThrow("reference_bytes_exceeded");
+  });
+
+  it("owns returned nested records without further repository I/O or captured-body mutation", async () => {
+    const h = await inputs();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const original = structuredClone(graph);
+    const find = vi.spyOn(h.repositories.evidence.evaluation, "findAssessment");
+    const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+    const binding = report.rules[0]?.binding;
+    if (
+      binding?.status !== "inputs_retained" ||
+      binding.operand.kind !== "coverage_count" ||
+      binding.operand.aggregate.status !== "verified"
+    )
+      throw new Error("Missing owned original inputs");
+    Reflect.set(binding.assessment.record, "knownLimitations", ["Mutated copy"]);
+    Reflect.set(binding.operand.aggregate.record.counts, "attemptedCount", 999);
+    Reflect.set(report, "members", []);
+    expect(graph).toEqual(original);
+    expect(find).not.toHaveBeenCalled();
+    expect(inspectCapturedAssessmentRules(h.input, graph, limits)).not.toEqual(report);
+  });
+
+  it.each(["pass", "fail", "abstain", "error", "not_applicable"] as const)(
+    "retains independent attempted/decided counts for %s and preserves contradictory history checks",
+    async (verdict) => {
+      let owningPolicy:
+        | Extract<EvaluationRepositoryFixtureRecord, { kind: "aggregation_policy" }>
+        | undefined;
+      const h = await inputs(undefined, {
+        mutate(fixture) {
+          if (fixture.kind === "aggregation_policy") owningPolicy = fixture;
+          if (fixture.kind !== "evaluation_aggregate") return;
+          if (!owningPolicy) throw new Error("Missing owning aggregation policy");
+          const members = fixture.record.members.map((member, index) => ({
+            ...member,
+            verdict: index === 0 ? verdict : ("pass" as const),
+          }));
+          Object.assign(
+            fixture.record,
+            buildReferenceAggregate({
+              aggregateId: fixture.record.aggregateId,
+              criterion: fixture.record.criterion,
+              knownLimitations: fixture.record.knownLimitations,
+              members,
+              policy: owningPolicy.record,
+              samplingAssumption: fixture.record.samplingAssumption,
+            }),
+          );
+        },
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+      const counts = report.rules.filter(({ predicate }) => predicate.kind === "coverage_floor");
+      expect(counts).toHaveLength(2);
+      const expectedDecided = verdict === "pass" || verdict === "fail" ? 2 : 1;
+      for (const rule of counts) {
+        const binding = rule.binding;
+        if (binding.status !== "inputs_retained" || binding.operand.kind !== "coverage_count")
+          throw new Error("Missing original count operands");
+        expect(binding.operand.count).toBe(
+          rule.ruleId === "assessment_input_0" ? 2 : expectedDecided,
+        );
+        if (binding.operand.aggregate.status !== "verified")
+          throw new Error("Missing owning aggregate");
+        expect(binding.operand.aggregate.record.members).toHaveLength(2);
+        const index = binding.prerequisites.aggregateSnapshotIndex;
+        if (index === null) throw new Error("Missing owning history checks");
+        expect(
+          graph.evaluationSnapshots.parents[index]?.checks.some(
+            ({ observation }) => observation.status === "mismatch",
+          ),
+        ).toBe(true);
+        expect(binding).not.toHaveProperty("outcome");
+      }
+    },
+  );
+
+  it.each([
+    "request",
+    "root",
+    "scope",
+    "time",
+    "duplicate_node",
+    "duplicate_edge",
+    "parent_source",
+    "body",
+    "receipt",
+    "hash",
+    "references",
+    "edge",
+    "inventory",
+    "snapshots",
+    "model",
+    "lineage",
+  ] as const)("rejects changed %s before projecting assessment operands", async (fault) => {
+    const h = await inputs();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const assessment = graph.nodes.find(({ read }) => read.source.kind === "assessment");
+    if (!assessment || assessment.read.record === null)
+      throw new Error("Missing owning assessment");
+    if (fault === "request") Reflect.set(graph.request, "evaluationRequestId", "other_request");
+    if (fault === "root") Reflect.set(graph, "roots", [...graph.roots].reverse());
+    if (fault === "scope") Reflect.set(graph.scope, "projectId", "other_project");
+    if (fault === "time") Reflect.set(graph, "evaluationTime", "2027-01-01T00:00:00.000Z");
+    if (fault === "duplicate_node") Reflect.set(graph, "nodes", [...graph.nodes, assessment]);
+    if (fault === "duplicate_edge") Reflect.set(graph, "edges", [...graph.edges, graph.edges[0]]);
+    if (fault === "parent_source") {
+      const edge = graph.edges.find((item) => item.parent.kind === "assessment");
+      if (!edge) throw new Error("Missing original assessment parent");
+      Reflect.set(edge.parent.reference, "definitionSha256", "0".repeat(64));
+    }
+    if (fault === "body")
+      Reflect.set(assessment.read.record, "knownLimitations", ["Substituted original record"]);
+    if (fault === "receipt")
+      Reflect.set(assessment.read.record, "createdByPrincipalId", "other_principal");
+    if (fault === "hash") Reflect.set(assessment.read.observation, "recordSha256", "0".repeat(64));
+    if (fault === "references") Reflect.set(assessment, "references", []);
+    if (fault === "edge") {
+      const edge = graph.edges.find((item) => item.parent.kind === "assessment");
+      if (!edge) throw new Error("Missing original assessment edge");
+      Reflect.set(edge, "parentRecordSha256", "0".repeat(64));
+    }
+    if (fault === "inventory") Reflect.set(graph.policyAssessments, "members", []);
+    if (fault === "snapshots") Reflect.set(graph.evaluationSnapshots, "parents", []);
+    if (fault === "model")
+      Reflect.set(graph.modelAssurance, "inspectionUsage", {
+        references: 999,
+        referenceBytes: 999,
+      });
+    if (fault === "lineage") Reflect.set(graph.candidateAssessmentLineage, "members", []);
+    expect(() => inspectCapturedAssessmentRules(h.input, graph, limits)).toThrow();
+  });
+  it.each(["unsupported_assumption", "method_not_requested", "no_decided_cases"] as const)(
+    "retains original unreported interval reason %s without inventing a bound",
+    async (reason) => {
+      let policy:
+        | Extract<EvaluationRepositoryFixtureRecord, { kind: "aggregation_policy" }>
+        | undefined;
+      const h = await inputs(undefined, {
+        mutate(fixture) {
+          if (fixture.kind === "aggregation_policy") {
+            if (reason === "method_not_requested")
+              fixture.record.method = { method: "descriptive_counts" };
+            policy = fixture;
+          }
+          if (fixture.kind !== "evaluation_aggregate") return;
+          if (!policy) throw new Error("Missing owning interval policy");
+          const assumption =
+            reason === "unsupported_assumption"
+              ? {
+                  status: "unsupported" as const,
+                  limitations: ["Independent sampling is not established."],
+                }
+              : reason === "method_not_requested"
+                ? { status: "not_required" as const }
+                : fixture.record.samplingAssumption;
+          const members =
+            reason === "no_decided_cases"
+              ? fixture.record.members.map((member) => ({ ...member, verdict: "abstain" as const }))
+              : fixture.record.members;
+          Object.assign(
+            fixture.record,
+            buildReferenceAggregate({
+              aggregateId: fixture.record.aggregateId,
+              criterion: fixture.record.criterion,
+              knownLimitations: fixture.record.knownLimitations,
+              members,
+              policy: policy.record,
+              samplingAssumption: assumption,
+            }),
+          );
+        },
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+      const intervals = report.rules.filter(
+        ({ predicate }) => predicate.kind === "uncertainty_bound",
+      );
+      expect(intervals).toHaveLength(2);
+      for (const { binding } of intervals) {
+        if (binding.status !== "inputs_retained" || binding.operand.kind !== "uncertainty_interval")
+          throw new Error("Missing owning interval input");
+        const operand = binding.operand;
+        expect(operand.bound).toBeNull();
+        expect(operand.compatibility.status).toBe("incompatible");
+        expect(operand.compatibility.reasons).toContain("interval_not_reported");
+        if (operand.aggregate.status !== "verified")
+          throw new Error("Missing original interval observation");
+        expect(operand.aggregate.record.passInterval).toEqual({ status: "not_reported", reason });
+        if (reason === "unsupported_assumption")
+          expect(operand.compatibility.reasons).toContain("sampling_assumption");
+        if (reason === "method_not_requested")
+          expect(operand.compatibility.reasons).toContain("method");
+      }
+    },
+  );
+});
 
 describe("request-owned record graph reinspection", () => {
   async function predecessorHarness() {

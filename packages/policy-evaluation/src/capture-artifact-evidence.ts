@@ -38,6 +38,10 @@ import {
   type PolicyComparisonRuleBindings,
 } from "./capture-comparison-rules.js";
 import {
+  inspectCapturedAssessmentRules,
+  type PolicyAssessmentRuleInputs,
+} from "./capture-assessment-rules.js";
+import {
   type CriterionAuthorityReadRepository,
   criterionAuthorityMaterialFingerprint,
   observeCapturedCriterionAuthority,
@@ -132,6 +136,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly policyAuthority: PolicyAuthorityPrerequisites;
       readonly applicability: PolicyApplicabilityInputs;
       readonly comparisonRules: PolicyComparisonRuleBindings;
+      readonly assessmentRules: PolicyAssessmentRuleInputs;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly criterionAuthority: {
         readonly beforeArtifacts: PolicyCriterionAuthorityObservation;
@@ -377,6 +382,18 @@ export async function capturePolicyArtifactEvidence(
       comparisonRules.inspectionUsage.references,
       comparisonRules.inspectionUsage.referenceBytes,
     );
+    const assessmentRules = inspectCapturedAssessmentRules(
+      request,
+      traceCapture.comparisonCapture.graph,
+      {
+        maxReferences: request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
+      },
+    );
+    budget.addReferences(
+      assessmentRules.inspectionUsage.references,
+      assessmentRules.inspectionUsage.referenceBytes,
+    );
     const criteriaAfterArtifacts = await observeCriteria();
     if (
       criterionAuthorityMaterialFingerprint(criteriaBeforeArtifacts) !==
@@ -432,6 +449,7 @@ export async function capturePolicyArtifactEvidence(
       policyAuthority,
       applicability,
       comparisonRules,
+      assessmentRules,
       evaluationTrust,
       criterionAuthority: {
         beforeArtifacts: criteriaBeforeArtifacts,

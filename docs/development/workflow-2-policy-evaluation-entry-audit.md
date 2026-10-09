@@ -269,6 +269,14 @@ unavailable and invalid lineage remain explicit; kind/unit/event incompatibility
 retains original operands. Repeated frames share finite canonical admission. These
 descriptive inputs do not evaluate rules, complete current authority or seal a snapshot.
 
+The [candidate-owned assessment rule inputs](workflow-2-assessment-rule-inputs.md)
+revalidate original records and reproduce owning inventories/snapshots/lineage before
+retaining exact attempted/decided counts, original Wilson bounds/method/confidence/
+assumptions and distinct evaluation/model eligibility. Undeclared and unavailable
+sources, contradictory prerequisite checks and repeated rules remain explicit.
+Complete inspection shares finite admission; retained values are not current authority,
+qualified operands, policy results or a seal. Checkpoint 3 remains open.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture

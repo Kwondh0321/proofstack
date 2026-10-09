@@ -863,6 +863,20 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
     }
     expect(result.comparisonRules.rules.length).toBeGreaterThan(0);
     expect(result.comparisonRules).not.toHaveProperty("outcome");
+    expect(result.assessmentRules.authorityBoundary).toBe("retained_inputs_only");
+    expect(result.assessmentRules.candidate).toEqual(result.applicability.candidate);
+    expect(result.assessmentRules.policy).toEqual(result.applicability.policy);
+    if (graph.policyAssessments.status !== "inspected")
+      throw new Error("Expected candidate-owned assessment inventory");
+    expect(result.assessmentRules.members).toEqual(graph.policyAssessments.members);
+    for (const rule of result.assessmentRules.rules) {
+      expect(graph.edges[rule.policyEdgeIndex]?.reference.path).toBe(
+        `/rules/${rule.ruleIndex}/predicate/assessment`,
+      );
+      expect(rule.binding).not.toHaveProperty("outcome");
+    }
+    expect(result.assessmentRules.rules.length).toBeGreaterThan(0);
+    expect(result.assessmentRules).not.toHaveProperty("outcome");
     expect(result.artifactRules.candidate.source).toEqual(
       graph.roots.find((root) => root.kind === "release_candidate"),
     );

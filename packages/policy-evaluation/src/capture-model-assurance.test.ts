@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
+  type PolicyEvaluationRequest,
   policyEvaluationSourceReferenceKey,
   type ReleaseCandidate,
   type ReleaseCandidateDefinition,
@@ -14,6 +15,8 @@ import {
   digestModelAssuranceRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
+  digestReleasePolicyDefinition,
+  releasePolicyReference,
   evaluationRecordDescriptors,
 } from "@proofstack/core";
 import {
@@ -23,12 +26,15 @@ import {
   MemoryEvaluationRepository,
   MemoryModelAssuranceRepository,
   MemoryReleaseCandidateRepository,
+  MemoryReleasePolicyRepository,
   type ModelAssuranceRepositoryFixtureRecord,
   publishEvaluationFixture,
   releaseCandidateFixture,
+  releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import { describe, expect, it, vi } from "vitest";
 import { inspectCapturedModelAssurance } from "./capture-model-assurance.js";
+import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
@@ -340,6 +346,93 @@ async function harness(
   };
   return { repositories, input, model, evaluation, assessment: last.record };
 }
+
+describe("candidate-owned model assessment rule inputs", () => {
+  it.each(["missing", "retained"] as const)(
+    "keeps %s model eligibility separate from evaluation dimensions",
+    async (availability) => {
+      const h = await harness();
+      const policy = releasePolicyRepositoryFixture("model_input_rules", h.input.scope);
+      const template = policy.rules[0];
+      if (!template) throw new Error("Missing original policy fixture rule");
+      policy.rules = [
+        ...policy.rules.filter(
+          ({ predicate }) => !("assessment" in predicate) && !("comparison" in predicate),
+        ),
+        {
+          ...structuredClone(template),
+          ruleId: "assessment_input_model",
+          predicate: {
+            kind: "eligibility_required" as const,
+            assessmentClass: "model_assurance" as const,
+            assessment: {
+              assessmentExtensionId: h.assessment.assessmentExtensionId,
+              definitionSha256: h.assessment.definitionSha256,
+            },
+            expected: "eligible" as const,
+          },
+        },
+      ].sort((a, b) => (a.ruleId < b.ruleId ? -1 : 1));
+      const {
+        scope,
+        schemaVersion: _version,
+        definitionSha256: _hash,
+        publishedAt: _at,
+        publishedByPrincipalId: _by,
+        ...definition
+      } = policy;
+      policy.definitionSha256 = digestReleasePolicyDefinition(scope, definition);
+      const policies = new MemoryReleasePolicyRepository();
+      await policies.publishReleasePolicy(policy);
+      const {
+        scope: _scope,
+        schemaVersion: _schema,
+        definitionSha256: _requestHash,
+        createdAt,
+        createdByPrincipalId,
+        ...request
+      } = h.input;
+      const requestDefinition = { ...request, policy: releasePolicyReference(policy) };
+      const input: PolicyEvaluationRequest = {
+        ...requestDefinition,
+        scope,
+        schemaVersion: "0.1",
+        createdAt,
+        createdByPrincipalId,
+        definitionSha256: digestPolicyEvaluationRequestDefinition(scope, requestDefinition),
+      };
+      const repositories = {
+        ...h.repositories,
+        control: { ...h.repositories.control, releasePolicy: policies },
+      };
+      if (availability === "missing") vi.spyOn(h.model, "find").mockResolvedValue(null);
+      const graph = await capturePolicyRecordGraph(input, repositories);
+      const report = inspectCapturedAssessmentRules(input, graph, limits);
+      const binding = report.rules.find(
+        ({ ruleId }) => ruleId === "assessment_input_model",
+      )?.binding;
+      if (availability === "missing")
+        expect(binding).toEqual({
+          status: "assessment_unavailable",
+          observation: { status: "missing" },
+        });
+      else {
+        if (binding?.status !== "inputs_retained")
+          throw new Error("Missing exact original model assessment");
+        expect(binding.operand).toEqual({
+          kind: "model_eligibility",
+          eligibility: h.assessment.eligibility,
+          reasons: h.assessment.reasons,
+          baseAssessment: h.assessment.baseAssessment,
+        });
+        expect(binding.prerequisites.modelAssuranceIndex).not.toBeNull();
+        expect(binding.prerequisites.assessmentSnapshotIndex).toBeNull();
+        expect(binding.operand).not.toHaveProperty("dimensions");
+        expect(binding).not.toHaveProperty("outcome");
+      }
+    },
+  );
+});
 
 describe("captured model and human assurance bindings", () => {
   it.each(["references", "bytes"] as const)(
