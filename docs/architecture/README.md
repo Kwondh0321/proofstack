@@ -51,3 +51,4 @@ invalidate an ADR present in this directory.
 - [ADR-0026: Recheck policy sources through scoped transaction ports](0026-recheck-policy-sources-through-scoped-transaction-ports.md)
 - [ADR-0027: Guard complete policy metadata publication](0027-guard-complete-policy-metadata-publication.md)
 - [ADR-0028: Observe complete criterion status authority](0028-observe-complete-criterion-status-authority.md)
+- [ADR-0029: Retain distinct protocol definitions without choosing ambiguous matches](0029-retain-distinct-protocol-definitions.md)

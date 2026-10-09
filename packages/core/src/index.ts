@@ -83,6 +83,7 @@ export * from "./release/release-candidate-repository.js";
 export * from "./release/release-candidate-source-references.js";
 export * from "./runtime/runtime-definition-catalogue.js";
 export * from "./runtime/endpoint-profile.js";
+export * from "./runtime/protocol-definition.js";
 export * from "./runtime/runtime-definition-record.js";
 export { MemoryComparisonRepository } from "./testing/memory-comparison-repository.js";
 export {

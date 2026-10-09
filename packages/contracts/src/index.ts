@@ -38,6 +38,8 @@ export * from "./policy-evaluation-request-encoding.js";
 export * from "./policy-evaluation-source-reference.js";
 export * from "./policy-evaluation-time.js";
 export * from "./primitives.js";
+export * from "./protocol-definition.js";
+export * from "./protocol-definition-encoding.js";
 export * from "./recovery.js";
 export * from "./release-candidate.js";
 export * from "./release-candidate-api.js";

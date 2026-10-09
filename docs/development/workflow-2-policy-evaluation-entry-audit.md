@@ -482,6 +482,14 @@ rejects changed mapping, full receipts, removal and absent creation before trave
 resolved model mapping still has a retained-declaration authority frontier. Protocol acquisition,
 complete authority closure and sealed publication remain open.
 
+The [retained protocol data prerequisite](workflow-2-protocol-definitions.md) separates seven
+original families, complete exact descriptors and independent opaque storage identity. Strict
+canonical definitions retain specification artifacts and adapter implementation/configuration
+dependencies, original receipts and a copied 256-record catalogue. Duplicate storage identities
+fail; distinct exact descriptor matches remain explicit rather than becoming a selected winner.
+The source inventory remains 47: protocol source/parent/graph/scoped-port acquisition, bounded
+complete ambiguity inspection, current authority and sealed publication remain open.
+
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
 status function; raw outbox access and new definition publication remain denied. Native role

@@ -1,0 +1,377 @@
+{
+  "schemaVersion": "0.1",
+  "definitionDomain": "proofstack.protocol-definition.v1",
+  "encodingVersion": "proofstack.protocol-definition-jcs.v1",
+  "vectors": [
+    {
+      "name": "capture_adapter",
+      "input": {
+        "definition": {
+          "family": "capture_adapter",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_capture_adapter",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"],
+          "implementation": {
+            "artifactId": "artifact_protocol_implementation",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 256,
+            "mediaType": "application/wasm",
+            "classification": "confidential"
+          },
+          "configuration": {
+            "artifactId": "artifact_protocol_configuration",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 64,
+            "mediaType": "application/json",
+            "classification": "restricted",
+            "redactedAt": "ingest"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"configuration\":{\"artifactId\":\"artifact_protocol_configuration\",\"classification\":\"restricted\",\"mediaType\":\"application/json\",\"redactedAt\":\"ingest\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sizeBytes\":64},\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"capture_adapter\",\"implementation\":{\"artifactId\":\"artifact_protocol_implementation\",\"classification\":\"confidential\",\"mediaType\":\"application/wasm\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sizeBytes\":256},\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_capture_adapter\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 1239,
+      "sha256": "90e68dff8334d09d37ae212421d5f8264098a3d2506c070afd24d364f6aa6f39"
+    },
+    {
+      "name": "source_format",
+      "input": {
+        "definition": {
+          "family": "source_format",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_source_format",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"]
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"source_format\",\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_source_format\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 774,
+      "sha256": "2ccfa8f4e4596d8dced57287aecb6971eb86d479f80f6611412a7ab753092de4"
+    },
+    {
+      "name": "request_normalizer",
+      "input": {
+        "definition": {
+          "family": "request_normalizer",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_request_normalizer",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"],
+          "implementation": {
+            "artifactId": "artifact_protocol_implementation",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 256,
+            "mediaType": "application/wasm",
+            "classification": "confidential"
+          },
+          "configuration": {
+            "artifactId": "artifact_protocol_configuration",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 64,
+            "mediaType": "application/json",
+            "classification": "restricted",
+            "redactedAt": "ingest"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"configuration\":{\"artifactId\":\"artifact_protocol_configuration\",\"classification\":\"restricted\",\"mediaType\":\"application/json\",\"redactedAt\":\"ingest\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sizeBytes\":64},\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"request_normalizer\",\"implementation\":{\"artifactId\":\"artifact_protocol_implementation\",\"classification\":\"confidential\",\"mediaType\":\"application/wasm\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sizeBytes\":256},\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_request_normalizer\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 1245,
+      "sha256": "9e9f42f75bb63f0116249a8a04f55d9a496bd1558ba2e5515795b780779f861e"
+    },
+    {
+      "name": "recorded_target_adapter",
+      "input": {
+        "definition": {
+          "family": "recorded_target_adapter",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_recorded_target_adapter",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"],
+          "implementation": {
+            "artifactId": "artifact_protocol_implementation",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 256,
+            "mediaType": "application/wasm",
+            "classification": "confidential"
+          },
+          "configuration": {
+            "artifactId": "artifact_protocol_configuration",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 64,
+            "mediaType": "application/json",
+            "classification": "restricted",
+            "redactedAt": "ingest"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"configuration\":{\"artifactId\":\"artifact_protocol_configuration\",\"classification\":\"restricted\",\"mediaType\":\"application/json\",\"redactedAt\":\"ingest\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sizeBytes\":64},\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"recorded_target_adapter\",\"implementation\":{\"artifactId\":\"artifact_protocol_implementation\",\"classification\":\"confidential\",\"mediaType\":\"application/wasm\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sizeBytes\":256},\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_recorded_target_adapter\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 1255,
+      "sha256": "e61dfb52a17568676f53651561fd70abc1089002c885062a4493f4cab6fb42bc"
+    },
+    {
+      "name": "released_target_adapter",
+      "input": {
+        "definition": {
+          "family": "released_target_adapter",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1",
+            "protocolVersion": "WIRE-2.0+RC"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_released_target_adapter",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"],
+          "implementation": {
+            "artifactId": "artifact_protocol_implementation",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 256,
+            "mediaType": "application/wasm",
+            "classification": "confidential"
+          },
+          "configuration": {
+            "artifactId": "artifact_protocol_configuration",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 64,
+            "mediaType": "application/json",
+            "classification": "restricted",
+            "redactedAt": "ingest"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"configuration\":{\"artifactId\":\"artifact_protocol_configuration\",\"classification\":\"restricted\",\"mediaType\":\"application/json\",\"redactedAt\":\"ingest\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sizeBytes\":64},\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"protocolVersion\":\"WIRE-2.0+RC\",\"version\":\"V1.0+RC-1\"},\"family\":\"released_target_adapter\",\"implementation\":{\"artifactId\":\"artifact_protocol_implementation\",\"classification\":\"confidential\",\"mediaType\":\"application/wasm\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sizeBytes\":256},\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_released_target_adapter\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 1287,
+      "sha256": "b125cc6ff3b2a03af64843455bdad224c33836b846199c50366849e3d5e327b4"
+    },
+    {
+      "name": "worker_protocol",
+      "input": {
+        "definition": {
+          "family": "worker_protocol",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_worker_protocol",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"]
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"worker_protocol\",\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_worker_protocol\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 778,
+      "sha256": "ef11ca8818ad0af3ae6e4ed03e72d1604b3ab833ae9e75365585527e587eea9b"
+    },
+    {
+      "name": "runtime_protocol",
+      "input": {
+        "definition": {
+          "family": "runtime_protocol",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_runtime_protocol",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"]
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"runtime_protocol\",\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_runtime_protocol\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 780,
+      "sha256": "70509231fea654f1fc4f3d2ab77340eb75c943f848169801c0300b0821fe1187"
+    },
+    {
+      "name": "capture-other-tenant",
+      "input": {
+        "definition": {
+          "family": "capture_adapter",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V1.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_capture_adapter",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"],
+          "implementation": {
+            "artifactId": "artifact_protocol_implementation",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 256,
+            "mediaType": "application/wasm",
+            "classification": "confidential"
+          },
+          "configuration": {
+            "artifactId": "artifact_protocol_configuration",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 64,
+            "mediaType": "application/json",
+            "classification": "restricted",
+            "redactedAt": "ingest"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_b",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"configuration\":{\"artifactId\":\"artifact_protocol_configuration\",\"classification\":\"restricted\",\"mediaType\":\"application/json\",\"redactedAt\":\"ingest\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sizeBytes\":64},\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V1.0+RC-1\"},\"family\":\"capture_adapter\",\"implementation\":{\"artifactId\":\"artifact_protocol_implementation\",\"classification\":\"confidential\",\"mediaType\":\"application/wasm\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sizeBytes\":256},\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_capture_adapter\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_b\"}}",
+      "utf8Bytes": 1239,
+      "sha256": "bd4129cd74ae3691cf2b4a75e4a22e052d43dd86ef64e4588ffba8a4715c6713"
+    },
+    {
+      "name": "capture-other-version",
+      "input": {
+        "definition": {
+          "family": "capture_adapter",
+          "descriptor": {
+            "name": "reference/protocol+V1:@wire",
+            "version": "V2.0+RC-1"
+          },
+          "recordKind": "protocol_definition",
+          "protocolDefinitionId": "protocol_capture_v2",
+          "specification": {
+            "artifactId": "artifact_protocol_specification",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 128,
+            "mediaType": "application/json",
+            "classification": "confidential",
+            "redactedAt": "source"
+          },
+          "limitations": ["Declared data is not compatibility", "원본 선언을 보존합니다"],
+          "implementation": {
+            "artifactId": "artifact_protocol_implementation",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sizeBytes": 256,
+            "mediaType": "application/wasm",
+            "classification": "confidential"
+          },
+          "configuration": {
+            "artifactId": "artifact_protocol_configuration",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 64,
+            "mediaType": "application/json",
+            "classification": "restricted",
+            "redactedAt": "ingest"
+          }
+        },
+        "scope": {
+          "tenantId": "tenant_protocol_a",
+          "projectId": "project_protocol",
+          "environmentId": "environment_protocol"
+        }
+      },
+      "canonicalUtf8": "{\"definition\":{\"configuration\":{\"artifactId\":\"artifact_protocol_configuration\",\"classification\":\"restricted\",\"mediaType\":\"application/json\",\"redactedAt\":\"ingest\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sizeBytes\":64},\"descriptor\":{\"name\":\"reference/protocol+V1:@wire\",\"version\":\"V2.0+RC-1\"},\"family\":\"capture_adapter\",\"implementation\":{\"artifactId\":\"artifact_protocol_implementation\",\"classification\":\"confidential\",\"mediaType\":\"application/wasm\",\"sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sizeBytes\":256},\"limitations\":[\"Declared data is not compatibility\",\"원본 선언을 보존합니다\"],\"protocolDefinitionId\":\"protocol_capture_v2\",\"recordKind\":\"protocol_definition\",\"specification\":{\"artifactId\":\"artifact_protocol_specification\",\"classification\":\"confidential\",\"mediaType\":\"application/json\",\"redactedAt\":\"source\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":128}},\"definitionDomain\":\"proofstack.protocol-definition.v1\",\"encodingVersion\":\"proofstack.protocol-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_protocol\",\"projectId\":\"project_protocol\",\"tenantId\":\"tenant_protocol_a\"}}",
+      "utf8Bytes": 1234,
+      "sha256": "7d65f453bad65fa1ff1678baaca4f53641787ec4ff7281c6574f5be30e9cc411"
+    }
+  ]
+}
