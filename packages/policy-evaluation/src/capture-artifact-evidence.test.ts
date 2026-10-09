@@ -19,6 +19,9 @@ import {
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
   policyEvaluationSourceReferenceKey,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSchema,
   type ReleaseCandidate,
   type ReleasePolicy,
   type RecordedInteractionFixtureVersionDefinition,
@@ -27,12 +30,14 @@ import {
 } from "@proofstack/contracts";
 import {
   digestPolicyEvaluationRequestDefinition,
+  digestProtocolDefinition,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
   type ReleaseCandidateRevisionReference,
   type ReleaseCandidateRuntimeReference,
   releaseCandidateReference,
   releasePolicyReference,
+  StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   comparisonFixtureScope,
@@ -57,6 +62,7 @@ import {
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
 import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
+import { deriveCapturedRuleDependencies } from "./derive-rule-dependencies.js";
 import {
   observeCapturedCandidateAuthority,
   type PolicyCandidateAuthorities,
@@ -653,6 +659,15 @@ describe("complete ordered policy rule inputs", () => {
     expect(output.comparisonRules.rules[first.inputIndex]?.binding).toEqual(
       output.comparisonRules.rules[second.inputIndex]?.binding,
     );
+    const dependencyFrames = repeated.map(
+      ({ ruleIndex }) => output.ruleDependencies.rules[ruleIndex],
+    );
+    const [firstDependencies, secondDependencies] = dependencyFrames;
+    if (!firstDependencies || !secondDependencies)
+      throw new Error("Missing repeated dependency frames");
+    expect(firstDependencies.sourceIndexes).toEqual(secondDependencies.sourceIndexes);
+    expect(firstDependencies.ruleIndex).not.toBe(secondDependencies.ruleIndex);
+    expect(firstDependencies.seedEdgeIndexes).not.toEqual(secondDependencies.seedEdgeIndexes);
     expect(
       output.ruleInputs.rules.filter(({ binding }) => binding.kind === "approval"),
     ).toHaveLength(1);
@@ -692,6 +707,7 @@ describe("complete ordered policy rule inputs", () => {
       assembled.artifactRules,
       assembled.comparisonRules,
       assembled.assessmentRules,
+      assembled.ruleDependencies,
     ];
     const exact = {
       maxReferences:
@@ -763,6 +779,289 @@ describe("complete ordered policy rule inputs", () => {
     if (fault === "inventory" && capture.status === "inventory_captured")
       Reflect.set(capture, "inventory", {});
     if (fault === "assessment_report") Reflect.set(graph.policyAssessments, "rules", []);
+    expect(() => inspectCapturedRuleInputs(h.request, capture, output.artifacts, limits)).toThrow();
+  });
+});
+
+describe("candidate-owned rule dependency closure", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
+  async function setup(recorded = false) {
+    const h = await harness(recorded);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing original capture");
+    return { h, output, graph: output.traceCapture.comparisonCapture.graph };
+  }
+
+  it("retains the complete original inventory and ordered rule dependencies without outcomes", async () => {
+    const { h, output, graph } = await setup();
+    const report = output.ruleDependencies;
+    expect(report).toMatchObject({
+      authorityBoundary: "captured_dependencies_only",
+      request: graph.request,
+      scope: h.request.scope,
+      evaluationTime: h.request.evaluationTime,
+      sources: graph.entries,
+      frontier: graph.recordClosure.frontier,
+    });
+    expect(report.rules.map(({ ruleIndex, ruleId }) => ({ ruleIndex, ruleId }))).toEqual(
+      h.policy.rules.map(({ ruleId }, ruleIndex) => ({ ruleIndex, ruleId })),
+    );
+    for (const frame of [report.rootContext, ...report.rules]) {
+      for (const indexes of Object.values(frame).filter(Array.isArray))
+        expect(indexes).toEqual([...new Set(indexes)].sort((a, b) => a - b));
+      for (const index of frame.sourceIndexes) expect(report.sources[index]).toBeDefined();
+      for (const index of frame.frontierIndexes)
+        expect(frame.edgeIndexes).toContain(report.frontier[index]?.edgeIndex);
+      for (const root of graph.roots)
+        expect(frame.sourceIndexes.map((index) => report.sources[index]?.source)).toContainEqual(
+          root,
+        );
+      expect(frame).not.toHaveProperty("outcome");
+      expect(frame).not.toHaveProperty("eligible");
+    }
+    expect(publicApi).not.toHaveProperty("deriveCapturedRuleDependencies");
+    expect(report).not.toHaveProperty("sealed");
+  });
+
+  it("keeps every unreadable candidate comparison in each comparison rule, without treating it as zero", async () => {
+    const { output, graph } = await setup();
+    const report = output.ruleDependencies;
+    const candidateEdges = graph.edges.flatMap((edge, index) =>
+      edge.parent.kind === "release_candidate" && edge.reference.path.startsWith("/comparisons/")
+        ? [index]
+        : [],
+    );
+    expect(candidateEdges.length).toBeGreaterThan(0);
+    for (const input of output.comparisonRules.rules) {
+      const frame = report.rules[input.ruleIndex];
+      if (!frame) throw new Error("Missing comparison dependencies");
+      for (const index of candidateEdges) {
+        const target = graph.edges[index]?.target;
+        expect(frame.seedEdgeIndexes).toContain(index);
+        expect(
+          frame.sourceIndexes.map((sourceIndex) => report.sources[sourceIndex]?.source),
+        ).toContainEqual(target);
+      }
+      expect(input.binding.status).toBe("comparison_unusable");
+    }
+    expect(
+      report.sources.some(
+        ({ source, observation }) =>
+          source.kind === "comparison_result" && observation.status !== "verified",
+      ),
+    ).toBe(true);
+  });
+
+  it("binds the selected artifact occurrence while retaining its declaration frontier and unresolved approval", async () => {
+    const { output, graph } = await setup();
+    const report = output.ruleDependencies;
+    for (const input of output.artifactRules.rules) {
+      const frame = report.rules[input.ruleIndex];
+      if (!frame) throw new Error("Missing artifact dependency frame");
+      expect(frame.seedEdgeIndexes).toContain(input.policyEdgeIndex);
+      if (input.binding.status === "component_present") {
+        const member = output.artifactRules.members[input.binding.memberIndex];
+        if (!member) throw new Error("Missing original component");
+        expect(frame.seedEdgeIndexes).toContain(member.candidateEdgeIndex);
+        const frontierEdges = frame.frontierIndexes.map(
+          (index) => report.frontier[index]?.edgeIndex,
+        );
+        expect(frontierEdges).toContain(member.candidateEdgeIndex);
+        expect(graph.edges[member.candidateEdgeIndex]?.parent).toEqual(
+          output.ruleInputs.candidate.source,
+        );
+      }
+    }
+    const approval = output.ruleInputs.rules.find(({ binding }) => binding.kind === "approval");
+    if (approval?.binding.kind !== "approval") throw new Error("Missing unresolved approval");
+    expect(approval.binding.reason).toBe("approval_not_evaluated");
+    expect(report.rules[approval.ruleIndex]).not.toHaveProperty("approval");
+  });
+
+  it("traverses dataset members and recorded predecessors without merging repeated frontier occurrences", async () => {
+    const { output, graph } = await setup(true);
+    const report = output.ruleDependencies;
+    const retained = report.rootContext.sourceIndexes.map((index) => report.sources[index]);
+    expect(
+      retained.filter((entry) => entry?.source.kind === "regression_fixture_version"),
+    ).toHaveLength(2);
+    const fixtureEdges = graph.edges.flatMap((edge, index) =>
+      edge.parent.kind === "regression_fixture_version" ? [index] : [],
+    );
+    expect(fixtureEdges.length).toBeGreaterThan(3);
+    for (const index of fixtureEdges) expect(report.rootContext.edgeIndexes).toContain(index);
+    const actualFrontier = report.rootContext.frontierIndexes.map(
+      (index) => report.frontier[index],
+    );
+    const normalizers = actualFrontier.filter(
+      (entry) => entry && graph.edges[entry.edgeIndex]?.reference.kind === "protocol_declaration",
+    );
+    expect(normalizers.length).toBeGreaterThan(1);
+    expect(new Set(normalizers.map((entry) => entry?.edgeIndex)).size).toBe(normalizers.length);
+  });
+
+  it("traverses all retained protocol siblings despite null targets and future unavailability", async () => {
+    const { h, graph: empty } = await setup(true);
+    const vector = JSON.parse(
+      readFileSync(
+        new URL("../../contracts/vectors/protocol-definition-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { vectors: { input: { definition: ProtocolDefinition } }[] };
+    const records: ProtocolDefinitionRecord[] = [];
+    const selectors = new Set<string>();
+    for (const edge of empty.edges) {
+      const selector = edge.protocolResolution?.selector;
+      if (!selector || selectors.has(JSON.stringify(selector))) continue;
+      selectors.add(JSON.stringify(selector));
+      const template = vector.vectors.find(
+        ({ input }) => input.definition.family === selector.family,
+      );
+      if (!template) throw new Error("Missing independent protocol vector");
+      for (const future of [false, true]) {
+        const id = `protocol_rule_closure_${records.length}`;
+        const body = ProtocolDefinitionSchema.parse({
+          ...structuredClone(template.input.definition),
+          ...selector,
+          protocolDefinitionId: id,
+        });
+        body.specification.artifactId = `${id}_spec`;
+        if ("implementation" in body) {
+          body.implementation.artifactId = `${id}_implementation`;
+          body.configuration.artifactId = `${id}_configuration`;
+        }
+        records.push({
+          ...body,
+          scope: h.request.scope,
+          schemaVersion: "0.1",
+          definitionSha256: digestProtocolDefinition(h.request.scope, body),
+          registeredAt: future ? "2099-01-01T00:00:00.000Z" : createdAt,
+          registeredByPrincipalId: "operator_closure_protocol",
+        });
+      }
+    }
+    expect(records.length).toBeGreaterThan(0);
+    const output = await capturePolicyArtifactEvidence(
+      h.request,
+      PrincipalContextSchema.parse({
+        ...h.actor,
+        capabilities: [...h.actor.capabilities, "artifact:read:restricted"],
+      }),
+      {
+        ...h.repositories,
+        protocolDefinitions: new StaticProtocolDefinitionCatalogue(records),
+      },
+      h.evidence,
+      h.dependencies,
+    );
+    if (output.status !== "artifacts_captured") throw new Error("Missing protocol capture");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const report = output.ruleDependencies;
+    const retained = report.rootContext.sourceIndexes.map((index) => report.sources[index]);
+    expect(retained.filter((entry) => entry?.source.kind === "protocol_definition")).toHaveLength(
+      records.length,
+    );
+    expect(
+      retained.some(
+        (entry) =>
+          entry?.source.kind === "protocol_definition" &&
+          entry.observation.status === "unavailable",
+      ),
+    ).toBe(true);
+    for (const [index, edge] of graph.edges.entries()) {
+      if (!edge.protocolResolution) continue;
+      expect(edge.target).toBeNull();
+      expect(edge.protocolResolution.matches).toHaveLength(2);
+      expect(report.rootContext.edgeIndexes).toContain(index);
+      expect(report.frontier).toContainEqual({ edgeIndex: index, kind: "retained_declaration" });
+      for (const member of edge.protocolResolution.matches) {
+        if (member.status !== "retained") throw new Error("Invalid independent protocol");
+        expect(retained.map((entry) => entry?.source)).toContainEqual(member.read.source);
+      }
+    }
+  });
+
+  it("owns nested inventory and meters complete repeated frames with an independent canonical sum", async () => {
+    const { h, output, graph } = await setup();
+    const original = structuredClone(graph);
+    for (const spy of [h.find, h.get, h.decrypt, h.exact, h.root]) spy.mockClear();
+    const report = deriveCapturedRuleDependencies(h.request, graph, output, limits);
+    expect(report).toEqual(output.ruleDependencies);
+    const { sources, frontier, rootContext, rules, inspectionUsage: _usage, ...context } = report;
+    const frames = [context, ...sources, ...frontier, rootContext, ...rules];
+    const coordinates = [rootContext, ...rules];
+    const expected = {
+      references:
+        graph.recordClosure.inspectionUsage.references +
+        1 +
+        sources.length +
+        frontier.length +
+        coordinates.reduce(
+          (sum, frame) =>
+            sum +
+            1 +
+            frame.seedEdgeIndexes.length +
+            frame.sourceIndexes.length +
+            frame.edgeIndexes.length +
+            frame.frontierIndexes.length,
+          0,
+        ),
+      referenceBytes:
+        graph.recordClosure.inspectionUsage.referenceBytes +
+        frames.reduce((sum, frame) => sum + encodeEvaluationCanonicalJson(frame).byteLength, 0),
+    };
+    expect(report.inspectionUsage).toEqual(expected);
+    const exact = {
+      maxReferences: expected.references,
+      maxReferenceBytes: expected.referenceBytes,
+    };
+    expect(deriveCapturedRuleDependencies(h.request, graph, output, exact)).toEqual(report);
+    for (const field of ["maxReferences", "maxReferenceBytes"] as const)
+      expect(() =>
+        deriveCapturedRuleDependencies(h.request, graph, output, {
+          ...exact,
+          [field]: exact[field] - 1,
+        }),
+      ).toThrow(
+        field === "maxReferences" ? "reference_limit_exceeded" : "reference_bytes_exceeded",
+      );
+    Reflect.set(report.sources[0]?.observation ?? {}, "status", "substituted");
+    Reflect.set(report.rootContext, "sourceIndexes", []);
+    expect(graph).toEqual(original);
+    for (const spy of [h.find, h.get, h.decrypt, h.exact, h.root])
+      expect(spy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "entry_omitted",
+    "entry_extra",
+    "entry_changed",
+    "frontier_omitted",
+    "frontier_reordered",
+    "closure_meter",
+    "source_omitted",
+    "edge_omitted",
+  ] as const)("rejects %s before publishing dependency coordinates", async (fault) => {
+    const { h, output } = await setup(true);
+    const capture = structuredClone(output.traceCapture.comparisonCapture);
+    const graph = capture.graph;
+    if (fault === "entry_omitted") Reflect.set(graph, "entries", graph.entries.slice(1));
+    if (fault === "entry_extra")
+      Reflect.set(graph, "entries", [...graph.entries, graph.entries[0]]);
+    if (fault === "entry_changed") {
+      const verified = graph.entries.find(({ observation }) => observation.status === "verified");
+      if (!verified) throw new Error("Missing verified original entry");
+      Reflect.set(verified, "observation", { status: "missing" });
+    }
+    if (fault === "frontier_omitted")
+      Reflect.set(graph.recordClosure, "frontier", graph.recordClosure.frontier.slice(1));
+    if (fault === "frontier_reordered")
+      Reflect.set(graph.recordClosure, "frontier", [...graph.recordClosure.frontier].reverse());
+    if (fault === "closure_meter")
+      Reflect.set(graph.recordClosure.inspectionUsage, "references", 0);
+    if (fault === "source_omitted")
+      Reflect.set(graph.recordClosure, "sources", graph.recordClosure.sources.slice(1));
+    if (fault === "edge_omitted") Reflect.set(graph, "edges", graph.edges.slice(1));
     expect(() => inspectCapturedRuleInputs(h.request, capture, output.artifacts, limits)).toThrow();
   });
 });
@@ -1346,6 +1645,7 @@ describe("request-rooted authorized artifact capture", () => {
         output.comparisonRules.inspectionUsage.references +
         output.assessmentRules.inspectionUsage.references +
         output.ruleInputs.inspectionUsage.references +
+        output.ruleDependencies.inspectionUsage.references +
         output.artifactRules.inspectionUsage.references,
     );
     expect(output.usage.artifacts).toEqual({
@@ -1418,8 +1718,8 @@ describe("request-rooted authorized artifact capture", () => {
   });
 
   it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
-    const h = await harness(false, 174);
-    // Four content-bearing events plus 170 metadata-only events keep record admission above all
+    const h = await harness(false, 450);
+    // Four content-bearing events plus 446 metadata-only events keep record admission above all
     // parent/rule reference inspection. Each event stays below the owning 32-reference maximum.
     h.events.forEach((event, index) => {
       event.evidence.contentReferences =
@@ -2306,7 +2606,7 @@ describe("request-owned source recheck composition", () => {
     // Retain a real successor/history so record admission remains the limiting dimension
     // after candidate assessment and closure inspection also charge reference occurrences.
     const prepare = async () => {
-      const fixture = await recheckHarness(150);
+      const fixture = await recheckHarness(450);
       fixture.h.events.forEach((event, index) => {
         event.evidence.contentReferences =
           index < 4 ? Array.from({ length: 24 }, () => reference) : [];
@@ -2354,7 +2654,7 @@ describe("request-owned source recheck composition", () => {
   });
 
   it("charges each retained terminal-history row as well as its reread operation", async () => {
-    const f = await recheckHarness(160);
+    const f = await recheckHarness(450);
     // Keep record admission, rather than reference admission, the limiting dimension.
     f.h.events.forEach((event, index) => {
       event.evidence.contentReferences =
@@ -2377,7 +2677,7 @@ describe("request-owned source recheck composition", () => {
       recheck.guards + recheck.artifactReads + recheck.policyReads + 2 + 1,
     );
     expect(output.usage.records).toBeGreaterThan(output.usage.references);
-    const fresh = await recheckHarness(160);
+    const fresh = await recheckHarness(450);
     fresh.h.events.forEach((event, index) => {
       event.evidence.contentReferences =
         index < 4 ? Array.from({ length: 24 }, () => reference) : [];

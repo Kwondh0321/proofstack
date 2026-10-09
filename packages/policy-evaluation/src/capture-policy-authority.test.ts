@@ -780,6 +780,7 @@ describe("combined policy-authority inspection admission", () => {
           baseline.comparisonRules.inspectionUsage.references +
           baseline.assessmentRules.inspectionUsage.references +
           baseline.ruleInputs.inspectionUsage.references +
+          baseline.ruleDependencies.inspectionUsage.references +
           baseline.artifactRules.inspectionUsage.references,
       );
       expect(baseline.usage.referenceBytes).toBe(
@@ -789,6 +790,7 @@ describe("combined policy-authority inspection admission", () => {
           baseline.comparisonRules.inspectionUsage.referenceBytes +
           baseline.assessmentRules.inspectionUsage.referenceBytes +
           baseline.ruleInputs.inspectionUsage.referenceBytes +
+          baseline.ruleDependencies.inspectionUsage.referenceBytes +
           baseline.artifactRules.inspectionUsage.referenceBytes +
           baseline.usage.sourceGuards.canonicalBytes,
       );

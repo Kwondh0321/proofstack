@@ -285,6 +285,13 @@ declaration remains explicitly not_evaluated with approval_not_evaluated. Full f
 share canonical admission. This does not complete current authority, sealed contracts,
 deterministic outcomes or checkpoint 3 acceptance.
 
+The [candidate-owned rule dependency closure](workflow-2-rule-dependency-closure.md)
+independently reconstructs the complete original inventory before joining every
+ordered rule to transitive source/edge/frontier coordinates. Complete comparison
+inventories, unavailable protocol siblings, repeated origins and separate root
+context remain under cumulative admission. These coordinates do not qualify inputs,
+establish current authority, produce outcomes or seal a snapshot; checkpoint 3 stays open.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture

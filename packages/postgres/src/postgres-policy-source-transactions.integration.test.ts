@@ -896,6 +896,25 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
         });
     }
     expect(result.ruleInputs).not.toHaveProperty("outcome");
+    expect(result.ruleDependencies).toMatchObject({
+      authorityBoundary: "captured_dependencies_only",
+      request: graph.request,
+      scope: graph.scope,
+      evaluationTime: graph.evaluationTime,
+      sources: graph.entries,
+      frontier: graph.recordClosure.frontier,
+    });
+    expect(
+      result.ruleDependencies.rules.map(({ ruleIndex, ruleId }) => ({ ruleIndex, ruleId })),
+    ).toEqual(
+      result.ruleInputs.rules.map(({ ruleIndex, rule }) => ({ ruleIndex, ruleId: rule.ruleId })),
+    );
+    for (const frame of result.ruleDependencies.rules) {
+      for (const index of frame.frontierIndexes)
+        expect(frame.edgeIndexes).toContain(result.ruleDependencies.frontier[index]?.edgeIndex);
+      expect(frame).not.toHaveProperty("outcome");
+    }
+    expect(result.ruleDependencies).not.toHaveProperty("sealed");
     expect(result.artifactRules.candidate.source).toEqual(
       graph.roots.find((root) => root.kind === "release_candidate"),
     );

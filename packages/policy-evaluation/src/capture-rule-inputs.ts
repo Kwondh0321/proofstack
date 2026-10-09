@@ -15,6 +15,7 @@ import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
 import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import type { PolicyComparisonEvidenceCapture } from "./capture-comparison-evidence.js";
 import { inspectCapturedComparisonRules } from "./capture-comparison-rules.js";
+import { deriveCapturedRuleDependencies } from "./derive-rule-dependencies.js";
 
 type Rule = ReleasePolicy["rules"][number];
 type Approval = Extract<Rule["predicate"], { kind: "approval_required" }>;
@@ -170,5 +171,10 @@ export function inspectCapturedRuleInputs(
       referenceBytes: referenceBytes - familyBytes,
     },
   };
-  return structuredClone({ artifactRules, comparisonRules, assessmentRules, ruleInputs });
+  const reports = { artifactRules, comparisonRules, assessmentRules, ruleInputs };
+  const ruleDependencies = deriveCapturedRuleDependencies(request, owned.capture.graph, reports, {
+    maxReferences: limits.maxReferences - references,
+    maxReferenceBytes: limits.maxReferenceBytes - referenceBytes,
+  });
+  return structuredClone({ ...reports, ruleDependencies });
 }

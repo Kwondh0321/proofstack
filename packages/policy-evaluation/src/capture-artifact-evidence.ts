@@ -52,6 +52,7 @@ import {
   type PolicyApplicabilityInputs,
 } from "./capture-policy-applicability.js";
 import type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
+import type { PolicyRuleDependencyClosure } from "./derive-rule-dependencies.js";
 import {
   observeCapturedPolicyLifecycle,
   type PolicyLifecycleObservation,
@@ -130,6 +131,7 @@ export type PolicyArtifactEvidenceCapture = {
       readonly comparisonRules: PolicyComparisonRuleBindings;
       readonly assessmentRules: PolicyAssessmentRuleInputs;
       readonly ruleInputs: PolicyRuleInputs;
+      readonly ruleDependencies: PolicyRuleDependencyClosure;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly criterionAuthority: {
         readonly beforeArtifacts: PolicyCriterionAuthorityObservation;
@@ -323,12 +325,18 @@ export async function capturePolicyArtifactEvidence(
       evaluationTrust.inspectionUsage.references,
       evaluationTrust.inspectionUsage.referenceBytes,
     );
-    const { artifactRules, comparisonRules, assessmentRules, ruleInputs } =
+    const { artifactRules, comparisonRules, assessmentRules, ruleInputs, ruleDependencies } =
       inspectCapturedRuleInputs(request, traceCapture.comparisonCapture, artifacts, {
         maxReferences: request.limits.maxAcquisitionRecords,
         maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
       });
-    for (const report of [artifactRules, comparisonRules, assessmentRules, ruleInputs])
+    for (const report of [
+      artifactRules,
+      comparisonRules,
+      assessmentRules,
+      ruleInputs,
+      ruleDependencies,
+    ])
       budget.addReferences(
         report.inspectionUsage.references,
         report.inspectionUsage.referenceBytes,
@@ -417,6 +425,7 @@ export async function capturePolicyArtifactEvidence(
       comparisonRules,
       assessmentRules,
       ruleInputs,
+      ruleDependencies,
       evaluationTrust,
       criterionAuthority: {
         beforeArtifacts: criteriaBeforeArtifacts,

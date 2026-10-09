@@ -761,6 +761,7 @@ describe("retained evaluation trust prerequisites", () => {
           capture.comparisonRules.inspectionUsage.references +
           capture.assessmentRules.inspectionUsage.references +
           capture.ruleInputs.inspectionUsage.references +
+          capture.ruleDependencies.inspectionUsage.references +
           capture.evaluationTrust.inspectionUsage.references +
           capture.artifactRules.inspectionUsage.references +
           criterionReferences,
@@ -772,6 +773,7 @@ describe("retained evaluation trust prerequisites", () => {
           capture.comparisonRules.inspectionUsage.referenceBytes +
           capture.assessmentRules.inspectionUsage.referenceBytes +
           capture.ruleInputs.inspectionUsage.referenceBytes +
+          capture.ruleDependencies.inspectionUsage.referenceBytes +
           capture.evaluationTrust.inspectionUsage.referenceBytes +
           capture.artifactRules.inspectionUsage.referenceBytes +
           capture.usage.sourceGuards.canonicalBytes +
@@ -1219,7 +1221,8 @@ describe("criterion authority reinspection under source transaction guards", () 
       f.h.evaluation.scope,
       { maxRecords: 10000, maxRecordBytes: 8_388_608 },
     );
-    const unrelated = Array.from({ length: 400 }, (_, index) =>
+    // Keep retained-row admission dominant after complete rule dependency reinspection.
+    const unrelated = Array.from({ length: 550 }, (_, index) =>
       criterionStatusHistoryFixture(f.approved, {
         statusRecordId: `csr_unrelated_${index.toString().padStart(4, "0")}`,
         status: "draft",
@@ -1235,7 +1238,7 @@ describe("criterion authority reinspection under source transaction guards", () 
       async () => structuredClone(history),
     );
     const baseline = await f.run();
-    expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(402);
+    expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(552);
     expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
     const limits = { ...f.h.request().limits, maxAcquisitionRecords: baseline.usage.records };
     const exact = await f.run({ limits });

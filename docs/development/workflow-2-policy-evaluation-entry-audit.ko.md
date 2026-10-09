@@ -253,6 +253,12 @@ boolean 가용성을 구분하며 전체 부모·반복 조회의 누적 예산�
 not_evaluated 및 approval_not_evaluated로 명시합니다. 전체 프레임 비용을 동일 누적
 예산에 포함합니다. 현재 권한·봉인 계약·결정적 판정·체크포인트 3 수락은 남아 있습니다.
 
+[후보 소유 규칙의 의존 경로](workflow-2-rule-dependency-closure.ko.md)는 전체 원본 목록을
+독립적으로 다시 구성한 뒤 각 규칙을 전이적인 source/edge/frontier 위치에 연결합니다.
+전체 비교 목록·사용 불가 프로토콜 후보·반복 발생 위치·별도 루트 문맥을 같은 예산으로
+유지합니다. 위치 정보는 입력의 평가 자격·현재 권한·판정·봉인을 확정하지 않으며
+체크포인트 3은 미완료입니다.
+
 후속 [후보 assessment 계보](workflow-2-candidate-assessment-lineage.ko.md)는 모델 보증 base를
 포함한 모든 후보 평가에서 기존 이력 보고·집계 정책·실행으로 연결합니다. 정확한 후보
 dataset/target과 dataset의 fixture 소속을 검사하고 근거 부재·빈 집계·반복 출처를 보존합니다.
