@@ -28,6 +28,12 @@ import {
   type PolicyArtifactRuleBindings,
 } from "./capture-artifact-rules.js";
 import {
+  candidateAuthorityMaterialFingerprint,
+  observeCapturedCandidateAuthority,
+  type PolicyCandidateAuthorities,
+  type PolicyCandidateAuthorityObservation,
+} from "./capture-candidate-authority.js";
+import {
   type CriterionAuthorityReadRepository,
   criterionAuthorityMaterialFingerprint,
   observeCapturedCriterionAuthority,
@@ -71,6 +77,8 @@ export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDep
   readonly sourceTransactions?: PolicyEvaluationSourceTransactions;
   /** Alternative whole-graph metadata mode; cannot be combined with sourceTransactions. */
   readonly metadataTransactions?: PolicyEvaluationMetadataTransactions;
+  /** Fixed operator-owned reference authorities; no request-selected callbacks or publication. */
+  readonly candidateAuthorities?: PolicyCandidateAuthorities;
 };
 
 /** Artifact capture also requires complete policy terminal and criterion status histories. */
@@ -112,6 +120,10 @@ export type PolicyArtifactEvidenceCapture = {
       readonly sourceRecheck?: PolicyEvaluationSourceRecheck;
       readonly fixtureBindings: readonly PolicyFixtureBindingCapture[];
       readonly artifactRules: PolicyArtifactRuleBindings;
+      readonly candidateAuthority: {
+        readonly beforeArtifacts: PolicyCandidateAuthorityObservation;
+        readonly afterArtifacts: PolicyCandidateAuthorityObservation;
+      };
       readonly policyAuthority: PolicyAuthorityPrerequisites;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly criterionAuthority: {
@@ -224,6 +236,19 @@ export async function capturePolicyArtifactEvidence(
       return observation;
     };
     const criteriaBeforeArtifacts = await observeCriteria();
+    const observeCandidateAuthority = () =>
+      observeCapturedCandidateAuthority(
+        request,
+        traceCapture.comparisonCapture.graph,
+        dependencies.candidateAuthorities,
+        clock,
+        budget,
+        {
+          maxReferences: request.limits.maxAcquisitionRecords,
+          maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
+        },
+      );
+    const candidateBeforeArtifacts = await observeCandidateAuthority();
     const occurrences: { origin: PolicyArtifactCaptureOrigin; reference: ContentReference }[] = [];
     traceCapture.comparisonCapture.graph.edges.forEach((edge, edgeIndex) => {
       if (edge.reference.kind === "artifact")
@@ -318,6 +343,12 @@ export async function capturePolicyArtifactEvidence(
       artifactRules.inspectionUsage.references,
       artifactRules.inspectionUsage.referenceBytes,
     );
+    const candidateAfterArtifacts = await observeCandidateAuthority();
+    if (
+      candidateAuthorityMaterialFingerprint(candidateBeforeArtifacts) !==
+      candidateAuthorityMaterialFingerprint(candidateAfterArtifacts)
+    )
+      throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
     const afterArtifacts = await observeCapturedPolicyLifecycle(
       traceCapture.comparisonCapture.graph,
       policyRepository,
@@ -373,6 +404,10 @@ export async function capturePolicyArtifactEvidence(
       ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
       fixtureBindings,
       artifactRules,
+      candidateAuthority: {
+        beforeArtifacts: candidateBeforeArtifacts,
+        afterArtifacts: candidateAfterArtifacts,
+      },
       policyAuthority,
       evaluationTrust,
       criterionAuthority: {

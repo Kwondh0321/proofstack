@@ -64,6 +64,7 @@ import {
 import {
   capturePolicyArtifactEvidence,
   type PolicyArtifactEvidenceRepositories,
+  type PolicyCandidateAuthorities,
   type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
@@ -664,7 +665,7 @@ async function fixture(
       );
     },
   };
-  const run = () =>
+  const run = (candidateAuthorities?: PolicyCandidateAuthorities) =>
     capturePolicyArtifactEvidence(
       request,
       actor,
@@ -681,6 +682,7 @@ async function fixture(
         },
         encryption,
         clock: { now: () => new Date() },
+        ...(candidateAuthorities ? { candidateAuthorities } : {}),
         ...(metadataMode ? { metadataTransactions } : { sourceTransactions }),
       },
     );
@@ -743,6 +745,24 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
   it("reinspects complete protocol candidates and encrypted occurrences under the same native metadata guard", async () => {
     const f = await fixture(false, true, true, true);
     let cuts = 0;
+    let authorityReads = 0;
+    const available = async (queryScope: typeof f.scope) => {
+      expect(queryScope).toEqual(f.scope);
+      expect(cuts).toBe(0);
+      const unlocked = await withExactScopeTransaction(
+        admin,
+        f.scope,
+        async (client) =>
+          (
+            await client.query<{ acquired: boolean }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows[0]?.acquired,
+      );
+      expect(unlocked).toBe(true);
+      authorityReads++;
+      return true;
+    };
     f.hooks.underGuards = async () => {
       cuts++;
       const locked = await withExactScopeTransaction(
@@ -757,10 +777,22 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
       );
       expect(locked).toBe(false);
     };
-    const result = await f.run();
+    const result = await f.run({
+      revision: { isAvailable: available },
+      runtime: { isAvailable: available },
+    });
     if (result.status !== "artifacts_captured")
       throw new Error("Expected complete protocol graph report");
     const graph = result.traceCapture.comparisonCapture.graph;
+    const beforeAuthority = result.candidateAuthority.beforeArtifacts;
+    const afterAuthority = result.candidateAuthority.afterArtifacts;
+    if (beforeAuthority.status !== "observed" || afterAuthority.status !== "observed")
+      throw new Error("Expected native candidate authority observations");
+    expect(afterAuthority.occurrences).toEqual(beforeAuthority.occurrences);
+    expect(authorityReads).toBe(
+      beforeAuthority.occurrences.length + afterAuthority.occurrences.length,
+    );
+    expect(authorityReads).toBeGreaterThan(0);
     const edges = graph.edges.filter((e) => e.protocolResolution);
     expect(edges).toHaveLength(4);
     expect(

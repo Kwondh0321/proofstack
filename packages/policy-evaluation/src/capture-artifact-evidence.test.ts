@@ -29,6 +29,8 @@ import {
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
+  type ReleaseCandidateRevisionReference,
+  type ReleaseCandidateRuntimeReference,
   releaseCandidateReference,
   releasePolicyReference,
 } from "@proofstack/core";
@@ -54,6 +56,11 @@ import {
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
+import {
+  observeCapturedCandidateAuthority,
+  type PolicyCandidateAuthorities,
+} from "./capture-candidate-authority.js";
+import { AcquisitionBudget } from "./acquisition-budget.js";
 import * as publicApi from "./index.js";
 import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
 import type {
@@ -104,6 +111,7 @@ async function harness(
   changes: {
     mutateCandidate?(candidate: ReleaseCandidate): void;
     mutatePolicy?(policy: ReleasePolicy): void;
+    predecessor?: ReleaseCandidate;
   } = {},
 ) {
   const datasets = new MemoryRegressionVersionRepository();
@@ -259,6 +267,7 @@ async function harness(
   policy.definitionSha256 = digestReleasePolicyDefinition(scope, policyDefinition);
   const candidates = new MemoryReleaseCandidateRepository();
   const policies = new MemoryReleasePolicyRepository();
+  if (changes.predecessor) await candidates.publishReleaseCandidate(changes.predecessor);
   await candidates.publishReleaseCandidate(candidate);
   await policies.publishReleasePolicy(policy);
   const absent = new Proxy({}, { get: () => async () => null });
@@ -434,6 +443,501 @@ async function harness(
     fixtureDefinition,
   };
 }
+
+describe("candidate external-authority capture", () => {
+  async function setup(changes: Parameters<typeof harness>[2] = {}) {
+    const h = await harness(false, 1, changes);
+    const revision = vi.fn(
+      async (_scope: ReleaseCandidate["scope"], _subject: ReleaseCandidateRevisionReference) =>
+        true,
+    );
+    const runtime = vi.fn(
+      async (_scope: ReleaseCandidate["scope"], _subject: ReleaseCandidateRuntimeReference) => true,
+    );
+    const authorities: PolicyCandidateAuthorities = {
+      revision: { isAvailable: revision },
+      runtime: { isAvailable: runtime },
+    };
+    const run = (ports = authorities, input = h.request) =>
+      capturePolicyArtifactEvidence(input, h.actor, h.repositories, h.evidence, {
+        ...h.dependencies,
+        candidateAuthorities: ports,
+      });
+    return { h, revision, runtime, authorities, run };
+  }
+
+  it("retains explicit unconfigured authority without adding reads or inspection costs", async () => {
+    const { h, run, revision, runtime } = await setup();
+    const ordinary = await h.execute();
+    const empty = await run({});
+    expect(empty.usage).toEqual(ordinary.usage);
+    if (empty.status !== "artifacts_captured") throw new Error("Expected capture");
+    expect(empty.candidateAuthority).toEqual({
+      beforeArtifacts: { status: "not_configured" },
+      afterArtifacts: { status: "not_configured" },
+    });
+    expect(revision).not.toHaveBeenCalled();
+    expect(runtime).not.toHaveBeenCalled();
+    expect(publicApi).not.toHaveProperty("observeCapturedCandidateAuthority");
+  });
+
+  it("preserves every candidate predecessor origin and bounds cumulative parent inspection before I/O", async () => {
+    const previous = releaseCandidateFixture("artifact_graph", scope, {
+      candidateVersionId: "candidate_artifact_graph_previous",
+    });
+    previous.createdAt = "2026-09-05T00:00:00.000Z";
+    const { h, run, authorities, revision, runtime } = await setup({
+      predecessor: previous,
+      mutateCandidate(candidate) {
+        candidate.predecessor = releaseCandidateReference(previous);
+      },
+    });
+    const output = await run();
+    if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+    const before = output.candidateAuthority.beforeArtifacts;
+    if (before.status !== "observed") throw new Error("Expected observations");
+    expect(
+      new Set(before.occurrences.map((origin) => origin.parent.reference.candidateVersionId)),
+    ).toEqual(new Set([h.candidate.candidateVersionId, previous.candidateVersionId]));
+    expect(revision).toHaveBeenCalledTimes(4);
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const parents = graph.nodes
+      .filter((node) => node.read.source.kind === "release_candidate")
+      .map((node) => node.references ?? []);
+    expect(parents).toHaveLength(2);
+    const count = parents.reduce((total, refs) => total + refs.length, 0);
+    const bytes = parents
+      .flat()
+      .reduce((total, ref) => total + encodeEvaluationCanonicalJson(ref).byteLength, 0);
+    for (const limits of [
+      { maxReferences: count - 1, maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes },
+      { maxReferences: h.request.limits.maxAcquisitionRecords, maxReferenceBytes: bytes - 1 },
+    ]) {
+      revision.mockClear();
+      runtime.mockClear();
+      await expect(
+        observeCapturedCandidateAuthority(
+          h.request,
+          graph,
+          authorities,
+          h.clock,
+          new AcquisitionBudget(h.request.limits),
+          limits,
+        ),
+      ).rejects.toBeInstanceOf(Error);
+      expect(revision).not.toHaveBeenCalled();
+      expect(runtime).not.toHaveBeenCalled();
+    }
+  });
+
+  it("binds every original Git, model and adapter occurrence to the exact candidate and owned edge", async () => {
+    const { h, run, revision, runtime } = await setup();
+    const output = await run();
+    if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+    const before = output.candidateAuthority.beforeArtifacts;
+    const after = output.candidateAuthority.afterArtifacts;
+    if (before.status !== "observed" || after.status !== "observed")
+      throw new Error("Expected authority observations");
+    const models = h.candidate.runtimeComponents.filter((component) => component.kind === "model");
+    expect(models.length).toBeGreaterThan(0);
+    expect(before.occurrences.map((origin) => origin.subject.kind)).toEqual([
+      "source_revision",
+      ...models.flatMap(() => ["model_declaration", "runtime_adapter"]),
+    ]);
+    expect(after.occurrences).toEqual(before.occurrences);
+    expect(before.occurrences.every((origin) => origin.availability === "available")).toBe(true);
+    for (const origin of before.occurrences) {
+      const edge = output.traceCapture.comparisonCapture.graph.edges[origin.edgeIndex];
+      expect(edge?.parent).toEqual(origin.parent);
+      expect(edge?.parentRecordSha256).toBe(origin.parentRecordSha256);
+      expect(edge?.reference.path).toBe(origin.path);
+    }
+    expect(revision).toHaveBeenCalledTimes(2);
+    expect(revision).toHaveBeenCalledWith(h.request.scope, {
+      kind: "source_revision",
+      source: h.candidate.source,
+    });
+    expect(runtime).toHaveBeenCalledTimes(models.length * 4);
+    expect(before).not.toHaveProperty("outcome");
+  });
+
+  it("preserves negative and partially configured authority without inventing absence", async () => {
+    const { run, revision } = await setup();
+    revision.mockResolvedValue(false);
+    const output = await run({ revision: { isAvailable: revision } });
+    if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+    const observation = output.candidateAuthority.beforeArtifacts;
+    if (observation.status !== "observed") throw new Error("Expected observation");
+    expect(observation.occurrences[0]?.availability).toBe("not_verified");
+    expect(
+      observation.occurrences.slice(1).every((origin) => origin.availability === "not_configured"),
+    ).toBe(true);
+    expect(revision).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([undefined, null, 1, "true", {}, []])(
+    "rejects non-boolean authority: %s",
+    async (value) => {
+      const { h, run, revision } = await setup();
+      revision.mockResolvedValue(value as never);
+      await expect(run()).rejects.toBeInstanceOf(Error);
+      expect(h.get).not.toHaveBeenCalled();
+      expect(h.decrypt).not.toHaveBeenCalled();
+    },
+  );
+
+  it("propagates authority storage failures before content I/O", async () => {
+    const { h, run, revision } = await setup();
+    const failure = new Error("Authority read failed");
+    revision.mockRejectedValue(failure);
+    await expect(run()).rejects.toBe(failure);
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [true, false],
+    [false, true],
+  ])("rejects changed authority %s to %s across content", async (before, after) => {
+    const { h, run, revision } = await setup();
+    revision.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+    await expect(run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(h.get).toHaveBeenCalled();
+    expect(revision).toHaveBeenCalledTimes(2);
+  });
+
+  it("owns exact query copies despite authority-side mutation", async () => {
+    const { h, run, revision, runtime } = await setup();
+    const original = structuredClone(h.candidate);
+    revision.mockImplementation(async (queryScope, subject) => {
+      queryScope.tenantId = "substituted_scope";
+      subject.source.commit.value = "f".repeat(subject.source.commit.value.length);
+      return true;
+    });
+    runtime.mockImplementation(async (queryScope, subject) => {
+      queryScope.projectId = "substituted_project";
+      Reflect.set(subject, "role", "substituted_role");
+      return true;
+    });
+    const output = await run();
+    if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+    const before = output.candidateAuthority.beforeArtifacts;
+    const after = output.candidateAuthority.afterArtifacts;
+    if (before.status !== "observed" || after.status !== "observed")
+      throw new Error("Expected observations");
+    expect(before.occurrences[0]?.subject).toEqual({
+      kind: "source_revision",
+      source: original.source,
+    });
+    expect(after.occurrences).toEqual(before.occurrences);
+    expect(h.candidate).toEqual(original);
+  });
+
+  it.each([
+    "scope",
+    "time",
+    "roots",
+    "body",
+    "receipt",
+    "node_duplicate",
+    "references",
+    "edge_missing",
+    "edge_duplicate",
+    "edge_hash",
+    "edge_target",
+    "edge_subject",
+  ])("rejects authority provenance substitution before I/O: %s", async (fault) => {
+    const { h, authorities, revision, runtime } = await setup();
+    const captured = await h.execute();
+    const graph = structuredClone(captured.traceCapture.comparisonCapture.graph);
+    const node = graph.nodes.find((node) => node.read.source.kind === "release_candidate");
+    const edge = graph.edges.find(
+      (edge) => edge.parent.kind === "release_candidate" && edge.reference.path === "/source",
+    );
+    if (!node || !edge) throw new Error("Missing original candidate provenance");
+    if (fault === "scope") graph.scope.projectId = "substituted_project";
+    if (fault === "time") Reflect.set(graph, "evaluationTime", "2026-10-01T00:00:00.001Z");
+    if (fault === "roots") Reflect.set(graph, "roots", []);
+    if (fault === "body") (node.read.record as ReleaseCandidate).name += " changed";
+    if (fault === "receipt")
+      (node.read.record as ReleaseCandidate).createdByPrincipalId = "substituted_principal";
+    if (fault === "node_duplicate")
+      Reflect.set(graph, "nodes", [...graph.nodes, structuredClone(node)]);
+    if (fault === "references") Reflect.set(node, "references", []);
+    if (fault === "edge_missing")
+      Reflect.set(
+        graph,
+        "edges",
+        graph.edges.filter((item) => item !== edge),
+      );
+    if (fault === "edge_duplicate")
+      Reflect.set(graph, "edges", [...graph.edges, structuredClone(edge)]);
+    if (fault === "edge_hash") Reflect.set(edge, "parentRecordSha256", "f".repeat(64));
+    if (fault === "edge_target") Reflect.set(edge, "target", node.read.source);
+    if (
+      fault === "edge_subject" &&
+      edge.reference.kind === "control_declaration" &&
+      edge.reference.declaration.kind === "candidate_source"
+    )
+      edge.reference.declaration.reference.commit.value = "f".repeat(40);
+    await expect(
+      observeCapturedCandidateAuthority(
+        h.request,
+        graph,
+        authorities,
+        h.clock,
+        new AcquisitionBudget(h.request.limits),
+        {
+          maxReferences: h.request.limits.maxAcquisitionRecords,
+          maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+        },
+      ),
+    ).rejects.toBeInstanceOf(Error);
+    expect(revision).not.toHaveBeenCalled();
+    expect(runtime).not.toHaveBeenCalled();
+  });
+
+  it("shares invocation limits across both authority phases and preserves exact/one-below admission", async () => {
+    const first = await setup();
+    const baseline = await first.run();
+    const limits = {
+      maxAcquisitionRecords: baseline.usage.references,
+      maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
+    };
+    const exact = await setup();
+    expect((await exact.run(exact.authorities, withLimits(exact.h.request, limits))).usage).toEqual(
+      baseline.usage,
+    );
+    const fewer = await setup();
+    await expect(
+      fewer.run(
+        fewer.authorities,
+        withLimits(fewer.h.request, {
+          ...limits,
+          maxAcquisitionRecords: limits.maxAcquisitionRecords - 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "reference_limit" });
+    const smaller = await setup();
+    await expect(
+      smaller.run(
+        smaller.authorities,
+        withLimits(smaller.h.request, {
+          ...limits,
+          maxAcquisitionRecordBytes: limits.maxAcquisitionRecordBytes - 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "byte_limit" });
+  });
+
+  it("retains unavailable candidate parents without fabricating external subjects", async () => {
+    const { h, authorities, revision, runtime } = await setup();
+    const captured = await h.execute();
+    const graph = structuredClone(captured.traceCapture.comparisonCapture.graph);
+    const node = graph.nodes.find((node) => node.read.source.kind === "release_candidate");
+    if (!node) throw new Error("Missing candidate");
+    Reflect.set(node.read, "observation", { status: "missing" });
+    Reflect.set(node.read, "record", null);
+    Reflect.set(node, "references", null);
+    const observed = await observeCapturedCandidateAuthority(
+      h.request,
+      graph,
+      authorities,
+      h.clock,
+      new AcquisitionBudget(h.request.limits),
+      {
+        maxReferences: h.request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+      },
+    );
+    if (observed.status !== "observed") throw new Error("Expected explicit observation");
+    expect(observed.occurrences).toEqual([]);
+    expect(observed.unavailableParents).toEqual([
+      { source: node.read.source, observation: { status: "missing" } },
+    ]);
+    expect(revision).not.toHaveBeenCalled();
+    expect(runtime).not.toHaveBeenCalled();
+  });
+
+  it("does not call candidate authority for an unavailable request root", async () => {
+    const { h, run, revision, runtime } = await setup();
+    h.root.mockResolvedValue(null);
+    expect((await run()).status).toBe("roots_unavailable");
+    expect(revision).not.toHaveBeenCalled();
+    expect(runtime).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+  });
+
+  it("rejects absent candidate nodes rather than returning an empty authority report", async () => {
+    const { h, authorities, revision } = await setup();
+    const captured = await h.execute();
+    const graph = structuredClone(captured.traceCapture.comparisonCapture.graph);
+    Reflect.set(
+      graph,
+      "nodes",
+      graph.nodes.filter((node) => node.read.source.kind !== "release_candidate"),
+    );
+    await expect(
+      observeCapturedCandidateAuthority(
+        h.request,
+        graph,
+        authorities,
+        h.clock,
+        new AcquisitionBudget(h.request.limits),
+        {
+          maxReferences: h.request.limits.maxAcquisitionRecords,
+          maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+        },
+      ),
+    ).rejects.toMatchObject({ reason: "observation_conflict" });
+    expect(revision).not.toHaveBeenCalled();
+  });
+
+  it("independently admits complete parent and original authority frames at exact and one-below limits", async () => {
+    const { h, authorities, revision, runtime } = await setup();
+    const captured = await h.execute();
+    const graph = captured.traceCapture.comparisonCapture.graph;
+    const parents = graph.nodes
+      .filter((node) => node.read.source.kind === "release_candidate")
+      .flatMap((node) => node.references ?? []);
+    const external = graph.edges
+      .filter(
+        (edge) =>
+          edge.parent.kind === "release_candidate" &&
+          ((edge.reference.kind === "control_declaration" &&
+            ["candidate_source", "model_declaration"].includes(edge.reference.declaration.kind)) ||
+            (edge.reference.kind === "record" && edge.reference.source.kind === "runtime_adapter")),
+      )
+      .map((edge) => edge.reference);
+    const byteSize = (frames: typeof parents) =>
+      frames.reduce((total, frame) => total + encodeEvaluationCanonicalJson(frame).byteLength, 0);
+    const limits = {
+      maxReferences: parents.length + external.length,
+      maxReferenceBytes: byteSize([...parents, ...external]),
+    };
+    const inspect = (bounded = limits) =>
+      observeCapturedCandidateAuthority(
+        h.request,
+        graph,
+        authorities,
+        h.clock,
+        new AcquisitionBudget(h.request.limits),
+        bounded,
+      );
+    const exact = await inspect();
+    if (exact.status !== "observed") throw new Error("Expected observation");
+    expect(exact.inspectionUsage).toEqual({
+      references: limits.maxReferences,
+      referenceBytes: limits.maxReferenceBytes,
+    });
+    for (const [bounded, reason] of [
+      [{ ...limits, maxReferences: limits.maxReferences - 1 }, "reference_limit_exceeded"],
+      [{ ...limits, maxReferenceBytes: limits.maxReferenceBytes - 1 }, "reference_bytes_exceeded"],
+      [{ ...limits, maxReferences: parents.length - 1 }, "reference_limit_exceeded"],
+      [{ ...limits, maxReferenceBytes: byteSize(parents) - 1 }, "reference_bytes_exceeded"],
+    ] as const) {
+      revision.mockClear();
+      runtime.mockClear();
+      await expect(inspect(bounded)).rejects.toMatchObject({ reason });
+      expect(revision).not.toHaveBeenCalled();
+      expect(runtime).not.toHaveBeenCalled();
+    }
+  });
+
+  it("performs every external-authority read before acquiring the metadata guards", async () => {
+    const f = await metadataRecheckHarness();
+    const available = vi.fn(
+      async (
+        queryScope: ReleaseCandidate["scope"],
+        subject: ReleaseCandidateRevisionReference | ReleaseCandidateRuntimeReference,
+      ) => {
+        expect(f.state.phase).toBe("outside");
+        expect(queryScope).toEqual(f.h.request.scope);
+        f.calls.push(`authority:${subject.kind}`);
+        return true;
+      },
+    );
+    const output = await capturePolicyArtifactEvidence(
+      f.h.request,
+      f.h.actor,
+      f.h.repositories,
+      f.h.evidence,
+      {
+        ...f.h.dependencies,
+        metadataTransactions: f.metadataTransactions,
+        candidateAuthorities: {
+          revision: { isAvailable: available },
+          runtime: { isAvailable: available },
+        },
+      },
+    );
+    expect(available).toHaveBeenCalled();
+    const begin = f.calls.indexOf("begin");
+    expect(begin).toBeGreaterThan(0);
+    expect(f.calls.every((call, index) => !call.startsWith("authority:") || index < begin)).toBe(
+      true,
+    );
+    if (output.status !== "artifacts_captured") throw new Error("Expected capture");
+    expect(output.sourceRecheck?.metadataGuard).toBe(true);
+    expect(output.candidateAuthority.beforeArtifacts.status).toBe("observed");
+    expect(output.candidateAuthority.afterArtifacts.status).toBe("observed");
+  });
+
+  it.each([undefined, null, 1, "true"])(
+    "rejects a configured runtime port's non-boolean response: %s",
+    async (value) => {
+      const { h, run, runtime } = await setup();
+      runtime.mockResolvedValue(value as never);
+      await expect(run()).rejects.toBeInstanceOf(Error);
+      expect(h.get).not.toHaveBeenCalled();
+    },
+  );
+  it("preserves full-precision external observation receipts", async () => {
+    const { h, authorities } = await setup();
+    const captured = await h.execute();
+    const startedAt = "2026-10-01T03:01:00.123456789Z";
+    const completedAt = "2026-10-01T03:01:00.123456790Z";
+    const times = [startedAt, completedAt];
+    const observed = await observeCapturedCandidateAuthority(
+      h.request,
+      captured.traceCapture.comparisonCapture.graph,
+      authorities,
+      { now: () => times.shift() ?? completedAt },
+      new AcquisitionBudget(h.request.limits),
+      {
+        maxReferences: h.request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+      },
+    );
+    expect(observed).toMatchObject({ status: "observed", startedAt, completedAt });
+  });
+
+  it.each([
+    ["2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z"],
+    ["2026-10-01T03:01:00.123456789Z", "2026-10-01T03:01:00.123456788Z"],
+  ])(
+    "rejects observation clocks outside the request/capture order: %s / %s",
+    async (startedAt, completedAt) => {
+      const { h, authorities, revision } = await setup();
+      const captured = await h.execute();
+      const times = [startedAt, completedAt];
+      await expect(
+        observeCapturedCandidateAuthority(
+          h.request,
+          captured.traceCapture.comparisonCapture.graph,
+          authorities,
+          { now: () => times.shift() ?? completedAt },
+          new AcquisitionBudget(h.request.limits),
+          {
+            maxReferences: h.request.limits.maxAcquisitionRecords,
+            maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+          },
+        ),
+      ).rejects.toMatchObject({ reason: "observation_conflict" });
+      if (startedAt.startsWith("2025")) expect(revision).not.toHaveBeenCalled();
+      else expect(revision).toHaveBeenCalledTimes(1);
+    },
+  );
+});
 
 describe("request-rooted authorized artifact capture", () => {
   it("binds all graph and repeated trace occurrences under one metadata and object budget", async () => {

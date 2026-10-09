@@ -13,6 +13,8 @@ import {
   type CriteriaTrustArtifactResolver,
   type EvaluationRepository,
   type ModelAssuranceRepository,
+  type ReleaseCandidateRevisionAuthority,
+  type ReleaseCandidateRuntimeAuthority,
   type ReleaseCandidateSourceReference,
   type ReleaseCandidateSourceResolver,
   validateComparisonRecord,
@@ -42,24 +44,12 @@ type ModelAssuranceAssessmentReference = Extract<
   ReleaseCandidateSourceReference,
   { readonly kind: "model_assurance_assessment" }
 >["assessment"];
-export type ReleaseCandidateRevisionReference = Extract<
-  ReleaseCandidateSourceReference,
-  { readonly kind: "source_revision" }
->;
-export type ReleaseCandidateRuntimeReference = Extract<
-  ReleaseCandidateSourceReference,
-  { readonly kind: "model_declaration" | "runtime_adapter" }
->;
-
-export interface ReleaseCandidateRevisionAuthority {
-  /** Resolves an exact repository, commit, and tree from an operator-owned source authority. */
-  isAvailable(scope: EvidenceScope, reference: ReleaseCandidateRevisionReference): Promise<boolean>;
-}
-
-export interface ReleaseCandidateRuntimeAuthority {
-  /** Resolves exact provider declarations and adapter versions from an operator-owned registry. */
-  isAvailable(scope: EvidenceScope, reference: ReleaseCandidateRuntimeReference): Promise<boolean>;
-}
+export type {
+  ReleaseCandidateRevisionAuthority,
+  ReleaseCandidateRevisionReference,
+  ReleaseCandidateRuntimeAuthority,
+  ReleaseCandidateRuntimeReference,
+} from "@proofstack/core";
 
 export interface ReleaseCandidateArtifactSources {
   readonly catalog: Pick<ArtifactCatalogRepository, "find">;

@@ -78,6 +78,7 @@ export * from "./policy/release-policy-errors.js";
 export * from "./policy/release-policy-record-validation.js";
 export * from "./policy/release-policy-repository.js";
 export * from "./release/record-release-candidate.js";
+export * from "./release/release-candidate-authority.js";
 export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";

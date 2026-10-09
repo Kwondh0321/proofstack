@@ -223,6 +223,12 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 반복 사용, 별칭 모델, 명시적 omission과 내용 가용성을 별도로 유지하고 누적 검사 한도를
 적용합니다. predicate 판정·현재 권한·봉인된 입력은 아니며 체크포인트 3은 여전히 미완료입니다.
 
+[후보 외부 권한 관측](workflow-2-candidate-authority-observations.ko.md)은 기존 정확한 Git·
+런타임 참조 포트를 내용 I/O 전후에 사용합니다. 원래 후보·edge·해시를 검증하고 미설정·
+boolean 가용성을 구분하며 전체 부모·반복 조회의 누적 예산과 전후 변경 거부를 적용합니다.
+외부 조회는 메타데이터 guard 전에 끝납니다. 실제 로드된 코드의 권한이나 동일 트랜잭션의
+봉인 발행을 의미하지 않으며 체크포인트 3은 미완료입니다.
+
 후속 [후보 assessment 계보](workflow-2-candidate-assessment-lineage.ko.md)는 모델 보증 base를
 포함한 모든 후보 평가에서 기존 이력 보고·집계 정책·실행으로 연결합니다. 정확한 후보
 dataset/target과 dataset의 fixture 소속을 검사하고 근거 부재·빈 집계·반복 출처를 보존합니다.

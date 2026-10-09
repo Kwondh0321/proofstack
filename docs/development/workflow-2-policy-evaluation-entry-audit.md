@@ -248,6 +248,13 @@ capture. Complete unused declarations, repeated uses, alias-only models, explici
 independent content availability remain distinct under cumulative inspection admission. This
 does not produce predicate outcomes, current authority or sealed inputs; checkpoint 3 stays open.
 
+The [candidate external-authority observations](workflow-2-candidate-authority-observations.md)
+reuse existing exact Git/runtime reference ports before and after content I/O, with independently
+validated original candidate/edge/hash occurrences, explicit missing configuration and strict
+boolean availability. Complete parent/repeated-query admission shares the invocation budget;
+changed observations fail. External reads end before metadata guards. This is neither loaded-code
+authority nor same-transaction sealed publication, and checkpoint 3 remains open.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture

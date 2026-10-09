@@ -1,5 +1,9 @@
 export { PolicyRecordGraphError } from "./acquisition-budget.js";
 export type { PolicyArtifactRuleBindings } from "./capture-artifact-rules.js";
+export type {
+  PolicyCandidateAuthorities,
+  PolicyCandidateAuthorityObservation,
+} from "./capture-candidate-authority.js";
 export * from "./resolve-parent-protocol.js";
 export * from "./capture-artifact-evidence.js";
 export type {
