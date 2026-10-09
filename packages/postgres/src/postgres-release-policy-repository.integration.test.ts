@@ -140,6 +140,258 @@ afterAll(async () => {
 });
 
 describe("PostgresReleasePolicyRepository conformance", () => {
+  it.each([
+    "root_body",
+    "root_projection",
+    "root_registry",
+    "root_intent",
+    "child_intent",
+    "root_absent_intent",
+    "child_absent_intent",
+  ] as const)(
+    "rejects %s when reading an independent version bound to the original logical root",
+    async (damage) => {
+      const harness = createReleasePolicyRepositoryTestHarness(`pg_root_${runKey}_${damage}`);
+      const publisher = new PostgresReleasePolicyRepository(policyAuthorPool);
+      await publisher.publishReleasePolicy(harness.policy);
+      const independent = releasePolicyRepositoryFixture(
+        `pg_ind_${runKey}_${damage}`,
+        harness.scope,
+        {
+          policyId: harness.policy.policyId,
+          semanticVersion: "2.0.0",
+        },
+      );
+      expect(independent.predecessor).toBeUndefined();
+      await publisher.publishReleasePolicy(independent);
+      const reader = new PostgresReleasePolicyRepository(policyAuthorPool);
+      expect(await reader.findReleasePolicy(harness.scope, independent.policyVersionId)).toEqual(
+        independent,
+      );
+      const client = await adminPool.connect();
+      try {
+        await client.query("BEGIN");
+        // Privileged damage stays inside this disposable fixture transaction; CHECKs remain.
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        const rootId = harness.policy.policyVersionId;
+        if (damage === "root_body")
+          await client.query(
+            `UPDATE public.proofstack_release_policies
+             SET record=jsonb_set(record, '{changeRationale}', '"damaged root"'::jsonb)
+             WHERE tenant_id=$1 AND policy_version_id=$2`,
+            [harness.scope.tenantId, rootId],
+          );
+        else if (damage === "root_projection")
+          await client.query(
+            `UPDATE public.proofstack_release_policy_rules
+             SET rule=jsonb_set(rule, '{rationale}', '"damaged root projection"'::jsonb)
+             WHERE tenant_id=$1 AND policy_version_id=$2 AND rule_position=1`,
+            [harness.scope.tenantId, rootId],
+          );
+        else if (damage === "root_registry")
+          await client.query(
+            `DELETE FROM public.proofstack_release_policy_registry
+             WHERE tenant_id=$1 AND policy_version_id=$2`,
+            [harness.scope.tenantId, rootId],
+          );
+        else if (damage === "root_absent_intent" || damage === "child_absent_intent")
+          await client.query(
+            `DELETE FROM public.proofstack_outbox
+             WHERE tenant_id=$1 AND aggregate_type='release_policy' AND aggregate_id=$2`,
+            [
+              harness.scope.tenantId,
+              damage === "root_absent_intent" ? rootId : independent.policyVersionId,
+            ],
+          );
+        else
+          await client.query(
+            `UPDATE public.proofstack_outbox SET payload=jsonb_build_object('recordKind','release_policy')
+             WHERE tenant_id=$1 AND aggregate_type='release_policy' AND aggregate_id=$2`,
+            [
+              harness.scope.tenantId,
+              damage === "root_intent" ? rootId : independent.policyVersionId,
+            ],
+          );
+        await client.query(`SET LOCAL ROLE "${credentials.policyAuthor.name}"`);
+        await client.query(
+          `SELECT set_config('proofstack.tenant_id',$1,true),
+             set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)`,
+          [harness.scope.tenantId, harness.scope.projectId, harness.scope.environmentId],
+        );
+        await expect(
+          readPostgresReleasePolicyOnClient(client, harness.scope, independent.policyVersionId),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        const outside = { ...harness.scope, environmentId: "env_root_outside" };
+        expect(
+          await readPostgresReleasePolicyOnClient(client, outside, independent.policyVersionId),
+        ).toBeNull();
+      } finally {
+        await client.query("ROLLBACK");
+        client.release();
+      }
+      expect(await reader.findReleasePolicy(harness.scope, harness.policy.policyVersionId)).toEqual(
+        harness.policy,
+      );
+      expect(await reader.findReleasePolicy(harness.scope, independent.policyVersionId)).toEqual(
+        independent,
+      );
+    },
+  );
+
+  it.each(["payload", "absence", "receipt"] as const)(
+    "rejects %s damage to original lifecycle intent in singular and complete-history reads",
+    async (damage) => {
+      const harness = createReleasePolicyRepositoryTestHarness(
+        `pg_event_intent_${runKey}_${damage}`,
+      );
+      const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+      await repository.publishReleasePolicy(harness.policy);
+      await repository.publishReleasePolicy(harness.successor);
+      await repository.publishReleasePolicyLifecycleEvent(harness.supersession);
+      const client = await adminPool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        const statement =
+          damage === "absence"
+            ? `DELETE FROM public.proofstack_outbox WHERE tenant_id=$1
+             AND aggregate_type='release_policy_lifecycle' AND aggregate_id=$2`
+            : damage === "payload"
+              ? `UPDATE public.proofstack_outbox SET payload=jsonb_build_object('recordKind','release_policy_lifecycle')
+               WHERE tenant_id=$1 AND aggregate_type='release_policy_lifecycle' AND aggregate_id=$2`
+              : `UPDATE public.proofstack_outbox SET created_at=created_at+interval '1 second'
+               WHERE tenant_id=$1 AND aggregate_type='release_policy_lifecycle' AND aggregate_id=$2`;
+        expect(
+          (await client.query(statement, [harness.scope.tenantId, harness.supersession.eventId]))
+            .rowCount,
+        ).toBe(1);
+        await client.query(`SET LOCAL ROLE "${credentials.policyAuthor.name}"`);
+        await client.query(
+          `SELECT set_config('proofstack.tenant_id',$1,true),
+             set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)`,
+          [harness.scope.tenantId, harness.scope.projectId, harness.scope.environmentId],
+        );
+        await expect(
+          readPostgresReleasePolicyLifecycleEventOnClient(
+            client,
+            harness.scope,
+            harness.supersession.eventId,
+          ),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        await expect(
+          listPostgresReleasePolicyLifecycleEventsOnClient(
+            client,
+            harness.scope,
+            harness.policy.policyVersionId,
+          ),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        const outside = { ...harness.scope, environmentId: "env_event_outside" };
+        expect(
+          await readPostgresReleasePolicyLifecycleEventOnClient(
+            client,
+            outside,
+            harness.supersession.eventId,
+          ),
+        ).toBeNull();
+        expect(
+          await listPostgresReleasePolicyLifecycleEventsOnClient(
+            client,
+            outside,
+            harness.policy.policyVersionId,
+          ),
+        ).toEqual([]);
+      } finally {
+        await client.query("ROLLBACK");
+        client.release();
+      }
+      expect(
+        await repository.findReleasePolicyLifecycleEvent(
+          harness.scope,
+          harness.supersession.eventId,
+        ),
+      ).toEqual(harness.supersession);
+      expect(
+        await repository.listReleasePolicyLifecycleEvents(
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toEqual([harness.supersession]);
+    },
+  );
+
+  it("rejects damaged logical roots on publication retries and new lifecycle publication", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_root_publish_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    await repository.publishReleasePolicy(harness.policy);
+    await repository.publishReleasePolicy(harness.successor);
+    await disableIntegrityAndUpdate(
+      `UPDATE public.proofstack_release_policies
+       SET record=jsonb_set(record, '{changeRationale}', '"damaged root"'::jsonb)
+       WHERE tenant_id=$1 AND policy_version_id=$2`,
+      [harness.scope.tenantId, harness.policy.policyVersionId],
+    );
+    await expect(
+      repository.findReleasePolicy(harness.scope, harness.successor.policyVersionId),
+    ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+    await expect(repository.publishReleasePolicy(harness.successor)).rejects.toBeInstanceOf(
+      ReleasePolicyRepositoryContractError,
+    );
+    await expect(
+      repository.publishReleasePolicyLifecycleEvent(
+        releasePolicyLifecycleFixture(`pg_root_withdraw_${runKey}`, harness.successor),
+      ),
+    ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+    expect(
+      await repository.listReleasePolicyLifecycleEvents(
+        harness.scope,
+        harness.successor.policyVersionId,
+      ),
+    ).toEqual([]);
+  });
+
+  it("preserves original policy and lifecycle reads and retries after outbox delivery", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_intent_delivery_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    await repository.publishReleasePolicy(harness.policy);
+    await repository.publishReleasePolicy(harness.successor);
+    await repository.publishReleasePolicyLifecycleEvent(harness.supersession);
+    expect(
+      (
+        await adminPool.query(
+          `UPDATE public.proofstack_outbox SET attempt_count=attempt_count+1,
+         published_at=clock_timestamp(), available_at=clock_timestamp(), last_error=NULL
+       WHERE tenant_id=$1 AND aggregate_type IN ('release_policy','release_policy_lifecycle')`,
+          [harness.scope.tenantId],
+        )
+      ).rowCount,
+    ).toBe(3);
+    expect(
+      await repository.findReleasePolicy(harness.scope, harness.successor.policyVersionId),
+    ).toEqual(harness.successor);
+    expect(
+      await repository.findReleasePolicyLifecycleEvent(harness.scope, harness.supersession.eventId),
+    ).toEqual(harness.supersession);
+    expect(
+      await repository.listReleasePolicyLifecycleEvents(
+        harness.scope,
+        harness.policy.policyVersionId,
+      ),
+    ).toEqual([harness.supersession]);
+    expect(
+      await repository.publishReleasePolicy({
+        ...harness.successor,
+        publishedAt: "2026-09-08T01:00:00.000Z",
+      }),
+    ).toEqual({ created: false, policy: harness.successor });
+    expect(
+      await repository.publishReleasePolicyLifecycleEvent({
+        ...harness.supersession,
+        occurredAt: "2026-09-08T03:00:00.000Z",
+        actorPrincipalId: "principal_retry_original",
+      }),
+    ).toEqual({ created: false, event: harness.supersession });
+  });
+
   it("reads uncommitted policy and lifecycle records without ending the caller's transaction", async () => {
     const harness = createReleasePolicyRepositoryTestHarness(`pg_client_${runKey}`);
     const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
@@ -565,6 +817,9 @@ describe("PostgresReleasePolicyRepository conformance", () => {
 
     await expect(
       repository.publishReleasePolicy(structuredClone(harness.policy)),
+    ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+    await expect(
+      repository.findReleasePolicy(harness.scope, harness.policy.policyVersionId),
     ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
   });
 

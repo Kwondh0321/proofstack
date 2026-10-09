@@ -433,6 +433,13 @@ Target resources do not bind exact release versions; this does not invent a targ
 establish complete target absence ownership. Complete parent semantics/current authority,
 internal SQL/row admission and atomic sealed publication remain open; acceptance is unchanged.
 
+The subsequent [policy owning root and intent validation](workflow-2-policy-storage-integrity.md)
+checks the complete exact logical root body/projections and original policy intents, including
+independent versions with no predecessor. Singular lifecycle and complete history reads require
+their original full intents without widened grants or ending a supplied transaction. Outside-scope
+opacity and original retry receipts remain intact. Complete root/internal SQL admission, orphan
+presence/current authority closure and atomic sealed publication remain open; acceptance is unchanged.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

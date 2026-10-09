@@ -426,7 +426,7 @@ function lifecycleOutboxPayload(
 }
 
 async function requireCanonicalPolicyOutbox(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   policy: ReleasePolicy,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
@@ -448,7 +448,7 @@ async function requireCanonicalPolicyOutbox(
 }
 
 async function requireCanonicalLifecycleOutbox(
-  client: PoolClient,
+  client: Pick<PoolClient, "query">,
   event: ReleasePolicyLifecycleEvent,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
@@ -475,6 +475,49 @@ function lifecycleSemantics(event: ReleasePolicyLifecycleEvent): unknown {
   return semantics;
 }
 
+async function inspectStoredPolicy(
+  client: Pick<PoolClient, "query">,
+  row: StoredReleasePolicyRow,
+): Promise<ReleasePolicy> {
+  const policy = parseStoredPolicy(row);
+  const rootRow =
+    row.root_policy_version_id === policy.policyVersionId
+      ? row
+      : await loadStoredPolicy(client, policy.scope, row.root_policy_version_id);
+  if (!rootRow) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Stored release policy is missing its logical root",
+    );
+  }
+  const root = rootRow === row ? policy : parseStoredPolicy(rootRow);
+  if (
+    !scopesEqual(root.scope, policy.scope) ||
+    root.policyId !== policy.policyId ||
+    root.schemaVersion !== policy.schemaVersion ||
+    root.policyVersionId !== row.root_policy_version_id ||
+    root.definitionSha256 !== row.root_definition_sha256 ||
+    root.predecessor !== undefined ||
+    rootRow.root_policy_version_id !== root.policyVersionId ||
+    rootRow.root_definition_sha256 !== root.definitionSha256
+  ) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Stored release policy differs from its canonical logical root binding",
+    );
+  }
+  await requireCanonicalPolicyOutbox(client, policy);
+  if (rootRow !== row) await requireCanonicalPolicyOutbox(client, root);
+  return policy;
+}
+
+async function inspectStoredLifecycleEvent(
+  client: Pick<PoolClient, "query">,
+  row: StoredReleasePolicyLifecycleRow,
+): Promise<ReleasePolicyLifecycleEvent> {
+  const event = parseStoredLifecycleEvent(row);
+  await requireCanonicalLifecycleOutbox(client, event);
+  return event;
+}
+
 function assertExactReference(
   policy: ReleasePolicy | null,
   scope: EvidenceScope,
@@ -497,7 +540,7 @@ export async function readPostgresReleasePolicyOnClient(
   policyVersionId: string,
 ): Promise<ReleasePolicy | null> {
   const row = await loadStoredPolicy(client, scope, policyVersionId);
-  return row ? clone(parseStoredPolicy(row)) : null;
+  return row ? clone(await inspectStoredPolicy(client, row)) : null;
 }
 
 /** Shares the repository's complete normalized event validation without opening a transaction. */
@@ -507,7 +550,7 @@ export async function readPostgresReleasePolicyLifecycleEventOnClient(
   eventId: string,
 ): Promise<ReleasePolicyLifecycleEvent | null> {
   const row = await loadStoredLifecycleEvent(client, scope, eventId);
-  return row ? clone(parseStoredLifecycleEvent(row)) : null;
+  return row ? clone(await inspectStoredLifecycleEvent(client, row)) : null;
 }
 
 /** Reads the complete retained terminal history on the caller's already scoped connection. */
@@ -527,7 +570,9 @@ export async function listPostgresReleasePolicyLifecycleEventsOnClient(
      ORDER BY occurred_at ASC, event_id ASC`,
     [scope.tenantId, scope.projectId, scope.environmentId, policyVersionId],
   );
-  return result.rows.map((row) => clone(parseStoredLifecycleEvent(row)));
+  const events: ReleasePolicyLifecycleEvent[] = [];
+  for (const row of result.rows) events.push(clone(await inspectStoredLifecycleEvent(client, row)));
+  return events;
 }
 
 export class PostgresReleasePolicyRepository implements ReleasePolicyRepository {
@@ -583,7 +628,7 @@ export class PostgresReleasePolicyRepository implements ReleasePolicyRepository 
           ) {
             throw new ReleasePolicyVersionConflictError(policy.policyVersionId);
           }
-          await requireCanonicalPolicyOutbox(client, existing);
+          await inspectStoredPolicy(client, existingRow);
           return { created: false, policy: clone(existing) };
         }
 
@@ -609,8 +654,7 @@ export class PostgresReleasePolicyRepository implements ReleasePolicyRepository 
             "PostgreSQL accepted release policy publication without retaining its exact graph",
           );
         }
-        const stored = parseStoredPolicy(storedRow);
-        await requireCanonicalPolicyOutbox(client, stored);
+        const stored = await inspectStoredPolicy(client, storedRow);
         return { created: true, policy: clone(stored) };
       });
     } catch (error) {
@@ -647,7 +691,7 @@ export class PostgresReleasePolicyRepository implements ReleasePolicyRepository 
 
         const targetRow = await loadStoredPolicy(client, event.scope, event.policy.policyVersionId);
         const target = assertExactReference(
-          targetRow ? parseStoredPolicy(targetRow) : null,
+          targetRow ? await inspectStoredPolicy(client, targetRow) : null,
           event.scope,
           event.policy,
         );
@@ -659,7 +703,7 @@ export class PostgresReleasePolicyRepository implements ReleasePolicyRepository 
             event.successor.policyVersionId,
           );
           successor = assertExactReference(
-            successorRow ? parseStoredPolicy(successorRow) : null,
+            successorRow ? await inspectStoredPolicy(client, successorRow) : null,
             event.scope,
             event.successor,
           );
