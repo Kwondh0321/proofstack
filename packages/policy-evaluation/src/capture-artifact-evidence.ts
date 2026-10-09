@@ -48,9 +48,10 @@ import {
   type PolicyFixtureBindingCapture,
 } from "./capture-fixture-bindings.js";
 import {
-  inspectCapturedPolicyAuthority,
-  type PolicyAuthorityPrerequisites,
-} from "./capture-policy-authority.js";
+  inspectCapturedPolicyApplicability,
+  type PolicyApplicabilityInputs,
+} from "./capture-policy-applicability.js";
+import type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
 import {
   observeCapturedPolicyLifecycle,
   type PolicyLifecycleObservation,
@@ -125,6 +126,7 @@ export type PolicyArtifactEvidenceCapture = {
         readonly afterArtifacts: PolicyCandidateAuthorityObservation;
       };
       readonly policyAuthority: PolicyAuthorityPrerequisites;
+      readonly applicability: PolicyApplicabilityInputs;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly criterionAuthority: {
         readonly beforeArtifacts: PolicyCriterionAuthorityObservation;
@@ -306,18 +308,6 @@ export async function capturePolicyArtifactEvidence(
       traceCapture.comparisonCapture.graph,
       artifacts,
     );
-    const policyAuthority = inspectCapturedPolicyAuthority(
-      traceCapture.comparisonCapture.graph,
-      artifacts,
-      {
-        maxReferences: request.limits.maxAcquisitionRecords,
-        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
-      },
-    );
-    budget.addReferences(
-      policyAuthority.inspectionUsage.references,
-      policyAuthority.inspectionUsage.referenceBytes,
-    );
     const evaluationTrust = inspectCapturedEvaluationTrust(
       traceCapture.comparisonCapture.graph,
       artifacts,
@@ -356,6 +346,20 @@ export async function capturePolicyArtifactEvidence(
     );
     if (beforeArtifacts.observationSha256 !== afterArtifacts.observationSha256)
       throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+    const { authority: policyAuthority, applicability } = await inspectCapturedPolicyApplicability(
+      request,
+      traceCapture.comparisonCapture.graph,
+      artifacts,
+      afterArtifacts,
+      {
+        maxReferences: request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
+      },
+    );
+    budget.addReferences(
+      policyAuthority.inspectionUsage.references + applicability.inspectionUsage.references,
+      policyAuthority.inspectionUsage.referenceBytes + applicability.inspectionUsage.referenceBytes,
+    );
     const criteriaAfterArtifacts = await observeCriteria();
     if (
       criterionAuthorityMaterialFingerprint(criteriaBeforeArtifacts) !==
@@ -409,6 +413,7 @@ export async function capturePolicyArtifactEvidence(
         afterArtifacts: candidateAfterArtifacts,
       },
       policyAuthority,
+      applicability,
       evaluationTrust,
       criterionAuthority: {
         beforeArtifacts: criteriaBeforeArtifacts,

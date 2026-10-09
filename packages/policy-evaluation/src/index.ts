@@ -32,6 +32,7 @@ export type {
 } from "./capture-model-assurance.js";
 export type { PolicyAssessmentBindings } from "./capture-policy-assessments.js";
 export type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
+export type { PolicyApplicabilityInputs } from "./capture-policy-applicability.js";
 export type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 export {
   capturePolicyRecordGraph,

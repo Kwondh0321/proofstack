@@ -757,6 +757,7 @@ describe("retained evaluation trust prerequisites", () => {
       expect(capture.usage.references).toBe(
         capture.traceCapture.usage.references +
           capture.policyAuthority.inspectionUsage.references +
+          capture.applicability.inspectionUsage.references +
           capture.evaluationTrust.inspectionUsage.references +
           capture.artifactRules.inspectionUsage.references +
           criterionReferences,
@@ -764,6 +765,7 @@ describe("retained evaluation trust prerequisites", () => {
       expect(capture.usage.referenceBytes).toBe(
         capture.traceCapture.usage.referenceBytes +
           capture.policyAuthority.inspectionUsage.referenceBytes +
+          capture.applicability.inspectionUsage.referenceBytes +
           capture.evaluationTrust.inspectionUsage.referenceBytes +
           capture.artifactRules.inspectionUsage.referenceBytes +
           capture.usage.sourceGuards.canonicalBytes +

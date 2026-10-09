@@ -255,6 +255,13 @@ boolean availability. Complete parent/repeated-query admission shares the invoca
 changed observations fail. External reads end before metadata guards. This is neither loaded-code
 authority nor same-transaction sealed publication, and checkpoint 3 remains open.
 
+The [candidate-bound applicability inputs](workflow-2-policy-applicability-inputs.md)
+revalidate exact roots/installation identity and retained authority/lifecycle before
+describing all seven original selector/target pairs. Invalid authority blocks condition
+inspection; missing optional values, explicit empty population sets and mixed unknown/
+mismatch explanations remain distinct. Complete parent/context/dimension admission is
+cumulative. This input conjunction is not a policy outcome, current authority or seal.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture

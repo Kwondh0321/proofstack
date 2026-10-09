@@ -823,6 +823,32 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
     });
     expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
     expect(cuts).toBe(1);
+    expect(result.applicability).toMatchObject({
+      scope: f.scope,
+      authorityBoundary: "retained_prerequisites_only",
+      candidate: { source: graph.roots.find((root) => root.kind === "release_candidate") },
+      policy: {
+        source: graph.roots.find((root) => root.kind === "release_policy"),
+        recordSha256: result.policyAuthority.recordSha256,
+      },
+      lifecycle: result.policyLifecycle.afterArtifacts,
+    });
+    expect(result.applicability.dimensions.map(({ field }) => field)).toEqual([
+      "jurisdiction",
+      "locale",
+      "maximumDataClassification",
+      "populationTags",
+      "purpose",
+      "riskTier",
+      "taskKind",
+    ]);
+    // This fixture's unavailable installation/source authority cannot be masked by a mismatch.
+    expect(result.policyAuthority.requirements.status).toBe("invalid");
+    expect(result.applicability.conjunction).toBe("not_evaluated");
+    expect(result.applicability.dimensions.every(({ status }) => status === "not_evaluated")).toBe(
+      true,
+    );
+    expect(result.applicability).not.toHaveProperty("outcome");
     expect(result.artifactRules.candidate.source).toEqual(
       graph.roots.find((root) => root.kind === "release_candidate"),
     );

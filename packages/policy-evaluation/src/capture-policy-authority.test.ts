@@ -9,11 +9,14 @@ import {
   type ContentReference,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
+  type ReleaseCandidate,
+  type ReleasePolicyApplicability,
   PrincipalContextSchema,
   policyEvaluationSourceReferenceKey,
 } from "@proofstack/contracts";
 import {
   digestPolicyEvaluationRequestDefinition,
+  digestReleaseCandidateDefinition,
   PolicyEvaluationReferenceCollector,
   releaseCandidateReference,
   releasePolicyReference,
@@ -37,6 +40,7 @@ import {
   type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedPolicyAuthority } from "./capture-policy-authority.js";
+import { inspectCapturedPolicyApplicability } from "./capture-policy-applicability.js";
 import type { PolicyRecordGraph } from "./capture-record-graph.js";
 import * as publicApi from "./index.js";
 
@@ -48,6 +52,7 @@ async function harness(
   options: PolicyAuthorityFixtureOptions = {},
   counterevidence = false,
   conflicted = false,
+  mutateCandidate?: (candidate: ReleaseCandidate) => void,
 ) {
   const contents = new Map<string, { reference: ContentReference; bytes: Buffer }>();
   const normalize = (value: unknown): void => {
@@ -159,6 +164,16 @@ async function harness(
     await evaluation.publishSourceReview(record.review);
   }
   const candidate = releaseCandidateFixture("authority_graph", scope);
+  mutateCandidate?.(candidate);
+  const {
+    scope: _candidateScope,
+    schemaVersion: _candidateVersion,
+    definitionSha256: _candidateHash,
+    createdAt: _candidateAt,
+    createdByPrincipalId: _candidateBy,
+    ...candidateDefinition
+  } = candidate;
+  candidate.definitionSha256 = digestReleaseCandidateDefinition(scope, candidateDefinition);
   const candidates = new MemoryReleaseCandidateRepository();
   const policies = new MemoryReleasePolicyRepository();
   await candidates.publishReleaseCandidate(candidate);
@@ -278,6 +293,7 @@ async function harness(
   };
   return {
     fixture,
+    candidate,
     counter,
     execute,
     requestAt,
@@ -307,6 +323,449 @@ function reasons(capture: Capture) {
   return capture.policyAuthority.requirements.findings.map(({ reason }) => reason);
 }
 
+describe("candidate-bound policy applicability inputs", () => {
+  const any: ReleasePolicyApplicability = {
+    jurisdiction: { operator: "any" },
+    locale: { operator: "any" },
+    maximumDataClassification: { operator: "any" },
+    populationTags: { operator: "any" },
+    purpose: { operator: "any" },
+    riskTier: { operator: "any" },
+    taskKind: { operator: "any" },
+  };
+  const setup = (
+    selectors: Partial<ReleasePolicyApplicability> = {},
+    target?: (candidate: ReleaseCandidate) => void,
+  ) =>
+    harness(
+      {
+        mutatePolicy: (policy) => {
+          policy.applicability = { ...structuredClone(any), ...selectors };
+        },
+      },
+      false,
+      false,
+      target,
+    );
+
+  it("retains seven exact root-bound dimensions without exposing an evaluator or publication authority", async () => {
+    const h = await setup();
+    const output = await h.execute();
+    const report = output.applicability;
+    expect(report.conjunction).toBe("match");
+    expect(report.dimensions.map(({ field }) => field)).toEqual(Object.keys(any));
+    expect(report.dimensions).toHaveLength(7);
+    for (const dimension of report.dimensions) {
+      expect(dimension).toEqual({
+        field: dimension.field,
+        policyPath: `/applicability/${dimension.field}`,
+        candidatePath: `/target/${dimension.field}`,
+        selector: h.fixture.policy.applicability[dimension.field],
+        targetValue: h.candidate.target[dimension.field] ?? null,
+        status: "match",
+        reason: "any",
+      });
+    }
+    expect(report.policy.recordSha256).toBe(output.policyAuthority.recordSha256);
+    expect(report.candidate.source.reference).toEqual(releaseCandidateReference(h.candidate));
+    expect(report.installationBinding.source.reference).toEqual(
+      h.fixture.policy.installationBinding,
+    );
+    expect(report.lifecycle).toEqual(output.policyLifecycle.afterArtifacts);
+    expect(report.authorityBoundary).toBe("retained_prerequisites_only");
+    expect(report).not.toHaveProperty("outcome");
+    expect(report).not.toHaveProperty("sealed");
+    expect(publicApi).not.toHaveProperty("inspectCapturedPolicyApplicability");
+    expect(h.binding).toHaveBeenCalledTimes(1);
+    expect(h.history).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["jurisdiction", "locale"] as const)(
+    "distinguishes all optional %s selector cases",
+    async (field) => {
+      const match = field === "jurisdiction" ? "us" : "en-us";
+      const other = field === "jurisdiction" ? "kr" : "ko-kr";
+      const cases = [
+        [{ operator: "any" }, undefined, "match", "any"],
+        [{ operator: "absent" }, undefined, "match", "optional_absent"],
+        [{ operator: "absent" }, match, "mismatch", "optional_present"],
+        [{ operator: "equals", value: match }, match, "match", "equal"],
+        [{ operator: "equals", value: match }, other, "mismatch", "not_equal"],
+        [{ operator: "equals", value: match }, undefined, "unknown", "value_missing"],
+        [{ operator: "one_of", values: [match] }, match, "match", "member"],
+        [{ operator: "one_of", values: [match] }, other, "mismatch", "not_member"],
+        [{ operator: "one_of", values: [match] }, undefined, "unknown", "value_missing"],
+      ] as const;
+      for (const [selector, value, status, reason] of cases) {
+        const selectors = structuredClone(any);
+        Reflect.set(selectors, field, structuredClone(selector));
+        const h = await setup(selectors, (candidate) => {
+          if (value === undefined) Reflect.deleteProperty(candidate.target, field);
+          else Reflect.set(candidate.target, field, value);
+        });
+        const result = await h.execute();
+        expect(result.policyAuthority.requirements.status).toBe("valid");
+        expect(result.applicability.dimensions.find((d) => d.field === field)).toMatchObject({
+          selector,
+          targetValue: value ?? null,
+          status,
+          reason,
+        });
+        expect(result.applicability.conjunction).toBe(status);
+      }
+    },
+  );
+
+  it.each([
+    ["maximumDataClassification", "confidential", "restricted"],
+    ["purpose", "Declared evaluation purpose.", "A different evaluation purpose."],
+    ["riskTier", "high", "low"],
+    ["taskKind", "checkout_agent", "other_agent"],
+  ] as const)(
+    "uses exact equality/membership rather than ordering for %s",
+    async (field, match, other) => {
+      for (const operator of ["equals", "one_of"] as const) {
+        for (const value of [match, other]) {
+          const selectors = structuredClone(any);
+          const selected = field === "maximumDataClassification" ? value : match;
+          Reflect.set(
+            selectors,
+            field,
+            operator === "equals"
+              ? { operator, value: selected }
+              : { operator, values: [selected] },
+          );
+          const h = await setup(selectors, (candidate) => {
+            Reflect.set(
+              candidate.target,
+              field,
+              field === "maximumDataClassification" ? match : value,
+            );
+          });
+          const result = await h.execute();
+          expect(result.applicability.dimensions.find((d) => d.field === field)?.status).toBe(
+            value === match ? "match" : "mismatch",
+          );
+          expect(result.applicability.conjunction).toBe(value === match ? "match" : "mismatch");
+        }
+      }
+    },
+  );
+
+  it.each([
+    ["contains_all", ["business"], ["business", "checkout"], "match"],
+    ["contains_all", ["business"], ["checkout"], "mismatch"],
+    ["contains_all", ["business"], [], "mismatch"],
+    ["exactly", [], [], "match"],
+    ["exactly", [], ["business"], "mismatch"],
+    ["exactly", ["business"], [], "mismatch"],
+    ["exactly", ["business"], ["business"], "match"],
+    ["exactly", ["business"], ["business", "checkout"], "mismatch"],
+  ] as const)(
+    "compares complete %s population sets %j against %j",
+    async (operator, values, declared, status) => {
+      const h = await setup({ populationTags: { operator, values: [...values] } }, (candidate) => {
+        candidate.target.populationTags = [...declared];
+      });
+      const output = await h.execute();
+      expect(
+        output.applicability.dimensions.find((d) => d.field === "populationTags"),
+      ).toMatchObject({
+        selector: { operator, values },
+        targetValue: declared,
+        status,
+      });
+      expect(output.applicability.conjunction).toBe(status);
+    },
+  );
+
+  it("preserves an unknown optional value when a different established mismatch determines the conjunction", async () => {
+    const h = await setup(
+      {
+        jurisdiction: { operator: "equals", value: "us" },
+        taskKind: { operator: "equals", value: "other_task" },
+      },
+      (candidate) => {
+        delete candidate.target.jurisdiction;
+      },
+    );
+    const output = await h.execute();
+    expect(output.applicability.conjunction).toBe("mismatch");
+    expect(output.applicability.dimensions.find((d) => d.field === "jurisdiction")).toMatchObject({
+      status: "unknown",
+      targetValue: null,
+      reason: "value_missing",
+    });
+    expect(output.applicability.dimensions.find((d) => d.field === "taskKind")?.status).toBe(
+      "mismatch",
+    );
+    expect(output.applicability.dimensions).toHaveLength(7);
+  });
+
+  it.each(["missing_binding", "issuer", "missing_content", "withdrawn", "superseded"] as const)(
+    "blocks a convenient mismatch under %s authority",
+    async (fault) => {
+      const h = await setup({ taskKind: { operator: "equals", value: "other_task" } });
+      if (fault === "missing_binding") h.binding.mockResolvedValue(null);
+      if (fault === "issuer") {
+        const invalid = await harness({
+          mutateBinding: (binding) => {
+            binding.authorizedIssuerPrincipalIds = ["other_issuer"];
+          },
+          mutatePolicy: (policy) => {
+            policy.applicability = {
+              ...structuredClone(any),
+              taskKind: { operator: "equals", value: "other_task" },
+            };
+          },
+        });
+        const result = await invalid.execute();
+        expect(result.applicability.conjunction).toBe("not_evaluated");
+        expect(result.applicability.dimensions.every((d) => d.status === "not_evaluated")).toBe(
+          true,
+        );
+        return;
+      }
+      if (fault === "missing_content") h.get.mockResolvedValue(null);
+      if (fault === "withdrawn" || fault === "superseded") {
+        const successor = releasePolicyRepositoryFixture(
+          "applicability_successor",
+          h.fixture.policy.scope,
+          {
+            policyId: h.fixture.policy.policyId,
+            predecessor: releasePolicyReference(h.fixture.policy),
+            publishedAt: "2026-09-30T23:00:00.000Z",
+            semanticVersion: "2.0.0",
+          },
+        );
+        if (fault === "superseded") await h.policies.publishReleasePolicy(successor);
+        await h.policies.publishReleasePolicyLifecycleEvent(
+          releasePolicyLifecycleFixture(
+            "applicability_terminal",
+            h.fixture.policy,
+            fault === "withdrawn"
+              ? { occurredAt: evaluationTime }
+              : { kind: fault, successor, occurredAt: evaluationTime },
+          ),
+        );
+      }
+      const result = await h.execute();
+      expect(result.applicability.conjunction).toBe("not_evaluated");
+      expect(result.applicability.dimensions).toHaveLength(7);
+      expect(
+        result.applicability.dimensions.every(
+          (d) => d.status === "not_evaluated" && d.reason === "authority_unverified",
+        ),
+      ).toBe(true);
+      expect(result.applicability.dimensions.find((d) => d.field === "taskKind")?.selector).toEqual(
+        { operator: "equals", value: "other_task" },
+      );
+    },
+  );
+
+  it.each([
+    ["2026-09-06T23:59:59.999999999Z", "not_evaluated"],
+    ["2026-09-07T00:00:00.000Z", "match"],
+    ["2027-03-06T23:59:59.999999999Z", "match"],
+    ["2027-03-07T00:00:00.000Z", "not_evaluated"],
+  ] as const)(
+    "preserves the half-open policy interval at full precision: %s",
+    async (at, conjunction) => {
+      const h = await setup();
+      h.dependencies.clock.now = () => new Date("2027-03-07T02:00:00.000Z");
+      const output = await h.execute(at);
+      expect(output.applicability.evaluationTime).toBe(at);
+      expect(output.applicability.conjunction).toBe(conjunction);
+      expect(output.applicability.dimensions).toHaveLength(7);
+    },
+  );
+
+  it("retains later terminal history without replacing or invalidating a historically applicable root", async () => {
+    const h = await setup();
+    const event = releasePolicyLifecycleFixture("applicability_later", h.fixture.policy, {
+      occurredAt: "2026-10-01T00:00:00.001Z",
+    });
+    await h.policies.publishReleasePolicyLifecycleEvent(event);
+    const at = "2026-10-01T00:00:00.000000001Z";
+    const output = await h.execute(at);
+    expect(output.applicability.conjunction).toBe("match");
+    expect(output.applicability.lifecycle.history[0]?.record).toEqual(event);
+    expect(output.applicability.lifecycle.state).toBe("no_terminal_event_at_evaluation");
+    expect(output.applicability.policy.source.reference).toEqual(
+      releasePolicyReference(h.fixture.policy),
+    );
+  });
+
+  it.each([
+    "scope",
+    "missing_root",
+    "missing_binding_node",
+    "unverified_root",
+    "unavailable_binding_body",
+    "unavailable_binding_references",
+    "time",
+    "roots",
+    "duplicate_node",
+    "candidate_body",
+    "candidate_receipt",
+    "policy_receipt",
+    "parent_references",
+    "binding_body",
+    "binding_edge",
+    "duplicate_binding_edge",
+    "lifecycle_hash",
+    "lifecycle_state",
+    "lifecycle_scope",
+    "lifecycle_policy",
+    "clock",
+  ] as const)("rejects substituted retained applicability provenance: %s", async (fault) => {
+    const h = await setup();
+    const output = await h.execute();
+    const graph = structuredClone(graphOf(output));
+    const lifecycle = structuredClone(output.policyLifecycle.afterArtifacts);
+    const candidate = graph.nodes.find(({ read }) => read.source.kind === "release_candidate");
+    const policy = graph.nodes.find(({ read }) => read.source.kind === "release_policy");
+    const binding = graph.nodes.find(
+      ({ read }) => read.source.kind === "policy_installation_binding",
+    );
+    const edge = graph.edges.find((e) => e.reference.path === "/installationBinding");
+    if (!candidate || !policy || !binding || !edge)
+      throw new Error("Missing original roots/binding");
+    if (fault === "scope") graph.scope.environmentId = "other_environment";
+    if (fault === "missing_root")
+      Reflect.set(
+        graph,
+        "nodes",
+        graph.nodes.filter((node) => node !== candidate),
+      );
+    if (fault === "missing_binding_node")
+      Reflect.set(
+        graph,
+        "nodes",
+        graph.nodes.filter((node) => node !== binding),
+      );
+    if (fault === "unverified_root")
+      Reflect.set(candidate.read, "observation", { status: "missing" });
+    if (fault === "unavailable_binding_body" || fault === "unavailable_binding_references") {
+      Reflect.set(binding.read, "observation", { status: "missing" });
+      if (fault === "unavailable_binding_body") Reflect.set(binding, "references", null);
+      else Reflect.set(binding.read, "record", null);
+    }
+    if (fault === "time") Reflect.set(graph, "evaluationTime", "2026-10-01T00:00:00.000000001Z");
+    if (fault === "roots") Reflect.set(graph, "roots", [...graph.roots].reverse());
+    if (fault === "duplicate_node")
+      Reflect.set(graph, "nodes", [...graph.nodes, structuredClone(candidate)]);
+    if (fault === "candidate_body")
+      Reflect.set(candidate.read.record as ReleaseCandidate, "target", {
+        ...(candidate.read.record as ReleaseCandidate).target,
+        jurisdiction: "kr",
+      });
+    if (fault === "candidate_receipt")
+      Reflect.set(candidate.read.record as ReleaseCandidate, "createdByPrincipalId", "other_actor");
+    if (fault === "policy_receipt")
+      Reflect.set(policy.read.record as object, "publishedByPrincipalId", "other_actor");
+    if (fault === "parent_references") Reflect.set(candidate, "references", []);
+    if (fault === "binding_body")
+      Reflect.set(binding.read.record as object, "installationId", "other_installation");
+    if (fault === "binding_edge") Reflect.set(edge, "parentRecordSha256", "f".repeat(64));
+    if (fault === "duplicate_binding_edge")
+      Reflect.set(graph, "edges", [...graph.edges, structuredClone(edge)]);
+    if (fault === "lifecycle_hash") Reflect.set(lifecycle, "observationSha256", "f".repeat(64));
+    if (fault === "lifecycle_state") Reflect.set(lifecycle, "state", "withdrawn_at_evaluation");
+    if (fault === "lifecycle_scope") lifecycle.scope.environmentId = "other_environment";
+    if (fault === "lifecycle_policy") lifecycle.policy.policyVersionId = "other_policy";
+    if (fault === "clock") Reflect.set(lifecycle, "completedAt", "2026-10-01T01:59:59.999Z");
+    await expect(
+      inspectCapturedPolicyApplicability(h.requestAt(), graph, output.artifacts, lifecycle, limits),
+    ).rejects.toThrow();
+  });
+
+  it("admits exact cumulative parent/context/dimension canonical bytes and rejects one below", async () => {
+    const h = await setup({
+      purpose: { operator: "equals", value: "가나다 Unicode evaluation purpose." },
+    });
+    const output = await h.execute();
+    const graph = graphOf(output);
+    const report = output.applicability;
+    const { dimensions, conjunction: _conjunction, inspectionUsage: _usage, ...context } = report;
+    const parents = graph.nodes.filter(({ read }) =>
+      ["release_candidate", "release_policy", "policy_installation_binding"].includes(
+        read.source.kind,
+      ),
+    );
+    const frames = [
+      ...parents.flatMap(({ references }) => references ?? []),
+      context,
+      ...dimensions,
+    ];
+    expect(report.inspectionUsage).toEqual({
+      references: frames.length,
+      referenceBytes: frames.reduce(
+        (sum, frame) => sum + encodeEvaluationCanonicalJson(frame).byteLength,
+        0,
+      ),
+    });
+    const exact = {
+      maxReferences:
+        report.inspectionUsage.references + output.policyAuthority.inspectionUsage.references,
+      maxReferenceBytes:
+        report.inspectionUsage.referenceBytes +
+        output.policyAuthority.inspectionUsage.referenceBytes,
+    };
+    expect(
+      (
+        await inspectCapturedPolicyApplicability(
+          h.requestAt(),
+          graph,
+          output.artifacts,
+          output.policyLifecycle.afterArtifacts,
+          exact,
+        )
+      ).applicability,
+    ).toEqual(report);
+    await expect(
+      inspectCapturedPolicyApplicability(
+        h.requestAt(),
+        graph,
+        output.artifacts,
+        output.policyLifecycle.afterArtifacts,
+        { ...exact, maxReferences: exact.maxReferences - 1 },
+      ),
+    ).rejects.toMatchObject({ reason: "reference_limit_exceeded" });
+    await expect(
+      inspectCapturedPolicyApplicability(
+        h.requestAt(),
+        graph,
+        output.artifacts,
+        output.policyLifecycle.afterArtifacts,
+        { ...exact, maxReferenceBytes: exact.maxReferenceBytes - 1 },
+      ),
+    ).rejects.toMatchObject({ reason: "reference_bytes_exceeded" });
+    const prior = structuredClone({
+      graph,
+      artifacts: output.artifacts,
+      lifecycle: output.policyLifecycle.afterArtifacts,
+    });
+    const copy = await inspectCapturedPolicyApplicability(
+      h.requestAt(),
+      graph,
+      output.artifacts,
+      output.policyLifecycle.afterArtifacts,
+      limits,
+    );
+    copy.applicability.candidate.source.reference.candidateId = "mutated_copy";
+    const dimension = copy.applicability.dimensions.find((d) => d.field === "populationTags");
+    if (!dimension || !Array.isArray(dimension.targetValue))
+      throw new Error("Missing complete population");
+    dimension.targetValue.push("mutated_copy");
+    expect({
+      graph,
+      artifacts: output.artifacts,
+      lifecycle: output.policyLifecycle.afterArtifacts,
+    }).toEqual(prior);
+  });
+});
+
 describe("combined policy-authority inspection admission", () => {
   it.each(["references", "bytes"] as const)(
     "admits exact combined %s and rejects one below before opening source transactions",
@@ -317,11 +776,13 @@ describe("combined policy-authority inspection admission", () => {
       expect(baseline.usage.references).toBe(
         baseline.traceCapture.usage.references +
           baseline.policyAuthority.inspectionUsage.references +
+          baseline.applicability.inspectionUsage.references +
           baseline.artifactRules.inspectionUsage.references,
       );
       expect(baseline.usage.referenceBytes).toBe(
         baseline.traceCapture.usage.referenceBytes +
           baseline.policyAuthority.inspectionUsage.referenceBytes +
+          baseline.applicability.inspectionUsage.referenceBytes +
           baseline.artifactRules.inspectionUsage.referenceBytes +
           baseline.usage.sourceGuards.canonicalBytes,
       );
