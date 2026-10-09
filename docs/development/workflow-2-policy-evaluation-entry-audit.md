@@ -440,6 +440,13 @@ their original full intents without widened grants or ending a supplied transact
 opacity and original retry receipts remain intact. Complete root/internal SQL admission, orphan
 presence/current authority closure and atomic sealed publication remain open; acceptance is unchanged.
 
+The policy reader subsequently observes body and every normalized child-owned registry/lineage/
+root/source/rule witness at one exact-scope statement cut before its canonical joined read.
+Partial graphs and disappearance after positive presence fail; normal publication after observed
+absence remains visible to later reads. Parent/lifecycle/outbox-only references do not invent
+child ownership. Scope opacity and transaction lifetime remain intact. Complete all-domain
+presence/root admission/current authority and sealed publication remain open.
+
 The subsequent `runMetadata` adapter mode acquires the metadata barrier and current migration
 ledger before exposing lifetime-bound owning repository ports for the full record graph, exact
 trace events, complete criterion histories and fixture ownership/availability metadata. Every

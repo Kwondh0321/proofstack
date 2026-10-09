@@ -52,51 +52,55 @@ function fixture() {
             ? { rows: [{ ledger: "proofstack_schema_migrations" }] }
             : text.includes("SELECT id, checksum")
               ? { rows: migrationRows }
-              : text.includes("AS retained_candidate_storage")
-                ? { rows: [{ retained_candidate_body: false, retained_candidate_storage: false }] }
-                : text.includes("AS retained_evaluation_storage")
+              : text.includes("AS retained_policy_storage")
+                ? { rows: [{ retained_policy_body: false, retained_policy_storage: false }] }
+                : text.includes("AS retained_candidate_storage")
                   ? {
-                      rows: [
-                        { retained_evaluation_body: false, retained_evaluation_storage: false },
-                      ],
+                      rows: [{ retained_candidate_body: false, retained_candidate_storage: false }],
                     }
-                  : text.includes("AS retained_comparison_storage")
+                  : text.includes("AS retained_evaluation_storage")
                     ? {
                         rows: [
-                          { retained_comparison_body: false, retained_comparison_storage: false },
+                          { retained_evaluation_body: false, retained_evaluation_storage: false },
                         ],
                       }
-                    : text.includes("AS retained_regression_storage")
+                    : text.includes("AS retained_comparison_storage")
                       ? {
                           rows: [
-                            {
-                              retained_regression_body: false,
-                              retained_regression_storage: false,
-                              retained_fixture_format: false,
-                            },
+                            { retained_comparison_body: false, retained_comparison_storage: false },
                           ],
                         }
-                      : text.includes("AS retained_model_assurance_storage")
+                      : text.includes("AS retained_regression_storage")
                         ? {
                             rows: [
                               {
-                                retained_model_assurance_body: false,
-                                retained_model_assurance_storage: false,
+                                retained_regression_body: false,
+                                retained_regression_storage: false,
+                                retained_fixture_format: false,
                               },
                             ],
                           }
-                        : text.includes("AS retained_replay_plan_storage")
+                        : text.includes("AS retained_model_assurance_storage")
                           ? {
                               rows: [
                                 {
-                                  retained_replay_plan_body: false,
-                                  retained_replay_plan_storage: false,
+                                  retained_model_assurance_body: false,
+                                  retained_model_assurance_storage: false,
                                 },
                               ],
                             }
-                          : text.includes("proofstack_read_replay_job_snapshot")
-                            ? { rows: [{ snapshot: null }] }
-                            : { rows: [] },
+                          : text.includes("AS retained_replay_plan_storage")
+                            ? {
+                                rows: [
+                                  {
+                                    retained_replay_plan_body: false,
+                                    retained_replay_plan_storage: false,
+                                  },
+                                ],
+                              }
+                            : text.includes("proofstack_read_replay_job_snapshot")
+                              ? { rows: [{ snapshot: null }] }
+                              : { rows: [] },
   );
   const client = {
     query: async (text: string, values?: readonly unknown[]) => {

@@ -45,6 +45,20 @@ this correction does not add target/successor rereads to an already stored event
 
 ## Scope, connection and remaining closure
 
+Before the canonical joined read, one fixed statement observes exact scoped body
+and child-owned storage presence. Registry, child lineage, logical-resource root,
+source, rule and rule-source rows retain normalized ownership. Both native flags
+must be false for observed absence. Mismatched, missing, duplicate or non-boolean
+projections fail. After positive presence, an incomplete registry/resource join
+or disappearing body fails instead of becoming absence. Normal atomic publication
+after an absent cut preserves that read's observed absence; a subsequent read can
+see the complete new policy.
+
+Parent-only lineage, lifecycle target/successor references and outbox aggregate
+IDs are not child-owned presence witnesses. The reader does not parse an outbox
+payload to invent missing normalized scope. Lifecycle records retain their body
+and normalized fields in one table; no separate event registry is invented.
+
 Normalized tenant/project/environment filtering precedes body parsing and root
 inspection. Damage exclusively outside the requested scope remains opaque
 absence. Supplied-client helpers issue fixed reads on that client; they do not
@@ -53,10 +67,10 @@ Their trusted caller owns scope, authorization, guards, failure taint and cleanu
 
 The additional root body and internal intent queries are not individually exposed
 or charged by the current outer acquisition meter. This is not complete internal
-SQL/row/body/deadline admission. Complete request-owned root observations, orphan
-presence, predecessor semantics and current/mutable authority remain open. In
-particular, an initial registry/resource join returning no requested body does
-not prove that every child-owned storage witness is absent.
+SQL/row/body/deadline admission. Complete request-owned root observations, all-domain
+orphan reconciliation, predecessor semantics and current/mutable authority remain
+open. This exact-scope policy presence correction is not a database-wide repair,
+complete closure or permission to recreate an incomplete graph.
 
 A future sealer must retain and budget the complete root/authority/presence
 closure and revalidate it under every required guard on one still-open transaction
@@ -75,3 +89,11 @@ reads agree. Ordinary reads, publication retries and new lifecycle publication
 reject damaged roots. Legitimate outbox delivery preserves reads, complete
 history and original retry receipts. Existing uncommitted/savepoint, three-tenant,
 runtime-role and guarded-port suites remain required.
+
+Native presence regressions isolate each retained owning witness without a body,
+reject missing body/registry/resource joins, preserve all three scope dimensions
+and rollback restoration, and leave parent/lifecycle/outbox-only references as
+opaque absence. A second existing publisher connection commits normal publication
+after an absent cut without arbitrary sleeps or retries. Controlled disposable
+privileged deletion after a positive cut exercises actual disappearance. Altered
+native response projections fail while the caller's transaction remains open.

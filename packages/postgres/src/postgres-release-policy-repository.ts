@@ -79,6 +79,11 @@ interface OutboxIntentRow extends QueryResultRow {
   readonly status: string;
 }
 
+interface PolicyPresenceRow extends QueryResultRow {
+  readonly retained_policy_body: boolean;
+  readonly retained_policy_storage: boolean;
+}
+
 function clone<Value>(value: Value): Value {
   return structuredClone(value);
 }
@@ -533,14 +538,66 @@ function assertExactReference(
   return policy;
 }
 
-/** The trusted caller owns the scoped transaction and guards; this read uses only that client. */
-export async function readPostgresReleasePolicyOnClient(
+async function inspectScopedPolicyPresence(
   client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   policyVersionId: string,
+): Promise<boolean> {
+  const result = await client.query<PolicyPresenceRow>(
+    `SELECT EXISTS (
+       SELECT 1 FROM public.proofstack_release_policies
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
+     ) AS retained_policy_body, EXISTS (
+       SELECT 1 FROM public.proofstack_release_policy_registry
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_policy_lineage
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND child_policy_version_id=$4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_policy_resources
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND root_policy_version_id=$4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_policy_sources
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_policy_rules
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
+     ) OR EXISTS (
+       SELECT 1 FROM public.proofstack_release_policy_rule_sources
+       WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
+     ) AS retained_policy_storage`,
+    [scope.tenantId, scope.projectId, scope.environmentId, policyVersionId],
+  );
+  const row = result.rows[0];
+  if (
+    result.rows.length !== 1 ||
+    !row ||
+    typeof row.retained_policy_body !== "boolean" ||
+    typeof row.retained_policy_storage !== "boolean" ||
+    row.retained_policy_body !== row.retained_policy_storage
+  ) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Stored release policy scoped presence violates its storage contract",
+    );
+  }
+  return row.retained_policy_body;
+}
+
+/** The trusted caller owns the scoped transaction and guards; this read uses only that client. */
+export async function readPostgresReleasePolicyOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  policyVersionId: string,
 ): Promise<ReleasePolicy | null> {
+  const scope = { ...scopeInput };
+  if (!(await inspectScopedPolicyPresence(client, scope, policyVersionId))) return null;
   const row = await loadStoredPolicy(client, scope, policyVersionId);
-  return row ? clone(await inspectStoredPolicy(client, row)) : null;
+  if (!row) {
+    throw new ReleasePolicyRepositoryContractError(
+      "Stored release policy graph is incomplete after its positive scoped presence observation",
+    );
+  }
+  return clone(await inspectStoredPolicy(client, row));
 }
 
 /** Shares the repository's complete normalized event validation without opening a transaction. */

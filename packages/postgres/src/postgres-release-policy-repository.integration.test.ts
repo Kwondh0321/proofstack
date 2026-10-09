@@ -17,7 +17,7 @@ import {
   releasePolicyRepositoryConformanceCases,
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import {
@@ -140,6 +140,318 @@ afterAll(async () => {
 });
 
 describe("PostgresReleasePolicyRepository conformance", () => {
+  it.each(["registry", "lineage", "resource", "sources", "rules", "rule_sources"] as const)(
+    "rejects retained child-owned %s without its scoped policy body",
+    async (retained) => {
+      const harness = createReleasePolicyRepositoryTestHarness(`pg_orphan_${runKey}_${retained}`);
+      const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+      await repository.publishReleasePolicy(harness.policy);
+      if (retained === "lineage") await repository.publishReleasePolicy(harness.successor);
+      const target = retained === "lineage" ? harness.successor : harness.policy;
+      const tables = [
+        { name: "body", table: "proofstack_release_policies", column: "policy_version_id" },
+        {
+          name: "registry",
+          table: "proofstack_release_policy_registry",
+          column: "policy_version_id",
+        },
+        {
+          name: "lineage",
+          table: "proofstack_release_policy_lineage",
+          column: "child_policy_version_id",
+        },
+        {
+          name: "resource",
+          table: "proofstack_release_policy_resources",
+          column: "root_policy_version_id",
+        },
+        {
+          name: "sources",
+          table: "proofstack_release_policy_sources",
+          column: "policy_version_id",
+        },
+        { name: "rules", table: "proofstack_release_policy_rules", column: "policy_version_id" },
+        {
+          name: "rule_sources",
+          table: "proofstack_release_policy_rule_sources",
+          column: "policy_version_id",
+        },
+      ] as const;
+      const client = await adminPool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        for (const table of tables) {
+          const parameters = [harness.scope.tenantId, target.policyVersionId];
+          if (table.name === retained) {
+            const result = await client.query<{ total: string }>(
+              `SELECT count(*)::text AS total FROM public.${table.table} WHERE tenant_id=$1 AND ${table.column}=$2`,
+              parameters,
+            );
+            expect(Number(result.rows[0]?.total)).toBeGreaterThan(0);
+          } else
+            await client.query(
+              `DELETE FROM public.${table.table} WHERE tenant_id=$1 AND ${table.column}=$2`,
+              parameters,
+            );
+        }
+        await client.query(`SET LOCAL ROLE "${credentials.policyAuthor.name}"`);
+        await client.query(
+          `SELECT set_config('proofstack.tenant_id',$1,true),
+             set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)`,
+          [harness.scope.tenantId, harness.scope.projectId, harness.scope.environmentId],
+        );
+        await expect(
+          readPostgresReleasePolicyOnClient(client, harness.scope, target.policyVersionId),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+          expect(
+            await readPostgresReleasePolicyOnClient(
+              client,
+              {
+                ...harness.scope,
+                [dimension]: `${dimension.toLowerCase()}_outside`,
+              },
+              target.policyVersionId,
+            ),
+          ).toBeNull();
+        }
+      } finally {
+        await client.query("ROLLBACK");
+        client.release();
+      }
+      expect(await repository.findReleasePolicy(harness.scope, target.policyVersionId)).toEqual(
+        target,
+      );
+    },
+  );
+
+  it.each(["body", "registry", "resource"] as const)(
+    "rejects a partial scoped policy graph with missing %s instead of reporting absence",
+    async (missing) => {
+      const harness = createReleasePolicyRepositoryTestHarness(`pg_presence_${runKey}_${missing}`);
+      const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+      await repository.publishReleasePolicy(harness.policy);
+      const client = await adminPool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SET LOCAL session_replication_role = 'replica'");
+        const table =
+          missing === "body"
+            ? "proofstack_release_policies"
+            : missing === "registry"
+              ? "proofstack_release_policy_registry"
+              : "proofstack_release_policy_resources";
+        const column = missing === "resource" ? "policy_id" : "policy_version_id";
+        const identity =
+          missing === "resource" ? harness.policy.policyId : harness.policy.policyVersionId;
+        expect(
+          (
+            await client.query(`DELETE FROM public.${table} WHERE tenant_id=$1 AND ${column}=$2`, [
+              harness.scope.tenantId,
+              identity,
+            ])
+          ).rowCount,
+        ).toBe(1);
+        await client.query(`SET LOCAL ROLE "${credentials.policyAuthor.name}"`);
+        await client.query(
+          `SELECT set_config('proofstack.tenant_id',$1,true),
+             set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)`,
+          [harness.scope.tenantId, harness.scope.projectId, harness.scope.environmentId],
+        );
+        await expect(
+          readPostgresReleasePolicyOnClient(client, harness.scope, harness.policy.policyVersionId),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+          const outside = { ...harness.scope, [dimension]: `${dimension.toLowerCase()}_outside` };
+          expect(
+            await readPostgresReleasePolicyOnClient(
+              client,
+              outside,
+              harness.policy.policyVersionId,
+            ),
+          ).toBeNull();
+        }
+      } finally {
+        await client.query("ROLLBACK");
+        client.release();
+      }
+      expect(
+        await repository.findReleasePolicy(harness.scope, harness.policy.policyVersionId),
+      ).toEqual(harness.policy);
+    },
+  );
+
+  it("retains the observed absence when normal policy publication commits after its cut", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_presence_race_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    let published = false;
+    await withExactScopeTransaction(policyAuthorPool, harness.scope, async (client) => {
+      const view = {
+        query: async (sql: string, values?: readonly unknown[]) => {
+          const result = await client.query(sql, values ? [...values] : undefined);
+          if (!published && sql.includes("AS retained_policy_storage")) {
+            expect(result.rows).toEqual([
+              { retained_policy_body: false, retained_policy_storage: false },
+            ]);
+            expect(await repository.publishReleasePolicy(harness.policy)).toEqual({
+              created: true,
+              policy: harness.policy,
+            });
+            published = true;
+          }
+          return result;
+        },
+      } as unknown as Pick<PoolClient, "query">;
+      expect(
+        await readPostgresReleasePolicyOnClient(
+          view,
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toBeNull();
+      expect((await client.query("SELECT 1 AS active")).rows).toEqual([{ active: 1 }]);
+    });
+    expect(published).toBe(true);
+    expect(
+      await repository.findReleasePolicy(harness.scope, harness.policy.policyVersionId),
+    ).toEqual(harness.policy);
+  });
+
+  it("does not invent child-owned presence from parent, lifecycle or outbox references", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_parent_only_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    await repository.publishReleasePolicy(harness.policy);
+    await repository.publishReleasePolicy(harness.successor);
+    await repository.publishReleasePolicyLifecycleEvent(harness.supersession);
+    const client = await adminPool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      for (const [table, column] of [
+        ["proofstack_release_policies", "policy_version_id"],
+        ["proofstack_release_policy_registry", "policy_version_id"],
+        ["proofstack_release_policy_lineage", "child_policy_version_id"],
+        ["proofstack_release_policy_resources", "root_policy_version_id"],
+        ["proofstack_release_policy_sources", "policy_version_id"],
+        ["proofstack_release_policy_rules", "policy_version_id"],
+        ["proofstack_release_policy_rule_sources", "policy_version_id"],
+      ] as const) {
+        await client.query(`DELETE FROM public.${table} WHERE tenant_id=$1 AND ${column}=$2`, [
+          harness.scope.tenantId,
+          harness.policy.policyVersionId,
+        ]);
+      }
+      const witnesses = await client.query(
+        `SELECT EXISTS (SELECT 1 FROM public.proofstack_release_policy_lineage
+           WHERE tenant_id=$1 AND parent_policy_version_id=$2) AS parent_reference,
+         EXISTS (SELECT 1 FROM public.proofstack_release_policy_lifecycle_events
+           WHERE tenant_id=$1 AND policy_version_id=$2) AS lifecycle_reference,
+         EXISTS (SELECT 1 FROM public.proofstack_outbox
+           WHERE tenant_id=$1 AND aggregate_type='release_policy' AND aggregate_id=$2) AS original_intent`,
+        [harness.scope.tenantId, harness.policy.policyVersionId],
+      );
+      expect(witnesses.rows).toEqual([
+        { parent_reference: true, lifecycle_reference: true, original_intent: true },
+      ]);
+      await client.query(`SET LOCAL ROLE "${credentials.policyAuthor.name}"`);
+      await client.query(
+        `SELECT set_config('proofstack.tenant_id',$1,true),
+           set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)`,
+        [harness.scope.tenantId, harness.scope.projectId, harness.scope.environmentId],
+      );
+      expect(
+        await readPostgresReleasePolicyOnClient(
+          client,
+          harness.scope,
+          harness.policy.policyVersionId,
+        ),
+      ).toBeNull();
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(
+      await repository.findReleasePolicy(harness.scope, harness.policy.policyVersionId),
+    ).toEqual(harness.policy);
+    expect(
+      await repository.findReleasePolicy(harness.scope, harness.successor.policyVersionId),
+    ).toEqual(harness.successor);
+  });
+
+  it("rejects actual disappearance after positive presence instead of returning absence", async () => {
+    const harness = createReleasePolicyRepositoryTestHarness(`pg_disappeared_${runKey}`);
+    const repository = new PostgresReleasePolicyRepository(policyAuthorPool);
+    await repository.publishReleasePolicy(harness.policy);
+    let removed = false;
+    await expect(
+      withExactScopeTransaction(policyAuthorPool, harness.scope, async (client) => {
+        const view = {
+          query: async (sql: string, values?: readonly unknown[]) => {
+            const result = await client.query(sql, values ? [...values] : undefined);
+            if (!removed && sql.includes("AS retained_policy_storage")) {
+              expect(result.rows).toEqual([
+                { retained_policy_body: true, retained_policy_storage: true },
+              ]);
+              await disableIntegrityAndUpdate(
+                "DELETE FROM public.proofstack_release_policies WHERE tenant_id=$1 AND policy_version_id=$2",
+                [harness.scope.tenantId, harness.policy.policyVersionId],
+              );
+              removed = true;
+            }
+            return result;
+          },
+        } as unknown as Pick<PoolClient, "query">;
+        await readPostgresReleasePolicyOnClient(
+          view,
+          harness.scope,
+          harness.policy.policyVersionId,
+        );
+      }),
+    ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+    expect(removed).toBe(true);
+  });
+
+  it.each([
+    { name: "missing", rows: [] },
+    {
+      name: "duplicate",
+      rows: [
+        { retained_policy_body: false, retained_policy_storage: false },
+        { retained_policy_body: false, retained_policy_storage: false },
+      ],
+    },
+    ...[true, null, undefined, "false", 0].map((value) => ({
+      name: `storage_${String(value)}`,
+      rows: [{ retained_policy_body: false, retained_policy_storage: value }],
+    })),
+    ...[true, null, undefined, "true", "false", 1, 0].map((value) => ({
+      name: `body_${String(value)}`,
+      rows: [{ retained_policy_body: value, retained_policy_storage: false }],
+    })),
+  ])(
+    "rejects malformed $name presence without ending the caller's native transaction",
+    async ({ rows }) => {
+      const harness = createReleasePolicyRepositoryTestHarness(`pg_bad_presence_${runKey}`);
+      await withExactScopeTransaction(policyAuthorPool, harness.scope, async (client) => {
+        const transaction = (await client.query("SELECT txid_current()::text AS id")).rows;
+        const statements: string[] = [];
+        const view = {
+          query: async (sql: string, values?: readonly unknown[]) => {
+            statements.push(sql);
+            const result = await client.query(sql, values ? [...values] : undefined);
+            return sql.includes("AS retained_policy_storage") ? { ...result, rows } : result;
+          },
+        } as unknown as Pick<PoolClient, "query">;
+        await expect(
+          readPostgresReleasePolicyOnClient(view, harness.scope, harness.policy.policyVersionId),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        expect(statements).toHaveLength(1);
+        expect((await client.query("SELECT txid_current()::text AS id")).rows).toEqual(transaction);
+      });
+    },
+  );
+
   it.each([
     "root_body",
     "root_projection",
