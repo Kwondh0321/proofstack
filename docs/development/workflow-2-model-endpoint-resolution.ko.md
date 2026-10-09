@@ -46,9 +46,26 @@ digest 없는 selector occurrence와 부모 전체의 참조·byte 사용량을 
 않습니다. 기존 profile에는 model identity 선언이 없으며 resolver가 이를 발명하지
 않습니다. content·key·credential·network I/O도 하지 않습니다.
 
-digest 없는 mapping의 graph 획득, 독립 예상 closure 도출, job 전체 누적 예산과
-guarded reinspection은 별도 남은 작업입니다. resolver는 반복 작업도 예산에 반영할
-수 있도록 각 검사에서 부모 전체 사용량을 제공합니다. 완전한 semantic/authority
+graph 획득은 이제 digest 없는 원본 모델 occurrence마다 소유 reader를 호출하고,
+조회 전에 부모 전체 검사량을 예산에 반영하며, 모든 원본 경로와 부모 hash를
+보존합니다. 유효한 독립 record는 정확한 child node 하나로 연결됩니다. 반복된
+origin도 각각 조회하고 사용량을 반영합니다. 같은 identity에서 semantic digest나
+전체 receipt가 달라지면 전체 작업을 실패시킵니다. missing/unavailable mapping은
+명시적인 `endpointFailure`, 네 가지 unavailable `endpointChecks`와 null target을
+보존합니다. 문맥이 모순된 유효 데이터는 child와 별도 mismatch 검사를 남깁니다.
+
+독립 예상 closure 도출은 원본 fixture와 정확한 보존 child를 재검증하고, 네 가지
+검사를 원래 순서로 다시 계산하며, origin·target·receipt·검사 projection의 누락이나
+대체를 거부합니다. 실패한 occurrence도 부모 전체 검사량을 반영합니다. verified
+child가 있으면 조작된 missing mapping을 허용하지 않습니다. unavailable reason은
+유한한 획득 provenance이며 독립적인 저장소 부재 증명은 아닙니다. 보존 graph의
+재검사는 descendant를 따라가기 전에 mapping·전체 receipt 변경, 제거와 부재 후
+생성을 감지합니다.
+
+기존 PostgreSQL adapter의 복사된 endpoint catalogue와 normalized fixture port를
+통해 같은 metadata connection을 유지한 채 이 구성을 실행합니다. content I/O는
+guard 전에 수행하며, 읽기 전용 report는 guard 해제 후 반환됩니다. 해석된 모든
+모델 edge도 `retained_declaration` frontier를 유지합니다. 완전한 semantic/authority
 closure와 sealed snapshot/job publication은 열려 있습니다. source kind, SQL table,
 migration, grant, public route, worker나 production composition을 추가하지 않습니다.
 끝난 observation transaction으로 나중 publication을 승인할 수 없습니다.

@@ -16,6 +16,7 @@ import {
   PrincipalContextSchema,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
+  type RecordedInteractionFixtureVersionDefinition,
 } from "@proofstack/contracts";
 import {
   digestEvaluationRecordDefinition,
@@ -30,6 +31,7 @@ import {
   evaluationRecordDescriptors,
   releaseCandidateReference,
   releasePolicyReference,
+  StaticEndpointProfileCatalogue,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -45,6 +47,7 @@ import {
 import {
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
+  digestRecordedInteractionFixtureVersionDefinition,
 } from "@proofstack/datasets";
 import {
   capturePolicyArtifactEvidence,
@@ -125,7 +128,7 @@ afterAll(async () => {
   await admin.end();
 });
 
-async function fixture(withCriteria = false, metadataMode = false) {
+async function fixture(withCriteria = false, metadataMode = false, withModelEndpoint = false) {
   const namespace = `recheck_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const evaluation = withCriteria ? createEvaluationRepositoryTestHarness(namespace) : undefined;
   const evaluationRepository = new PostgresEvaluationRepository(api);
@@ -175,6 +178,35 @@ async function fixture(withCriteria = false, metadataMode = false) {
     }
   }
   const scope = evaluation?.scope ?? releasePolicyFixtureScope(namespace);
+  const modelArtifactContents = new Map<string, Buffer>();
+  // Independent installation data is defined before publishing a new capture that names it.
+  const endpointProfile: EndpointProfileRecord | undefined = withModelEndpoint
+    ? (() => {
+        const vector = JSON.parse(
+          readFileSync(
+            new URL("../../contracts/vectors/endpoint-profile-v1.json", import.meta.url),
+            "utf8",
+          ),
+        ) as { vectors: { input: { definition: EndpointProfileDefinition } }[] };
+        const definition = vector.vectors[0]?.input.definition;
+        if (!definition) throw new Error("Missing independent endpoint definition");
+        const bytes = Buffer.from('{"provider":"reference","secret":"[REDACTED]"}');
+        definition.configuration = {
+          ...definition.configuration,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          sizeBytes: bytes.byteLength,
+        };
+        modelArtifactContents.set(definition.configuration.artifactId, bytes);
+        return {
+          ...definition,
+          scope,
+          schemaVersion: "0.1",
+          definitionSha256: digestEndpointProfile(scope, definition),
+          registeredAt: "2026-09-01T00:00:00.000Z",
+          registeredByPrincipalId: "operator_model_endpoint",
+        };
+      })()
+    : undefined;
   const applicationName = `proofstack_${namespace}`;
   const observer = new Pool({
     connectionString: databaseUrl,
@@ -184,7 +216,9 @@ async function fixture(withCriteria = false, metadataMode = false) {
   observedPools.push(observer);
   // Prove that the adapter overrides the pool's isolation default without changing that default.
   await observer.query("SET default_transaction_isolation = 'repeatable read'");
-  const transactions = new PostgresPolicySourceTransactions(observer);
+  const transactions = new PostgresPolicySourceTransactions(observer, {
+    endpointProfiles: endpointProfile ? [endpointProfile] : [],
+  });
   const contents = Buffer.from("actual guarded policy source bytes");
   const reference: ContentReference = {
     artifactId: "artifact_recheck",
@@ -251,6 +285,94 @@ async function fixture(withCriteria = false, metadataMode = false) {
     createdAt: "2026-09-01T00:00:00.000Z",
     createdByPrincipalId: "principal_writer",
   };
+  const modelFixture = endpointProfile
+    ? (() => {
+        const vector = JSON.parse(
+          readFileSync(
+            new URL(
+              "../../datasets/vectors/interaction-fixture-definition-v2.json",
+              import.meta.url,
+            ),
+            "utf8",
+          ),
+        ) as { vectors: { input: RecordedInteractionFixtureVersionDefinition }[] };
+        const capture = structuredClone(vector.vectors[0]?.input.interactionCapture);
+        const model = capture?.interactions[0];
+        const attempt = model?.kind === "model" ? model.attempts[0] : undefined;
+        if (!capture || model?.kind !== "model" || !attempt)
+          throw new Error("Missing recorded model attempt");
+        const configuration = capture.artifacts.find(
+          (binding) =>
+            binding.contentReference.artifactId ===
+            attempt.artifacts.providerConfigurationArtifactId,
+        );
+        if (!configuration) throw new Error("Missing captured provider configuration");
+        configuration.contentReference = structuredClone(endpointProfile.configuration);
+        configuration.redaction = {
+          status: "applied",
+          records: [
+            {
+              stage: "source",
+              rulesetId: "rule_private",
+              rulesetVersion: "1",
+              changedPaths: ["/secret"],
+              matchCount: 1,
+            },
+          ],
+        };
+        for (const binding of capture.artifacts) {
+          if (binding === configuration) continue;
+          const bytes = Buffer.from(JSON.stringify({ syntheticCaptureRole: binding.role }));
+          binding.contentReference.sha256 = createHash("sha256").update(bytes).digest("hex");
+          binding.contentReference.sizeBytes = bytes.byteLength;
+          modelArtifactContents.set(binding.contentReference.artifactId, bytes);
+        }
+        const normalized = capture.artifacts.find(
+          (binding) => binding.contentReference.artifactId === attempt.normalizedRequest.artifactId,
+        );
+        const prompt = capture.artifacts.find(
+          (binding) => binding.contentReference.artifactId === model.prompt.artifactId,
+        );
+        if (!normalized || !prompt) throw new Error("Missing original capture bindings");
+        attempt.normalizedRequest.sha256 = normalized.contentReference.sha256;
+        model.prompt.definitionSha256 = prompt.contentReference.sha256;
+        capture.artifacts.sort((a, b) =>
+          a.contentReference.artifactId < b.contentReference.artifactId ? -1 : 1,
+        );
+        attempt.artifacts.providerConfigurationArtifactId =
+          endpointProfile.configuration.artifactId;
+        attempt.provider = {
+          ...attempt.provider,
+          name: endpointProfile.provider,
+          endpointProfileId: endpointProfile.endpointProfileId,
+          endpointProfileVersion: endpointProfile.endpointProfileVersion,
+        };
+        model.attempts.push({
+          ...structuredClone(attempt),
+          attemptId: "attempt_repeated",
+          sequence: 1,
+        });
+        const definition: RecordedInteractionFixtureVersionDefinition = {
+          ...fixtureDefinition,
+          fixtureVersionId: `${fixtureVersion.fixtureVersionId}_model`,
+          schemaVersion: "0.2",
+          replayability: "recorded_interactions",
+          interactionCapture: capture,
+          predecessor: {
+            fixtureVersionId: fixtureVersion.fixtureVersionId,
+            definitionSha256: fixtureVersion.definitionSha256,
+          },
+        };
+        return {
+          ...definition,
+          source: { ...definition.source, capturedAt: "2026-09-01T00:00:00.000Z" },
+          createdAt: "2026-09-01T00:00:00.001Z",
+          createdByPrincipalId: "principal_model_fixture",
+          definitionSha256: digestRecordedInteractionFixtureVersionDefinition(definition),
+        };
+      })()
+    : undefined;
+  const datasetFixture = modelFixture ?? fixtureVersion;
   const datasetDefinition: RegressionDatasetVersionDefinition = {
     schemaVersion: "0.1",
     scope,
@@ -259,9 +381,9 @@ async function fixture(withCriteria = false, metadataMode = false) {
     datasetVersionId: `dtv_${namespace}`,
     fixtureVersions: [
       {
-        fixtureId: fixtureVersion.fixtureId,
-        fixtureVersionId: fixtureVersion.fixtureVersionId,
-        definitionSha256: fixtureVersion.definitionSha256,
+        fixtureId: datasetFixture.fixtureId,
+        fixtureVersionId: datasetFixture.fixtureVersionId,
+        definitionSha256: datasetFixture.definitionSha256,
       },
     ],
   };
@@ -288,6 +410,41 @@ async function fixture(withCriteria = false, metadataMode = false) {
   }
   if (metadataMode) {
     await versions.publishFixtureVersion(fixtureVersion);
+    if (modelFixture) {
+      // Real authenticated encrypted bytes and eligible catalog rows precede exclusive ownership.
+      // The synthetic payloads test retained-byte integrity, not actual model execution.
+      for (const binding of modelFixture.interactionCapture.artifacts) {
+        const bytes = modelArtifactContents.get(binding.contentReference.artifactId);
+        if (!bytes) throw new Error("Missing original artifact bytes");
+        const metadata: ArtifactMetadata = {
+          schemaVersion: "0.1",
+          scope,
+          contentReference: binding.contentReference,
+          createdAt: "2026-08-29T00:00:00.000Z",
+          state: "reserved",
+          retention: binding.retention,
+          redaction: binding.redaction,
+        };
+        const plan = await encryption.createPlan(metadata);
+        const objectKey = `objects/${scope.tenantId}/${binding.contentReference.artifactId}`;
+        await catalog.reserve({
+          metadata,
+          encryption: plan,
+          objectKey,
+          createdByPrincipalId: "principal_model_artifacts",
+        });
+        const encrypted = await encryption.encrypt(metadata, plan, bytes);
+        await objects.putIfAbsent(objectKey, encrypted.bytes);
+        await catalog.activate(
+          scope,
+          binding.contentReference.artifactId,
+          encrypted.receipt,
+          "2026-08-29T00:00:00.001Z",
+        );
+      }
+      await versions.publishRecordedInteractionFixtureVersion(modelFixture);
+      await versions.publishDatasetVersion(futureDataset);
+    }
     candidate.datasets = [
       {
         datasetId: futureDataset.datasetId,
@@ -331,6 +488,9 @@ async function fixture(withCriteria = false, metadataMode = false) {
     replayDefinitions: metadataMode ? new PostgresReplayDefinitionRepository(api) : absent,
     replayResults: metadataMode ? new PostgresReplayJobControlRepository(api) : absent,
     runtimeDefinitions: absent,
+    ...(endpointProfile
+      ? { endpointProfiles: new StaticEndpointProfileCatalogue([endpointProfile]) }
+      : {}),
   } as unknown as PolicyArtifactEvidenceRepositories;
   const vector = JSON.parse(
     readFileSync(
@@ -470,6 +630,8 @@ async function fixture(withCriteria = false, metadataMode = false) {
     transactions,
     versions,
     futureDataset,
+    endpointProfile,
+    modelFixture,
     tombstone,
     cleanContext,
     waitForWriter,
@@ -478,6 +640,91 @@ async function fixture(withCriteria = false, metadataMode = false) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("reinspects original model endpoint mappings and configuration on one held metadata client without sealing", async () => {
+    const f = await fixture(false, true, true);
+    if (!f.endpointProfile || !f.modelFixture) throw new Error("Missing independent model fixture");
+    let heldCuts = 0;
+    const tryMetadataGuard = () =>
+      withExactScopeTransaction(
+        admin,
+        f.scope,
+        async (client) =>
+          (
+            await client.query<{ acquired: boolean }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows[0]?.acquired,
+      );
+    f.hooks.readContent = async () => {
+      expect(await tryMetadataGuard()).toBe(true);
+    };
+    f.hooks.underGuards = async () => {
+      heldCuts++;
+      expect(await tryMetadataGuard()).toBe(false);
+    };
+    const result = await f.run();
+    if (result.status !== "artifacts_captured") throw new Error("Expected model metadata report");
+    const graph = result.traceCapture.comparisonCapture.graph;
+    const edges = graph.edges.filter(
+      ({ reference }) => reference.kind === "endpoint_profile_selector",
+    );
+    expect(edges.map(({ reference }) => reference.path)).toEqual([
+      "/interactionCapture/interactions/0/attempts/0/provider",
+      "/interactionCapture/interactions/0/attempts/1/provider",
+    ]);
+    const expectedSource = {
+      kind: "endpoint_profile",
+      reference: {
+        endpointProfileId: f.endpointProfile.endpointProfileId,
+        endpointProfileVersion: f.endpointProfile.endpointProfileVersion,
+        definitionSha256: f.endpointProfile.definitionSha256,
+      },
+    };
+    for (const edge of edges) {
+      expect(edge.target).toEqual(expectedSource);
+      expect(edge.endpointChecks).toEqual(
+        ["provider_name", "operation", "boundary_kind", "configuration"].map((kind) => ({
+          kind,
+          observation: { status: "matched" },
+        })),
+      );
+      expect(edge.endpointFailure).toBeUndefined();
+      expect(graph.recordClosure.frontier).toContainEqual({
+        edgeIndex: graph.edges.indexOf(edge),
+        kind: "retained_declaration",
+      });
+    }
+    const nodes = graph.nodes.filter(({ read }) => read.source.kind === "endpoint_profile");
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.read).toEqual({
+      source: expectedSource,
+      record: f.endpointProfile,
+      observation: {
+        status: "verified",
+        recordSha256: createHash("sha256")
+          .update(encodeEvaluationCanonicalJson(f.endpointProfile))
+          .digest("hex"),
+      },
+    });
+    expect(result.sourceRecheck).toMatchObject({
+      status: "observations_rechecked",
+      metadataGuard: true,
+    });
+    expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
+    expect(heldCuts).toBe(1);
+    const retainedArtifacts = result.artifacts.filter(
+      ({ read }) => read.observation.status === "verified",
+    );
+    expect(retainedArtifacts.length).toBeGreaterThan(
+      f.modelFixture.interactionCapture.artifacts.length,
+    );
+    expect(f.objectReads()).toBe(retainedArtifacts.length);
+    expect(await tryMetadataGuard()).toBe(true);
+    expect(result).not.toHaveProperty("sealed");
+    expect(result).not.toHaveProperty("authority");
+    await f.cleanContext();
+  });
+
   it("retains independent endpoint profiles across three tenant collisions with exact case-sensitive versions and expiring native ports", async () => {
     const document = JSON.parse(
       readFileSync(

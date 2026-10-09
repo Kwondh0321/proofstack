@@ -13,14 +13,17 @@ import {
   type PolicyEvaluationSelectorParentSource,
   type PolicyEvaluationSelectorRead,
   policyEvaluationRequestReference,
-  readPolicyEvaluationSelector,
   readPolicyEvaluationImplementationResolution,
+  readPolicyEvaluationSelector,
   validatePolicyEvaluationRequestRecord,
 } from "@proofstack/core";
 import {
   inspectPolicyEvaluationDatasetRelations,
   type PolicyDatasetRelations,
   type PolicyEvaluationDatasetRead,
+  type PolicyEvaluationModelEndpointCheck,
+  type PolicyEvaluationModelEndpointParentSource,
+  readPolicyEvaluationModelEndpointResolution,
 } from "@proofstack/datasets";
 import {
   inspectPolicyEvaluationReplayPlanBindings,
@@ -54,13 +57,13 @@ import {
 } from "./capture-policy-assessments.js";
 import { deriveCapturedRecordClosure, type PolicyRecordClosure } from "./derive-record-closure.js";
 import {
+  emptyEndpointProfiles,
+  emptyImplementationRegistrations,
+  emptyQualificationPolicies,
+  enumerateCapturedPolicyRecord,
   type PolicyRecordExpansion,
   type PolicyRecordGraphRepositories,
   type PolicyRecordRead,
-  emptyImplementationRegistrations,
-  emptyQualificationPolicies,
-  emptyEndpointProfiles,
-  enumerateCapturedPolicyRecord,
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
 import { CapturedGraphReinspection } from "./reinspect-captured-observations.js";
@@ -84,6 +87,14 @@ export interface PolicyRecordGraphEdge {
         readonly status: "unavailable";
         readonly reason: "record_invalid" | "reference_mismatch" | "not_yet_available";
       };
+  /** Independent retained model endpoint data; four context checks are separate from authority. */
+  readonly endpointFailure?:
+    | { readonly status: "missing" }
+    | {
+        readonly status: "unavailable";
+        readonly reason: "record_invalid" | "reference_mismatch" | "not_yet_available";
+      };
+  readonly endpointChecks?: readonly PolicyEvaluationModelEndpointCheck[];
 }
 
 export interface PolicyRecordGraph {
@@ -289,6 +300,39 @@ export async function acquirePolicyRecordGraph(
           const target = { kind: "qualification_policy" as const, reference: reference.reference };
           admitEdge({ ...parent, target });
           enqueue(target);
+        } else if (reference.kind === "endpoint_profile_selector") {
+          // Every original occurrence reinspects the complete parent before its exact lookup.
+          budget.addReferences(references.length, referenceBytes);
+          const resolved = await readPolicyEvaluationModelEndpointResolution(
+            {
+              evaluationTime,
+              scope,
+              source: source as PolicyEvaluationModelEndpointParentSource,
+              path: reference.path,
+              limits,
+            },
+            read as PolicyEvaluationDatasetRead,
+            ports.endpointProfiles ?? emptyEndpointProfiles,
+          );
+          if (resolved.status === "resolved") {
+            admitEdge({
+              ...parent,
+              target: resolved.evidence.source,
+              endpointChecks: resolved.checks,
+            });
+            reinspection?.read(resolved.evidence);
+            enqueue(resolved.evidence.source, resolved.evidence);
+          } else {
+            admitEdge({
+              ...parent,
+              target: null,
+              endpointChecks: resolved.checks,
+              endpointFailure:
+                resolved.status === "missing"
+                  ? { status: "missing" }
+                  : { status: "unavailable", reason: resolved.reason },
+            });
+          }
         } else if (reference.kind === "registered_implementation") {
           // Charge complete parent reinspection before another read, including repeated origins.
           budget.addReferences(references.length, referenceBytes);

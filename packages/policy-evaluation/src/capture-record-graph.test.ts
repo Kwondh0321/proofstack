@@ -1,20 +1,22 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
-  type EvaluationRun,
   type EndpointProfileDefinition,
   type EndpointProfileRecord,
   type EvaluationImplementationRegistrationRecord,
+  type EvaluationRun,
   type EvaluatorSpec,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
-  type QualificationPolicyDefinition,
-  type QualificationPolicyRecord,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
+  type QualificationPolicyDefinition,
+  type QualificationPolicyRecord,
+  type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
+  type RegressionFixtureVersion,
   type ReleaseCandidate,
   type ReleaseCandidateDefinition,
   type ReleasePolicy,
@@ -27,19 +29,19 @@ import {
 import {
   assemblePolicyEvaluationManifest,
   CreateModelAssuranceAssessment,
-  digestEvaluationRecordDefinition,
+  digestEndpointProfile,
   digestEvaluationImplementationRegistration,
+  digestEvaluationRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
+  digestQualificationPolicy,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
   digestRuntimeDefinition,
-  digestQualificationPolicy,
-  digestEndpointProfile,
   evaluationRecordDescriptors,
-  StaticRuntimeDefinitionCatalogue,
+  StaticEndpointProfileCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticQualificationPolicyCatalogue,
-  StaticEndpointProfileCatalogue,
+  StaticRuntimeDefinitionCatalogue,
   validatePolicyEvaluationManifest,
 } from "@proofstack/core";
 import {
@@ -56,6 +58,7 @@ import {
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import {
+  digestRecordedInteractionFixtureVersionDefinition,
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
   MemoryRegressionVersionRepository,
@@ -252,6 +255,8 @@ async function harness(
     plan?: (plan: ReplayPlanDefinition) => void;
     qualificationPolicy?: boolean;
     endpointProfile?: boolean;
+    modelEndpoint?: boolean;
+    modelCapture?: (definition: RecordedInteractionFixtureVersionDefinition) => void;
   },
 ) {
   const evaluation = createEvaluationRepositoryTestHarness("graph");
@@ -266,6 +271,8 @@ async function harness(
         ) as { vectors: { input: { definition: EndpointProfileDefinition } }[] };
         const definition = document.vectors[0]?.input.definition;
         if (!definition) throw new Error("Missing independent endpoint profile vector");
+        if (snapshots.modelEndpoint)
+          definition.operations = ["chat", "generate_content", "text_completion"];
         return {
           ...structuredClone(definition),
           scope: evaluation.scope,
@@ -299,6 +306,7 @@ async function harness(
       })()
     : undefined;
   const datasets = new MemoryRegressionVersionRepository();
+  const modelPredecessors: RegressionFixtureVersion[] = [];
   const retainedFixtures = snapshots?.dataset
     ? evaluation.records
         .filter((f) => f.kind === "evaluation_run")
@@ -324,6 +332,90 @@ async function harness(
               sourceCompleteness: "observed_snapshot",
             },
           };
+          if (snapshots.modelEndpoint && record.evaluationRunId !== "evr_1") {
+            if (!endpointProfile) throw new Error("Missing independent model endpoint data");
+            const vector = JSON.parse(
+              readFileSync(
+                new URL(
+                  "../../datasets/vectors/interaction-fixture-definition-v2.json",
+                  import.meta.url,
+                ),
+                "utf8",
+              ),
+            ) as { vectors: { input: RecordedInteractionFixtureVersionDefinition }[] };
+            const capture = structuredClone(vector.vectors[0]?.input.interactionCapture);
+            if (!capture) throw new Error("Missing original capture vector");
+            const model = capture.interactions[0];
+            if (model?.kind !== "model" || !model.attempts[0])
+              throw new Error("Missing original model attempt");
+            const attempt = model.attempts[0];
+            const binding = capture.artifacts.find(
+              (a) =>
+                a.contentReference.artifactId === attempt.artifacts.providerConfigurationArtifactId,
+            );
+            if (!binding) throw new Error("Missing original provider configuration");
+            binding.contentReference = structuredClone(endpointProfile.configuration);
+            binding.redaction = {
+              status: "applied",
+              records: [
+                {
+                  stage: "source",
+                  rulesetId: "rule_private",
+                  rulesetVersion: "1",
+                  changedPaths: ["/secret"],
+                  matchCount: 1,
+                },
+              ],
+            };
+            capture.artifacts.sort((a, b) =>
+              a.contentReference.artifactId < b.contentReference.artifactId ? -1 : 1,
+            );
+            attempt.artifacts.providerConfigurationArtifactId =
+              endpointProfile.configuration.artifactId;
+            attempt.provider = {
+              ...attempt.provider,
+              endpointProfileId: endpointProfile.endpointProfileId,
+              endpointProfileVersion: endpointProfile.endpointProfileVersion,
+              name: endpointProfile.provider,
+            };
+            // This NEW synthetic capture precedes its original publication receipt and the
+            // new run. Historical vector bodies/receipts and provider execution are not rewritten.
+            for (const interaction of capture.interactions)
+              for (const item of interaction.attempts) {
+                item.startedAt = "2026-09-01T00:00:00.000Z";
+                item.endedAt = "2026-09-01T00:00:00.000Z";
+              }
+            const precursor: RegressionFixtureVersionDefinition = {
+              ...definition,
+              fixtureVersionId: `${definition.fixtureVersionId}_precursor`,
+            };
+            const predecessor = {
+              ...precursor,
+              createdAt: "2026-09-01T00:00:00.000Z",
+              createdByPrincipalId: "principal_lineage",
+              source: { ...precursor.source, capturedAt: "2026-09-01T00:00:00.000Z" },
+              definitionSha256: digestRegressionFixtureVersionDefinition(precursor),
+            };
+            modelPredecessors.push(predecessor);
+            const recorded: RecordedInteractionFixtureVersionDefinition = {
+              ...definition,
+              schemaVersion: "0.2",
+              replayability: "recorded_interactions",
+              interactionCapture: capture,
+              predecessor: {
+                fixtureVersionId: predecessor.fixtureVersionId,
+                definitionSha256: predecessor.definitionSha256,
+              },
+            };
+            snapshots.modelCapture?.(recorded);
+            return {
+              ...recorded,
+              createdAt: "2026-09-01T00:00:00.002Z",
+              createdByPrincipalId: "principal_lineage",
+              source: { ...recorded.source, capturedAt: "2026-09-01T00:00:00.000Z" },
+              definitionSha256: digestRecordedInteractionFixtureVersionDefinition(recorded),
+            };
+          }
           return {
             ...definition,
             createdAt: "2026-09-01T00:00:00.000Z",
@@ -333,7 +425,23 @@ async function harness(
           };
         })
     : [];
-  for (const fixture of retainedFixtures) await datasets.publishFixtureVersion(fixture);
+  for (const fixture of modelPredecessors) await datasets.publishFixtureVersion(fixture);
+  for (const fixture of retainedFixtures) {
+    if (fixture.schemaVersion === "0.2") {
+      for (const binding of fixture.interactionCapture.artifacts)
+        datasets.seedInteractionArtifact({
+          schemaVersion: "0.1",
+          scope: fixture.scope,
+          contentReference: binding.contentReference,
+          redaction: binding.redaction,
+          retention: binding.retention,
+          state: "available",
+          createdAt: "2026-09-01T00:00:00.000Z",
+          availableAt: "2026-09-01T00:00:00.001Z",
+        });
+      await datasets.publishRecordedInteractionFixtureVersion(fixture);
+    } else await datasets.publishFixtureVersion(fixture);
+  }
   const datasetDefinition: RegressionDatasetVersionDefinition = {
     schemaVersion: "0.1",
     scope: evaluation.scope,
@@ -3938,6 +4046,420 @@ describe("candidate-owned policy assessment declarations", () => {
     if (report.status !== "inspected") throw new Error("Expected inspection");
     Object.assign(report.candidate.source.reference, { definitionSha256: "f".repeat(64) });
     expect(graph).toEqual(before);
+  });
+});
+
+describe("original model endpoint graph mapping", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
+  const setup = (operation: "chat" | "generate_content" | "text_completion" = "chat") =>
+    harness(undefined, {
+      dataset: "matched",
+      endpointProfile: true,
+      modelEndpoint: true,
+      modelCapture: (definition) => {
+        const model = definition.interactionCapture.interactions[0];
+        if (model?.kind !== "model" || !model.attempts[0]) throw new Error("Missing model fixture");
+        model.attempts[0].provider.operation = operation;
+        model.attempts.push({
+          ...structuredClone(model.attempts[0]),
+          attemptId: "attempt_repeated",
+          sequence: 1,
+        });
+      },
+    });
+  type Graph = Awaited<ReturnType<typeof capturePolicyRecordGraph>>;
+  const modelEdges = (graph: Graph) =>
+    graph.edges.filter(({ reference }) => reference.kind === "endpoint_profile_selector");
+  const kinds = ["provider_name", "operation", "boundary_kind", "configuration"];
+  const checks = (status: string) => kinds.map((kind) => ({ kind, observation: { status } }));
+  function changedEndpoint(
+    record: EndpointProfileRecord,
+    mutate: (r: EndpointProfileRecord) => void,
+  ) {
+    const changed = structuredClone(record);
+    mutate(changed);
+    const {
+      registeredAt: _at,
+      registeredByPrincipalId: _by,
+      definitionSha256: _sha,
+      schemaVersion: _version,
+      scope,
+      ...definition
+    } = changed;
+    changed.definitionSha256 = digestEndpointProfile(scope, definition);
+    return changed;
+  }
+
+  it.each(["chat", "generate_content", "text_completion"] as const)(
+    "retains both original %s attempts, independent data and four checks without asserting authority",
+    async (operation) => {
+      const h = await setup(operation);
+      const record = h.endpointProfile;
+      if (!record || !h.repositories.endpointProfiles)
+        throw new Error("Missing independent endpoint");
+      const lookup = vi.spyOn(h.repositories.endpointProfiles, "findEndpointProfile");
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const edges = modelEdges(graph);
+      expect(edges).toHaveLength(2);
+      expect(edges.map(({ reference }) => reference.path)).toEqual([
+        "/interactionCapture/interactions/0/attempts/0/provider",
+        "/interactionCapture/interactions/0/attempts/1/provider",
+      ]);
+      expect(lookup).toHaveBeenCalledTimes(2);
+      for (const call of lookup.mock.calls)
+        expect(call).toEqual([
+          h.input.scope,
+          record.endpointProfileId,
+          record.endpointProfileVersion,
+        ]);
+      const nodes = graph.nodes.filter(({ read }) => read.source.kind === "endpoint_profile");
+      expect(nodes).toHaveLength(1);
+      expect(nodes[0]?.read).toMatchObject({
+        record,
+        observation: {
+          status: "verified",
+          recordSha256: createHash("sha256")
+            .update(encodeEvaluationCanonicalJson(record))
+            .digest("hex"),
+        },
+      });
+      for (const edge of edges) {
+        expect(edge.endpointChecks).toEqual(checks("matched"));
+        expect(edge.endpointFailure).toBeUndefined();
+        expect(edge.target).toEqual(nodes[0]?.read.source);
+        expect(graph.recordClosure.frontier).toContainEqual({
+          edgeIndex: graph.edges.indexOf(edge),
+          kind: "retained_declaration",
+        });
+      }
+      expect(deriveCapturedRecordClosure(h.input, graph, limits)).toEqual({
+        entries: graph.entries,
+        closure: graph.recordClosure,
+      });
+      expect(graph).not.toHaveProperty("sealed");
+      expect(graph).not.toHaveProperty("authority");
+    },
+  );
+
+  it.each(["provider", "operation", "boundary", "configuration"] as const)(
+    "retains valid conflicting %s data with explicit context mismatch",
+    async (field) => {
+      const h = await setup();
+      if (!h.endpointProfile) throw new Error("Missing independent endpoint");
+      const record = changedEndpoint(h.endpointProfile, (r) => {
+        if (field === "provider") r.provider = "different/provider";
+        else if (field === "operation") r.operations = ["other.operation"];
+        else if (field === "boundary") r.boundaryKinds = ["tool"];
+        else r.configuration.artifactId = "artifact_configuration_other";
+      });
+      const graph = await capturePolicyRecordGraph(h.input, {
+        ...h.repositories,
+        endpointProfiles: new StaticEndpointProfileCatalogue([record]),
+      });
+      expect(
+        graph.nodes.find(({ read }) => read.source.kind === "endpoint_profile")?.read.record,
+      ).toEqual(record);
+      for (const edge of modelEdges(graph)) {
+        expect(edge.target?.kind).toBe("endpoint_profile");
+        expect(edge.endpointFailure).toBeUndefined();
+        expect(
+          edge.endpointChecks
+            ?.filter((c) => c.observation.status === "mismatch")
+            .map((c) => c.kind),
+        ).toEqual([
+          field === "provider"
+            ? "provider_name"
+            : field === "operation"
+              ? "operation"
+              : field === "boundary"
+                ? "boundary_kind"
+                : "configuration",
+        ]);
+      }
+      expect(deriveCapturedRecordClosure(h.input, graph, limits).entries).toEqual(graph.entries);
+    },
+  );
+
+  it.each([
+    "missing",
+    "invalid",
+    "future",
+    "tenantId",
+    "projectId",
+    "environmentId",
+    "id",
+    "version",
+    "optional",
+  ] as const)(
+    "retains original %s mapping failure and unavailable context without inventing a source",
+    async (field) => {
+      const h = await setup();
+      if (!h.endpointProfile) throw new Error("Missing independent endpoint");
+      let raw: EndpointProfileRecord | null = structuredClone(h.endpointProfile);
+      if (field === "missing") raw = null;
+      else if (field === "invalid") raw.definitionSha256 = "0".repeat(64);
+      else if (field === "future") raw.registeredAt = "2026-10-02T00:00:00.000Z";
+      else if (field !== "optional")
+        raw = changedEndpoint(raw, (r) => {
+          if (field === "id") r.endpointProfileId = "endpoint_other";
+          else if (field === "version")
+            r.endpointProfileVersion = r.endpointProfileVersion.toLowerCase();
+          else r.scope[field] = "scope_other";
+        });
+      const { endpointProfiles: _absent, ...base } = h.repositories;
+      const lookup = vi.fn(async () => raw);
+      const graph = await capturePolicyRecordGraph(
+        h.input,
+        field === "optional"
+          ? base
+          : { ...base, endpointProfiles: { findEndpointProfile: lookup } },
+      );
+      expect(
+        graph.nodes.filter(({ read }) => read.source.kind === "endpoint_profile"),
+      ).toHaveLength(0);
+      const failure =
+        field === "missing" || field === "optional"
+          ? { status: "missing" }
+          : {
+              status: "unavailable",
+              reason:
+                field === "invalid"
+                  ? "record_invalid"
+                  : field === "future"
+                    ? "not_yet_available"
+                    : "reference_mismatch",
+            };
+      for (const edge of modelEdges(graph)) {
+        expect(edge.target).toBeNull();
+        expect(edge.endpointFailure).toEqual(failure);
+        expect(edge.endpointChecks).toEqual(checks("unavailable"));
+        expect(edge.reference).not.toHaveProperty("definitionSha256");
+      }
+      if (field !== "optional") expect(lookup).toHaveBeenCalledTimes(2);
+      expect(deriveCapturedRecordClosure(h.input, graph, limits).entries).toEqual(graph.entries);
+    },
+  );
+
+  it("meters each whole-parent inspection and lookup at exact and one-below cumulative limits", async () => {
+    const h = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const exact = {
+      ...h.input.limits,
+      maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references),
+      maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
+    };
+    expect(
+      (await capturePolicyRecordGraph(request(h.candidate, h.policy, exact), h.repositories)).usage,
+    ).toEqual(graph.usage);
+    for (const patch of [
+      { maxAcquisitionRecords: exact.maxAcquisitionRecords - 1 },
+      { maxAcquisitionRecordBytes: exact.maxAcquisitionRecordBytes - 1 },
+    ])
+      await expect(
+        capturePolicyRecordGraph(
+          request(h.candidate, h.policy, { ...exact, ...patch }),
+          h.repositories,
+        ),
+      ).rejects.toThrow();
+    for (const patch of [
+      { maxReferences: graph.recordClosure.inspectionUsage.references - 1 },
+      { maxReferenceBytes: graph.recordClosure.inspectionUsage.referenceBytes - 1 },
+    ])
+      expect(() => deriveCapturedRecordClosure(h.input, graph, { ...limits, ...patch })).toThrow();
+  });
+
+  it.each(["digest", "receipt", "absence"] as const)(
+    "rejects intervening %s changes under one original model identity",
+    async (field) => {
+      const h = await setup();
+      if (!h.endpointProfile) throw new Error("Missing independent endpoint");
+      const record = h.endpointProfile;
+      const changed = changedEndpoint(record, (r) => {
+        if (field === "digest") r.destination.hostname = "other.provider.example";
+        else r.registeredByPrincipalId = "operator_changed";
+      });
+      let calls = 0;
+      await expect(
+        capturePolicyRecordGraph(h.input, {
+          ...h.repositories,
+          endpointProfiles: {
+            findEndpointProfile: async () =>
+              ++calls === 1 ? (field === "absence" ? null : record) : changed,
+          },
+        }),
+      ).rejects.toMatchObject({
+        reason: field === "digest" ? "reference_conflict" : "observation_conflict",
+      });
+      expect(calls).toBe(2);
+    },
+  );
+
+  it("independently rejects omitted/substituted model origins, sources, receipts and contextual projections", async () => {
+    const h = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const edgeIndex = graph.edges.findIndex(
+      ({ reference }) => reference.kind === "endpoint_profile_selector",
+    );
+    const nodeIndex = graph.nodes.findIndex(({ read }) => read.source.kind === "endpoint_profile");
+    for (const fault of [
+      "omit_edge",
+      "path",
+      "parent_hash",
+      "target",
+      "omit_node",
+      "receipt",
+      "omit_checks",
+      "checks_order",
+      "checks_status",
+      "checks_extra",
+      "failure",
+      "cross_kind",
+    ]) {
+      const changed = structuredClone(graph);
+      const edge = changed.edges[edgeIndex];
+      const node = changed.nodes[nodeIndex];
+      if (!edge || !node) throw new Error("Missing retained model observation");
+      if (fault === "omit_edge")
+        Reflect.set(
+          changed,
+          "edges",
+          changed.edges.filter((_, i) => i !== edgeIndex),
+        );
+      else if (fault === "path") Reflect.set(edge.reference, "path", "/source");
+      else if (fault === "parent_hash") Reflect.set(edge, "parentRecordSha256", "0".repeat(64));
+      else if (fault === "target") Reflect.set(edge, "target", null);
+      else if (fault === "omit_node")
+        Reflect.set(
+          changed,
+          "nodes",
+          changed.nodes.filter((_, i) => i !== nodeIndex),
+        );
+      else if (fault === "receipt")
+        Reflect.set(node.read.record as object, "registeredByPrincipalId", "operator_other");
+      else if (fault === "omit_checks") Reflect.deleteProperty(edge, "endpointChecks");
+      else if (fault === "checks_order")
+        Reflect.set(edge, "endpointChecks", [...(edge.endpointChecks ?? [])].reverse());
+      else if (fault === "checks_status")
+        Reflect.set(edge.endpointChecks?.[0]?.observation as object, "status", "mismatch");
+      else if (fault === "checks_extra")
+        Reflect.set(edge.endpointChecks?.[0] as object, "authority", true);
+      else if (fault === "failure") Reflect.set(edge, "endpointFailure", { status: "missing" });
+      else {
+        const other = changed.edges.find(
+          ({ reference }) => reference.kind !== "endpoint_profile_selector",
+        );
+        if (!other) throw new Error("Missing non-model edge");
+        Reflect.set(other, "endpointChecks", checks("unavailable"));
+      }
+      expect(() => deriveCapturedRecordClosure(h.input, changed, limits), fault).toThrow();
+    }
+  });
+
+  it("reinspects mapping and original full receipts before following descendants, including absent creation", async () => {
+    const h = await setup();
+    if (!h.endpointProfile) throw new Error("Missing independent endpoint");
+    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(
+      await acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).toEqual(retained);
+    const missing = { ...h.repositories, endpointProfiles: new StaticEndpointProfileCatalogue([]) };
+    for (const endpointProfiles of [
+      missing.endpointProfiles,
+      new StaticEndpointProfileCatalogue([
+        { ...h.endpointProfile, registeredByPrincipalId: "operator_other" },
+      ]),
+      new StaticEndpointProfileCatalogue([
+        changedEndpoint(h.endpointProfile, (r) => {
+          r.provider = "other/provider";
+        }),
+      ]),
+    ])
+      await expect(
+        acquirePolicyRecordGraph(
+          h.input,
+          { ...h.repositories, endpointProfiles },
+          new AcquisitionBudget(h.input.limits),
+          retained,
+        ),
+      ).rejects.toMatchObject({
+        code: "policy_captured_observation_recheck_failed",
+        reason: "source_revision_changed",
+      });
+    const absent = await capturePolicyRecordGraph(h.input, missing);
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        absent,
+      ),
+    ).rejects.toMatchObject({
+      code: "policy_captured_observation_recheck_failed",
+      reason: "source_revision_changed",
+    });
+  });
+  it("rejects conflicting descriptors under one artifact identity instead of accepting a context-only mismatch", async () => {
+    const h = await setup();
+    if (!h.endpointProfile) throw new Error("Missing independent endpoint");
+    const record = changedEndpoint(h.endpointProfile, (r) => {
+      r.configuration.sizeBytes++;
+    });
+    await expect(
+      capturePolicyRecordGraph(h.input, {
+        ...h.repositories,
+        endpointProfiles: new StaticEndpointProfileCatalogue([record]),
+      }),
+    ).rejects.toMatchObject({
+      reason: "reference_conflict",
+      identity: `artifact:${record.configuration.artifactId}`,
+    });
+  });
+
+  it("rejects forged failure reasons/extra fields and checks even on absent mappings", async () => {
+    const h = await setup();
+    const graph = await capturePolicyRecordGraph(h.input, {
+      ...h.repositories,
+      endpointProfiles: new StaticEndpointProfileCatalogue([]),
+    });
+    const index = graph.edges.findIndex(
+      ({ reference }) => reference.kind === "endpoint_profile_selector",
+    );
+    for (const fault of ["omit", "lineage", "extra", "matched", "selector", "registration"]) {
+      const changed = structuredClone(graph);
+      const edge = changed.edges[index];
+      if (!edge) throw new Error("Missing model occurrence");
+      if (fault === "omit") Reflect.deleteProperty(edge, "endpointFailure");
+      else if (fault === "lineage")
+        Reflect.set(edge, "endpointFailure", { status: "unavailable", reason: "lineage_mismatch" });
+      else if (fault === "extra")
+        Reflect.set(edge, "endpointFailure", { status: "missing", authority: true });
+      else if (fault === "matched") Reflect.set(edge, "endpointChecks", checks("matched"));
+      else
+        Reflect.set(edge, fault === "selector" ? "selectorFailure" : "registrationFailure", {
+          status: "missing",
+        });
+      expect(() => deriveCapturedRecordClosure(h.input, changed, limits), fault).toThrow();
+    }
+  });
+
+  it("propagates operational endpoint port failures without a fabricated missing mapping", async () => {
+    const h = await setup();
+    const failure = new Error("endpoint storage unavailable");
+    await expect(
+      capturePolicyRecordGraph(h.input, {
+        ...h.repositories,
+        endpointProfiles: {
+          findEndpointProfile: async () => {
+            throw failure;
+          },
+        },
+      }),
+    ).rejects.toBe(failure);
   });
 });
 

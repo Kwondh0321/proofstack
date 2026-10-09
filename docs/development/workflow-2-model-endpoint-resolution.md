@@ -49,10 +49,28 @@ current installation authority, content availability or execution/release rights
 The existing profile has no model-identity declaration; this resolver does not
 invent one. It does no content, key, credential or network I/O.
 
-Graph acquisition, independent expected-closure derivation, cumulative job-wide
-admission and guarded reinspection of these hashless mappings remain separate
-work. This resolver exposes per-inspection whole-parent usage so that composition
-can charge it without treating repeated work as free. Complete semantic/authority
+Graph acquisition now resolves every original hashless model occurrence through
+this owning reader, charges complete parent inspection before each lookup and
+retains every original path and parent hash. Valid independent records become a
+unique exact child node; repeated origins still perform and meter separate reads.
+Different semantic digests or full receipts under one identity fail wholly.
+Missing/unavailable mappings retain explicit `endpointFailure` and four unavailable
+`endpointChecks`, with no fabricated target. Valid contradictory context retains
+the child and its separate mismatch checks.
+
+Independent expected-closure derivation revalidates the original fixture and exact
+retained child, recomputes the four ordered checks and rejects omitted/substituted
+origins, targets, receipts and check projections. It charges whole-parent
+inspection for every occurrence, including failures. A verified retained child
+cannot coexist with a forged missing mapping. Unavailable failure reasons retain
+bounded acquisition provenance; they do not independently prove storage absence.
+Retained graph reinspection detects changed mappings, full receipts, removal and
+absent creation before descendant traversal.
+
+The PostgreSQL adapter's existing copied endpoint catalogue and normalized fixture
+ports support the same composition on one held metadata connection. Content I/O
+precedes guards; a read-only report returns after guard release. Every resolved
+model edge keeps its `retained_declaration` frontier: complete semantic/authority
 closure and sealed snapshot/job publication remain open. No source kind, SQL
 table, migration, grant, public route, worker or production composition is added.
 An ended observation transaction cannot authorize later publication.

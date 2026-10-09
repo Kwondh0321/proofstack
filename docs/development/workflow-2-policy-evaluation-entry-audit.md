@@ -475,8 +475,12 @@ finite admission preserve missing/unavailable targets and current-authority fron
 The [owning hashless model resolver](workflow-2-model-endpoint-resolution.md) revalidates
 the complete original fixture before exact independent lookup, derives a digest only
 from valid retained data and keeps four original-context checks separate from data integrity.
-Graph integration/reinspection of these model mappings, protocol acquisition, complete authority
-closure and sealed publication remain open.
+Graph integration now retains each model origin, its independently validated exact child,
+four ordered context checks and explicit missing/unavailable mappings. Independent derivation
+recomputes parent-bound checks and charges each whole-parent inspection; retained reinspection
+rejects changed mapping, full receipts, removal and absent creation before traversal. Every
+resolved model mapping still has a retained-declaration authority frontier. Protocol acquisition,
+complete authority closure and sealed publication remain open.
 
 Replay owning definition reads validate original intents under both API and replay-worker
 roles. Runtime provisioning grants the existing worker only the fixed read-only replay intent
