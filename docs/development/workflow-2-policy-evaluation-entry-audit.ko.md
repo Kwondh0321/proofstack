@@ -218,6 +218,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 한도를 적용합니다. dataset/target까지의 전체 계보·현재 권한·규칙 피연산자는 미완료이며
 정책 판정 전에 완전한 의존 관계 검증과 봉인이 필요합니다.
 
+[후보 소유 아티팩트 규칙 연결](workflow-2-artifact-rule-bindings.ko.md)은 각 아티팩트 요구 규칙을
+후보의 정확한 종류·역할, 원래 edge와 권한 검사를 거친 내용 캡처에 연결합니다. 미사용 선언,
+반복 사용, 별칭 모델, 명시적 omission과 내용 가용성을 별도로 유지하고 누적 검사 한도를
+적용합니다. predicate 판정·현재 권한·봉인된 입력은 아니며 체크포인트 3은 여전히 미완료입니다.
+
 후속 [후보 assessment 계보](workflow-2-candidate-assessment-lineage.ko.md)는 모델 보증 base를
 포함한 모든 후보 평가에서 기존 이력 보고·집계 정책·실행으로 연결합니다. 정확한 후보
 dataset/target과 dataset의 fixture 소속을 검사하고 근거 부재·빈 집계·반복 출처를 보존합니다.

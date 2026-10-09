@@ -791,6 +791,36 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
     });
     expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
     expect(cuts).toBe(1);
+    expect(result.artifactRules.candidate.source).toEqual(
+      graph.roots.find((root) => root.kind === "release_candidate"),
+    );
+    const bundle = result.artifactRules.members[0];
+    if (bundle?.status !== "artifact_declared") throw new Error("Missing candidate bundle binding");
+    expect(bundle).toMatchObject({
+      componentKind: "build_artifact",
+      role: "agent_bundle",
+      candidatePath: "/buildArtifacts/0/artifact",
+      reference: f.reference,
+    });
+    expect(result.artifacts[bundle.artifactCaptureIndex]).toMatchObject({
+      origin: { kind: "record", edgeIndex: bundle.candidateEdgeIndex },
+      read: {
+        scope: f.scope,
+        reference: f.reference,
+        observation: {
+          status: "verified",
+          sha256: f.reference.sha256,
+          sizeBytes: f.reference.sizeBytes,
+        },
+      },
+    });
+    expect(
+      result.artifactRules.rules.find(
+        (rule) =>
+          rule.predicate.componentKind === "build_artifact" &&
+          rule.predicate.role === "agent_bundle",
+      )?.binding,
+    ).toEqual({ status: "component_present", memberIndex: 0 });
     const verified = result.artifacts.filter((a) => a.read.observation.status === "verified");
     expect(f.objectReads()).toBe(verified.length);
     expect(

@@ -242,6 +242,12 @@ unused declarations and independent record availability under cumulative count/b
 This does not close assessment-to-dataset/target lineage, current authority or typed rule operands;
 complete closure and sealing remain required before policy outcomes.
 
+The [candidate-owned artifact rule bindings](workflow-2-artifact-rule-bindings.md) connect every
+artifact-required rule to the exact candidate kind/role, original edge and authorized content
+capture. Complete unused declarations, repeated uses, alias-only models, explicit omissions and
+independent content availability remain distinct under cumulative inspection admission. This
+does not produce predicate outcomes, current authority or sealed inputs; checkpoint 3 stays open.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture

@@ -12,12 +12,15 @@ import {
 import {
   type ArtifactMetadata,
   type ContentReference,
+  encodeEvaluationCanonicalJson,
   EvidenceEnvelopeSchema,
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
   policyEvaluationSourceReferenceKey,
+  type ReleaseCandidate,
+  type ReleasePolicy,
   type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
@@ -25,6 +28,7 @@ import {
 import {
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
+  digestReleasePolicyDefinition,
   releaseCandidateReference,
   releasePolicyReference,
 } from "@proofstack/core";
@@ -49,6 +53,7 @@ import {
   type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
 import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
+import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
 import * as publicApi from "./index.js";
 import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
 import type {
@@ -93,7 +98,14 @@ function withLimits(
   };
 }
 
-async function harness(recorded = false, eventCount = 1) {
+async function harness(
+  recorded = false,
+  eventCount = 1,
+  changes: {
+    mutateCandidate?(candidate: ReleaseCandidate): void;
+    mutatePolicy?(policy: ReleasePolicy): void;
+  } = {},
+) {
   const datasets = new MemoryRegressionVersionRepository();
   const eventIds = Array.from({ length: eventCount }, (_, i) =>
     i === 0 ? "event_artifact" : `event_artifact_${i}`,
@@ -224,6 +236,7 @@ async function harness(recorded = false, eventCount = 1) {
       definitionSha256: dataset.definitionSha256,
     },
   ];
+  changes.mutateCandidate?.(candidate);
   const {
     createdAt: _at,
     createdByPrincipalId: _by,
@@ -234,6 +247,16 @@ async function harness(recorded = false, eventCount = 1) {
   } = candidate;
   candidate.definitionSha256 = digestReleaseCandidateDefinition(scope, candidateDefinition);
   const policy = releasePolicyRepositoryFixture("artifact_graph", scope);
+  changes.mutatePolicy?.(policy);
+  const {
+    publishedAt: _policyAt,
+    publishedByPrincipalId: _policyBy,
+    schemaVersion: _policyVersion,
+    scope: _policyScope,
+    definitionSha256: _policyHash,
+    ...policyDefinition
+  } = policy;
+  policy.definitionSha256 = digestReleasePolicyDefinition(scope, policyDefinition);
   const candidates = new MemoryReleaseCandidateRepository();
   const policies = new MemoryReleasePolicyRepository();
   await candidates.publishReleaseCandidate(candidate);
@@ -490,7 +513,9 @@ describe("request-rooted authorized artifact capture", () => {
       output.traceCapture.usage.records + h.find.mock.calls.length + 2,
     );
     expect(output.usage.references).toBe(
-      output.traceCapture.usage.references + output.policyAuthority.inspectionUsage.references,
+      output.traceCapture.usage.references +
+        output.policyAuthority.inspectionUsage.references +
+        output.artifactRules.inspectionUsage.references,
     );
     expect(output.usage.artifacts).toEqual({
       reads: 3,
@@ -562,12 +587,13 @@ describe("request-rooted authorized artifact capture", () => {
   });
 
   it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
-    const h = await harness(false, 4);
-    // Each available occurrence needs two catalog reads. Four events keep that dimension above
-    // reference inspection (including closure) so this test specifically reaches record admission.
-    // Keep each event below the owning 32-reference maximum.
-    for (const event of h.events)
-      event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+    const h = await harness(false, 28);
+    // Four content-bearing events plus 24 metadata-only events keep record admission above all
+    // parent/rule reference inspection. Each event stays below the owning 32-reference maximum.
+    h.events.forEach((event, index) => {
+      event.evidence.contentReferences =
+        index < 4 ? Array.from({ length: 24 }, () => reference) : [];
+    });
     h.exact.mockResolvedValue(h.events);
     const baseline = await h.execute();
     expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
@@ -1449,9 +1475,11 @@ describe("request-owned source recheck composition", () => {
     // Retain a real successor/history so record admission remains the limiting dimension
     // after candidate assessment and closure inspection also charge reference occurrences.
     const prepare = async () => {
-      const fixture = await recheckHarness(4);
-      for (const event of fixture.h.events)
-        event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+      const fixture = await recheckHarness(28);
+      fixture.h.events.forEach((event, index) => {
+        event.evidence.contentReferences =
+          index < 4 ? Array.from({ length: 24 }, () => reference) : [];
+      });
       fixture.h.exact.mockResolvedValue(fixture.h.events);
       const successor = releasePolicyRepositoryFixture("recheck_budget", scope, {
         policyId: fixture.h.policy.policyId,
@@ -1495,10 +1523,12 @@ describe("request-owned source recheck composition", () => {
   });
 
   it("charges each retained terminal-history row as well as its reread operation", async () => {
-    const f = await recheckHarness(4);
+    const f = await recheckHarness(28);
     // Keep record admission, rather than reference admission, the limiting dimension.
-    for (const event of f.h.events)
-      event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+    f.h.events.forEach((event, index) => {
+      event.evidence.contentReferences =
+        index < 4 ? Array.from({ length: 24 }, () => reference) : [];
+    });
     f.h.exact.mockResolvedValue(f.h.events);
     await f.h.policies.publishReleasePolicyLifecycleEvent(
       releasePolicyLifecycleFixture("recheck_rows", f.h.policy, {
@@ -1516,9 +1546,11 @@ describe("request-owned source recheck composition", () => {
       recheck.guards + recheck.artifactReads + recheck.policyReads + 2 + 1,
     );
     expect(output.usage.records).toBeGreaterThan(output.usage.references);
-    const fresh = await recheckHarness(4);
-    for (const event of fresh.h.events)
-      event.evidence.contentReferences = Array.from({ length: 24 }, () => reference);
+    const fresh = await recheckHarness(28);
+    fresh.h.events.forEach((event, index) => {
+      event.evidence.contentReferences =
+        index < 4 ? Array.from({ length: 24 }, () => reference) : [];
+    });
     fresh.h.exact.mockResolvedValue(fresh.h.events);
     await fresh.h.policies.publishReleasePolicyLifecycleEvent(
       releasePolicyLifecycleFixture("recheck_rows", fresh.h.policy, {
@@ -1952,5 +1984,399 @@ describe("dataset relationships retained through public capture", () => {
     await expect(h.execute()).rejects.toBe(failure);
     expect(h.find).not.toHaveBeenCalled();
     expect(h.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("candidate-owned artifact rule bindings", () => {
+  async function setup(alias = false) {
+    return harness(false, 1, {
+      mutateCandidate(candidate) {
+        for (const component of candidate.runtimeComponents) {
+          if (component.kind !== "model") component.content = structuredClone(reference);
+          else if (alias)
+            component.resolution = {
+              status: "provider_alias_only",
+              declaredAlias: "provider-live-alias",
+              limitation: "No independently retained model version is available.",
+            };
+          else if (component.resolution.status === "exact")
+            component.resolution.resolutionEvidence = structuredClone(reference);
+        }
+      },
+      mutatePolicy(policy) {
+        const template = policy.rules[0];
+        if (!template) throw new Error("Missing original policy rule");
+        const declarations = [
+          ["build_artifact", "agent_bundle"],
+          ["model_resolution", "primary_model"],
+          ["prompt", "system_prompt"],
+          ["tool_contract", "payment_tool"],
+          ["tool_contract", "refund_tool"],
+          ["prompt", "absent_prompt"],
+          ["build_artifact", "agent_bundle"],
+        ] as const;
+        declarations.forEach(([componentKind, role], index) => {
+          policy.rules.push({
+            ...structuredClone(template),
+            ruleId: `bound_${index}`,
+            predicate: {
+              kind: "artifact_required",
+              componentKind,
+              role,
+              requireDigest: true,
+              allowedMediaTypes: ["text/plain"],
+              maximumDataClassification: "confidential",
+            },
+          });
+        });
+        policy.rules.sort((a, b) => (a.ruleId < b.ruleId ? -1 : a.ruleId > b.ruleId ? 1 : 0));
+      },
+    });
+  }
+
+  it("binds all four component kinds, unused members and repeated rules to original encrypted captures", async () => {
+    const h = await setup();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const bindings = output.artifactRules;
+    expect(bindings.members.map((m) => [m.componentKind, m.role, m.candidatePath])).toEqual([
+      ["build_artifact", "agent_bundle", "/buildArtifacts/0/artifact"],
+      ["build_artifact", "sbom", "/buildArtifacts/1/artifact"],
+      ["model_resolution", "primary_model", "/runtimeComponents/0/resolution/resolutionEvidence"],
+      ["prompt", "system_prompt", "/runtimeComponents/1/content"],
+      ["tool_contract", "payment_tool", "/runtimeComponents/2/content"],
+    ]);
+    for (const member of bindings.members) {
+      const edge = graph.edges[member.candidateEdgeIndex];
+      expect(edge?.reference.path).toBe(member.candidatePath);
+      expect(edge?.parentRecordSha256).toBe(bindings.candidate.recordSha256);
+      if (member.status !== "artifact_declared") throw new Error("Expected exact artifact");
+      expect(output.artifacts[member.artifactCaptureIndex]?.origin).toEqual({
+        kind: "record",
+        edgeIndex: member.candidateEdgeIndex,
+      });
+      expect(output.artifacts[member.artifactCaptureIndex]?.read.observation).toEqual(
+        member.role === "sbom"
+          ? { status: "missing" }
+          : {
+              status: "verified",
+              sha256: reference.sha256,
+              sizeBytes: content.byteLength,
+            },
+      );
+    }
+    const rules = bindings.rules.filter((r) => r.ruleId.startsWith("bound_"));
+    expect(rules.map((r) => r.binding)).toEqual([
+      { status: "component_present", memberIndex: 0 },
+      { status: "component_present", memberIndex: 2 },
+      { status: "component_present", memberIndex: 3 },
+      { status: "component_present", memberIndex: 4 },
+      { status: "component_missing", omission: h.candidate.omissions[0] },
+      { status: "component_missing", omission: null },
+      { status: "component_present", memberIndex: 0 },
+    ]);
+    for (const rule of rules) {
+      expect(h.policy.rules[rule.ruleIndex]?.predicate).toEqual(rule.predicate);
+      expect(graph.edges[rule.policyEdgeIndex]?.parentRecordSha256).toBe(
+        bindings.policy.recordSha256,
+      );
+    }
+    expect(h.decrypt).toHaveBeenCalledTimes(6);
+    expect(bindings).not.toHaveProperty("outcome");
+    expect(publicApi).not.toHaveProperty("inspectCapturedArtifactRules");
+  });
+
+  it("retains alias-only models as present declarations without inventing resolution evidence", async () => {
+    const h = await setup(true);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    expect(output.artifactRules.members[2]).toMatchObject({
+      status: "model_alias",
+      componentKind: "model_resolution",
+      role: "primary_model",
+      candidatePath: "/runtimeComponents/0",
+      declaration: {
+        resolution: { status: "provider_alias_only", declaredAlias: "provider-live-alias" },
+      },
+    });
+    expect(output.artifactRules.members[2]).not.toHaveProperty("artifactCaptureIndex");
+    expect(output.artifactRules.rules.find((r) => r.ruleId === "bound_1")?.binding).toEqual({
+      status: "component_present",
+      memberIndex: 2,
+    });
+    expect(h.decrypt).toHaveBeenCalledTimes(5);
+  });
+
+  it("keeps present-but-unavailable bytes separate from a genuinely absent component", async () => {
+    const h = await setup();
+    h.get.mockResolvedValue(null);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const rule = output.artifactRules.rules.find((r) => r.ruleId === "bound_0");
+    expect(rule?.binding).toEqual({ status: "component_present", memberIndex: 0 });
+    const member = output.artifactRules.members[0];
+    if (member?.status !== "artifact_declared") throw new Error("Expected declaration");
+    expect(output.artifacts[member.artifactCaptureIndex]?.read).toMatchObject({
+      catalog: { metadata: { contentReference: reference } },
+      observation: { status: "unavailable", reason: "object_missing" },
+    });
+    expect(output.artifactRules.rules.find((r) => r.ruleId === "bound_5")?.binding).toEqual({
+      status: "component_missing",
+      omission: null,
+    });
+    expect(h.decrypt).not.toHaveBeenCalled();
+  });
+
+  it("retains incompatible declared media and classification bounds without turning verified bytes into a policy outcome", async () => {
+    const h = await harness(false, 1, {
+      mutatePolicy(policy) {
+        const rule = policy.rules.find((r) => r.predicate.kind === "artifact_required");
+        if (rule?.predicate.kind !== "artifact_required") throw new Error("Missing artifact rule");
+        rule.predicate.allowedMediaTypes = ["application/json"];
+        rule.predicate.maximumDataClassification = "metadata";
+      },
+    });
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    expect(output.artifactRules.rules[0]).toMatchObject({
+      predicate: { allowedMediaTypes: ["application/json"], maximumDataClassification: "metadata" },
+      binding: { status: "component_present", memberIndex: 0 },
+    });
+    expect(output.artifactRules.members[0]).toMatchObject({ reference });
+    expect(output.artifactRules.rules[0]).not.toHaveProperty("outcome");
+  });
+
+  it.each([
+    "candidate_body",
+    "candidate_receipt",
+    "missing_root",
+    "duplicate_node",
+    "graph_scope",
+    "graph_time",
+    "duplicate_edge",
+    "edge_hash",
+    "edge_target",
+    "edge_reference",
+    "rule_path",
+    "missing_capture",
+    "duplicate_capture",
+    "capture_scope",
+    "capture_time",
+    "catalog_scope",
+    "catalog_reference",
+    "verified_without_catalog",
+    "verified_digest",
+    "verified_size",
+  ])("rejects broken internal provenance: %s", async (fault) => {
+    const h = await setup();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const graph = structuredClone(output.traceCapture.comparisonCapture.graph);
+    const artifacts = output.artifacts.map((capture) => structuredClone(capture));
+    const member = output.artifactRules.members[0];
+    if (member?.status !== "artifact_declared") throw new Error("Missing exact component");
+    const node = graph.nodes.find((n) => n.read.source.kind === "release_candidate");
+    const edge = graph.edges[member.candidateEdgeIndex];
+    const capture = artifacts[member.artifactCaptureIndex];
+    if (!node || !edge || !capture) throw new Error("Missing original provenance");
+    const candidate = node.read.record as ReleaseCandidate;
+    if (fault === "candidate_body") candidate.name += " changed";
+    if (fault === "candidate_receipt") candidate.createdByPrincipalId = "substituted_actor";
+    if (fault === "missing_root")
+      Reflect.set(
+        graph,
+        "nodes",
+        graph.nodes.filter((n) => n !== node),
+      );
+    if (fault === "duplicate_node")
+      Reflect.set(graph, "nodes", [...graph.nodes, structuredClone(node)]);
+    if (fault === "graph_scope") graph.scope.environmentId = "other_environment";
+    if (fault === "graph_time") Reflect.set(graph, "evaluationTime", "2026-10-01T00:00:00.001Z");
+    if (fault === "duplicate_edge")
+      Reflect.set(graph, "edges", [...graph.edges, structuredClone(edge)]);
+    if (fault === "edge_hash") Reflect.set(edge, "parentRecordSha256", "f".repeat(64));
+    if (fault === "edge_target") Reflect.set(edge, "target", output.artifactRules.candidate.source);
+    if (fault === "edge_reference" && edge.reference.kind === "artifact")
+      edge.reference.reference.sizeBytes++;
+    if (fault === "rule_path") {
+      const rule = output.artifactRules.rules.find((r) => r.ruleId === "bound_0");
+      if (!rule) throw new Error("Missing original artifact rule");
+      const ruleEdge = graph.edges[rule.policyEdgeIndex];
+      if (!ruleEdge) throw new Error("Missing rule edge");
+      Reflect.set(ruleEdge.reference, "path", "/rules/999/predicate");
+    }
+    if (fault === "missing_capture") artifacts.splice(member.artifactCaptureIndex, 1);
+    if (fault === "duplicate_capture") artifacts.push(structuredClone(capture));
+    if (fault === "capture_scope") capture.read.scope.environmentId = "other_environment";
+    if (fault === "capture_time")
+      Reflect.set(capture.read, "evaluationTime", "2026-10-01T00:00:00.001Z");
+    if (fault === "catalog_scope" && capture.read.catalog)
+      capture.read.catalog.metadata.scope.environmentId = "other_environment";
+    if (fault === "catalog_reference" && capture.read.catalog)
+      capture.read.catalog.metadata.contentReference.sizeBytes++;
+    if (fault === "verified_without_catalog") Reflect.set(capture.read, "catalog", null);
+    if (fault === "verified_digest" && capture.read.observation.status === "verified")
+      Reflect.set(capture.read.observation, "sha256", "f".repeat(64));
+    if (fault === "verified_size" && capture.read.observation.status === "verified")
+      Reflect.set(capture.read.observation, "sizeBytes", capture.read.observation.sizeBytes + 1);
+    expect(() =>
+      inspectCapturedArtifactRules(h.request, graph, artifacts, {
+        maxReferences: h.request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+      }),
+    ).toThrow();
+  });
+
+  it("charges complete parent and repeated rule inspection at exact and one-below boundaries", async () => {
+    const h = await setup();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const usage = output.artifactRules.inspectionUsage;
+    const parentReferences = graph.nodes
+      .filter(
+        ({ read }) =>
+          read.source.kind === "release_candidate" || read.source.kind === "release_policy",
+      )
+      .flatMap(({ references }) => references ?? []);
+    const componentReferences = graph.edges
+      .filter(
+        (edge) =>
+          edge.parent.kind === "release_candidate" &&
+          edge.reference.kind === "artifact" &&
+          (edge.reference.path.startsWith("/buildArtifacts/") ||
+            edge.reference.path.startsWith("/runtimeComponents/")),
+      )
+      .map((edge) => edge.reference);
+    const ruleReferences = graph.edges
+      .filter(
+        (edge) =>
+          edge.parent.kind === "release_policy" &&
+          edge.reference.kind === "control_declaration" &&
+          edge.reference.declaration.kind === "artifact_requirement",
+      )
+      .map((edge) => edge.reference);
+    // The independent fixture has six matching artifact rules: the original bundle rule and
+    // bound_0/1/2/3/6. Both absent roles stay declarations without an invented artifact reference.
+    const matchingReferences = ruleReferences.flatMap((rule) =>
+      rule.kind === "control_declaration" &&
+      rule.declaration.kind === "artifact_requirement" &&
+      !["refund_tool", "absent_prompt"].includes(rule.declaration.reference.role)
+        ? [{ kind: "artifact", path: rule.path, reference }]
+        : [],
+    );
+    expect(componentReferences).toHaveLength(5);
+    expect(matchingReferences).toHaveLength(6);
+    const expected = [
+      ...parentReferences,
+      ...componentReferences,
+      ...ruleReferences,
+      ...matchingReferences,
+    ];
+    expect(usage).toEqual({
+      references: expected.length,
+      referenceBytes: expected.reduce(
+        (sum, item) => sum + encodeEvaluationCanonicalJson(item).byteLength,
+        0,
+      ),
+    });
+    const exact = { maxReferences: usage.references, maxReferenceBytes: usage.referenceBytes };
+    expect(inspectCapturedArtifactRules(h.request, graph, output.artifacts, exact)).toEqual(
+      output.artifactRules,
+    );
+    expect(() =>
+      inspectCapturedArtifactRules(h.request, graph, output.artifacts, {
+        ...exact,
+        maxReferences: exact.maxReferences - 1,
+      }),
+    ).toThrow(expect.objectContaining({ reason: "reference_limit_exceeded" }));
+    expect(() =>
+      inspectCapturedArtifactRules(h.request, graph, output.artifacts, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow(expect.objectContaining({ reason: "reference_bytes_exceeded" }));
+    const cumulative = withLimits(h.request, {
+      maxAcquisitionRecords: output.usage.references,
+      maxAcquisitionRecordBytes: output.usage.bytes + output.usage.referenceBytes,
+    });
+    const fresh = await setup();
+    expect((await fresh.execute(cumulative)).usage).toEqual(output.usage);
+    const fewer = await setup();
+    await expect(
+      fewer.execute(
+        withLimits(cumulative, {
+          maxAcquisitionRecords: cumulative.limits.maxAcquisitionRecords - 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "policy_record_graph_failed", reason: "reference_limit" });
+    const fewerBytes = await setup();
+    await expect(
+      fewerBytes.execute(
+        withLimits(cumulative, {
+          maxAcquisitionRecordBytes: cumulative.limits.maxAcquisitionRecordBytes - 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "policy_record_graph_failed", reason: "byte_limit" });
+  });
+
+  it("bounds complete parent inspection cumulatively before resolving component occurrences", async () => {
+    const h = await setup();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const parents = graph.nodes.filter(
+      ({ read }) =>
+        read.source.kind === "release_candidate" || read.source.kind === "release_policy",
+    );
+    const referenceCount = parents.reduce(
+      (sum, parent) => sum + (parent.references?.length ?? 0),
+      0,
+    );
+    const referenceBytes = parents
+      .flatMap((parent) => parent.references ?? [])
+      .reduce((sum, item) => sum + encodeEvaluationCanonicalJson(item).byteLength, 0);
+    expect(() =>
+      inspectCapturedArtifactRules(h.request, graph, output.artifacts, {
+        maxReferences: referenceCount - 1,
+        maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+      }),
+    ).toThrow(expect.objectContaining({ reason: "reference_limit_exceeded" }));
+    expect(() =>
+      inspectCapturedArtifactRules(h.request, graph, output.artifacts, {
+        maxReferences: h.request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: referenceBytes - 1,
+      }),
+    ).toThrow(expect.objectContaining({ reason: "reference_bytes_exceeded" }));
+  });
+
+  it("owns every returned declaration and index without mutating retained graph or artifact inputs", async () => {
+    const h = await setup(true);
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Expected observations");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const prior = structuredClone({ graph, artifacts: output.artifacts });
+    const report = structuredClone(
+      inspectCapturedArtifactRules(h.request, graph, output.artifacts, {
+        maxReferences: h.request.limits.maxAcquisitionRecords,
+        maxReferenceBytes: h.request.limits.maxAcquisitionRecordBytes,
+      }),
+    );
+    report.candidate.source.reference.candidateId = "mutated_return";
+    const firstMember = report.members[0];
+    if (!firstMember) throw new Error("Missing first member");
+    Reflect.set(firstMember, "role", "mutated_role");
+    const alias = report.members[2];
+    if (alias?.status !== "model_alias") throw new Error("Missing model alias");
+    alias.declaration.providerId = "mutated_provider";
+    const rule = report.rules.find((r) => r.ruleId === "bound_4");
+    if (rule?.binding.status !== "component_missing" || !rule.binding.omission)
+      throw new Error("Missing original omission");
+    rule.binding.omission.rationale = "mutated omission";
+    expect({ graph, artifacts: output.artifacts }).toEqual(prior);
+    expect(output.artifactRules.candidate.source.reference.candidateId).toBe(
+      h.candidate.candidateId,
+    );
   });
 });
