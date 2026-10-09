@@ -262,6 +262,13 @@ inspection; missing optional values, explicit empty population sets and mixed un
 mismatch explanations remain distinct. Complete parent/context/dimension admission is
 cumulative. This input conjunction is not a policy outcome, current authority or seal.
 
+The [candidate-owned comparison rule inputs](workflow-2-comparison-rule-bindings.md)
+revalidate the complete original inventory, records and edges before joining each
+original rule to exact metric/stratum/sample/value provenance. Missing, ambiguous,
+unavailable and invalid lineage remain explicit; kind/unit/event incompatibility
+retains original operands. Repeated frames share finite canonical admission. These
+descriptive inputs do not evaluate rules, complete current authority or seal a snapshot.
+
 The subsequent [candidate assessment lineage](workflow-2-candidate-assessment-lineage.md) follows
 every candidate assessment, including model-assurance base assessments, through retained owning
 histories, aggregate policy and runs. It checks exact candidate datasets/targets and dataset fixture

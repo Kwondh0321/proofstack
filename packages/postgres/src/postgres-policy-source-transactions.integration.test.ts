@@ -849,6 +849,20 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
       true,
     );
     expect(result.applicability).not.toHaveProperty("outcome");
+    expect(result.comparisonRules.candidate).toEqual(result.applicability.candidate);
+    expect(result.comparisonRules.policy).toEqual(result.applicability.policy);
+    const capturedComparisons = result.traceCapture.comparisonCapture;
+    if (capturedComparisons.status !== "inventory_captured")
+      throw new Error("Expected complete candidate comparison inventory");
+    expect(result.comparisonRules.inventory).toEqual(capturedComparisons.inventory);
+    for (const rule of result.comparisonRules.rules) {
+      expect(graph.edges[rule.policyEdgeIndex]?.reference.path).toBe(
+        `/rules/${rule.ruleIndex}/predicate/comparison`,
+      );
+      expect(rule.binding.status).toBe("comparison_unusable");
+    }
+    expect(result.comparisonRules.rules.length).toBeGreaterThan(0);
+    expect(result.comparisonRules).not.toHaveProperty("outcome");
     expect(result.artifactRules.candidate.source).toEqual(
       graph.roots.find((root) => root.kind === "release_candidate"),
     );

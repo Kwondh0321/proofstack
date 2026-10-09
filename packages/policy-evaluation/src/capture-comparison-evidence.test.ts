@@ -5,7 +5,9 @@ import {
   REGRESSION_DATASET_VERSION_SCHEMA_VERSION,
   REGRESSION_FIXTURE_VERSION_SCHEMA_VERSION,
   type ComparisonEvidenceSnapshot,
+  type ComparisonDefinition,
   type ComparisonResult,
+  encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
@@ -39,7 +41,9 @@ import {
 import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyComparisonEvidence } from "./capture-comparison-evidence.js";
+import { inspectCapturedComparisonRules } from "./capture-comparison-rules.js";
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
+import * as publicApi from "./index.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
 type ReceiptKey =
@@ -76,9 +80,15 @@ function resultReference(result: ComparisonResult) {
   return { resultId: result.resultId, definitionSha256: result.definitionSha256 };
 }
 
-function fixture(count = 1) {
+function fixture(count = 1, configure?: (comparison: ComparisonDefinition) => void) {
   const scope = comparisonFixtureScope("capture_comparison");
   const comparison = comparisonDefinitionFixture("capture_comparison", scope);
+  configure?.(comparison);
+  comparison.definitionSha256 = digestComparisonRecordDefinition(
+    "comparison_definition",
+    scope,
+    definition(comparison),
+  );
   const comparisonRef = {
     comparisonId: comparison.comparisonId,
     comparisonVersionId: comparison.comparisonVersionId,
@@ -247,6 +257,486 @@ async function harness(value = fixture()) {
   } as unknown as PolicyRecordGraphRepositories;
   return { value, repositories, request: request(value.candidate, value.policy), reads };
 }
+
+describe("candidate-owned comparison rule input bindings", () => {
+  const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
+  const project = (
+    h: Awaited<ReturnType<typeof harness>>,
+    capture: Awaited<ReturnType<typeof capturePolicyComparisonEvidence>>,
+    admission = limits,
+  ) => inspectCapturedComparisonRules(h.request, capture, admission);
+  function inputs(count = 1) {
+    const value = fixture(count, (comparison) => {
+      comparison.metrics.push({
+        kind: "safety_event_count",
+        eventKind: "guardrail_check",
+        metricId: "metric_safety",
+        label: "Exact safety events",
+        stratumId: "stratum_all",
+        unit: "events",
+      });
+      comparison.metrics.sort((a, b) => (a.metricId < b.metricId ? -1 : 1));
+    });
+    const reference = {
+      comparisonId: value.comparison.comparisonId,
+      comparisonVersionId: value.comparison.comparisonVersionId,
+      definitionSha256: value.comparison.definitionSha256,
+    };
+    const ruleTemplate = required(value.policy.rules[0]);
+    value.policy.rules = value.policy.rules.filter(({ predicate }) => !("comparison" in predicate));
+    const predicates: ReleasePolicy["rules"][number]["predicate"][] = [
+      {
+        kind: "comparison_threshold",
+        comparison: reference,
+        metricId: "metric_elapsed",
+        metricKind: "replay_usage",
+        operand: "delta",
+        comparator: "less_than_or_equal",
+        threshold: "0",
+        unit: "milliseconds",
+      },
+      {
+        kind: "coverage_floor",
+        sourceKind: "comparison_metric_samples",
+        comparison: reference,
+        metricId: "metric_elapsed",
+        sampleClass: "candidate_observed",
+        minimumCount: 1,
+        unit: "cases",
+      },
+      {
+        kind: "coverage_floor",
+        sourceKind: "comparison_metric_ratio",
+        comparison: reference,
+        metricId: "metric_elapsed",
+        numerator: "candidate_observed",
+        denominator: "candidate_total",
+        minimumBasisPoints: 10000,
+        unit: "basis_points",
+      },
+      {
+        kind: "safety_event_ceiling",
+        comparison: reference,
+        metricId: "metric_safety",
+        eventClass: "guardrail_check",
+        maximumCount: 0,
+        unit: "events",
+      },
+      {
+        kind: "comparison_threshold",
+        comparison: reference,
+        metricId: "metric_elapsed",
+        metricKind: "replay_usage",
+        operand: "candidate",
+        comparator: "less_than",
+        threshold: "1000",
+        unit: "milliseconds",
+      },
+      {
+        kind: "comparison_threshold",
+        comparison: reference,
+        metricId: "metric_unknown",
+        metricKind: "trace_event_count",
+        operand: "candidate",
+        comparator: "equal",
+        threshold: "0",
+        unit: "events",
+      },
+    ];
+    predicates.forEach((predicate, index) => {
+      value.policy.rules.push({
+        ...structuredClone(ruleTemplate),
+        ruleId: `bound_comparison_${index}`,
+        predicate,
+      });
+    });
+    value.policy.rules.sort((a, b) => (a.ruleId < b.ruleId ? -1 : 1));
+    return value;
+  }
+
+  it("binds original repeated rules to exact metric/stratum/sample/value provenance without evaluating", async () => {
+    const h = await harness(inputs());
+    const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+    const report = project(h, capture);
+    expect(report.inventory).toEqual(
+      capture.status === "inventory_captured" ? capture.inventory : null,
+    );
+    expect(report.rules).toHaveLength(6);
+    for (const rule of report.rules) {
+      expect(h.value.policy.rules[rule.ruleIndex]?.predicate).toEqual(rule.predicate);
+      expect(capture.graph.edges[rule.policyEdgeIndex]?.reference.path).toBe(
+        `/rules/${rule.ruleIndex}/predicate/comparison`,
+      );
+      expect(rule.comparisonIndex).toBe(0);
+      if (rule.binding.status !== "metric_bound") continue;
+      const metric = rule.binding.metric;
+      const result = required(h.value.results[0]);
+      expect(metric.definition).toEqual(h.value.comparison.metrics[metric.definitionIndex]);
+      expect(metric.result).toEqual(result.metricResults[metric.resultIndex]);
+      expect(metric.stratum).toEqual(h.value.comparison.strata[metric.stratumIndex]);
+      expect(Object.keys(metric.result.samples)).toHaveLength(15);
+      expect(metric.provenance).toEqual({
+        calculationPolicy: h.value.comparison.calculationPolicy,
+        comparability: result.comparability,
+        pairing: result.pairing,
+        latestSourceCutoff: result.latestSourceCutoff,
+      });
+      expect(metric.compatibility).toEqual({ status: "compatible", reasons: [] });
+      for (const hash of Object.values(metric.recordHashes))
+        expect(hash).toMatch(/^[a-f0-9]{64}$/u);
+    }
+    expect(report.rules.filter(({ binding }) => binding.status === "metric_bound")).toHaveLength(5);
+    expect(report.rules[5]?.binding).toEqual({ status: "metric_missing" });
+    expect(report.rules[0]?.binding).toEqual(report.rules[4]?.binding);
+    expect(report).not.toHaveProperty("outcome");
+    expect(publicApi).not.toHaveProperty("inspectCapturedComparisonRules");
+    expect(h.repositories.control.comparison.findComparisonResult).toHaveBeenCalledTimes(1);
+    expect(h.repositories.control.comparison.findComparisonEvidenceSnapshot).toHaveBeenCalledTimes(
+      2,
+    );
+  });
+
+  it.each([
+    "ambiguous",
+    "missing",
+    "unresolved",
+    "definition_unavailable",
+    "snapshot_unavailable",
+    "invalid_lineage",
+  ] as const)("retains %s without fabricating usable metric inputs", async (fault) => {
+    const value = inputs(fault === "ambiguous" || fault === "unresolved" ? 2 : 1);
+    if (fault === "missing")
+      for (const { predicate } of value.policy.rules)
+        if ("comparison" in predicate)
+          predicate.comparison.comparisonVersionId = "other_comparison";
+    if (fault === "invalid_lineage") {
+      const limitations = required(value.results[0]).knownLimitations;
+      limitations.push("Not derived from the original source records.");
+      limitations.sort();
+    }
+    const h = await harness(value);
+    if (fault === "unresolved")
+      vi.mocked(h.repositories.control.comparison.findComparisonResult).mockImplementation(
+        async (_scope, id) =>
+          id === required(h.value.results[0]).resultId ? required(h.value.results[0]) : null,
+      );
+    if (fault === "definition_unavailable")
+      vi.mocked(h.repositories.control.comparison.findComparisonDefinition).mockResolvedValue(null);
+    if (fault === "snapshot_unavailable")
+      vi.mocked(h.repositories.control.comparison.findComparisonEvidenceSnapshot).mockResolvedValue(
+        null,
+      );
+    const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+    const report = project(h, capture);
+    expect(report.rules).toHaveLength(6);
+    const reason =
+      fault === "invalid_lineage"
+        ? "lineage_invalid"
+        : fault.endsWith("unavailable")
+          ? "records_unavailable"
+          : "selection_unresolved";
+    for (const { binding } of report.rules)
+      expect(binding).toEqual({ status: "comparison_unusable", reason });
+    expect(report.inventory.members).toHaveLength(h.value.results.length);
+    if (capture.status !== "inventory_captured") throw new Error("Missing complete selection");
+    if (fault === "ambiguous" || fault === "missing" || fault === "unresolved")
+      expect(capture.comparisons[0]?.selection.status).toBe(fault);
+  });
+
+  it.each([
+    "threshold_kind",
+    "threshold_unit",
+    "safety_kind",
+    "safety_unit",
+    "safety_event",
+  ] as const)("retains original operands and explicit incompatible %s input", async (fault) => {
+    const value = inputs();
+    const threshold = required(
+      value.policy.rules.find(({ ruleId }) => ruleId === "bound_comparison_0"),
+    ).predicate;
+    const safety = required(
+      value.policy.rules.find(({ ruleId }) => ruleId === "bound_comparison_3"),
+    ).predicate;
+    if (threshold.kind !== "comparison_threshold" || safety.kind !== "safety_event_ceiling")
+      throw new Error("Missing original rules");
+    if (fault === "threshold_kind") {
+      threshold.metricId = "metric_trace_events";
+      threshold.unit = "milliseconds";
+    }
+    if (fault === "threshold_unit") threshold.unit = "tokens";
+    if (fault === "safety_kind") safety.metricId = "metric_trace_events";
+    if (fault === "safety_unit") safety.metricId = "metric_elapsed";
+    if (fault === "safety_event") safety.eventClass = "uncertain_side_effect";
+    const h = await harness(value);
+    const report = project(h, await capturePolicyComparisonEvidence(h.request, h.repositories));
+    const binding = required(
+      report.rules.find(
+        ({ ruleId }) =>
+          ruleId === (fault.startsWith("threshold") ? "bound_comparison_0" : "bound_comparison_3"),
+      ),
+    ).binding;
+    if (binding.status !== "metric_bound") throw new Error("Missing exact original metric");
+    const reasons =
+      fault === "threshold_kind" || fault === "safety_unit"
+        ? ["metric_kind", "unit"]
+        : fault === "threshold_unit"
+          ? ["unit"]
+          : fault === "safety_kind"
+            ? ["metric_kind"]
+            : ["event_class"];
+    expect(binding.metric.compatibility).toEqual({ status: "incompatible", reasons });
+    expect(binding.metric.result).toEqual(
+      h.value.results[0]?.metricResults[binding.metric.resultIndex],
+    );
+    expect(binding.metric).not.toHaveProperty("outcome");
+  });
+
+  it.each([
+    "request",
+    "scope",
+    "time",
+    "roots",
+    "duplicate_node",
+    "missing_node",
+    "candidate_body",
+    "policy_receipt",
+    "result_hash",
+    "snapshot_receipt",
+    "definition_body",
+    "parent_references",
+    "edge_hash",
+    "edge_reference",
+    "edge_target",
+    "missing_edge",
+    "extra_edge",
+    "inventory",
+    "selection",
+    "lineage",
+  ] as const)("rejects substituted %s provenance before binding operands", async (fault) => {
+    const h = await harness(inputs());
+    const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+    if (capture.status !== "inventory_captured") throw new Error("Missing captured inventory");
+    const graph = capture.graph;
+    const node = (kind: string) =>
+      required(graph.nodes.find(({ read }) => read.source.kind === kind));
+    const candidateEdge = required(
+      graph.edges.find(
+        ({ parent, reference }) =>
+          parent.kind === "release_candidate" && reference.path === "/comparisons/0",
+      ),
+    );
+    const comparison = required(capture.comparisons[0]);
+    if (fault === "request") Reflect.set(graph.request, "evaluationRequestId", "other_request");
+    if (fault === "scope") Reflect.set(graph.scope, "tenantId", "other_tenant");
+    if (fault === "time") Reflect.set(graph, "evaluationTime", "2026-09-07T12:00:00.001Z");
+    if (fault === "roots") Reflect.set(graph, "roots", [...graph.roots].reverse());
+    if (fault === "duplicate_node")
+      Reflect.set(graph, "nodes", [...graph.nodes, node("release_candidate")]);
+    if (fault === "missing_node")
+      Reflect.set(
+        graph,
+        "nodes",
+        graph.nodes.filter(({ read }) => read.source.kind !== "comparison_snapshot"),
+      );
+    if (fault === "candidate_body")
+      Reflect.set(required(node("release_candidate").read.record), "name", "Substituted name");
+    if (fault === "policy_receipt")
+      Reflect.set(
+        required(node("release_policy").read.record),
+        "publishedAt",
+        "2026-09-01T00:00:00.001Z",
+      );
+    if (fault === "result_hash")
+      Reflect.set(node("comparison_result").read.observation, "recordSha256", "0".repeat(64));
+    if (fault === "snapshot_receipt")
+      Reflect.set(
+        required(node("comparison_snapshot").read.record),
+        "createdAt",
+        "2026-09-01T00:00:00.001Z",
+      );
+    if (fault === "definition_body")
+      Reflect.set(
+        required(node("comparison_definition").read.record),
+        "name",
+        "Substituted comparison",
+      );
+    if (fault === "parent_references") Reflect.set(node("release_candidate"), "references", []);
+    if (fault === "edge_hash") Reflect.set(candidateEdge, "parentRecordSha256", "0".repeat(64));
+    if (fault === "edge_reference")
+      Reflect.set(candidateEdge, "reference", {
+        ...candidateEdge.reference,
+        path: "/comparisons/100",
+      });
+    if (fault === "edge_target") Reflect.set(candidateEdge, "target", graph.roots[1]);
+    if (fault === "missing_edge")
+      Reflect.set(
+        graph,
+        "edges",
+        graph.edges.filter((edge) => edge !== candidateEdge),
+      );
+    if (fault === "extra_edge")
+      Reflect.set(graph, "edges", [
+        ...graph.edges,
+        { ...candidateEdge, reference: { ...candidateEdge.reference, path: "/fabricated" } },
+      ]);
+    if (fault === "inventory") Reflect.set(capture.inventory, "members", []);
+    if (fault === "selection") Reflect.set(comparison.selection, "status", "missing");
+    if (fault === "lineage") {
+      if (comparison.status !== "lineage_verified") throw new Error("Missing original lineage");
+      Reflect.set(comparison.lineage.result, "latestSourceCutoff", "2026-09-02T00:00:00.000Z");
+    }
+    expect(() => project(h, capture)).toThrow();
+  });
+
+  it("charges all original inspected references, one complete inventory and every repeated rule at exact byte/count boundaries", async () => {
+    const h = await harness(inputs());
+    const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+    const report = project(h, capture);
+    const originals = capture.graph.nodes.flatMap(({ read, references }) =>
+      [
+        "release_candidate",
+        "release_policy",
+        "comparison_result",
+        "comparison_definition",
+        "comparison_snapshot",
+      ].includes(read.source.kind)
+        ? (references ?? [])
+        : [],
+    );
+    const frames = [
+      ...originals,
+      {
+        candidate: report.candidate,
+        policy: report.policy,
+        inventory: report.inventory,
+      },
+      ...report.rules,
+    ];
+    const expected = {
+      maxReferences: frames.length,
+      maxReferenceBytes: frames.reduce(
+        (sum, frame) => sum + encodeEvaluationCanonicalJson(frame).byteLength,
+        0,
+      ),
+    };
+    expect(report.inspectionUsage).toEqual({
+      references: expected.maxReferences,
+      referenceBytes: expected.maxReferenceBytes,
+    });
+    expect(project(h, capture, expected)).toEqual(report);
+    expect(() =>
+      project(h, capture, { ...expected, maxReferences: expected.maxReferences - 1 }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      project(h, capture, { ...expected, maxReferenceBytes: expected.maxReferenceBytes - 1 }),
+    ).toThrow("reference_bytes_exceeded");
+  });
+
+  it("owns returned inventory, predicates, metrics and strata without mutating captured evidence", async () => {
+    const h = await harness(inputs());
+    const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+    const original = structuredClone(capture);
+    const report = project(h, capture);
+    const binding = required(report.rules[0]).binding;
+    if (binding.status !== "metric_bound") throw new Error("Missing exact metric binding");
+    Reflect.set(report.inventory, "members", []);
+    Reflect.set(required(report.rules[0]).predicate, "metricId", "substituted_metric");
+    Reflect.set(binding.metric.definition, "label", "Substituted label");
+    Reflect.set(binding.metric.result.samples, "candidateTotal", 999);
+    Reflect.set(binding.metric.stratum, "fixtureIds", []);
+    expect(capture).toEqual(original);
+    expect(project(h, capture)).not.toEqual(report);
+  });
+
+  it.each(["body", "references", "observation", "edge"] as const)(
+    "rejects fabricated %s on an explicitly missing comparison definition",
+    async (fault) => {
+      const h = await harness(inputs());
+      vi.mocked(h.repositories.control.comparison.findComparisonDefinition).mockResolvedValue(null);
+      const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+      const missing = required(
+        capture.graph.nodes.find(({ read }) => read.source.kind === "comparison_definition"),
+      );
+      expect(missing.read.observation.status).toBe("missing");
+      if (fault === "body") Reflect.set(missing.read, "record", h.value.comparison);
+      if (fault === "references") Reflect.set(missing, "references", []);
+      if (fault === "observation") Reflect.set(missing.read.observation, "reason", "fabricated");
+      if (fault === "edge") {
+        const original = required(capture.graph.edges[0]);
+        Reflect.set(capture.graph, "edges", [
+          ...capture.graph.edges,
+          { ...original, parent: missing.read.source },
+        ]);
+      }
+      expect(() => project(h, capture)).toThrow("observation_conflict");
+    },
+  );
+
+  it.each(["available", "unavailable"] as const)(
+    "preserves rederived %s usage values and role-specific unavailability without zero substitution",
+    async (status) => {
+      const value = inputs();
+      const currentFixture = required(value.current.fixtures[0]);
+      const usage = required(
+        currentFixture.usage.find(({ dimension }) => dimension === "elapsedMilliseconds"),
+      );
+      usage.value =
+        status === "available"
+          ? {
+              status: "available",
+              amount: 127,
+              observedCount: 1,
+              unavailableCount: 0,
+              sources: ["measured"],
+            }
+          : {
+              status: "unavailable",
+              observedCount: 0,
+              unavailableCount: 1,
+              unavailableReasons: ["provider_did_not_report"],
+            };
+      value.current.definitionSha256 = digestComparisonRecordDefinition(
+        "comparison_evidence_snapshot",
+        value.scope,
+        definition(value.current),
+      );
+      for (const result of value.results)
+        Object.assign(
+          result,
+          deriveComparisonResultDefinition({
+            comparison: value.comparison,
+            baseline: value.baseline,
+            candidate: value.current,
+            resultId: result.resultId,
+          }),
+        );
+      const h = await harness(value);
+      const report = project(h, await capturePolicyComparisonEvidence(h.request, h.repositories));
+      const binding = required(report.rules[0]).binding;
+      if (binding.status !== "metric_bound") throw new Error("Missing original usage binding");
+      expect(binding.metric.result.value.status).toBe(status);
+      expect(binding.metric.result).toEqual(
+        required(h.value.results[0]).metricResults.find(
+          ({ metricId }) => metricId === "metric_elapsed",
+        ),
+      );
+      expect(binding.metric.result.samples.baselineObservedCount).toBe(1);
+      expect(binding.metric.result.samples.candidateObservedCount).toBe(
+        status === "available" ? 1 : 0,
+      );
+      expect(binding.metric.result.samples.candidateUnavailableCount).toBe(
+        status === "available" ? 0 : 1,
+      );
+      if (status === "unavailable") {
+        expect(binding.metric.result.value).not.toHaveProperty("candidate");
+        expect(binding.metric.result.usageProvenance?.candidate.unavailableReasons).toEqual([
+          "provider_did_not_report",
+        ]);
+      }
+      expect(report).not.toHaveProperty("outcome");
+    },
+  );
+});
 
 describe("request-rooted comparison evidence capture", () => {
   it("preserves verified direct comparison lineage while acquiring retained trace events in the same graph", async () => {

@@ -777,12 +777,14 @@ describe("combined policy-authority inspection admission", () => {
         baseline.traceCapture.usage.references +
           baseline.policyAuthority.inspectionUsage.references +
           baseline.applicability.inspectionUsage.references +
+          baseline.comparisonRules.inspectionUsage.references +
           baseline.artifactRules.inspectionUsage.references,
       );
       expect(baseline.usage.referenceBytes).toBe(
         baseline.traceCapture.usage.referenceBytes +
           baseline.policyAuthority.inspectionUsage.referenceBytes +
           baseline.applicability.inspectionUsage.referenceBytes +
+          baseline.comparisonRules.inspectionUsage.referenceBytes +
           baseline.artifactRules.inspectionUsage.referenceBytes +
           baseline.usage.sourceGuards.canonicalBytes,
       );
