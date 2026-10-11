@@ -5,13 +5,14 @@ import {
   comparisonRecordId,
 } from "@proofstack/core";
 import {
+  type ComparisonRepositoryFixtureRecord,
   comparisonDefinitionFixture,
+  comparisonLogicalRootConformanceCases,
   comparisonRepositoryConformanceCases,
   comparisonResultFixture,
   comparisonSnapshotFixture,
   createComparisonRepositoryTestHarness,
   publishComparisonFixture,
-  type ComparisonRepositoryFixtureRecord,
 } from "@proofstack/core/testing";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -184,7 +185,10 @@ afterAll(async () => {
 });
 
 describe("PostgresComparisonRepository conformance", () => {
-  for (const conformanceCase of comparisonRepositoryConformanceCases) {
+  for (const conformanceCase of [
+    ...comparisonRepositoryConformanceCases,
+    ...comparisonLogicalRootConformanceCases,
+  ]) {
     it(conformanceCase.name, async () => {
       await conformanceCase.run((namespace) => {
         const harness = createComparisonRepositoryTestHarness(`pg_${runKey}_${namespace}`);

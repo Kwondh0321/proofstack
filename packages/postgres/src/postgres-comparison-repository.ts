@@ -9,9 +9,12 @@ import {
   COMPARISON_DEFINITION_SCHEMA_VERSION,
   COMPARISON_EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
   COMPARISON_RESULT_SCHEMA_VERSION,
+  EvidenceScopeSchema,
+  OpaqueIdSchema,
 } from "@proofstack/contracts";
 import {
   ComparisonLineageError,
+  type ComparisonLogicalRootReader,
   type ComparisonRecord,
   ComparisonRecordConflictError,
   type ComparisonRecordKind,
@@ -22,6 +25,7 @@ import {
   comparisonRecordReferences,
   InvalidComparisonRecordInputError,
   type PublishComparisonRecordResult,
+  requireComparisonLogicalRootKind,
   validateComparisonRecord,
 } from "@proofstack/core";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
@@ -388,7 +392,7 @@ async function requirePhysicalIntegrity(
   client: Pick<PoolClient, "query">,
   kind: ComparisonRecordKind,
   record: ComparisonRecord,
-): Promise<void> {
+): Promise<ComparisonDefinition> {
   await requireRegistryAndLineage(client, kind, record);
   const scope = record.scope;
   const comparisonId = projection(kind, record).comparisonId;
@@ -437,6 +441,7 @@ async function requirePhysicalIntegrity(
       "Stored comparison logical root differs from its canonical resource",
     );
   if (root !== record) await requireRegistryAndLineage(client, "comparison_definition", root);
+  return definition;
 }
 
 async function inspectScopedPresence(
@@ -481,13 +486,15 @@ type ComparisonRecordByKind = {
   readonly comparison_result: ComparisonResult;
 };
 
-/** Reuses every normalized projection check without changing the caller's transaction. */
-export async function readPostgresComparisonRecordOnClient<K extends ComparisonRecordKind>(
+async function inspectStoredComparisonRecordOnClient<K extends ComparisonRecordKind>(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
   kind: K,
   recordId: string,
-): Promise<ComparisonRecordByKind[K] | null> {
+): Promise<{
+  readonly record: ComparisonRecordByKind[K];
+  readonly logicalRoot: ComparisonDefinition;
+} | null> {
   const scope = { ...scopeInput };
   if (!(await inspectScopedPresence(client, scope, kind, recordId))) return null;
   const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
@@ -497,12 +504,52 @@ export async function readPostgresComparisonRecordOnClient<K extends ComparisonR
     );
   const record = parseStored(kind, row);
   if (!scopesEqual(record.scope, scope)) return null;
-  await requirePhysicalIntegrity(client, kind, record);
-  return clone(record) as ComparisonRecordByKind[K];
+  const logicalRoot = await requirePhysicalIntegrity(client, kind, record);
+  return { record: record as ComparisonRecordByKind[K], logicalRoot };
 }
 
-export class PostgresComparisonRepository implements ComparisonRepository {
+/** Reuses every normalized projection check without changing the caller's transaction. */
+export async function readPostgresComparisonRecordOnClient<K extends ComparisonRecordKind>(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: K,
+  recordId: string,
+): Promise<ComparisonRecordByKind[K] | null> {
+  const stored = await inspectStoredComparisonRecordOnClient(client, scopeInput, kind, recordId);
+  return stored ? clone(stored.record) : null;
+}
+
+/** Original owning definition for any exact comparison kind on the caller-owned connection. */
+export async function readPostgresComparisonLogicalRootOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: ComparisonRecordKind,
+  recordIdInput: string,
+): Promise<ComparisonDefinition | null> {
+  requireComparisonLogicalRootKind(kind);
+  const scope = EvidenceScopeSchema.parse(scopeInput);
+  const recordId = OpaqueIdSchema.parse(recordIdInput);
+  const stored = await inspectStoredComparisonRecordOnClient(client, scope, kind, recordId);
+  return stored ? clone(stored.logicalRoot) : null;
+}
+
+export class PostgresComparisonRepository
+  implements ComparisonRepository, ComparisonLogicalRootReader
+{
   constructor(private readonly pool: Pick<Pool, "connect">) {}
+
+  async findComparisonLogicalRoot(
+    scopeInput: EvidenceScope,
+    kind: ComparisonRecordKind,
+    recordIdInput: string,
+  ): Promise<ComparisonDefinition | null> {
+    requireComparisonLogicalRootKind(kind);
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const recordId = OpaqueIdSchema.parse(recordIdInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresComparisonLogicalRootOnClient(client, scope, kind, recordId),
+    );
+  }
 
   private async find<K extends ComparisonRecordKind>(
     scopeInput: EvidenceScope,

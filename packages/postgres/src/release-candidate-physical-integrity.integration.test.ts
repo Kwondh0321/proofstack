@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import {
   PostgresReleaseCandidateRepository,
+  readPostgresReleaseCandidateLogicalRootOnClient,
   readPostgresReleaseCandidateOnClient,
 } from "./postgres-release-candidate-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
@@ -118,6 +119,13 @@ async function rejectSuccessor(client: PoolClient) {
   await expect(
     readPostgresReleaseCandidateOnClient(client, h.scope, h.successor.candidateVersionId),
   ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
+  await expect(
+    readPostgresReleaseCandidateLogicalRootOnClient(
+      client,
+      h.scope,
+      h.successor.candidateVersionId,
+    ),
+  ).rejects.toBeInstanceOf(ReleaseCandidateRepositoryContractError);
 }
 async function remove(client: PoolClient, table: string, column: string, id: string) {
   expect(
@@ -167,6 +175,9 @@ describe("owning release candidate physical and scoped presence integrity", () =
   });
   it("retains canonical roots, successors, independent versions and original retry receipts", async () => {
     for (const record of [h.candidate, h.successor, sibling]) {
+      await expect(
+        repository.findReleaseCandidateLogicalRoot(h.scope, record.candidateVersionId),
+      ).resolves.toEqual(h.candidate);
       await expect(
         repository.findReleaseCandidate(h.scope, record.candidateVersionId),
       ).resolves.toEqual(record);

@@ -37,10 +37,128 @@ import {
   buildRegressionFixtureVersionPublishedOutboxIntent,
   type RegressionVersionPublishedOutboxIntent,
 } from "../regression-publication-outbox.js";
-import type { InteractionFixtureVersionRepository } from "../regression-version-repository.js";
+import type {
+  InteractionFixtureVersionRepository,
+  RegressionLogicalRootReader,
+} from "../regression-version-repository.js";
 import type { RegressionVersionPublicationKind } from "./regression-version-repository-test-control.js";
 
 const TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
+export type InteractionFixtureLogicalRootTestFactory = (namespace: string) =>
+  | (Omit<InteractionFixtureVersionRepositoryTestHarness, "repository"> & {
+      readonly repository: InteractionFixtureVersionRepository & RegressionLogicalRootReader;
+    })
+  | Promise<
+      Omit<InteractionFixtureVersionRepositoryTestHarness, "repository"> & {
+        readonly repository: InteractionFixtureVersionRepository & RegressionLogicalRootReader;
+      }
+    >;
+
+export const interactionFixtureLogicalRootConformanceCases: readonly {
+  readonly name: string;
+  readonly run: (factory: InteractionFixtureLogicalRootTestFactory) => Promise<void>;
+}[] = [
+  {
+    name: "retains the evidence-only original for recorded fixture roots across retry and content revocation",
+    async run(factory) {
+      await withHarness(factory, "ir_root", async (h) => {
+        const root = evidenceFixture("ir_root");
+        const child = recordedFixture("ir_root", { predecessor: root });
+        assert.equal(
+          await h.repository.findRecordedInteractionFixtureLogicalRoot(
+            root.scope,
+            child.fixtureVersionId,
+          ),
+          null,
+        );
+        await publishPrerequisites(h, root, child);
+        assert.equal(
+          await h.repository.findRecordedInteractionFixtureLogicalRoot(
+            root.scope,
+            root.fixtureVersionId,
+          ),
+          null,
+        );
+        assert.deepEqual(
+          await h.repository.findFixtureLogicalRoot(root.scope, root.fixtureVersionId),
+          root,
+        );
+        const published = await h.repository.publishRecordedInteractionFixtureVersion(child);
+        assert.equal(
+          await h.repository.findFixtureLogicalRoot(root.scope, child.fixtureVersionId),
+          null,
+        );
+        assert.deepEqual(
+          await h.repository.findRecordedInteractionFixtureLogicalRoot(
+            root.scope,
+            child.fixtureVersionId,
+          ),
+          root,
+        );
+        for (const field of ["tenantId", "projectId", "environmentId"] as const)
+          assert.equal(
+            await h.repository.findRecordedInteractionFixtureLogicalRoot(
+              { ...root.scope, [field]: `${root.scope[field]}_other` },
+              child.fixtureVersionId,
+            ),
+            null,
+          );
+        await h.repository.publishRecordedInteractionFixtureVersion({
+          ...child,
+          createdAt: "2026-08-30T00:00:00.000Z",
+        });
+        await h.repository.revokeRecordedInteractionFixtureContent(
+          revocationCandidate(child, published.ownerships),
+        );
+        const content = await h.repository.findRecordedInteractionFixtureContent(
+          root.scope,
+          child.fixtureVersionId,
+        );
+        assert.equal(content?.contentAvailability, "revoked");
+        const returned = await h.repository.findRecordedInteractionFixtureLogicalRoot(
+          root.scope,
+          child.fixtureVersionId,
+        );
+        assert.deepEqual(returned, root);
+        assert.ok(returned);
+        returned.source.eventIds.push("evt_caller_changed");
+        assert.deepEqual(
+          await h.repository.findRecordedInteractionFixtureLogicalRoot(
+            root.scope,
+            child.fixtureVersionId,
+          ),
+          root,
+        );
+      });
+    },
+  },
+  {
+    name: "isolates recorded fixture and evidence-only root identity collisions across three tenants",
+    async run(factory) {
+      await withHarness(factory, "ir_root_tenants", async (h) => {
+        const roots = [];
+        for (const label of ["a", "b", "c"]) {
+          const root = evidenceFixture("ir_collision", {
+            scope: scope("ir_collision", { tenantId: `ten_ir_collision_${label}` }),
+          });
+          const child = recordedFixture("ir_collision", { predecessor: root });
+          roots.push(root);
+          await publishPrerequisites(h, root, child);
+          await h.repository.publishRecordedInteractionFixtureVersion(child);
+        }
+        for (const root of roots)
+          assert.deepEqual(
+            await h.repository.findRecordedInteractionFixtureLogicalRoot(
+              root.scope,
+              "fixv_ir_collision_recorded",
+            ),
+            root,
+          );
+      });
+    },
+  },
+];
 
 const vectorDocument = JSON.parse(
   readFileSync(
@@ -227,10 +345,10 @@ export interface InteractionFixtureVersionRepositoryConformanceCase {
   readonly run: (factory: InteractionFixtureVersionRepositoryTestFactory) => Promise<void>;
 }
 
-async function withHarness(
-  factory: InteractionFixtureVersionRepositoryTestFactory,
+async function withHarness<Harness extends InteractionFixtureVersionRepositoryTestHarness>(
+  factory: (namespace: string) => Harness | Promise<Harness>,
   namespace: string,
-  test: (harness: InteractionFixtureVersionRepositoryTestHarness) => Promise<void>,
+  test: (harness: Harness) => Promise<void>,
 ): Promise<void> {
   const harness = await factory(namespace);
   try {

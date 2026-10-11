@@ -1,5 +1,18 @@
 # Owning comparison 저장 무결성
 
+별도의 읽기 전용 `ComparisonLogicalRootReader.findComparisonLogicalRoot` port를 제공합니다.
+비교 definition, evidence snapshot, result 3종은 원래 comparison definition을 반환합니다.
+독립·predecessor 후속 버전도 원래 바인딩을 유지합니다. Manifest의 `comparison_snapshot`은
+owning kind가 아니므로 acquisition에서 명시적으로 변환해야 합니다.
+메모리와 PostgreSQL 공용 conformance로 정확한 scope 부재, 최초 receipt, 반환값 소유,
+세 tenant의 ID 충돌과 동시 발행을 검증합니다.
+
+Supplied-client root helper는 선택 기록의 저장 검사에서 이미 검증한 root를 반환하며
+그 검사에 두 번째 transaction이나 root 조회를 추가하지 않습니다. 읽기 전에 scope와
+ID를 검증합니다. 호출자가 guard·scope GUC·transaction 수명·rollback을 소유합니다.
+Root capture, 전체 내부 admission, 의미·현재 권한 closure, atomic sealed 발행은 남아
+있습니다. Root 관측은 sealed snapshot이 아니며 checkpoint 3 승인을 뜻하지 않습니다.
+
 Comparison 정의·operand snapshot·결과의 보존된 저장을 supplied connection에서 검사합니다.
 단일 owning 조회·동일 의미 발행 재시도·새 발행이 검증을 공유합니다. Workflow 2는 여전히
 **2/7 승인 완료**이며 checkpoint 3은 열려 있습니다.

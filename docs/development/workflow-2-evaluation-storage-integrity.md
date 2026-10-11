@@ -57,6 +57,25 @@ atomic snapshot/job publication. A returned record or ended read-only report is 
 
 ## Verification
 
+The separate read-only `EvaluationLogicalRootReader.findEvaluationLogicalRoot` port observes the
+full original retained root for
+five definition resource kinds: aggregation policy, criterion set, evaluator, oracle and qualification
+fixture set. Memory and PostgreSQL implementations share conformance for exact scoped absence,
+original receipts, owned return values, three-tenant identity collisions and competing publications.
+The port rejects unsupported kinds before SQL or pool acquisition. Independent definition versions,
+backdated receipts and valid predecessor chains preserve the original binding; the root is not
+selected by walking predecessors or sorting receipt times.
+
+The supplied-client root helper shares the selected-record storage inspection and returns its
+already validated root; it adds no second transaction or root lookup to that inspection. Scope and
+identity are validated before reads. Caller-owned guards, scope GUCs, transaction lifetime and
+rollback remain required. Root capture, full internal admission, semantic/current authority closure
+and atomic sealed publication remain open. A root observation is not a sealed snapshot.
+
+Core test files run sequentially so expensive boundary cases do not compete with other files.
+Their existing per-test deadlines, assertions and coverage thresholds remain unchanged, including
+the explicit concurrent operations inside conformance/race tests.
+
 Actual PostgreSQL uses normal API/execution roles and the same scoped backend for reads. Disposable
 administrator damage retains CHECKs, rolls back every mutation and verifies all six table fingerprints
 and original owning reads. Tests cover missing/mismatched registry, edges, positions, resource/root,

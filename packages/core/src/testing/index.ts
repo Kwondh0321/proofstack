@@ -1,6 +1,7 @@
 export {
   type ComparisonRepositoryConformanceCase,
   type ComparisonRepositoryTestFactory,
+  comparisonLogicalRootConformanceCases,
   comparisonRepositoryConformanceCases,
   publishComparisonFixture,
 } from "./comparison-repository-conformance.js";
@@ -17,6 +18,10 @@ export {
   criterionStatusHistoryConformanceCases,
   criterionStatusHistoryFixture,
 } from "./criterion-status-history-conformance.js";
+export {
+  type EvaluationLogicalRootConformanceCase,
+  evaluationLogicalRootConformanceCases,
+} from "./evaluation-logical-root-conformance.js";
 export {
   type EvaluationRepositoryConformanceCase,
   type EvaluationRepositoryFixtureRecord,
@@ -51,6 +56,7 @@ export {
 export {
   type ReleaseCandidateRepositoryConformanceCase,
   type ReleaseCandidateRepositoryTestFactory,
+  releaseCandidateLogicalRootConformanceCases,
   releaseCandidateRepositoryConformanceCases,
 } from "./release-candidate-repository-conformance.js";
 export {
@@ -66,14 +72,14 @@ export {
   policyAuthorityFixture,
 } from "./release-policy-fixtures.js";
 export {
+  type ReleasePolicyLogicalRootConformanceCase,
+  releasePolicyLogicalRootConformanceCases,
+} from "./release-policy-logical-root-conformance.js";
+export {
   type ReleasePolicyRepositoryConformanceCase,
   type ReleasePolicyRepositoryTestFactory,
   releasePolicyRepositoryConformanceCases,
 } from "./release-policy-repository-conformance.js";
-export {
-  type ReleasePolicyLogicalRootConformanceCase,
-  releasePolicyLogicalRootConformanceCases,
-} from "./release-policy-logical-root-conformance.js";
 export {
   createReleasePolicyRepositoryTestHarness,
   type ReleasePolicyRepositoryTestHarness,

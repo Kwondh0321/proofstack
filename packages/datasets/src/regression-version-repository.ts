@@ -16,6 +16,27 @@ export interface PublishRegressionVersionResult<Version> {
   readonly version: Version;
 }
 
+/**
+ * Read full original roots from the owning retained bindings of exact scoped child versions.
+ * Both fixture formats retain a predecessor-free evidence-only root. Wrong fixture format and
+ * foreign scope are opaque absence; damaged in-scope storage fails. Original receipts and owned
+ * values are preserved. These observations do not establish content availability or a seal.
+ */
+export interface RegressionLogicalRootReader {
+  findDatasetLogicalRoot(
+    scope: EvidenceScope,
+    datasetVersionId: string,
+  ): Promise<RegressionDatasetVersion | null>;
+  findFixtureLogicalRoot(
+    scope: EvidenceScope,
+    fixtureVersionId: string,
+  ): Promise<RegressionFixtureVersion | null>;
+  findRecordedInteractionFixtureLogicalRoot(
+    scope: EvidenceScope,
+    fixtureVersionId: string,
+  ): Promise<RegressionFixtureVersion | null>;
+}
+
 export interface StoredRecordedInteractionFixtureVersion {
   /** Ordered exactly like the immutable fixture artifact bindings and detached from stored state. */
   readonly ownerships: readonly ArtifactOwnership[];

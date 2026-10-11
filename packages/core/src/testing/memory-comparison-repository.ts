@@ -4,27 +4,33 @@ import type {
   ComparisonResult,
   EvidenceScope,
 } from "@proofstack/contracts";
+import { EvidenceScopeSchema, OpaqueIdSchema } from "@proofstack/contracts";
+import {
+  type ComparisonLogicalRootReader,
+  requireComparisonLogicalRootKind,
+} from "../evaluation/comparison-logical-root.js";
 import {
   comparisonRecordId,
   comparisonRecordReferences,
   comparisonResourceId,
   validateComparisonRecord,
 } from "../evaluation/comparison-record-validation.js";
-import {
-  ComparisonLineageError,
-  ComparisonRecordConflictError,
-  ComparisonResourceConflictError,
-} from "../evaluation/comparison-repository-errors.js";
 import type {
   ComparisonRecord,
   ComparisonRecordKind,
   ComparisonRepository,
   PublishComparisonRecordResult,
 } from "../evaluation/comparison-repository.js";
+import {
+  ComparisonLineageError,
+  ComparisonRecordConflictError,
+  ComparisonRepositoryContractError,
+  ComparisonResourceConflictError,
+} from "../evaluation/comparison-repository-errors.js";
 
 interface TenantState {
   readonly records: Map<string, ComparisonRecord>;
-  readonly resources: Map<string, EvidenceScope>;
+  readonly resources: Map<string, ComparisonDefinition>;
 }
 
 function emptyTenantState(): TenantState {
@@ -127,7 +133,9 @@ function assertSemanticLineage(
 }
 
 /** Exact-scope, immutable in-memory implementation of the comparison repository port. */
-export class MemoryComparisonRepository implements ComparisonRepository {
+export class MemoryComparisonRepository
+  implements ComparisonRepository, ComparisonLogicalRootReader
+{
   private readonly tenants = new Map<string, TenantState>();
 
   private async find<RecordType>(
@@ -138,6 +146,38 @@ export class MemoryComparisonRepository implements ComparisonRepository {
     const record = this.tenants.get(scope.tenantId)?.records.get(recordKey(kind, recordId));
     if (!record || !scopesEqual(record.scope, scope)) return null;
     return clone(record) as RecordType;
+  }
+
+  async findComparisonLogicalRoot(
+    scopeInput: EvidenceScope,
+    kind: ComparisonRecordKind,
+    recordIdInput: string,
+  ): Promise<ComparisonDefinition | null> {
+    const ownedKind = requireComparisonLogicalRootKind(kind);
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const recordId = OpaqueIdSchema.parse(recordIdInput);
+    const state = this.tenants.get(scope.tenantId);
+    const record = state?.records.get(recordKey(ownedKind, recordId));
+    if (!record || !scopesEqual(record.scope, scope)) return null;
+    const comparisonId =
+      ownedKind === "comparison_definition"
+        ? (record as ComparisonDefinition).comparisonId
+        : (record as ComparisonEvidenceSnapshot | ComparisonResult).comparison.comparisonId;
+    const root = state?.resources.get(comparisonId);
+    if (!root || !scopesEqual(root.scope, scope))
+      throw new ComparisonRepositoryContractError(
+        "Stored comparison record is missing its exact logical root",
+      );
+    try {
+      const validated = validateComparisonRecord(
+        "comparison_definition",
+        root,
+      ) as ComparisonDefinition;
+      if (validated.comparisonId !== comparisonId) throw new Error("Logical resource mismatch");
+      return clone(validated);
+    } catch {
+      throw new ComparisonRepositoryContractError("Stored comparison logical root is invalid");
+    }
   }
 
   private async publish<RecordType extends ComparisonRecord>(
@@ -157,8 +197,8 @@ export class MemoryComparisonRepository implements ComparisonRepository {
 
     const resourceId = comparisonResourceId(kind, validated);
     if (resourceId) {
-      const boundScope = current.resources.get(resourceId);
-      if (boundScope && !scopesEqual(boundScope, validated.scope)) {
+      const boundRoot = current.resources.get(resourceId);
+      if (boundRoot && !scopesEqual(boundRoot.scope, validated.scope)) {
         throw new ComparisonResourceConflictError(resourceId);
       }
     }
@@ -180,7 +220,8 @@ export class MemoryComparisonRepository implements ComparisonRepository {
     const next = copyTenantState(current);
     const stored = clone(validated);
     next.records.set(recordKey(kind, id), stored);
-    if (resourceId) next.resources.set(resourceId, clone(validated.scope));
+    if (resourceId && !next.resources.has(resourceId))
+      next.resources.set(resourceId, stored as ComparisonDefinition);
     this.tenants.set(validated.scope.tenantId, next);
     return { created: true, record: clone(stored) as RecordType };
   }

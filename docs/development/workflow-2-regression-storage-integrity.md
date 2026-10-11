@@ -54,6 +54,20 @@ through atomic snapshot/job publication. Returned records and ended read reports
 
 ## Verification
 
+The separate read-only `RegressionLogicalRootReader` port exposes full original retained roots.
+`findDatasetLogicalRoot`, `findFixtureLogicalRoot` and `findRecordedInteractionFixtureLogicalRoot`
+return full original dataset or evidence-only fixture roots. Healthy other fixture formats remain
+typed absence. Recorded ownership validation remains required; content revocation does not erase
+the original root and an observed root does not establish content availability.
+Memory and PostgreSQL share conformance for exact scoped absence, original receipts, owned return
+values, three-tenant identity collisions and competing publications.
+
+The supplied-client root helper shares the selected-record storage inspection and returns its
+already validated root; it adds no second transaction or root lookup to that inspection. Scope and
+identity are validated before reads. Caller-owned guards, scope GUCs, transaction lifetime and
+rollback remain required. Root capture, full internal admission, semantic/current authority closure
+and atomic sealed publication remain open. A root observation is not a sealed snapshot.
+
 Actual API roles publish root/successor graphs in disposable PostgreSQL. Administrator-only
 damage retains CHECKs, rolls back every mutation and verifies seven table fingerprints plus
 original owning reads. Cases cover missing/mismatched resources and intents, orphan children/

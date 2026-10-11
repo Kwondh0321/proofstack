@@ -33,6 +33,7 @@ import {
   type PublishRegressionVersionResult,
   RegressionArtifactBindingError,
   RegressionFixtureContentRevocationConflictError,
+  type RegressionLogicalRootReader,
   RegressionRepositoryContractError,
   RegressionVersionConflictError,
   RegressionVersionLineageError,
@@ -1973,7 +1974,7 @@ async function inspectScopedRegressionPresence(
 async function requireStoredFixtureStorage(
   client: Pick<PoolClient, "query">,
   stored: StoredFixtureRecord | StoredRecordedFixtureRecord,
-): Promise<void> {
+): Promise<RegressionFixtureVersion> {
   const { version } = stored;
   const binding = await loadFixtureBinding(client, version.scope.tenantId, version.fixtureId);
   if (version.replayability === "evidence_only") {
@@ -2000,8 +2001,7 @@ async function requireStoredFixtureStorage(
           )
         ).get(stored.rootVersionId);
   if (
-    !root ||
-    root.version.replayability !== "evidence_only" ||
+    root?.version.replayability !== "evidence_only" ||
     root.version.predecessor ||
     root.version.fixtureId !== version.fixtureId ||
     !scopesEqual(root.version.scope, version.scope) ||
@@ -2017,12 +2017,13 @@ async function requireStoredFixtureStorage(
       client,
       buildRegressionFixtureVersionPublishedOutboxIntent(root.version),
     );
+  return (root as StoredFixtureRecord).version;
 }
 
 async function requireStoredDatasetStorage(
   client: Pick<PoolClient, "query">,
   stored: StoredDatasetRecord,
-): Promise<void> {
+): Promise<RegressionDatasetVersion> {
   const { version } = stored;
   const binding = await loadDatasetBinding(client, version.scope.tenantId, version.datasetId);
   requireBindingMatchesStoredDataset(binding, stored);
@@ -2058,14 +2059,17 @@ async function requireStoredDatasetStorage(
       client,
       buildRegressionDatasetVersionPublishedOutboxIntent(root.version),
     );
+  return root.version;
 }
 
-/** Uses the owning normalized reads on the caller-owned scoped connection. */
-export async function readPostgresDatasetVersionOnClient(
+async function inspectStoredDatasetVersionOnClient(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
   datasetVersionIdInput: string,
-): Promise<RegressionDatasetVersion | null> {
+): Promise<{
+  readonly stored: StoredDatasetRecord;
+  readonly logicalRoot: RegressionDatasetVersion;
+} | null> {
   const scope = requireScope(scopeInput);
   const datasetVersionId = requireOpaqueId(datasetVersionIdInput);
   if (!(await inspectScopedRegressionPresence(client, scope, datasetVersionId, "dataset")))
@@ -2076,28 +2080,86 @@ export async function readPostgresDatasetVersionOnClient(
   if (!stored || !scopesEqual(stored.version.scope, scope)) {
     contractViolation("A present scoped regression dataset body disappeared or changed scope");
   }
-  await requireStoredDatasetStorage(client, stored);
-  return clone(stored.version);
+  const logicalRoot = await requireStoredDatasetStorage(client, stored);
+  return { stored, logicalRoot };
+}
+
+async function inspectStoredFixtureVersionOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  fixtureVersionIdInput: string,
+  kind: "evidence_only" | "recorded_interactions",
+): Promise<{
+  readonly stored: StoredAnyFixtureRecord;
+  readonly logicalRoot: RegressionFixtureVersion;
+} | null> {
+  const scope = requireScope(scopeInput);
+  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
+  if (!(await inspectScopedRegressionPresence(client, scope, fixtureVersionId, kind))) return null;
+  const versions =
+    kind === "evidence_only"
+      ? await loadFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)
+      : await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope);
+  const stored = versions.get(fixtureVersionId);
+  if (!stored || !scopesEqual(stored.version.scope, scope)) {
+    contractViolation(
+      kind === "recorded_interactions"
+        ? "A present scoped recorded fixture body disappeared or changed scope"
+        : "A present scoped regression fixture body disappeared or changed scope",
+    );
+  }
+  const logicalRoot = await requireStoredFixtureStorage(client, stored);
+  return { stored, logicalRoot };
+}
+
+/** Uses the owning normalized reads on the caller-owned scoped connection. */
+export async function readPostgresDatasetVersionOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  datasetVersionId: string,
+): Promise<RegressionDatasetVersion | null> {
+  const inspected = await inspectStoredDatasetVersionOnClient(client, scope, datasetVersionId);
+  return inspected ? clone(inspected.stored.version) : null;
+}
+
+/** Full original owning root and receipt on the supplied scoped connection. */
+export async function readPostgresDatasetLogicalRootOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  datasetVersionId: string,
+): Promise<RegressionDatasetVersion | null> {
+  const inspected = await inspectStoredDatasetVersionOnClient(client, scope, datasetVersionId);
+  return inspected ? clone(inspected.logicalRoot) : null;
 }
 
 /** Uses the owning normalized reads on the caller-owned scoped connection. */
 export async function readPostgresFixtureVersionOnClient(
   client: Pick<PoolClient, "query">,
-  scopeInput: EvidenceScope,
-  fixtureVersionIdInput: string,
+  scope: EvidenceScope,
+  fixtureVersionId: string,
 ): Promise<RegressionFixtureVersion | null> {
-  const scope = requireScope(scopeInput);
-  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-  if (!(await inspectScopedRegressionPresence(client, scope, fixtureVersionId, "evidence_only")))
-    return null;
-  const stored = (await loadFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)).get(
+  const inspected = await inspectStoredFixtureVersionOnClient(
+    client,
+    scope,
     fixtureVersionId,
+    "evidence_only",
   );
-  if (!stored || !scopesEqual(stored.version.scope, scope)) {
-    contractViolation("A present scoped regression fixture body disappeared or changed scope");
-  }
-  await requireStoredFixtureStorage(client, stored);
-  return clone(stored.version);
+  return inspected ? clone((inspected.stored as StoredFixtureRecord).version) : null;
+}
+
+/** Evidence-only original root for an exact stored evidence-only fixture child. */
+export async function readPostgresFixtureLogicalRootOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  fixtureVersionId: string,
+): Promise<RegressionFixtureVersion | null> {
+  const inspected = await inspectStoredFixtureVersionOnClient(
+    client,
+    scope,
+    fixtureVersionId,
+    "evidence_only",
+  );
+  return inspected ? clone(inspected.logicalRoot) : null;
 }
 
 /** Uses the owning normalized reads on the caller-owned scoped connection. */
@@ -2106,25 +2168,30 @@ export async function readPostgresRecordedInteractionFixtureVersionOnClient(
   scopeInput: EvidenceScope,
   fixtureVersionIdInput: string,
 ): Promise<StoredRecordedInteractionFixtureVersion | null> {
-  const scope = requireScope(scopeInput);
-  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-  if (
-    !(await inspectScopedRegressionPresence(
-      client,
-      scope,
-      fixtureVersionId,
-      "recorded_interactions",
-    ))
-  )
-    return null;
-  const stored = (
-    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)
-  ).get(fixtureVersionId);
-  if (!stored || !scopesEqual(stored.version.scope, scope)) {
-    contractViolation("A present scoped recorded fixture body disappeared or changed scope");
-  }
-  await requireStoredFixtureStorage(client, stored);
+  const inspected = await inspectStoredFixtureVersionOnClient(
+    client,
+    scopeInput,
+    fixtureVersionIdInput,
+    "recorded_interactions",
+  );
+  if (!inspected) return null;
+  const stored = inspected.stored as StoredRecordedFixtureRecord;
   return { ownerships: clone(stored.ownerships), version: clone(stored.version) };
+}
+
+/** The original evidence-only root is retained across recorded-interaction promotion. */
+export async function readPostgresRecordedInteractionFixtureLogicalRootOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  fixtureVersionId: string,
+): Promise<RegressionFixtureVersion | null> {
+  const inspected = await inspectStoredFixtureVersionOnClient(
+    client,
+    scope,
+    fixtureVersionId,
+    "recorded_interactions",
+  );
+  return inspected ? clone(inspected.logicalRoot) : null;
 }
 
 /** Uses the owning normalized reads on the caller-owned scoped connection. */
@@ -2133,30 +2200,49 @@ export async function readPostgresRecordedInteractionFixtureContentOnClient(
   scopeInput: EvidenceScope,
   fixtureVersionIdInput: string,
 ): Promise<StoredInteractionFixtureContent | null> {
-  const scope = requireScope(scopeInput);
-  const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
-  if (
-    !(await inspectScopedRegressionPresence(
-      client,
-      scope,
-      fixtureVersionId,
-      "recorded_interactions",
-    ))
-  )
-    return null;
-  const stored = (
-    await loadRecordedFixtureVersions(client, scope.tenantId, [fixtureVersionId], scope)
-  ).get(fixtureVersionId);
-  if (!stored || !scopesEqual(stored.version.scope, scope)) {
-    contractViolation("A present scoped recorded fixture body disappeared or changed scope");
-  }
-  await requireStoredFixtureStorage(client, stored);
-  return storedInteractionFixtureContent(client, stored);
+  const inspected = await inspectStoredFixtureVersionOnClient(
+    client,
+    scopeInput,
+    fixtureVersionIdInput,
+    "recorded_interactions",
+  );
+  return inspected
+    ? storedInteractionFixtureContent(client, inspected.stored as StoredRecordedFixtureRecord)
+    : null;
 }
 
 /** PostgreSQL authority for immutable, tenant-isolated regression fixture and dataset versions. */
-export class PostgresRegressionVersionRepository implements InteractionFixtureVersionRepository {
+export class PostgresRegressionVersionRepository
+  implements InteractionFixtureVersionRepository, RegressionLogicalRootReader
+{
   constructor(private readonly pool: Pick<Pool, "connect">) {}
+
+  async findDatasetLogicalRoot(scopeInput: EvidenceScope, datasetVersionIdInput: string) {
+    const scope = requireScope(scopeInput);
+    const datasetVersionId = requireOpaqueId(datasetVersionIdInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresDatasetLogicalRootOnClient(client, scope, datasetVersionId),
+    );
+  }
+
+  async findFixtureLogicalRoot(scopeInput: EvidenceScope, fixtureVersionIdInput: string) {
+    const scope = requireScope(scopeInput);
+    const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresFixtureLogicalRootOnClient(client, scope, fixtureVersionId),
+    );
+  }
+
+  async findRecordedInteractionFixtureLogicalRoot(
+    scopeInput: EvidenceScope,
+    fixtureVersionIdInput: string,
+  ) {
+    const scope = requireScope(scopeInput);
+    const fixtureVersionId = requireOpaqueId(fixtureVersionIdInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresRecordedInteractionFixtureLogicalRootOnClient(client, scope, fixtureVersionId),
+    );
+  }
 
   async datasetResourceExists(scopeInput: EvidenceScope, datasetIdInput: string): Promise<boolean> {
     const scope = requireScope(scopeInput);

@@ -7,6 +7,7 @@ import {
   createEvaluationRepositoryTestHarness,
   criterionStatusHistoryConformanceCases,
   criterionStatusHistoryFixture,
+  evaluationLogicalRootConformanceCases,
   evaluationRepositoryConformanceCases,
   publishEvaluationFixture,
 } from "@proofstack/core/testing";
@@ -106,6 +107,11 @@ function harness(namespace: string) {
 }
 
 describe("PostgresEvaluationRepository contract", () => {
+  for (const conformanceCase of evaluationLogicalRootConformanceCases) {
+    it(conformanceCase.name, async () => {
+      await conformanceCase.run(harness);
+    });
+  }
   it.each([
     ["lineage count", "lineage_count = lineage_count + 1"],
     ["unexpected attempt projection", "attempt_id = 'att_corrupt_history', attempt_sequence = 1"],

@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   digestEvaluationRecordDefinition,
+  type EvaluationLogicalRootKind,
+  EvaluationRepositoryContractError,
   evaluationRecordId,
   evaluationRecordReferences,
   evaluationResource,
-  EvaluationRepositoryContractError,
+  InvalidEvaluationRecordInputError,
   validateEvaluationRecord,
 } from "@proofstack/core";
 import {
@@ -17,6 +19,7 @@ import { migrateDatabase } from "./migration-runner.js";
 import {
   listPostgresCriterionSetStatusesOnClient,
   PostgresEvaluationRepository,
+  readPostgresEvaluationLogicalRootOnClient,
   readPostgresEvaluationRecordOnClient,
 } from "./postgres-evaluation-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
@@ -161,6 +164,190 @@ async function damaged(
 }
 
 describe("owning evaluation physical storage and original receipts", () => {
+  it("observes an uncommitted child root and preserves the caller's savepoint and scope", async () => {
+    const body = { ...independentDefinition, criterionSetVersionId: "crv_uncommitted_root" };
+    const record = {
+      ...rootFixture.record,
+      criterionSetVersionId: body.criterionSetVersionId,
+      definitionSha256: digestEvaluationRecordDefinition("criterion_set", h.scope, body),
+    };
+    await withExactScopeTransaction(api, h.scope, async (client) => {
+      const before = (
+        await client.query(
+          "SELECT pg_backend_pid() AS pid, current_setting('proofstack.tenant_id') AS tenant, current_setting('proofstack.project_id') AS project, current_setting('proofstack.environment_id') AS environment",
+        )
+      ).rows;
+      await client.query("SAVEPOINT uncommitted_root");
+      try {
+        await client.query(
+          "SELECT public.proofstack_publish_evaluation_control_record($1::jsonb)",
+          [
+            JSON.stringify({
+              actorPrincipalId: record.publishedByPrincipalId,
+              attemptId: null,
+              attemptSequence: null,
+              definitionSha256: record.definitionSha256,
+              environmentId: h.scope.environmentId,
+              lifecycleState: null,
+              projectId: h.scope.projectId,
+              record,
+              recordedAt: record.publishedAt,
+              recordId: record.criterionSetVersionId,
+              recordKind: "criterion_set",
+              runId: null,
+              schemaVersion: record.schemaVersion,
+              tenantId: h.scope.tenantId,
+              verdict: null,
+            }),
+          ],
+        );
+        await expect(
+          readPostgresEvaluationLogicalRootOnClient(
+            client,
+            h.scope,
+            "criterion_set",
+            record.criterionSetVersionId,
+          ),
+        ).resolves.toEqual(rootFixture.record);
+        await expect(
+          repository("criterion_set").findEvaluationLogicalRoot(
+            h.scope,
+            "criterion_set",
+            record.criterionSetVersionId,
+          ),
+        ).resolves.toBeNull();
+      } finally {
+        await client.query("ROLLBACK TO SAVEPOINT uncommitted_root");
+      }
+      await expect(
+        readPostgresEvaluationLogicalRootOnClient(
+          client,
+          h.scope,
+          "criterion_set",
+          record.criterionSetVersionId,
+        ),
+      ).resolves.toBeNull();
+      expect(
+        (
+          await client.query(
+            "SELECT pg_backend_pid() AS pid, current_setting('proofstack.tenant_id') AS tenant, current_setting('proofstack.project_id') AS project, current_setting('proofstack.environment_id') AS environment",
+          )
+        ).rows,
+      ).toEqual(before);
+    });
+  });
+  for (const kind of [
+    "aggregation_policy",
+    "criterion_set",
+    "evaluator_spec",
+    "oracle_spec",
+    "qualification_fixture_set",
+  ] as const) {
+    const f = h.records.find((record) => record.kind === kind);
+    if (!f) throw new Error("Missing logical-root fixture");
+    const id = evaluationRecordId(kind, f.record);
+    it(`${kind}: observes original roots on the held backend with exact scope opacity`, async () => {
+      await withExactScopeTransaction(api, h.scope, async (client) => {
+        const before = (
+          await client.query(
+            "SELECT pg_backend_pid() AS pid, current_setting('proofstack.tenant_id') AS tenant",
+          )
+        ).rows;
+        await expect(
+          readPostgresEvaluationLogicalRootOnClient(client, h.scope, kind, id),
+        ).resolves.toEqual(f.record);
+        await expect(
+          readPostgresEvaluationLogicalRootOnClient(
+            client,
+            h.scope,
+            kind,
+            "evaluation_absent_child",
+          ),
+        ).resolves.toBeNull();
+        for (const field of ["tenantId", "projectId", "environmentId"] as const)
+          await expect(
+            readPostgresEvaluationLogicalRootOnClient(
+              client,
+              { ...h.scope, [field]: `${h.scope[field]}_outside` },
+              kind,
+              id,
+            ),
+          ).resolves.toBeNull();
+        expect(
+          (
+            await client.query(
+              "SELECT pg_backend_pid() AS pid, current_setting('proofstack.tenant_id') AS tenant",
+            )
+          ).rows,
+        ).toEqual(before);
+      });
+    });
+    for (const target of ["body", "registry", "resource", "intent"] as const)
+      it(`${kind}: rejects a missing owning root ${target} without selecting another version`, async () => {
+        await damaged(
+          async (client) => {
+            const sql =
+              target === "body"
+                ? "DELETE FROM public.proofstack_evaluation_records WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3"
+                : target === "registry"
+                  ? "DELETE FROM public.proofstack_evaluation_record_registry WHERE tenant_id=$1 AND record_kind=$2 AND record_id=$3"
+                  : target === "resource"
+                    ? "DELETE FROM public.proofstack_evaluation_resource_bindings WHERE tenant_id=$1 AND root_record_kind=$2 AND root_record_id=$3"
+                    : "DELETE FROM public.proofstack_outbox WHERE tenant_id=$1 AND aggregate_type='evaluation_' || $2 AND aggregate_id=$3";
+            expect((await client.query(sql, [h.scope.tenantId, kind, id])).rowCount).toBe(1);
+          },
+          async (client) => {
+            await expect(
+              readPostgresEvaluationLogicalRootOnClient(client, h.scope, kind, id),
+            ).rejects.toBeInstanceOf(EvaluationRepositoryContractError);
+            await expect(
+              readPostgresEvaluationLogicalRootOnClient(
+                client,
+                { ...h.scope, projectId: "project_outside" },
+                kind,
+                id,
+              ),
+            ).resolves.toBeNull();
+          },
+        );
+      });
+  }
+  it("rejects unsupported logical-root kinds before issuing SQL or acquiring a pooled connection", async () => {
+    const port = {
+      query: async () => {
+        throw new Error("Unsupported kind reached SQL");
+      },
+    } as unknown as Pick<PoolClient, "query">;
+    const pool = {
+      connect: async () => {
+        throw new Error("Unsupported kind reached pool");
+      },
+    } as unknown as Pick<Pool, "connect">;
+    for (const kind of [
+      "source_snapshot",
+      "discovery_record",
+      "raw_observation",
+      "evaluation_run",
+      "constructor",
+      "__proto__",
+    ])
+      for (const operation of [
+        () =>
+          readPostgresEvaluationLogicalRootOnClient(
+            port,
+            h.scope,
+            kind as EvaluationLogicalRootKind,
+            "evaluation_child",
+          ),
+        () =>
+          new PostgresEvaluationRepository(pool).findEvaluationLogicalRoot(
+            h.scope,
+            kind as EvaluationLogicalRootKind,
+            "evaluation_child",
+          ),
+      ])
+        await expect(operation()).rejects.toBeInstanceOf(InvalidEvaluationRecordInputError);
+  });
   it("keeps observed absence when normal publication commits after the same-statement cut", async () => {
     const original = h.records.find((f) => f.kind === "discovery_record");
     if (!original) throw new Error("Missing discovery fixture");
@@ -268,6 +455,14 @@ describe("owning evaluation physical storage and original receipts", () => {
         async (client) => {
           await expect(
             readPostgresEvaluationRecordOnClient(
+              client,
+              h.scope,
+              "criterion_set",
+              independent.criterionSetVersionId,
+            ),
+          ).rejects.toBeInstanceOf(EvaluationRepositoryContractError);
+          await expect(
+            readPostgresEvaluationLogicalRootOnClient(
               client,
               h.scope,
               "criterion_set",

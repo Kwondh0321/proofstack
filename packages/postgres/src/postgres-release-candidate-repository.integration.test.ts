@@ -4,6 +4,7 @@ import { ReleaseCandidateRepositoryContractError } from "@proofstack/core";
 import {
   createReleaseCandidateRepositoryTestHarness,
   releaseCandidateFixture,
+  releaseCandidateLogicalRootConformanceCases,
   releaseCandidateRepositoryConformanceCases,
 } from "@proofstack/core/testing";
 import { Pool } from "pg";
@@ -125,7 +126,10 @@ afterAll(async () => {
 });
 
 describe("PostgresReleaseCandidateRepository conformance", () => {
-  for (const conformanceCase of releaseCandidateRepositoryConformanceCases) {
+  for (const conformanceCase of [
+    ...releaseCandidateRepositoryConformanceCases,
+    ...releaseCandidateLogicalRootConformanceCases,
+  ]) {
     it(conformanceCase.name, async () => {
       await conformanceCase.run(() => {
         const harness = createReleaseCandidateRepositoryTestHarness(

@@ -17,9 +17,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import {
   PostgresRegressionVersionRepository,
+  readPostgresDatasetLogicalRootOnClient,
   readPostgresDatasetVersionOnClient,
+  readPostgresFixtureLogicalRootOnClient,
   readPostgresFixtureVersionOnClient,
   readPostgresRecordedInteractionFixtureContentOnClient,
+  readPostgresRecordedInteractionFixtureLogicalRootOnClient,
   readPostgresRecordedInteractionFixtureVersionOnClient,
 } from "./postgres-regression-version-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
@@ -206,6 +209,8 @@ const families = [
     nextId: fixtureNext.fixtureVersionId,
     resourceId: fixtureRoot.fixtureId,
     read: readPostgresFixtureVersionOnClient,
+    rootRead: readPostgresFixtureLogicalRootOnClient,
+    root: fixtureRoot,
   },
   {
     kind: "dataset",
@@ -218,6 +223,8 @@ const families = [
     nextId: datasetNext.datasetVersionId,
     resourceId: datasetRoot.datasetId,
     read: readPostgresDatasetVersionOnClient,
+    rootRead: readPostgresDatasetLogicalRootOnClient,
+    root: datasetRoot,
   },
 ] as const;
 const scenarios = [
@@ -282,6 +289,13 @@ describe("owning regression storage integrity", () => {
             }
           },
           async (client) => {
+            for (const field of ["tenantId", "projectId", "environmentId"] as const)
+              await expect(
+                f.rootRead(client, { ...scope, [field]: `${scope[field]}_outside` }, id),
+              ).resolves.toBeNull();
+            await expect(f.rootRead(client, scope, id)).rejects.toBeInstanceOf(
+              RegressionRepositoryContractError,
+            );
             await expect(
               f.read(client, { ...scope, projectId: "project_outside" }, id),
             ).resolves.toBeNull();
@@ -298,6 +312,7 @@ describe("owning regression storage integrity", () => {
               for (const read of [
                 readPostgresRecordedInteractionFixtureVersionOnClient,
                 readPostgresRecordedInteractionFixtureContentOnClient,
+                readPostgresRecordedInteractionFixtureLogicalRootOnClient,
               ]) {
                 await expect(read(client, scope, id)).rejects.toBeInstanceOf(
                   RegressionRepositoryContractError,
@@ -310,6 +325,16 @@ describe("owning regression storage integrity", () => {
   it("keeps healthy evidence-only fixtures absent from both recorded read surfaces", async () => {
     await withExactScopeTransaction(api, scope, async (client) => {
       for (const fixture of [fixtureRoot, fixtureNext]) {
+        await expect(
+          readPostgresFixtureLogicalRootOnClient(client, scope, fixture.fixtureVersionId),
+        ).resolves.toEqual(fixtureRoot);
+        await expect(
+          readPostgresRecordedInteractionFixtureLogicalRootOnClient(
+            client,
+            scope,
+            fixture.fixtureVersionId,
+          ),
+        ).resolves.toBeNull();
         await expect(
           readPostgresRecordedInteractionFixtureVersionOnClient(
             client,
@@ -325,8 +350,11 @@ describe("owning regression storage integrity", () => {
           ),
         ).resolves.toBeNull();
       }
-      for (const f of families)
+      for (const f of families) {
+        await expect(f.rootRead(client, scope, f.nextId)).resolves.toEqual(f.root);
+        await expect(f.rootRead(client, scope, "version_never_published")).resolves.toBeNull();
         await expect(f.read(client, scope, "version_never_published")).resolves.toBeNull();
+      }
     });
   });
 

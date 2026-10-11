@@ -22,20 +22,180 @@ import {
   RegressionVersionLineageError,
 } from "../errors.js";
 import {
+  digestRegressionDatasetVersionDefinition,
+  digestRegressionFixtureVersionDefinition,
+} from "../regression-definition-digest.js";
+import {
   buildRegressionDatasetVersionPublishedOutboxIntent,
   buildRegressionFixtureVersionPublishedOutboxIntent,
   REGRESSION_DATASET_VERSION_PUBLISHED_EVENT_TYPE,
   REGRESSION_FIXTURE_VERSION_PUBLISHED_EVENT_TYPE,
   type RegressionVersionPublishedOutboxIntent,
 } from "../regression-publication-outbox.js";
-import {
-  digestRegressionDatasetVersionDefinition,
-  digestRegressionFixtureVersionDefinition,
-} from "../regression-definition-digest.js";
-import type { RegressionVersionRepository } from "../regression-version-repository.js";
+import type {
+  RegressionLogicalRootReader,
+  RegressionVersionRepository,
+} from "../regression-version-repository.js";
 import type { RegressionVersionPublicationKind } from "./regression-version-repository-test-control.js";
 
 const TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
+export type RegressionLogicalRootTestFactory = (namespace: string) =>
+  | (Omit<RegressionVersionRepositoryTestHarness, "repository"> & {
+      readonly repository: RegressionVersionRepository & RegressionLogicalRootReader;
+    })
+  | Promise<
+      Omit<RegressionVersionRepositoryTestHarness, "repository"> & {
+        readonly repository: RegressionVersionRepository & RegressionLogicalRootReader;
+      }
+    >;
+
+export const regressionLogicalRootConformanceCases: readonly {
+  readonly name: string;
+  readonly run: (factory: RegressionLogicalRootTestFactory) => Promise<void>;
+}[] = (["fixture", "dataset"] as const).flatMap((kind) => [
+  {
+    name: `${kind}: observes original roots with exact scoped absence and retained receipts`,
+    async run(factory: RegressionLogicalRootTestFactory) {
+      await withHarness(factory, `reg_root_${kind}`, async (h) => {
+        const f = fixture(`rr_${kind}`);
+        const d = dataset(`rr_${kind}`, { fixtureVersions: [reference(f)] });
+        const root = kind === "fixture" ? f : d;
+        const id = kind === "fixture" ? f.fixtureVersionId : d.datasetVersionId;
+        const read = (s: EvidenceScope, childId: string) =>
+          kind === "fixture"
+            ? h.repository.findFixtureLogicalRoot(s, childId)
+            : h.repository.findDatasetLogicalRoot(s, childId);
+        assert.equal(await read(root.scope, id), null);
+        await h.repository.publishFixtureVersion(f);
+        if (kind === "dataset") await h.repository.publishDatasetVersion(d);
+        const child =
+          kind === "fixture"
+            ? fixture(`rr_${kind}`, {
+                fixtureVersionId: `${id}_v2`,
+                predecessor: { fixtureVersionId: id, definitionSha256: f.definitionSha256 },
+                createdAt: "2026-08-29T01:01:00.000Z",
+              })
+            : dataset(`rr_${kind}`, {
+                fixtureVersions: [reference(f)],
+                datasetVersionId: `${id}_v2`,
+                predecessor: { datasetVersionId: id, definitionSha256: d.definitionSha256 },
+                createdAt: "2026-08-28T00:00:00.000Z",
+              });
+        if ("fixtureVersionId" in child) await h.repository.publishFixtureVersion(child);
+        else await h.repository.publishDatasetVersion(child);
+        assert.deepEqual(await read(root.scope, `${id}_v2`), root);
+        assert.equal(await read(root.scope, "version_absent"), null);
+        for (const field of ["tenantId", "projectId", "environmentId"] as const)
+          assert.equal(
+            await read({ ...root.scope, [field]: `${root.scope[field]}_other` }, `${id}_v2`),
+            null,
+          );
+        if (kind === "fixture")
+          await h.repository.publishFixtureVersion({ ...f, createdAt: "2026-08-30T00:00:00.000Z" });
+        else
+          await h.repository.publishDatasetVersion({ ...d, createdAt: "2026-08-30T00:00:00.000Z" });
+        const returned = await read(root.scope, `${id}_v2`);
+        assert.deepEqual(returned, root);
+        assert.ok(returned);
+        returned.name = "Caller mutation.";
+        assert.deepEqual(await read(root.scope, id), root);
+      });
+    },
+  },
+  {
+    name: `${kind}: isolates colliding original roots and successor identities across three tenants`,
+    async run(factory: RegressionLogicalRootTestFactory) {
+      await withHarness(factory, `reg_root_${kind}_ten`, async (h) => {
+        const roots: (RegressionFixtureVersion | RegressionDatasetVersion)[] = [];
+        for (const label of ["a", "b", "c"]) {
+          const ownScope = scope("rr_collision", { tenantId: `ten_rr_collision_${label}` });
+          const f = fixture("rr_collision", { scope: ownScope });
+          await h.repository.publishFixtureVersion(f);
+          if (kind === "fixture") {
+            roots.push(f);
+            await h.repository.publishFixtureVersion(
+              fixture("rr_collision", {
+                scope: ownScope,
+                fixtureVersionId: "fixv_rr_collision_child",
+                predecessor: {
+                  fixtureVersionId: f.fixtureVersionId,
+                  definitionSha256: f.definitionSha256,
+                },
+              }),
+            );
+          } else {
+            const d = dataset("rr_collision", { scope: ownScope, fixtureVersions: [reference(f)] });
+            roots.push(d);
+            await h.repository.publishDatasetVersion(d);
+            await h.repository.publishDatasetVersion(
+              dataset("rr_collision", {
+                scope: ownScope,
+                fixtureVersions: [reference(f)],
+                datasetVersionId: "datv_rr_collision_child",
+                predecessor: {
+                  datasetVersionId: d.datasetVersionId,
+                  definitionSha256: d.definitionSha256,
+                },
+              }),
+            );
+          }
+        }
+        for (const root of roots)
+          assert.deepEqual(
+            kind === "fixture"
+              ? await h.repository.findFixtureLogicalRoot(root.scope, "fixv_rr_collision_child")
+              : await h.repository.findDatasetLogicalRoot(root.scope, "datv_rr_collision_child"),
+            root,
+          );
+      });
+    },
+  },
+  {
+    name: `${kind}: keeps the winning original root under competing first bindings`,
+    async run(factory: RegressionLogicalRootTestFactory) {
+      await withHarness(factory, `reg_root_${kind}_race`, async (h) => {
+        const f = fixture(`rr_race_${kind}`);
+        const roots =
+          kind === "fixture"
+            ? [
+                f,
+                fixture(`rr_race_${kind}`, {
+                  fixtureVersionId: "fixv_rr_race_other",
+                  name: "Competing original fixture",
+                }),
+              ]
+            : [
+                dataset("rr_race_dataset", { fixtureVersions: [reference(f)] }),
+                dataset("rr_race_dataset", {
+                  fixtureVersions: [reference(f)],
+                  datasetVersionId: "datv_rr_race_other",
+                  name: "Competing original dataset",
+                }),
+              ];
+        if (kind === "dataset") await h.repository.publishFixtureVersion(f);
+        const outcomes = await Promise.allSettled(
+          roots.map((root) =>
+            "fixtureVersionId" in root
+              ? h.repository.publishFixtureVersion(root)
+              : h.repository.publishDatasetVersion(root),
+          ),
+        );
+        assert.equal(outcomes.filter(({ status }) => status === "fulfilled").length, 1);
+        const failed = outcomes.find(({ status }) => status === "rejected");
+        assert.ok(failed?.status === "rejected");
+        assert.ok(failed.reason instanceof RegressionVersionLineageError);
+        for (const [index, root] of roots.entries()) {
+          const read =
+            "fixtureVersionId" in root
+              ? await h.repository.findFixtureLogicalRoot(root.scope, root.fixtureVersionId)
+              : await h.repository.findDatasetLogicalRoot(root.scope, root.datasetVersionId);
+          assert.deepEqual(read, outcomes[index]?.status === "fulfilled" ? root : null);
+        }
+      });
+    },
+  },
+]);
 
 export interface RegressionVersionRepositoryTestHarness {
   readonly dispose?: () => Promise<void>;
@@ -151,10 +311,10 @@ function dataset(namespace: string, options: DatasetOptions): RegressionDatasetV
   });
 }
 
-async function withHarness(
-  factory: RegressionVersionRepositoryTestFactory,
+async function withHarness<Harness extends RegressionVersionRepositoryTestHarness>(
+  factory: (namespace: string) => Harness | Promise<Harness>,
   namespace: string,
-  test: (harness: RegressionVersionRepositoryTestHarness) => Promise<void>,
+  test: (harness: Harness) => Promise<void>,
 ): Promise<void> {
   const harness = await factory(namespace);
   try {

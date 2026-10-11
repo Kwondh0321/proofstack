@@ -1,5 +1,18 @@
 # 릴리스 후보 owning 저장 무결성
 
+별도의 읽기 전용 `ReleaseCandidateLogicalRootReader.findReleaseCandidateLogicalRoot` port를 제공합니다.
+정확한 candidate 버전은 원래 predecessor 없는 candidate root를 반환합니다. 독립 버전과
+predecessor 후속 버전도 원래 바인딩을 유지합니다. 원래 target과 receipt 전체를 반환하지만
+release 권한을 부여하지 않습니다.
+메모리와 PostgreSQL 공용 conformance로 정확한 scope 부재, 최초 receipt, 반환값 소유,
+세 tenant의 ID 충돌과 동시 발행을 검증합니다.
+
+Supplied-client root helper는 선택 기록의 저장 검사에서 이미 검증한 root를 반환하며
+그 검사에 두 번째 transaction이나 root 조회를 추가하지 않습니다. 읽기 전에 scope와
+ID를 검증합니다. 호출자가 guard·scope GUC·transaction 수명·rollback을 소유합니다.
+Root capture, 전체 내부 admission, 의미·현재 권한 closure, atomic sealed 발행은 남아
+있습니다. Root 관측은 sealed snapshot이 아니며 checkpoint 3 승인을 뜻하지 않습니다.
+
 정책 평가는 정상 후보 본문만으로 보존된 저장 관계를 인정하지 않습니다. Candidate reader는
 같은 연결에서 registry·predecessor edge·논리 resource/root·최초 canonical publication intent를
 검사합니다. 일반 find와 동일 의미 발행 재시도도 같은 검사를 사용합니다. Workflow 2는 여전히

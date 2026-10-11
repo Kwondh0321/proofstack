@@ -19,13 +19,16 @@ import type {
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
-import { EvidenceScopeSchema } from "@proofstack/contracts";
+import { EvidenceScopeSchema, OpaqueIdSchema } from "@proofstack/contracts";
 import {
   admitCriterionStatusHistory,
   CriterionStatusHistoryLimitError,
   type CriterionStatusHistoryLimits,
   type CriterionStatusHistoryRepository,
   EvaluationLineageError,
+  type EvaluationLogicalRootKind,
+  type EvaluationLogicalRootReader,
+  type EvaluationLogicalRootRecordByKind,
   EvaluationRecordConflictError,
   type EvaluationRecordKind,
   type EvaluationRepository,
@@ -38,6 +41,7 @@ import {
   evaluationResource,
   type PublishEvaluationRecordResult,
   requireCriterionStatusHistoryLimits,
+  requireEvaluationLogicalRootKind,
   validateEvaluationRecord,
 } from "@proofstack/core";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
@@ -593,7 +597,7 @@ async function requirePhysicalIntegrity(
   client: Pick<PoolClient, "query">,
   kind: EvaluationRecordKind,
   record: EvaluationStoredRecord,
-): Promise<void> {
+): Promise<EvaluationStoredRecord | null> {
   await requireRegistryAndLineage(client, kind, record);
   const id = evaluationRecordId(kind, record);
   const scope = record.scope;
@@ -621,7 +625,7 @@ async function requirePhysicalIntegrity(
       "Stored evaluation unique binding differs from its canonical body",
     );
   const resource = evaluationResource(kind, record);
-  if (!resource) return;
+  if (!resource) return null;
   const resources = await client.query<PhysicalResourceRow>(
     `SELECT project_id, environment_id, root_record_kind, root_record_id, root_definition_sha256
      FROM public.proofstack_evaluation_resource_bindings
@@ -665,6 +669,7 @@ async function requirePhysicalIntegrity(
       "Stored evaluation logical root differs from its canonical resource",
     );
   if (root !== record) await requirePhysicalIntegrity(client, kind, root);
+  return root;
 }
 
 async function inspectScopedPresence(
@@ -726,13 +731,15 @@ export type PostgresEvaluationRecordByKind = {
   readonly source_snapshot: SourceSnapshot;
 };
 
-/** Shares owning normalization; the trusted caller owns scope, transaction and guards. */
-export async function readPostgresEvaluationRecordOnClient<K extends EvaluationRecordKind>(
+async function inspectStoredEvaluationRecordOnClient<K extends EvaluationRecordKind>(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
   kind: K,
   recordId: string,
-): Promise<PostgresEvaluationRecordByKind[K] | null> {
+): Promise<{
+  readonly record: PostgresEvaluationRecordByKind[K];
+  readonly logicalRoot: EvaluationStoredRecord | null;
+} | null> {
   const scope = { ...scopeInput };
   if (!(await inspectScopedPresence(client, scope, kind, recordId))) return null;
   const row = await loadStored(client, kind, scope.tenantId, recordId, scope);
@@ -742,8 +749,40 @@ export async function readPostgresEvaluationRecordOnClient<K extends EvaluationR
     );
   const record = parseStored(kind, row);
   if (!scopesEqual(record.scope, scope)) return null;
-  await requirePhysicalIntegrity(client, kind, record);
-  return clone(record) as PostgresEvaluationRecordByKind[K];
+  const logicalRoot = await requirePhysicalIntegrity(client, kind, record);
+  return { record: record as PostgresEvaluationRecordByKind[K], logicalRoot };
+}
+
+/** Shares owning normalization; the trusted caller owns scope, transaction and guards. */
+export async function readPostgresEvaluationRecordOnClient<K extends EvaluationRecordKind>(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: K,
+  recordId: string,
+): Promise<PostgresEvaluationRecordByKind[K] | null> {
+  const stored = await inspectStoredEvaluationRecordOnClient(client, scopeInput, kind, recordId);
+  return stored ? clone(stored.record) : null;
+}
+
+/** Full owning original root; no second connection, context change or temporal qualification. */
+export async function readPostgresEvaluationLogicalRootOnClient<
+  K extends EvaluationLogicalRootKind,
+>(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  kind: K,
+  recordIdInput: string,
+): Promise<EvaluationLogicalRootRecordByKind[K] | null> {
+  requireEvaluationLogicalRootKind(kind);
+  const scope = EvidenceScopeSchema.parse(scopeInput);
+  const recordId = OpaqueIdSchema.parse(recordIdInput);
+  const stored = await inspectStoredEvaluationRecordOnClient(client, scope, kind, recordId);
+  if (!stored) return null;
+  if (!stored.logicalRoot)
+    throw new EvaluationRepositoryContractError(
+      "Stored evaluation resource definition has no validated logical root",
+    );
+  return clone(stored.logicalRoot) as EvaluationLogicalRootRecordByKind[K];
 }
 
 /**
@@ -778,9 +817,22 @@ export async function listPostgresCriterionSetStatusesOnClient(
 }
 
 export class PostgresEvaluationRepository
-  implements EvaluationRepository, CriterionStatusHistoryRepository
+  implements EvaluationRepository, CriterionStatusHistoryRepository, EvaluationLogicalRootReader
 {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
+
+  async findEvaluationLogicalRoot<K extends EvaluationLogicalRootKind>(
+    scopeInput: EvidenceScope,
+    kind: K,
+    recordIdInput: string,
+  ): Promise<EvaluationLogicalRootRecordByKind[K] | null> {
+    requireEvaluationLogicalRootKind(kind);
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const recordId = OpaqueIdSchema.parse(recordIdInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresEvaluationLogicalRootOnClient(client, scope, kind, recordId),
+    );
+  }
 
   async listCriterionSetStatuses(
     scopeInput: EvidenceScope,

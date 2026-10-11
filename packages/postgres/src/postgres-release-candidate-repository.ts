@@ -1,9 +1,11 @@
 import { Buffer } from "node:buffer";
 import type { EvidenceScope, ReleaseCandidate } from "@proofstack/contracts";
+import { EvidenceScopeSchema, OpaqueIdSchema } from "@proofstack/contracts";
 import {
   InvalidReleaseCandidateRecordInputError,
   type PublishReleaseCandidateResult,
   ReleaseCandidateLineageError,
+  type ReleaseCandidateLogicalRootReader,
   type ReleaseCandidateRepository,
   ReleaseCandidateRepositoryContractError,
   ReleaseCandidateResourceConflictError,
@@ -270,7 +272,7 @@ async function requireRegistryAndLineage(
 async function requirePhysicalIntegrity(
   client: Pick<PoolClient, "query">,
   candidate: ReleaseCandidate,
-): Promise<void> {
+): Promise<ReleaseCandidate> {
   await requireRegistryAndLineage(client, candidate);
   const resources = await client.query<CandidateResourceRow>(
     `SELECT binding.project_id, binding.environment_id, binding.root_candidate_version_id,
@@ -332,6 +334,7 @@ async function requirePhysicalIntegrity(
     await requireCanonicalOutbox(client, root);
   }
   await requireCanonicalOutbox(client, candidate);
+  return root;
 }
 
 async function inspectScopedPresence(
@@ -374,12 +377,14 @@ async function inspectScopedPresence(
   return row.retained_candidate_body;
 }
 
-/** Exact normalized candidate read on the caller-owned scoped connection. */
-export async function readPostgresReleaseCandidateOnClient(
+async function inspectStoredReleaseCandidateOnClient(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
   candidateVersionId: string,
-): Promise<ReleaseCandidate | null> {
+): Promise<{
+  readonly candidate: ReleaseCandidate;
+  readonly logicalRoot: ReleaseCandidate;
+} | null> {
   const scope = { ...scopeInput };
   if (!(await inspectScopedPresence(client, scope, candidateVersionId))) return null;
   const row = await loadStored(client, scope.tenantId, candidateVersionId, scope);
@@ -390,12 +395,51 @@ export async function readPostgresReleaseCandidateOnClient(
   }
   const candidate = parseStored(row);
   if (!scopesEqual(candidate.scope, scope)) return null;
-  await requirePhysicalIntegrity(client, candidate);
-  return clone(candidate);
+  const logicalRoot = await requirePhysicalIntegrity(client, candidate);
+  return { candidate, logicalRoot };
 }
 
-export class PostgresReleaseCandidateRepository implements ReleaseCandidateRepository {
+/** Exact normalized candidate read on the caller-owned scoped connection. */
+export async function readPostgresReleaseCandidateOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  candidateVersionId: string,
+): Promise<ReleaseCandidate | null> {
+  const stored = await inspectStoredReleaseCandidateOnClient(
+    client,
+    scopeInput,
+    candidateVersionId,
+  );
+  return stored ? clone(stored.candidate) : null;
+}
+
+/** Full owning original candidate root; no independent transaction or receipt selection. */
+export async function readPostgresReleaseCandidateLogicalRootOnClient(
+  client: Pick<PoolClient, "query">,
+  scopeInput: EvidenceScope,
+  candidateVersionIdInput: string,
+): Promise<ReleaseCandidate | null> {
+  const scope = EvidenceScopeSchema.parse(scopeInput);
+  const candidateVersionId = OpaqueIdSchema.parse(candidateVersionIdInput);
+  const stored = await inspectStoredReleaseCandidateOnClient(client, scope, candidateVersionId);
+  return stored ? clone(stored.logicalRoot) : null;
+}
+
+export class PostgresReleaseCandidateRepository
+  implements ReleaseCandidateRepository, ReleaseCandidateLogicalRootReader
+{
   constructor(private readonly pool: Pick<Pool, "connect">) {}
+
+  async findReleaseCandidateLogicalRoot(
+    scopeInput: EvidenceScope,
+    candidateVersionIdInput: string,
+  ): Promise<ReleaseCandidate | null> {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const candidateVersionId = OpaqueIdSchema.parse(candidateVersionIdInput);
+    return withTenantTransaction(this.pool, scope.tenantId, (client) =>
+      readPostgresReleaseCandidateLogicalRootOnClient(client, scope, candidateVersionId),
+    );
+  }
 
   async findReleaseCandidate(
     scopeInput: EvidenceScope,

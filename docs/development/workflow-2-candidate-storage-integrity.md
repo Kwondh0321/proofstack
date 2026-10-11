@@ -71,6 +71,19 @@ requirements. A returned body or read-only recheck report is never later publica
 
 ## Verification
 
+The separate read-only `ReleaseCandidateLogicalRootReader.findReleaseCandidateLogicalRoot` port exposes full original retained roots.
+Exact candidate versions resolve to the original predecessor-free candidate root. Independent
+versions and predecessor-bound successors preserve that binding. The full original target and
+receipt are returned; this does not grant release authority.
+Memory and PostgreSQL share conformance for exact scoped absence, original receipts, owned return
+values, three-tenant identity collisions and competing publications.
+
+The supplied-client root helper shares the selected-record storage inspection and returns its
+already validated root; it adds no second transaction or root lookup to that inspection. Scope and
+identity are validated before reads. Caller-owned guards, scope GUCs, transaction lifetime and
+rollback remain required. Root capture, full internal admission, semantic/current authority closure
+and atomic sealed publication remain open. A root observation is not a sealed snapshot.
+
 Real PostgreSQL tests publish roots, successors and independent versions through the existing API
 role. Administrator-only disposable damage exercises missing/mismatched child and parent registry,
 predecessor edges, logical resource/root bodies/intents, unexpected root edges and normalized orphan

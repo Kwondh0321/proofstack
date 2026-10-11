@@ -52,6 +52,19 @@ atomic snapshot/job publication. Returned records and ended read-only reports ar
 
 ## Verification
 
+The separate read-only `ComparisonLogicalRootReader.findComparisonLogicalRoot` port exposes full original retained roots.
+Every comparison definition, evidence snapshot and result resolves to the original comparison
+definition. Independent and predecessor-bound later versions preserve that binding. The manifest
+alias `comparison_snapshot` is not an owning kind; acquisition must map it explicitly.
+Memory and PostgreSQL share conformance for exact scoped absence, original receipts, owned return
+values, three-tenant identity collisions and competing publications.
+
+The supplied-client root helper shares the selected-record storage inspection and returns its
+already validated root; it adds no second transaction or root lookup to that inspection. Scope and
+identity are validated before reads. Caller-owned guards, scope GUCs, transaction lifetime and
+rollback remain required. Root capture, full internal admission, semantic/current authority closure
+and atomic sealed publication remain open. A root observation is not a sealed snapshot.
+
 Normal API roles publish and read actual disposable PostgreSQL fixtures. Administrator-only damage
 retains CHECKs, rolls back every change and verifies all five table fingerprints and original reads.
 Tests cover absent-body witnesses, missing/mismatched registries, complete positional edges,

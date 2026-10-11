@@ -17,8 +17,10 @@ import {
   type RegressionVersionPublishedOutboxIntent,
 } from "@proofstack/datasets";
 import {
+  interactionFixtureLogicalRootConformanceCases,
   interactionFixtureVersionRepositoryConformanceCases,
   type RegressionVersionPublicationKind,
+  regressionLogicalRootConformanceCases,
   regressionVersionRepositoryConformanceCases,
 } from "@proofstack/datasets/testing";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
@@ -514,7 +516,10 @@ afterAll(async () => {
 });
 
 describe("PostgresRegressionVersionRepository contract", () => {
-  for (const testCase of regressionVersionRepositoryConformanceCases) {
+  for (const testCase of [
+    ...regressionVersionRepositoryConformanceCases,
+    ...regressionLogicalRootConformanceCases,
+  ]) {
     it(testCase.name, async () => {
       await testCase.run(() => ({
         failNextPublicationIntent: (kind) => faultPool.failNextPublicationIntent(kind),
@@ -524,7 +529,10 @@ describe("PostgresRegressionVersionRepository contract", () => {
     });
   }
 
-  for (const testCase of interactionFixtureVersionRepositoryConformanceCases) {
+  for (const testCase of [
+    ...interactionFixtureVersionRepositoryConformanceCases,
+    ...interactionFixtureLogicalRootConformanceCases,
+  ]) {
     it(testCase.name, async () => {
       await testCase.run(() => ({
         failNextPublicationIntent: (kind) => faultPool.failNextPublicationIntent(kind),

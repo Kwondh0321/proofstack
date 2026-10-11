@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  ComparisonRepositoryContractError,
   comparisonRecordId,
   comparisonRecordReferences,
-  ComparisonRepositoryContractError,
 } from "@proofstack/core";
 import {
   comparisonDefinitionFixture,
@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import {
   PostgresComparisonRepository,
+  readPostgresComparisonLogicalRootOnClient,
   readPostgresComparisonRecordOnClient,
 } from "./postgres-comparison-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
@@ -142,6 +143,54 @@ async function damaged(
   }
 }
 describe("owning comparison physical integrity", () => {
+  it("observes every comparison child root on one supplied backend without changing scope", async () => {
+    await withExactScopeTransaction(api, h.scope, async (client) => {
+      const before = (
+        await client.query(
+          "SELECT pg_backend_pid() AS pid, current_setting('proofstack.tenant_id') AS tenant",
+        )
+      ).rows;
+      for (const f of h.records) {
+        const id = comparisonRecordId(f.kind, f.record);
+        await expect(
+          readPostgresComparisonLogicalRootOnClient(client, h.scope, f.kind, id),
+        ).resolves.toEqual(definition.record);
+        for (const field of ["tenantId", "projectId", "environmentId"] as const)
+          await expect(
+            readPostgresComparisonLogicalRootOnClient(
+              client,
+              { ...h.scope, [field]: `${h.scope[field]}_other` },
+              f.kind,
+              id,
+            ),
+          ).resolves.toBeNull();
+        await expect(
+          readPostgresComparisonLogicalRootOnClient(
+            client,
+            h.scope,
+            f.kind,
+            "comparison_absent_child",
+          ),
+        ).resolves.toBeNull();
+      }
+      for (const record of [independent, successor])
+        await expect(
+          readPostgresComparisonLogicalRootOnClient(
+            client,
+            h.scope,
+            "comparison_definition",
+            record.comparisonVersionId,
+          ),
+        ).resolves.toEqual(definition.record);
+      expect(
+        (
+          await client.query(
+            "SELECT pg_backend_pid() AS pid, current_setting('proofstack.tenant_id') AS tenant",
+          )
+        ).rows,
+      ).toEqual(before);
+    });
+  });
   it("keeps observed absence when a normal publication commits after its statement cut", async () => {
     const record = comparisonDefinitionFixture(`cphys_${key}`, h.scope, {
       comparisonId: definition.record.comparisonId,
@@ -330,6 +379,9 @@ describe("owning comparison physical integrity", () => {
         await expect(
           readPostgresComparisonRecordOnClient(client, h.scope, f.kind, id),
         ).rejects.toBeInstanceOf(ComparisonRepositoryContractError);
+        await expect(
+          readPostgresComparisonLogicalRootOnClient(client, h.scope, f.kind, id),
+        ).rejects.toBeInstanceOf(ComparisonRepositoryContractError);
       },
     );
   });
@@ -350,6 +402,14 @@ describe("owning comparison physical integrity", () => {
         async (client) => {
           await expect(
             readPostgresComparisonRecordOnClient(
+              client,
+              h.scope,
+              "comparison_definition",
+              independent.comparisonVersionId,
+            ),
+          ).rejects.toBeInstanceOf(ComparisonRepositoryContractError);
+          await expect(
+            readPostgresComparisonLogicalRootOnClient(
               client,
               h.scope,
               "comparison_definition",
@@ -430,6 +490,9 @@ describe("owning comparison physical integrity", () => {
       async (client) => {
         await expect(
           readPostgresComparisonRecordOnClient(client, h.scope, "comparison_result", id),
+        ).rejects.toBeInstanceOf(ComparisonRepositoryContractError);
+        await expect(
+          readPostgresComparisonLogicalRootOnClient(client, h.scope, "comparison_result", id),
         ).rejects.toBeInstanceOf(ComparisonRepositoryContractError);
       },
     );

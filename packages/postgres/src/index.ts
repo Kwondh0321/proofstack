@@ -43,6 +43,7 @@ export {
 } from "./postgres-artifact-catalog-repository.js";
 export {
   PostgresComparisonRepository,
+  readPostgresComparisonLogicalRootOnClient,
   readPostgresComparisonRecordOnClient,
 } from "./postgres-comparison-repository.js";
 export {
@@ -55,6 +56,7 @@ export {
   listPostgresCriterionSetStatusesOnClient,
   type PostgresEvaluationRecordByKind,
   PostgresEvaluationRepository,
+  readPostgresEvaluationLogicalRootOnClient,
   readPostgresEvaluationRecordOnClient,
 } from "./postgres-evaluation-repository.js";
 export {
@@ -87,13 +89,17 @@ export {
 } from "./postgres-projection-cursor-repository.js";
 export {
   PostgresRegressionVersionRepository,
+  readPostgresDatasetLogicalRootOnClient,
   readPostgresDatasetVersionOnClient,
+  readPostgresFixtureLogicalRootOnClient,
   readPostgresFixtureVersionOnClient,
   readPostgresRecordedInteractionFixtureContentOnClient,
+  readPostgresRecordedInteractionFixtureLogicalRootOnClient,
   readPostgresRecordedInteractionFixtureVersionOnClient,
 } from "./postgres-regression-version-repository.js";
 export {
   PostgresReleaseCandidateRepository,
+  readPostgresReleaseCandidateLogicalRootOnClient,
   readPostgresReleaseCandidateOnClient,
 } from "./postgres-release-candidate-repository.js";
 export {

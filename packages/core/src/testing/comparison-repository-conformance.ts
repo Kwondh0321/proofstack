@@ -1,20 +1,24 @@
 import assert from "node:assert/strict";
 import type { EvidenceScope } from "@proofstack/contracts";
+import type { ComparisonLogicalRootReader } from "../evaluation/comparison-logical-root.js";
 import { comparisonRecordId } from "../evaluation/comparison-record-validation.js";
+import type {
+  ComparisonRecord,
+  ComparisonRepository,
+  PublishComparisonRecordResult,
+} from "../evaluation/comparison-repository.js";
 import {
   ComparisonLineageError,
   ComparisonRecordConflictError,
   ComparisonResourceConflictError,
   InvalidComparisonRecordInputError,
 } from "../evaluation/comparison-repository-errors.js";
-import type {
-  ComparisonRecord,
-  ComparisonRepository,
-  PublishComparisonRecordResult,
-} from "../evaluation/comparison-repository.js";
-import type {
-  ComparisonRepositoryFixtureRecord,
-  ComparisonRepositoryTestHarness,
+import {
+  type ComparisonRepositoryFixtureRecord,
+  type ComparisonRepositoryTestHarness,
+  comparisonDefinitionFixture,
+  comparisonResultFixture,
+  comparisonSnapshotFixture,
 } from "./comparison-repository-fixtures.js";
 
 export type ComparisonRepositoryTestFactory = (
@@ -56,10 +60,10 @@ async function findFixture(
   }
 }
 
-async function withHarness(
-  factory: ComparisonRepositoryTestFactory,
+async function withHarness<Harness extends ComparisonRepositoryTestHarness>(
+  factory: (namespace: string) => Harness | Promise<Harness>,
   namespace: string,
-  test: (harness: ComparisonRepositoryTestHarness) => Promise<void>,
+  test: (harness: Harness) => Promise<void>,
 ): Promise<void> {
   const harness = await factory(namespace);
   try {
@@ -254,3 +258,201 @@ export const comparisonRepositoryConformanceCases: readonly ComparisonRepository
       },
     },
   ];
+
+type RootHarness = Omit<ComparisonRepositoryTestHarness, "repository"> & {
+  readonly repository: ComparisonRepository & ComparisonLogicalRootReader;
+};
+type RootFactory = (namespace: string) => RootHarness | Promise<RootHarness>;
+export const comparisonLogicalRootConformanceCases: readonly {
+  readonly name: string;
+  readonly run: (factory: RootFactory) => Promise<void>;
+}[] = [
+  {
+    name: "observes the original comparison definition for every child kind with exact scope",
+    async run(factory) {
+      await withHarness(factory, "cmp_root_scope", async (h) => {
+        for (const f of h.records)
+          assert.equal(
+            await h.repository.findComparisonLogicalRoot(
+              h.scope,
+              f.kind,
+              comparisonRecordId(f.kind, f.record),
+            ),
+            null,
+          );
+        await publishGraph(h);
+        const root = h.records[0];
+        assert.equal(root?.kind, "comparison_definition");
+        assert.ok(root);
+        for (const f of h.records) {
+          const id = comparisonRecordId(f.kind, f.record);
+          assert.deepEqual(
+            await h.repository.findComparisonLogicalRoot(h.scope, f.kind, id),
+            root.record,
+          );
+          for (const field of ["tenantId", "projectId", "environmentId"] as const)
+            assert.equal(
+              await h.repository.findComparisonLogicalRoot(
+                { ...h.scope, [field]: `${h.scope[field]}_other` },
+                f.kind,
+                id,
+              ),
+              null,
+            );
+          assert.equal(
+            await h.repository.findComparisonLogicalRoot(
+              h.scope,
+              f.kind,
+              "comparison_absent_child",
+            ),
+            null,
+          );
+        }
+      });
+    },
+  },
+  {
+    name: "retains the comparison original through independent versions, predecessor chains and result lineage",
+    async run(factory) {
+      await withHarness(factory, "cmp_root_binding", async (h) => {
+        await publishGraph(h);
+        const original = h.records[0];
+        assert.ok(original?.kind === "comparison_definition");
+        const independent = comparisonDefinitionFixture("cmp_independent", h.scope, {
+          comparisonId: original.record.comparisonId,
+        });
+        independent.createdAt = "2026-09-01T00:00:00.000Z";
+        await h.repository.publishComparisonDefinition(independent);
+        const successor = comparisonDefinitionFixture("cmp_successor", h.scope, {
+          comparisonId: original.record.comparisonId,
+          predecessor: {
+            comparisonVersionId: independent.comparisonVersionId,
+            definitionSha256: independent.definitionSha256,
+          },
+        });
+        const baseline = comparisonSnapshotFixture("cmp_successor", h.scope, successor, "baseline");
+        const candidate = comparisonSnapshotFixture(
+          "cmp_successor",
+          h.scope,
+          successor,
+          "candidate",
+        );
+        const result = comparisonResultFixture(
+          "cmp_successor",
+          h.scope,
+          successor,
+          baseline,
+          candidate,
+        );
+        const later: ComparisonRepositoryFixtureRecord[] = [
+          { kind: "comparison_definition", record: successor },
+          { kind: "comparison_evidence_snapshot", record: baseline },
+          { kind: "comparison_evidence_snapshot", record: candidate },
+          { kind: "comparison_result", record: result },
+        ];
+        for (const f of later) {
+          await publishComparisonFixture(h.repository, f);
+          assert.deepEqual(
+            await h.repository.findComparisonLogicalRoot(
+              h.scope,
+              f.kind,
+              comparisonRecordId(f.kind, f.record),
+            ),
+            original.record,
+          );
+        }
+        await h.repository.publishComparisonDefinition({
+          ...original.record,
+          createdAt: "2026-09-04T00:00:00.000Z",
+        });
+        const root = await h.repository.findComparisonLogicalRoot(
+          h.scope,
+          "comparison_result",
+          result.resultId,
+        );
+        assert.deepEqual(root, original.record);
+        assert.ok(root);
+        root.description = "Caller mutation.";
+        assert.deepEqual(
+          await h.repository.findComparisonLogicalRoot(
+            h.scope,
+            "comparison_definition",
+            independent.comparisonVersionId,
+          ),
+          original.record,
+        );
+      });
+    },
+  },
+  {
+    name: "isolates colliding comparison child and root identities across three tenants",
+    async run(factory) {
+      await withHarness(factory, "cmp_root_tenants", async (h) => {
+        const roots = ["a", "b", "c"].map((label) =>
+          comparisonDefinitionFixture("cmp_collision", {
+            ...h.scope,
+            tenantId: `${h.scope.tenantId}_${label}`,
+          }),
+        );
+        for (const root of roots) {
+          await h.repository.publishComparisonDefinition(root);
+          const baseline = comparisonSnapshotFixture("cmp_collision", root.scope, root, "baseline");
+          const candidate = comparisonSnapshotFixture(
+            "cmp_collision",
+            root.scope,
+            root,
+            "candidate",
+          );
+          await h.repository.publishComparisonEvidenceSnapshot(baseline);
+          await h.repository.publishComparisonEvidenceSnapshot(candidate);
+          await h.repository.publishComparisonResult(
+            comparisonResultFixture("cmp_collision", root.scope, root, baseline, candidate),
+          );
+        }
+        for (const root of roots)
+          assert.deepEqual(
+            await h.repository.findComparisonLogicalRoot(
+              root.scope,
+              "comparison_result",
+              "result_cmp_collision",
+            ),
+            root,
+          );
+      });
+    },
+  },
+  {
+    name: "retains one comparison original under competing first definition publication",
+    async run(factory) {
+      await withHarness(factory, "cmp_root_race", async (h) => {
+        const original = h.records[0];
+        assert.ok(original?.kind === "comparison_definition");
+        const other = comparisonDefinitionFixture("cmp_racing", h.scope, {
+          comparisonId: original.record.comparisonId,
+        });
+        await Promise.all([
+          h.repository.publishComparisonDefinition(original.record),
+          h.repository.publishComparisonDefinition(other),
+        ]);
+        const left = await h.repository.findComparisonLogicalRoot(
+          h.scope,
+          "comparison_definition",
+          original.record.comparisonVersionId,
+        );
+        const right = await h.repository.findComparisonLogicalRoot(
+          h.scope,
+          "comparison_definition",
+          other.comparisonVersionId,
+        );
+        assert.deepEqual(left, right);
+        assert.ok(left);
+        assert.deepEqual(
+          left,
+          left.comparisonVersionId === original.record.comparisonVersionId
+            ? original.record
+            : other,
+        );
+      });
+    },
+  },
+];

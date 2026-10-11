@@ -1,5 +1,23 @@
 # Owning evaluation 저장 무결성
 
+별도의 읽기 전용 `EvaluationLogicalRootReader.findEvaluationLogicalRoot` port를 제공합니다.
+평가의 5종 정의 리소스(aggregation policy, criterion set, evaluator, oracle,
+qualification fixture set) 원본 전체를 반환합니다. 지원하지 않는 kind는 SQL 실행이나 연결
+확보 전에 거절합니다. 독립 버전, 더 이른 receipt, 유효한 predecessor 계보에서도 원래
+바인딩을 보존하며 predecessor 탐색이나 시간 정렬로 root를 고르지 않습니다.
+메모리와 PostgreSQL 공용 conformance로 정확한 scope 부재, 최초 receipt, 반환값 소유,
+세 tenant의 ID 충돌과 동시 발행을 검증합니다.
+
+Supplied-client root helper는 선택 기록의 저장 검사에서 이미 검증한 root를 반환하며
+그 검사에 두 번째 transaction이나 root 조회를 추가하지 않습니다. 읽기 전에 scope와
+ID를 검증합니다. 호출자가 guard·scope GUC·transaction 수명·rollback을 소유합니다.
+Root capture, 전체 내부 admission, 의미·현재 권한 closure, atomic sealed 발행은 남아
+있습니다. Root 관측은 sealed snapshot이 아니며 checkpoint 3 승인을 뜻하지 않습니다.
+
+Core 검사 파일은 순차 실행해 큰 경계 사례가 다른 파일과 자원을 경합하지 않게 합니다.
+기존 테스트별 제한 시간·assertion·coverage 기준과 conformance/race 내부의 명시적 동시
+작업은 유지합니다.
+
 평가 소스 17종의 보존된 물리 관계를 같은 supplied connection에서 검사합니다. 단일 owning
 조회·전체 criterion 상태 이력·동일 의미 발행 재시도가 이 검증을 공유합니다. Workflow 2는
 **2/7 승인 완료**이며 전체 권한·sealed 발행·정책 worker·checkpoint 3 승인은 남아 있습니다.

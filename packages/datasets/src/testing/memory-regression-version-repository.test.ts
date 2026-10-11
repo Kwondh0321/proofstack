@@ -13,6 +13,8 @@ import type {
 import {
   RecordedInteractionFixtureVersionDefinitionSchema,
   RecordedInteractionFixtureVersionSchema,
+  RegressionDatasetVersionDefinitionSchema,
+  RegressionFixtureVersionDefinitionSchema,
 } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import {
@@ -29,16 +31,18 @@ import {
   type RegressionVersionPublishedOutboxIntent,
 } from "../regression-publication-outbox.js";
 import {
-  type InteractionFixtureVersionRepositoryTestFactory,
+  type InteractionFixtureLogicalRootTestFactory,
+  interactionFixtureLogicalRootConformanceCases,
   interactionFixtureVersionRepositoryConformanceCases,
 } from "./interaction-fixture-version-repository-conformance.js";
 import { MemoryRegressionVersionRepository } from "./memory-regression-version-repository.js";
 import {
-  type RegressionVersionRepositoryTestFactory,
+  type RegressionLogicalRootTestFactory,
+  regressionLogicalRootConformanceCases,
   regressionVersionRepositoryConformanceCases,
 } from "./regression-version-repository-conformance.js";
 
-const factory: RegressionVersionRepositoryTestFactory = () => {
+const factory: RegressionLogicalRootTestFactory = () => {
   const repository = new MemoryRegressionVersionRepository();
   return {
     failNextPublicationIntent: (kind) => repository.failNextPublicationIntent(kind),
@@ -47,7 +51,7 @@ const factory: RegressionVersionRepositoryTestFactory = () => {
   };
 };
 
-const interactionFactory: InteractionFixtureVersionRepositoryTestFactory = () => {
+const interactionFactory: InteractionFixtureLogicalRootTestFactory = () => {
   const repository = new MemoryRegressionVersionRepository();
   return {
     failNextPublicationIntent: (kind) => repository.failNextPublicationIntent(kind),
@@ -178,18 +182,186 @@ async function publishRecordedCandidate(
 }
 
 describe("MemoryRegressionVersionRepository conformance", () => {
-  for (const testCase of regressionVersionRepositoryConformanceCases) {
+  for (const testCase of [
+    ...regressionVersionRepositoryConformanceCases,
+    ...regressionLogicalRootConformanceCases,
+  ]) {
     it(testCase.name, async () => testCase.run(factory));
   }
 });
 
 describe("MemoryRegressionVersionRepository interaction fixture conformance", () => {
-  for (const testCase of interactionFixtureVersionRepositoryConformanceCases) {
+  for (const testCase of [
+    ...interactionFixtureVersionRepositoryConformanceCases,
+    ...interactionFixtureLogicalRootConformanceCases,
+  ]) {
     it(testCase.name, async () => testCase.run(interactionFactory));
   }
 });
 
 describe("MemoryRegressionVersionRepository internal integrity", () => {
+  for (const kind of ["fixture", "dataset"] as const) {
+    for (const damage of [
+      "missing_binding",
+      "missing_body",
+      "binding_scope",
+      "root_predecessor",
+      "root_logical_id",
+      "root_version_id",
+      "root_scope",
+      "root_intent",
+    ] as const) {
+      it(`${kind}: rejects ${damage} in the retained original root while keeping foreign scope opaque`, async () => {
+        const repository = new MemoryRegressionVersionRepository();
+        const f = fixtureCandidate();
+        const d = datasetCandidate(f);
+        await repository.publishFixtureVersion(f);
+        await repository.publishDatasetVersion(d);
+        type Version = RegressionFixtureVersion | RegressionDatasetVersion;
+        const root: Version = kind === "fixture" ? f : d;
+        const rootId = kind === "fixture" ? f.fixtureVersionId : d.datasetVersionId;
+        const logicalId = kind === "fixture" ? f.fixtureId : d.datasetId;
+        interface UnsafeState {
+          readonly datasetResources: Map<
+            string,
+            { scope: Version["scope"]; rootVersionId: string }
+          >;
+          readonly fixtureResources: Map<
+            string,
+            { scope: Version["scope"]; rootVersionId: string }
+          >;
+          readonly datasetVersions: Map<string, Version>;
+          readonly fixtureVersions: Map<string, Version>;
+          readonly publicationIntents: Map<string, RegressionVersionPublishedOutboxIntent>;
+        }
+        const state = (
+          repository as unknown as { readonly tenants: Map<string, UnsafeState> }
+        ).tenants.get(root.scope.tenantId);
+        if (!state) throw new Error("Expected retained root state");
+        const resources = kind === "fixture" ? state.fixtureResources : state.datasetResources;
+        const versions = kind === "fixture" ? state.fixtureVersions : state.datasetVersions;
+        const originalBinding = resources.get(logicalId);
+        if (!originalBinding) throw new Error("Expected original resource binding");
+        const alteredId = "version_altered_root";
+        const definition = structuredClone(root) as unknown as Record<string, unknown>;
+        for (const key of ["createdAt", "createdByPrincipalId", "definitionSha256"])
+          delete definition[key];
+        if (kind === "fixture") {
+          const source = definition["source"] as Record<string, unknown>;
+          delete source["capturedAt"];
+          definition["fixtureVersionId"] = alteredId;
+          if (damage === "root_logical_id") definition["fixtureId"] = "fixture_other_resource";
+          if (damage === "root_version_id")
+            definition["fixtureVersionId"] = "version_other_identity";
+          if (damage === "root_predecessor")
+            definition["predecessor"] = {
+              fixtureVersionId: rootId,
+              definitionSha256: f.definitionSha256,
+            };
+        } else {
+          definition["datasetVersionId"] = alteredId;
+          if (damage === "root_logical_id") definition["datasetId"] = "dataset_other_resource";
+          if (damage === "root_version_id")
+            definition["datasetVersionId"] = "version_other_identity";
+          if (damage === "root_predecessor")
+            definition["predecessor"] = {
+              datasetVersionId: rootId,
+              definitionSha256: d.definitionSha256,
+            };
+        }
+        if (damage === "root_scope")
+          definition["scope"] = { ...root.scope, environmentId: "environment_changed_root" };
+        const changed =
+          kind === "fixture"
+            ? ({
+                ...definition,
+                createdAt: root.createdAt,
+                createdByPrincipalId: root.createdByPrincipalId,
+                definitionSha256: digestRegressionFixtureVersionDefinition(
+                  RegressionFixtureVersionDefinitionSchema.parse(definition),
+                ),
+                source: { ...(definition["source"] as object), capturedAt: f.source.capturedAt },
+              } as RegressionFixtureVersion)
+            : ({
+                ...definition,
+                createdAt: root.createdAt,
+                createdByPrincipalId: root.createdByPrincipalId,
+                definitionSha256: digestRegressionDatasetVersionDefinition(
+                  RegressionDatasetVersionDefinitionSchema.parse(definition),
+                ),
+              } as RegressionDatasetVersion);
+        if (damage === "missing_binding") resources.delete(logicalId);
+        else if (damage === "missing_body")
+          resources.set(logicalId, { ...originalBinding, rootVersionId: "version_missing_root" });
+        else if (damage === "binding_scope")
+          resources.set(logicalId, {
+            ...originalBinding,
+            scope: { ...root.scope, projectId: "project_changed_root" },
+          });
+        else if (damage === "root_intent") {
+          const child =
+            kind === "fixture"
+              ? {
+                  ...f,
+                  fixtureVersionId: "fixture_child_without_root_intent",
+                  predecessor: {
+                    fixtureVersionId: f.fixtureVersionId,
+                    definitionSha256: f.definitionSha256,
+                  },
+                }
+              : {
+                  ...d,
+                  datasetVersionId: "dataset_child_without_root_intent",
+                  predecessor: {
+                    datasetVersionId: d.datasetVersionId,
+                    definitionSha256: d.definitionSha256,
+                  },
+                };
+          const body = structuredClone(child) as unknown as Record<string, unknown>;
+          for (const key of ["createdAt", "createdByPrincipalId", "definitionSha256"])
+            delete body[key];
+          if ("source" in child) delete (body["source"] as Record<string, unknown>)["capturedAt"];
+          child.definitionSha256 =
+            kind === "fixture"
+              ? digestRegressionFixtureVersionDefinition(
+                  RegressionFixtureVersionDefinitionSchema.parse(body),
+                )
+              : digestRegressionDatasetVersionDefinition(
+                  RegressionDatasetVersionDefinitionSchema.parse(body),
+                );
+          if ("fixtureVersionId" in child) await repository.publishFixtureVersion(child);
+          else await repository.publishDatasetVersion(child);
+          const current = (
+            repository as unknown as { readonly tenants: Map<string, UnsafeState> }
+          ).tenants.get(root.scope.tenantId);
+          if (!current) throw new Error("Expected current child state");
+          for (const [key, intent] of current.publicationIntents)
+            if (intent.aggregateId === rootId) current.publicationIntents.delete(key);
+          const childId =
+            "fixtureVersionId" in child ? child.fixtureVersionId : child.datasetVersionId;
+          await expect(
+            kind === "fixture"
+              ? repository.findFixtureLogicalRoot(root.scope, childId)
+              : repository.findDatasetLogicalRoot(root.scope, childId),
+          ).rejects.toBeInstanceOf(RegressionRepositoryContractError);
+          return;
+        } else {
+          versions.set(alteredId, changed);
+          resources.set(logicalId, { ...originalBinding, rootVersionId: alteredId });
+        }
+        const read =
+          kind === "fixture"
+            ? repository.findFixtureLogicalRoot.bind(repository)
+            : repository.findDatasetLogicalRoot.bind(repository);
+        await expect(
+          read({ ...root.scope, projectId: "project_outside" }, rootId),
+        ).resolves.toBeNull();
+        await expect(read(root.scope, rootId)).rejects.toBeInstanceOf(
+          RegressionRepositoryContractError,
+        );
+      });
+    }
+  }
   it("translates malformed stored fixture and dataset state to a repository contract error", async () => {
     const repository = new MemoryRegressionVersionRepository();
     const fixture = fixtureCandidate();

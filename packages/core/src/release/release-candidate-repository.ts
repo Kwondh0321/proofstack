@@ -19,3 +19,11 @@ export interface ReleaseCandidateRepository {
   ): Promise<ReleaseCandidate | null>;
   publishReleaseCandidate(candidate: ReleaseCandidate): Promise<PublishReleaseCandidateResult>;
 }
+
+/** Exact owning original root and receipt; not current authority or a retained publication guard. */
+export interface ReleaseCandidateLogicalRootReader {
+  findReleaseCandidateLogicalRoot(
+    scope: EvidenceScope,
+    candidateVersionId: string,
+  ): Promise<ReleaseCandidate | null>;
+}

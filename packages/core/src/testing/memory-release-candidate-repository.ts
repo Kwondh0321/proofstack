@@ -1,18 +1,21 @@
 import type { EvidenceScope, ReleaseCandidate } from "@proofstack/contracts";
+import { EvidenceScopeSchema, OpaqueIdSchema } from "@proofstack/contracts";
 import {
   ReleaseCandidateLineageError,
+  ReleaseCandidateRepositoryContractError,
   ReleaseCandidateResourceConflictError,
   ReleaseCandidateVersionConflictError,
 } from "../release/release-candidate-errors.js";
 import { validateReleaseCandidateRecord } from "../release/release-candidate-record-validation.js";
 import type {
   PublishReleaseCandidateResult,
+  ReleaseCandidateLogicalRootReader,
   ReleaseCandidateRepository,
 } from "../release/release-candidate-repository.js";
 
 interface TenantState {
   readonly records: Map<string, ReleaseCandidate>;
-  readonly resources: Map<string, EvidenceScope>;
+  readonly resources: Map<string, ReleaseCandidate>;
 }
 
 function emptyTenantState(): TenantState {
@@ -36,7 +39,9 @@ function scopesEqual(left: EvidenceScope, right: EvidenceScope): boolean {
 }
 
 /** Exact-scope, immutable in-memory implementation of the release candidate repository port. */
-export class MemoryReleaseCandidateRepository implements ReleaseCandidateRepository {
+export class MemoryReleaseCandidateRepository
+  implements ReleaseCandidateRepository, ReleaseCandidateLogicalRootReader
+{
   private readonly tenants = new Map<string, TenantState>();
 
   async findReleaseCandidate(
@@ -46,6 +51,32 @@ export class MemoryReleaseCandidateRepository implements ReleaseCandidateReposit
     const candidate = this.tenants.get(scope.tenantId)?.records.get(candidateVersionId);
     if (!candidate || !scopesEqual(candidate.scope, scope)) return null;
     return clone(candidate);
+  }
+
+  async findReleaseCandidateLogicalRoot(
+    scopeInput: EvidenceScope,
+    candidateVersionIdInput: string,
+  ): Promise<ReleaseCandidate | null> {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const candidateVersionId = OpaqueIdSchema.parse(candidateVersionIdInput);
+    const state = this.tenants.get(scope.tenantId);
+    const candidate = state?.records.get(candidateVersionId);
+    if (!candidate || !scopesEqual(candidate.scope, scope)) return null;
+    const root = state?.resources.get(candidate.candidateId);
+    if (!root || !scopesEqual(root.scope, scope))
+      throw new ReleaseCandidateRepositoryContractError(
+        "Stored release candidate is missing its exact logical root",
+      );
+    try {
+      const validated = validateReleaseCandidateRecord(root);
+      if (validated.candidateId !== candidate.candidateId || validated.predecessor)
+        throw new Error("Logical resource mismatch");
+      return clone(validated);
+    } catch {
+      throw new ReleaseCandidateRepositoryContractError(
+        "Stored release candidate logical root is invalid",
+      );
+    }
   }
 
   async publishReleaseCandidate(
@@ -61,8 +92,8 @@ export class MemoryReleaseCandidateRepository implements ReleaseCandidateReposit
       return { candidate: clone(existing), created: false };
     }
 
-    const boundScope = current.resources.get(validated.candidateId);
-    if (boundScope && !scopesEqual(boundScope, validated.scope)) {
+    const boundRoot = current.resources.get(validated.candidateId);
+    if (boundRoot && !scopesEqual(boundRoot.scope, validated.scope)) {
       throw new ReleaseCandidateResourceConflictError(validated.candidateId);
     }
 
@@ -84,7 +115,7 @@ export class MemoryReleaseCandidateRepository implements ReleaseCandidateReposit
     const next = copyTenantState(current);
     const stored = clone(validated);
     next.records.set(stored.candidateVersionId, stored);
-    next.resources.set(stored.candidateId, clone(stored.scope));
+    if (!next.resources.has(stored.candidateId)) next.resources.set(stored.candidateId, stored);
     this.tenants.set(stored.scope.tenantId, next);
     return { candidate: clone(stored), created: true };
   }

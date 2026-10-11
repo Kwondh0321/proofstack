@@ -11,6 +11,7 @@ import type { Pool, PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   PostgresReleaseCandidateRepository,
+  readPostgresReleaseCandidateLogicalRootOnClient,
   readPostgresReleaseCandidateOnClient,
 } from "./postgres-release-candidate-repository.js";
 
@@ -143,6 +144,60 @@ function repositoryWith(client: FakeClient): PostgresReleaseCandidateRepository 
 }
 
 describe("PostgresReleaseCandidateRepository", () => {
+  it("returns owned original roots on supplied and pooled connections while preserving exact absence", async () => {
+    const h = createReleaseCandidateRepositoryTestHarness("root_owned_unit");
+    const client = new FakeClient();
+    for (const record of [h.candidate, h.successor])
+      client.records.set(`${h.scope.tenantId}:${record.candidateVersionId}`, storedRow(record));
+    const port = client as unknown as Pick<PoolClient, "query">;
+    const returned = await readPostgresReleaseCandidateLogicalRootOnClient(
+      port,
+      h.scope,
+      h.successor.candidateVersionId,
+    );
+    expect(returned).toEqual(h.candidate);
+    expect(returned).not.toBe(h.candidate);
+    if (!returned) throw new Error("Expected original candidate root");
+    returned.target.purpose = "Caller mutation.";
+    expect(client.releases).toEqual([]);
+    expect(client.statements.every((sql) => sql.startsWith("SELECT"))).toBe(true);
+    const repository = repositoryWith(client);
+    await expect(
+      repository.findReleaseCandidateLogicalRoot(h.scope, h.successor.candidateVersionId),
+    ).resolves.toEqual(h.candidate);
+    await expect(
+      repository.findReleaseCandidateLogicalRoot(h.scope, "candidate_missing"),
+    ).resolves.toBeNull();
+    await expect(
+      repository.findReleaseCandidateLogicalRoot(
+        { ...h.scope, projectId: "project_other" },
+        h.successor.candidateVersionId,
+      ),
+    ).resolves.toBeNull();
+    expect(client.releases).toEqual([undefined, undefined, undefined]);
+  });
+  it("validates root scope and identity before either SQL or pool acquisition", async () => {
+    const h = createReleaseCandidateRepositoryTestHarness("root_invalid_unit");
+    const client = new FakeClient();
+    const repository = repositoryWith(client);
+    const extraScope = { ...h.scope, unexpected: true };
+    for (const [scope, id] of [
+      [extraScope, h.candidate.candidateVersionId],
+      [h.scope, "INVALID"],
+      [{ ...h.scope, projectId: "" }, h.candidate.candidateVersionId],
+    ] as const) {
+      await expect(
+        readPostgresReleaseCandidateLogicalRootOnClient(
+          client as unknown as Pick<PoolClient, "query">,
+          scope,
+          id,
+        ),
+      ).rejects.toThrow();
+      await expect(repository.findReleaseCandidateLogicalRoot(scope, id)).rejects.toThrow();
+    }
+    expect(client.statements).toEqual([]);
+    expect(client.releases).toEqual([]);
+  });
   it.each([false, null, undefined, "true", "false", 1])(
     "rejects non-native or false retained timestamp agreement %s",
     async (flag) => {

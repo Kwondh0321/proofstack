@@ -8,8 +8,10 @@ import {
   type ArtifactTombstone,
   ArtifactTombstoneSchema,
   type EvidenceScope,
+  EvidenceScopeSchema,
   type InteractionFixtureContentRevocation,
   InteractionFixtureContentRevocationSchema,
+  OpaqueIdSchema,
   type RecordedInteractionFixtureVersion,
   type RegressionDatasetVersion,
   type RegressionFixtureVersion,
@@ -42,6 +44,7 @@ import type {
   InteractionFixtureVersionRepository,
   PublishRecordedInteractionFixtureVersionResult,
   PublishRegressionVersionResult,
+  RegressionLogicalRootReader,
   ResolveRegressionFixtureVersionReferencesResult,
   RevokeInteractionFixtureContentCandidate,
   RevokeInteractionFixtureContentResult,
@@ -414,9 +417,95 @@ function ownershipsForPublication(
 }
 
 /** Test adapter that linearizes every publication with one detached tenant-state replacement. */
-export class MemoryRegressionVersionRepository implements InteractionFixtureVersionRepository {
+export class MemoryRegressionVersionRepository
+  implements InteractionFixtureVersionRepository, RegressionLogicalRootReader
+{
   private readonly failedIntentKinds = new Set<RegressionVersionPublicationKind>();
   private readonly tenants = new Map<string, TenantState>();
+
+  async findDatasetLogicalRoot(
+    scopeInput: EvidenceScope,
+    datasetVersionIdInput: string,
+  ): Promise<RegressionDatasetVersion | null> {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const datasetVersionId = OpaqueIdSchema.parse(datasetVersionIdInput);
+    const state = this.tenants.get(scope.tenantId);
+    const stored = state?.datasetVersions.get(datasetVersionId);
+    if (!state || !stored || !hasExactStoredScope(stored, scope)) return null;
+    const version = validateStoredDatasetVersion(stored).version;
+    requireCanonicalIntent(state, buildRegressionDatasetVersionPublishedOutboxIntent(version));
+    const binding = state.datasetResources.get(version.datasetId);
+    const retained = binding ? state.datasetVersions.get(binding.rootVersionId) : undefined;
+    if (!binding || !retained || !hasExactStoredScope(binding, scope))
+      throw new RegressionRepositoryContractError(
+        "Stored dataset is missing its exact logical root",
+      );
+    const root = validateStoredDatasetVersion(retained).version;
+    if (
+      root.predecessor ||
+      root.datasetId !== version.datasetId ||
+      root.datasetVersionId !== binding.rootVersionId ||
+      !scopesEqual(root.scope, scope)
+    )
+      throw new RegressionRepositoryContractError("Stored dataset logical root is inconsistent");
+    if (root.datasetVersionId !== version.datasetVersionId)
+      requireCanonicalIntent(state, buildRegressionDatasetVersionPublishedOutboxIntent(root));
+    return clone(root);
+  }
+
+  private fixtureLogicalRoot(
+    state: TenantState,
+    version: RegressionFixtureVersion | RecordedInteractionFixtureVersion,
+  ): RegressionFixtureVersion {
+    requireCanonicalIntent(
+      state,
+      version.replayability === "evidence_only"
+        ? buildRegressionFixtureVersionPublishedOutboxIntent(version)
+        : buildRecordedInteractionFixtureVersionPublishedOutboxIntent(version),
+    );
+    const binding = state.fixtureResources.get(version.fixtureId);
+    const retained = binding ? state.fixtureVersions.get(binding.rootVersionId) : undefined;
+    if (!binding || !retained || !hasExactStoredScope(binding, version.scope))
+      throw new RegressionRepositoryContractError(
+        "Stored fixture is missing its exact logical root",
+      );
+    const root = validateStoredFixtureVersion(retained).version;
+    if (
+      root.predecessor ||
+      root.fixtureId !== version.fixtureId ||
+      root.fixtureVersionId !== binding.rootVersionId ||
+      !scopesEqual(root.scope, version.scope)
+    )
+      throw new RegressionRepositoryContractError("Stored fixture logical root is inconsistent");
+    if (root.fixtureVersionId !== version.fixtureVersionId)
+      requireCanonicalIntent(state, buildRegressionFixtureVersionPublishedOutboxIntent(root));
+    return clone(root);
+  }
+
+  async findFixtureLogicalRoot(
+    scopeInput: EvidenceScope,
+    fixtureVersionIdInput: string,
+  ): Promise<RegressionFixtureVersion | null> {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const fixtureVersionId = OpaqueIdSchema.parse(fixtureVersionIdInput);
+    const state = this.tenants.get(scope.tenantId);
+    const stored = state?.fixtureVersions.get(fixtureVersionId);
+    if (!state || !stored || !hasExactStoredScope(stored, scope)) return null;
+    return this.fixtureLogicalRoot(state, validateStoredFixtureVersion(stored).version);
+  }
+
+  async findRecordedInteractionFixtureLogicalRoot(
+    scopeInput: EvidenceScope,
+    fixtureVersionIdInput: string,
+  ): Promise<RegressionFixtureVersion | null> {
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const fixtureVersionId = OpaqueIdSchema.parse(fixtureVersionIdInput);
+    const state = this.tenants.get(scope.tenantId);
+    const stored = state?.recordedFixtureVersions.get(fixtureVersionId);
+    if (!state || !stored || !hasExactStoredScope(stored, scope)) return null;
+    const version = storedRecordedFixtureRecord(state, stored).version;
+    return this.fixtureLogicalRoot(state, version);
+  }
 
   async datasetResourceExists(scope: EvidenceScope, datasetId: string): Promise<boolean> {
     const binding = this.tenants.get(scope.tenantId)?.datasetResources.get(datasetId);

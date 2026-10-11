@@ -437,6 +437,15 @@ The separate read-only policy logical-root port now exposes the complete origina
 through shared memory/PostgreSQL conformance and supplied-client owning validation. Root capture,
 full admission, current authority and guarded publication remain open.
 
+Separate read-only owning root ports now expose full original retained roots for evaluation's five
+definition resources, all three comparison kinds, release candidate versions and dataset/both
+fixture formats. Shared memory/PostgreSQL conformance preserves exact scope/absence, original
+receipts, owned values, three-tenant collisions and publication races. Supplied-client helpers
+reuse the selected-record inspection's validated root without a second transaction or lookup.
+Recorded fixtures retain their evidence-only roots independently of content revocation. These
+ports do not yet capture root witnesses, meter every internal SQL/body read, interpret complete
+semantic/current authority closure or publish a sealed snapshot; checkpoint 3 remains open.
+
 The subsequent [policy owning root and intent validation](workflow-2-policy-storage-integrity.md)
 checks the complete exact logical root body/projections and original policy intents, including
 independent versions with no predecessor. Singular lifecycle and complete history reads require

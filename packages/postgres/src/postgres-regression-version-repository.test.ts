@@ -31,7 +31,12 @@ import {
 } from "@proofstack/datasets";
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
-import { PostgresRegressionVersionRepository } from "./postgres-regression-version-repository.js";
+import {
+  PostgresRegressionVersionRepository,
+  readPostgresDatasetLogicalRootOnClient,
+  readPostgresFixtureLogicalRootOnClient,
+  readPostgresRecordedInteractionFixtureLogicalRootOnClient,
+} from "./postgres-regression-version-repository.js";
 
 type QueryHandler = (
   text: string,
@@ -648,6 +653,107 @@ function rowsForRecordedReads(
 }
 
 describe("PostgresRegressionVersionRepository scoped reads", () => {
+  for (const mode of ["fixture", "dataset", "recorded"] as const) {
+    it(`${mode}: reads owned original roots without ending a supplied transaction`, async () => {
+      const predecessor = fixture();
+      const child = recordedFixture(predecessor);
+      const d = dataset(predecessor);
+      const state = { candidate: child, candidateStored: true, predecessor };
+      const testHarness = harness((text, values) => {
+        if (text.includes("AS retained_regression_storage"))
+          return regressionPresenceRows(values, [predecessor, child, d]);
+        if (text.includes("FROM public.proofstack_regression_dataset_versions"))
+          return { rows: [datasetHeader(d)] };
+        if (text.includes("FROM public.proofstack_regression_dataset_members"))
+          return { rows: datasetMembers(d) };
+        if (text.includes("FROM public.proofstack_regression_datasets"))
+          return {
+            rows: [
+              {
+                tenant_id: d.scope.tenantId,
+                project_id: d.scope.projectId,
+                environment_id: d.scope.environmentId,
+                dataset_id: d.datasetId,
+                root_dataset_version_id: d.datasetVersionId,
+                root_definition_sha256: d.definitionSha256,
+              },
+            ],
+          };
+        return rowsForRecordedReads(text, values, state) ?? { rows: [] };
+      });
+      const port = testHarness.client as unknown as Parameters<
+        typeof readPostgresFixtureLogicalRootOnClient
+      >[0];
+      const id =
+        mode === "dataset"
+          ? d.datasetVersionId
+          : mode === "fixture"
+            ? predecessor.fixtureVersionId
+            : child.fixtureVersionId;
+      const read =
+        mode === "dataset"
+          ? readPostgresDatasetLogicalRootOnClient
+          : mode === "fixture"
+            ? readPostgresFixtureLogicalRootOnClient
+            : readPostgresRecordedInteractionFixtureLogicalRootOnClient;
+      const expected = mode === "dataset" ? d : predecessor;
+      const returned = await read(port, scope, id);
+      expect(returned).toEqual(expected);
+      if (!returned) throw new Error("Expected regression original root");
+      returned.name = "Caller mutation.";
+      await expect(read(port, scope, id)).resolves.toEqual(expected);
+      await expect(read(port, { ...scope, projectId: "project_other" }, id)).resolves.toBeNull();
+      await expect(read(port, scope, "version_missing")).resolves.toBeNull();
+      expect(testHarness.connections.count).toBe(0);
+      expect(testHarness.client.releaseArguments).toEqual([]);
+      expect(testHarness.client.queries.every(({ text }) => text.trim().startsWith("SELECT"))).toBe(
+        true,
+      );
+      const find =
+        mode === "dataset"
+          ? testHarness.repository.findDatasetLogicalRoot.bind(testHarness.repository)
+          : mode === "fixture"
+            ? testHarness.repository.findFixtureLogicalRoot.bind(testHarness.repository)
+            : testHarness.repository.findRecordedInteractionFixtureLogicalRoot.bind(
+                testHarness.repository,
+              );
+      await expect(find(scope, id)).resolves.toEqual(expected);
+      expect(testHarness.client.releaseArguments).toEqual([undefined]);
+    });
+    it(`${mode}: rejects invalid root input before opening a connection or issuing SQL`, async () => {
+      const testHarness = harness(() => {
+        throw new Error("Invalid input reached SQL");
+      });
+      const port = testHarness.client as unknown as Parameters<
+        typeof readPostgresFixtureLogicalRootOnClient
+      >[0];
+      const read =
+        mode === "dataset"
+          ? readPostgresDatasetLogicalRootOnClient
+          : mode === "fixture"
+            ? readPostgresFixtureLogicalRootOnClient
+            : readPostgresRecordedInteractionFixtureLogicalRootOnClient;
+      const find =
+        mode === "dataset"
+          ? testHarness.repository.findDatasetLogicalRoot.bind(testHarness.repository)
+          : mode === "fixture"
+            ? testHarness.repository.findFixtureLogicalRoot.bind(testHarness.repository)
+            : testHarness.repository.findRecordedInteractionFixtureLogicalRoot.bind(
+                testHarness.repository,
+              );
+      const extraScope = { ...scope, unexpected: true };
+      for (const [invalidScope, id] of [
+        [extraScope, "version_valid"],
+        [scope, "INVALID"],
+        [{ ...scope, tenantId: "" }, "version_valid"],
+      ] as const) {
+        await expect(read(port, invalidScope, id)).rejects.toThrow();
+        await expect(find(invalidScope, id)).rejects.toThrow();
+      }
+      expect(testHarness.connections.count).toBe(0);
+      expect(testHarness.client.queries).toEqual([]);
+    });
+  }
   it.each([
     {
       mode: "dataset",

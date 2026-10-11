@@ -18,13 +18,19 @@ import type {
   SourceReviewRecord,
   SourceSnapshot,
 } from "@proofstack/contracts";
-import { EvidenceScopeSchema } from "@proofstack/contracts";
+import { EvidenceScopeSchema, OpaqueIdSchema } from "@proofstack/contracts";
 import {
   admitCriterionStatusHistory,
   type CriterionStatusHistoryLimits,
   type CriterionStatusHistoryRepository,
   requireCriterionStatusHistoryLimits,
 } from "../evaluation/criterion-status-history.js";
+import {
+  type EvaluationLogicalRootKind,
+  type EvaluationLogicalRootReader,
+  type EvaluationLogicalRootRecordByKind,
+  requireEvaluationLogicalRootKind,
+} from "../evaluation/evaluation-logical-root.js";
 import {
   type EvaluationStoredRecord,
   evaluationRecordId,
@@ -39,6 +45,7 @@ import {
   EvaluationLineageError,
   EvaluationRecordConflictError,
   type EvaluationRecordKind,
+  EvaluationRepositoryContractError,
   EvaluationResourceConflictError,
 } from "../evaluation/evaluation-repository-errors.js";
 
@@ -50,7 +57,7 @@ export interface EvaluationRecordReference {
 
 interface TenantState {
   readonly records: Map<string, EvaluationStoredRecord>;
-  readonly resources: Map<string, EvidenceScope>;
+  readonly resources: Map<string, EvaluationStoredRecord>;
   readonly uniqueBindings: Map<string, string>;
 }
 
@@ -470,7 +477,7 @@ export function evaluationRecordUniqueBinding(
 
 /** Exact-scope, immutable in-memory implementation of the complete evaluation repository port. */
 export class MemoryEvaluationRepository
-  implements EvaluationRepository, CriterionStatusHistoryRepository
+  implements EvaluationRepository, CriterionStatusHistoryRepository, EvaluationLogicalRootReader
 {
   private readonly tenants = new Map<string, TenantState>();
 
@@ -506,6 +513,40 @@ export class MemoryEvaluationRepository
     return clone(record) as RecordType;
   }
 
+  async findEvaluationLogicalRoot<K extends EvaluationLogicalRootKind>(
+    scopeInput: EvidenceScope,
+    kind: K,
+    recordIdInput: string,
+  ): Promise<EvaluationLogicalRootRecordByKind[K] | null> {
+    const ownedKind = requireEvaluationLogicalRootKind(kind);
+    const scope = EvidenceScopeSchema.parse(scopeInput);
+    const recordId = OpaqueIdSchema.parse(recordIdInput);
+    const state = this.tenants.get(scope.tenantId);
+    const record = state?.records.get(recordKey(ownedKind, recordId));
+    if (!record || !scopesEqual(record.scope, scope)) return null;
+    const resource = evaluationResource(ownedKind, record);
+    const root = resource
+      ? state?.resources.get(`${resource.kind}:${resource.resourceId}`)
+      : undefined;
+    if (!root || !scopesEqual(root.scope, scope))
+      throw new EvaluationRepositoryContractError(
+        "Stored evaluation definition is missing its exact logical root",
+      );
+    try {
+      const validated = validateEvaluationRecord(ownedKind, root);
+      const rootResource = evaluationResource(ownedKind, validated);
+      if (
+        !resource ||
+        rootResource?.kind !== resource.kind ||
+        rootResource.resourceId !== resource.resourceId
+      )
+        throw new Error("Logical resource mismatch");
+      return clone(validated) as EvaluationLogicalRootRecordByKind[K];
+    } catch {
+      throw new EvaluationRepositoryContractError("Stored evaluation logical root is invalid");
+    }
+  }
+
   private async publish<RecordType extends EvaluationStoredRecord>(
     kind: EvaluationRecordKind,
     candidate: RecordType,
@@ -524,8 +565,8 @@ export class MemoryEvaluationRepository
     const resource = evaluationResource(kind, validated);
     if (resource) {
       const key = `${resource.kind}:${resource.resourceId}`;
-      const boundScope = current.resources.get(key);
-      if (boundScope && !scopesEqual(boundScope, validated.scope)) {
+      const boundRoot = current.resources.get(key);
+      if (boundRoot && !scopesEqual(boundRoot.scope, validated.scope)) {
         throw new EvaluationResourceConflictError(resource.kind, resource.resourceId);
       }
     }
@@ -571,7 +612,8 @@ export class MemoryEvaluationRepository
     const stored = clone(validated);
     next.records.set(recordKey(kind, id), stored);
     if (resource) {
-      next.resources.set(`${resource.kind}:${resource.resourceId}`, clone(validated.scope));
+      const key = `${resource.kind}:${resource.resourceId}`;
+      if (!next.resources.has(key)) next.resources.set(key, stored);
     }
     if (binding) next.uniqueBindings.set(binding.key, binding.value);
     this.tenants.set(validated.scope.tenantId, next);
