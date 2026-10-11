@@ -23,6 +23,10 @@ validator를 공급하지 않습니다. 그래프는 미래 부모의 원문도 
 
 ## 고정 소유 루트 포트
 
+[저장 선언 열거기](workflow-2-policy-stored-reference-enumeration.ko.md)는 보존한 출처 38종의
+고정 owning 필드 정의를 재사용하며 원래의 이용 가능성을 유지합니다. 저장 출처는 구분되며
+원본 root만의 탐색과 완전한 closure는 아직 진행 중입니다.
+
 서버 소유 선택 의존성 `logicalRoots`는 evaluation 5종, comparison 3종, candidate, policy, dataset,
 regression fixture 루트를 읽습니다. `comparison_snapshot`은 소유 종류 `comparison_evidence_snapshot`으로
 변환합니다. snapshot/result 루트는 최초 comparison 정의입니다. interaction fixture 루트는 최초

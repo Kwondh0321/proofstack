@@ -9,9 +9,12 @@ import {
   type PolicyEvaluationEvidenceReferenceLimits,
   PolicyEvaluationReferenceCollector,
   revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
 } from "@proofstack/core";
 import {
   inspectPolicyEvaluationDataset,
+  inspectPolicyEvaluationDatasetCapture,
+  type PolicyEvaluationDatasetCapture,
   type PolicyEvaluationDatasetRead,
   type PolicyEvaluationDatasetRecord,
   type PolicyEvaluationDatasetSource,
@@ -93,6 +96,28 @@ function interactionReferences(
   out.protocol("/interactionCapture/source/sourceFormat", capture.source.sourceFormat);
 }
 
+function datasetReferences(
+  record: PolicyEvaluationDatasetRecord,
+  out: PolicyEvaluationReferenceCollector,
+): void {
+  if ("datasetVersionId" in record) {
+    out.records("/fixtureVersions", "regression_fixture_version", record.fixtureVersions);
+    if (record.predecessor)
+      out.record("/predecessor", "dataset_version", {
+        ...record.predecessor,
+        datasetId: record.datasetId,
+      });
+  } else {
+    if (record.schemaVersion === "0.2") interactionReferences(record, out);
+    if (record.predecessor)
+      out.record("/predecessor", "regression_fixture_version", {
+        ...record.predecessor,
+        fixtureId: record.fixtureId,
+      });
+    out.traceSnapshot("/source", record.source);
+  }
+}
+
 /**
  * Enumerates the observed parent's direct dependencies only, without repository or network I/O.
  * IDs are not evidence of retained bytes or installed authority. Trace selectors retain the exact
@@ -110,27 +135,40 @@ export function enumeratePolicyEvaluationDatasetReferences(
       PolicyEvaluationDatasetRecord,
       PolicyEvaluationDatasetSource
     >(input, evidence, inspectPolicyEvaluationDataset);
-    const record = checked.record;
-    if ("datasetVersionId" in record) {
-      out.records("/fixtureVersions", "regression_fixture_version", record.fixtureVersions);
-      if (record.predecessor)
-        out.record("/predecessor", "dataset_version", {
-          ...record.predecessor,
-          datasetId: record.datasetId,
-        });
-    } else {
-      if (record.schemaVersion === "0.2") interactionReferences(record, out);
-      if (record.predecessor)
-        out.record("/predecessor", "regression_fixture_version", {
-          ...record.predecessor,
-          fixtureId: record.fixtureId,
-        });
-      out.traceSnapshot("/source", record.source);
-    }
+    datasetReferences(checked.record, out);
     return {
       ...out.result(),
       recordSha256: checked.observation.recordSha256,
       source: checked.source,
+    };
+  } catch (cause) {
+    if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
+    throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });
+  }
+}
+
+/** Stored declarations never turn a future fixture/dataset into available semantic evidence. */
+export function enumeratePolicyEvaluationStoredDatasetReferences(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationDatasetSource>,
+  capture: PolicyEvaluationDatasetCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  try {
+    const checked = revalidatePolicyEvaluationCapturedStorage(
+      input,
+      capture,
+      inspectPolicyEvaluationDatasetCapture,
+    );
+    datasetReferences(checked.storage.record, out);
+    return {
+      ...out.result(),
+      semanticObservation: checked.read.observation,
+      storage: {
+        source: checked.read.source,
+        recordSha256: checked.storage.recordSha256,
+        receiptTime: checked.storage.receiptTime,
+      },
     };
   } catch (cause) {
     if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;

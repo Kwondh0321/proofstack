@@ -23,13 +23,18 @@ import {
   parsePolicyEvaluationControlDeclaration,
 } from "./policy-evaluation-control-declaration.js";
 import {
+  inspectPolicyEvaluationControlCapture,
   inspectPolicyEvaluationControlRecord,
+  type PolicyEvaluationControlCapture,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationControlRecord,
   type PolicyEvaluationControlSource,
   readPolicyEvaluationControlRecord,
 } from "./policy-evaluation-control-record-reader.js";
-import { enumeratePolicyEvaluationControlReferences } from "./policy-evaluation-control-references.js";
+import {
+  enumeratePolicyEvaluationControlReferences,
+  enumeratePolicyEvaluationStoredControlReferences,
+} from "./policy-evaluation-control-references.js";
 import {
   type PolicyEvaluationEvidenceReference,
   PolicyEvaluationEvidenceReferenceError,
@@ -77,6 +82,98 @@ const records = {
   policy_installation_binding: binding,
 };
 const kinds = Object.keys(records) as Kind[];
+
+describe.each(kinds)("stored control references: %s", (kind) => {
+  it.each([evaluationTime, "2020-01-01T00:00:00.000Z"])(
+    "preserves the structural inventory, bytes and availability at %s",
+    (cut) => {
+      const { input: original } = prepare(kind);
+      const input = { ...original, evaluationTime: cut };
+      const capture = inspectPolicyEvaluationControlCapture(input, records[kind]);
+      const actual = enumeratePolicyEvaluationStoredControlReferences(input, capture, limits);
+      const expected = oracle(records[kind]);
+      expect(actual.references).toEqual(expected);
+      expect(actual.referenceBytes).toBe(
+        expected.reduce((sum, ref) => sum + Buffer.byteLength(sortedJson(ref)), 0),
+      );
+      expect(actual.storage).toEqual({
+        recordSha256: createHash("sha256").update(sortedJson(records[kind])).digest("hex"),
+        receiptTime: capture.storage?.receiptTime,
+        source: input.source,
+      });
+      expect(actual.semanticObservation).toEqual(capture.read.observation);
+      if (cut !== evaluationTime) {
+        expect(capture.read).toMatchObject({
+          observation: { status: "unavailable", reason: "not_yet_available" },
+          record: null,
+        });
+        expect(() =>
+          enumeratePolicyEvaluationControlReferences(input, capture.read, limits),
+        ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+      }
+      const exact = { maxReferences: expected.length, maxReferenceBytes: actual.referenceBytes };
+      expect(enumeratePolicyEvaluationStoredControlReferences(input, capture, exact)).toEqual(
+        actual,
+      );
+      for (const budget of [
+        { ...exact, maxReferences: exact.maxReferences - 1 },
+        { ...exact, maxReferenceBytes: exact.maxReferenceBytes - 1 },
+      ])
+        expect(() =>
+          enumeratePolicyEvaluationStoredControlReferences(input, capture, budget),
+        ).toThrow(PolicyEvaluationEvidenceReferenceError);
+    },
+  );
+  it("rejects substituted observations, storage receipts and body/hash witnesses", () => {
+    const { input: original } = prepare(kind);
+    const input = { ...original, evaluationTime: "2020-01-01T00:00:00.000Z" };
+    const capture = inspectPolicyEvaluationControlCapture(input, records[kind]);
+    if (!capture.storage) throw new Error("Expected original body");
+    for (const bad of [
+      { ...capture, storage: null },
+      { ...capture, storage: { ...capture.storage, recordSha256: "f".repeat(64) } },
+      { ...capture, storage: { ...capture.storage, receiptTime: "2035-01-01T00:00:00.000Z" } },
+      {
+        ...capture,
+        storage: { ...capture.storage, record: { ...capture.storage.record, injected: true } },
+      },
+      {
+        ...capture,
+        read: {
+          ...capture.read,
+          observation: { status: "verified", recordSha256: capture.storage.recordSha256 },
+          record: capture.storage.record,
+        },
+      },
+      { ...capture, injected: undefined },
+    ])
+      expect(() =>
+        enumeratePolicyEvaluationStoredControlReferences(
+          input,
+          bad as PolicyEvaluationControlCapture,
+          limits,
+        ),
+      ).toThrow(PolicyEvaluationEvidenceReferenceError);
+    for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+      const foreign = { ...input, scope: { ...input.scope, [dimension]: "foreign_scope" } };
+      expect(() =>
+        enumeratePolicyEvaluationStoredControlReferences(foreign, capture, limits),
+      ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+    }
+  });
+  it("owns every result while preserving input captures", () => {
+    const { input } = prepare(kind);
+    const capture = inspectPolicyEvaluationControlCapture(input, records[kind]);
+    const saved = structuredClone(capture);
+    const output = enumeratePolicyEvaluationStoredControlReferences(input, capture, limits);
+    Reflect.set(output.storage.source.reference, "definitionSha256", "f".repeat(64));
+    if (output.references[0]) Reflect.set(output.references[0], "path", "/substituted");
+    expect(capture).toEqual(saved);
+    expect(
+      enumeratePolicyEvaluationStoredControlReferences(input, capture, limits).references,
+    ).toEqual(oracle(records[kind]));
+  });
+});
 
 function fields(value: unknown): Fields {
   if (!value || typeof value !== "object" || Array.isArray(value))

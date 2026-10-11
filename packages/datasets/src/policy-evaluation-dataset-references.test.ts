@@ -13,12 +13,17 @@ import { digestRecordedInteractionFixtureVersionDefinition } from "./interaction
 import * as datasetReader from "./policy-evaluation-dataset-reader.js";
 import {
   inspectPolicyEvaluationDataset,
+  inspectPolicyEvaluationDatasetCapture,
+  type PolicyEvaluationDatasetCapture,
   type PolicyEvaluationDatasetRead,
   type PolicyEvaluationDatasetRecord,
   type PolicyEvaluationDatasetSource,
   readPolicyEvaluationDataset,
 } from "./policy-evaluation-dataset-reader.js";
-import { enumeratePolicyEvaluationDatasetReferences as enumerate } from "./policy-evaluation-dataset-references.js";
+import {
+  enumeratePolicyEvaluationDatasetReferences as enumerate,
+  enumeratePolicyEvaluationStoredDatasetReferences as enumerateStored,
+} from "./policy-evaluation-dataset-references.js";
 import { digestRegressionDatasetVersionDefinition } from "./regression-definition-digest.js";
 import { MemoryRegressionVersionRepository } from "./testing/memory-regression-version-repository.js";
 
@@ -327,6 +332,172 @@ function verify(record: PolicyEvaluationDatasetRecord) {
   expect(result.source).toEqual(input.source);
   return result;
 }
+
+describe("original stored dataset/fixture declarations", () => {
+  for (const [index, record] of records.entries()) {
+    it.each([createdAt, "2020-01-01T00:00:00.000Z"])(
+      `${vectors[index]?.name}: preserves the independent inventory at %s`,
+      (cut) => {
+        const input = { ...context(record), evaluationTime: cut };
+        const capture = inspectPolicyEvaluationDatasetCapture(input, record);
+        const actual = enumerateStored(input, capture, limits);
+        const expected = expectedReferences(record);
+        expect(actual.references).toEqual(expected);
+        expect(actual.referenceBytes).toBe(
+          expected.reduce((n, ref) => n + Buffer.byteLength(json(ref)), 0),
+        );
+        expect(actual.storage).toEqual({
+          recordSha256: hash(record),
+          receiptTime: createdAt,
+          source: input.source,
+        });
+        expect(actual.semanticObservation).toEqual(capture.read.observation);
+        if (cut !== createdAt) {
+          expect(capture.read).toMatchObject({
+            observation: { status: "unavailable", reason: "not_yet_available" },
+            record: null,
+          });
+          expect(() => enumerate(input, capture.read, limits)).toThrowError(
+            expect.objectContaining({ reason: "evidence_unverified" }),
+          );
+        }
+        const exact = { maxReferences: expected.length, maxReferenceBytes: actual.referenceBytes };
+        expect(enumerateStored(input, capture, exact)).toEqual(actual);
+        for (const budget of [
+          { ...exact, maxReferences: exact.maxReferences - 1 },
+          { ...exact, maxReferenceBytes: exact.maxReferenceBytes - 1 },
+        ])
+          expect(() => enumerateStored(input, capture, budget)).toThrowError(
+            expect.objectContaining({ code: "policy_evaluation_evidence_references_invalid" }),
+          );
+      },
+    );
+  }
+
+  it("retains failed attempts and repeated aliases in a future interaction body", () => {
+    const record = richRecord();
+    const input = { ...context(record), evaluationTime: "2020-01-01T00:00:00.000Z" };
+    const capture = inspectPolicyEvaluationDatasetCapture(input, record);
+    const actual = enumerateStored(input, capture, limits);
+    expect(actual.references).toEqual(expectedReferences(record));
+    expect(actual.storage.recordSha256).toBe(hash(record));
+    expect(actual.semanticObservation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(actual.references.filter(({ path }) => path.includes("/attempts/0/"))).not.toHaveLength(
+      0,
+    );
+  });
+
+  it("rejects corrupt provenance, promoted future reads and foreign scopes", () => {
+    const record = richRecord();
+    const input = { ...context(record), evaluationTime: "2020-01-01T00:00:00.000Z" };
+    const capture = inspectPolicyEvaluationDatasetCapture(input, record);
+    if (!capture.storage) throw new Error("Expected retained interaction");
+    for (const bad of [
+      null,
+      {},
+      { ...capture, injected: undefined },
+      { ...capture, storage: null },
+      { ...capture, storage: { ...capture.storage, recordSha256: "f".repeat(64) } },
+      { ...capture, storage: { ...capture.storage, receiptTime: "2035-01-01T00:00:00.000Z" } },
+      { ...capture, storage: { ...capture.storage, record: { ...record, name: "Substituted" } } },
+      {
+        ...capture,
+        read: {
+          ...capture.read,
+          observation: { status: "verified", recordSha256: capture.storage.recordSha256 },
+          record,
+        },
+      },
+      { ...capture, read: { ...capture.read, observation: { status: "missing" } } },
+    ])
+      expect(() =>
+        enumerateStored(input, bad as PolicyEvaluationDatasetCapture, limits),
+      ).toThrowError(
+        expect.objectContaining({ code: "policy_evaluation_evidence_references_invalid" }),
+      );
+    for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+      const foreign = { ...input, scope: { ...input.scope, [dimension]: "foreign_scope" } };
+      expect(() => enumerateStored(foreign, capture, limits)).toThrowError(
+        expect.objectContaining({ reason: "evidence_unverified" }),
+      );
+    }
+  });
+
+  it("owns context before changing getters and reads a retained body once", () => {
+    const record = richRecord();
+    const input = context(record);
+    const capture = inspectPolicyEvaluationDatasetCapture(input, record);
+    if (!capture.storage) throw new Error("Expected retained interaction");
+    const body = vi.fn(() => record);
+    const changing = {
+      get read() {
+        input.scope.tenantId = "foreign_scope";
+        input.evaluationTime = "2020-01-01T00:00:00.000Z";
+        return capture.read;
+      },
+      storage: {
+        ...capture.storage,
+        get record() {
+          return body();
+        },
+      },
+    };
+    const actual = enumerateStored(input, changing, limits);
+    expect(body).toHaveBeenCalledTimes(1);
+    expect(actual.storage.recordSha256).toBe(hash(record));
+    expect(actual.references).toEqual(expectedReferences(record));
+    expect(actual.semanticObservation.status).toBe("verified");
+    Reflect.set(actual.storage.source.reference, "definitionSha256", "f".repeat(64));
+    Reflect.set(actual.references[0] as object, "path", "/changed");
+    expect(capture.storage.record).toEqual(record);
+    expect(capture.read.source).toEqual(context(record).source);
+  });
+
+  it("validates limits before reading capture getters and preserves accessor failures", () => {
+    const record = interactionRecord();
+    const input = context(record);
+    const capture = inspectPolicyEvaluationDatasetCapture(input, record);
+    const failure = new Error("stored accessor failed");
+    const getter = vi.fn(() => {
+      throw failure;
+    });
+    const broken = {
+      ...capture,
+      get storage() {
+        return getter();
+      },
+    };
+    expect(() => enumerateStored(input, broken, { ...limits, maxReferences: -1 })).toThrowError(
+      expect.objectContaining({ reason: "input_invalid" }),
+    );
+    expect(getter).not.toHaveBeenCalled();
+    expect(() => enumerateStored(input, broken, limits)).toThrowError(
+      expect.objectContaining({ reason: "input_invalid", cause: failure }),
+    );
+  });
+
+  it("fails wholly when the internal occurrence collector fails", () => {
+    const record = interactionRecord();
+    const input = context(record);
+    const capture = inspectPolicyEvaluationDatasetCapture(input, record);
+    const failure = new Error("occurrence collection failed");
+    const collector = vi
+      .spyOn(PolicyEvaluationReferenceCollector.prototype, "result")
+      .mockImplementationOnce(() => {
+        throw failure;
+      });
+    try {
+      expect(() => enumerateStored(input, capture, limits)).toThrowError(
+        expect.objectContaining({ reason: "input_invalid", cause: failure }),
+      );
+    } finally {
+      collector.mockRestore();
+    }
+  });
+});
 
 describe.each(records.map((record, index) => ({ record, name: vectors[index]?.name })))(
   "dataset references: $name",

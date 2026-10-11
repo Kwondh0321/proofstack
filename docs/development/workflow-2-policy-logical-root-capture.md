@@ -28,6 +28,10 @@ body retention for every unavailable source kind.
 
 ## Fixed owning root ports
 
+The [stored declaration enumerators](workflow-2-policy-stored-reference-enumeration.md) reuse
+the fixed owning field grammars across these 38 retained source kinds while preserving original
+availability. Storage provenance is separate; root-only traversal and complete closure remain open.
+
 Optional server-owned `logicalRoots` supplies five evaluation resource-definition kinds, three
 comparison kinds, candidate, policy, dataset and regression fixture. Manifest `comparison_snapshot`
 maps explicitly to owning `comparison_evidence_snapshot`. Snapshot/result roots are original

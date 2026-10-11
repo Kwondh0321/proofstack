@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
-  type EvidenceScope,
   type EvaluationImplementationRegistrationDefinition,
+  type EvidenceScope,
   PolicyEvaluationSourceReferenceSchema,
   REPLAY_BUDGET_DIMENSIONS,
   type ReplayJobSnapshot,
@@ -11,11 +11,11 @@ import {
 import {
   CreateModelAssuranceAssessment,
   digestComparisonRecordDefinition,
-  StaticRuntimeDefinitionCatalogue,
-  StaticEvaluationImplementationRegistrationCatalogue,
-  StaticQualificationPolicyCatalogue,
   StaticEndpointProfileCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
   StaticProtocolDefinitionCatalogue,
+  StaticQualificationPolicyCatalogue,
+  StaticRuntimeDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
@@ -36,6 +36,11 @@ import {
   type PolicyRecordGraphRepositories,
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
+import {
+  enumerateRetainedPolicyRecord,
+  inspectRetainedPolicyRecord,
+  type PolicyRetainedRecordCapture,
+} from "./retained-record-routing.js";
 
 type Fields = Record<string, unknown>;
 const time = "2026-10-01T00:00:00.000Z";
@@ -101,6 +106,38 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
   expect(Array.isArray(expansion.references), kind).toBe(true);
   const derived = enumerateCapturedPolicyRecord(input, expansion.read, limits, replayLimits);
   expect(derived.references, kind).toEqual(expansion.references);
+  const retained = inspectRetainedPolicyRecord(input, record);
+  if (retained === null) {
+    // A supported semantic reader is not automatically a complete stored-body reader.
+    expect(
+      enumerateRetainedPolicyRecord(
+        input,
+        {
+          read: expansion.read,
+          storage: null,
+        } as PolicyRetainedRecordCapture,
+        limits,
+      ),
+    ).toBeNull();
+  } else {
+    expect(enumerateRetainedPolicyRecord(input, retained, limits)?.references).toEqual(
+      expansion.references,
+    );
+    const originalCut = { ...input, evaluationTime: "2020-01-01T00:00:00.000Z" };
+    const future = inspectRetainedPolicyRecord(originalCut, record);
+    if (!future) throw new Error("Expected fixed retention route");
+    const stored = enumerateRetainedPolicyRecord(originalCut, future, limits);
+    expect(stored?.references).toEqual(expansion.references);
+    expect(stored?.semanticObservation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(future.read.record).toBeNull();
+    expect(stored?.storage.source).toEqual(input.source);
+    expect(() =>
+      enumerateRetainedPolicyRecord(input, { ...retained, storage: null }, limits),
+    ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+  }
   const changed = structuredClone(expansion.read);
   if (changed.observation.status !== "verified")
     throw new Error("Missing verified routing observation");

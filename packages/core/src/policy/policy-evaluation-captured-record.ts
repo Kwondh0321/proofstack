@@ -2,8 +2,12 @@ import {
   encodeEvaluationCanonicalJson,
   PolicyEvaluationManifestEntrySchema,
   type PolicyEvaluationSourceReference,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
-import type { PolicyEvaluationDefinitionRead } from "./policy-evaluation-definition-reader.js";
+import type {
+  PolicyEvaluationDefinitionCapture,
+  PolicyEvaluationDefinitionRead,
+} from "./policy-evaluation-definition-reader.js";
 import { PolicyEvaluationEvidenceReferenceError } from "./policy-evaluation-reference-collector.js";
 
 /**
@@ -56,6 +60,44 @@ export function revalidatePolicyEvaluationCapturedRecord<
       throw new PolicyEvaluationEvidenceReferenceError("observation_mismatch");
     }
     return { observation: checked.observation, record: checked.record, source: checked.source };
+  } catch (cause) {
+    if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
+    throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });
+  }
+}
+
+/**
+ * Internal original-storage integrity boundary. The fixed owning inspector validates the whole
+ * retained body, exact reference/scope, original receipt and temporal read at the ORIGINAL cut.
+ * It never promotes unavailable storage into verified semantic evidence or performs repository I/O.
+ * Do not accept an inspector/validator from a public request or an extensible registry.
+ */
+export function revalidatePolicyEvaluationCapturedStorage<
+  Input,
+  Record,
+  Source extends PolicyEvaluationSourceReference,
+>(
+  input: Input,
+  capture: PolicyEvaluationDefinitionCapture<Record, Source>,
+  inspect: (input: Input, raw: unknown) => PolicyEvaluationDefinitionCapture<Record, Source>,
+): {
+  readonly read: PolicyEvaluationDefinitionRead<Record, Source>;
+  readonly storage: NonNullable<PolicyEvaluationDefinitionCapture<Record, Source>["storage"]>;
+} {
+  try {
+    // Context ownership precedes potentially accessor-backed capture/body reads.
+    const fixedInput = structuredClone(input);
+    if (!capture || Object.keys(capture).some((key) => key !== "read" && key !== "storage"))
+      throw new PolicyEvaluationEvidenceReferenceError("input_invalid");
+    const owned = structuredClone(capture);
+    if (owned.storage === null || owned.storage === undefined)
+      throw new PolicyEvaluationEvidenceReferenceError("evidence_unverified");
+    const checked = inspect(fixedInput, owned.storage.record);
+    if (checked.storage === null)
+      throw new PolicyEvaluationEvidenceReferenceError("evidence_unverified");
+    if (serializeEvaluationCanonicalJson(owned) !== serializeEvaluationCanonicalJson(checked))
+      throw new PolicyEvaluationEvidenceReferenceError("observation_mismatch");
+    return { read: checked.read, storage: checked.storage };
   } catch (cause) {
     if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
     throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });

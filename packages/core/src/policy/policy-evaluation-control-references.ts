@@ -6,9 +6,14 @@ import type {
   ReleaseCandidate,
   ReleasePolicy,
 } from "@proofstack/contracts";
-import { revalidatePolicyEvaluationCapturedRecord } from "./policy-evaluation-captured-record.js";
 import {
+  revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
+} from "./policy-evaluation-captured-record.js";
+import {
+  inspectPolicyEvaluationControlCapture,
   inspectPolicyEvaluationControlRecord,
+  type PolicyEvaluationControlCapture,
   type PolicyEvaluationControlRead,
   type PolicyEvaluationControlRecord,
   type PolicyEvaluationControlSource,
@@ -270,6 +275,35 @@ export function enumeratePolicyEvaluationControlReferences(
       ...out.result(),
       recordSha256: checked.observation.recordSha256,
       source: checked.source,
+    };
+  } catch (cause) {
+    if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
+    throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });
+  }
+}
+
+/** Original-storage declarations; availability at the original semantic cut remains unchanged. */
+export function enumeratePolicyEvaluationStoredControlReferences(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationControlSource>,
+  capture: PolicyEvaluationControlCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  try {
+    const checked = revalidatePolicyEvaluationCapturedStorage(
+      input,
+      capture,
+      inspectPolicyEvaluationControlCapture,
+    );
+    enumerators[checked.read.source.kind](checked.storage.record as never, out);
+    return {
+      ...out.result(),
+      semanticObservation: checked.read.observation,
+      storage: {
+        source: checked.read.source,
+        recordSha256: checked.storage.recordSha256,
+        receiptTime: checked.storage.receiptTime,
+      },
     };
   } catch (cause) {
     if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;

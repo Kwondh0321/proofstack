@@ -20,7 +20,9 @@ import {
   type ModelAssuranceRepositoryTestHarness,
 } from "../testing/model-assurance-repository-fixtures.js";
 import {
+  inspectPolicyEvaluationEvidenceCapture,
   inspectPolicyEvaluationEvidenceRecord,
+  type PolicyEvaluationEvidenceCapture,
   type PolicyEvaluationEvidenceRead,
   type PolicyEvaluationEvidenceReaderDependencies,
   type PolicyEvaluationEvidenceSource,
@@ -30,6 +32,7 @@ import {
 } from "./policy-evaluation-evidence-reader.js";
 import {
   enumeratePolicyEvaluationEvidenceReferences,
+  enumeratePolicyEvaluationStoredEvidenceReferences,
   type PolicyEvaluationEvidenceReferenceError,
   type PolicyEvaluationEvidenceReferenceLimits,
 } from "./policy-evaluation-evidence-references.js";
@@ -337,6 +340,124 @@ const paths = {
   ],
 } as const satisfies Record<Kind, readonly string[]>;
 const kinds = Object.keys(paths) as Kind[];
+
+function storageOracleJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(storageOracleJson).join(",")}]`;
+  if (value !== null && typeof value === "object")
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, child]) => `${JSON.stringify(key)}:${storageOracleJson(child)}`)
+      .join(",")}}`;
+  return JSON.stringify(value);
+}
+
+describe.each(kinds)("stored evidence references: %s", (kind) => {
+  it.each([evaluationTime, "2020-01-01T00:00:00.000Z"])(
+    "preserves the independent full inventory and original availability at %s",
+    (cut) => {
+      const fixtureInput = fixture(kind);
+      const input = { ...fixtureInput.input, evaluationTime: cut };
+      const capture = inspectPolicyEvaluationEvidenceCapture(input, fixtureInput.record);
+      const actual = enumeratePolicyEvaluationStoredEvidenceReferences(input, capture, limits);
+      const expected = expectedReferences(kind, fixtureInput.record);
+      expect(actual.references).toEqual(expected);
+      expect(actual.referenceBytes).toBe(
+        expected.reduce<number>((sum, ref) => sum + Buffer.byteLength(storageOracleJson(ref)), 0),
+      );
+      expect(actual.storage.recordSha256).toBe(
+        createHash("sha256").update(storageOracleJson(fixtureInput.record)).digest("hex"),
+      );
+      expect(actual.storage.source).toEqual(input.source);
+      expect(actual.storage.receiptTime).toBe(capture.storage?.receiptTime);
+      expect(actual.semanticObservation).toEqual(capture.read.observation);
+      if (cut !== evaluationTime) {
+        expect(capture.read).toMatchObject({
+          observation: { reason: "not_yet_available", status: "unavailable" },
+          record: null,
+        });
+        throwsReason(
+          () => enumeratePolicyEvaluationEvidenceReferences(input, capture.read, limits),
+          "evidence_unverified",
+        );
+      }
+      const exact = { maxReferences: expected.length, maxReferenceBytes: actual.referenceBytes };
+      expect(enumeratePolicyEvaluationStoredEvidenceReferences(input, capture, exact)).toEqual(
+        actual,
+      );
+      if (expected.length) {
+        throwsReason(
+          () =>
+            enumeratePolicyEvaluationStoredEvidenceReferences(input, capture, {
+              ...exact,
+              maxReferences: exact.maxReferences - 1,
+            }),
+          "reference_limit_exceeded",
+        );
+        throwsReason(
+          () =>
+            enumeratePolicyEvaluationStoredEvidenceReferences(input, capture, {
+              ...exact,
+              maxReferenceBytes: exact.maxReferenceBytes - 1,
+            }),
+          "reference_bytes_exceeded",
+        );
+      }
+    },
+  );
+
+  it("rejects receipt/body/hash substitution and future promotion", () => {
+    const original = fixture(kind);
+    const input = { ...original.input, evaluationTime: "2020-01-01T00:00:00.000Z" };
+    const capture = inspectPolicyEvaluationEvidenceCapture(input, original.record);
+    if (!capture.storage) throw new Error("Expected retained body");
+    for (const corrupted of [
+      { ...capture, storage: null },
+      { ...capture, storage: { ...capture.storage, recordSha256: "f".repeat(64) } },
+      { ...capture, storage: { ...capture.storage, receiptTime: "2035-01-01T00:00:00.000Z" } },
+      {
+        ...capture,
+        storage: { ...capture.storage, record: { ...capture.storage.record, injected: true } },
+      },
+      {
+        ...capture,
+        read: {
+          ...capture.read,
+          observation: { status: "verified", recordSha256: capture.storage.recordSha256 },
+          record: capture.storage.record,
+        },
+      },
+      { ...capture, read: { ...capture.read, observation: { status: "missing" } } },
+      { ...capture, injected: undefined },
+    ]) {
+      expect(() =>
+        enumeratePolicyEvaluationStoredEvidenceReferences(
+          input,
+          corrupted as PolicyEvaluationEvidenceCapture,
+          limits,
+        ),
+      ).toThrow(expect.objectContaining({ code: "policy_evaluation_evidence_references_invalid" }));
+    }
+    for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+      const foreign = { ...input, scope: { ...input.scope, [dimension]: "foreign_scope" } };
+      expect(() =>
+        enumeratePolicyEvaluationStoredEvidenceReferences(foreign, capture, limits),
+      ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+    }
+  });
+
+  it("returns owned references and provenance without mutating its input", () => {
+    const { input, record } = fixture(kind);
+    const capture = inspectPolicyEvaluationEvidenceCapture(input, record);
+    const saved = structuredClone({ input, capture });
+    const actual = enumeratePolicyEvaluationStoredEvidenceReferences(input, capture, limits);
+    if (actual.references[0]) Reflect.set(actual.references[0], "path", "/changed");
+    Reflect.set(actual.storage.source.reference, "definitionSha256", "f".repeat(64));
+    expect({ input, capture }).toEqual(saved);
+    expect(
+      enumeratePolicyEvaluationStoredEvidenceReferences(input, capture, limits).references,
+    ).toEqual(expectedReferences(kind, record));
+  });
+});
 
 function fields(value: unknown): Fields {
   if (!value || typeof value !== "object" || Array.isArray(value))
