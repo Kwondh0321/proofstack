@@ -433,6 +433,10 @@ Target resources do not bind exact release versions; this does not invent a targ
 establish complete target absence ownership. Complete parent semantics/current authority,
 internal SQL/row admission and atomic sealed publication remain open; acceptance is unchanged.
 
+The separate read-only policy logical-root port now exposes the complete original stored root
+through shared memory/PostgreSQL conformance and supplied-client owning validation. Root capture,
+full admission, current authority and guarded publication remain open.
+
 The subsequent [policy owning root and intent validation](workflow-2-policy-storage-integrity.md)
 checks the complete exact logical root body/projections and original policy intents, including
 independent versions with no predecessor. Singular lifecycle and complete history reads require

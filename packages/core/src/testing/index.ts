@@ -71,6 +71,10 @@ export {
   releasePolicyRepositoryConformanceCases,
 } from "./release-policy-repository-conformance.js";
 export {
+  type ReleasePolicyLogicalRootConformanceCase,
+  releasePolicyLogicalRootConformanceCases,
+} from "./release-policy-logical-root-conformance.js";
+export {
   createReleasePolicyRepositoryTestHarness,
   type ReleasePolicyRepositoryTestHarness,
   releasePolicyFixtureScope,

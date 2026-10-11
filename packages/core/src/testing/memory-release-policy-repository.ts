@@ -11,6 +11,7 @@ import {
   ReleasePolicyLifecycleEventConflictError,
   ReleasePolicyLifecycleStateConflictError,
   ReleasePolicyLineageError,
+  ReleasePolicyRepositoryContractError,
   ReleasePolicyResourceConflictError,
   ReleasePolicyVersionConflictError,
 } from "../policy/release-policy-errors.js";
@@ -23,12 +24,13 @@ import type {
   PublishReleasePolicyLifecycleResult,
   PublishReleasePolicyResult,
   ReleasePolicyRepository,
+  ReleasePolicyLogicalRootReader,
 } from "../policy/release-policy-repository.js";
 
 interface TenantState {
   readonly events: Map<string, ReleasePolicyLifecycleEvent>;
   readonly policies: Map<string, ReleasePolicy>;
-  readonly resources: Map<string, EvidenceScope>;
+  readonly resources: Map<string, ReleasePolicy>;
 }
 
 function emptyTenantState(): TenantState {
@@ -139,7 +141,9 @@ function assertLifecycleTimeline(
  * which makes competing publications linearizable within one JavaScript process. Production
  * deployments must use a durable transactional adapter with equivalent constraints.
  */
-export class MemoryReleasePolicyRepository implements ReleasePolicyRepository {
+export class MemoryReleasePolicyRepository
+  implements ReleasePolicyRepository, ReleasePolicyLogicalRootReader
+{
   private readonly tenants = new Map<string, TenantState>();
 
   async findReleasePolicy(
@@ -158,6 +162,22 @@ export class MemoryReleasePolicyRepository implements ReleasePolicyRepository {
     const event = this.tenants.get(scope.tenantId)?.events.get(eventId);
     if (!event || !scopesEqual(event.scope, scope)) return null;
     return clone(event);
+  }
+
+  async findReleasePolicyLogicalRoot(
+    scope: EvidenceScope,
+    policyVersionId: string,
+  ): Promise<ReleasePolicy | null> {
+    const state = this.tenants.get(scope.tenantId);
+    const policy = state?.policies.get(policyVersionId);
+    if (!policy || !scopesEqual(policy.scope, scope)) return null;
+    const root = state?.resources.get(policy.policyId);
+    if (!root) {
+      throw new ReleasePolicyRepositoryContractError(
+        "Stored release policy is missing its logical root",
+      );
+    }
+    return clone(root);
   }
 
   async listReleasePolicyLifecycleEvents(
@@ -192,8 +212,8 @@ export class MemoryReleasePolicyRepository implements ReleasePolicyRepository {
       return { created: false, policy: clone(existing) };
     }
 
-    const boundScope = current.resources.get(validated.policyId);
-    if (boundScope && !scopesEqual(boundScope, validated.scope)) {
+    const boundRoot = current.resources.get(validated.policyId);
+    if (boundRoot && !scopesEqual(boundRoot.scope, validated.scope)) {
       throw new ReleasePolicyResourceConflictError(validated.policyId);
     }
 
@@ -207,7 +227,7 @@ export class MemoryReleasePolicyRepository implements ReleasePolicyRepository {
     const next = copyTenantState(current);
     const stored = clone(validated);
     next.policies.set(stored.policyVersionId, stored);
-    next.resources.set(stored.policyId, clone(stored.scope));
+    if (!boundRoot) next.resources.set(stored.policyId, stored);
     this.tenants.set(stored.scope.tenantId, next);
     return { created: true, policy: clone(stored) };
   }

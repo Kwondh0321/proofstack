@@ -14,6 +14,7 @@ import {
   ReleasePolicyLifecycleEventConflictError,
   ReleasePolicyLifecycleStateConflictError,
   ReleasePolicyLineageError,
+  type ReleasePolicyLogicalRootReader,
   type ReleasePolicyRepository,
   ReleasePolicyRepositoryContractError,
   ReleasePolicyResourceConflictError,
@@ -484,6 +485,13 @@ async function inspectStoredPolicy(
   client: Pick<PoolClient, "query">,
   row: StoredReleasePolicyRow,
 ): Promise<ReleasePolicy> {
+  return (await inspectStoredPolicyBinding(client, row)).policy;
+}
+
+async function inspectStoredPolicyBinding(
+  client: Pick<PoolClient, "query">,
+  row: StoredReleasePolicyRow,
+): Promise<{ readonly policy: ReleasePolicy; readonly root: ReleasePolicy }> {
   const policy = parseStoredPolicy(row);
   const rootRow =
     row.root_policy_version_id === policy.policyVersionId
@@ -511,7 +519,7 @@ async function inspectStoredPolicy(
   }
   await requireCanonicalPolicyOutbox(client, policy);
   if (rootRow !== row) await requireCanonicalPolicyOutbox(client, root);
-  return policy;
+  return { policy, root };
 }
 
 async function inspectStoredLifecycleEvent(
@@ -583,12 +591,11 @@ async function inspectScopedPolicyPresence(
   return row.retained_policy_body;
 }
 
-/** The trusted caller owns the scoped transaction and guards; this read uses only that client. */
-export async function readPostgresReleasePolicyOnClient(
+async function readStoredPolicyBinding(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
   policyVersionId: string,
-): Promise<ReleasePolicy | null> {
+): Promise<{ readonly policy: ReleasePolicy; readonly root: ReleasePolicy } | null> {
   const scope = { ...scopeInput };
   if (!(await inspectScopedPolicyPresence(client, scope, policyVersionId))) return null;
   const row = await loadStoredPolicy(client, scope, policyVersionId);
@@ -597,7 +604,27 @@ export async function readPostgresReleasePolicyOnClient(
       "Stored release policy graph is incomplete after its positive scoped presence observation",
     );
   }
-  return clone(await inspectStoredPolicy(client, row));
+  return inspectStoredPolicyBinding(client, row);
+}
+
+/** The trusted caller owns the scoped transaction and guards; this read uses only that client. */
+export async function readPostgresReleasePolicyOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  policyVersionId: string,
+): Promise<ReleasePolicy | null> {
+  const binding = await readStoredPolicyBinding(client, scope, policyVersionId);
+  return binding ? clone(binding.policy) : null;
+}
+
+/** Reads the owning logical root without opening or ending the caller's scoped transaction. */
+export async function readPostgresReleasePolicyLogicalRootOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  policyVersionId: string,
+): Promise<ReleasePolicy | null> {
+  const binding = await readStoredPolicyBinding(client, scope, policyVersionId);
+  return binding ? clone(binding.root) : null;
 }
 
 /** Shares the repository's complete normalized event validation without opening a transaction. */
@@ -632,7 +659,9 @@ export async function listPostgresReleasePolicyLifecycleEventsOnClient(
   return events;
 }
 
-export class PostgresReleasePolicyRepository implements ReleasePolicyRepository {
+export class PostgresReleasePolicyRepository
+  implements ReleasePolicyRepository, ReleasePolicyLogicalRootReader
+{
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
   async findReleasePolicy(
@@ -650,6 +679,15 @@ export class PostgresReleasePolicyRepository implements ReleasePolicyRepository 
   ): Promise<ReleasePolicyLifecycleEvent | null> {
     return withExactScopeTransaction(this.pool, scope, (client) =>
       readPostgresReleasePolicyLifecycleEventOnClient(client, scope, eventId),
+    );
+  }
+
+  async findReleasePolicyLogicalRoot(
+    scope: EvidenceScope,
+    policyVersionId: string,
+  ): Promise<ReleasePolicy | null> {
+    return withExactScopeTransaction(this.pool, scope, (client) =>
+      readPostgresReleasePolicyLogicalRootOnClient(client, scope, policyVersionId),
     );
   }
 

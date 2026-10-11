@@ -14,6 +14,7 @@ import {
 import {
   createReleasePolicyRepositoryTestHarness,
   releasePolicyLifecycleFixture,
+  releasePolicyLogicalRootConformanceCases,
   releasePolicyRepositoryConformanceCases,
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
@@ -24,6 +25,7 @@ import {
   listPostgresReleasePolicyLifecycleEventsOnClient,
   PostgresReleasePolicyRepository,
   readPostgresReleasePolicyLifecycleEventOnClient,
+  readPostgresReleasePolicyLogicalRootOnClient,
   readPostgresReleasePolicyOnClient,
 } from "./postgres-release-policy-repository.js";
 import {
@@ -140,6 +142,14 @@ afterAll(async () => {
 });
 
 describe("PostgresReleasePolicyRepository conformance", () => {
+  for (const conformanceCase of releasePolicyLogicalRootConformanceCases) {
+    it(conformanceCase.name, async () => {
+      await conformanceCase.run((namespace) => ({
+        ...createReleasePolicyRepositoryTestHarness(namespace),
+        repository: new PostgresReleasePolicyRepository(policyAuthorPool),
+      }));
+    });
+  }
   it.each(["registry", "lineage", "resource", "sources", "rules", "rule_sources"] as const)(
     "rejects retained child-owned %s without its scoped policy body",
     async (retained) => {
@@ -204,6 +214,13 @@ describe("PostgresReleasePolicyRepository conformance", () => {
         await expect(
           readPostgresReleasePolicyOnClient(client, harness.scope, target.policyVersionId),
         ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        await expect(
+          readPostgresReleasePolicyLogicalRootOnClient(
+            client,
+            harness.scope,
+            target.policyVersionId,
+          ),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
         for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
           expect(
             await readPostgresReleasePolicyOnClient(
@@ -261,6 +278,13 @@ describe("PostgresReleasePolicyRepository conformance", () => {
         );
         await expect(
           readPostgresReleasePolicyOnClient(client, harness.scope, harness.policy.policyVersionId),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        await expect(
+          readPostgresReleasePolicyLogicalRootOnClient(
+            client,
+            harness.scope,
+            harness.policy.policyVersionId,
+          ),
         ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
         for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
           const outside = { ...harness.scope, [dimension]: `${dimension.toLowerCase()}_outside` };
@@ -447,6 +471,15 @@ describe("PostgresReleasePolicyRepository conformance", () => {
           readPostgresReleasePolicyOnClient(view, harness.scope, harness.policy.policyVersionId),
         ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
         expect(statements).toHaveLength(1);
+        statements.length = 0;
+        await expect(
+          readPostgresReleasePolicyLogicalRootOnClient(
+            view,
+            harness.scope,
+            harness.policy.policyVersionId,
+          ),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        expect(statements).toHaveLength(1);
         expect((await client.query("SELECT txid_current()::text AS id")).rows).toEqual(transaction);
       });
     },
@@ -534,6 +567,20 @@ describe("PostgresReleasePolicyRepository conformance", () => {
           readPostgresReleasePolicyOnClient(client, harness.scope, independent.policyVersionId),
         ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
         const outside = { ...harness.scope, environmentId: "env_root_outside" };
+        await expect(
+          readPostgresReleasePolicyLogicalRootOnClient(
+            client,
+            harness.scope,
+            independent.policyVersionId,
+          ),
+        ).rejects.toBeInstanceOf(ReleasePolicyRepositoryContractError);
+        expect(
+          await readPostgresReleasePolicyLogicalRootOnClient(
+            client,
+            outside,
+            independent.policyVersionId,
+          ),
+        ).toBeNull();
         expect(
           await readPostgresReleasePolicyOnClient(client, outside, independent.policyVersionId),
         ).toBeNull();
@@ -749,6 +796,19 @@ describe("PostgresReleasePolicyRepository conformance", () => {
         ),
       ).toEqual(harness.successor);
       expect(
+        await readPostgresReleasePolicyLogicalRootOnClient(
+          client,
+          harness.scope,
+          harness.successor.policyVersionId,
+        ),
+      ).toEqual(harness.policy);
+      expect(
+        await repository.findReleasePolicyLogicalRoot(
+          harness.scope,
+          harness.successor.policyVersionId,
+        ),
+      ).toBeNull();
+      expect(
         await readPostgresReleasePolicyLifecycleEventOnClient(client, harness.scope, event.eventId),
       ).toEqual(event);
       expect(
@@ -782,6 +842,13 @@ describe("PostgresReleasePolicyRepository conformance", () => {
         ),
       ).toEqual([]);
       await client.query("ROLLBACK TO SAVEPOINT policy_read_probe");
+      expect(
+        await readPostgresReleasePolicyLogicalRootOnClient(
+          client,
+          harness.scope,
+          harness.successor.policyVersionId,
+        ),
+      ).toBeNull();
       expect(
         await readPostgresReleasePolicyOnClient(
           client,

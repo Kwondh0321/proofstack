@@ -100,6 +100,7 @@ export {
   listPostgresReleasePolicyLifecycleEventsOnClient,
   PostgresReleasePolicyRepository,
   readPostgresReleasePolicyLifecycleEventOnClient,
+  readPostgresReleasePolicyLogicalRootOnClient,
   readPostgresReleasePolicyOnClient,
 } from "./postgres-release-policy-repository.js";
 export {

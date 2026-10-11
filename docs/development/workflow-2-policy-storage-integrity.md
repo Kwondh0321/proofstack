@@ -27,6 +27,27 @@ Policy publication retries and new-publication readback use this owning inspecti
 New lifecycle publication validates its exact target and, for supersession, its
 exact successor through it before the existing lineage/time/publication checks.
 
+## Read-only logical root port
+
+The separate `ReleasePolicyLogicalRootReader` accepts an exact requested policy
+version and returns the complete original logical root as an owned copy. It does
+not accept a caller-selected root, infer the root from publication timestamps,
+follow predecessors to choose a root or select a latest version. Ordinary policy
+repository contracts and public routes remain unchanged.
+
+The memory reference records the first resource binding at publication and keeps
+it across successor and independent-version publication. The PostgreSQL adapter
+uses the same scoped presence observation, complete owning root/body/projection
+and original intent inspection as ordinary reads. Its supplied-client helper
+opens no transaction and changes no scope, guards or connection lifetime.
+Both implementations retain original receipts across retries and lifecycle changes.
+
+The returned body is a storage observation. Capture must still retain its full
+hash, references and repeated origins, charge it under finite admission, and
+reinspect it with every required guard before atomic publication. This port does
+not itself add root observations to the policy-evaluation graph, current authority,
+snapshot sealing or worker publication rights.
+
 ## Original canonical intents
 
 Requested policy versions and distinct logical roots must retain their complete
