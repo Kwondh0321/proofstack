@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import type { PolicyEvaluationSourceReference } from "@proofstack/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
+  inspectPolicyEvaluationDefinitionCapture,
   inspectPolicyEvaluationDefinitionRecord,
   PolicyEvaluationDefinitionReadInputError,
+  readPolicyEvaluationDefinitionCapture,
   readPolicyEvaluationDefinitionRecord,
 } from "./policy-evaluation-definition-reader.js";
 
@@ -32,6 +34,14 @@ const recordHash = () =>
     )
     .digest("hex");
 
+function hashWithReceipt(receipt: string): string {
+  return createHash("sha256")
+    .update(
+      `{"createdAt":"${receipt}","datasetId":"dat_test","datasetVersionId":"datv_test","definitionSha256":"${"a".repeat(64)}","scope":{"environmentId":"env_test","projectId":"prj_test","tenantId":"ten_test"}}`,
+    )
+    .digest("hex");
+}
+
 function adapter(raw: unknown = record()) {
   return {
     isInvalidRecordError: (cause: unknown) => cause instanceof SyntaxError,
@@ -45,6 +55,88 @@ function adapter(raw: unknown = record()) {
     }),
   };
 }
+
+describe("retained policy definition storage capture", () => {
+  it("hashes mixed-width Unicode and escapes as exact canonical UTF-8", async () => {
+    const label = "한글é🚀\u0000\n";
+    const value = { ...record(), label };
+    // Fixed sorted-field JSON oracle, independent of either production canonical API.
+    const canonical = JSON.stringify({
+      createdAt: time,
+      datasetId: "dat_test",
+      datasetVersionId: "datv_test",
+      definitionSha256: "a".repeat(64),
+      label,
+      scope: { environmentId: "env_test", projectId: "prj_test", tenantId: "ten_test" },
+    });
+    const expected = createHash("sha256").update(canonical, "utf8").digest("hex");
+    const captured = await readPolicyEvaluationDefinitionCapture(input(), adapter(value));
+    expect(captured.storage?.recordSha256).toBe(expected);
+    expect(captured.read.observation).toEqual({ status: "verified", recordSha256: expected });
+    expect(await readPolicyEvaluationDefinitionRecord(input(), adapter(value))).toEqual(
+      captured.read,
+    );
+  });
+  for (const receipt of [time.replace(/1Z$/, "0Z"), time, time.replace(/1Z$/, "2Z")]) {
+    it(`preserves a full original receipt independently of semantic availability: ${receipt}`, async () => {
+      const value = { ...record(), createdAt: receipt };
+      const port = adapter(value);
+      const result = await readPolicyEvaluationDefinitionCapture(input(), port);
+      expect(result.storage).toEqual({
+        record: value,
+        recordSha256: hashWithReceipt(receipt),
+        receiptTime: receipt,
+      });
+      expect(result.read).toEqual(
+        receipt.endsWith("2Z")
+          ? {
+              observation: { status: "unavailable", reason: "not_yet_available" },
+              record: null,
+              source,
+            }
+          : {
+              observation: { status: "verified", recordSha256: hashWithReceipt(receipt) },
+              record: value,
+              source,
+            },
+      );
+      expect(port.read).toHaveBeenCalledExactlyOnceWith(scope, source);
+      expect(port.validate).toHaveBeenCalledTimes(1);
+      expect(inspectPolicyEvaluationDefinitionCapture(input(), value, adapter()).storage).toEqual(
+        result.storage,
+      );
+    });
+  }
+  for (const raw of [null, false, { ...record(), datasetId: "substituted" }]) {
+    it(`does not retain absent, malformed or substituted bodies: ${JSON.stringify(raw)}`, async () => {
+      const result = await readPolicyEvaluationDefinitionCapture(input(), adapter(raw));
+      expect(result.storage).toBeNull();
+      expect(result.read).toEqual(inspectPolicyEvaluationDefinitionRecord(input(), raw, adapter()));
+    });
+  }
+  it("owns storage and semantic bodies independently of each other and the adapter response", async () => {
+    const value = record();
+    const result = await readPolicyEvaluationDefinitionCapture(input(), adapter(value));
+    expect(result.read.observation.status).toBe("verified");
+    expect(result.storage).not.toBeNull();
+    if (result.read.record === null || result.storage === null) throw new Error("Expected body");
+    result.storage.record.scope.projectId = "prj_storage_mutation";
+    expect(result.read.record).toEqual(record());
+    result.read.record.scope.tenantId = "ten_read_mutation";
+    expect(value).toEqual(record());
+    expect(result.storage.record.scope.tenantId).toBe(scope.tenantId);
+  });
+  it("validates capture context before I/O and propagates operational failures", async () => {
+    const port = adapter();
+    await expect(
+      readPolicyEvaluationDefinitionCapture({ ...input(), evaluationTime: "bad" }, port),
+    ).rejects.toBeInstanceOf(PolicyEvaluationDefinitionReadInputError);
+    expect(port.read).not.toHaveBeenCalled();
+    const failure = new Error("Storage offline");
+    port.read.mockRejectedValue(failure);
+    await expect(readPolicyEvaluationDefinitionCapture(input(), port)).rejects.toBe(failure);
+  });
+});
 
 describe("domain-owned policy definition observations", () => {
   it("uses the same observation boundary synchronously without calling a read port", () => {

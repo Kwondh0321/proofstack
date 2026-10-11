@@ -1,7 +1,7 @@
 import {
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   type ReleasePolicy,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   PolicyEvaluationEvidenceReferenceError,
@@ -47,9 +47,7 @@ export interface PolicyRuleInputs {
 }
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 function conflict(): never {
   throw new PolicyRecordGraphError("observation_conflict");
@@ -107,7 +105,7 @@ export function inspectCapturedRuleInputs(
     policy: artifactRules.policy,
     ruleCount: policy.rules.length,
   };
-  charge(1, encodeEvaluationCanonicalJson(context).byteLength);
+  charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(context), "utf8"));
   const inputs = new Map<number, { kind: Family; inputIndex: number }>();
   const add = (
     kind: Family,
@@ -159,7 +157,7 @@ export function inspectCapturedRuleInputs(
       inputs.delete(ruleIndex);
     }
     const frame = { ruleIndex, rule, binding };
-    charge(1, encodeEvaluationCanonicalJson(frame).byteLength);
+    charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(frame), "utf8"));
     rules.push(frame);
   }
   if (inputs.size !== 0) conflict();

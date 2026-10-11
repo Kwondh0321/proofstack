@@ -52,3 +52,4 @@ invalidate an ADR present in this directory.
 - [ADR-0027: Guard complete policy metadata publication](0027-guard-complete-policy-metadata-publication.md)
 - [ADR-0028: Observe complete criterion status authority](0028-observe-complete-criterion-status-authority.md)
 - [ADR-0029: Retain distinct protocol definitions without choosing ambiguous matches](0029-retain-distinct-protocol-definitions.md)
+- [ADR-0030: Retain original roots without moving semantic time](0030-retain-original-roots-without-moving-semantic-time.md)

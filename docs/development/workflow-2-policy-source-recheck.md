@@ -53,6 +53,11 @@ and repeated artifact occurrences must agree. Stable unreadable observations rem
 unavailable classifications do not prove equality of discarded invalid bytes. Revision mismatches
 use the existing source-recheck error; budget and storage failures retain their own errors.
 
+The [original-storage/root capture](workflow-2-policy-logical-root-capture.md) retains validated
+future bodies separately from semantic reads and compares configured owning roots before descendants.
+Missing root configuration stays an explicit frontier; root-only inventory and complete semantic
+relationships remain open. A full stored-body hash does not make a future body available.
+
 Existing catalog, root policy lifecycle and complete criterion history/known successor inspections
 run within the same transaction. Complete history inventories still compare before reading a new
 successor. Optional `sourceRecheck.metadata` counts retained record/trace observations and actual

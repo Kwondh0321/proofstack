@@ -62,13 +62,22 @@ export function admitCriterionStatusHistory(
   limitsInput: CriterionStatusHistoryLimits,
 ): readonly CriterionSetStatusRecord[] {
   const scope = EvidenceScopeSchema.parse(scopeInput);
+  return admitHistoryRecords(scope, input, limitsInput).map(({ record }) => record);
+}
+
+// Retain canonical text only within this admission call. Every call validates each current row.
+function admitHistoryRecords(
+  scope: EvidenceScope,
+  input: readonly unknown[],
+  limitsInput: CriterionStatusHistoryLimits,
+): readonly { readonly record: CriterionSetStatusRecord; readonly canonical: string }[] {
   const limits = requireCriterionStatusHistoryLimits(limitsInput);
   if (!Array.isArray(input))
     throw new EvaluationRepositoryContractError("Criterion history must be an array");
   if (input.length > limits.maxRecords) throw new CriterionStatusHistoryLimitError("records");
   let bytes = 2;
   let previous = "";
-  const records: CriterionSetStatusRecord[] = [];
+  const records: { readonly record: CriterionSetStatusRecord; readonly canonical: string }[] = [];
   for (const raw of input) {
     let record: CriterionSetStatusRecord;
     try {
@@ -86,11 +95,10 @@ export function admitCriterionStatusHistory(
     previous = record.statusRecordId;
     // Normalize only schema-admitted optional undefined fields, as in other owning inspectors.
     const normalized = JSON.parse(JSON.stringify(record)) as CriterionSetStatusRecord;
-    bytes +=
-      Buffer.byteLength(serializeEvaluationCanonicalJson(normalized), "utf8") +
-      Number(records.length > 0);
+    const canonical = serializeEvaluationCanonicalJson(normalized);
+    bytes += Buffer.byteLength(canonical, "utf8") + Number(records.length > 0);
     if (bytes > limits.maxRecordBytes) throw new CriterionStatusHistoryLimitError("bytes");
-    records.push(normalized);
+    records.push({ record: normalized, canonical });
   }
   return records;
 }
@@ -108,11 +116,26 @@ export function inspectCriterionStatusHistory(
   }[];
 } {
   const scope = EvidenceScopeSchema.parse(scopeInput);
-  const records = admitCriterionStatusHistory(scope, input, limits);
-  const digest = (value: unknown) =>
-    createHash("sha256").update(serializeEvaluationCanonicalJson(value), "utf8").digest("hex");
+  const records = admitHistoryRecords(scope, input, limits);
+  // Exact canonical envelope order is format, records, scope. Reuse each strictly admitted
+  // row's text for full/per-row digests without serializing or trusting it in another call.
+  const digest = createHash("sha256").update(
+    '{"format":"proofstack.criterion-status-history.v1","records":[',
+    "utf8",
+  );
+  const history: { readonly record: CriterionSetStatusRecord; readonly recordSha256: string }[] =
+    [];
+  for (const { record, canonical } of records) {
+    if (history.length > 0) digest.update(",", "utf8");
+    digest.update(canonical, "utf8");
+    history.push({
+      record,
+      recordSha256: createHash("sha256").update(canonical, "utf8").digest("hex"),
+    });
+  }
+  digest.update('],"scope":', "utf8").update(serializeEvaluationCanonicalJson(scope), "utf8");
   return {
-    historySha256: digest({ format: "proofstack.criterion-status-history.v1", scope, records }),
-    history: records.map((record) => ({ record, recordSha256: digest(record) })),
+    historySha256: digest.update("}", "utf8").digest("hex"),
+    history,
   };
 }

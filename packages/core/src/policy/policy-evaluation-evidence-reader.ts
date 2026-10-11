@@ -3,12 +3,12 @@ import {
   type EvaluationRecordKind,
   type EvidenceScope,
   EvidenceScopeSchema,
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationManifestEntry,
   PolicyEvaluationSourceReferenceSchema,
   PolicyEvaluationTimeSchema,
   policyEvaluationSourceReferenceKey,
   policyEvaluationTimestampOrderKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import { validateEvaluationRecord } from "../evaluation/evaluation-record-validation.js";
 import type {
@@ -23,6 +23,7 @@ import {
   type ModelAssuranceRecordKind,
   type ModelAssuranceRepository,
 } from "../evaluation/model-assurance-repository.js";
+import type { PolicyEvaluationDefinitionCapture } from "./policy-evaluation-definition-reader.js";
 
 type EvaluationReadRepository = Pick<
   EvaluationRepository,
@@ -173,6 +174,11 @@ export type PolicyEvaluationEvidenceRead = {
   | { readonly observation: UnverifiedObservation; readonly record: null }
 );
 
+export type PolicyEvaluationEvidenceCapture = PolicyEvaluationDefinitionCapture<
+  EvidenceRecord,
+  PolicyEvaluationEvidenceSource
+>;
+
 export class PolicyEvaluationEvidenceReadInputError extends TypeError {
   readonly code = "policy_evaluation_evidence_read_input_invalid";
 
@@ -255,17 +261,45 @@ export async function readPolicyEvaluationEvidence(
   return inspectPolicyEvaluationEvidenceRecord({ evaluationTime, scope, source }, raw);
 }
 
+/** Fixed owning acquisition retaining original bodies separately from semantic availability. */
+export async function readPolicyEvaluationEvidenceCapture(
+  input: ReadPolicyEvaluationEvidenceInput,
+  dependencies: PolicyEvaluationEvidenceReaderDependencies,
+): Promise<PolicyEvaluationEvidenceCapture> {
+  const context = parseInput(input);
+  const recordId = policyEvaluationSourceReferenceKey(context.source).slice(
+    context.source.kind.length + 1,
+  );
+  const route = routeFor(context.source, dependencies);
+  const raw = await route.read(structuredClone(context.scope), recordId);
+  return inspectEvidenceCapture(context, raw, true);
+}
+
+export function inspectPolicyEvaluationEvidenceCapture(
+  input: ReadPolicyEvaluationEvidenceInput,
+  raw: unknown,
+): PolicyEvaluationEvidenceCapture {
+  return inspectEvidenceCapture(input, raw, true);
+}
+
 /** Pure record-level revalidation; no repository access or authorization is implied. */
 export function inspectPolicyEvaluationEvidenceRecord(
   input: ReadPolicyEvaluationEvidenceInput,
   raw: unknown,
 ): PolicyEvaluationEvidenceRead {
+  return inspectEvidenceCapture(input, raw, false).read;
+}
+
+function inspectEvidenceCapture(
+  input: ReadPolicyEvaluationEvidenceInput,
+  raw: unknown,
+  retainStorage: boolean,
+): PolicyEvaluationEvidenceCapture {
   const { evaluationTime, scope, source } = parseInput(input);
   const route = validationFor(source);
-  const unavailable = (observation: UnverifiedObservation): PolicyEvaluationEvidenceRead => ({
-    observation,
-    record: null,
-    source,
+  const unavailable = (observation: UnverifiedObservation): PolicyEvaluationEvidenceCapture => ({
+    read: { observation, record: null, source },
+    storage: null,
   });
   if (raw === null) return unavailable({ status: "missing" });
 
@@ -295,19 +329,20 @@ export function inspectPolicyEvaluationEvidenceRecord(
   const receipt = fields[route.receipt];
   if (typeof receipt !== "string")
     throw new TypeError("Validated evidence record omitted its receipt time");
-  if (
-    policyEvaluationTimestampOrderKey(receipt) > policyEvaluationTimestampOrderKey(evaluationTime)
-  ) {
+  const future =
+    policyEvaluationTimestampOrderKey(receipt) > policyEvaluationTimestampOrderKey(evaluationTime);
+  if (future && !retainStorage) {
     return unavailable({ reason: "not_yet_available", status: "unavailable" });
   }
+  const recordSha256 = createHash("sha256")
+    .update(serializeEvaluationCanonicalJson(record), "utf8")
+    .digest("hex");
   return {
-    observation: {
-      recordSha256: createHash("sha256")
-        .update(encodeEvaluationCanonicalJson(record))
-        .digest("hex"),
-      status: "verified",
-    },
-    record,
-    source,
+    read: future
+      ? unavailable({ reason: "not_yet_available", status: "unavailable" }).read
+      : { observation: { recordSha256, status: "verified" }, record, source },
+    storage: retainStorage
+      ? { record: structuredClone(record), recordSha256, receiptTime: receipt }
+      : null,
   };
 }

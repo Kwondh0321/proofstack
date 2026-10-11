@@ -87,6 +87,8 @@ import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 import { isResolvableProtocolReference } from "./resolve-parent-protocol.js";
+import type { PolicyEvaluationLogicalRootPorts } from "./logical-root-ports.js";
+import { inspectCapturedLogicalRootBindings } from "./capture-logical-root.js";
 
 type Fields = Record<string, unknown>;
 const requestVector = JSON.parse(
@@ -3381,7 +3383,7 @@ describe("request-rooted recursive record graph", () => {
     const graph = await capturePolicyRecordGraph(setup.input, missing.repositories);
     expect(graph.entries).toHaveLength(2);
     expect(graph.entries.every(({ observation }) => observation.status === "missing")).toBe(true);
-    expect(graph.unresolved).toEqual({ records: 2, references: 0 });
+    expect(graph.unresolved).toEqual({ records: 2, references: 0, logicalRoots: 0 });
     expect(graph.usage).toMatchObject({ reads: 2, records: 2, bytes: 8, references: 0 });
     expect(missing.calls.map(({ domain }) => domain)).toEqual(["candidate", "policy"]);
   });
@@ -3803,6 +3805,146 @@ describe("request-rooted recursive record graph", () => {
   });
 });
 
+describe("owning original roots within request-owned graph capture", () => {
+  function roots(h: Awaited<ReturnType<typeof harness>>): PolicyEvaluationLogicalRootPorts {
+    return {
+      evaluation: h.evaluation
+        .repository as unknown as PolicyEvaluationLogicalRootPorts["evaluation"],
+      comparison: h.repositories.control
+        .comparison as unknown as PolicyEvaluationLogicalRootPorts["comparison"],
+      releaseCandidate: h.repositories.control
+        .releaseCandidate as unknown as PolicyEvaluationLogicalRootPorts["releaseCandidate"],
+      releasePolicy: h.repositories.control
+        .releasePolicy as unknown as PolicyEvaluationLogicalRootPorts["releasePolicy"],
+      datasets: h.repositories.datasets as unknown as PolicyEvaluationLogicalRootPorts["datasets"],
+    };
+  }
+  it("retains full owning roots separately from semantic edges and meters every actual lookup", async () => {
+    const h = await harness();
+    const original = await capturePolicyRecordGraph(h.input, h.repositories);
+    const graph = await capturePolicyRecordGraph(h.input, {
+      ...h.repositories,
+      logicalRoots: roots(h),
+    });
+    expect(graph.roots).toEqual(original.roots);
+    expect(graph.nodes).toEqual(original.nodes);
+    expect(graph.edges).toEqual(original.edges);
+    expect(graph.entries).toEqual(original.entries);
+    expect(graph.logicalRoots.configuration).toBe("configured");
+    expect(graph.logicalRoots.bindings.length).toBeGreaterThan(2);
+    expect(graph.logicalRoots.bindings.every((binding) => binding.status === "retained")).toBe(
+      true,
+    );
+    expect(graph.usage.reads - original.usage.reads).toBe(graph.logicalRoots.bindings.length);
+    expect(graph.usage.records - original.usage.records).toBe(graph.logicalRoots.bindings.length);
+    expect(graph.usage.bytes).toBeGreaterThan(original.usage.bytes);
+    expect(graph.unresolved.logicalRoots).toBe(0);
+    expect(original.unresolved.logicalRoots).toBe(original.logicalRoots.bindings.length);
+    expect(() => inspectCapturedLogicalRootBindings(h.input, graph)).not.toThrow();
+  });
+  it("retains future parent storage and its original root without expanding the future parent", async () => {
+    const h = await harness();
+    const future = candidateDigest({
+      ...h.candidate,
+      candidateVersionId: "candidate_graph_future",
+      createdAt: "2027-01-01T00:00:00.000Z",
+    });
+    const owner = h.repositories.control.releaseCandidate as MemoryReleaseCandidateRepository;
+    await owner.publishReleaseCandidate(future);
+    const input = request(future, h.policy);
+    const graph = await capturePolicyRecordGraph(input, {
+      ...h.repositories,
+      logicalRoots: roots(h),
+    });
+    const node = graph.nodes.find(({ read }) => read.source.kind === "release_candidate");
+    expect(node?.read.observation).toEqual({ status: "unavailable", reason: "not_yet_available" });
+    expect(node?.read.record).toBeNull();
+    expect(node?.references).toBeNull();
+    expect(node?.storage?.record).toEqual(future);
+    const binding = graph.logicalRoots.bindings.find(
+      ({ parent }) => parent.kind === "release_candidate",
+    );
+    if (binding?.status !== "retained") throw new Error("Missing future parent's original root");
+    expect(binding.root.storage?.record).toEqual(h.candidate);
+    expect(binding.root.read.observation.status).toBe("verified");
+    expect(graph.edges.some(({ parent }) => parent.kind === "release_candidate")).toBe(false);
+    const stripped = structuredClone(graph);
+    const strippedNode = stripped.nodes.find(
+      ({ read }) => read.source.kind === "release_candidate",
+    );
+    if (!strippedNode) throw new Error("Missing future node");
+    Reflect.set(strippedNode, "storage", null);
+    expect(() =>
+      deriveCapturedRecordClosure(input, stripped, {
+        maxReferences: 100000,
+        maxReferenceBytes: 67108864,
+      }),
+    ).toThrow();
+  });
+  it("preserves the original missing configuration through guarded reinspection", async () => {
+    const h = await harness();
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const configured = roots(h);
+    const rootRead = vi.spyOn(configured.releaseCandidate, "findReleaseCandidateLogicalRoot");
+    const rechecked = await acquirePolicyRecordGraph(
+      h.input,
+      { ...h.repositories, logicalRoots: configured },
+      new AcquisitionBudget(h.input.limits),
+      graph,
+    );
+    expect(rechecked).toEqual(graph);
+    expect(rootRead).not.toHaveBeenCalled();
+    expect(rechecked.unresolved.logicalRoots).toBeGreaterThan(0);
+  });
+  it("fails a changed root before any descendants are read", async () => {
+    const h = await harness();
+    const child = candidateDigest({ ...h.candidate, candidateVersionId: "candidate_graph_child" });
+    await (
+      h.repositories.control.releaseCandidate as MemoryReleaseCandidateRepository
+    ).publishReleaseCandidate(child);
+    const input = request(child, h.policy);
+    const configured = roots(h);
+    const repositories = { ...h.repositories, logicalRoots: configured };
+    const retained = await capturePolicyRecordGraph(input, repositories);
+    vi.spyOn(configured.releaseCandidate, "findReleaseCandidateLogicalRoot").mockResolvedValue({
+      ...h.candidate,
+      createdByPrincipalId: "changed_root_receipt",
+    });
+    const candidateRead = vi.spyOn(repositories.control.releaseCandidate, "findReleaseCandidate");
+    const policyRead = vi.spyOn(repositories.control.releasePolicy, "findReleasePolicy");
+    h.calls.length = 0;
+    await expect(
+      acquirePolicyRecordGraph(input, repositories, new AcquisitionBudget(input.limits), retained),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: `logical_root:release_candidate:${child.candidateVersionId}`,
+    });
+    expect(candidateRead).toHaveBeenCalledTimes(1);
+    expect(policyRead).not.toHaveBeenCalled();
+    expect(h.calls).toEqual([]);
+  });
+  it("fails before record I/O when configured root ports disappear", async () => {
+    const h = await harness();
+    const retained = await capturePolicyRecordGraph(h.input, {
+      ...h.repositories,
+      logicalRoots: roots(h),
+    });
+    const read = vi.spyOn(h.repositories.control.releaseCandidate, "findReleaseCandidate");
+    await expect(
+      acquirePolicyRecordGraph(
+        h.input,
+        h.repositories,
+        new AcquisitionBudget(h.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      reason: "observation_conflict",
+      identity: "logical_root_configuration",
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+});
+
 describe("fixed cross-domain routing", () => {
   it("routes every declared source kind without a plugin validator or latest lookup", async () => {
     const setup = await harness();
@@ -3847,6 +3989,20 @@ describe("fixed cross-domain routing", () => {
       expect(expansion, kind).toEqual({
         read: { source, observation: { status: "missing" }, record: null },
         references: null,
+        ...([
+          "protocol_definition",
+          "endpoint_profile",
+          "qualification_policy",
+          "evaluation_implementation_registration",
+          "replay_plan",
+          "replay_result",
+          "target_release",
+          "replay_runtime_profile",
+          "replay_isolation_profile",
+          "runtime_adapter",
+        ].includes(kind)
+          ? {}
+          : { storage: null }),
       });
       expect(missing.calls.length, kind).toBe(kind === "regression_fixture_version" ? 2 : 1);
       const domain =

@@ -12,6 +12,11 @@
 
 ## Entry decision and dependency evidence
 
+The [original-storage/root capture prerequisite](workflow-2-policy-logical-root-capture.md) retains
+validated original bodies and fixed owning root bindings without moving semantic time. Root-only
+source inventory, relevant relationships, current authority, complete finite admission and sealed
+publication remain open. This prerequisite does not accept checkpoint 3; Workflow 2 remains 2/7.
+
 The third Workflow 2 checkpoint may begin in the sequence below after this entry commit passes its
 publication gate. The [policy-definition audit](workflow-2-policy-definition-audit.md) was published
 with all nine jobs successful in

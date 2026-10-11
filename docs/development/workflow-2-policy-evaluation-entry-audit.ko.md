@@ -58,6 +58,10 @@ closure와 sealed publication은 아직 열려 있습니다.
 
 ## 진입 결정과 의존성 근거
 
+[원문·최초 루트 수집 선행 작업](workflow-2-policy-logical-root-capture.ko.md)은 의미 시간을
+바꾸지 않고 검증한 원문과 고정 소유 바인딩을 보존합니다. 루트 전용 인벤토리·관계, 현재 권한,
+전체 finite admission·봉인은 남아 있습니다. 체크포인트 3 승인이 아니며 Workflow 2는 2/7입니다.
+
 이 진입 커밋의 발행 gate가 통과하면 아래 순서로 Workflow 2 세 번째 체크포인트를 시작할 수
 있다. [정책 정의 감사](workflow-2-policy-definition-audit.ko.md)의 정확한 의존성 SHA는
 [CI run 34114956990](https://github.com/Kwondh0321/proofstack/actions/runs/34114956990)의 아홉

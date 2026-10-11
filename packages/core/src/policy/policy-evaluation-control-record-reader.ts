@@ -1,4 +1,5 @@
 import type {
+  EvidenceScope,
   PolicyEvaluationSourceReference,
   PolicyInstallationBinding,
   ReleaseCandidate,
@@ -14,10 +15,13 @@ import { InvalidReleaseCandidateRecordInputError } from "../release/release-cand
 import { validateReleaseCandidateRecord } from "../release/release-candidate-record-validation.js";
 import type { ReleaseCandidateRepository } from "../release/release-candidate-repository.js";
 import {
+  inspectPolicyEvaluationDefinitionCapture,
   inspectPolicyEvaluationDefinitionRecord,
+  type PolicyEvaluationDefinitionCapture,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
   type PolicyEvaluationDefinitionValidator,
+  readPolicyEvaluationDefinitionCapture,
   readPolicyEvaluationDefinitionRecord,
 } from "./policy-evaluation-definition-reader.js";
 import type { PolicyInstallationBindingResolver } from "./release-policy-authority-resolver.js";
@@ -49,6 +53,10 @@ export type PolicyEvaluationControlRecord =
   | ReleasePolicy
   | PolicyInstallationBinding;
 export type PolicyEvaluationControlRead = PolicyEvaluationDefinitionRead<
+  PolicyEvaluationControlRecord,
+  PolicyEvaluationControlSource
+>;
+export type PolicyEvaluationControlCapture = PolicyEvaluationDefinitionCapture<
   PolicyEvaluationControlRecord,
   PolicyEvaluationControlSource
 >;
@@ -126,6 +134,21 @@ export function inspectPolicyEvaluationControlRecord(
   >(input, raw, validator);
 }
 
+/** Original exact storage and semantic availability, using the fixed owning control validators. */
+export function inspectPolicyEvaluationControlCapture(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationControlSource>,
+  raw: unknown,
+): PolicyEvaluationControlCapture {
+  return inspectPolicyEvaluationDefinitionCapture(input, raw, validator);
+}
+
+export function readPolicyEvaluationControlCapture(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationControlSource>,
+  dependencies: PolicyEvaluationControlReaderDependencies,
+): Promise<PolicyEvaluationControlCapture> {
+  return readPolicyEvaluationDefinitionCapture(input, controlAdapter(dependencies));
+}
+
 /**
  * Acquires one exact comparison/control record from previously authorized read-only authority.
  * A verified record is not a re-derived comparison, current policy/installation authority, a
@@ -138,9 +161,13 @@ export function readPolicyEvaluationControlRecord(
   return readPolicyEvaluationDefinitionRecord<
     PolicyEvaluationControlSource,
     PolicyEvaluationControlRecord
-  >(input, {
+  >(input, controlAdapter(dependencies));
+}
+
+function controlAdapter(dependencies: PolicyEvaluationControlReaderDependencies) {
+  return {
     ...validator,
-    read: (scope, source) => {
+    read: (scope: EvidenceScope, source: PolicyEvaluationControlSource) => {
       switch (source.kind) {
         case "comparison_definition":
           return dependencies.comparison.findComparisonDefinition(
@@ -168,5 +195,5 @@ export function readPolicyEvaluationControlRecord(
           return dependencies.installationBinding.resolve({ scope, reference: source.reference });
       }
     },
-  });
+  };
 }

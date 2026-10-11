@@ -3,18 +3,18 @@ import type { EvidenceScope } from "@proofstack/contracts";
 import {
   type EndpointProfileDefinition,
   type EndpointProfileRecord,
-  type ProtocolDefinition,
-  type ProtocolDefinitionRecord,
-  ProtocolDefinitionSelectorSchema,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
   MAX_FIXTURE_SOURCE_EVENTS,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSelectorSchema,
   type QualificationPolicyDefinition,
   type QualificationPolicyRecord,
   type RuntimeDefinition,
   type RuntimeDefinitionRecord,
 } from "@proofstack/contracts";
-import { type ModelAssuranceRecordKind, digestProtocolDefinition } from "@proofstack/core";
+import { digestProtocolDefinition, type ModelAssuranceRecordKind } from "@proofstack/core";
 import { policyAuthorityFixture } from "@proofstack/core/testing";
 import type {
   PolicyEvaluationMetadataPorts,
@@ -141,7 +141,26 @@ const modelKinds: readonly ModelAssuranceRecordKind[] = [
 
 function metadataReads(ports: PolicyEvaluationMetadataPorts, input = scope) {
   const { records } = ports;
+  const roots = records.logicalRoots;
+  if (!roots) throw new Error("Missing fixed owning logical-root ports");
   return [
+    ...(
+      [
+        "aggregation_policy",
+        "criterion_set",
+        "evaluator_spec",
+        "oracle_spec",
+        "qualification_fixture_set",
+      ] as const
+    ).map((kind) => () => roots.evaluation.findEvaluationLogicalRoot(input, kind, "record_one")),
+    ...(
+      ["comparison_definition", "comparison_evidence_snapshot", "comparison_result"] as const
+    ).map((kind) => () => roots.comparison.findComparisonLogicalRoot(input, kind, "record_one")),
+    () => roots.releaseCandidate.findReleaseCandidateLogicalRoot(input, "record_one"),
+    () => roots.releasePolicy.findReleasePolicyLogicalRoot(input, "record_one"),
+    () => roots.datasets.findDatasetLogicalRoot(input, "record_one"),
+    () => roots.datasets.findFixtureLogicalRoot(input, "record_one"),
+    () => roots.datasets.findRecordedInteractionFixtureLogicalRoot(input, "record_one"),
     ...Object.values(records.evidence.evaluation).map((read) => () => read(input, "record_one")),
     ...modelKinds.map(
       (kind) => () => records.evidence.modelAssurance.find(input, kind, "record_one"),
@@ -216,6 +235,7 @@ describe("guarded policy metadata transaction ports", () => {
         "endpointProfiles",
         "evidence",
         "implementationRegistrations",
+        "logicalRoots",
         "protocolDefinitions",
         "qualificationPolicies",
         "replayDefinitions",
@@ -230,7 +250,7 @@ describe("guarded policy metadata transaction ports", () => {
     expect(f.queries.at(-1)?.text).toBe("COMMIT");
     expect(
       f.queries.filter(({ text }) => text.includes("proofstack_evaluation_records")),
-    ).toHaveLength(18);
+    ).toHaveLength(23);
     expect(
       f.queries.filter(({ text }) => text.includes("proofstack_model_assurance_records")),
     ).toHaveLength(13);
@@ -262,73 +282,104 @@ describe("guarded policy metadata transaction ports", () => {
     expect(f.queries).toHaveLength(before);
   });
 
-  for (const fail of [false, true]) {
-    it(`drains an unawaited nested ${fail ? "failed" : "successful"} read before cleanup`, async () => {
-      const f = fixture();
-      const original = f.response.getMockImplementation();
-      if (!original) throw new Error("Missing query response");
-      let finish!: (value: Rows) => void;
-      let reject!: (error: Error) => void;
-      const read = new Promise<Rows>((resolve, failure) => {
-        finish = resolve;
-        reject = failure;
+  for (const root of [false, true]) {
+    for (const fail of [false, true]) {
+      it(`drains an unawaited nested ${root ? "logical root" : "record"} ${fail ? "failed" : "successful"} read before cleanup`, async () => {
+        const f = fixture();
+        const original = f.response.getMockImplementation();
+        if (!original) throw new Error("Missing query response");
+        let finish!: (value: Rows) => void;
+        let reject!: (error: Error) => void;
+        const read = new Promise<Rows>((resolve, failure) => {
+          finish = resolve;
+          reject = failure;
+        });
+        let notice!: () => void;
+        const started = new Promise<void>((resolve) => {
+          notice = resolve;
+        });
+        f.response.mockImplementation(async (sql) =>
+          sql.includes("FROM public.proofstack_evaluation_records") ? read : original(sql),
+        );
+        const failure = new Error("nested source read failed");
+        const running = f.adapter.runMetadata(scope, async (ports) => {
+          const pending = root
+            ? ports.records.logicalRoots?.evaluation.findEvaluationLogicalRoot(
+                scope,
+                "criterion_set",
+                "criterion_one",
+              )
+            : ports.records.evidence.evaluation.findCriterionSet(scope, "criterion_one");
+          if (!pending) throw new Error("Missing fixed owning root port");
+          void pending.catch(() => undefined);
+          notice();
+          return "done";
+        });
+        const outcome = running.then(
+          (value) => ({ value }),
+          (error: unknown) => ({ error }),
+        );
+        await started;
+        expect(f.release).not.toHaveBeenCalled();
+        expect(f.queries.map(({ text }) => text)).not.toContain("COMMIT");
+        if (fail) reject(failure);
+        else
+          finish({
+            rows: [{ retained_evaluation_body: false, retained_evaluation_storage: false }],
+          });
+        expect(await outcome).toEqual(fail ? { error: failure } : { value: "done" });
+        expect(f.queries.at(-1)?.text).toBe(fail ? "ROLLBACK" : "COMMIT");
+        expect(f.release).toHaveBeenCalledTimes(1);
       });
-      let notice!: () => void;
-      const started = new Promise<void>((resolve) => {
-        notice = resolve;
-      });
-      f.response.mockImplementation(async (sql) =>
-        sql.includes("FROM public.proofstack_evaluation_records") ? read : original(sql),
-      );
-      const failure = new Error("nested source read failed");
-      const running = f.adapter.runMetadata(scope, async (ports) => {
-        void ports.records.evidence.evaluation
-          .findCriterionSet(scope, "criterion_one")
-          .catch(() => undefined);
-        notice();
-        return "done";
-      });
-      const outcome = running.then(
-        (value) => ({ value }),
-        (error: unknown) => ({ error }),
-      );
-      await started;
-      expect(f.release).not.toHaveBeenCalled();
-      expect(f.queries.map(({ text }) => text)).not.toContain("COMMIT");
-      if (fail) reject(failure);
-      else
-        finish({ rows: [{ retained_evaluation_body: false, retained_evaluation_storage: false }] });
-      expect(await outcome).toEqual(fail ? { error: failure } : { value: "done" });
-      expect(f.queries.at(-1)?.text).toBe(fail ? "ROLLBACK" : "COMMIT");
-      expect(f.release).toHaveBeenCalledTimes(1);
-    });
+    }
   }
 
-  it.each(["model kind", "record ID", "trace ID"])(
-    "rejects invalid %s routing before SQL",
-    async (kind) => {
-      const f = fixture();
-      let before = 0;
-      await expect(
-        f.adapter.runMetadata(scope, async (ports) => {
-          before = f.queries.length;
-          if (kind === "model kind")
-            return ports.records.evidence.modelAssurance.find(
+  it.each([
+    "model kind",
+    "record ID",
+    "trace ID",
+    "evaluation root kind",
+    "comparison root kind",
+    "root record ID",
+  ])("rejects invalid %s routing before SQL", async (kind) => {
+    const f = fixture();
+    let before = 0;
+    await expect(
+      f.adapter.runMetadata(scope, async (ports) => {
+        before = f.queries.length;
+        if (kind === "model kind")
+          return ports.records.evidence.modelAssurance.find(
+            scope,
+            "unsupported" as ModelAssuranceRecordKind,
+            "record_one",
+          );
+        if (kind === "record ID")
+          return ports.records.evidence.evaluation.findCriterionSet(scope, "invalid id");
+        if (kind.endsWith("root kind") || kind === "root record ID") {
+          const roots = ports.records.logicalRoots;
+          if (!roots) throw new Error("Missing fixed owning root ports");
+          if (kind === "evaluation root kind")
+            return roots.evaluation.findEvaluationLogicalRoot(
               scope,
-              "unsupported" as ModelAssuranceRecordKind,
+              "unsupported" as "criterion_set",
               "record_one",
             );
-          if (kind === "record ID")
-            return ports.records.evidence.evaluation.findCriterionSet(scope, "invalid id");
-          return ports.evidence.resolveExactEvents(scope, "00000000000000000000000000000000", [
-            "event_one",
-          ]);
-        }),
-      ).rejects.toThrow();
-      expect(f.queries).toHaveLength(before + 1);
-      expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
-    },
-  );
+          if (kind === "comparison root kind")
+            return roots.comparison.findComparisonLogicalRoot(
+              scope,
+              "comparison_snapshot" as "comparison_definition",
+              "record_one",
+            );
+          return roots.releaseCandidate.findReleaseCandidateLogicalRoot(scope, "invalid id");
+        }
+        return ports.evidence.resolveExactEvents(scope, "00000000000000000000000000000000", [
+          "event_one",
+        ]);
+      }),
+    ).rejects.toThrow();
+    expect(f.queries).toHaveLength(before + 1);
+    expect(f.queries.at(-1)?.text).toBe("ROLLBACK");
+  });
 
   it.each(["tenantId", "projectId", "environmentId"] as const)(
     "taints a caught %s scope escape before SQL",

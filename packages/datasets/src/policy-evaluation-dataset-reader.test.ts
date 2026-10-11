@@ -11,9 +11,11 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import { digestRecordedInteractionFixtureVersionDefinition } from "./interaction-fixture-definition-digest.js";
 import {
+  inspectPolicyEvaluationDatasetCapture,
   inspectPolicyEvaluationDataset,
   type PolicyEvaluationDatasetRecord,
   type PolicyEvaluationDatasetSource,
+  readPolicyEvaluationDatasetCapture,
   readPolicyEvaluationDataset,
 } from "./policy-evaluation-dataset-reader.js";
 import type { InteractionFixtureVersionRepository } from "./regression-version-repository.js";
@@ -114,6 +116,30 @@ const hash = (value: unknown) =>
 const invalid = { reason: "record_invalid", status: "unavailable" };
 
 describe.each(vectors)("materialized dataset inspection: $name", (vector) => {
+  it("retains an exact future body and original hash without promoting semantic availability", async () => {
+    const record = version(vector);
+    const command = { ...input(record), evaluationTime: "2000-01-01T00:00:00.000Z" };
+    const repository = routed(vector, record);
+    const result = await readPolicyEvaluationDatasetCapture(command, repository);
+    expect(result).toEqual({
+      read: {
+        source: command.source,
+        observation: { status: "unavailable", reason: "not_yet_available" },
+        record: null,
+      },
+      storage: { record, recordSha256: hash(record), receiptTime: record.createdAt },
+    });
+    expect(inspectPolicyEvaluationDatasetCapture(command, record)).toEqual(result);
+    if (vector.kind === "dataset") {
+      expect(repository.findDatasetVersion).toHaveBeenCalledTimes(1);
+      expect(repository.findFixtureVersion).not.toHaveBeenCalled();
+      expect(repository.findRecordedInteractionFixtureVersion).not.toHaveBeenCalled();
+    } else {
+      expect(repository.findDatasetVersion).not.toHaveBeenCalled();
+      expect(repository.findFixtureVersion).toHaveBeenCalledTimes(1);
+      expect(repository.findRecordedInteractionFixtureVersion).toHaveBeenCalledTimes(1);
+    }
+  });
   it("matches acquisition with an independent full-record hash and owns returned values", async () => {
     const record = version(vector);
     const command = input(record);

@@ -49,6 +49,11 @@ import {
   type PolicyEvaluationSnapshotBindings,
 } from "./capture-evaluation-snapshots.js";
 import {
+  capturePolicyLogicalRootBinding,
+  inspectCapturedLogicalRootBindings,
+  type PolicyLogicalRootBinding,
+} from "./capture-logical-root.js";
+import {
   inspectCapturedModelAssurance,
   type PolicyModelAssuranceBindings,
 } from "./capture-model-assurance.js";
@@ -75,6 +80,10 @@ import {
   type PolicyProtocolResolution,
   readParentProtocolResolution,
 } from "./resolve-parent-protocol.js";
+import {
+  inspectRetainedPolicyRecord,
+  type PolicyRetainedRecordCapture,
+} from "./retained-record-routing.js";
 
 export interface PolicyRecordGraphEdge {
   readonly parent: PolicyEvaluationSourceReference;
@@ -116,6 +125,11 @@ export interface PolicyRecordGraph {
   readonly nodes: readonly PolicyRecordExpansion[];
   /** Deterministic breadth-first parent order, preserving every occurrence within each parent. */
   readonly edges: readonly PolicyRecordGraphEdge[];
+  /** Owning original roots are storage provenance, not additional request roots or operands. */
+  readonly logicalRoots: {
+    readonly configuration: "configured" | "unconfigured";
+    readonly bindings: readonly PolicyLogicalRootBinding[];
+  };
   readonly entries: readonly PolicyEvaluationManifestEntry[];
   /** Independently re-derived retained record inventory and explicit non-record frontier. */
   readonly recordClosure: PolicyRecordClosure;
@@ -145,7 +159,11 @@ export interface PolicyRecordGraph {
     }[];
   };
   readonly usage: ReturnType<AcquisitionBudget["usage"]>;
-  readonly unresolved: { readonly records: number; readonly references: number };
+  readonly unresolved: {
+    readonly records: number;
+    readonly references: number;
+    readonly logicalRoots: number;
+  };
 }
 
 function canonical(value: unknown): string {
@@ -157,6 +175,17 @@ function metered(
   budget: AcquisitionBudget,
 ): PolicyRecordGraphRepositories {
   return {
+    ...(repositories.logicalRoots
+      ? {
+          logicalRoots: {
+            evaluation: budget.wrap(repositories.logicalRoots.evaluation),
+            comparison: budget.wrap(repositories.logicalRoots.comparison),
+            releaseCandidate: budget.wrap(repositories.logicalRoots.releaseCandidate),
+            releasePolicy: budget.wrap(repositories.logicalRoots.releasePolicy),
+            datasets: budget.wrap(repositories.logicalRoots.datasets),
+          },
+        }
+      : {}),
     control: {
       comparison: budget.wrap(repositories.control.comparison),
       releaseCandidate: budget.wrap(repositories.control.releaseCandidate),
@@ -210,6 +239,11 @@ export async function acquirePolicyRecordGraph(
   let reinspection: CapturedGraphReinspection | undefined;
   const { evaluationTime, scope } = request;
   const ports = metered(repositories, budget);
+  // A guarded reinspection cannot upgrade the original capture's missing configuration.
+  const rootPorts =
+    retained?.logicalRoots.configuration === "unconfigured" ? undefined : ports.logicalRoots;
+  if (retained?.logicalRoots.configuration === "configured" && !rootPorts)
+    throw new PolicyRecordGraphError("observation_conflict", "logical_root_configuration");
   const limits = {
     maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
     maxReferences: request.limits.maxAcquisitionRecords,
@@ -228,6 +262,7 @@ export async function acquirePolicyRecordGraph(
   const expanded = new Map<string, PolicyRecordExpansion>();
   const artifacts = new Map<string, string>();
   const edges: PolicyRecordGraphEdge[] = [];
+  const logicalRootBindings = new Map<string, PolicyLogicalRootBinding>();
   const admitEdge = (edge: PolicyRecordGraphEdge) => {
     reinspection?.edge(edges.length, edge);
     edges.push(edge);
@@ -273,6 +308,13 @@ export async function acquirePolicyRecordGraph(
                 ).references
               : null,
         };
+        if (prefetched.observation.status === "verified") {
+          const capture = inspectRetainedPolicyRecord(
+            { evaluationTime, scope, source },
+            prefetched.record,
+          );
+          if (capture) expansion = { ...expansion, storage: capture.storage };
+        }
       } else {
         expansion = await readAndExpandPolicyRecord(
           { evaluationTime, scope, source },
@@ -283,6 +325,17 @@ export async function acquirePolicyRecordGraph(
         enqueue(source, expansion.read);
       }
       reinspection?.expansion(expansion);
+      if (expansion.storage) {
+        const binding = await capturePolicyLogicalRootBinding(
+          { evaluationTime, scope, source },
+          { read: expansion.read, storage: expansion.storage } as PolicyRetainedRecordCapture,
+          rootPorts,
+        );
+        if (binding) {
+          reinspection?.logicalRoot(binding);
+          logicalRootBindings.set(key, binding);
+        }
+      }
       expanded.set(key, expansion);
       const { read, references } = expansion;
       if (references === null || read.observation.status !== "verified") continue;
@@ -546,6 +599,12 @@ export async function acquirePolicyRecordGraph(
       roots,
       nodes,
       edges,
+      logicalRoots: {
+        configuration: rootPorts ? "configured" : "unconfigured",
+        bindings: [...logicalRootBindings.entries()]
+          .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+          .map(([, binding]) => binding),
+      },
       entries,
       recordClosure,
       policyAssessments,
@@ -572,8 +631,12 @@ export async function acquirePolicyRecordGraph(
       unresolved: {
         records: nodes.filter(({ read }) => read.observation.status !== "verified").length,
         references: recordClosure.frontier.length,
+        logicalRoots: [...logicalRootBindings.values()].filter(
+          (binding) => binding.status === "unresolved",
+        ).length,
       },
     };
+    inspectCapturedLogicalRootBindings({ scope, evaluationTime }, graph);
     reinspection?.complete(graph);
     return graph;
   } finally {

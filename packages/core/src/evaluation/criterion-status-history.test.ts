@@ -27,6 +27,33 @@ const limits = {
 };
 
 describe("complete criterion status history admission", () => {
+  it.each([0, 1, 2])("preserves the exact complete hash for %i rows", (count) => {
+    const input = records.slice(0, count);
+    const normalized = JSON.parse(JSON.stringify(input)) as typeof input;
+    const exact = {
+      maxRecords: count,
+      maxRecordBytes: encodeEvaluationCanonicalJson(normalized).byteLength,
+    };
+    const observed = inspectCriterionStatusHistory(harness.scope, input, exact);
+    expect(observed.history.map(({ record }) => record)).toEqual(normalized);
+    expect(observed.historySha256).toBe(
+      createHash("sha256")
+        .update(
+          encodeEvaluationCanonicalJson({
+            format: "proofstack.criterion-status-history.v1",
+            records: normalized,
+            scope: harness.scope,
+          }),
+        )
+        .digest("hex"),
+    );
+    expect(() =>
+      inspectCriterionStatusHistory(harness.scope, input, {
+        ...exact,
+        maxRecordBytes: exact.maxRecordBytes - 1,
+      }),
+    ).toThrow(count === 0 ? TypeError : CriterionStatusHistoryLimitError);
+  });
   it("preserves exact UTF-8 byte admission and full history hashes for mixed-width status text", () => {
     const history = records.map((record) =>
       criterionStatusHistoryFixture(record, { rationale: "승인 é한😀A\u{10000}B\u{10ffff}C" }),

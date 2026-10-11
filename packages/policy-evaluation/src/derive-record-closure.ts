@@ -1,14 +1,15 @@
 import {
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationManifestEntry,
   PolicyEvaluationManifestEntrySchema,
   type PolicyEvaluationRequest,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   inspectPolicyEvaluationImplementationResolution,
   inspectPolicyEvaluationSelector,
+  MAX_STATIC_PROTOCOL_DEFINITIONS,
   type PolicyEvaluationEvidenceRead,
   type PolicyEvaluationEvidenceReference,
   PolicyEvaluationEvidenceReferenceError,
@@ -19,7 +20,6 @@ import {
   type PolicyEvaluationSelectorParentRead,
   type PolicyEvaluationSelectorParentSource,
   validatePolicyEvaluationRequestRecord,
-  MAX_STATIC_PROTOCOL_DEFINITIONS,
 } from "@proofstack/core";
 import {
   inspectPolicyEvaluationModelEndpointResolution,
@@ -30,10 +30,11 @@ import { PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
 import { enumerateCapturedPolicyRecord, type PolicyRecordExpansion } from "./record-routing.js";
 import {
-  isResolvableProtocolReference,
   inspectParentProtocolResolution,
+  isResolvableProtocolReference,
   type PolicyProtocolParentSource,
 } from "./resolve-parent-protocol.js";
+import { inspectRetainedPolicyRecord } from "./retained-record-routing.js";
 
 type Source = PolicyEvaluationSourceReference;
 type FrontierKind = "artifact" | "trace" | "retained_declaration" | "unresolved_selector";
@@ -68,9 +69,7 @@ const categories = {
 >;
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 
 function selector(
@@ -146,11 +145,36 @@ export function deriveCapturedRecordClosure(
     const key = policyEvaluationSourceReferenceKey(entry.source);
     if (
       key <= previousKey ||
-      Object.keys(node).some((field) => field !== "read" && field !== "references") ||
+      Object.keys(node).some((field) => !["read", "references", "storage"].includes(field)) ||
       Object.keys(read).some((field) => !["source", "observation", "record"].includes(field))
     )
       throw new PolicyRecordGraphError("reference_conflict", key);
     previousKey = key;
+    if (node.storage !== undefined) {
+      const inspected = inspectRetainedPolicyRecord(
+        { source: read.source, scope: request.scope, evaluationTime: request.evaluationTime },
+        node.storage?.record ?? null,
+      );
+      if (
+        !inspected ||
+        !same(inspected.storage, node.storage) ||
+        (node.storage !== null && !same(inspected.read, read)) ||
+        (node.storage === null &&
+          (read.observation.status === "verified" ||
+            (read.observation.status === "unavailable" &&
+              read.observation.reason === "not_yet_available")))
+      )
+        throw new PolicyRecordGraphError("observation_conflict", key);
+    } else if (
+      (read.observation.status === "verified" ||
+        (read.observation.status === "unavailable" &&
+          read.observation.reason === "not_yet_available")) &&
+      inspectRetainedPolicyRecord(
+        { source: read.source, scope: request.scope, evaluationTime: request.evaluationTime },
+        read.record,
+      ) !== null
+    )
+      throw new PolicyRecordGraphError("observation_conflict", key);
     if (
       read.observation.status !== "verified" &&
       (read.record !== null || node.references !== null)
@@ -458,9 +482,7 @@ export function deriveCapturedRecordClosure(
         throw new PolicyRecordGraphError("reference_conflict", key);
       if (reference.kind === "artifact") {
         const identity = reference.reference.artifactId;
-        const descriptor = Buffer.from(encodeEvaluationCanonicalJson(reference.reference)).toString(
-          "utf8",
-        );
+        const descriptor = serializeEvaluationCanonicalJson(reference.reference);
         const prior = artifacts.get(identity);
         if (prior !== undefined && prior !== descriptor)
           throw new PolicyRecordGraphError("reference_conflict", `artifact:${identity}`);

@@ -4,6 +4,7 @@ import {
   serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import { policyEvaluationRequestReference } from "@proofstack/core";
+import type { PolicyLogicalRootBinding } from "./capture-logical-root.js";
 import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
 import type { PolicyTraceEvidenceCapture } from "./capture-trace-evidence.js";
 import type { PolicyRecordExpansion, PolicyRecordRead } from "./record-routing.js";
@@ -44,6 +45,7 @@ function traceMaterial(capture: PolicyTraceEvidenceCapture) {
 export class CapturedGraphReinspection {
   private readonly reads = new Map<string, string>();
   private readonly expansions = new Map<string, string>();
+  private readonly logicalRoots = new Map<string, string>();
   private readonly edges: readonly string[];
   private readonly material: string;
 
@@ -73,6 +75,11 @@ export class CapturedGraphReinspection {
       this.expansions.set(key, canonical(node));
     }
     this.edges = retained.edges.map(canonical);
+    for (const binding of retained.logicalRoots.bindings) {
+      const key = policyEvaluationSourceReferenceKey(binding.parent);
+      if (this.logicalRoots.has(key)) throw new PolicyCapturedObservationRecheckError(key);
+      this.logicalRoots.set(key, canonical(binding));
+    }
     this.material = canonical(graphMaterial(retained));
   }
 
@@ -88,6 +95,13 @@ export class CapturedGraphReinspection {
     const key = policyEvaluationSourceReferenceKey(expansion.read.source);
     if (this.expansions.get(key) !== canonical(expansion))
       throw new PolicyCapturedObservationRecheckError(key);
+  }
+
+  /** Compare full original root material before following any parent descendants. */
+  logicalRoot(binding: PolicyLogicalRootBinding) {
+    const key = policyEvaluationSourceReferenceKey(binding.parent);
+    if (this.logicalRoots.get(key) !== canonical(binding))
+      throw new PolicyCapturedObservationRecheckError(`logical_root:${key}`);
   }
 
   /** Compare selector outcomes and repeated ordered occurrences before enqueueing targets. */

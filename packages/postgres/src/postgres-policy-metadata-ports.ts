@@ -19,22 +19,35 @@ import type {
 } from "@proofstack/core";
 import type { PolicyEvaluationMetadataPorts } from "@proofstack/policy-evaluation";
 import type { PoolClient } from "pg";
-import { readPostgresComparisonRecordOnClient } from "./postgres-comparison-repository.js";
+import {
+  readPostgresComparisonLogicalRootOnClient,
+  readPostgresComparisonRecordOnClient,
+} from "./postgres-comparison-repository.js";
 import {
   listPostgresCriterionSetStatusesOnClient,
   type PostgresEvaluationRecordByKind,
+  readPostgresEvaluationLogicalRootOnClient,
   readPostgresEvaluationRecordOnClient,
 } from "./postgres-evaluation-repository.js";
 import { resolvePostgresExactEventsOnClient } from "./postgres-evidence-repository.js";
 import { readPostgresModelAssuranceRecordOnClient } from "./postgres-model-assurance-repository.js";
 import {
+  readPostgresDatasetLogicalRootOnClient,
   readPostgresDatasetVersionOnClient,
+  readPostgresFixtureLogicalRootOnClient,
   readPostgresFixtureVersionOnClient,
   readPostgresRecordedInteractionFixtureContentOnClient,
+  readPostgresRecordedInteractionFixtureLogicalRootOnClient,
   readPostgresRecordedInteractionFixtureVersionOnClient,
 } from "./postgres-regression-version-repository.js";
-import { readPostgresReleaseCandidateOnClient } from "./postgres-release-candidate-repository.js";
-import { readPostgresReleasePolicyOnClient } from "./postgres-release-policy-repository.js";
+import {
+  readPostgresReleaseCandidateLogicalRootOnClient,
+  readPostgresReleaseCandidateOnClient,
+} from "./postgres-release-candidate-repository.js";
+import {
+  readPostgresReleasePolicyLogicalRootOnClient,
+  readPostgresReleasePolicyOnClient,
+} from "./postgres-release-policy-repository.js";
 import {
   readPostgresReplayPlanOnClient,
   readPostgresTargetReleaseOnClient,
@@ -97,6 +110,46 @@ export function createPostgresPolicyMetadataPorts(
   };
   return {
     records: {
+      logicalRoots: {
+        evaluation: {
+          findEvaluationLogicalRoot: (scope, kind, value) =>
+            scoped(scope, (owned) =>
+              readPostgresEvaluationLogicalRootOnClient(client, owned, kind, id(value)),
+            ),
+        },
+        comparison: {
+          findComparisonLogicalRoot: (scope, kind, value) =>
+            scoped(scope, (owned) =>
+              readPostgresComparisonLogicalRootOnClient(client, owned, kind, id(value)),
+            ),
+        },
+        releaseCandidate: {
+          findReleaseCandidateLogicalRoot: (scope, value) =>
+            scoped(scope, (owned) =>
+              readPostgresReleaseCandidateLogicalRootOnClient(client, owned, id(value)),
+            ),
+        },
+        releasePolicy: {
+          findReleasePolicyLogicalRoot: (scope, value) =>
+            scoped(scope, (owned) =>
+              readPostgresReleasePolicyLogicalRootOnClient(client, owned, id(value)),
+            ),
+        },
+        datasets: {
+          findDatasetLogicalRoot: (scope, value) =>
+            scoped(scope, (owned) =>
+              readPostgresDatasetLogicalRootOnClient(client, owned, id(value)),
+            ),
+          findFixtureLogicalRoot: (scope, value) =>
+            scoped(scope, (owned) =>
+              readPostgresFixtureLogicalRootOnClient(client, owned, id(value)),
+            ),
+          findRecordedInteractionFixtureLogicalRoot: (scope, value) =>
+            scoped(scope, (owned) =>
+              readPostgresRecordedInteractionFixtureLogicalRootOnClient(client, owned, id(value)),
+            ),
+        },
+      },
       protocolDefinitions: {
         findProtocolDefinition: (scope, value) =>
           scoped(scope, (owned) =>

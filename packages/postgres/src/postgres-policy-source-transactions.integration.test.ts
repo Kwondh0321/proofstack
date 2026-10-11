@@ -742,6 +742,62 @@ async function fixture(
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("reads retained candidate and policy originals through fixed held-client root ports", async () => {
+    const f = await fixture(false, true);
+    const result = await f.run();
+    if (result.status !== "artifacts_captured") throw new Error("Expected retained graph");
+    const graph = result.traceCapture.comparisonCapture.graph;
+    const candidate = graph.nodes.find(
+      ({ read }) => read.source.kind === "release_candidate",
+    )?.read;
+    if (
+      candidate?.source.kind !== "release_candidate" ||
+      candidate.observation.status !== "verified"
+    )
+      throw new Error("Missing exact candidate");
+    const candidateVersionId = candidate.source.reference.candidateVersionId;
+    const retained = await f.transactions.runMetadata(f.scope, async ({ records }) => {
+      const roots = records.logicalRoots;
+      if (!roots) throw new Error("Missing held-client root ports");
+      const first = await roots.releaseCandidate.findReleaseCandidateLogicalRoot(
+        f.scope,
+        candidateVersionId,
+      );
+      expect(first).toEqual(candidate.record);
+      if (!first) throw new Error("Missing stored candidate root");
+      first.createdByPrincipalId = "mutated_returned_receipt";
+      expect(
+        await roots.releaseCandidate.findReleaseCandidateLogicalRoot(f.scope, candidateVersionId),
+      ).toEqual(candidate.record);
+      expect(
+        await roots.releasePolicy.findReleasePolicyLogicalRoot(f.scope, f.policy.policyVersionId),
+      ).toEqual(f.policy);
+      expect(
+        await roots.releaseCandidate.findReleaseCandidateLogicalRoot(f.scope, "missing_root_child"),
+      ).toBeNull();
+      return roots;
+    });
+    await expect(
+      retained.releaseCandidate.findReleaseCandidateLogicalRoot(f.scope, candidateVersionId),
+    ).rejects.toThrow("expired");
+    for (const field of ["tenantId", "projectId", "environmentId"] as const) {
+      await expect(
+        f.transactions.runMetadata(f.scope, async ({ records }) => {
+          const roots = records.logicalRoots;
+          if (!roots) throw new Error("Missing held-client root ports");
+          await expect(
+            roots.releasePolicy.findReleasePolicyLogicalRoot(
+              { ...f.scope, [field]: "foreign_root_scope" },
+              f.policy.policyVersionId,
+            ),
+          ).rejects.toThrow("scope differs");
+          return "caught scope violation cannot commit";
+        }),
+      ).rejects.toThrow("scope differs");
+    }
+    await f.cleanContext();
+  });
+
   it("reinspects complete protocol candidates and encrypted occurrences under the same native metadata guard", async () => {
     const f = await fixture(false, true, true, true);
     let cuts = 0;

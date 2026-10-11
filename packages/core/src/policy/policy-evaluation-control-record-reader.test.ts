@@ -12,10 +12,12 @@ import { MemoryReleasePolicyRepository } from "../testing/memory-release-policy-
 import { releaseCandidateFixture } from "../testing/release-candidate-repository-fixtures.js";
 import { policyAuthorityFixture } from "../testing/release-policy-fixtures.js";
 import {
+  inspectPolicyEvaluationControlCapture,
   inspectPolicyEvaluationControlRecord,
   type PolicyEvaluationControlReaderDependencies,
   type PolicyEvaluationControlRecord,
   type PolicyEvaluationControlSource,
+  readPolicyEvaluationControlCapture,
   readPolicyEvaluationControlRecord,
 } from "./policy-evaluation-control-record-reader.js";
 import { PolicyEvaluationDefinitionReadInputError } from "./policy-evaluation-definition-reader.js";
@@ -184,6 +186,29 @@ function unavailable(reason: string) {
 describe("exact control-record acquisition and reinspection", () => {
   for (const testCase of cases) {
     describe(testCase.source.kind, () => {
+      it("retains future original storage without making it available at the policy cut", async () => {
+        const command = { ...input(testCase), evaluationTime: "2000-01-01T00:00:00.000Z" };
+        const { dependencies, reads } = ports(structuredClone(testCase.record));
+        const captured = await readPolicyEvaluationControlCapture(command, dependencies);
+        expect(captured).toEqual({
+          read: {
+            source: testCase.source,
+            observation: { status: "unavailable", reason: "not_yet_available" },
+            record: null,
+          },
+          storage: {
+            record: testCase.record,
+            recordSha256: hash(testCase.record),
+            receiptTime: testCase.record[testCase.receipt as keyof typeof testCase.record],
+          },
+        });
+        expect(inspectPolicyEvaluationControlCapture(command, testCase.record)).toEqual(captured);
+        for (const [index, read] of reads.entries()) {
+          if (index === testCase.port)
+            expect(read).toHaveBeenCalledExactlyOnceWith(...testCase.query);
+          else expect(read).not.toHaveBeenCalled();
+        }
+      });
       it("reads exactly one typed port and hashes the full record independently", async () => {
         const { dependencies, reads } = ports(structuredClone(testCase.record));
         const expected = {

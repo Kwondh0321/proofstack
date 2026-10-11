@@ -50,6 +50,11 @@ acquisition budget을 사용하며 content/key I/O를 잠금 아래 반복하지
 일치해야 합니다. 그대로인 unreadable 관측은 보존하지만 버린 잘못된 원문 바이트의 동일성을
 증명하지 않습니다. 변경은 기존 source-recheck 오류이며 한도·저장소 오류는 별도로 보존합니다.
 
+[원문·최초 루트 수집](workflow-2-policy-logical-root-capture.ko.md)은 미래 원문을 의미 읽기와
+분리해 보존하며 설정된 소유 루트를 자식 조회 전에 비교합니다. 미설정 포트는 frontier로 유지합니다.
+루트에만 있는 인벤토리와 전체 의미 관계는 남은 작업이며 전체 해시가 미래 본문을 사용 가능하게
+만들지 않습니다.
+
 Catalog·root policy lifecycle·전체 criterion history와 알려진 successor를 같은 트랜잭션에서
 검사합니다. 새 successor 조회 전에 전체 이력 목록을 비교합니다. 선택적
 `sourceRecheck.metadata`는 보존 record/trace 관측 수와 실제 graph/selector·trace 재조회 수를

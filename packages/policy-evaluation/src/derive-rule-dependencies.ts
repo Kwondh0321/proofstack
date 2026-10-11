@@ -1,9 +1,9 @@
 import {
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationManifestEntry,
   type PolicyEvaluationRequest,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   PolicyEvaluationEvidenceReferenceError,
@@ -45,9 +45,7 @@ export interface PolicyRuleDependencyClosure {
 }
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 function conflict(): never {
   throw new PolicyRecordGraphError("observation_conflict");
@@ -88,7 +86,7 @@ export function deriveCapturedRuleDependencies(
   const admit = (value: unknown, count = 1) => {
     if (count > limits.maxReferences - references)
       throw new PolicyEvaluationEvidenceReferenceError("reference_limit_exceeded");
-    const bytes = encodeEvaluationCanonicalJson(value).byteLength;
+    const bytes = Buffer.byteLength(serializeEvaluationCanonicalJson(value), "utf8");
     if (bytes > limits.maxReferenceBytes - referenceBytes)
       throw new PolicyEvaluationEvidenceReferenceError("reference_bytes_exceeded");
     references += count;

@@ -12,10 +12,12 @@ import {
   type ModelAssuranceRepositoryTestHarness,
 } from "../testing/model-assurance-repository-fixtures.js";
 import {
+  inspectPolicyEvaluationEvidenceCapture,
   type PolicyEvaluationEvidenceReaderDependencies,
   PolicyEvaluationEvidenceReadInputError,
   type PolicyEvaluationEvidenceSource,
   type ReadPolicyEvaluationEvidenceInput,
+  readPolicyEvaluationEvidenceCapture,
   readPolicyEvaluationEvidence,
 } from "./policy-evaluation-evidence-reader.js";
 
@@ -123,6 +125,25 @@ describe("policy evaluation evidence acquisition", () => {
 
   describe.each(cases)("%s", (kind, repositoryKind, receiptField) => {
     const testCase = [kind, repositoryKind, receiptField] as Case;
+
+    it("retains a future full original body separately from semantic availability", async () => {
+      const { input: originalInput, record } = fixture(testCase);
+      const input = { ...originalInput, evaluationTime: "2000-01-01T00:00:00.000Z" };
+      const captured = await readPolicyEvaluationEvidenceCapture(input, repositories);
+      expect(captured.read).toEqual({
+        observation: { reason: "not_yet_available", status: "unavailable" },
+        record: null,
+        source: input.source,
+      });
+      expect(captured.storage).toEqual({
+        record,
+        recordSha256: createHash("sha256")
+          .update(encodeEvaluationCanonicalJson(record))
+          .digest("hex"),
+        receiptTime: fields(record)[receiptField],
+      });
+      expect(inspectPolicyEvaluationEvidenceCapture(input, record)).toEqual(captured);
+    });
 
     it("reads an exact retained record and hashes the complete receipt-bearing body", async () => {
       const { input, record } = fixture(testCase);

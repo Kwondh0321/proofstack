@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import {
   type EvidenceScope,
   EvidenceScopeSchema,
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationManifestEntry,
   type PolicyEvaluationSourceReference,
   PolicyEvaluationSourceReferenceSchema,
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 
 export interface PolicyEvaluationDefinitionReadInput<
@@ -36,6 +36,19 @@ export type PolicyEvaluationDefinitionRead<
       readonly record: null;
     }
 );
+
+/** A retained full body is separate from availability at the semantic evaluation time. */
+export interface PolicyEvaluationDefinitionCapture<
+  Record,
+  Source extends PolicyEvaluationSourceReference,
+> {
+  readonly read: PolicyEvaluationDefinitionRead<Record, Source>;
+  readonly storage: {
+    readonly record: Record;
+    readonly recordSha256: string;
+    readonly receiptTime: string;
+  } | null;
+}
 
 export class PolicyEvaluationDefinitionReadInputError extends TypeError {
   readonly code = "policy_evaluation_definition_read_input_invalid";
@@ -102,6 +115,36 @@ export function inspectPolicyEvaluationDefinitionRecord<
   return inspectCapturedRecord(captureInput(input, adapter.kinds), raw, adapter);
 }
 
+/**
+ * Retains a validated exact body and its full receipt hash even when it is not yet available.
+ * Storage is not verified semantic evidence, acquisition authority, or a sealed observation.
+ */
+export function inspectPolicyEvaluationDefinitionCapture<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly scope: EvidenceScope },
+>(
+  input: PolicyEvaluationDefinitionReadInput<Source>,
+  raw: unknown,
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record>,
+): PolicyEvaluationDefinitionCapture<Record, Source> {
+  return captureRecord(captureInput(input, adapter.kinds), raw, adapter);
+}
+
+/** Fixed owning adapters use the same acquisition and validation as ordinary temporal reads. */
+export async function readPolicyEvaluationDefinitionCapture<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly scope: EvidenceScope },
+>(
+  input: PolicyEvaluationDefinitionReadInput<Source>,
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record> & {
+    readonly read: (scope: EvidenceScope, source: Source) => Promise<unknown>;
+  },
+): Promise<PolicyEvaluationDefinitionCapture<Record, Source>> {
+  const captured = captureInput(input, adapter.kinds);
+  const raw = await adapter.read(structuredClone(captured.scope), structuredClone(captured.source));
+  return captureRecord(captured, raw, adapter);
+}
+
 function captureInput<Source extends PolicyEvaluationSourceReference>(
   input: PolicyEvaluationDefinitionReadInput<Source>,
   kinds: readonly Source["kind"][],
@@ -124,21 +167,33 @@ function inspectCapturedRecord<
   Source extends PolicyEvaluationSourceReference,
   Record extends { readonly scope: EvidenceScope },
 >(
-  { evaluationTime, scope, source }: PolicyEvaluationDefinitionReadInput<Source>,
+  context: PolicyEvaluationDefinitionReadInput<Source>,
   raw: unknown,
   adapter: PolicyEvaluationDefinitionValidator<Source, Record>,
 ): PolicyEvaluationDefinitionRead<Record, Source> {
-  if (raw === null) return { observation: { status: "missing" }, record: null, source };
+  return temporalRead(context, inspectStoredRecord(context, raw, adapter));
+}
+
+type StoredMaterial<Record> =
+  | { readonly status: "retained"; readonly record: Record; readonly receiptTime: string }
+  | { readonly status: "missing" }
+  | { readonly status: "unavailable"; readonly reason: "record_invalid" | "reference_mismatch" };
+
+function inspectStoredRecord<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly scope: EvidenceScope },
+>(
+  { scope, source }: PolicyEvaluationDefinitionReadInput<Source>,
+  raw: unknown,
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record>,
+): StoredMaterial<Record> {
+  if (raw === null) return { status: "missing" };
   let record: Record;
   try {
     record = adapter.validate(structuredClone(source), raw);
   } catch (cause) {
     if (!adapter.isInvalidRecordError(cause)) throw cause;
-    return {
-      observation: { reason: "record_invalid", status: "unavailable" },
-      record: null,
-      source,
-    };
+    return { reason: "record_invalid", status: "unavailable" };
   }
   const fields = record as unknown as Readonly<{ [key: string]: unknown }>;
   if (
@@ -148,24 +203,33 @@ function inspectCapturedRecord<
     !Object.entries(source.reference).every(
       ([key, value]) =>
         fields[key] !== undefined &&
-        Buffer.from(encodeEvaluationCanonicalJson(fields[key])).equals(
-          encodeEvaluationCanonicalJson(value),
-        ),
+        serializeEvaluationCanonicalJson(fields[key]) === serializeEvaluationCanonicalJson(value),
     )
   ) {
-    return {
-      observation: { reason: "reference_mismatch", status: "unavailable" },
-      record: null,
-      source,
-    };
+    return { reason: "reference_mismatch", status: "unavailable" };
   }
   const receiptTime =
     adapter.receiptTime === undefined ? fields["createdAt"] : adapter.receiptTime(record);
   if (typeof receiptTime !== "string") {
     throw new TypeError("Validated policy evaluation record omitted its receipt time");
   }
+  return { status: "retained", record, receiptTime };
+}
+
+function hashRecord(record: unknown): string {
+  return createHash("sha256")
+    .update(serializeEvaluationCanonicalJson(record), "utf8")
+    .digest("hex");
+}
+
+function temporalRead<Source extends PolicyEvaluationSourceReference, Record>(
+  { evaluationTime, source }: PolicyEvaluationDefinitionReadInput<Source>,
+  material: StoredMaterial<Record>,
+  recordSha256?: string,
+): PolicyEvaluationDefinitionRead<Record, Source> {
+  if (material.status !== "retained") return { observation: material, record: null, source };
   if (
-    policyEvaluationTimestampOrderKey(receiptTime) >
+    policyEvaluationTimestampOrderKey(material.receiptTime) >
     policyEvaluationTimestampOrderKey(evaluationTime)
   ) {
     return {
@@ -176,12 +240,34 @@ function inspectCapturedRecord<
   }
   return {
     observation: {
-      recordSha256: createHash("sha256")
-        .update(encodeEvaluationCanonicalJson(record))
-        .digest("hex"),
+      recordSha256: recordSha256 ?? hashRecord(material.record),
       status: "verified",
     },
-    record,
+    record: material.record,
     source,
+  };
+}
+
+function captureRecord<
+  Source extends PolicyEvaluationSourceReference,
+  Record extends { readonly scope: EvidenceScope },
+>(
+  context: PolicyEvaluationDefinitionReadInput<Source>,
+  raw: unknown,
+  adapter: PolicyEvaluationDefinitionValidator<Source, Record>,
+): PolicyEvaluationDefinitionCapture<Record, Source> {
+  const material = inspectStoredRecord(context, raw, adapter);
+  if (material.status !== "retained")
+    return { read: temporalRead(context, material), storage: null };
+  // Validate the original receipt even when storage is retained independently of semantic time.
+  policyEvaluationTimestampOrderKey(material.receiptTime);
+  const recordSha256 = hashRecord(material.record);
+  return {
+    read: temporalRead(context, material, recordSha256),
+    storage: {
+      record: structuredClone(material.record),
+      recordSha256,
+      receiptTime: material.receiptTime,
+    },
   };
 }

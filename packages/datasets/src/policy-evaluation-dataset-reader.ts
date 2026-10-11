@@ -1,13 +1,17 @@
 import type {
+  EvidenceScope,
   PolicyEvaluationSourceReference,
   RecordedInteractionFixtureVersion,
   RegressionDatasetVersion,
   RegressionFixtureVersion,
 } from "@proofstack/contracts";
 import {
+  inspectPolicyEvaluationDefinitionCapture,
   inspectPolicyEvaluationDefinitionRecord,
+  type PolicyEvaluationDefinitionCapture,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
+  readPolicyEvaluationDefinitionCapture,
   readPolicyEvaluationDefinitionRecord,
 } from "@proofstack/core";
 import { InvalidRegressionVersionInputError } from "./errors.js";
@@ -30,6 +34,32 @@ export type PolicyEvaluationDatasetRead = PolicyEvaluationDefinitionRead<
   PolicyEvaluationDatasetRecord,
   PolicyEvaluationDatasetSource
 >;
+export type PolicyEvaluationDatasetCapture = PolicyEvaluationDefinitionCapture<
+  PolicyEvaluationDatasetRecord,
+  PolicyEvaluationDatasetSource
+>;
+type DatasetReadRepository = Pick<
+  InteractionFixtureVersionRepository,
+  "findDatasetVersion" | "findFixtureVersion" | "findRecordedInteractionFixtureVersion"
+>;
+
+const validator = {
+  isInvalidRecordError: (cause: unknown) => cause instanceof InvalidRegressionVersionInputError,
+  kinds: ["dataset_version", "regression_fixture_version"] as const,
+  validate: (source: PolicyEvaluationDatasetSource, value: unknown) => {
+    if (source.kind === "dataset_version")
+      return validateAndProjectRegressionDatasetVersion(value).version;
+    // The discriminant selects one fixed schema; it never tries a favorable format fallback.
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "schemaVersion" in value &&
+      value.schemaVersion === "0.2"
+    )
+      return validateAndProjectRecordedInteractionFixtureVersion(value).version;
+    return validateAndProjectRegressionFixtureVersion(value).version;
+  },
+};
 
 /**
  * Inspects the immutable version body, NOT the interaction repository's ownership wrapper.
@@ -42,25 +72,22 @@ export function inspectPolicyEvaluationDataset(
   return inspectPolicyEvaluationDefinitionRecord<
     PolicyEvaluationDatasetSource,
     PolicyEvaluationDatasetRecord
-  >(input, raw, {
-    isInvalidRecordError: (cause) => cause instanceof InvalidRegressionVersionInputError,
-    kinds: ["dataset_version", "regression_fixture_version"],
-    validate: (source, value) => {
-      if (source.kind === "dataset_version") {
-        return validateAndProjectRegressionDatasetVersion(value).version;
-      }
-      // The discriminant only selects a fixed strict schema, never a favorable fallback.
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        "schemaVersion" in value &&
-        value.schemaVersion === "0.2"
-      ) {
-        return validateAndProjectRecordedInteractionFixtureVersion(value).version;
-      }
-      return validateAndProjectRegressionFixtureVersion(value).version;
-    },
-  });
+  >(input, raw, validator);
+}
+
+/** Pure exact-body retention; interaction ownership wrappers still require the owning read. */
+export function inspectPolicyEvaluationDatasetCapture(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationDatasetSource>,
+  raw: unknown,
+): PolicyEvaluationDatasetCapture {
+  return inspectPolicyEvaluationDefinitionCapture(input, raw, validator);
+}
+
+export function readPolicyEvaluationDatasetCapture(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationDatasetSource>,
+  repository: DatasetReadRepository,
+): Promise<PolicyEvaluationDatasetCapture> {
+  return readPolicyEvaluationDefinitionCapture(input, datasetAdapter(repository));
 }
 
 /**
@@ -72,18 +99,18 @@ export function inspectPolicyEvaluationDataset(
  */
 export function readPolicyEvaluationDataset(
   input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationDatasetSource>,
-  repository: Pick<
-    InteractionFixtureVersionRepository,
-    "findDatasetVersion" | "findFixtureVersion" | "findRecordedInteractionFixtureVersion"
-  >,
+  repository: DatasetReadRepository,
 ): Promise<PolicyEvaluationDatasetRead> {
   return readPolicyEvaluationDefinitionRecord<
     PolicyEvaluationDatasetSource,
     PolicyEvaluationDatasetRecord
-  >(input, {
-    isInvalidRecordError: (cause) => cause instanceof InvalidRegressionVersionInputError,
-    kinds: ["dataset_version", "regression_fixture_version"],
-    read: async (scope, source) => {
+  >(input, datasetAdapter(repository));
+}
+
+function datasetAdapter(repository: DatasetReadRepository) {
+  return {
+    ...validator,
+    read: async (scope: EvidenceScope, source: PolicyEvaluationDatasetSource) => {
       if (source.kind === "dataset_version") {
         return repository.findDatasetVersion(scope, source.reference.datasetVersionId);
       }
@@ -95,7 +122,7 @@ export function readPolicyEvaluationDataset(
       if (evidence === null && interaction === null) return null;
       return { evidence, interaction };
     },
-    validate: (source, raw) => {
+    validate: (source: PolicyEvaluationDatasetSource, raw: unknown) => {
       if (source.kind === "dataset_version") {
         return validateAndProjectRegressionDatasetVersion(raw).version;
       }
@@ -114,5 +141,5 @@ export function readPolicyEvaluationDataset(
         (interaction as { readonly version?: unknown }).version,
       ).version;
     },
-  });
+  };
 }

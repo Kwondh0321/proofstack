@@ -19,9 +19,9 @@ import {
   type PolicyEvaluationQualificationPolicyRead,
   type PolicyEvaluationRuntimeRead,
   type ProtocolDefinitionReader,
-  readPolicyEvaluationControlRecord,
+  readPolicyEvaluationControlCapture,
   readPolicyEvaluationEndpointProfileRecord,
-  readPolicyEvaluationEvidence,
+  readPolicyEvaluationEvidenceCapture,
   readPolicyEvaluationImplementationRecord,
   readPolicyEvaluationProtocolRecord,
   readPolicyEvaluationQualificationPolicyRecord,
@@ -34,7 +34,8 @@ import {
 import {
   enumeratePolicyEvaluationDatasetReferences,
   type PolicyEvaluationDatasetRead,
-  readPolicyEvaluationDataset,
+  type readPolicyEvaluationDataset,
+  readPolicyEvaluationDatasetCapture,
 } from "@proofstack/datasets";
 import {
   enumeratePolicyEvaluationReplayDefinitionReferences,
@@ -45,7 +46,12 @@ import {
   readPolicyEvaluationReplayResult,
 } from "@proofstack/replay";
 
+import type { PolicyEvaluationLogicalRootPorts } from "./logical-root-ports.js";
+import type { PolicyRetainedRecordStorage } from "./retained-record-routing.js";
+
 export interface PolicyRecordGraphRepositories {
+  /** Missing configuration must remain a root-binding frontier, never verified empty closure. */
+  readonly logicalRoots?: PolicyEvaluationLogicalRootPorts;
   readonly protocolDefinitions?: ProtocolDefinitionReader;
   readonly endpointProfiles?: Parameters<typeof readPolicyEvaluationEndpointProfileRecord>[1];
   readonly control: PolicyEvaluationControlReaderDependencies;
@@ -76,6 +82,8 @@ export type PolicyRecordRead =
 
 export interface PolicyRecordExpansion {
   readonly read: PolicyRecordRead;
+  /** Original validated storage remains separate from semantic availability. */
+  readonly storage?: PolicyRetainedRecordStorage | null;
   /** Null means unreadable parent, not an empty successful dependency list. */
   readonly references: readonly PolicyEvaluationEvidenceReference[] | null;
 }
@@ -242,16 +250,24 @@ export async function readAndExpandPolicyRecord(
     case "release_policy":
     case "policy_installation_binding": {
       const input = { source, scope, evaluationTime };
-      return finish(await readPolicyEvaluationControlRecord(input, repositories.control), (read) =>
-        enumeratePolicyEvaluationControlReferences(input, read, limits),
-      );
+      const capture = await readPolicyEvaluationControlCapture(input, repositories.control);
+      return {
+        ...finish(capture.read, (read) =>
+          enumeratePolicyEvaluationControlReferences(input, read, limits),
+        ),
+        storage: capture.storage,
+      };
     }
     case "dataset_version":
     case "regression_fixture_version": {
       const input = { source, scope, evaluationTime };
-      return finish(await readPolicyEvaluationDataset(input, repositories.datasets), (read) =>
-        enumeratePolicyEvaluationDatasetReferences(input, read, limits),
-      );
+      const capture = await readPolicyEvaluationDatasetCapture(input, repositories.datasets);
+      return {
+        ...finish(capture.read, (read) =>
+          enumeratePolicyEvaluationDatasetReferences(input, read, limits),
+        ),
+        storage: capture.storage,
+      };
     }
     case "replay_plan":
     case "target_release": {
@@ -280,9 +296,13 @@ export async function readAndExpandPolicyRecord(
     default: {
       // Adding a source kind outside the evidence domain makes this assignment fail typechecking.
       const input = { source, scope, evaluationTime };
-      return finish(await readPolicyEvaluationEvidence(input, repositories.evidence), (read) =>
-        enumeratePolicyEvaluationEvidenceReferences(input, read, limits),
-      );
+      const capture = await readPolicyEvaluationEvidenceCapture(input, repositories.evidence);
+      return {
+        ...finish(capture.read, (read) =>
+          enumeratePolicyEvaluationEvidenceReferences(input, read, limits),
+        ),
+        storage: capture.storage,
+      };
     }
   }
 }
