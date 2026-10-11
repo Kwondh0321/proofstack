@@ -12,8 +12,14 @@ import {
   StaticEvaluationImplementationRegistrationCatalogue,
 } from "../evaluation/evaluation-implementation-registration.js";
 import { createEvaluationRepositoryTestHarness } from "../testing/evaluation-repository-fixtures.js";
-import { inspectPolicyEvaluationEvidenceRecord } from "./policy-evaluation-evidence-reader.js";
-import { enumeratePolicyEvaluationEvidenceReferences } from "./policy-evaluation-evidence-references.js";
+import {
+  inspectPolicyEvaluationEvidenceCapture,
+  inspectPolicyEvaluationEvidenceRecord,
+} from "./policy-evaluation-evidence-reader.js";
+import {
+  enumeratePolicyEvaluationEvidenceReferences,
+  enumeratePolicyEvaluationStoredEvidenceReferences,
+} from "./policy-evaluation-evidence-references.js";
 import {
   enumeratePolicyEvaluationImplementationReferences,
   inspectPolicyEvaluationImplementationRecord,
@@ -21,9 +27,11 @@ import {
 } from "./policy-evaluation-implementation-reader.js";
 import {
   inspectPolicyEvaluationImplementationResolution,
+  inspectPolicyEvaluationStoredImplementationResolution,
   type PolicyEvaluationImplementationParentSource,
   PolicyEvaluationImplementationResolutionInputError,
   readPolicyEvaluationImplementationResolution,
+  readPolicyEvaluationStoredImplementationResolution,
 } from "./policy-evaluation-implementation-resolution.js";
 
 const kinds = [
@@ -97,6 +105,46 @@ function scenario(kind: (typeof kinds)[number] = "oracle_spec") {
     record,
     childInput: { source: childSource, scope: input.scope, evaluationTime },
   };
+}
+
+function storedScenario(
+  kind: (typeof kinds)[number] = "oracle_spec",
+  parentFuture = false,
+  childFuture = false,
+) {
+  const s = scenario(kind);
+  if (!s.evidence.record) throw new Error("Missing original parent");
+  const parent = structuredClone(s.evidence.record) as unknown as Fields;
+  const receipt = ["createdAt", "recordedAt", "publishedAt"].find((key) => key in parent);
+  if (!receipt) throw new Error("Missing original parent receipt");
+  const parentAt = parentFuture ? "2026-10-01T00:00:00.001Z" : "2026-10-01T00:00:00.000Z";
+  parent[receipt] = parentAt;
+  const record = {
+    ...s.record,
+    registeredAt: childFuture ? "2026-10-01T00:00:00.001Z" : "2026-10-01T00:00:00.000Z",
+  };
+  const capture = inspectPolicyEvaluationEvidenceCapture(
+    { source: s.input.source, scope: s.input.scope, evaluationTime: s.input.evaluationTime },
+    parent,
+  );
+  if (!capture.storage) throw new Error("Missing original stored parent");
+  return { ...s, parent, parentAt, capture, record };
+}
+
+function independentStoredHash(value: unknown): string {
+  const ordered = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(ordered);
+    if (value !== null && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([key, child]) => [key, ordered(child)]),
+      );
+    return value;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(ordered(value)))
+    .digest("hex");
 }
 
 describe("parent-bound retained implementation registration", () => {
@@ -411,5 +459,326 @@ describe("parent-bound retained implementation registration", () => {
     expect(child).toEqual(
       inspectPolicyEvaluationImplementationRecord(original.childInput, original.record),
     );
+  });
+});
+
+describe("original stored implementation resolution", () => {
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "preserves parent/registration future availability (%s/%s)",
+    async (parentFuture, childFuture) => {
+      for (const kind of kinds) {
+        const s = storedScenario(kind, parentFuture, childFuture);
+        const before = structuredClone(s);
+        const catalogue = new StaticEvaluationImplementationRegistrationCatalogue([s.record]);
+        const find = vi.fn(catalogue.findEvaluationImplementationRegistration.bind(catalogue));
+        const result = await readPolicyEvaluationStoredImplementationResolution(
+          s.input,
+          s.capture,
+          {
+            findEvaluationImplementationRegistration: find,
+          },
+        );
+        expect(result).toEqual(
+          inspectPolicyEvaluationStoredImplementationResolution(s.input, s.capture, s.record),
+        );
+        expect(find).toHaveBeenCalledTimes(1);
+        expect(find).toHaveBeenCalledWith(
+          s.input.scope,
+          s.record.implementation.implementationId,
+          s.record.implementation.implementationVersionId,
+        );
+        expect(result.parentStorage).toEqual({
+          source: s.input.source,
+          recordSha256: independentStoredHash(s.parent),
+          receiptTime: s.parentAt,
+        });
+        expect(result.parentSemanticObservation).toEqual(s.capture.read.observation);
+        expect(result.parentSemanticObservation.status).toBe(
+          parentFuture ? "unavailable" : "verified",
+        );
+        expect(result.childCapture?.storage).toEqual({
+          record: s.record,
+          recordSha256: independentStoredHash(s.record),
+          receiptTime: s.record.registeredAt,
+        });
+        expect(result.childCapture?.read.record).toEqual(childFuture ? null : s.record);
+        expect(result.childResolution).toMatchObject(
+          childFuture
+            ? { status: "unavailable", reason: "not_yet_available", evidence: null }
+            : { status: "resolved", evidence: { source: s.childInput.source, record: s.record } },
+        );
+        expect(s).toEqual(before);
+        if (parentFuture)
+          expect(() =>
+            inspectPolicyEvaluationImplementationResolution(s.input, s.capture.read, s.record),
+          ).toThrow();
+        else {
+          const {
+            parent: _parent,
+            reference: _reference,
+            inspectionUsage: _usage,
+            ...ordinary
+          } = inspectPolicyEvaluationImplementationResolution(s.input, s.capture.read, s.record);
+          expect(result.childResolution).toEqual(ordinary);
+        }
+      }
+    },
+  );
+
+  it("rejects every valid changed implementation descriptor and every scoped substitution", () => {
+    const s = storedScenario("oracle_spec", true, true);
+    const descriptor = s.record.implementation;
+    const changes = [
+      { dependencySnapshotSha256: "d".repeat(64) },
+      { entryPointId: "entry_other" },
+      { implementationId: "implementation_other" },
+      { implementationVersionId: "version_other" },
+      { implementationSha256: "d".repeat(64) },
+      { sourceRevision: "d".repeat(descriptor.sourceRevision.length) },
+      {
+        runtime: {
+          ...descriptor.runtime,
+          architecture: descriptor.runtime.architecture === "x64" ? "arm64" : "x64",
+        },
+      },
+      {
+        runtime: {
+          ...descriptor.runtime,
+          family: descriptor.runtime.family === "node" ? "python" : "node",
+        },
+      },
+      {
+        runtime: {
+          ...descriptor.runtime,
+          platform: descriptor.runtime.platform === "linux" ? "portable" : "linux",
+        },
+      },
+      { runtime: { ...descriptor.runtime, version: "different_version" } },
+    ];
+    for (const patch of changes) {
+      const changed = rehash({
+        ...structuredClone(s.record),
+        implementation: { ...descriptor, ...patch },
+      } as EvaluationImplementationRegistrationRecord);
+      expect(
+        inspectPolicyEvaluationStoredImplementationResolution(s.input, s.capture, changed),
+      ).toMatchObject({
+        childResolution: { status: "unavailable", reason: "reference_mismatch", evidence: null },
+        childCapture: null,
+      });
+    }
+    for (const key of ["tenantId", "projectId", "environmentId"] as const) {
+      const changed = rehash({
+        ...structuredClone(s.record),
+        scope: { ...s.record.scope, [key]: "outside_scope" },
+      });
+      const result = inspectPolicyEvaluationStoredImplementationResolution(
+        s.input,
+        s.capture,
+        changed,
+      );
+      expect(result.childResolution).toEqual({
+        status: "unavailable",
+        reason: "reference_mismatch",
+        evidence: null,
+      });
+      expect(result.childCapture?.storage ?? null).toBeNull();
+    }
+  });
+
+  it.each(kinds)("distinguishes missing and malformed registration under %s", async (kind) => {
+    const s = storedScenario(kind, true);
+    for (const raw of [
+      null,
+      undefined,
+      {},
+      { ...s.record, definitionSha256: "f".repeat(64) },
+      { ...s.record, approved: true },
+    ]) {
+      const find = vi.fn(async () => raw as EvaluationImplementationRegistrationRecord | null);
+      const result = await readPolicyEvaluationStoredImplementationResolution(s.input, s.capture, {
+        findEvaluationImplementationRegistration: find,
+      });
+      expect(result.childResolution).toEqual(
+        raw === null
+          ? { status: "missing", evidence: null }
+          : { status: "unavailable", reason: "record_invalid", evidence: null },
+      );
+      expect(result.childCapture).toBeNull();
+      expect(find).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it.each(kinds)("admits the complete stored %s frontier before fixed lookup", async (kind) => {
+    const s = storedScenario(kind, true);
+    const frontier = enumeratePolicyEvaluationStoredEvidenceReferences(
+      { source: s.input.source, scope: s.input.scope, evaluationTime: s.input.evaluationTime },
+      s.capture,
+      limits,
+    );
+    const exact = {
+      maxReferences: frontier.references.length,
+      maxReferenceBytes: frontier.referenceBytes,
+    };
+    const find = vi.fn(async () => s.record);
+    const reader = { findEvaluationImplementationRegistration: find };
+    const result = await readPolicyEvaluationStoredImplementationResolution(
+      { ...s.input, limits: exact },
+      s.capture,
+      reader,
+    );
+    expect(result.childResolution.status).toBe("resolved");
+    expect(result.inspectionUsage).toEqual({
+      references: exact.maxReferences,
+      referenceBytes: exact.maxReferenceBytes,
+    });
+    find.mockClear();
+    for (const bounded of [
+      { ...exact, maxReferences: exact.maxReferences - 1 },
+      { ...exact, maxReferenceBytes: exact.maxReferenceBytes - 1 },
+      { ...exact, maxReferences: -1 },
+      { ...exact, maxReferenceBytes: Number.NaN },
+      { ...exact, extra: true },
+    ])
+      await expect(
+        readPolicyEvaluationStoredImplementationResolution(
+          { ...s.input, limits: bounded },
+          s.capture,
+          reader,
+        ),
+      ).rejects.toMatchObject({ code: "policy_evaluation_evidence_references_invalid" });
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it("propagates original and validation-shaped lookup errors unchanged", async () => {
+    for (const kind of kinds) {
+      const s = storedScenario(kind, true);
+      for (const error of [
+        new Error("storage failed"),
+        new InvalidEvaluationImplementationRegistrationError(),
+      ]) {
+        const find = vi.fn(async (): Promise<never> => {
+          throw error;
+        });
+        await expect(
+          readPolicyEvaluationStoredImplementationResolution(s.input, s.capture, {
+            findEvaluationImplementationRegistration: find,
+          }),
+        ).rejects.toBe(error);
+        expect(find).toHaveBeenCalledTimes(1);
+      }
+    }
+  });
+
+  it.each(kinds)(
+    "rejects changed full parent evidence and context before lookup under %s",
+    async (kind) => {
+      const s = storedScenario(kind, true);
+      const find = vi.fn(async () => s.record);
+      const reader = { findEvaluationImplementationRegistration: find };
+      for (const key of ["tenantId", "projectId", "environmentId"] as const)
+        await expect(
+          readPolicyEvaluationStoredImplementationResolution(
+            { ...s.input, scope: { ...s.input.scope, [key]: "outside_scope" } },
+            s.capture,
+            reader,
+          ),
+        ).rejects.toMatchObject({ reason: "evidence_unverified" });
+      for (const change of [
+        "hash",
+        "receipt",
+        "body",
+        "observation",
+        "record",
+        "source",
+        "missing",
+        "extra",
+      ]) {
+        const copy = structuredClone(s.capture);
+        if (!copy.storage) throw new Error("Missing parent");
+        if (change === "hash")
+          Reflect.set(copy, "storage", { ...copy.storage, recordSha256: "f".repeat(64) });
+        if (change === "receipt")
+          Reflect.set(copy, "storage", {
+            ...copy.storage,
+            receiptTime: "2026-10-01T00:00:00.002Z",
+          });
+        if (change === "body") {
+          const receipt = ["createdAt", "recordedAt", "publishedAt"].find((key) => key in s.parent);
+          if (!receipt) throw new Error("Missing receipt");
+          Reflect.set(copy.storage.record, receipt, "2026-10-01T00:00:00.002Z");
+        }
+        if (change === "observation")
+          Reflect.set(copy.read, "observation", {
+            status: "verified",
+            recordSha256: independentStoredHash(s.parent),
+          });
+        if (change === "record") Reflect.set(copy.read, "record", s.parent);
+        if (change === "source")
+          Reflect.set(copy.read.source.reference, "definitionSha256", "f".repeat(64));
+        if (change === "missing") Reflect.set(copy, "storage", null);
+        if (change === "extra") Reflect.set(copy, "approved", true);
+        await expect(
+          readPolicyEvaluationStoredImplementationResolution(s.input, copy, reader),
+        ).rejects.toMatchObject({
+          code: "policy_evaluation_evidence_references_invalid",
+          reason:
+            change === "missing"
+              ? "evidence_unverified"
+              : change === "extra"
+                ? "input_invalid"
+                : "observation_mismatch",
+        });
+      }
+      for (const path of ["/wrong", "/supportedCriteria/0", "relative"])
+        await expect(
+          readPolicyEvaluationStoredImplementationResolution(
+            { ...s.input, path },
+            s.capture,
+            reader,
+          ),
+        ).rejects.toBeInstanceOf(PolicyEvaluationImplementationResolutionInputError);
+      expect(find).not.toHaveBeenCalled();
+    },
+  );
+
+  it("owns context before getters and across mutation by the caller or returned registration", async () => {
+    const s = storedScenario();
+    const original = structuredClone(s);
+    let reads = 0;
+    const capture = {
+      ...s.capture,
+      get storage() {
+        reads++;
+        s.input.scope.tenantId = "caller_changed";
+        s.input.path = "/changed";
+        return s.capture.storage;
+      },
+    };
+    const result = await readPolicyEvaluationStoredImplementationResolution(s.input, capture, {
+      findEvaluationImplementationRegistration: async (scope) => {
+        scope.tenantId = "port_changed";
+        s.input.source.reference.definitionSha256 = "f".repeat(64);
+        if (!s.capture.storage) throw new Error("Missing parent");
+        Reflect.set(s.capture, "storage", { ...s.capture.storage, recordSha256: "f".repeat(64) });
+        return s.record;
+      },
+    });
+    expect(reads).toBe(1);
+    expect(result).toEqual(
+      inspectPolicyEvaluationStoredImplementationResolution(
+        original.input,
+        original.capture,
+        original.record,
+      ),
+    );
+    s.record.registeredAt = "2026-11-01T00:00:00.000Z";
+    expect(result.childCapture?.read.record).toEqual(original.record);
+    expect(result.childCapture?.storage?.record).toEqual(original.record);
   });
 });

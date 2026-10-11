@@ -9,20 +9,29 @@ import {
 import {
   type EndpointProfileReader,
   InvalidEndpointProfileRecordError,
+  inspectPolicyEvaluationEndpointProfileCapture,
   inspectPolicyEvaluationEndpointProfileRecord,
+  type PolicyEvaluationEndpointProfileCapture,
+  type PolicyEvaluationEndpointProfileRead,
   type PolicyEvaluationEndpointProfileSource,
   type PolicyEvaluationEvidenceReference,
   type PolicyEvaluationEvidenceReferenceLimits,
   revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
   validateEndpointProfileRecord,
 } from "@proofstack/core";
 import {
+  inspectPolicyEvaluationDatasetCapture,
   inspectPolicyEvaluationDataset,
+  type PolicyEvaluationDatasetCapture,
   type PolicyEvaluationDatasetRead,
   type PolicyEvaluationDatasetRecord,
   type PolicyEvaluationDatasetSource,
 } from "./policy-evaluation-dataset-reader.js";
-import { enumeratePolicyEvaluationDatasetReferences } from "./policy-evaluation-dataset-references.js";
+import {
+  enumeratePolicyEvaluationDatasetReferences,
+  enumeratePolicyEvaluationStoredDatasetReferences,
+} from "./policy-evaluation-dataset-references.js";
 
 export type PolicyEvaluationModelEndpointParentSource = Extract<
   PolicyEvaluationDatasetSource,
@@ -70,6 +79,21 @@ export type PolicyEvaluationModelEndpointResolution = Resolution & {
   readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
 };
 
+export interface PolicyEvaluationStoredModelEndpointResolution {
+  readonly parentStorage: {
+    readonly source: PolicyEvaluationModelEndpointParentSource;
+    readonly recordSha256: string;
+    readonly receiptTime: string;
+  };
+  readonly parentSemanticObservation: PolicyEvaluationDatasetRead["observation"];
+  readonly reference: Reference;
+  readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
+  readonly childResolution: Resolution;
+  readonly childCapture: PolicyEvaluationEndpointProfileCapture | null;
+  readonly semanticChecks: readonly PolicyEvaluationModelEndpointCheck[];
+  readonly storageChecks: readonly PolicyEvaluationModelEndpointCheck[];
+}
+
 export class PolicyEvaluationModelEndpointInputError extends TypeError {
   readonly code = "policy_evaluation_model_endpoint_input_invalid";
   constructor(options?: ErrorOptions) {
@@ -78,10 +102,9 @@ export class PolicyEvaluationModelEndpointInputError extends TypeError {
   }
 }
 
-function prepare(
+function parseInput(
   input: ReadPolicyEvaluationModelEndpointInput,
-  evidence: PolicyEvaluationDatasetRead,
-) {
+): ReadPolicyEvaluationModelEndpointInput {
   let fixed: ReadPolicyEvaluationModelEndpointInput;
   try {
     if (
@@ -109,6 +132,14 @@ function prepare(
   } catch (cause) {
     throw new PolicyEvaluationModelEndpointInputError({ cause });
   }
+  return fixed;
+}
+
+function prepare(
+  input: ReadPolicyEvaluationModelEndpointInput,
+  evidence: PolicyEvaluationDatasetRead,
+) {
+  const fixed = parseInput(input);
   const context = {
     source: fixed.source,
     scope: fixed.scope,
@@ -121,15 +152,23 @@ function prepare(
   >(context, evidence, inspectPolicyEvaluationDataset);
   // Whole-parent admission precedes selector lookup and I/O. Reuse only its inspected copy.
   const frontier = enumeratePolicyEvaluationDatasetReferences(context, checked, fixed.limits);
-  const reference = frontier.references.find((value) => value.path === fixed.path);
-  if (reference?.kind !== "endpoint_profile_selector" || checked.record.schemaVersion !== "0.2")
+  return { fixed, frontier, ...parentOccurrence(fixed, checked.record, frontier.references) };
+}
+
+function parentOccurrence(
+  fixed: ReadPolicyEvaluationModelEndpointInput,
+  record: PolicyEvaluationDatasetRecord,
+  references: readonly PolicyEvaluationEvidenceReference[],
+) {
+  const reference = references.find((value) => value.path === fixed.path);
+  if (reference?.kind !== "endpoint_profile_selector" || record.schemaVersion !== "0.2")
     throw new PolicyEvaluationModelEndpointInputError();
   // The owning enumerator establishes this exact canonical path and its bounded indices.
   const segments = reference.path.split("/");
-  const interaction = checked.record.interactionCapture.interactions[Number(segments[3])];
+  const interaction = record.interactionCapture.interactions[Number(segments[3])];
   if (interaction?.kind !== "model") throw new PolicyEvaluationModelEndpointInputError();
   const attempt = interaction.attempts[Number(segments[5])];
-  const configuration = checked.record.interactionCapture.artifacts.find(
+  const configuration = record.interactionCapture.artifacts.find(
     ({ contentReference }) =>
       contentReference.artifactId === attempt?.artifacts.providerConfigurationArtifactId,
   );
@@ -140,11 +179,21 @@ function prepare(
     reference.selector.endpointProfileVersion !== attempt.provider.endpointProfileVersion
   )
     throw new PolicyEvaluationModelEndpointInputError();
-  return { fixed, reference, frontier, attempt, configuration: configuration.contentReference };
+  return { reference, attempt, configuration: configuration.contentReference };
 }
 type Prepared = ReturnType<typeof prepare>;
+type ChildContext = Pick<Prepared, "fixed" | "reference" | "attempt" | "configuration">;
 
-function inspect(prepared: Prepared, raw: unknown): Resolution {
+function inspectMaterial(
+  prepared: ChildContext,
+  raw: unknown,
+):
+  | Exclude<Resolution, { readonly status: "resolved" }>
+  | {
+      readonly status: "validated";
+      readonly source: PolicyEvaluationEndpointProfileSource;
+      readonly record: EndpointProfileRecord;
+    } {
   if (raw === null) return { status: "missing", evidence: null };
   let record: EndpointProfileRecord;
   try {
@@ -160,10 +209,10 @@ function inspect(prepared: Prepared, raw: unknown): Resolution {
       definitionSha256: record.definitionSha256,
     },
   };
-  const checked = inspectPolicyEvaluationEndpointProfileRecord(
-    { source, scope: prepared.fixed.scope, evaluationTime: prepared.fixed.evaluationTime },
-    record,
-  );
+  return { status: "validated", source, record };
+}
+
+function resolveChecked(checked: PolicyEvaluationEndpointProfileRead): Resolution {
   if (checked.observation.status === "unavailable")
     return { status: "unavailable", reason: checked.observation.reason, evidence: null };
   if (checked.observation.status !== "verified" || checked.record === null)
@@ -174,11 +223,25 @@ function inspect(prepared: Prepared, raw: unknown): Resolution {
   };
 }
 
-function finish(
-  prepared: Prepared,
-  resolution: Resolution,
-): PolicyEvaluationModelEndpointResolution {
-  const record = resolution.status === "resolved" ? resolution.evidence.record : null;
+function inspect(prepared: ChildContext, raw: unknown): Resolution {
+  const material = inspectMaterial(prepared, raw);
+  if (material.status !== "validated") return material;
+  return resolveChecked(
+    inspectPolicyEvaluationEndpointProfileRecord(
+      {
+        source: material.source,
+        scope: prepared.fixed.scope,
+        evaluationTime: prepared.fixed.evaluationTime,
+      },
+      material.record,
+    ),
+  );
+}
+
+function contextualChecks(
+  prepared: ChildContext,
+  record: EndpointProfileRecord | null,
+): readonly PolicyEvaluationModelEndpointCheck[] {
   const matches: readonly (boolean | null)[] = record
     ? [
         record.provider === prepared.attempt.provider.name,
@@ -189,6 +252,18 @@ function finish(
         ),
       ]
     : [null, null, null, null];
+  return checkKinds.map((kind, index) => ({
+    kind,
+    observation: {
+      status: matches[index] === null ? "unavailable" : matches[index] ? "matched" : "mismatch",
+    },
+  }));
+}
+
+function finish(
+  prepared: Prepared,
+  resolution: Resolution,
+): PolicyEvaluationModelEndpointResolution {
   return {
     ...resolution,
     parent: { source: prepared.fixed.source, recordSha256: prepared.frontier.recordSha256 },
@@ -197,12 +272,10 @@ function finish(
       references: prepared.frontier.references.length,
       referenceBytes: prepared.frontier.referenceBytes,
     },
-    checks: checkKinds.map((kind, index) => ({
-      kind,
-      observation: {
-        status: matches[index] === null ? "unavailable" : matches[index] ? "matched" : "mismatch",
-      },
-    })),
+    checks: contextualChecks(
+      prepared,
+      resolution.status === "resolved" ? resolution.evidence.record : null,
+    ),
   };
 }
 
@@ -229,4 +302,95 @@ export async function readPolicyEvaluationModelEndpointResolution(
     prepared.reference.selector.endpointProfileVersion,
   );
   return finish(prepared, inspect(prepared, raw));
+}
+
+function prepareStored(
+  input: ReadPolicyEvaluationModelEndpointInput,
+  capture: PolicyEvaluationDatasetCapture,
+) {
+  const fixed = parseInput(input);
+  const context = {
+    source: fixed.source,
+    scope: fixed.scope,
+    evaluationTime: fixed.evaluationTime,
+  };
+  const checked = revalidatePolicyEvaluationCapturedStorage(
+    context,
+    capture,
+    inspectPolicyEvaluationDatasetCapture,
+  );
+  const frontier = enumeratePolicyEvaluationStoredDatasetReferences(context, checked, fixed.limits);
+  return {
+    fixed,
+    frontier,
+    ...parentOccurrence(fixed, checked.storage.record, frontier.references),
+  };
+}
+
+function inspectStored(
+  prepared: ReturnType<typeof prepareStored>,
+  raw: unknown,
+): PolicyEvaluationStoredModelEndpointResolution {
+  const material = inspectMaterial(prepared, raw);
+  let childCapture: PolicyEvaluationEndpointProfileCapture | null = null;
+  let childResolution: Resolution;
+  if (material.status !== "validated") childResolution = material;
+  else {
+    childCapture = inspectPolicyEvaluationEndpointProfileCapture(
+      {
+        source: material.source,
+        scope: prepared.fixed.scope,
+        evaluationTime: prepared.fixed.evaluationTime,
+      },
+      material.record,
+    );
+    childResolution = resolveChecked(childCapture.read);
+  }
+  return structuredClone({
+    parentStorage: {
+      source: prepared.fixed.source,
+      recordSha256: prepared.frontier.storage.recordSha256,
+      receiptTime: prepared.frontier.storage.receiptTime,
+    },
+    parentSemanticObservation: prepared.frontier.semanticObservation,
+    reference: prepared.reference,
+    inspectionUsage: {
+      references: prepared.frontier.references.length,
+      referenceBytes: prepared.frontier.referenceBytes,
+    },
+    childResolution,
+    childCapture,
+    semanticChecks: contextualChecks(
+      prepared,
+      prepared.frontier.semanticObservation.status === "verified" &&
+        childResolution.status === "resolved"
+        ? childResolution.evidence.record
+        : null,
+    ),
+    storageChecks: contextualChecks(prepared, childCapture?.storage?.record ?? null),
+  });
+}
+
+/** Original-cut inventory join. Stored matches cannot authorize a semantic edge or provider. */
+export function inspectPolicyEvaluationStoredModelEndpointResolution(
+  input: ReadPolicyEvaluationModelEndpointInput,
+  capture: PolicyEvaluationDatasetCapture,
+  raw: unknown,
+): PolicyEvaluationStoredModelEndpointResolution {
+  return inspectStored(prepareStored(input, capture), raw);
+}
+
+/** Whole original parent admission precedes the same exact owning endpoint lookup. */
+export async function readPolicyEvaluationStoredModelEndpointResolution(
+  input: ReadPolicyEvaluationModelEndpointInput,
+  capture: PolicyEvaluationDatasetCapture,
+  reader: EndpointProfileReader,
+): Promise<PolicyEvaluationStoredModelEndpointResolution> {
+  const prepared = prepareStored(input, capture);
+  const raw = await reader.findEndpointProfile(
+    structuredClone(prepared.fixed.scope),
+    prepared.reference.selector.endpointProfileId,
+    prepared.reference.selector.endpointProfileVersion,
+  );
+  return inspectStored(prepared, raw);
 }

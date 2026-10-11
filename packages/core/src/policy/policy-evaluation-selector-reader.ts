@@ -19,15 +19,25 @@ import { validateModelAssuranceRecord } from "../evaluation/model-assurance-reco
 import { InvalidModelAssuranceRecordInputError } from "../evaluation/model-assurance-repository.js";
 import type { PolicyEvaluationControlDeclaration } from "./policy-evaluation-control-declaration.js";
 import {
+  inspectPolicyEvaluationControlCapture,
   inspectPolicyEvaluationControlRecord,
+  type PolicyEvaluationControlCapture,
   type PolicyEvaluationControlRead,
 } from "./policy-evaluation-control-record-reader.js";
-import { enumeratePolicyEvaluationControlReferences } from "./policy-evaluation-control-references.js";
 import {
+  enumeratePolicyEvaluationControlReferences,
+  enumeratePolicyEvaluationStoredControlReferences,
+} from "./policy-evaluation-control-references.js";
+import {
+  inspectPolicyEvaluationEvidenceCapture,
   inspectPolicyEvaluationEvidenceRecord,
+  type PolicyEvaluationEvidenceCapture,
   type PolicyEvaluationEvidenceRead,
 } from "./policy-evaluation-evidence-reader.js";
-import { enumeratePolicyEvaluationEvidenceReferences } from "./policy-evaluation-evidence-references.js";
+import {
+  enumeratePolicyEvaluationEvidenceReferences,
+  enumeratePolicyEvaluationStoredEvidenceReferences,
+} from "./policy-evaluation-evidence-references.js";
 import type {
   PolicyEvaluationEvidenceReference,
   PolicyEvaluationEvidenceReferenceLimits,
@@ -118,6 +128,31 @@ export type PolicyEvaluationSelectorRead = Resolution & {
   readonly reference: PolicyEvaluationResolvableSelector;
 };
 
+export type PolicyEvaluationSelectorParentCapture =
+  | PolicyEvaluationControlCapture
+  | PolicyEvaluationEvidenceCapture;
+
+/** Storage inventory only: neither a future parent nor a future child becomes a semantic edge. */
+export interface PolicyEvaluationStoredSelectorRead {
+  readonly parentStorage: {
+    readonly source: PolicyEvaluationSelectorParentSource;
+    readonly recordSha256: string;
+    readonly receiptTime: string;
+  };
+  readonly parentSemanticObservation: PolicyEvaluationSelectorParentRead["observation"];
+  readonly reference: PolicyEvaluationResolvableSelector;
+  readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
+  readonly childResolution: Resolution;
+  readonly childCapture: PolicyEvaluationSelectorParentCapture | null;
+}
+
+type ValidatedChildMaterial = {
+  readonly status: "validated";
+  readonly source: VerifiedChild["source"];
+  readonly record: VerifiedChild["record"];
+};
+type ChildMaterial = ValidatedChildMaterial | Exclude<Resolution, { status: "resolved" }>;
+
 export class PolicyEvaluationSelectorReadInputError extends TypeError {
   readonly code = "policy_evaluation_selector_read_input_invalid";
 
@@ -196,7 +231,9 @@ function readChild(
   }
 }
 
-function unavailable(reason: Extract<Resolution, { status: "unavailable" }>["reason"]): Resolution {
+function unavailable(
+  reason: Extract<Resolution, { status: "unavailable" }>["reason"],
+): Extract<Resolution, { status: "unavailable" }> {
   return { evidence: null, reason, status: "unavailable" };
 }
 
@@ -206,11 +243,11 @@ function same(left: unknown, right: unknown): boolean {
   );
 }
 
-function inspectChild(
+function inspectChildMaterial(
   input: ReadPolicyEvaluationSelectorInput,
   reference: PolicyEvaluationResolvableSelector,
   raw: unknown,
-): Resolution {
+): ChildMaterial {
   if (raw === null) return { evidence: null, status: "missing" };
   let source: VerifiedChild["source"];
   let record: VerifiedChild["record"];
@@ -313,6 +350,36 @@ function inspectChild(
       return unavailable("record_invalid");
     throw cause;
   }
+  return { status: "validated", source, record };
+}
+
+function resolveCheckedChild(
+  material: ValidatedChildMaterial,
+  checked: PolicyEvaluationSelectorParentRead,
+): Resolution {
+  if (checked.observation.status !== "verified" || checked.record === null) {
+    if (checked.observation.status === "unavailable")
+      return unavailable(checked.observation.reason);
+    throw new TypeError("A validated selector child lost its retained record");
+  }
+  return {
+    evidence: {
+      observation: checked.observation,
+      record: checked.record as VerifiedChild["record"],
+      source: material.source,
+    },
+    status: "resolved",
+  };
+}
+
+function inspectChild(
+  input: ReadPolicyEvaluationSelectorInput,
+  reference: PolicyEvaluationResolvableSelector,
+  raw: unknown,
+): Resolution {
+  const material = inspectChildMaterial(input, reference, raw);
+  if (material.status !== "validated") return material;
+  const { source, record } = material;
   // The exact reference is derived only from a schema- and digest-validated retained body.
   // Fixed inspectors then enforce scope, original receipt cut, and complete record hashing.
   const checked =
@@ -325,19 +392,7 @@ function inspectChild(
           { evaluationTime: input.evaluationTime, scope: input.scope, source },
           record,
         );
-  if (checked.observation.status !== "verified" || checked.record === null) {
-    if (checked.observation.status === "unavailable")
-      return unavailable(checked.observation.reason);
-    throw new TypeError("A validated selector child lost its retained record");
-  }
-  return {
-    evidence: {
-      observation: checked.observation,
-      record: checked.record as VerifiedChild["record"],
-      source,
-    },
-    status: "resolved",
-  };
+  return resolveCheckedChild(material, checked);
 }
 
 /** Complete parent reinspection shared by fixed repository and retained-child paths. */
@@ -404,4 +459,90 @@ export async function readPolicyEvaluationSelector(
     reference,
     ...inspectChild(fixed, reference, raw),
   };
+}
+
+function prepareStoredSelector(
+  input: ReadPolicyEvaluationSelectorInput,
+  capture: PolicyEvaluationSelectorParentCapture,
+) {
+  const fixed = parseInput(input);
+  const context = {
+    evaluationTime: fixed.evaluationTime,
+    scope: fixed.scope,
+    source: fixed.source,
+  };
+  const frontier =
+    fixed.source.kind === "comparison_definition"
+      ? enumeratePolicyEvaluationStoredControlReferences(
+          { ...context, source: fixed.source },
+          capture as PolicyEvaluationControlCapture,
+          fixed.limits,
+        )
+      : enumeratePolicyEvaluationStoredEvidenceReferences(
+          { ...context, source: fixed.source },
+          capture as PolicyEvaluationEvidenceCapture,
+          fixed.limits,
+        );
+  const reference = frontier.references.find((value) => value.path === fixed.path);
+  if (!reference || !isResolvable(reference)) throw new PolicyEvaluationSelectorReadInputError();
+  return { fixed, frontier, reference };
+}
+
+function inspectStoredChild(
+  prepared: ReturnType<typeof prepareStoredSelector>,
+  raw: unknown,
+): PolicyEvaluationStoredSelectorRead {
+  const { fixed, frontier, reference } = prepared;
+  const material = inspectChildMaterial(fixed, reference, raw);
+  let childCapture: PolicyEvaluationSelectorParentCapture | null = null;
+  let childResolution: Resolution;
+  if (material.status !== "validated") childResolution = material;
+  else {
+    const { source, record } = material;
+    const context = { evaluationTime: fixed.evaluationTime, scope: fixed.scope, source };
+    childCapture =
+      source.kind === "comparison_definition"
+        ? inspectPolicyEvaluationControlCapture({ ...context, source }, record)
+        : inspectPolicyEvaluationEvidenceCapture({ ...context, source }, record);
+    childResolution = resolveCheckedChild(material, childCapture.read);
+  }
+  return structuredClone({
+    parentStorage: {
+      source: fixed.source,
+      recordSha256: frontier.storage.recordSha256,
+      receiptTime: frontier.storage.receiptTime,
+    },
+    parentSemanticObservation: frontier.semanticObservation,
+    reference,
+    inspectionUsage: {
+      references: frontier.references.length,
+      referenceBytes: frontier.referenceBytes,
+    },
+    childResolution,
+    childCapture,
+  });
+}
+
+/** Complete original storage join at the original cut, without repository or publication I/O. */
+export function inspectPolicyEvaluationStoredSelector(
+  input: ReadPolicyEvaluationSelectorInput,
+  capture: PolicyEvaluationSelectorParentCapture,
+  raw: unknown,
+): PolicyEvaluationStoredSelectorRead {
+  return inspectStoredChild(prepareStoredSelector(input, capture), raw);
+}
+
+/** Whole stored-parent admission precedes the same fixed exact child lookup as ordinary reads. */
+export async function readPolicyEvaluationStoredSelector(
+  input: ReadPolicyEvaluationSelectorInput,
+  capture: PolicyEvaluationSelectorParentCapture,
+  dependencies: PolicyEvaluationSelectorReaderDependencies,
+): Promise<PolicyEvaluationStoredSelectorRead> {
+  const prepared = prepareStoredSelector(input, capture);
+  const raw = await readChild(
+    structuredClone(prepared.fixed.scope),
+    prepared.reference,
+    dependencies,
+  );
+  return inspectStoredChild(prepared, raw);
 }

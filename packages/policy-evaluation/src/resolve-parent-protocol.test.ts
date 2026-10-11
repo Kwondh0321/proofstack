@@ -39,11 +39,14 @@ import { describe, expect, it, vi } from "vitest";
 import { AcquisitionBudget } from "./acquisition-budget.js";
 import {
   inspectParentProtocolResolution as inspect,
+  inspectStoredParentProtocolResolution as inspectStored,
   readParentProtocolResolution as read,
+  readStoredParentProtocolResolution as readStored,
   type PolicyProtocolParentSource,
   type PolicyProtocolResolutionInput,
 } from "./resolve-parent-protocol.js";
 import type { PolicyRecordRead } from "./record-routing.js";
+import { inspectRetainedPolicyRecord } from "./retained-record-routing.js";
 
 type Fields = Record<string, unknown>;
 const time = "2026-10-01T00:00:00.000000Z";
@@ -258,6 +261,294 @@ const cases = [
   { family: "worker_protocol", get: () => replayScenario("target_release", "/workerProtocol") },
   { family: "runtime_protocol", get: runtimeScenario },
 ];
+
+function storedScenario(s: ReturnType<typeof runtimeScenario>, parentFuture = false) {
+  if (!s.evidence.record) throw new Error("Missing original parent");
+  const record = structuredClone(s.evidence.record) as unknown as Fields;
+  const receiptField = "registeredAt" in record ? "registeredAt" : "createdAt";
+  record[receiptField] = parentFuture ? "2026-10-01T00:00:00.001Z" : "2026-10-01T00:00:00.000Z";
+  const capture = inspectRetainedPolicyRecord(s.input, record);
+  if (!capture?.storage) throw new Error("Expected valid retained parent");
+  return { ...s, record, capture, receiptTime: record[receiptField] };
+}
+
+function independentHash(value: unknown): string {
+  const ordered = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(ordered);
+    if (v !== null && typeof v === "object")
+      return Object.fromEntries(
+        Object.entries(v)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([k, x]) => [k, ordered(x)]),
+      );
+    return v;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(ordered(value)))
+    .digest("hex");
+}
+
+describe("stored whole-parent protocol resolution", () => {
+  it.each(cases)("keeps all four temporal combinations for $family", async ({ get, family }) => {
+    for (const parentFuture of [false, true])
+      for (const childFuture of [false, true]) {
+        const s = storedScenario(get(), parentFuture);
+        const selector = inspect(s.input, s.evidence, []).selector;
+        const record = definition(selector, s.input.scope);
+        record.registeredAt = childFuture ? "2026-10-01T00:00:00.001Z" : "2026-10-01T00:00:00.000Z";
+        const catalogue = new StaticProtocolDefinitionCatalogue([record]);
+        const reader = {
+          listProtocolDefinitions: vi.fn(catalogue.listProtocolDefinitions.bind(catalogue)),
+        };
+        const result = await readStored(s.input, s.capture, reader);
+        expect(result).toEqual(inspectStored(s.input, s.capture, [record]));
+        expect(reader.listProtocolDefinitions).toHaveBeenCalledTimes(1);
+        expect(reader.listProtocolDefinitions).toHaveBeenCalledWith(s.input.scope, selector);
+        expect(result.selector.family).toBe(family);
+        expect(result.parentStorage).toEqual({
+          source: s.input.source,
+          recordSha256: independentHash(s.record),
+          receiptTime: s.receiptTime,
+        });
+        expect(result.parentSemanticObservation.status).toBe(
+          parentFuture ? "unavailable" : "verified",
+        );
+        expect(result.childResolution.status).toBe(childFuture ? "unavailable" : "unique");
+        expect(result.childCaptures).toHaveLength(1);
+        expect(result.childCaptures[0]?.storage).toEqual({
+          record,
+          recordSha256: independentHash(record),
+          receiptTime: record.registeredAt,
+        });
+        if (!parentFuture) {
+          const {
+            parent: _parent,
+            reference: _ref,
+            selector: _selector,
+            inspectionUsage: _usage,
+            ...ordinary
+          } = inspect(s.input, s.capture.read, [record]);
+          expect(result.childResolution).toEqual(ordinary);
+        }
+      }
+  });
+
+  it("preserves ordered ambiguous, future, invalid and sparse members without choosing a winner", () => {
+    const s = storedScenario(runtimeScenario(), true);
+    const selector = inspect(s.input, s.evidence, []).selector;
+    const original = definition(selector, s.input.scope, "protocol_original");
+    const future = {
+      ...definition(selector, s.input.scope, "protocol_future"),
+      registeredAt: "2026-10-01T00:00:00.001Z",
+    };
+    const ambiguous = inspectStored(s.input, s.capture, [original, future]);
+    expect(ambiguous.childResolution.status).toBe("multiple");
+    expect(ambiguous.childResolution.matches.map((m) => m.index)).toEqual([0, 1]);
+    expect(ambiguous.childCaptures.map((c) => c?.storage?.recordSha256)).toEqual([
+      independentHash(original),
+      independentHash(future),
+    ]);
+    expect(ambiguous.childCaptures[1]?.read.observation).toMatchObject({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    const sparse = [original, undefined, future];
+    Reflect.deleteProperty(sparse, "1");
+    for (const response of [[original, {}, future], sparse]) {
+      const result = inspectStored(s.input, s.capture, response);
+      expect(result.childResolution).toMatchObject({
+        status: "unavailable",
+        reason: "record_invalid",
+      });
+      expect(result.childResolution.matches.map((m) => m.index)).toEqual([0, 1, 2]);
+      expect(result.childCaptures).toHaveLength(3);
+      expect(result.childCaptures[1]).toBeNull();
+      expect(result.childCaptures[2]?.storage?.record).toEqual(future);
+    }
+    expect(() =>
+      inspectStored(s.input, s.capture, [
+        original,
+        { ...original, registeredByPrincipalId: "operator_other" },
+      ]),
+    ).toThrow("Duplicate protocol match storage identity");
+    expect(inspectStored(s.input, s.capture, []).childResolution).toEqual({
+      status: "missing",
+      matches: [],
+    });
+  });
+
+  it("keeps valid conflicting descriptors separate from exact child storage and scope failure", () => {
+    for (const base of [runtimeScenario(), replayScenario("target_release", "/targetAdapter")]) {
+      const s = storedScenario(base, true);
+      const selector = inspect(s.input, s.evidence, []).selector;
+      const changed = definition(
+        ProtocolDefinitionSelectorSchema.parse({
+          ...selector,
+          descriptor: { ...selector.descriptor, version: "OtherVersion" },
+        }),
+        s.input.scope,
+      );
+      const result = inspectStored(s.input, s.capture, [changed]);
+      expect(result.childResolution).toMatchObject({
+        status: "unavailable",
+        reason: "reference_mismatch",
+      });
+      expect(result.childCaptures[0]?.storage?.record).toEqual(changed);
+      for (const key of ["tenantId", "projectId", "environmentId"] as const) {
+        const foreign = definition(selector, { ...s.input.scope, [key]: "outside_scope" });
+        const scoped = inspectStored(s.input, s.capture, [foreign]);
+        expect(scoped.childResolution).toMatchObject({
+          status: "unavailable",
+          reason: "reference_mismatch",
+        });
+        expect(scoped.childCaptures[0]?.storage).toBeNull();
+      }
+    }
+  });
+
+  it.each(cases)(
+    "admits the whole $family parent before lookup and preserves exact bounds",
+    async ({ get }) => {
+      const s = storedScenario(get(), true);
+      const original = inspectStored(s.input, s.capture, []);
+      const exact = {
+        maxReferences: original.inspectionUsage.references,
+        maxReferenceBytes: original.inspectionUsage.referenceBytes,
+      };
+      const reader = { listProtocolDefinitions: vi.fn(async () => []) };
+      const result = await readStored({ ...s.input, limits: exact }, s.capture, reader);
+      expect(result.inspectionUsage).toEqual(original.inspectionUsage);
+      reader.listProtocolDefinitions.mockClear();
+      for (const patch of [
+        { maxReferences: exact.maxReferences - 1 },
+        { maxReferenceBytes: exact.maxReferenceBytes - 1 },
+      ])
+        await expect(
+          readStored({ ...s.input, limits: { ...exact, ...patch } }, s.capture, reader),
+        ).rejects.toThrow();
+      expect(reader.listProtocolDefinitions).not.toHaveBeenCalled();
+    },
+  );
+
+  it("owns input before parent access and keeps awaited lookup/error observations detached", async () => {
+    const s = storedScenario(runtimeScenario(), true);
+    const originalInput = structuredClone(s.input);
+    const selector = inspect(s.input, s.evidence, []).selector;
+    const record = definition(selector, s.input.scope);
+    const originalCapture = structuredClone(s.capture);
+    const capture = structuredClone(s.capture);
+    Object.defineProperty(capture, "storage", {
+      enumerable: true,
+      get() {
+        Reflect.set(s.input, "evaluationTime", "2026-11-01T00:00:00.000Z");
+        s.input.scope.tenantId = "mutated_scope";
+        return originalCapture.storage;
+      },
+    });
+    const reader = {
+      listProtocolDefinitions: vi.fn(
+        async (scope: EvidenceScope, query: ProtocolDefinitionSelector) => {
+          expect(scope).toEqual(originalInput.scope);
+          expect(query).toEqual(selector);
+          scope.projectId = "mutated_scope";
+          Reflect.set(query, "family", "worker_protocol");
+          await Promise.resolve();
+          return [record];
+        },
+      ),
+    };
+    const result = await readStored(s.input, capture, reader);
+    const expected = structuredClone(result);
+    record.registeredByPrincipalId = "mutated_operator";
+    Reflect.set(originalCapture.storage ?? {}, "recordSha256", "0".repeat(64));
+    expect(result).toEqual(expected);
+    expect(result.parentSemanticObservation).toMatchObject({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    const error = new Error("protocol owning read failure");
+    const restored = inspectRetainedPolicyRecord(originalInput, s.record);
+    if (!restored) throw new Error("Missing restored original capture");
+    await expect(
+      readStored(originalInput, restored, {
+        listProtocolDefinitions: async () => {
+          throw error;
+        },
+      }),
+    ).rejects.toBe(error);
+  });
+
+  it("charges every current/future member before classification at exact cumulative limits", async () => {
+    const s = storedScenario(runtimeScenario(), true);
+    const selector = inspect(s.input, s.evidence, []).selector;
+    const response = [
+      definition(selector, s.input.scope, "protocol_current"),
+      {
+        ...definition(selector, s.input.scope, "protocol_future"),
+        registeredAt: "2026-10-01T00:00:00.001Z",
+      },
+    ];
+    const bytes = Buffer.byteLength(JSON.stringify(response));
+    const execution = PolicyEvaluationExecutionLimitsSchema.parse({
+      heartbeatIntervalMilliseconds: 1000,
+      leaseDurationMilliseconds: 3000,
+      maxAcquisitionRecordBytes: bytes,
+      maxAcquisitionRecords: 3,
+      maxArtifactReadBytes: 0,
+      maxAttempts: 1,
+      maxRuleEvaluations: 1,
+      perAttemptTimeoutMilliseconds: 10000,
+      retryBackoffMilliseconds: 0,
+      retryableErrors: [],
+      totalDeadlineMilliseconds: 10000,
+    });
+    const budget = new AcquisitionBudget(execution);
+    const result = await readStored(
+      s.input,
+      s.capture,
+      budget.wrap({ listProtocolDefinitions: async () => response }),
+    );
+    expect(result.childResolution.status).toBe("multiple");
+    expect(budget.usage()).toMatchObject({ reads: 1, records: 3, bytes });
+    for (const [patch, reason] of [
+      [{ maxAcquisitionRecords: 2 }, "record_limit"],
+      [{ maxAcquisitionRecordBytes: bytes - 1 }, "byte_limit"],
+    ] as const) {
+      const limited = new AcquisitionBudget({ ...execution, ...patch });
+      await expect(
+        readStored(
+          s.input,
+          s.capture,
+          limited.wrap({ listProtocolDefinitions: async () => response }),
+        ),
+      ).rejects.toMatchObject({ reason });
+      await limited.settle();
+    }
+  });
+
+  it("rejects parent witness substitution and nonowned paths before I/O", async () => {
+    const s = storedScenario(runtimeScenario(), true);
+    const reader = { listProtocolDefinitions: vi.fn(async () => []) };
+    for (const field of ["recordSha256", "receiptTime", "record"] as const) {
+      const capture = structuredClone(s.capture);
+      if (!capture.storage) throw new Error("Expected retained parent");
+      Reflect.set(
+        capture.storage,
+        field,
+        field === "record"
+          ? { ...s.record, registeredByPrincipalId: "operator_substituted" }
+          : field === "receiptTime"
+            ? "2026-10-01T00:00:00.002Z"
+            : "0".repeat(64),
+      );
+      await expect(readStored(s.input, capture, reader)).rejects.toThrow();
+    }
+    await expect(
+      readStored({ ...s.input, path: "/workerProtocol" }, s.capture, reader),
+    ).rejects.toThrow();
+    expect(reader.listProtocolDefinitions).not.toHaveBeenCalled();
+  });
+});
 
 describe("whole-parent retained protocol resolution", () => {
   it.each(cases)(
@@ -649,5 +940,33 @@ describe("whole-parent retained protocol resolution", () => {
     expect(selector.family).toBe("worker_protocol");
     const record = definition(selector, plan.scope);
     expect(inspect(input, evidence, [record]).status).toBe("unique");
+    const futureInput = { ...input, evaluationTime: "2026-09-08T00:00:00.199000Z" };
+    const capture = inspectRetainedPolicyRecord(futureInput, completed);
+    if (!capture?.storage) throw new Error("Missing retained replay history");
+    const stored = inspectStored(futureInput, capture, [record]);
+    expect(stored.parentSemanticObservation).toMatchObject({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(stored.parentStorage.recordSha256).toBe(independentHash(completed));
+    expect(stored.parentStorage.receiptTime).toBe("2026-09-08T00:00:00.200Z");
+    expect(stored.childResolution.status).toBe("unique");
+    expect(stored.childCaptures[0]?.storage?.record).toEqual(record);
+    const reader = { listProtocolDefinitions: vi.fn(async () => [record]) };
+    await expect(
+      readStored(
+        { ...futureInput, replayLimits: { ...replayLimits, maximumRecords: 2 } },
+        capture,
+        reader,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      readStored(
+        { ...futureInput, replayLimits: { ...replayLimits, maximumRecordBytes: 1 } },
+        capture,
+        reader,
+      ),
+    ).rejects.toThrow();
+    expect(reader.listProtocolDefinitions).not.toHaveBeenCalled();
   });
 });

@@ -17,12 +17,18 @@ import {
   type PolicyEvaluationEvidenceReference,
   type PolicyEvaluationEvidenceReferenceLimits,
   type PolicyEvaluationProtocolRead,
+  type PolicyEvaluationProtocolCapture,
   type ProtocolDefinitionReader,
   inspectPolicyEvaluationProtocolRecord,
+  inspectPolicyEvaluationProtocolCapture,
   validateProtocolDefinitionRecord,
   digestProtocolDefinitionRecord,
 } from "@proofstack/core";
 import { enumerateCapturedPolicyRecord, type PolicyRecordRead } from "./record-routing.js";
+import {
+  enumerateRetainedPolicyRecord,
+  type PolicyRetainedRecordCapture,
+} from "./retained-record-routing.js";
 
 export type PolicyProtocolParentSource = Extract<
   PolicyEvaluationSourceReference,
@@ -78,6 +84,21 @@ export type PolicyProtocolResolution = Outcome & {
   readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
 };
 
+export interface PolicyStoredProtocolResolution {
+  readonly parentStorage: {
+    readonly source: PolicyProtocolParentSource;
+    readonly recordSha256: string;
+    readonly receiptTime: string;
+  };
+  readonly parentSemanticObservation: PolicyRecordRead["observation"];
+  readonly reference: PolicyEvaluationEvidenceReference;
+  readonly selector: ProtocolDefinitionSelector;
+  readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
+  readonly childResolution: Outcome & { readonly matches: readonly PolicyProtocolMatch[] };
+  /** One original-cut capture per response index; invalid entries retain a null position. */
+  readonly childCaptures: readonly (PolicyEvaluationProtocolCapture | null)[];
+}
+
 function same(left: unknown, right: unknown) {
   return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
     encodeEvaluationCanonicalJson(right),
@@ -132,7 +153,7 @@ function selector(
   throw new PolicyProtocolResolutionInputError();
 }
 
-function prepare(input: PolicyProtocolResolutionInput, evidence: PolicyRecordRead) {
+function parseInput(input: PolicyProtocolResolutionInput): PolicyProtocolResolutionInput {
   let fixed: PolicyProtocolResolutionInput;
   try {
     if (
@@ -181,6 +202,11 @@ function prepare(input: PolicyProtocolResolutionInput, evidence: PolicyRecordRea
   } catch (cause) {
     throw new PolicyProtocolResolutionInputError({ cause });
   }
+  return fixed;
+}
+
+function prepare(input: PolicyProtocolResolutionInput, evidence: PolicyRecordRead) {
+  const fixed = parseInput(input);
   // The fixed dispatcher revalidates every whole original body, reference and full receipt hash.
   // No requester-selected validators; whole-parent bounded admission precedes lookup/I/O.
   const frontier = enumerateCapturedPolicyRecord(fixed, evidence, fixed.limits, fixed.replayLimits);
@@ -189,6 +215,7 @@ function prepare(input: PolicyProtocolResolutionInput, evidence: PolicyRecordRea
   return { fixed, frontier, reference, selector: selector(fixed.source, reference) };
 }
 type Prepared = ReturnType<typeof prepare>;
+type ChildContext = Pick<Prepared, "fixed" | "selector">;
 
 /** Classification only; the fixed resolver still validates the entire owning parent and position. */
 export function isResolvableProtocolReference(
@@ -203,7 +230,10 @@ export function isResolvableProtocolReference(
   );
 }
 
-function inspect(prepared: Prepared, raw: unknown): PolicyProtocolResolution {
+function inspectCandidates(
+  prepared: ChildContext,
+  raw: unknown,
+): Outcome & { readonly matches: readonly PolicyProtocolMatch[] } {
   if (!Array.isArray(raw) || raw.length > MAX_STATIC_PROTOCOL_DEFINITIONS)
     throw new TypeError("Expected a bounded complete protocol match array");
   const identities = new Set<string>();
@@ -263,12 +293,15 @@ function inspect(prepared: Prepared, raw: unknown): PolicyProtocolResolution {
   )
     outcome = { status: "unavailable", reason: "not_yet_available" };
   else outcome = { status: "unique" };
+  return { ...outcome, matches };
+}
+
+function inspect(prepared: Prepared, raw: unknown): PolicyProtocolResolution {
   return {
-    ...outcome,
+    ...inspectCandidates(prepared, raw),
     parent: { source: prepared.fixed.source, recordSha256: prepared.frontier.recordSha256 },
     reference: prepared.reference,
     selector: prepared.selector,
-    matches,
     inspectionUsage: {
       references: prepared.frontier.references.length,
       referenceBytes: prepared.frontier.referenceBytes,
@@ -297,4 +330,72 @@ export async function readParentProtocolResolution(
     structuredClone(prepared.selector),
   );
   return inspect(prepared, raw);
+}
+
+function prepareStored(input: PolicyProtocolResolutionInput, capture: PolicyRetainedRecordCapture) {
+  const fixed = parseInput(input);
+  const owned = structuredClone(capture);
+  const frontier = enumerateRetainedPolicyRecord(fixed, owned, fixed.limits);
+  if (!frontier) throw new PolicyProtocolResolutionInputError();
+  const reference = frontier.references.find((value) => value.path === fixed.path);
+  if (!reference) throw new PolicyProtocolResolutionInputError();
+  return { fixed, frontier, reference, selector: selector(fixed.source, reference) };
+}
+
+function inspectStored(
+  prepared: ReturnType<typeof prepareStored>,
+  raw: unknown,
+): PolicyStoredProtocolResolution {
+  const childResolution = inspectCandidates(prepared, raw);
+  const childCaptures = childResolution.matches.map((member) =>
+    member.status === "invalid"
+      ? null
+      : inspectPolicyEvaluationProtocolCapture(
+          {
+            source: member.read.source,
+            scope: prepared.fixed.scope,
+            evaluationTime: prepared.fixed.evaluationTime,
+          },
+          member.record,
+        ),
+  );
+  return structuredClone({
+    parentStorage: {
+      source: prepared.fixed.source,
+      recordSha256: prepared.frontier.storage.recordSha256,
+      receiptTime: prepared.frontier.storage.receiptTime,
+    },
+    parentSemanticObservation: prepared.frontier.semanticObservation,
+    reference: prepared.reference,
+    selector: prepared.selector,
+    inspectionUsage: {
+      references: prepared.frontier.references.length,
+      referenceBytes: prepared.frontier.referenceBytes,
+    },
+    childResolution,
+    childCaptures,
+  });
+}
+
+/** Whole stored parent/candidate inventory at the original cut, without compatibility authority. */
+export function inspectStoredParentProtocolResolution(
+  input: PolicyProtocolResolutionInput,
+  capture: PolicyRetainedRecordCapture,
+  raw: unknown,
+): PolicyStoredProtocolResolution {
+  return inspectStored(prepareStored(input, capture), raw);
+}
+
+/** Original bounded parent admission and complete owning lookup; no member selection or promotion. */
+export async function readStoredParentProtocolResolution(
+  input: PolicyProtocolResolutionInput,
+  capture: PolicyRetainedRecordCapture,
+  reader: Pick<ProtocolDefinitionReader, "listProtocolDefinitions">,
+): Promise<PolicyStoredProtocolResolution> {
+  const prepared = prepareStored(input, capture);
+  const raw = await reader.listProtocolDefinitions(
+    structuredClone(prepared.fixed.scope),
+    structuredClone(prepared.selector),
+  );
+  return inspectStored(prepared, raw);
 }

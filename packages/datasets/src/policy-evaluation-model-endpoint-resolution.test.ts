@@ -17,12 +17,17 @@ import {
 } from "@proofstack/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { digestRecordedInteractionFixtureVersionDefinition } from "./interaction-fixture-definition-digest.js";
-import { inspectPolicyEvaluationDataset } from "./policy-evaluation-dataset-reader.js";
+import {
+  inspectPolicyEvaluationDataset,
+  inspectPolicyEvaluationDatasetCapture,
+} from "./policy-evaluation-dataset-reader.js";
 import * as references from "./policy-evaluation-dataset-references.js";
 import {
   inspectPolicyEvaluationModelEndpointResolution as inspect,
+  inspectPolicyEvaluationStoredModelEndpointResolution as inspectStored,
   PolicyEvaluationModelEndpointInputError,
   readPolicyEvaluationModelEndpointResolution as read,
+  readPolicyEvaluationStoredModelEndpointResolution as readStored,
 } from "./policy-evaluation-model-endpoint-resolution.js";
 
 const fixtureVector = JSON.parse(
@@ -200,6 +205,254 @@ function harness(
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+function storedHarness(parentFuture = false, childFuture = false, repeated = false) {
+  const h = harness({ repeated });
+  h.fixture.createdAt = parentFuture ? "2026-10-01T00:00:00.001Z" : "2026-10-01T00:00:00.000Z";
+  h.endpoint.registeredAt = childFuture ? "2026-10-01T00:00:00.001Z" : "2026-10-01T00:00:00.000Z";
+  return {
+    ...h,
+    capture: inspectPolicyEvaluationDatasetCapture(
+      { source: h.input.source, scope: h.input.scope, evaluationTime: h.input.evaluationTime },
+      h.fixture,
+    ),
+    reader: {
+      findEndpointProfile: vi.fn(async () => structuredClone(h.endpoint)),
+    },
+  };
+}
+
+function independentRecordHash(value: unknown): string {
+  const ordered = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(ordered);
+    if (v !== null && typeof v === "object")
+      return Object.fromEntries(
+        Object.entries(v)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([k, x]) => [k, ordered(x)]),
+      );
+    return v;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(ordered(value)))
+    .digest("hex");
+}
+
+describe("stored model endpoint occurrence resolution", () => {
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "retains original receipts with parent future=%s and child future=%s",
+    async (parentFuture, childFuture) => {
+      const h = storedHarness(parentFuture, childFuture);
+      const catalogue = new StaticEndpointProfileCatalogue([h.endpoint]);
+      const reader = { findEndpointProfile: vi.fn(catalogue.findEndpointProfile.bind(catalogue)) };
+      const result = await readStored(h.input, h.capture, reader);
+      expect(result).toEqual(inspectStored(h.input, h.capture, h.endpoint));
+      expect(reader.findEndpointProfile).toHaveBeenCalledTimes(1);
+      expect(reader.findEndpointProfile).toHaveBeenCalledWith(
+        h.input.scope,
+        h.endpoint.endpointProfileId,
+        h.endpoint.endpointProfileVersion,
+      );
+      expect(result.parentStorage).toEqual({
+        source: h.input.source,
+        recordSha256: independentRecordHash(h.fixture),
+        receiptTime: h.fixture.createdAt,
+      });
+      expect(result.parentSemanticObservation.status).toBe(
+        parentFuture ? "unavailable" : "verified",
+      );
+      expect(result.childResolution.status).toBe(childFuture ? "unavailable" : "resolved");
+      expect(result.childCapture?.storage).toEqual({
+        record: h.endpoint,
+        recordSha256: independentRecordHash(h.endpoint),
+        receiptTime: h.endpoint.registeredAt,
+      });
+      expect(result.storageChecks.map((c) => c.observation.status)).toEqual(
+        Array(4).fill("matched"),
+      );
+      expect(result.semanticChecks.map((c) => c.observation.status)).toEqual(
+        Array(4).fill(parentFuture || childFuture ? "unavailable" : "matched"),
+      );
+      if (!parentFuture) {
+        const ordinary = inspect(h.input, h.capture.read, h.endpoint);
+        const {
+          parent: _parent,
+          reference: _ref,
+          inspectionUsage: _usage,
+          checks,
+          ...resolution
+        } = ordinary;
+        expect(result.childResolution).toEqual(resolution);
+        expect(result.semanticChecks).toEqual(checks);
+      }
+    },
+  );
+
+  it.each(["provider", "operations", "boundaryKinds", "configuration"] as const)(
+    "keeps valid future %s conflicts distinct from semantic unavailability",
+    (field) => {
+      const h = storedHarness(true, true);
+      const endpoint = structuredClone(h.endpoint);
+      if (field === "provider") endpoint.provider = "other/provider";
+      else if (field === "operations") endpoint.operations = ["unsupported_operation"];
+      else if (field === "boundaryKinds") endpoint.boundaryKinds = ["tool"];
+      else endpoint.configuration.sha256 = "b".repeat(64);
+      rehash(endpoint);
+      const result = inspectStored(h.input, h.capture, endpoint);
+      expect(result.childCapture?.storage?.record).toEqual(endpoint);
+      expect(result.childCapture?.storage?.recordSha256).toBe(independentRecordHash(endpoint));
+      expect(
+        result.storageChecks.filter((c) => c.observation.status === "mismatch").map((c) => c.kind),
+      ).toEqual([
+        field === "provider"
+          ? "provider_name"
+          : field === "operations"
+            ? "operation"
+            : field === "boundaryKinds"
+              ? "boundary_kind"
+              : "configuration",
+      ]);
+      expect(result.semanticChecks.every((c) => c.observation.status === "unavailable")).toBe(true);
+    },
+  );
+
+  it.each(["tenantId", "projectId", "environmentId"] as const)(
+    "rejects a valid substituted %s without retaining foreign storage",
+    (key) => {
+      const h = storedHarness(true, true);
+      const endpoint = structuredClone(h.endpoint);
+      endpoint.scope[key] = "outside_scope";
+      const result = inspectStored(h.input, h.capture, rehash(endpoint));
+      expect(result.childResolution).toEqual({
+        status: "unavailable",
+        reason: "reference_mismatch",
+        evidence: null,
+      });
+      expect(result.childCapture?.storage).toBeNull();
+      expect(result.storageChecks.every((c) => c.observation.status === "unavailable")).toBe(true);
+    },
+  );
+
+  it("preserves missing and invalid observations and unchanged owning failures", async () => {
+    const h = storedHarness(true, true);
+    for (const [raw, status, reason] of [
+      [null, "missing", undefined],
+      [{}, "unavailable", "record_invalid"],
+    ] as const) {
+      const result = inspectStored(h.input, h.capture, raw);
+      expect(result.childResolution).toEqual(
+        reason ? { status, reason, evidence: null } : { status, evidence: null },
+      );
+      expect(result.childCapture).toBeNull();
+      expect(result.storageChecks.every((c) => c.observation.status === "unavailable")).toBe(true);
+    }
+    for (const error of [
+      new Error("owning lookup failure"),
+      new InvalidEndpointProfileRecordError(),
+    ]) {
+      const reader = {
+        findEndpointProfile: vi.fn(async () => {
+          throw error;
+        }),
+      };
+      await expect(readStored(h.input, h.capture, reader)).rejects.toBe(error);
+    }
+  });
+
+  it("admits the entire repeated parent before every exact lookup", async () => {
+    const h = storedHarness(true, true, true);
+    const whole = references.enumeratePolicyEvaluationStoredDatasetReferences(
+      { source: h.input.source, scope: h.input.scope, evaluationTime: h.input.evaluationTime },
+      h.capture,
+      limits,
+    );
+    const exact = {
+      maxReferences: whole.references.length,
+      maxReferenceBytes: whole.referenceBytes,
+    };
+    for (const index of [0, 1]) {
+      const path = "/interactionCapture/interactions/0/attempts/" + index + "/provider";
+      const result = await readStored({ ...h.input, path, limits: exact }, h.capture, h.reader);
+      expect(result.reference.path).toBe(path);
+      expect(result.inspectionUsage).toEqual({
+        references: exact.maxReferences,
+        referenceBytes: exact.maxReferenceBytes,
+      });
+    }
+    expect(h.reader.findEndpointProfile).toHaveBeenCalledTimes(2);
+    h.reader.findEndpointProfile.mockClear();
+    for (const patch of [
+      { maxReferences: exact.maxReferences - 1 },
+      { maxReferenceBytes: exact.maxReferenceBytes - 1 },
+    ])
+      await expect(
+        readStored({ ...h.input, limits: { ...exact, ...patch } }, h.capture, h.reader),
+      ).rejects.toThrow();
+    expect(h.reader.findEndpointProfile).not.toHaveBeenCalled();
+  });
+
+  it("owns input before parent getters and output across awaited port mutations", async () => {
+    const h = storedHarness(true, true);
+    const input = structuredClone(h.input);
+    const original = structuredClone(h.capture);
+    const captured = {
+      ...h.capture,
+      get storage() {
+        input.scope.tenantId = "mutated_scope";
+        input.evaluationTime = "2026-11-01T00:00:00.000Z";
+        return original.storage;
+      },
+    };
+    const reader = {
+      findEndpointProfile: vi.fn(async (scope: typeof input.scope) => {
+        expect(scope).toEqual(h.input.scope);
+        scope.projectId = "mutated_scope";
+        Reflect.set(h.capture, "storage", null);
+        await Promise.resolve();
+        return h.endpoint;
+      }),
+    };
+    const result = await readStored(input, captured, reader);
+    const expected = structuredClone(result);
+    h.endpoint.registeredByPrincipalId = "mutated_operator";
+    Reflect.set(original.storage ?? {}, "recordSha256", "0".repeat(64));
+    expect(result).toEqual(expected);
+    expect(result.parentSemanticObservation).toMatchObject({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+  });
+
+  it("rejects substituted parent witnesses and noncanonical paths before lookup", async () => {
+    const h = storedHarness(true, true);
+    for (const field of ["recordSha256", "receiptTime", "record"] as const) {
+      const capture = structuredClone(h.capture);
+      if (!capture.storage) throw new Error("Expected retained fixture");
+      Reflect.set(
+        capture.storage,
+        field,
+        field === "record"
+          ? { ...h.fixture, createdByPrincipalId: "substituted_operator" }
+          : field === "receiptTime"
+            ? "2026-10-01T00:00:00.002Z"
+            : "0".repeat(64),
+      );
+      await expect(readStored(h.input, capture, h.reader)).rejects.toThrow();
+    }
+    for (const path of [
+      "/source",
+      "/interactionCapture/interactions/0/attempts/01/provider",
+      "/interactionCapture/interactions/99/attempts/0/provider",
+    ])
+      await expect(readStored({ ...h.input, path }, h.capture, h.reader)).rejects.toThrow();
+    expect(h.reader.findEndpointProfile).not.toHaveBeenCalled();
+  });
+});
 
 describe("owning hashless model endpoint resolution", () => {
   it("derives exact expected data from independent original records and checks every original context", async () => {

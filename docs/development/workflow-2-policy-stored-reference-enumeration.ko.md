@@ -45,12 +45,14 @@ resolution에 남기고 node storage를 null로 유지합니다. descriptor 불�
 유효해도 부모 resolution을 unavailable로 남기며 storage가 호환성을 부여하지 않습니다.
 독립 closure 검사는 그래프 storage를 원래 selector의 전체 후보와 대조하여, 교체한 미래 body의
 전체 해시를 다시 계산했더라도 원본과 다르면 실패합니다.
-의미 간선은 사용 가능한 부모에서만 전개하며 해시 없는 저장 선택자와 root-only 탐색은 남아 있습니다.
+의미 간선은 사용 가능한 부모에서만 전개합니다.
+[별도 저장 선택자](workflow-2-policy-stored-selector-resolution.ko.md)는 원래 시점의 child를
+보존하며 미래 부모를 의미상 사용 가능하게 만들지 않습니다. root-only 탐색은 남아 있습니다.
 이 순수 함수는 저장소·원문·키·네트워크 I/O를 수행하지 않습니다. 실제 저장 선택·완전성은
 owning 읽기에서 검증해야 하고, fixture의 두 형식·소유권 경계도 유지합니다. 원본 root는 두
 request root나 candidate가 선택한 현재 비교 결과를 대체하지 않습니다.
 
-원본 root만의 너비 우선 의존 목록·관련 저장 관계·해시 없는 선택자·현재 권한·존재성·전체 guard
+원본 root만의 너비 우선 의존 목록·관련 저장 관계·전체 선택자 통합·현재 권한·존재성·전체 guard
 출처·SQL/시간/영속 작업 한도는 남아 있습니다. 과거 classified 원문을 자동으로 가져오지 않고
 artifact catalog·소유권·무결성도 별도로 검사해야 합니다. 기존 source-only recheck는 좁은
 artifact/policy 범위를 유지합니다. 읽기 트랜잭션 종료 뒤의 보고서로 봉인할 수 없으며 전체

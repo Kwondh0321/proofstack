@@ -66,15 +66,16 @@ A descriptor mismatch keeps an unavailable parent-resolution outcome even if the
 exact child body is valid; child storage does not grant compatibility. Independent closure
 inspection also binds each graph storage witness to its original complete selector candidate,
 rejecting substituted future bodies even when their recomputed full hashes are internally valid.
-Semantic edges still expand
-available parents only. Hashless stored-selector resolution and root-only traversal remain open.
+Semantic edges still expand available parents only. The separate
+[stored selector joins](workflow-2-policy-stored-selector-resolution.md) preserve original-cut
+child captures without granting a future parent semantic availability. Root-only traversal remains open.
 
 This operation performs no repository, object, key or network I/O. Pure inspection establishes
 body consistency; the trusted owning read path must establish storage selection and completeness.
 Dataset body inspection continues to require the separate two-format/ownership read boundary.
 Original roots remain separate from the two request roots and candidate-owned selected operands.
 
-Root-only breadth-first inventory, relevant storage relationships, hashless storage selectors,
+Root-only breadth-first inventory, relevant storage relationships, complete selector integration,
 current authority/presence, complete guard origins and all internal finite admission remain open.
 Stored artifact declarations require catalog/ownership/integrity observations without automatically
 fetching historical classified plaintext. The existing source-only recheck retains its narrower

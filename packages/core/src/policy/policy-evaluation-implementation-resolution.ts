@@ -11,13 +11,20 @@ import {
   InvalidEvaluationImplementationRegistrationError,
   validateEvaluationImplementationRegistrationRecord,
 } from "../evaluation/evaluation-implementation-registration.js";
-import {
-  type PolicyEvaluationEvidenceRead,
-  type PolicyEvaluationEvidenceSource,
+import type {
+  PolicyEvaluationEvidenceCapture,
+  PolicyEvaluationEvidenceRead,
+  PolicyEvaluationEvidenceSource,
 } from "./policy-evaluation-evidence-reader.js";
-import { enumeratePolicyEvaluationEvidenceReferences } from "./policy-evaluation-evidence-references.js";
 import {
+  enumeratePolicyEvaluationEvidenceReferences,
+  enumeratePolicyEvaluationStoredEvidenceReferences,
+} from "./policy-evaluation-evidence-references.js";
+import {
+  inspectPolicyEvaluationImplementationCapture,
   inspectPolicyEvaluationImplementationRecord,
+  type PolicyEvaluationImplementationCapture,
+  type PolicyEvaluationImplementationRead,
   type PolicyEvaluationImplementationSource,
 } from "./policy-evaluation-implementation-reader.js";
 import type {
@@ -67,6 +74,27 @@ export type PolicyEvaluationImplementationResolution = Resolution & {
   readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
 };
 
+export interface PolicyEvaluationStoredImplementationResolution {
+  readonly parentStorage: {
+    readonly source: PolicyEvaluationImplementationParentSource;
+    readonly recordSha256: string;
+    readonly receiptTime: string;
+  };
+  readonly parentSemanticObservation: PolicyEvaluationEvidenceRead["observation"];
+  readonly reference: Reference;
+  readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
+  readonly childResolution: Resolution;
+  readonly childCapture: PolicyEvaluationImplementationCapture | null;
+}
+
+type RegistrationMaterial =
+  | {
+      readonly status: "validated";
+      readonly source: PolicyEvaluationImplementationSource;
+      readonly record: EvaluationImplementationRegistrationRecord;
+    }
+  | Exclude<Resolution, { status: "resolved" }>;
+
 export class PolicyEvaluationImplementationResolutionInputError extends TypeError {
   readonly code = "policy_evaluation_implementation_resolution_input_invalid";
   constructor(options?: ErrorOptions) {
@@ -75,10 +103,9 @@ export class PolicyEvaluationImplementationResolutionInputError extends TypeErro
   }
 }
 
-function prepare(
+function parseInput(
   input: ReadPolicyEvaluationImplementationResolutionInput,
-  evidence: PolicyEvaluationEvidenceRead,
-) {
+): ReadPolicyEvaluationImplementationResolutionInput {
   let fixed: ReadPolicyEvaluationImplementationResolutionInput;
   try {
     if (
@@ -106,22 +133,26 @@ function prepare(
   } catch (cause) {
     throw new PolicyEvaluationImplementationResolutionInputError({ cause });
   }
+  return fixed;
+}
+
+function prepare(
+  input: ReadPolicyEvaluationImplementationResolutionInput,
+  evidence: PolicyEvaluationEvidenceRead,
+) {
+  const fixed = parseInput(input);
   const frontier = enumeratePolicyEvaluationEvidenceReferences(
     { source: fixed.source, scope: fixed.scope, evaluationTime: fixed.evaluationTime },
     evidence,
     fixed.limits,
   );
   const reference = frontier.references.find((value) => value.path === fixed.path);
-  if (!reference || reference.kind !== "registered_implementation")
+  if (reference?.kind !== "registered_implementation")
     throw new PolicyEvaluationImplementationResolutionInputError();
   return { fixed, frontier, reference };
 }
 
-function inspect(
-  fixed: ReadPolicyEvaluationImplementationResolutionInput,
-  reference: Reference,
-  raw: unknown,
-): Resolution {
+function inspectMaterial(reference: Reference, raw: unknown): RegistrationMaterial {
   if (raw === null) return { status: "missing", evidence: null };
   let record: EvaluationImplementationRegistrationRecord;
   try {
@@ -144,10 +175,10 @@ function inspect(
       definitionSha256: record.definitionSha256,
     },
   };
-  const checked = inspectPolicyEvaluationImplementationRecord(
-    { source, scope: fixed.scope, evaluationTime: fixed.evaluationTime },
-    record,
-  );
+  return { status: "validated", source, record };
+}
+
+function resolveChecked(checked: PolicyEvaluationImplementationRead): Resolution {
   if (checked.observation.status === "unavailable")
     return { status: "unavailable", reason: checked.observation.reason, evidence: null };
   if (checked.observation.status !== "verified" || checked.record === null)
@@ -156,6 +187,21 @@ function inspect(
     status: "resolved",
     evidence: { source: checked.source, record: checked.record, observation: checked.observation },
   };
+}
+
+function inspect(
+  fixed: ReadPolicyEvaluationImplementationResolutionInput,
+  reference: Reference,
+  raw: unknown,
+): Resolution {
+  const material = inspectMaterial(reference, raw);
+  if (material.status !== "validated") return material;
+  return resolveChecked(
+    inspectPolicyEvaluationImplementationRecord(
+      { source: material.source, scope: fixed.scope, evaluationTime: fixed.evaluationTime },
+      material.record,
+    ),
+  );
 }
 
 /** Pure parent-bound retained data join; never installed-code, qualification or publication authority. */
@@ -197,4 +243,76 @@ export async function readPolicyEvaluationImplementationResolution(
     },
     ...inspect(fixed, reference, raw),
   };
+}
+
+function prepareStored(
+  input: ReadPolicyEvaluationImplementationResolutionInput,
+  capture: PolicyEvaluationEvidenceCapture,
+) {
+  const fixed = parseInput(input);
+  const frontier = enumeratePolicyEvaluationStoredEvidenceReferences(
+    { source: fixed.source, scope: fixed.scope, evaluationTime: fixed.evaluationTime },
+    capture,
+    fixed.limits,
+  );
+  const reference = frontier.references.find((value) => value.path === fixed.path);
+  if (reference?.kind !== "registered_implementation")
+    throw new PolicyEvaluationImplementationResolutionInputError();
+  return { fixed, frontier, reference };
+}
+
+function inspectStored(
+  { fixed, frontier, reference }: ReturnType<typeof prepareStored>,
+  raw: unknown,
+): PolicyEvaluationStoredImplementationResolution {
+  const material = inspectMaterial(reference, raw);
+  let childCapture: PolicyEvaluationImplementationCapture | null = null;
+  let childResolution: Resolution;
+  if (material.status !== "validated") childResolution = material;
+  else {
+    childCapture = inspectPolicyEvaluationImplementationCapture(
+      { source: material.source, scope: fixed.scope, evaluationTime: fixed.evaluationTime },
+      material.record,
+    );
+    childResolution = resolveChecked(childCapture.read);
+  }
+  return structuredClone({
+    parentStorage: {
+      source: fixed.source,
+      recordSha256: frontier.storage.recordSha256,
+      receiptTime: frontier.storage.receiptTime,
+    },
+    parentSemanticObservation: frontier.semanticObservation,
+    reference,
+    inspectionUsage: {
+      references: frontier.references.length,
+      referenceBytes: frontier.referenceBytes,
+    },
+    childResolution,
+    childCapture,
+  });
+}
+
+/** Full retained registration at the original cut; not executable or publication authority. */
+export function inspectPolicyEvaluationStoredImplementationResolution(
+  input: ReadPolicyEvaluationImplementationResolutionInput,
+  capture: PolicyEvaluationEvidenceCapture,
+  raw: unknown,
+): PolicyEvaluationStoredImplementationResolution {
+  return inspectStored(prepareStored(input, capture), raw);
+}
+
+/** Complete stored-parent admission precedes the unchanged fixed registration lookup. */
+export async function readPolicyEvaluationStoredImplementationResolution(
+  input: ReadPolicyEvaluationImplementationResolutionInput,
+  capture: PolicyEvaluationEvidenceCapture,
+  reader: EvaluationImplementationRegistrationReader,
+): Promise<PolicyEvaluationStoredImplementationResolution> {
+  const prepared = prepareStored(input, capture);
+  const raw = await reader.findEvaluationImplementationRegistration(
+    structuredClone(prepared.fixed.scope),
+    prepared.reference.reference.implementationId,
+    prepared.reference.reference.implementationVersionId,
+  );
+  return inspectStored(prepared, raw);
 }
