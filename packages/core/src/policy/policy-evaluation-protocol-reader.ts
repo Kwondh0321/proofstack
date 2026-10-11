@@ -1,4 +1,5 @@
 import type {
+  EvidenceScope,
   PolicyEvaluationSourceReference,
   ProtocolDefinitionRecord,
 } from "@proofstack/contracts";
@@ -7,12 +8,18 @@ import {
   type ProtocolDefinitionReader,
   validateProtocolDefinitionRecord,
 } from "../runtime/protocol-definition.js";
-import { revalidatePolicyEvaluationCapturedRecord } from "./policy-evaluation-captured-record.js";
 import {
+  revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
+} from "./policy-evaluation-captured-record.js";
+import {
+  inspectPolicyEvaluationDefinitionCapture,
   inspectPolicyEvaluationDefinitionRecord,
+  type PolicyEvaluationDefinitionCapture,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
   type PolicyEvaluationDefinitionValidator,
+  readPolicyEvaluationDefinitionCapture,
   readPolicyEvaluationDefinitionRecord,
 } from "./policy-evaluation-definition-reader.js";
 import {
@@ -25,6 +32,10 @@ export type PolicyEvaluationProtocolSource = Extract<
   { readonly kind: "protocol_definition" }
 >;
 export type PolicyEvaluationProtocolRead = PolicyEvaluationDefinitionRead<
+  ProtocolDefinitionRecord,
+  PolicyEvaluationProtocolSource
+>;
+export type PolicyEvaluationProtocolCapture = PolicyEvaluationDefinitionCapture<
   ProtocolDefinitionRecord,
   PolicyEvaluationProtocolSource
 >;
@@ -47,6 +58,14 @@ export function inspectPolicyEvaluationProtocolRecord(
   return inspectPolicyEvaluationDefinitionRecord(input, raw, validator);
 }
 
+/** Full original storage/hash/receipt at the unchanged semantic cut. */
+export function inspectPolicyEvaluationProtocolCapture(
+  input: Input,
+  raw: unknown,
+): PolicyEvaluationProtocolCapture {
+  return inspectPolicyEvaluationDefinitionCapture(input, raw, validator);
+}
+
 /** Exact scope/storage identity selects the record; the expected digest never selects storage. */
 export function readPolicyEvaluationProtocolRecord(
   input: Input,
@@ -54,9 +73,24 @@ export function readPolicyEvaluationProtocolRecord(
 ): Promise<PolicyEvaluationProtocolRead> {
   return readPolicyEvaluationDefinitionRecord(input, {
     ...validator,
-    read: (scope, source) =>
-      reader.findProtocolDefinition(scope, source.reference.protocolDefinitionId),
+    read: protocolReadPort(reader),
   });
+}
+
+/** Exact owning storage lookup; expected hashes never select records or grant compatibility. */
+export function readPolicyEvaluationProtocolCapture(
+  input: Input,
+  reader: Pick<ProtocolDefinitionReader, "findProtocolDefinition">,
+): Promise<PolicyEvaluationProtocolCapture> {
+  return readPolicyEvaluationDefinitionCapture(input, {
+    ...validator,
+    read: protocolReadPort(reader),
+  });
+}
+
+function protocolReadPort(reader: Pick<ProtocolDefinitionReader, "findProtocolDefinition">) {
+  return (scope: EvidenceScope, source: PolicyEvaluationProtocolSource) =>
+    reader.findProtocolDefinition(scope, source.reference.protocolDefinitionId);
 }
 
 /** Revalidates the entire captured body and original receipts before retaining every occurrence. */
@@ -71,14 +105,45 @@ export function enumeratePolicyEvaluationProtocolReferences(
     ProtocolDefinitionRecord,
     PolicyEvaluationProtocolSource
   >(input, evidence, inspectPolicyEvaluationProtocolRecord);
-  out.artifact("/specification", checked.record.specification);
-  if ("implementation" in checked.record) {
-    out.artifact("/implementation", checked.record.implementation);
-    out.artifact("/configuration", checked.record.configuration);
-  }
+  protocolReferences(checked.record, out);
   return {
     ...out.result(),
     source: checked.source,
     recordSha256: checked.observation.recordSha256,
+  };
+}
+
+function protocolReferences(
+  record: ProtocolDefinitionRecord,
+  out: PolicyEvaluationReferenceCollector,
+) {
+  out.artifact("/specification", record.specification);
+  if ("implementation" in record) {
+    out.artifact("/implementation", record.implementation);
+    out.artifact("/configuration", record.configuration);
+  }
+}
+
+/** Every stored occurrence, with original semantic availability kept separate. */
+export function enumeratePolicyEvaluationStoredProtocolReferences(
+  input: Input,
+  capture: PolicyEvaluationProtocolCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  const checked = revalidatePolicyEvaluationCapturedStorage(
+    input,
+    capture,
+    inspectPolicyEvaluationProtocolCapture,
+  );
+  protocolReferences(checked.storage.record, out);
+  return {
+    ...out.result(),
+    semanticObservation: checked.read.observation,
+    storage: {
+      source: checked.read.source,
+      recordSha256: checked.storage.recordSha256,
+      receiptTime: checked.storage.receiptTime,
+    },
   };
 }

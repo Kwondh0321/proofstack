@@ -1,6 +1,5 @@
 import {
   type ContentReference,
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationSourceReference,
   type PolicyInstallationBinding,
   policyEvaluationSourceReferenceKey,
@@ -8,6 +7,7 @@ import {
   type SourceReviewerQualification,
   type SourceReviewRecord,
   type SourceSnapshot,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationEvidenceReferenceLimits,
@@ -37,9 +37,7 @@ export interface PolicyAuthorityPrerequisites {
 }
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 
 /** Internal composition over one fixed, authorized capture; no I/O or replacement evidence. */
@@ -168,7 +166,7 @@ export function inspectCapturedPolicyAuthority(
       reviewer.value.credentialEvidence.forEach((ref, i) => {
         artifact(reviewer.read, `/credentialEvidence/${i}`, ref);
       });
-    sources.set(Buffer.from(encodeEvaluationCanonicalJson(reference)).toString("utf8"), {
+    sources.set(serializeEvaluationCanonicalJson(reference), {
       reference,
       source: source?.value ?? null,
       review: review?.value ?? null,

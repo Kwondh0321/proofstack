@@ -18,7 +18,7 @@ source inventory, relevant relationships, current authority, complete finite adm
 publication remain open. This prerequisite does not accept checkpoint 3; Workflow 2 remains 2/7.
 
 The [stored declaration enumerators](workflow-2-policy-stored-reference-enumeration.md) preserve
-original availability while enumerating declarations from 38 retained source kinds. Complete
+original availability while enumerating declarations from all 48 installed source kinds. Complete
 root-only inventory and relevant storage semantics remain open before sealed publication.
 
 The third Workflow 2 checkpoint may begin in the sequence below after this entry commit passes its

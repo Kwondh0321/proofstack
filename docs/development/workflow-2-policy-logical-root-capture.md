@@ -8,7 +8,7 @@ See [ADR-0030](../architecture/0030-retain-original-roots-without-moving-semanti
 
 ## Original storage and semantic time
 
-Fixed evaluation/assurance, comparison/control and dataset/fixture capture readers retain a
+Fixed capture readers for all 48 installed source kinds retain a
 validated original body, canonical full-record SHA-256 and receipt in `storage`. Their `read`
 keeps the existing semantic observation at the request's full-precision evaluation time.
 A future body has `read.record:null` and `not_yet_available`; retention does not make it an operand.
@@ -23,13 +23,16 @@ inspection time, rounded receipt or requester-supplied validator is used.
 Graph nodes keep original storage beside semantic reads, including future parents. Independent
 closure inspection recomputes the full body/hash/receipt and semantic observation. These families'
 verified/future nodes cannot silently lose retained storage. Semantic edges still expand only
-available parents. Other owning readers keep their existing behavior; this is not complete validated
-body retention for every unavailable source kind.
+available parents. Missing/invalid/context-mismatched bodies do not become valid storage. Protocol
+lookup scope failures retain their original candidate in the resolution with null node storage;
+descriptor mismatch remains an unavailable parent resolution independently of child body validity.
+Replay-result aggregate receipts preserve the latest actual contained timestamp and finite history
+admission; neither retention nor complete source-kind coverage establishes complete closure.
 
 ## Fixed owning root ports
 
 The [stored declaration enumerators](workflow-2-policy-stored-reference-enumeration.md) reuse
-the fixed owning field grammars across these 38 retained source kinds while preserving original
+the fixed owning field grammars across all 48 installed source kinds while preserving original
 availability. Storage provenance is separate; root-only traversal and complete closure remain open.
 
 Optional server-owned `logicalRoots` supplies five evaluation resource-definition kinds, three

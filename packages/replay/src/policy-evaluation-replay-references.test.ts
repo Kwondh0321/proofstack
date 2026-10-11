@@ -15,15 +15,20 @@ import { PolicyEvaluationReferenceCollector } from "@proofstack/core";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   inspectPolicyEvaluationReplayDefinition,
+  inspectPolicyEvaluationReplayDefinitionCapture,
   type PolicyEvaluationReplayDefinitionSource,
   readPolicyEvaluationReplayDefinition,
+  readPolicyEvaluationReplayDefinitionCapture,
 } from "./policy-evaluation-replay-definition-reader.js";
 import {
   enumeratePolicyEvaluationReplayDefinitionReferences,
   enumeratePolicyEvaluationReplayResultReferences,
+  enumeratePolicyEvaluationStoredReplayDefinitionReferences,
+  enumeratePolicyEvaluationStoredReplayResultReferences,
 } from "./policy-evaluation-replay-references.js";
 import {
   inspectPolicyEvaluationReplayResult,
+  inspectPolicyEvaluationReplayResultCapture,
   type PolicyEvaluationReplayResultReadInput,
 } from "./policy-evaluation-replay-result-reader.js";
 import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "./replay-budget.js";
@@ -443,6 +448,170 @@ function resultCase(value: ReplayJobSnapshot) {
 }
 
 describe("bounded direct replay dependency inventories", () => {
+  it.each(["definition", "result"] as const)(
+    "%s: rejects changed stored wrappers and preserves unexpected collector failures",
+    (mode) => {
+      const value = mode === "definition" ? richPlan() : history();
+      const input =
+        mode === "definition"
+          ? context(value as ReplayPlan)
+          : resultCase(value as ReplayJobSnapshot).input;
+      const capture =
+        mode === "definition"
+          ? inspectPolicyEvaluationReplayDefinitionCapture(input as never, value)
+          : inspectPolicyEvaluationReplayResultCapture(input as never, value);
+      const run = (body = capture) =>
+        mode === "definition"
+          ? enumeratePolicyEvaluationStoredReplayDefinitionReferences(
+              input as never,
+              body as never,
+              limits,
+            )
+          : enumeratePolicyEvaluationStoredReplayResultReferences(
+              input as never,
+              body as never,
+              limits,
+            );
+      for (const changed of [
+        null,
+        {},
+        { ...capture, approved: true },
+        { ...capture, read: { ...capture.read, approved: true } },
+      ])
+        expect(() => run(changed as never)).toThrow();
+      for (const dimension of ["tenantId", "projectId", "environmentId"] as const) {
+        const original = input.scope[dimension];
+        input.scope[dimension] = "foreign_scope";
+        expect(() => run()).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+        input.scope[dimension] = original;
+      }
+      const cause = new Error("Unexpected stored collector failure");
+      const method = vi
+        .spyOn(PolicyEvaluationReferenceCollector.prototype, "record")
+        .mockImplementation(() => {
+          throw cause;
+        });
+      try {
+        expect(() => run()).toThrow(expect.objectContaining({ reason: "input_invalid", cause }));
+      } finally {
+        method.mockRestore();
+      }
+    },
+  );
+  it("retains all original successful-job history at current and unavailable cuts", () => {
+    for (const value of [job, history()]) {
+      const { input } = resultCase(value);
+      const references = inventory(value);
+      const referenceBytes = references.reduce<number>(
+        (sum, entry) => sum + Buffer.byteLength(json(entry)),
+        0,
+      );
+      for (const evaluationTime of [
+        input.evaluationTime,
+        "2026-09-08T00:00:00.499999999999999999999999999999Z",
+      ]) {
+        const context = { ...input, evaluationTime };
+        const capture = inspectPolicyEvaluationReplayResultCapture(context, value);
+        const result = enumeratePolicyEvaluationStoredReplayResultReferences(context, capture, {
+          maxReferences: references.length,
+          maxReferenceBytes: referenceBytes,
+        });
+        expect(result).toEqual({
+          references,
+          referenceBytes,
+          semanticObservation: capture.read.observation,
+          storage: { source: input.source, recordSha256: hash(value), receiptTime: time(500) },
+        });
+        if (evaluationTime !== input.evaluationTime) expect(capture.read.record).toBeNull();
+        expect(() =>
+          enumeratePolicyEvaluationStoredReplayResultReferences(context, capture, {
+            maxReferences: references.length - 1,
+            maxReferenceBytes: referenceBytes,
+          }),
+        ).toThrow(expect.objectContaining({ reason: "reference_limit_exceeded" }));
+        expect(() =>
+          enumeratePolicyEvaluationStoredReplayResultReferences(context, capture, {
+            maxReferences: references.length,
+            maxReferenceBytes: referenceBytes - 1,
+          }),
+        ).toThrow(expect.objectContaining({ reason: "reference_bytes_exceeded" }));
+        expect(() =>
+          enumeratePolicyEvaluationStoredReplayResultReferences(
+            context,
+            { ...capture, storage: null },
+            limits,
+          ),
+        ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+        for (const field of ["record", "recordSha256", "receiptTime", "observation"] as const) {
+          const changed = structuredClone(capture);
+          if (!changed.storage) throw new Error("Expected original storage");
+          if (field === "record")
+            changed.storage.record.job.createdByPrincipalId = "usr_substituted";
+          else if (field === "recordSha256") Reflect.set(changed.storage, "recordSha256", sha("0"));
+          else if (field === "receiptTime") Reflect.set(changed.storage, "receiptTime", time(501));
+          else Reflect.set(changed.read, "observation", { status: "missing", reason: "not_found" });
+          expect(() =>
+            enumeratePolicyEvaluationStoredReplayResultReferences(context, changed, limits),
+          ).toThrow(expect.objectContaining({ reason: "observation_mismatch" }));
+        }
+      }
+    }
+  });
+  for (const [name, make] of Object.entries({ target, plan, richTarget, richPlan })) {
+    it(`${name}: retains the independent original inventory at current and future cuts`, async () => {
+      const value = make();
+      const { input } = definitionCase(value);
+      const expected = inventory(value);
+      const referenceBytes = expected.reduce<number>(
+        (sum, entry) => sum + Buffer.byteLength(json(entry)),
+        0,
+      );
+      const repository = new MemoryReplayDefinitionRepository();
+      if ("planVersionId" in value) {
+        await repository.publishTargetRelease(name === "richPlan" ? richTarget() : target());
+        await repository.publishReplayPlan(value);
+      } else await repository.publishTargetRelease(value);
+      for (const cut of [input.evaluationTime, "2020-01-01T00:00:00.000Z"]) {
+        const context = { ...input, evaluationTime: cut };
+        const capture = inspectPolicyEvaluationReplayDefinitionCapture(context, value);
+        expect(await readPolicyEvaluationReplayDefinitionCapture(context, repository)).toEqual(
+          capture,
+        );
+        const result = enumeratePolicyEvaluationStoredReplayDefinitionReferences(context, capture, {
+          maxReferences: expected.length,
+          maxReferenceBytes: referenceBytes,
+        });
+        expect(result.references).toEqual(expected);
+        expect(result.referenceBytes).toBe(referenceBytes);
+        expect(result.storage).toEqual({
+          source: input.source,
+          recordSha256: hash(value),
+          receiptTime: value.createdAt,
+        });
+        expect(result.semanticObservation).toEqual(capture.read.observation);
+        if (cut !== input.evaluationTime) expect(capture.read.record).toBeNull();
+        expect(() =>
+          enumeratePolicyEvaluationStoredReplayDefinitionReferences(context, capture, {
+            maxReferences: expected.length - 1,
+            maxReferenceBytes: referenceBytes,
+          }),
+        ).toThrow(expect.objectContaining({ reason: "reference_limit_exceeded" }));
+        expect(() =>
+          enumeratePolicyEvaluationStoredReplayDefinitionReferences(context, capture, {
+            maxReferences: expected.length,
+            maxReferenceBytes: referenceBytes - 1,
+          }),
+        ).toThrow(expect.objectContaining({ reason: "reference_bytes_exceeded" }));
+        expect(() =>
+          enumeratePolicyEvaluationStoredReplayDefinitionReferences(
+            context,
+            { ...capture, storage: null },
+            limits,
+          ),
+        ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
+      }
+    });
+  }
   it("requires explicit inventory review when execution or boundary modes change", () => {
     expect(
       ReplayBoundaryDeclarationSchema.options.map((schema) => schema.shape.mode.value),

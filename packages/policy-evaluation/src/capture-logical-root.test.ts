@@ -375,7 +375,10 @@ describe("root binding integrity and detached capture", () => {
         testCase.root,
       ),
     ).toThrow("Unsupported");
-    expect(inspectRetainedPolicyRecord({ ...input(testCase), source: raw }, null)).toBeNull();
+    expect(inspectRetainedPolicyRecord({ ...input(testCase), source: raw }, null)).toEqual({
+      read: { source: raw, observation: { status: "missing" }, record: null },
+      storage: null,
+    });
   });
   it("rejects another full receipt under the parent's own root identity", () => {
     const original = cases.find(({ kind }) => kind === "criterion_set");

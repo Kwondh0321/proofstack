@@ -9,8 +9,10 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import {
   inspectPolicyEvaluationReplayDefinition,
+  inspectPolicyEvaluationReplayDefinitionCapture,
   type PolicyEvaluationReplayDefinitionSource,
   readPolicyEvaluationReplayDefinition,
+  readPolicyEvaluationReplayDefinitionCapture,
 } from "./policy-evaluation-replay-definition-reader.js";
 import type { ReplayDefinitionRepository } from "./replay-definition-repository.js";
 import { MemoryReplayDefinitionRepository } from "./testing/memory-replay-definition-repository.js";
@@ -83,6 +85,52 @@ const hash = (value: unknown) =>
     .update(JSON.stringify(sorted(value)))
     .digest("hex");
 const invalid = { reason: "record_invalid", status: "unavailable" };
+
+describe.each(vectors)("original replay definition capture: $name", (vector) => {
+  it("retains the exact body/hash/receipt and owning lookup at current and future cuts", async () => {
+    const value = record(vector);
+    for (const cut of [createdAt, "2026-09-08T00:00:00.122999999999999999999999999999Z"]) {
+      const context = { ...input(value), evaluationTime: cut };
+      const capture = inspectPolicyEvaluationReplayDefinitionCapture(context, value);
+      expect(capture.storage).toEqual({
+        record: value,
+        recordSha256: hash(value),
+        receiptTime: createdAt,
+      });
+      expect(capture.read).toEqual(inspectPolicyEvaluationReplayDefinition(context, value));
+      const repository = routed(vector, value);
+      expect(await readPolicyEvaluationReplayDefinitionCapture(context, repository)).toEqual(
+        capture,
+      );
+      if ("planVersionId" in value) {
+        expect(repository.findReplayPlan).toHaveBeenCalledExactlyOnceWith(
+          value.scope,
+          value.planVersionId,
+        );
+        expect(repository.findTargetRelease).not.toHaveBeenCalled();
+      } else {
+        expect(repository.findTargetRelease).toHaveBeenCalledExactlyOnceWith(
+          value.scope,
+          value.targetReleaseId,
+        );
+        expect(repository.findReplayPlan).not.toHaveBeenCalled();
+      }
+      if (cut !== createdAt)
+        expect(capture.read).toMatchObject({
+          record: null,
+          observation: { status: "unavailable", reason: "not_yet_available" },
+        });
+      if (!capture.storage) throw new Error("Missing original storage");
+      capture.storage.record.scope.tenantId = "returned_scope";
+      expect(value).toEqual(record(vector));
+    }
+    for (const raw of [null, undefined, { ...value, definitionSha256: "f".repeat(64) }]) {
+      const capture = inspectPolicyEvaluationReplayDefinitionCapture(input(value), raw);
+      expect(capture.storage).toBeNull();
+      expect(capture.read.observation).toEqual(raw === null ? { status: "missing" } : invalid);
+    }
+  });
+});
 
 describe.each(vectors)("materialized replay definition inspection: $name", (vector) => {
   it("matches acquisition synchronously without aliasing input or records", async () => {

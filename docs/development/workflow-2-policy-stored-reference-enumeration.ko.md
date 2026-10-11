@@ -13,7 +13,9 @@ checkpoint 3의 완전한 closure·봉인 발행·영속 실행·독립 종료 �
 core의 `enumeratePolicyEvaluationStoredEvidenceReferences`는 평가 17종과 모델·사람 assurance
 13종을, `enumeratePolicyEvaluationStoredControlReferences`는 comparison/control 6종을 다룹니다.
 datasets의 `enumeratePolicyEvaluationStoredDatasetReferences`는 dataset·fixture 2종과 두 fixture
-형식을 다룹니다. 의미 열거와 저장 이력 열거 모두 같은 비공개 owning 필드 정의와 수집기를 씁니다.
+형식을 다룹니다. runtime 3종과 protocol·endpoint·qualification·implementation 각 1종은
+고정된 core 저장 열거기로, replay plan·target 및 전체 성공 이력은 replay 저장 열거기로 다룹니다.
+의미 열거와 저장 이력 열거 모두 같은 비공개 owning 필드 정의와 수집기를 씁니다.
 
 이미 인가한 정확한 scope·출처·평가 시각과 owning reader의 전체 `read`/`storage`를 전달합니다.
 공통 경계는 accessor를 읽기 전에 문맥을 확보하고, 고정된 owning capture 검사기로 원본 body를
@@ -27,8 +29,23 @@ datasets의 `enumeratePolicyEvaluationStoredDatasetReferences`는 dataset·fixtu
 않습니다. 반환 객체는 입력과 분리됩니다. 실패 시도·반대 근거·이전 버전·선택자·반복 출현과
 숫자 배열 순서를 보존하며, 정확한 개수·canonical UTF-8 한도는 허용하고 초과하면 전체 실패합니다.
 
-composer의 고정 `enumerateRetainedPolicyRecord` 경로는 현재 38종을 연결합니다. 나머지
-replay·runtime·registration 등 10종은 저장 body 지원이 남아 있으며 null은 그 미해결 경계입니다.
+composer의 고정 `enumerateRetainedPolicyRecord` 경로는 설치된 출처 48종 전체를 연결합니다.
+verified/미래 노드는 원래 평가 시점에서 원문·해시·receipt를 독립 재검증한 storage가 필요합니다.
+replay 결과는 원래 요청의 유한 이력 개수·바이트 한도를 받아 파싱 전에 전체 행을 세고,
+파싱된 전체 행도 다시 세어 값이 바뀌는 getter가 추가 행을 허용하지 못하게 합니다. 이는 반환
+데이터의 한도 검사이며 유한 wire 디코딩이나 SQL/I/O 중단을 보장하지 않습니다.
+이용 가능성을 판단하기 전에 canonical 바이트를 검사합니다. 대표 receipt는 terminal·budget·관측
+행을 포함한 모든 실제 수신 시각 중 가장 늦은 원문 시각입니다. 시도 완료 시각만으로 대체하거나
+Date로 반올림하지 않습니다. 누락·잘못된·미성공 이력은 성공 결과 storage를 갖지 않습니다.
+implementation 좌표는 기존 owning 검사로 중첩 identity를 확인합니다.
+
+protocol selector가 미리 읽은 정상적인 미래 body도 그래프 storage에 보존합니다. 같은 unavailable
+상태라도 반복 조회의 전체 body·해시·receipt가 다르면 실패합니다. scope 불일치는 원본 후보를
+resolution에 남기고 node storage를 null로 유지합니다. descriptor 불일치는 독립 child body가
+유효해도 부모 resolution을 unavailable로 남기며 storage가 호환성을 부여하지 않습니다.
+독립 closure 검사는 그래프 storage를 원래 selector의 전체 후보와 대조하여, 교체한 미래 body의
+전체 해시를 다시 계산했더라도 원본과 다르면 실패합니다.
+의미 간선은 사용 가능한 부모에서만 전개하며 해시 없는 저장 선택자와 root-only 탐색은 남아 있습니다.
 이 순수 함수는 저장소·원문·키·네트워크 I/O를 수행하지 않습니다. 실제 저장 선택·완전성은
 owning 읽기에서 검증해야 하고, fixture의 두 형식·소유권 경계도 유지합니다. 원본 root는 두
 request root나 candidate가 선택한 현재 비교 결과를 대체하지 않습니다.

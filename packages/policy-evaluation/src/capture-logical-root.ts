@@ -199,7 +199,7 @@ export async function capturePolicyLogicalRootBinding(
       break;
     case "regression_fixture_version":
       raw =
-        owned.storage.record.schemaVersion === "0.2"
+        "schemaVersion" in owned.storage.record && owned.storage.record.schemaVersion === "0.2"
           ? await ports.datasets.findRecordedInteractionFixtureLogicalRoot(scope, id)
           : await ports.datasets.findFixtureLogicalRoot(scope, id);
       break;

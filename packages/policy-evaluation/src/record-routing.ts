@@ -20,12 +20,16 @@ import {
   type PolicyEvaluationRuntimeRead,
   type ProtocolDefinitionReader,
   readPolicyEvaluationControlCapture,
-  readPolicyEvaluationEndpointProfileRecord,
+  readPolicyEvaluationEndpointProfileCapture,
+  readPolicyEvaluationImplementationCapture,
+  readPolicyEvaluationProtocolCapture,
+  readPolicyEvaluationQualificationPolicyCapture,
+  readPolicyEvaluationRuntimeCapture,
+  type readPolicyEvaluationEndpointProfileRecord,
   readPolicyEvaluationEvidenceCapture,
-  readPolicyEvaluationImplementationRecord,
-  readPolicyEvaluationProtocolRecord,
-  readPolicyEvaluationQualificationPolicyRecord,
-  readPolicyEvaluationRuntimeRecord,
+  type readPolicyEvaluationImplementationRecord,
+  type readPolicyEvaluationQualificationPolicyRecord,
+  type readPolicyEvaluationRuntimeRecord,
   StaticEndpointProfileCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticProtocolDefinitionCatalogue,
@@ -42,8 +46,10 @@ import {
   enumeratePolicyEvaluationReplayResultReferences,
   type PolicyEvaluationReplayDefinitionRead,
   type PolicyEvaluationReplayResultRead,
-  readPolicyEvaluationReplayDefinition,
-  readPolicyEvaluationReplayResult,
+  type readPolicyEvaluationReplayDefinition,
+  readPolicyEvaluationReplayDefinitionCapture,
+  type readPolicyEvaluationReplayResult,
+  readPolicyEvaluationReplayResultCapture,
 } from "@proofstack/replay";
 
 import type { PolicyEvaluationLogicalRootPorts } from "./logical-root-ports.js";
@@ -194,6 +200,13 @@ function finish<R extends PolicyRecordRead>(
   };
 }
 
+function finishCapture<R extends PolicyRecordRead>(
+  capture: { readonly read: R; readonly storage: PolicyRetainedRecordStorage | null },
+  enumerate: (read: R) => { readonly references: readonly PolicyEvaluationEvidenceReference[] },
+): PolicyRecordExpansion {
+  return { ...finish(capture.read, enumerate), storage: capture.storage };
+}
+
 /** Fixed owning readers and validators, never a registry supplied by the evaluation requester. */
 export async function readAndExpandPolicyRecord(
   context: Context,
@@ -205,8 +218,8 @@ export async function readAndExpandPolicyRecord(
   switch (source.kind) {
     case "protocol_definition": {
       const input = { source, scope, evaluationTime };
-      return finish(
-        await readPolicyEvaluationProtocolRecord(
+      return finishCapture(
+        await readPolicyEvaluationProtocolCapture(
           input,
           repositories.protocolDefinitions ?? emptyProtocolDefinitions,
         ),
@@ -215,8 +228,8 @@ export async function readAndExpandPolicyRecord(
     }
     case "endpoint_profile": {
       const input = { source, scope, evaluationTime };
-      return finish(
-        await readPolicyEvaluationEndpointProfileRecord(
+      return finishCapture(
+        await readPolicyEvaluationEndpointProfileCapture(
           input,
           repositories.endpointProfiles ?? emptyEndpointProfiles,
         ),
@@ -225,8 +238,8 @@ export async function readAndExpandPolicyRecord(
     }
     case "qualification_policy": {
       const input = { source, scope, evaluationTime };
-      return finish(
-        await readPolicyEvaluationQualificationPolicyRecord(
+      return finishCapture(
+        await readPolicyEvaluationQualificationPolicyCapture(
           input,
           repositories.qualificationPolicies ?? emptyQualificationPolicies,
         ),
@@ -235,8 +248,8 @@ export async function readAndExpandPolicyRecord(
     }
     case "evaluation_implementation_registration": {
       const input = { source, scope, evaluationTime };
-      return finish(
-        await readPolicyEvaluationImplementationRecord(
+      return finishCapture(
+        await readPolicyEvaluationImplementationCapture(
           input,
           repositories.implementationRegistrations ?? emptyImplementationRegistrations,
         ),
@@ -272,15 +285,15 @@ export async function readAndExpandPolicyRecord(
     case "replay_plan":
     case "target_release": {
       const input = { source, scope, evaluationTime };
-      return finish(
-        await readPolicyEvaluationReplayDefinition(input, repositories.replayDefinitions),
+      return finishCapture(
+        await readPolicyEvaluationReplayDefinitionCapture(input, repositories.replayDefinitions),
         (read) => enumeratePolicyEvaluationReplayDefinitionReferences(input, read, limits),
       );
     }
     case "replay_result": {
       const input = { source, scope, evaluationTime, limits: replayLimits };
-      return finish(
-        await readPolicyEvaluationReplayResult(input, repositories.replayResults),
+      return finishCapture(
+        await readPolicyEvaluationReplayResultCapture(input, repositories.replayResults),
         (read) => enumeratePolicyEvaluationReplayResultReferences(input, read, limits),
       );
     }
@@ -288,8 +301,8 @@ export async function readAndExpandPolicyRecord(
     case "replay_isolation_profile":
     case "runtime_adapter": {
       const input = { source, scope, evaluationTime };
-      return finish(
-        await readPolicyEvaluationRuntimeRecord(input, repositories.runtimeDefinitions),
+      return finishCapture(
+        await readPolicyEvaluationRuntimeCapture(input, repositories.runtimeDefinitions),
         (read) => enumeratePolicyEvaluationRuntimeReferences(input, read, limits),
       );
     }

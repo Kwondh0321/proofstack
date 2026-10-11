@@ -39,7 +39,6 @@ import {
 import {
   enumerateRetainedPolicyRecord,
   inspectRetainedPolicyRecord,
-  type PolicyRetainedRecordCapture,
 } from "./retained-record-routing.js";
 
 type Fields = Record<string, unknown>;
@@ -98,6 +97,7 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
     source: source(kind, record),
     scope: (record as { scope: EvidenceScope }).scope,
     evaluationTime: time,
+    replayLimits,
   };
   const expansion = await readAndExpandPolicyRecord(input, repositories, limits, replayLimits);
   expect(expansion.read.observation.status, kind).toBe("verified");
@@ -107,37 +107,25 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
   const derived = enumerateCapturedPolicyRecord(input, expansion.read, limits, replayLimits);
   expect(derived.references, kind).toEqual(expansion.references);
   const retained = inspectRetainedPolicyRecord(input, record);
-  if (retained === null) {
-    // A supported semantic reader is not automatically a complete stored-body reader.
-    expect(
-      enumerateRetainedPolicyRecord(
-        input,
-        {
-          read: expansion.read,
-          storage: null,
-        } as PolicyRetainedRecordCapture,
-        limits,
-      ),
-    ).toBeNull();
-  } else {
-    expect(enumerateRetainedPolicyRecord(input, retained, limits)?.references).toEqual(
-      expansion.references,
-    );
-    const originalCut = { ...input, evaluationTime: "2020-01-01T00:00:00.000Z" };
-    const future = inspectRetainedPolicyRecord(originalCut, record);
-    if (!future) throw new Error("Expected fixed retention route");
-    const stored = enumerateRetainedPolicyRecord(originalCut, future, limits);
-    expect(stored?.references).toEqual(expansion.references);
-    expect(stored?.semanticObservation).toEqual({
-      status: "unavailable",
-      reason: "not_yet_available",
-    });
-    expect(future.read.record).toBeNull();
-    expect(stored?.storage.source).toEqual(input.source);
-    expect(() =>
-      enumerateRetainedPolicyRecord(input, { ...retained, storage: null }, limits),
-    ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
-  }
+  if (!retained) throw new Error("Expected owning storage capture for every source kind");
+  expect(expansion.storage).toEqual(retained.storage);
+  expect(enumerateRetainedPolicyRecord(input, retained, limits)?.references).toEqual(
+    expansion.references,
+  );
+  const originalCut = { ...input, evaluationTime: "2020-01-01T00:00:00.000Z" };
+  const future = inspectRetainedPolicyRecord(originalCut, record);
+  if (!future) throw new Error("Expected fixed retention route");
+  const stored = enumerateRetainedPolicyRecord(originalCut, future, limits);
+  expect(stored?.references).toEqual(expansion.references);
+  expect(stored?.semanticObservation).toEqual({
+    status: "unavailable",
+    reason: "not_yet_available",
+  });
+  expect(future.read.record).toBeNull();
+  expect(stored?.storage.source).toEqual(input.source);
+  expect(() =>
+    enumerateRetainedPolicyRecord(input, { ...retained, storage: null }, limits),
+  ).toThrow(expect.objectContaining({ reason: "evidence_unverified" }));
   const changed = structuredClone(expansion.read);
   if (changed.observation.status !== "verified")
     throw new Error("Missing verified routing observation");
@@ -199,6 +187,7 @@ describe("positive fixed-domain routing", () => {
     ).toEqual({
       read: { source, record: null, observation: { status: "missing" } },
       references: null,
+      storage: null,
     });
   });
   it("routes every independent endpoint profile vector and its exact retained configuration occurrence", async () => {
@@ -537,5 +526,22 @@ describe("positive fixed-domain routing", () => {
         (edge) => edge.kind === "record" && edge.source.kind === "replay_plan",
       ),
     ).toBe(true);
+    const context = { source: reference, scope, evaluationTime: time, replayLimits };
+    const retained = inspectRetainedPolicyRecord(context, completed);
+    expect(retained?.storage).toEqual(expansion.storage);
+    if (!retained?.storage) throw new Error("Expected complete original replay history");
+    expect(enumerateRetainedPolicyRecord(context, retained, limits)?.references).toEqual(
+      expansion.references,
+    );
+    const originalCut = { ...context, evaluationTime: "2020-01-01T00:00:00.000Z" };
+    const future = inspectRetainedPolicyRecord(originalCut, completed);
+    if (!future?.storage) throw new Error("Expected future original replay storage");
+    expect(enumerateRetainedPolicyRecord(originalCut, future, limits)?.semanticObservation).toEqual(
+      { status: "unavailable", reason: "not_yet_available" },
+    );
+    expect(future.read.record).toBeNull();
+    expect(() =>
+      inspectRetainedPolicyRecord({ source: reference, scope, evaluationTime: time }, completed),
+    ).toThrow("original finite read limits");
   });
 });

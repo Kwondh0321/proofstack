@@ -162,6 +162,52 @@ describe("canonical evaluation source definition encoding", () => {
 });
 
 describe("canonical evaluation JSON primitive", () => {
+  it.each(Array.from({ length: 32 }, (_, block) => block * 2048))(
+    "matches independent native UTF-8 admission for UTF-16 units from %i",
+    (start) => {
+      for (let unit = start; unit < start + 2048; unit++) {
+        const text = String.fromCharCode(unit);
+        const scalar = Buffer.from(text, "utf8").toString("utf8") === text;
+        for (const value of [text, { [text]: 1 }]) {
+          if (!scalar) {
+            expect(() => serializeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
+            expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
+          } else {
+            const expected = JSON.stringify(value);
+            expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+            expect(encodeEvaluationCanonicalJson(value)).toEqual(
+              Uint8Array.from(Buffer.from(expected, "utf8")),
+            );
+          }
+        }
+      }
+    },
+  );
+
+  it("preserves paired boundaries and rejects malformed mixed surrogate sequences", () => {
+    const units = [0x41, 0xd800, 0xdbff, 0xdc00, 0xdfff, 0xfffd];
+    for (const first of units) {
+      for (const second of units) {
+        for (const third of units) {
+          const text = String.fromCharCode(first, second, third);
+          const scalar = Buffer.from(text, "utf8").toString("utf8") === text;
+          for (const value of [text, { [text]: 1 }]) {
+            if (!scalar) {
+              expect(() => serializeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
+              expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
+            } else {
+              const expected = JSON.stringify(value);
+              expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+              expect(encodeEvaluationCanonicalJson(value)).toEqual(
+                Uint8Array.from(Buffer.from(expected, "utf8")),
+              );
+            }
+          }
+        }
+      }
+    }
+  });
+
   it.each([
     ["\u007f", [0x7f]],
     ["\u0080", [0xc2, 0x80]],

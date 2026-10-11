@@ -3,7 +3,6 @@ import {
   type ComparisonDefinitionReference,
   type ComparisonMetricResult,
   type ComparisonResult,
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationComparisonInventory,
   PolicyEvaluationManifestEntrySchema,
   type PolicyEvaluationRequest,
@@ -11,6 +10,7 @@ import {
   policyEvaluationSourceReferenceKey,
   type ReleaseCandidate,
   type ReleasePolicy,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   PolicyEvaluationEvidenceReferenceError,
@@ -84,9 +84,7 @@ export interface PolicyComparisonRuleBindings {
 }
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 function conflict(): never {
   throw new PolicyRecordGraphError("observation_conflict");
@@ -221,7 +219,7 @@ export function inspectCapturedComparisonRules(
     policy: { source: policySource, recordSha256: policyHash },
     inventory: resolved.inventory,
   };
-  charge(1, encodeEvaluationCanonicalJson(context).byteLength);
+  charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(context), "utf8"));
   const hashAt = (source: PolicyEvaluationSourceReference) => {
     const read = nodes.get(policyEvaluationSourceReferenceKey(source))?.read;
     if (!read || !same(read.source, source) || read.observation.status !== "verified")
@@ -330,7 +328,7 @@ export function inspectCapturedComparisonRules(
       }
     }
     const rule = { ruleId, ruleIndex, predicate, policyEdgeIndex, comparisonIndex, binding };
-    charge(1, encodeEvaluationCanonicalJson(rule).byteLength);
+    charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(rule), "utf8"));
     rules.push(rule);
   }
   return structuredClone({ ...context, rules, inspectionUsage: { references, referenceBytes } });

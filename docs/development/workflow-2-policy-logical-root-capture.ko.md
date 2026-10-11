@@ -8,7 +8,7 @@
 
 ## 저장 원문과 의미 시간
 
-고정 evaluation/assurance, comparison/control, dataset/fixture 수집기는 `storage`에 검증한 원문,
+설치된 출처 48종의 고정 수집기는 `storage`에 검증한 원문,
 전체 정규 레코드 SHA-256, 원래 저장 시각을 보존합니다. `read`는 요청의 전체 정밀도 평가 시간에서
 기존 의미 관찰을 유지합니다. 미래 원문은 `read.record:null`, `not_yet_available`이며 보존했다고
 피연산자가 되지 않습니다. 일반 읽기의 반환 형식은 유지하며 버리는 미래 원문을 새로 해시하지 않습니다.
@@ -19,11 +19,15 @@ interaction fixture는 여전히 두 형식을 읽고 동일 ID 충돌을 거부
 wrapper나 두 저장소 읽기를 대체하지 않습니다. 미래 검사 시간을 꾸미거나 반올림하거나 요청자가
 validator를 공급하지 않습니다. 그래프는 미래 부모의 원문도 보존하며 독립 closure 검사로 본문·해시·시각·
 의미 상태를 재계산합니다. 해당 계열의 verified/미래 노드가 원문을 잃으면 실패합니다. 의미 간선은
-사용할 수 있는 부모에서만 전개합니다. 모든 읽을 수 없는 종류의 본문 보존이 완료됐다는 뜻은 아닙니다.
+사용할 수 있는 부모에서만 전개합니다. 누락·잘못된·문맥 불일치 body는 유효한 storage가 아닙니다.
+protocol scope 불일치는 resolution의 원본 후보와 null node storage로 남으며 descriptor 불일치의
+부모 resolution 실패는 독립 child body의 유효성과 구분됩니다. replay 결과는 유한
+전체 이력 한도와 실제 포함 시각 중 가장 늦은 receipt 원문을 보존합니다. 모든 종류의 지원이나
+원문 보존만으로 완전한 closure가 되지 않습니다.
 
 ## 고정 소유 루트 포트
 
-[저장 선언 열거기](workflow-2-policy-stored-reference-enumeration.ko.md)는 보존한 출처 38종의
+[저장 선언 열거기](workflow-2-policy-stored-reference-enumeration.ko.md)는 설치된 출처 48종 전체의
 고정 owning 필드 정의를 재사용하며 원래의 이용 가능성을 유지합니다. 저장 출처는 구분되며
 원본 root만의 탐색과 완전한 closure는 아직 진행 중입니다.
 

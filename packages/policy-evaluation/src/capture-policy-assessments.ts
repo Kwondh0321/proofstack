@@ -1,11 +1,11 @@
 import {
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationManifestEntry,
   type PolicyEvaluationRequest,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
   type ReleaseCandidate,
   type ReleasePolicy,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationEvidenceReferenceLimits,
@@ -64,9 +64,7 @@ export type PolicyAssessmentBindings = {
 );
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 
 /**

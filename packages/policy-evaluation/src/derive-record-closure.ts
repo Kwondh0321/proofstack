@@ -125,6 +125,10 @@ export function deriveCapturedRecordClosure(
   readonly closure: PolicyRecordClosure;
 } {
   const request = validatePolicyEvaluationRequestRecord(input);
+  const replayLimits = {
+    maximumRecords: request.limits.maxAcquisitionRecords,
+    maximumRecordBytes: request.limits.maxAcquisitionRecordBytes,
+  };
   // Apply the shared finite limit contract, including rejecting unexpected limit fields.
   new PolicyEvaluationReferenceCollector(limits);
   const roots: Source[] = [
@@ -152,7 +156,12 @@ export function deriveCapturedRecordClosure(
     previousKey = key;
     if (node.storage !== undefined) {
       const inspected = inspectRetainedPolicyRecord(
-        { source: read.source, scope: request.scope, evaluationTime: request.evaluationTime },
+        {
+          source: read.source,
+          scope: request.scope,
+          evaluationTime: request.evaluationTime,
+          replayLimits,
+        },
         node.storage?.record ?? null,
       );
       if (
@@ -170,7 +179,12 @@ export function deriveCapturedRecordClosure(
         (read.observation.status === "unavailable" &&
           read.observation.reason === "not_yet_available")) &&
       inspectRetainedPolicyRecord(
-        { source: read.source, scope: request.scope, evaluationTime: request.evaluationTime },
+        {
+          source: read.source,
+          scope: request.scope,
+          evaluationTime: request.evaluationTime,
+          replayLimits,
+        },
         read.record,
       ) !== null
     )
@@ -295,8 +309,22 @@ export function deriveCapturedRecordClosure(
           throw new PolicyRecordGraphError("observation_conflict", key);
         for (const member of resolved.matches) {
           if (member.status !== "retained") continue;
-          const child = nodes.get(policyEvaluationSourceReferenceKey(member.read.source))?.read;
-          if (!child || !same(child, member.read))
+          const child = nodes.get(policyEvaluationSourceReferenceKey(member.read.source));
+          const captured = inspectRetainedPolicyRecord(
+            {
+              source: member.read.source,
+              scope: request.scope,
+              evaluationTime: request.evaluationTime,
+              replayLimits,
+            },
+            member.record,
+          );
+          if (
+            !child ||
+            !captured ||
+            !same(child.read, member.read) ||
+            !same(child.storage, captured.storage)
+          )
             throw new PolicyRecordGraphError("observation_conflict", key);
           enqueue(member.read.source);
         }

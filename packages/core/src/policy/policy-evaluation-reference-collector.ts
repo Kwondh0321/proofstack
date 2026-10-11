@@ -4,7 +4,6 @@ import {
   type CriterionVersionSelector,
   CriterionVersionSelectorSchema,
   type EvaluationRun,
-  encodeEvaluationCanonicalJson,
   type InteractionCaptureSource,
   InteractionCaptureSourceSchema,
   type InteractionPromptReference,
@@ -21,11 +20,12 @@ import {
   type PolicyEvaluationSourceReference,
   PolicyEvaluationSourceReferenceSchema,
   policyEvaluationSourceReferenceKey,
-  type QualificationReport,
   QualificationPolicyReferenceSchema,
+  type QualificationReport,
   type RegressionTraceSnapshot,
   RegressionTraceSnapshotSchema,
   type SourceSnapshot,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationControlDeclaration,
@@ -100,7 +100,7 @@ export class PolicyEvaluationEvidenceReferenceError extends Error {
 }
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 /** Internal, single-parent builder. The graph capture must additionally enforce cumulative limits. */
@@ -132,7 +132,7 @@ export class PolicyEvaluationReferenceCollector {
     if (this.references.length >= this.limits.maxReferences) {
       throw new PolicyEvaluationEvidenceReferenceError("reference_limit_exceeded");
     }
-    const bytes = encodeEvaluationCanonicalJson(value).byteLength;
+    const bytes = Buffer.byteLength(serializeEvaluationCanonicalJson(value), "utf8");
     if (bytes > this.limits.maxReferenceBytes - this.referenceBytes) {
       throw new PolicyEvaluationEvidenceReferenceError("reference_bytes_exceeded");
     }

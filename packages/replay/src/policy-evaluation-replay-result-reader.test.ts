@@ -15,9 +15,11 @@ import { revalidatePolicyEvaluationCapturedRecord } from "@proofstack/core";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   inspectPolicyEvaluationReplayResult,
+  inspectPolicyEvaluationReplayResultCapture,
   type PolicyEvaluationReplayResultReadInput,
   type PolicyEvaluationReplayResultSource,
   readPolicyEvaluationReplayResult,
+  readPolicyEvaluationReplayResultCapture,
 } from "./policy-evaluation-replay-result-reader.js";
 import type { ReplayBudgetAmounts, ReplayUsageMeasurements } from "./replay-budget.js";
 import type { ReplayJobControlRepository } from "./replay-job-repository.js";
@@ -276,6 +278,71 @@ function withPriorAttempt(): ReplayJobSnapshot {
 }
 
 describe("materialized policy replay-result inspection", () => {
+  it("retains normalized original successful and failed-prior histories under exact admission", async () => {
+    for (const raw of [actual.completed, fixture(), withPriorAttempt()]) {
+      const value = wire(raw);
+      const count =
+        1 +
+        value.attempts.length +
+        value.budgetLedger.length +
+        value.executionObservations.length +
+        value.usageObservations.length;
+      const bytes = Buffer.byteLength(json(value));
+      for (const cut of [time("600"), time("000")]) {
+        const input = {
+          ...command(value),
+          evaluationTime: cut,
+          limits: { maximumRecords: count, maximumRecordBytes: bytes },
+        };
+        const repository = port(raw);
+        const capture = await readPolicyEvaluationReplayResultCapture(input, repository);
+        expect(repository.findJob).toHaveBeenCalledExactlyOnceWith(
+          value.job.scope,
+          value.job.jobId,
+        );
+        expect(capture).toEqual(inspectPolicyEvaluationReplayResultCapture(input, raw));
+        expect(capture.read).toEqual(inspectPolicyEvaluationReplayResult(input, raw));
+        expect(capture.storage).toEqual({
+          record: value,
+          recordSha256: hash(value),
+          receiptTime: terminal(value).committedAt,
+        });
+        if (cut === time("000"))
+          expect(capture.read).toMatchObject({ record: null, observation: future });
+        for (const smaller of [
+          { maximumRecords: count - 1, maximumRecordBytes: bytes },
+          { maximumRecords: count, maximumRecordBytes: bytes - 1 },
+        ]) {
+          expect(() =>
+            inspectPolicyEvaluationReplayResultCapture({ ...input, limits: smaller }, raw),
+          ).toThrow(
+            expect.objectContaining({
+              code: "policy_evaluation_replay_result_read_limit_exceeded",
+            }),
+          );
+        }
+        if (!capture.storage) throw new Error("Missing storage");
+        capture.storage.record.job.createdByPrincipalId = "returned_mutation";
+        expect(wire(raw)).toEqual(value);
+      }
+    }
+  });
+  it("keeps missing, invalid, unsuccessful and mismatched histories without original storage", () => {
+    const value = fixture();
+    const input = command(value);
+    for (const raw of [
+      null,
+      undefined,
+      { ...value, approved: true },
+      actual.queued,
+      actual.running,
+      withCancellation(),
+    ]) {
+      const capture = inspectPolicyEvaluationReplayResultCapture(input, raw);
+      expect(capture.storage).toBeNull();
+      expect(capture.read).toEqual(inspectPolicyEvaluationReplayResult(input, raw));
+    }
+  });
   it("synchronously reinspects memory, wire, and failed-prior-attempt histories with the same full hash", async () => {
     for (const raw of [actual.completed, fixture(), withPriorAttempt()]) {
       const expected = wire(raw);
@@ -844,6 +911,14 @@ describe("missing, corrupt, incomplete, and future replay evidence", () => {
       expect((await readPolicyEvaluationReplayResult(input, port(value))).observation).toEqual(
         future,
       );
+      const capture = await readPolicyEvaluationReplayResultCapture(input, port(value));
+      expect(capture).toEqual(inspectPolicyEvaluationReplayResultCapture(input, value));
+      expect(capture.read).toMatchObject({ record: null, observation: future });
+      expect(capture.storage).toEqual({
+        record: value,
+        recordSha256: hash(value),
+        receiptTime: time("600"),
+      });
     }
     input.evaluationTime = time("600");
     expect((await readPolicyEvaluationReplayResult(input, port(value))).observation.status).toBe(
@@ -889,6 +964,14 @@ describe("missing, corrupt, incomplete, and future replay evidence", () => {
       expect((await readPolicyEvaluationReplayResult(input, port(value))).observation).toEqual(
         future,
       );
+      const capture = await readPolicyEvaluationReplayResultCapture(input, port(value));
+      expect(capture).toEqual(inspectPolicyEvaluationReplayResultCapture(input, value));
+      expect(capture.read).toMatchObject({ record: null, observation: future });
+      expect(capture.storage).toEqual({
+        record: value,
+        recordSha256: hash(value),
+        receiptTime: time("601"),
+      });
     });
   }
   it("propagates repository failures and unexpected accessors instead of inventing missingness", async () => {
@@ -973,6 +1056,35 @@ describe("bounded replay-source admission", () => {
       "verified",
     );
   });
+  it.each([
+    ["ordinary", inspectPolicyEvaluationReplayResult],
+    ["storage", inspectPolicyEvaluationReplayResultCapture],
+  ] as const)(
+    "rejects %s histories that change between row admission and parsing",
+    (_name, inspect) => {
+      const value = fixture();
+      expect(value.budgetLedger.length).toBeGreaterThan(0);
+      const count =
+        1 +
+        value.attempts.length +
+        value.budgetLedger.length +
+        value.executionObservations.length +
+        value.usageObservations.length +
+        value.cancellationAcknowledgements.length +
+        Number(value.cancellationRequest !== null);
+      let reads = 0;
+      const raw = {
+        ...value,
+        get budgetLedger() {
+          return reads++ === 0 ? [] : value.budgetLedger;
+        },
+      };
+      expect(() =>
+        inspect({ ...command(value), limits: { ...limits, maximumRecords: count - 1 } }, raw),
+      ).toThrow(expect.objectContaining({ dimension: "records" }));
+    },
+  );
+
   it("counts all history rows and cancellation records without counting only the latest attempt", async () => {
     for (const value of [fixture(), withCancellation()]) {
       const count =

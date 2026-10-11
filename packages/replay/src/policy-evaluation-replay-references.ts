@@ -5,14 +5,19 @@ import {
   type PolicyEvaluationEvidenceReferenceLimits,
   PolicyEvaluationReferenceCollector,
   revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
 } from "@proofstack/core";
 import {
   inspectPolicyEvaluationReplayDefinition,
+  inspectPolicyEvaluationReplayDefinitionCapture,
+  type PolicyEvaluationReplayDefinitionCapture,
   type PolicyEvaluationReplayDefinitionRead,
   type PolicyEvaluationReplayDefinitionSource,
 } from "./policy-evaluation-replay-definition-reader.js";
 import {
   inspectPolicyEvaluationReplayResult,
+  inspectPolicyEvaluationReplayResultCapture,
+  type PolicyEvaluationReplayResultCapture,
   type PolicyEvaluationReplayResultRead,
   type PolicyEvaluationReplayResultReadInput,
   type PolicyEvaluationReplayResultSource,
@@ -156,6 +161,36 @@ function resultReferences(
   });
 }
 
+/** Stored original definition declarations retain the original temporal observation. */
+export function enumeratePolicyEvaluationStoredReplayDefinitionReferences(
+  input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationReplayDefinitionSource>,
+  capture: PolicyEvaluationReplayDefinitionCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  try {
+    const checked = revalidatePolicyEvaluationCapturedStorage(
+      input,
+      capture,
+      inspectPolicyEvaluationReplayDefinitionCapture,
+    );
+    if ("planVersionId" in checked.storage.record) planReferences(checked.storage.record, out);
+    else targetReferences(checked.storage.record, out);
+    return {
+      ...out.result(),
+      semanticObservation: checked.read.observation,
+      storage: {
+        source: checked.read.source,
+        recordSha256: checked.storage.recordSha256,
+        receiptTime: checked.storage.receiptTime,
+      },
+    };
+  } catch (cause) {
+    if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
+    throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });
+  }
+}
+
 /** Direct occurrence inventory only; no child acquisition, installed authority, or execution. */
 export function enumeratePolicyEvaluationReplayDefinitionReferences(
   input: PolicyEvaluationDefinitionReadInput<PolicyEvaluationReplayDefinitionSource>,
@@ -175,6 +210,35 @@ export function enumeratePolicyEvaluationReplayDefinitionReferences(
       ...out.result(),
       recordSha256: checked.observation.recordSha256,
       source: checked.source,
+    };
+  } catch (cause) {
+    if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;
+    throw new PolicyEvaluationEvidenceReferenceError("input_invalid", { cause });
+  }
+}
+
+/** Full original history inventory, with finite history admission and unchanged availability. */
+export function enumeratePolicyEvaluationStoredReplayResultReferences(
+  input: PolicyEvaluationReplayResultReadInput,
+  capture: PolicyEvaluationReplayResultCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  try {
+    const checked = revalidatePolicyEvaluationCapturedStorage(
+      input,
+      capture,
+      inspectPolicyEvaluationReplayResultCapture,
+    );
+    resultReferences(checked.storage.record, out);
+    return {
+      ...out.result(),
+      semanticObservation: checked.read.observation,
+      storage: {
+        source: checked.read.source,
+        recordSha256: checked.storage.recordSha256,
+        receiptTime: checked.storage.receiptTime,
+      },
     };
   } catch (cause) {
     if (cause instanceof PolicyEvaluationEvidenceReferenceError) throw cause;

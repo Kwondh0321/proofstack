@@ -13,7 +13,10 @@ import {
   type ReplayJobSnapshot,
   ReplayJobSnapshotSchema,
 } from "@proofstack/contracts";
-import type { PolicyEvaluationDefinitionRead } from "@proofstack/core";
+import type {
+  PolicyEvaluationDefinitionCapture,
+  PolicyEvaluationDefinitionRead,
+} from "@proofstack/core";
 import type { ReplayJobControlRepository } from "./replay-job-repository.js";
 
 export type PolicyEvaluationReplayResultSource = Extract<
@@ -22,6 +25,10 @@ export type PolicyEvaluationReplayResultSource = Extract<
 >;
 
 export type PolicyEvaluationReplayResultRead = PolicyEvaluationDefinitionRead<
+  ReplayJobSnapshot,
+  PolicyEvaluationReplayResultSource
+>;
+export type PolicyEvaluationReplayResultCapture = PolicyEvaluationDefinitionCapture<
   ReplayJobSnapshot,
   PolicyEvaluationReplayResultSource
 >;
@@ -119,12 +126,28 @@ export async function readPolicyEvaluationReplayResult(
   input: PolicyEvaluationReplayResultReadInput,
   repository: Pick<ReplayJobControlRepository, "findJob">,
 ): Promise<PolicyEvaluationReplayResultRead> {
+  return (await readReplayResultCapture(input, repository, false)).read;
+}
+
+/** Original complete successful history, not execution, current authority or snapshot sealing. */
+export function readPolicyEvaluationReplayResultCapture(
+  input: PolicyEvaluationReplayResultReadInput,
+  repository: Pick<ReplayJobControlRepository, "findJob">,
+): Promise<PolicyEvaluationReplayResultCapture> {
+  return readReplayResultCapture(input, repository, true);
+}
+
+async function readReplayResultCapture(
+  input: PolicyEvaluationReplayResultReadInput,
+  repository: Pick<ReplayJobControlRepository, "findJob">,
+  retainStorage: boolean,
+): Promise<PolicyEvaluationReplayResultCapture> {
   const captured = captureInput(input);
   const raw = await repository.findJob(
     structuredClone(captured.scope),
     captured.source.reference.jobId,
   );
-  return inspectCapturedReplayResult(captured, raw);
+  return inspectCapturedReplayResult(captured, raw, retainStorage);
 }
 
 /**
@@ -137,23 +160,40 @@ export function inspectPolicyEvaluationReplayResult(
   input: PolicyEvaluationReplayResultReadInput,
   raw: unknown,
 ): PolicyEvaluationReplayResultRead {
-  return inspectCapturedReplayResult(captureInput(input), raw);
+  return inspectCapturedReplayResult(captureInput(input), raw, false).read;
+}
+
+/** Revalidates whole original storage and receipts at the unchanged original semantic cut. */
+export function inspectPolicyEvaluationReplayResultCapture(
+  input: PolicyEvaluationReplayResultReadInput,
+  raw: unknown,
+): PolicyEvaluationReplayResultCapture {
+  return inspectCapturedReplayResult(captureInput(input), raw, true);
 }
 
 function inspectCapturedReplayResult(
   { evaluationTime, limits, scope, source }: PolicyEvaluationReplayResultReadInput,
   raw: unknown,
-): PolicyEvaluationReplayResultRead {
-  if (raw === null) return { observation: { status: "missing" }, record: null, source };
+  retainStorage: boolean,
+): PolicyEvaluationReplayResultCapture {
+  const unavailable = (
+    observation: Exclude<PolicyEvaluationReplayResultRead["observation"], { status: "verified" }>,
+  ): PolicyEvaluationReplayResultCapture => ({
+    read: { observation, record: null, source },
+    storage: null,
+  });
+  if (raw === null) return unavailable({ status: "missing" });
   checkHistoryCount(raw, limits.maximumRecords);
   const parsed = ReplayJobSnapshotSchema.safeParse(raw);
   if (!parsed.success) {
-    return {
-      observation: { reason: "record_invalid", status: "unavailable" },
-      record: null,
-      source,
-    };
+    return unavailable({ reason: "record_invalid", status: "unavailable" });
   }
+
+  // A materialized port can expose changing getters. The pre-parse check rejects oversized
+  // arrays before element access; also admit the complete owned parsed history, so a smaller
+  // first observation cannot authorize additional returned rows. This is response admission,
+  // not a bounded wire decoder or an interruption guarantee for the originating I/O.
+  checkHistoryCount(parsed.data, limits.maximumRecords);
 
   // Strict parsing has rejected unknown fields and invalid values. Normalize only schema-admitted
   // optional undefined properties to their absent JSON representation, as on database/HTTP reads.
@@ -192,11 +232,7 @@ function inspectCapturedReplayResult(
       }),
     )
   ) {
-    return {
-      observation: { reason: "reference_mismatch", status: "unavailable" },
-      record: null,
-      source,
-    };
+    return unavailable({ reason: "reference_mismatch", status: "unavailable" });
   }
 
   const timestamps = [
@@ -212,19 +248,25 @@ function inspectCapturedReplayResult(
     ...record.usageObservations.map((entry) => entry.observedAt),
   ].filter((value): value is string => value !== undefined);
   const cut = policyEvaluationTimestampOrderKey(evaluationTime);
-  if (timestamps.some((value) => policyEvaluationTimestampOrderKey(value) > cut)) {
-    return {
-      observation: { reason: "not_yet_available", status: "unavailable" },
-      record: null,
-      source,
-    };
+  // Keep the exact text of the latest actual constituent receipt. Equal instants keep the first
+  // original occurrence; never synthesize a cut/completion clock or round a timestamp through Date.
+  let receiptTime = record.job.createdAt;
+  let latestReceipt = policyEvaluationTimestampOrderKey(receiptTime);
+  for (const timestamp of timestamps) {
+    const order = policyEvaluationTimestampOrderKey(timestamp);
+    if (order > latestReceipt) {
+      latestReceipt = order;
+      receiptTime = timestamp;
+    }
   }
+  const future = latestReceipt > cut;
+  if (future && !retainStorage)
+    return unavailable({ reason: "not_yet_available", status: "unavailable" });
+  const recordSha256 = createHash("sha256").update(bytes).digest("hex");
   return {
-    observation: {
-      recordSha256: createHash("sha256").update(bytes).digest("hex"),
-      status: "verified",
-    },
-    record,
-    source,
+    read: future
+      ? unavailable({ reason: "not_yet_available", status: "unavailable" }).read
+      : { observation: { recordSha256, status: "verified" }, record, source },
+    storage: retainStorage ? { record: structuredClone(record), recordSha256, receiptTime } : null,
   };
 }

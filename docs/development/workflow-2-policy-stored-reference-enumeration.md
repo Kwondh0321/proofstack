@@ -18,6 +18,13 @@ bodies, while keeping the original temporal observation unchanged.
 | core | `enumeratePolicyEvaluationStoredEvidenceReferences` | 17 evaluation and 13 model/human-assurance kinds |
 | core | `enumeratePolicyEvaluationStoredControlReferences` | Six comparison/control kinds |
 | datasets | `enumeratePolicyEvaluationStoredDatasetReferences` | Dataset and fixture versions, including both fixture formats |
+| core | `enumeratePolicyEvaluationStoredRuntimeReferences` | Runtime adapter, isolation profile and runtime profile |
+| core | `enumeratePolicyEvaluationStoredProtocolReferences` | Protocol definition |
+| core | `enumeratePolicyEvaluationStoredEndpointProfileReferences` | Endpoint profile |
+| core | `enumeratePolicyEvaluationStoredQualificationPolicyReferences` | Qualification policy |
+| core | `enumeratePolicyEvaluationStoredImplementationReferences` | Implementation registration |
+| replay | `enumeratePolicyEvaluationStoredReplayDefinitionReferences` | Replay plan and target release |
+| replay | `enumeratePolicyEvaluationStoredReplayResultReferences` | Complete successful latest-attempt job history |
 
 Each function receives the already authorized exact scope/source/evaluation-time context, the
 owning reader's complete `read`/`storage` capture and finite reference limits. The internal shared
@@ -42,9 +49,25 @@ caller must additionally enforce cumulative acquisition/body/SQL/deadline and jo
 ## Composer and remaining closure
 
 The fixed `enumerateRetainedPolicyRecord` dispatcher in the policy-evaluation workspace composes
-these 38 source kinds. Its null return explicitly represents unsupported stored-body retention;
-the remaining ten replay/runtime/registration kinds require their own capture boundaries. A null
-dispatcher result cannot stand for a verified empty declaration set.
+all 48 installed source kinds. Every owning capture uses the unchanged original semantic cut;
+verified/future graph nodes require independently revalidated full storage. Replay-result capture
+receives the original finite history count/byte limits, counts every history row before parsing
+and rechecks the complete parsed row count so changing getters cannot admit extra rows. It admits
+canonical bytes before availability classification. This is response admission, not bounded wire
+decoding or SQL/I/O interruption. Its aggregate receipt retains the
+exact text of the latest actual contained receipt, including terminal, budget and observation rows;
+attempt completion alone is insufficient. Missing, invalid or non-successful histories retain no
+successful-result storage. Implementation coordinates remain nested and owning-validator checked.
+
+Protocol selector prefetch carries original valid future bodies into graph storage. Every repeated
+lookup compares full storage even when temporal observations are equally unavailable. Contextual
+scope failures retain the complete original candidate in the resolution with null node storage.
+A descriptor mismatch keeps an unavailable parent-resolution outcome even if the independent
+exact child body is valid; child storage does not grant compatibility. Independent closure
+inspection also binds each graph storage witness to its original complete selector candidate,
+rejecting substituted future bodies even when their recomputed full hashes are internally valid.
+Semantic edges still expand
+available parents only. Hashless stored-selector resolution and root-only traversal remain open.
 
 This operation performs no repository, object, key or network I/O. Pure inspection establishes
 body consistency; the trusted owning read path must establish storage selection and completeness.
@@ -64,8 +87,9 @@ Owning tests use independent schema-path and recursive structural reference inve
 JSON full-body hashes and byte oracles. Cases cover every supported source kind, current/future
 cuts, both fixture formats, failed attempts, repeated aliases, exact/one-below limits, all three
 scope dimensions, substituted witnesses, output ownership and changing/failing accessors.
-Composer routing checks bind the same owning inventory at the original cut and preserve explicit
-unsupported frontiers. Package coverage thresholds, test deadlines and existing assertions remain.
+Composer routing checks bind the same owning inventory at the original cut across all 48 kinds,
+preserve missing/contextual-failure frontiers and reject differing future receipts across repeated
+protocol lookups. Package coverage thresholds, test deadlines and existing assertions remain.
 
 Complete source union/semantics, guarded sealing, deterministic predicates, jobs/worker/recovery,
 API/SDK and independent [checkpoint acceptance](workflow-2-policy-evaluation-entry-audit.md) are

@@ -83,6 +83,7 @@ import {
 import {
   inspectRetainedPolicyRecord,
   type PolicyRetainedRecordCapture,
+  type PolicyRetainedRecordStorage,
 } from "./retained-record-routing.js";
 
 export interface PolicyRecordGraphEdge {
@@ -259,6 +260,7 @@ export async function acquirePolicyRecordGraph(
   const queue: PolicyEvaluationSourceReference[] = [];
   const expected = new Map<string, PolicyEvaluationSourceReference>();
   const captured = new Map<string, PolicyRecordRead>();
+  const capturedStorage = new Map<string, PolicyRetainedRecordStorage | null>();
   const expanded = new Map<string, PolicyRecordExpansion>();
   const artifacts = new Map<string, string>();
   const edges: PolicyRecordGraphEdge[] = [];
@@ -268,7 +270,11 @@ export async function acquirePolicyRecordGraph(
     edges.push(edge);
   };
 
-  const enqueue = (source: PolicyEvaluationSourceReference, read?: PolicyRecordRead) => {
+  const enqueue = (
+    source: PolicyEvaluationSourceReference,
+    read?: PolicyRecordRead,
+    storage?: PolicyRetainedRecordStorage | null,
+  ) => {
     const key = policyEvaluationSourceReferenceKey(source);
     const previous = expected.get(key);
     if (previous && canonical(previous) !== canonical(source))
@@ -282,6 +288,14 @@ export async function acquirePolicyRecordGraph(
       if (observed && canonical(observed.observation) !== canonical(read.observation))
         throw new PolicyRecordGraphError("observation_conflict", key);
       if (!observed) captured.set(key, read);
+    }
+    if (storage !== undefined) {
+      const previousStorage = capturedStorage.has(key)
+        ? capturedStorage.get(key)
+        : expanded.get(key)?.storage;
+      if (previousStorage !== undefined && canonical(previousStorage) !== canonical(storage))
+        throw new PolicyRecordGraphError("observation_conflict", key);
+      capturedStorage.set(key, storage);
     }
   };
   for (const root of roots) enqueue(root);
@@ -308,9 +322,14 @@ export async function acquirePolicyRecordGraph(
                 ).references
               : null,
         };
-        if (prefetched.observation.status === "verified") {
+        if (capturedStorage.has(key)) {
+          expansion = {
+            ...expansion,
+            storage: capturedStorage.get(key) as PolicyRetainedRecordStorage | null,
+          };
+        } else if (prefetched.observation.status === "verified") {
           const capture = inspectRetainedPolicyRecord(
-            { evaluationTime, scope, source },
+            { evaluationTime, scope, source, replayLimits },
             prefetched.record,
           );
           if (capture) expansion = { ...expansion, storage: capture.storage };
@@ -322,7 +341,7 @@ export async function acquirePolicyRecordGraph(
           limits,
           replayLimits,
         );
-        enqueue(source, expansion.read);
+        enqueue(source, expansion.read, expansion.storage);
       }
       reinspection?.expansion(expansion);
       if (expansion.storage) {
@@ -388,7 +407,18 @@ export async function acquirePolicyRecordGraph(
           for (const member of resolved.matches) {
             if (member.status !== "retained") continue;
             reinspection?.read(member.read);
-            enqueue(member.read.source, member.read);
+            const capture = inspectRetainedPolicyRecord(
+              { evaluationTime, scope, source: member.read.source, replayLimits },
+              member.record,
+            );
+            if (!capture || canonical(capture.read) !== canonical(member.read))
+              throw new PolicyRecordGraphError(
+                "observation_conflict",
+                policyEvaluationSourceReferenceKey(member.read.source),
+              );
+            // Scope failures retain null storage; descriptor compatibility remains a separate
+            // parent-resolution outcome even when the exact independent child is valid.
+            enqueue(member.read.source, member.read, capture.storage);
           }
         } else if (reference.kind === "endpoint_profile_selector") {
           // Every original occurrence reinspects the complete parent before its exact lookup.

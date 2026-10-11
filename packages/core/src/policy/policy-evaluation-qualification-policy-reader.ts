@@ -1,4 +1,5 @@
 import type {
+  EvidenceScope,
   PolicyEvaluationSourceReference,
   QualificationPolicyRecord,
 } from "@proofstack/contracts";
@@ -7,12 +8,18 @@ import {
   type QualificationPolicyReader,
   validateQualificationPolicyRecord,
 } from "../evaluation/qualification-policy.js";
-import { revalidatePolicyEvaluationCapturedRecord } from "./policy-evaluation-captured-record.js";
 import {
+  revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
+} from "./policy-evaluation-captured-record.js";
+import {
+  inspectPolicyEvaluationDefinitionCapture,
   inspectPolicyEvaluationDefinitionRecord,
+  type PolicyEvaluationDefinitionCapture,
   type PolicyEvaluationDefinitionRead,
   type PolicyEvaluationDefinitionReadInput,
   type PolicyEvaluationDefinitionValidator,
+  readPolicyEvaluationDefinitionCapture,
   readPolicyEvaluationDefinitionRecord,
 } from "./policy-evaluation-definition-reader.js";
 import {
@@ -25,6 +32,10 @@ export type PolicyEvaluationQualificationPolicySource = Extract<
   { readonly kind: "qualification_policy" }
 >;
 export type PolicyEvaluationQualificationPolicyRead = PolicyEvaluationDefinitionRead<
+  QualificationPolicyRecord,
+  PolicyEvaluationQualificationPolicySource
+>;
+export type PolicyEvaluationQualificationPolicyCapture = PolicyEvaluationDefinitionCapture<
   QualificationPolicyRecord,
   PolicyEvaluationQualificationPolicySource
 >;
@@ -48,6 +59,14 @@ export function inspectPolicyEvaluationQualificationPolicyRecord(
   return inspectPolicyEvaluationDefinitionRecord(input, raw, validator);
 }
 
+/** Full original publication receipt, without a qualification verdict or current authority. */
+export function inspectPolicyEvaluationQualificationPolicyCapture(
+  input: Input,
+  raw: unknown,
+): PolicyEvaluationQualificationPolicyCapture {
+  return inspectPolicyEvaluationDefinitionCapture(input, raw, validator);
+}
+
 /** The expected digest validates independently stored data; it never selects or creates a policy. */
 export function readPolicyEvaluationQualificationPolicyRecord(
   input: Input,
@@ -55,13 +74,27 @@ export function readPolicyEvaluationQualificationPolicyRecord(
 ): Promise<PolicyEvaluationQualificationPolicyRead> {
   return readPolicyEvaluationDefinitionRecord(input, {
     ...validator,
-    read: (scope, source) =>
-      reader.findQualificationPolicy(
-        scope,
-        source.reference.policyId,
-        source.reference.policyVersionId,
-      ),
+    read: qualificationReadPort(reader),
   });
+}
+
+export function readPolicyEvaluationQualificationPolicyCapture(
+  input: Input,
+  reader: QualificationPolicyReader,
+): Promise<PolicyEvaluationQualificationPolicyCapture> {
+  return readPolicyEvaluationDefinitionCapture(input, {
+    ...validator,
+    read: qualificationReadPort(reader),
+  });
+}
+
+function qualificationReadPort(reader: QualificationPolicyReader) {
+  return (scope: EvidenceScope, source: PolicyEvaluationQualificationPolicySource) =>
+    reader.findQualificationPolicy(
+      scope,
+      source.reference.policyId,
+      source.reference.policyVersionId,
+    );
 }
 
 /** Fixed data fields do not grant executable, artifact-fetch or qualification authority. */
@@ -80,5 +113,28 @@ export function enumeratePolicyEvaluationQualificationPolicyReferences(
     ...out.result(),
     source: checked.source,
     recordSha256: checked.observation.recordSha256,
+  };
+}
+
+/** A verified stored body can declare zero dependencies; absent/invalid storage cannot. */
+export function enumeratePolicyEvaluationStoredQualificationPolicyReferences(
+  input: Input,
+  capture: PolicyEvaluationQualificationPolicyCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  const checked = revalidatePolicyEvaluationCapturedStorage(
+    input,
+    capture,
+    inspectPolicyEvaluationQualificationPolicyCapture,
+  );
+  return {
+    ...out.result(),
+    semanticObservation: checked.read.observation,
+    storage: {
+      source: checked.read.source,
+      recordSha256: checked.storage.recordSha256,
+      receiptTime: checked.storage.receiptTime,
+    },
   };
 }

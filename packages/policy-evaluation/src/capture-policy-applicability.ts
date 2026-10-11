@@ -1,5 +1,4 @@
 import {
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
@@ -7,6 +6,7 @@ import {
   type ReleaseCandidate,
   type ReleasePolicy,
   type ReleasePolicyApplicability,
+  serializeEvaluationCanonicalJson,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import {
@@ -88,9 +88,7 @@ export interface PolicyApplicabilityInputs {
 }
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 function conflict(): never {
   throw new PolicyRecordGraphError("observation_conflict");
@@ -275,7 +273,7 @@ export async function inspectCapturedPolicyApplicability(
     lifecycle: retainedLifecycle,
   };
   for (const frame of [context, ...dimensions])
-    charge(1, encodeEvaluationCanonicalJson(frame).byteLength);
+    charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(frame), "utf8"));
   const conjunction = blocked
     ? "not_evaluated"
     : dimensions.some(({ status }) => status === "mismatch")

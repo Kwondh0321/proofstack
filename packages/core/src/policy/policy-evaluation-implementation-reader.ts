@@ -13,8 +13,12 @@ import {
   InvalidEvaluationImplementationRegistrationError,
   validateEvaluationImplementationRegistrationRecord,
 } from "../evaluation/evaluation-implementation-registration.js";
-import { revalidatePolicyEvaluationCapturedRecord } from "./policy-evaluation-captured-record.js";
+import {
+  revalidatePolicyEvaluationCapturedRecord,
+  revalidatePolicyEvaluationCapturedStorage,
+} from "./policy-evaluation-captured-record.js";
 import type {
+  PolicyEvaluationDefinitionCapture,
   PolicyEvaluationDefinitionRead,
   PolicyEvaluationDefinitionReadInput,
 } from "./policy-evaluation-definition-reader.js";
@@ -29,6 +33,10 @@ export type PolicyEvaluationImplementationSource = Extract<
   { readonly kind: "evaluation_implementation_registration" }
 >;
 export type PolicyEvaluationImplementationRead = PolicyEvaluationDefinitionRead<
+  EvaluationImplementationRegistrationRecord,
+  PolicyEvaluationImplementationSource
+>;
+export type PolicyEvaluationImplementationCapture = PolicyEvaluationDefinitionCapture<
   EvaluationImplementationRegistrationRecord,
   PolicyEvaluationImplementationSource
 >;
@@ -59,18 +67,36 @@ export function inspectPolicyEvaluationImplementationRecord(
   input: Input,
   raw: unknown,
 ): PolicyEvaluationImplementationRead {
+  return inspectImplementationCapture(input, raw, false).read;
+}
+
+/** Owns the complete original nested implementation, exact scope and registration receipt. */
+export function inspectPolicyEvaluationImplementationCapture(
+  input: Input,
+  raw: unknown,
+): PolicyEvaluationImplementationCapture {
+  return inspectImplementationCapture(input, raw, true);
+}
+
+function inspectImplementationCapture(
+  input: Input,
+  raw: unknown,
+  retainStorage: boolean,
+): PolicyEvaluationImplementationCapture {
   const { source, scope, evaluationTime } = parse(input);
-  if (raw === null) return { source, observation: { status: "missing" }, record: null };
+  const unavailable = (
+    observation: Exclude<PolicyEvaluationImplementationRead["observation"], { status: "verified" }>,
+  ): PolicyEvaluationImplementationCapture => ({
+    read: { source, observation, record: null },
+    storage: null,
+  });
+  if (raw === null) return unavailable({ status: "missing" });
   let record: EvaluationImplementationRegistrationRecord;
   try {
     record = validateEvaluationImplementationRegistrationRecord(raw);
   } catch (cause) {
     if (!(cause instanceof InvalidEvaluationImplementationRegistrationError)) throw cause;
-    return {
-      source,
-      observation: { status: "unavailable", reason: "record_invalid" },
-      record: null,
-    };
+    return unavailable({ status: "unavailable", reason: "record_invalid" });
   }
   if (
     record.scope.tenantId !== scope.tenantId ||
@@ -80,29 +106,22 @@ export function inspectPolicyEvaluationImplementationRecord(
     record.implementation.implementationId !== source.reference.implementationId ||
     record.implementation.implementationVersionId !== source.reference.implementationVersionId
   )
-    return {
-      source,
-      observation: { status: "unavailable", reason: "reference_mismatch" },
-      record: null,
-    };
-  if (
+    return unavailable({ status: "unavailable", reason: "reference_mismatch" });
+  const future =
     policyEvaluationTimestampOrderKey(record.registeredAt) >
-    policyEvaluationTimestampOrderKey(evaluationTime)
-  )
-    return {
-      source,
-      observation: { status: "unavailable", reason: "not_yet_available" },
-      record: null,
-    };
+    policyEvaluationTimestampOrderKey(evaluationTime);
+  if (future && !retainStorage)
+    return unavailable({ status: "unavailable", reason: "not_yet_available" });
+  const recordSha256 = createHash("sha256")
+    .update(encodeEvaluationCanonicalJson(record))
+    .digest("hex");
   return {
-    source,
-    observation: {
-      status: "verified",
-      recordSha256: createHash("sha256")
-        .update(encodeEvaluationCanonicalJson(record))
-        .digest("hex"),
-    },
-    record,
+    read: future
+      ? unavailable({ status: "unavailable", reason: "not_yet_available" }).read
+      : { source, record, observation: { status: "verified", recordSha256 } },
+    storage: retainStorage
+      ? { record: structuredClone(record), recordSha256, receiptTime: record.registeredAt }
+      : null,
   };
 }
 
@@ -111,13 +130,28 @@ export async function readPolicyEvaluationImplementationRecord(
   input: Input,
   reader: EvaluationImplementationRegistrationReader,
 ): Promise<PolicyEvaluationImplementationRead> {
+  return (await readImplementationCapture(input, reader, false)).read;
+}
+
+export function readPolicyEvaluationImplementationCapture(
+  input: Input,
+  reader: EvaluationImplementationRegistrationReader,
+): Promise<PolicyEvaluationImplementationCapture> {
+  return readImplementationCapture(input, reader, true);
+}
+
+async function readImplementationCapture(
+  input: Input,
+  reader: EvaluationImplementationRegistrationReader,
+  retainStorage: boolean,
+): Promise<PolicyEvaluationImplementationCapture> {
   const fixed = parse(input);
   const raw = await reader.findEvaluationImplementationRegistration(
     structuredClone(fixed.scope),
     fixed.source.reference.implementationId,
     fixed.source.reference.implementationVersionId,
   );
-  return inspectPolicyEvaluationImplementationRecord(fixed, raw);
+  return inspectImplementationCapture(fixed, raw, retainStorage);
 }
 
 /** Hash declarations are not artifact IDs or fetch/installed-code authority. */
@@ -136,5 +170,28 @@ export function enumeratePolicyEvaluationImplementationReferences(
     ...out.result(),
     source: checked.source,
     recordSha256: checked.observation.recordSha256,
+  };
+}
+
+/** Valid zero-reference registration data is separate from installed-code authority. */
+export function enumeratePolicyEvaluationStoredImplementationReferences(
+  input: Input,
+  capture: PolicyEvaluationImplementationCapture,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+) {
+  const out = new PolicyEvaluationReferenceCollector(limits);
+  const checked = revalidatePolicyEvaluationCapturedStorage(
+    input,
+    capture,
+    inspectPolicyEvaluationImplementationCapture,
+  );
+  return {
+    ...out.result(),
+    semanticObservation: checked.read.observation,
+    storage: {
+      source: checked.read.source,
+      recordSha256: checked.storage.recordSha256,
+      receiptTime: checked.storage.receiptTime,
+    },
   };
 }

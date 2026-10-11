@@ -3,13 +3,13 @@ import {
   type EvaluationAggregate,
   type EvaluationAggregationPolicy,
   type ModelAssuranceAssessment,
-  encodeEvaluationCanonicalJson,
-  PolicyEvaluationManifestEntrySchema,
   type PolicyEvaluationManifestEntry,
+  PolicyEvaluationManifestEntrySchema,
   type PolicyEvaluationRequest,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
   type ReleasePolicy,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   PolicyEvaluationEvidenceReferenceError,
@@ -124,9 +124,7 @@ export interface PolicyAssessmentRuleInputs {
 }
 
 function same(left: unknown, right: unknown): boolean {
-  return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
-    encodeEvaluationCanonicalJson(right),
-  );
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
 }
 function conflict(): never {
   throw new PolicyRecordGraphError("observation_conflict");
@@ -267,7 +265,7 @@ export function inspectCapturedAssessmentRules(
     policy: inventory.policy,
     members: inventory.members,
   };
-  charge(1, encodeEvaluationCanonicalJson(context).byteLength);
+  charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(context), "utf8"));
   const rules: PolicyAssessmentRuleInputs["rules"][number][] = [];
   const indexOf = (
     parents: readonly { readonly source: Source }[],
@@ -404,7 +402,7 @@ export function inspectCapturedAssessmentRules(
       membership: original.membership,
       binding,
     };
-    charge(1, encodeEvaluationCanonicalJson(rule).byteLength);
+    charge(1, Buffer.byteLength(serializeEvaluationCanonicalJson(rule), "utf8"));
     rules.push(rule);
   }
   return structuredClone({ ...context, rules, inspectionUsage: { references, referenceBytes } });

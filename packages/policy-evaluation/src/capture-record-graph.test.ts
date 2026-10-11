@@ -3989,20 +3989,7 @@ describe("fixed cross-domain routing", () => {
       expect(expansion, kind).toEqual({
         read: { source, observation: { status: "missing" }, record: null },
         references: null,
-        ...([
-          "protocol_definition",
-          "endpoint_profile",
-          "qualification_policy",
-          "evaluation_implementation_registration",
-          "replay_plan",
-          "replay_result",
-          "target_release",
-          "replay_runtime_profile",
-          "replay_isolation_profile",
-          "runtime_adapter",
-        ].includes(kind)
-          ? {}
-          : { storage: null }),
+        storage: null,
       });
       expect(missing.calls.length, kind).toBe(kind === "regression_fixture_version" ? 2 : 1);
       const domain =
@@ -5913,9 +5900,96 @@ describe("complete retained protocol graph mappings", () => {
     ).toMatchObject({
       references: null,
       read: { record: null, observation: { status: "unavailable", reason: "not_yet_available" } },
+      storage: {
+        record: future,
+        recordSha256: member?.status === "retained" ? member.recordSha256 : "missing",
+        receiptTime: future.registeredAt,
+      },
     });
     expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
   });
+
+  it("independently rejects missing, altered and self-consistent substituted future protocol storage", async () => {
+    const { h, records, repositories } = await setup();
+    const catalogue = new StaticProtocolDefinitionCatalogue(
+      records.map((record) => ({ ...record, registeredAt: "2099-01-01T00:00:00.000Z" })),
+    );
+    const graph = await capturePolicyRecordGraph(h.input, {
+      ...repositories,
+      protocolDefinitions: catalogue,
+    });
+    expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
+    for (const fault of [
+      "omitted",
+      "null",
+      "hash",
+      "receipt",
+      "body",
+      "self_consistent",
+    ] as const) {
+      const changed = structuredClone(graph);
+      const node = changed.nodes.find(
+        (candidate) => candidate.read.source.kind === "protocol_definition",
+      );
+      if (!node?.storage) throw new Error("Expected retained future protocol storage");
+      if (fault === "omitted") Reflect.deleteProperty(node, "storage");
+      else if (fault === "null") Reflect.set(node, "storage", null);
+      else if (fault === "hash") Reflect.set(node.storage, "recordSha256", "0".repeat(64));
+      else if (fault === "receipt")
+        Reflect.set(node.storage, "receiptTime", "2100-01-01T00:00:00.000Z");
+      else {
+        Reflect.set(node.storage.record, "registeredByPrincipalId", "operator_substituted");
+        if (fault === "self_consistent")
+          Reflect.set(
+            node.storage,
+            "recordSha256",
+            createHash("sha256")
+              .update(encodeEvaluationCanonicalJson(node.storage.record))
+              .digest("hex"),
+          );
+      }
+      expect(() => derive(h, changed), fault).toThrow(
+        expect.objectContaining({ reason: "observation_conflict" }),
+      );
+    }
+  });
+
+  it.each(["registeredAt", "registeredByPrincipalId"] as const)(
+    "rejects changed future protocol %s across repeated selector occurrences",
+    async (field) => {
+      const { h, records, repositories } = await setup("model");
+      const original = records.find((record) => record.family === "request_normalizer");
+      if (!original) throw new Error("Missing repeated protocol family");
+      const catalogue = new StaticProtocolDefinitionCatalogue(
+        records.map((record) => ({ ...record, registeredAt: "2099-01-01T00:00:00.000Z" })),
+      );
+      let occurrences = 0;
+      await expect(
+        capturePolicyRecordGraph(h.input, {
+          ...repositories,
+          protocolDefinitions: {
+            findProtocolDefinition: catalogue.findProtocolDefinition.bind(catalogue),
+            listProtocolDefinitions: async (scope, selector) => {
+              const values = await catalogue.listProtocolDefinitions(scope, selector);
+              if (selector.family !== original.family || ++occurrences === 1) return values;
+              return values.map((record) =>
+                record.protocolDefinitionId === original.protocolDefinitionId
+                  ? {
+                      ...record,
+                      [field]:
+                        field === "registeredAt"
+                          ? "2100-01-01T00:00:00.000Z"
+                          : "operator_substituted",
+                    }
+                  : record,
+              );
+            },
+          },
+        }),
+      ).rejects.toMatchObject({ reason: "observation_conflict" });
+      expect(occurrences).toBe(2);
+    },
+  );
 
   it("reaches runtime protocols through the original candidate model adapter reference", async () => {
     const h = await harness();

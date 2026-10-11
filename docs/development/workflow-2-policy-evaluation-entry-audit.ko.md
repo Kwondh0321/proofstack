@@ -3,7 +3,7 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
-[저장 선언 열거기](workflow-2-policy-stored-reference-enumeration.ko.md)는 보존한 출처 38종의
+[저장 선언 열거기](workflow-2-policy-stored-reference-enumeration.ko.md)는 설치된 출처 48종 전체의
 원래 관측 상태를 유지하며 선언을 열거합니다. 원본 root만의 전체 의존 목록·관련 저장 의미와
 봉인 게시는 아직 진행 중이며 Workflow 2는 7개 중 2개 checkpoint 승인 상태입니다.
 

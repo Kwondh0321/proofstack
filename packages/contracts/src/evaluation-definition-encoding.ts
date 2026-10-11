@@ -179,18 +179,12 @@ export interface ScopedEvaluationDefinition<Definition> {
   readonly scope: EvidenceScope;
 }
 
+// Unicode-mode matching treats valid surrogate pairs as one scalar outside this range.
+// Only unpaired UTF-16 units match; no normalization or replacement is performed.
+const UNPAIRED_SURROGATE = /[\uD800-\uDFFF]/u;
+
 function containsUnpairedSurrogate(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const codeUnit = value.charCodeAt(index);
-    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-      const next = value.charCodeAt(index + 1);
-      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
-      index += 1;
-    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-      return true;
-    }
-  }
-  return false;
+  return UNPAIRED_SURROGATE.test(value);
 }
 
 function canonicalJson(value: unknown, active: WeakSet<object>, depth: number): string {
