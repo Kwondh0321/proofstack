@@ -1,11 +1,12 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import {
   type CriterionSetStatusRecord,
   type EvidenceScope,
   EvidenceScopeSchema,
-  encodeEvaluationCanonicalJson,
   MAX_POLICY_EVALUATION_ACQUISITION_RECORD_BYTES,
   MAX_POLICY_EVALUATION_ACQUISITION_RECORDS,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import { validateEvaluationRecord } from "./evaluation-record-validation.js";
 import { EvaluationRepositoryContractError } from "./evaluation-repository-errors.js";
@@ -85,7 +86,9 @@ export function admitCriterionStatusHistory(
     previous = record.statusRecordId;
     // Normalize only schema-admitted optional undefined fields, as in other owning inspectors.
     const normalized = JSON.parse(JSON.stringify(record)) as CriterionSetStatusRecord;
-    bytes += encodeEvaluationCanonicalJson(normalized).byteLength + Number(records.length > 0);
+    bytes +=
+      Buffer.byteLength(serializeEvaluationCanonicalJson(normalized), "utf8") +
+      Number(records.length > 0);
     if (bytes > limits.maxRecordBytes) throw new CriterionStatusHistoryLimitError("bytes");
     records.push(normalized);
   }
@@ -107,7 +110,7 @@ export function inspectCriterionStatusHistory(
   const scope = EvidenceScopeSchema.parse(scopeInput);
   const records = admitCriterionStatusHistory(scope, input, limits);
   const digest = (value: unknown) =>
-    createHash("sha256").update(encodeEvaluationCanonicalJson(value)).digest("hex");
+    createHash("sha256").update(serializeEvaluationCanonicalJson(value), "utf8").digest("hex");
   return {
     historySha256: digest({ format: "proofstack.criterion-status-history.v1", scope, records }),
     history: records.map((record) => ({ record, recordSha256: digest(record) })),

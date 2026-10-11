@@ -2,6 +2,7 @@ import {
   type ContentReference,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type ExactEvidenceRepository,
@@ -46,7 +47,7 @@ export type PolicyTraceEvidenceCapture = {
 );
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 /**

@@ -4,11 +4,11 @@ import {
   type CriterionSetStatusRecord,
   type EvaluationRun,
   type EvaluationRunRejection,
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationSourceReference,
   PolicyEvaluationTimeSchema,
   policyEvaluationSourceReferenceKey,
   policyEvaluationTimestampOrderKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type CriterionStatusHistoryLimits,
@@ -90,7 +90,7 @@ export type PolicyCriterionAuthorityObservation =
     };
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 /** Internal material comparison. Advancing clocks/projections are not stored-history changes. */
 export function criterionAuthorityMaterialFingerprint(

@@ -28,6 +28,22 @@ exact scope, unique increasing ID and complete canonical UTF-8 array size. Retur
 scope/limit inputs are owned across asynchronous boundaries. These are response admission limits,
 not a statement about database transport buffers, query planning cost or execution deadlines.
 
+Definition encoding reuses fixed strict scope/definition parsers while validating every call.
+Canonical JSON allocates exact UTF-8 output after scalar validation, avoiding a temporary
+boxed-number array while retaining the ES-only runtime boundary. Neither change caches inputs/results,
+skips history rows or changes canonical bytes, definition digests, admission limits, coverage
+requirements or test timeouts. Profiling identified these allocation costs in the full-history
+regression; this establishes no throughput target or guarantee that every CI timeout has the same cause.
+
+Canonical string comparisons use the same strict serializer directly. Complete-history byte
+admission and SHA-256 use that validated text with Node's exact UTF-8 byte counting/hashing;
+the portable byte encoder remains available. This removes redundant byte-to-text conversions
+without changing Unicode scalar rejection, JSON ordering, complete row validation or receipt hashes.
+
+Policy-evaluation test files run sequentially to avoid CPU contention between full-graph budget
+cases. Every case, coverage threshold and existing per-test deadline remains required; concurrency,
+failure-draining and transaction races are still exercised explicitly within their cases.
+
 A scope-wide scan can exhaust a request's budget because of other criterion histories in that
 same authorized scope. That is an explicit conservative acquisition failure. An indexed or narrower
 future design must prove equivalent complete discovery and normalized projection integrity before

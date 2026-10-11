@@ -4,6 +4,7 @@ import {
   type PolicyEvaluationRequest,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationControlRead,
@@ -70,9 +71,9 @@ import {
 import { CapturedGraphReinspection } from "./reinspect-captured-observations.js";
 import {
   isResolvableProtocolReference,
-  readParentProtocolResolution,
-  type PolicyProtocolResolution,
   type PolicyProtocolParentSource,
+  type PolicyProtocolResolution,
+  readParentProtocolResolution,
 } from "./resolve-parent-protocol.js";
 
 export interface PolicyRecordGraphEdge {
@@ -148,7 +149,7 @@ export interface PolicyRecordGraph {
 }
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 function metered(

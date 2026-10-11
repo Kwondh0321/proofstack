@@ -318,4 +318,23 @@ describe("evaluation definition vector registry", () => {
     expect(JSON.stringify(criterion?.input.definition)).toContain('"applicability"');
     expect(JSON.stringify(run?.input.definition)).toContain('"applicability"');
   });
+
+  it("revalidates every current vector and preserves original bytes after repeated malformed calls", () => {
+    for (const vector of documents.flatMap(({ vectors }) => vectors)) {
+      if (!isRegisteredKind(vector.kind)) throw new Error(`Unregistered vector ${vector.kind}`);
+      const encode = registry[vector.kind].encode;
+      const input = structuredClone(vector.input);
+      const original = encode(input);
+      original.fill(0);
+      expect(sha256(encode(input)), vector.name).toBe(vector.sha256);
+      input.scope.tenantId = "ten_changed_after_encoding";
+      expect(sha256(encode(input)), vector.name).not.toBe(vector.sha256);
+      expect(() => encode({ ...input, hiddenAuthority: true }), vector.name).toThrow();
+      expect(
+        () => encode({ ...input, scope: { ...input.scope, tenantId: "" } }),
+        vector.name,
+      ).toThrow();
+      expect(sha256(encode(vector.input)), vector.name).toBe(vector.sha256);
+    }
+  });
 });

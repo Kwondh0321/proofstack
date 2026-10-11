@@ -1,7 +1,7 @@
 import {
-  encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   policyEvaluationSourceReferenceKey,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import { policyEvaluationRequestReference } from "@proofstack/core";
 import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
@@ -19,7 +19,7 @@ export class PolicyCapturedObservationRecheckError extends Error {
 }
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 function graphMaterial({ usage: _usage, ...material }: PolicyRecordGraph) {

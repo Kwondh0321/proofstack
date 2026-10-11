@@ -258,29 +258,39 @@ function canonicalJson(value: unknown, active: WeakSet<object>, depth: number): 
 }
 
 function encodeUtf8(value: string): Uint8Array {
-  const bytes: number[] = [];
-  for (const character of value) {
-    const codePoint = character.codePointAt(0) as number;
-    if (codePoint <= 0x7f) {
-      bytes.push(codePoint);
-    } else if (codePoint <= 0x7ff) {
-      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) byteLength += 1;
+    else if (code <= 0x7ff) byteLength += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      byteLength += 4;
+      index += 1;
+    } else byteLength += 3;
+  }
+  // canonicalJson already rejects unpaired surrogates. Allocate the exact final owned bytes,
+  // retaining the portable ES-only contract without a temporary boxed-number array.
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const codePoint = value.codePointAt(index) as number;
+    if (codePoint <= 0x7f) bytes[offset++] = codePoint;
+    else if (codePoint <= 0x7ff) {
+      bytes[offset++] = 0xc0 | (codePoint >> 6);
+      bytes[offset++] = 0x80 | (codePoint & 0x3f);
     } else if (codePoint <= 0xffff) {
-      bytes.push(
-        0xe0 | (codePoint >> 12),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
+      bytes[offset++] = 0xe0 | (codePoint >> 12);
+      bytes[offset++] = 0x80 | ((codePoint >> 6) & 0x3f);
+      bytes[offset++] = 0x80 | (codePoint & 0x3f);
     } else {
-      bytes.push(
-        0xf0 | (codePoint >> 18),
-        0x80 | ((codePoint >> 12) & 0x3f),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
+      bytes[offset++] = 0xf0 | (codePoint >> 18);
+      bytes[offset++] = 0x80 | ((codePoint >> 12) & 0x3f);
+      bytes[offset++] = 0x80 | ((codePoint >> 6) & 0x3f);
+      bytes[offset++] = 0x80 | (codePoint & 0x3f);
+      index += 1;
     }
   }
-  return Uint8Array.from(bytes);
+  return bytes;
 }
 
 /**
@@ -289,11 +299,29 @@ function encodeUtf8(value: string): Uint8Array {
  * their original scalar value, and schemas that require NFC must enforce it before this boundary.
  */
 export function encodeEvaluationCanonicalJson(value: unknown): Uint8Array {
-  return encodeUtf8(canonicalJson(value, new WeakSet<object>(), 0));
+  return encodeUtf8(serializeEvaluationCanonicalJson(value));
 }
 
-function scopedDefinitionSchema<Definition extends z.ZodType>(definition: Definition) {
+/** Same strict canonical JSON as the byte encoder; avoids a byte round trip for comparisons. */
+export function serializeEvaluationCanonicalJson(value: unknown): string {
+  return canonicalJson(value, new WeakSet<object>(), 0);
+}
+
+function createScopedDefinitionSchema<Definition extends z.ZodType>(definition: Definition) {
   return z.object({ definition, scope: EvidenceScopeSchema }).strict();
+}
+
+// Keys are the fixed private definition schemas, never request data. Reuse only the parser:
+// every call still validates the entire current definition/scope and owns its parsed result.
+const scopedDefinitionSchemas = new WeakMap<z.ZodType, z.ZodType>();
+function scopedDefinitionSchema<Definition extends z.ZodType>(
+  definition: Definition,
+): ReturnType<typeof createScopedDefinitionSchema<Definition>> {
+  const retained = scopedDefinitionSchemas.get(definition);
+  if (retained) return retained as ReturnType<typeof createScopedDefinitionSchema<Definition>>;
+  const schema = createScopedDefinitionSchema(definition);
+  scopedDefinitionSchemas.set(definition, schema);
+  return schema;
 }
 
 function encodeDefinition(

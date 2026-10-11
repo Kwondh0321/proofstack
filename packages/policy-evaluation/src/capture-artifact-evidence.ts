@@ -8,10 +8,10 @@ import {
 } from "@proofstack/artifacts";
 import {
   type ContentReference,
-  encodeEvaluationCanonicalJson,
   type PrincipalContext,
   PrincipalContextSchema,
   policyEvaluationTimestampOrderKey,
+  serializeEvaluationCanonicalJson,
   UtcMillisecondTimestampSchema,
 } from "@proofstack/contracts";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyArtifactRuleBindings } from "./capture-artifact-rules.js";
+import type { PolicyAssessmentRuleInputs } from "./capture-assessment-rules.js";
 import {
   candidateAuthorityMaterialFingerprint,
   observeCapturedCandidateAuthority,
@@ -31,8 +32,6 @@ import {
   type PolicyCandidateAuthorityObservation,
 } from "./capture-candidate-authority.js";
 import type { PolicyComparisonRuleBindings } from "./capture-comparison-rules.js";
-import type { PolicyAssessmentRuleInputs } from "./capture-assessment-rules.js";
-import { inspectCapturedRuleInputs, type PolicyRuleInputs } from "./capture-rule-inputs.js";
 import {
   type CriterionAuthorityReadRepository,
   criterionAuthorityMaterialFingerprint,
@@ -52,16 +51,17 @@ import {
   type PolicyApplicabilityInputs,
 } from "./capture-policy-applicability.js";
 import type { PolicyAuthorityPrerequisites } from "./capture-policy-authority.js";
-import type { PolicyRuleDependencyClosure } from "./derive-rule-dependencies.js";
 import {
   observeCapturedPolicyLifecycle,
   type PolicyLifecycleObservation,
   type PolicyLifecycleReadRepository,
 } from "./capture-policy-lifecycle.js";
+import { inspectCapturedRuleInputs, type PolicyRuleInputs } from "./capture-rule-inputs.js";
 import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
+import type { PolicyRuleDependencyClosure } from "./derive-rule-dependencies.js";
 import type {
   PolicyEvaluationSourceGuard,
   PolicyEvaluationSourceGuardUsage,
@@ -146,7 +146,7 @@ export type PolicyArtifactEvidenceCapture = {
 );
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 /**

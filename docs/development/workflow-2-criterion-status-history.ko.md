@@ -21,6 +21,22 @@ canonical 응답 한도 검사를 사용합니다. PostgreSQL은 잠금을 이�
 확인합니다. 입력 scope·한도와 반환 record를 복사합니다. 이는 응답 admission 한도이며 DB
 전송 buffer·실행 시간·query 비용을 보장하지 않습니다.
 
+Definition 인코딩은 고정 strict scope/definition 검증기를 재사용하되 매 호출을 다시 검증합니다.
+Canonical JSON은 Unicode scalar 검증 후 정확한 크기의 최종 UTF-8 byte 배열을 만들어 임시
+number 배열 할당을 줄이고 ES 전용 runtime 경계를 보존합니다. 입력·결과 캐시, 이력 행 생략,
+canonical byte·digest 변경이나 admission·coverage·test timeout 완화는 없습니다.
+전체 이력 회귀 검사의 profiling에서 이 할당
+비용을 확인했으며, 처리량 목표나 모든 CI timeout의 원인이 같다는 보장은 아닙니다.
+
+Canonical 문자열 비교는 같은 strict serializer를 직접 사용합니다. 전체 이력 byte admission과
+SHA-256은 검증된 text의 정확한 Node UTF-8 byte 계수·hash를 사용하고 portable byte 인코더도
+유지합니다. 중복 byte→text 변환을 줄이며 Unicode scalar 거부·JSON 순서·모든 행 검증·receipt
+hash는 보존합니다.
+
+Policy-evaluation 테스트 파일은 전체 graph 한도 검사끼리 CPU를 경합하지 않도록 순차 실행합니다.
+모든 사례·coverage 기준·기존 개별 timeout을 유지하고 동시성·실패 drain·transaction 경합은
+각 사례 안에서 명시적으로 검증합니다.
+
 동일한 허용 scope의 다른 criterion 이력 때문에 한도가 소진될 수도 있습니다. 이 경우 명시적
 acquisition 실패로 처리합니다. 향후 좁은 index 조회로 바꾸려면 전체 발견과 정규화 일치가
 동등하게 보장되는지 먼저 증명해야 합니다. 처리량 목표는 아직 측정하지 않았습니다.

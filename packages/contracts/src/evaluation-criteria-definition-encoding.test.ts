@@ -173,4 +173,29 @@ describe("canonical evaluation criteria definition encoding", () => {
       } as never),
     ).toThrow();
   });
+
+  it("revalidates changed status inputs and owns each encoded result across repeated calls", () => {
+    const vector = requireVector("criterion_set_status");
+    const input = structuredClone(vector.input);
+    const original = encodeCriterionSetStatusDefinition(input);
+    const retained = Uint8Array.from(original);
+    original.fill(0);
+    expect(encodeCriterionSetStatusDefinition(input)).toEqual(retained);
+
+    input.scope.tenantId = "ten_changed";
+    const changed = encodeCriterionSetStatusDefinition(input);
+    expect(changed).not.toEqual(retained);
+    expect(Buffer.from(changed).toString("utf8")).toContain('"tenantId":"ten_changed"');
+    expect(() =>
+      encodeCriterionSetStatusDefinition({ ...input, hiddenAuthority: true } as never),
+    ).toThrow();
+    expect(() =>
+      encodeCriterionSetStatusDefinition({
+        ...input,
+        definition: { ...input.definition, status: "invented_approval" },
+      } as never),
+    ).toThrow();
+    expect(encodeCriterionSetStatusDefinition(input)).toEqual(changed);
+    expect(sha256(encodeCriterionSetStatusDefinition(vector.input))).toBe(vector.sha256);
+  });
 });

@@ -7,12 +7,12 @@ import {
   type CriterionSet,
   type CriterionSetStatusRecord,
   type EvidenceScope,
-  encodeEvaluationCanonicalJson,
   PolicyEvaluationTimeSchema,
   type PrincipalContext,
   policyEvaluationTimestampOrderKey,
   type ReleasePolicy,
   type ReleasePolicyLifecycleEvent,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
   type CriterionStatusHistoryLimits,
@@ -94,7 +94,7 @@ export class PolicyEvaluationSourceRecheckError extends Error {
 }
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 /** Internal request-owning composition. Never accepts a precomputed guard subset or public graph. */

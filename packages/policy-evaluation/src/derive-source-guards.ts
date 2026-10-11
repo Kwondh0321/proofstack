@@ -3,9 +3,10 @@ import {
   OpaqueIdSchema,
   type PolicyEvaluationRequest,
   type ReleasePolicyReference,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import { policyEvaluationRequestReference, releasePolicyReference } from "@proofstack/core";
-import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
+import { type AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyArtifactCapture } from "./capture-artifact-evidence.js";
 import type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 import type { PolicyRecordGraph } from "./capture-record-graph.js";
@@ -42,7 +43,7 @@ interface Inputs {
 }
 
 function canonical(value: unknown): string {
-  return Buffer.from(encodeEvaluationCanonicalJson(value)).toString("utf8");
+  return serializeEvaluationCanonicalJson(value);
 }
 
 /** Internal composition over the complete request-owned capture; never a public subset input. */

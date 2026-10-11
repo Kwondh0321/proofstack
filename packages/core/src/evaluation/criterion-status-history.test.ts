@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { encodeEvaluationCanonicalJson } from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
-import { criterionStatusHistoryConformanceCases } from "../testing/criterion-status-history-conformance.js";
+import {
+  criterionStatusHistoryConformanceCases,
+  criterionStatusHistoryFixture,
+} from "../testing/criterion-status-history-conformance.js";
 import { createEvaluationRepositoryTestHarness } from "../testing/evaluation-repository-fixtures.js";
 import { MemoryEvaluationRepository } from "../testing/memory-evaluation-repository.js";
 import {
@@ -24,6 +27,39 @@ const limits = {
 };
 
 describe("complete criterion status history admission", () => {
+  it("preserves exact UTF-8 byte admission and full history hashes for mixed-width status text", () => {
+    const history = records.map((record) =>
+      criterionStatusHistoryFixture(record, { rationale: "승인 é한😀A\u{10000}B\u{10ffff}C" }),
+    );
+    const exact = {
+      maxRecords: history.length,
+      maxRecordBytes: encodeEvaluationCanonicalJson(history).byteLength,
+    };
+    expect(admitCriterionStatusHistory(harness.scope, history, exact)).toEqual(history);
+    expect(() =>
+      admitCriterionStatusHistory(harness.scope, history, {
+        ...exact,
+        maxRecordBytes: exact.maxRecordBytes - 1,
+      }),
+    ).toThrow(CriterionStatusHistoryLimitError);
+    const observed = inspectCriterionStatusHistory(harness.scope, history, exact);
+    expect(observed.historySha256).toBe(
+      createHash("sha256")
+        .update(
+          encodeEvaluationCanonicalJson({
+            format: "proofstack.criterion-status-history.v1",
+            scope: harness.scope,
+            records: history,
+          }),
+        )
+        .digest("hex"),
+    );
+    for (const { record, recordSha256 } of observed.history)
+      expect(recordSha256).toBe(
+        createHash("sha256").update(encodeEvaluationCanonicalJson(record)).digest("hex"),
+      );
+  });
+
   it("hashes full receipts and scope-bound complete history after admission", () => {
     const observed = inspectCriterionStatusHistory(harness.scope, records, limits);
     expect(observed.history.map(({ record }) => record)).toEqual(records);
