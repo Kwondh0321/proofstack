@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import {
   encodeEvaluationCanonicalJson,
   PolicyEvaluationManifestEntrySchema,
@@ -95,7 +96,14 @@ export function revalidatePolicyEvaluationCapturedStorage<
     const checked = inspect(fixedInput, owned.storage.record);
     if (checked.storage === null)
       throw new PolicyEvaluationEvidenceReferenceError("evidence_unverified");
-    if (serializeEvaluationCanonicalJson(owned) !== serializeEvaluationCanonicalJson(checked))
+    // Validate the checked JSON even on the fast path (including Unicode and nesting limits).
+    // Both operands are owned clones: strict equality implies canonical equality, while the
+    // fallback preserves canonical equivalences such as negative zero and property ordering.
+    const checkedJson = serializeEvaluationCanonicalJson(checked);
+    if (
+      !isDeepStrictEqual(owned, checked) &&
+      serializeEvaluationCanonicalJson(owned) !== checkedJson
+    )
       throw new PolicyEvaluationEvidenceReferenceError("observation_mismatch");
     return { read: checked.read, storage: checked.storage };
   } catch (cause) {

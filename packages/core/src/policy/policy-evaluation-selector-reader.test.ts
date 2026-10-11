@@ -30,8 +30,9 @@ import {
   enumeratePolicyEvaluationStoredEvidenceReferences,
 } from "./policy-evaluation-evidence-references.js";
 import {
-  inspectPolicyEvaluationStoredSelector,
   inspectPolicyEvaluationSelector,
+  inspectPolicyEvaluationStoredSelector,
+  inspectPolicyEvaluationStoredSelectors,
   type PolicyEvaluationSelectorParentCapture,
   type PolicyEvaluationSelectorParentRead,
   type PolicyEvaluationSelectorParentSource,
@@ -759,6 +760,86 @@ describe("parent-bound policy evaluation selector reads", () => {
 });
 
 describe("original stored parent-bound selectors", () => {
+  it("owns the parent and context before cloning a changing grouped child accessor", () => {
+    const scenario = scenarios[0] as Scenario;
+    const { input, capture } = stored(scenario);
+    const original = structuredClone(input);
+    let reads = 0;
+    const result = inspectPolicyEvaluationStoredSelectors(input, capture, [
+      {
+        path: scenario.path,
+        get record() {
+          reads++;
+          Reflect.set(input.scope, "tenantId", "tenant_changed_by_child");
+          if (capture.storage) Reflect.set(capture.storage, "recordSha256", "f".repeat(64));
+          return scenario.child;
+        },
+      },
+    ]);
+    expect(reads).toBe(1);
+    expect(result[0]?.parentStorage).toEqual({
+      source: original.source,
+      recordSha256: independentStorageHash(scenario.parent),
+      receiptTime:
+        receiptField(scenario.parent) === "publishedAt"
+          ? scenario.parent["publishedAt"]
+          : scenario.parent[receiptField(scenario.parent)],
+    });
+    expect(result[0]?.childCapture?.storage?.record).toEqual(scenario.child);
+    if (!result[0]?.childCapture?.storage) throw new Error("Missing child storage");
+    Reflect.set(result[0].childCapture.storage.record.scope, "tenantId", "tenant_output_changed");
+    expect(scenario.child["scope"]).toEqual(original.scope);
+  });
+
+  it("rejects over-budget parents before reading grouped child bodies", () => {
+    const scenario = scenarios[0] as Scenario;
+    const { input, capture } = stored(scenario);
+    let reads = 0;
+    const children = [
+      {
+        path: scenario.path,
+        get record() {
+          reads++;
+          return scenario.child;
+        },
+      },
+    ];
+    expect(() =>
+      inspectPolicyEvaluationStoredSelectors(
+        { ...input, limits: { ...limits, maxReferences: 0 } },
+        capture,
+        children,
+      ),
+    ).toThrow();
+    expect(() =>
+      inspectPolicyEvaluationStoredSelectors(
+        { ...input, limits: { ...limits, maxReferenceBytes: 0 } },
+        capture,
+        children,
+      ),
+    ).toThrow();
+    expect(reads).toBe(0);
+  });
+
+  it.each(["sparse", "extra", "missing", "path", "count", "clone"])(
+    "rejects malformed grouped selector %s input",
+    (mutation) => {
+      const scenario = scenarios[0] as Scenario;
+      const { input, capture } = stored(scenario);
+      let children: unknown = [{ path: scenario.path, record: scenario.child }];
+      if (mutation === "sparse") children = new Array(1);
+      if (mutation === "extra")
+        children = [{ path: scenario.path, record: scenario.child, extra: true }];
+      if (mutation === "missing") children = [{ path: scenario.path }];
+      if (mutation === "path") children = [{ path: "/implementation", record: scenario.child }];
+      if (mutation === "count")
+        children = Array.from({ length: 10001 }, () => ({ path: scenario.path, record: null }));
+      if (mutation === "clone") children = [{ path: scenario.path, record: () => scenario.child }];
+      expect(() =>
+        inspectPolicyEvaluationStoredSelectors(input, capture, children as never),
+      ).toThrow(PolicyEvaluationSelectorReadInputError);
+    },
+  );
   it.each([
     [false, false],
     [false, true],
@@ -1221,6 +1302,16 @@ describe("original stored parent-bound selectors", () => {
       "/cases/11/criterion",
     ]);
     expect(port.calls.criterion).toHaveBeenCalledTimes(4);
+    const grouped = stored(scenario, parent);
+    const inspected = inspectPolicyEvaluationStoredSelectors(
+      grouped.input,
+      grouped.capture,
+      [0, 9, 10, 11].map((index) => ({
+        path: `/cases/${index}/criterion`,
+        record: scenario.child,
+      })),
+    );
+    expect(inspected).toEqual(results);
     for (const result of results) {
       expect(result.parentStorage.recordSha256).toBe(independentStorageHash(parent));
       expect(result.parentSemanticObservation.status).toBe("unavailable");

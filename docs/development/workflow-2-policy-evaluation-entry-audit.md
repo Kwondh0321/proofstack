@@ -12,14 +12,20 @@
 
 ## Entry decision and dependency evidence
 
+The [request-owned recursive storage inventory](workflow-2-policy-storage-inventory.md) now follows
+original logical roots and valid future stored declarations separately from semantic operands.
+Relevant storage relationships, current authority/presence, complete guard origins, internal
+finite admission and guarded atomic sealing remain open; checkpoint 3 is not accepted.
+
 The [original-storage/root capture prerequisite](workflow-2-policy-logical-root-capture.md) retains
 validated original bodies and fixed owning root bindings without moving semantic time. Root-only
-source inventory, relevant relationships, current authority, complete finite admission and sealed
-publication remain open. This prerequisite does not accept checkpoint 3; Workflow 2 remains 2/7.
+source inventory was added by the subsequent recursive inventory prerequisite above. Relevant
+relationships, current authority, complete finite admission and sealed publication remain open.
+These prerequisites do not accept checkpoint 3; Workflow 2 remains 2/7.
 
 The [stored declaration enumerators](workflow-2-policy-stored-reference-enumeration.md) preserve
 original availability while enumerating declarations from all 48 installed source kinds. Complete
-root-only inventory and relevant storage semantics remain open before sealed publication.
+relevant storage semantics and complete current authority remain open before sealed publication.
 
 The third Workflow 2 checkpoint may begin in the sequence below after this entry commit passes its
 publication gate. The [policy-definition audit](workflow-2-policy-definition-audit.md) was published

@@ -75,9 +75,9 @@ missing/invalid/scoped substitutions, descriptor conflicts, complete ordered/spa
 successful replay history, exact/one-below admission, repeated original occurrences, unchanged port
 failures and ownership across getters/awaits. Coverage thresholds and deadlines remain unchanged.
 
-These are single-parent inventory joins, not a complete recursive storage inventory. Root-only
-breadth-first traversal, independent expected-closure derivation, every relevant storage relationship,
-current authority/presence, complete guard origins and internal finite budgets remain required.
+These single-parent joins now feed the separate [request-owned recursive storage inventory](workflow-2-policy-storage-inventory.md).
+Every relevant storage relationship, current authority/presence, complete guard origins and
+internal finite budgets remain required before sealed publication.
 Historical artifact references do not authorize automatic classified plaintext fetching. A report
 after transaction release cannot authorize sealing; complete closure, current migration and live
 job/lease/fence/epoch/state/DB expiry must hold through the same atomic publication transaction.

@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   encodeEvaluationCanonicalJson,
-  type PolicyEvaluationRequestDefinition,
   type PolicyEvaluationRequest,
+  type PolicyEvaluationRequestDefinition,
   policyEvaluationSourceReferenceKey,
   type ReleaseCandidate,
   type ReleaseCandidateDefinition,
@@ -16,8 +16,8 @@ import {
   digestPolicyEvaluationRequestDefinition,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
-  releasePolicyReference,
   evaluationRecordDescriptors,
+  releasePolicyReference,
 } from "@proofstack/core";
 import {
   createModelAssuranceRepositoryTestHarness,
@@ -32,11 +32,17 @@ import {
   releaseCandidateFixture,
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
-import { describe, expect, it, vi } from "vitest";
-import { inspectCapturedModelAssurance } from "./capture-model-assurance.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
+import { inspectCapturedModelAssurance } from "./capture-model-assurance.js";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+import { isStoredSelectorReference } from "./stored-selector-routing.js";
+
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
 
 type Fields = Record<string, unknown>;
 type Fixture =
@@ -453,7 +459,7 @@ describe("captured model and human assurance bindings", () => {
       expect(graph.modelAssurance.parents).toHaveLength(3);
       expect(graph.modelAssurance.inspectionUsage.references).toBeGreaterThan(0);
       const registrationReferences = graph.edges
-        .filter(({ reference }) => reference.kind === "registered_implementation")
+        .filter(({ reference }) => isStoredSelectorReference(reference))
         .flatMap(({ parent }) => {
           const node = graph.nodes.find(
             ({ read }) =>
@@ -464,10 +470,40 @@ describe("captured model and human assurance bindings", () => {
           return node.references;
         });
       expect(registrationReferences.length).toBeGreaterThan(0);
+      const storedReferences = graph.storageInventory.nodes.flatMap(
+        (node) => node.references ?? [],
+      );
+      const storageReinspections = graph.storageInventory.edges.flatMap((edge) => {
+        if (!edge.resolution) return [];
+        const node = graph.storageInventory.nodes.find(
+          (parent) =>
+            policyEvaluationSourceReferenceKey(parent.capture.read.source) ===
+            policyEvaluationSourceReferenceKey(edge.parent),
+        );
+        if (!node?.references) throw new Error("Missing stored parent");
+        const originalOccurrence = graph.edges.some(
+          (original) =>
+            JSON.stringify(original.parent) === JSON.stringify(edge.parent) &&
+            original.reference.path === edge.reference.path,
+        );
+        const owningReinspection =
+          edge.resolution.kind === "protocol" ||
+          Boolean(edge.resolution.report.childCapture?.storage);
+        return [
+          ...(!originalOccurrence ? node.references : []),
+          ...(owningReinspection ? node.references : []),
+        ];
+      });
+      const allStorageReferences = [
+        ...storedReferences,
+        ...storedReferences,
+        ...storageReinspections,
+      ];
       expect(graph.usage.references).toBe(
         graph.edges.length +
           reports.reduce((sum, r) => sum + r.inspectionUsage.references, 0) +
-          registrationReferences.length,
+          registrationReferences.length +
+          allStorageReferences.length,
       );
       expect(graph.usage.referenceBytes).toBe(
         graph.edges.reduce(
@@ -476,6 +512,10 @@ describe("captured model and human assurance bindings", () => {
         ) +
           reports.reduce((sum, r) => sum + r.inspectionUsage.referenceBytes, 0) +
           registrationReferences.reduce(
+            (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
+            0,
+          ) +
+          allStorageReferences.reduce(
             (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
             0,
           ),

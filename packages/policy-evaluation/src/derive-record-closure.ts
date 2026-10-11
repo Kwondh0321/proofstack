@@ -34,7 +34,11 @@ import {
   isResolvableProtocolReference,
   type PolicyProtocolParentSource,
 } from "./resolve-parent-protocol.js";
-import { inspectRetainedPolicyRecord } from "./retained-record-routing.js";
+import {
+  enumerateRetainedPolicyRecord,
+  inspectRetainedPolicyRecord,
+  type PolicyRetainedRecordCapture,
+} from "./retained-record-routing.js";
 
 type Source = PolicyEvaluationSourceReference;
 type FrontierKind = "artifact" | "trace" | "retained_declaration" | "unresolved_selector";
@@ -125,12 +129,31 @@ export function deriveCapturedRecordClosure(
   readonly closure: PolicyRecordClosure;
 } {
   const request = validatePolicyEvaluationRequestRecord(input);
+  // Apply the finite limit contract before copying a witness, including unexpected fields.
+  new PolicyEvaluationReferenceCollector(limits);
+  // Own the entire witness before validating any body. A fixed stored enumerator checks both
+  // the read and storage material; its privately owned frontier can serve this invocation's
+  // semantic traversal without repeating the same full record validation.
+  try {
+    const witness = { roots: graph.roots, nodes: graph.nodes, edges: graph.edges };
+    if (witness.roots.length !== 2) throw new PolicyRecordGraphError("reference_conflict");
+    if (witness.nodes.length > request.limits.maxAcquisitionRecords)
+      throw new PolicyRecordGraphError("record_limit");
+    if (witness.edges.length > limits.maxReferences)
+      throw new PolicyEvaluationEvidenceReferenceError("reference_limit_exceeded");
+    graph = structuredClone(witness);
+  } catch (cause) {
+    if (
+      cause instanceof PolicyRecordGraphError ||
+      cause instanceof PolicyEvaluationEvidenceReferenceError
+    )
+      throw cause;
+    throw new PolicyRecordGraphError("observation_conflict");
+  }
   const replayLimits = {
     maximumRecords: request.limits.maxAcquisitionRecords,
     maximumRecordBytes: request.limits.maxAcquisitionRecordBytes,
   };
-  // Apply the shared finite limit contract, including rejecting unexpected limit fields.
-  new PolicyEvaluationReferenceCollector(limits);
   const roots: Source[] = [
     { kind: "release_candidate", reference: request.candidate },
     { kind: "release_policy", reference: request.policy },
@@ -138,7 +161,17 @@ export function deriveCapturedRecordClosure(
   if (!same(roots, graph.roots)) throw new PolicyRecordGraphError("reference_conflict");
   if (graph.nodes.length > request.limits.maxAcquisitionRecords)
     throw new PolicyRecordGraphError("record_limit");
+  if (graph.edges.length > limits.maxReferences)
+    throw new PolicyEvaluationEvidenceReferenceError("reference_limit_exceeded");
   const nodes = new Map<string, PolicyRecordExpansion>();
+  const frontiers = new Map<
+    string,
+    {
+      readonly recordSha256: string;
+      readonly references: readonly PolicyEvaluationEvidenceReference[];
+      readonly referenceBytes: number;
+    }
+  >();
   let previousKey = "";
   for (const node of graph.nodes) {
     const { read } = node;
@@ -154,7 +187,23 @@ export function deriveCapturedRecordClosure(
     )
       throw new PolicyRecordGraphError("reference_conflict", key);
     previousKey = key;
-    if (node.storage !== undefined) {
+    if (node.storage && read.observation.status === "verified") {
+      const stored = enumerateRetainedPolicyRecord(
+        {
+          source: read.source,
+          scope: request.scope,
+          evaluationTime: request.evaluationTime,
+          replayLimits,
+        },
+        { read, storage: node.storage } as PolicyRetainedRecordCapture,
+        limits,
+      );
+      frontiers.set(key, {
+        recordSha256: stored.storage.recordSha256,
+        references: stored.references,
+        referenceBytes: stored.referenceBytes,
+      });
+    } else if (node.storage !== undefined) {
       const inspected = inspectRetainedPolicyRecord(
         {
           source: read.source,
@@ -224,15 +273,17 @@ export function deriveCapturedRecordClosure(
     const { read } = node;
     entries.push({ source, observation: read.observation });
     if (read.observation.status !== "verified") continue;
-    const derived = enumerateCapturedPolicyRecord(
-      { source, scope: request.scope, evaluationTime: request.evaluationTime },
-      read,
-      limits,
-      {
-        maximumRecordBytes: request.limits.maxAcquisitionRecordBytes,
-        maximumRecords: request.limits.maxAcquisitionRecords,
-      },
-    );
+    const derived =
+      frontiers.get(key) ??
+      enumerateCapturedPolicyRecord(
+        { source, scope: request.scope, evaluationTime: request.evaluationTime },
+        read,
+        limits,
+        {
+          maximumRecordBytes: request.limits.maxAcquisitionRecordBytes,
+          maximumRecords: request.limits.maxAcquisitionRecords,
+        },
+      );
     if (!same(derived.references, node.references))
       throw new PolicyRecordGraphError("reference_conflict", key);
     if (derived.references.length > limits.maxReferences - references)

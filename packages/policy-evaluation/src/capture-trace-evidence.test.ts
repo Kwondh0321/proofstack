@@ -514,8 +514,12 @@ describe("request-rooted exact trace capture", () => {
   });
 
   it("reserves trace rows against the metadata phase's remaining budget before I/O", async () => {
-    const h = await harness([Array.from({ length: 100 }, (_, index) => `event_${index}`)]);
+    const eventCount = 400;
+    const h = await harness([Array.from({ length: eventCount }, (_, index) => `event_${index}`)]);
     const graph = await capturePolicyRecordGraph(h.request, h.repositories);
+    expect(graph.usage.records + 1 + eventCount).toBeGreaterThan(
+      Math.max(graph.usage.records, graph.usage.references) + 1,
+    );
     const limited = withLimits(h.request, {
       maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references) + 1,
     });

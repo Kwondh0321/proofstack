@@ -6,6 +6,10 @@ import {
 import { policyEvaluationRequestReference } from "@proofstack/core";
 import type { PolicyLogicalRootBinding } from "./capture-logical-root.js";
 import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
+import type {
+  PolicyStorageInventoryEdge,
+  PolicyStorageInventoryNode,
+} from "./capture-storage-inventory.js";
 import type { PolicyTraceEvidenceCapture } from "./capture-trace-evidence.js";
 import type { PolicyRecordExpansion, PolicyRecordRead } from "./record-routing.js";
 
@@ -48,6 +52,9 @@ export class CapturedGraphReinspection {
   private readonly logicalRoots = new Map<string, string>();
   private readonly edges: readonly string[];
   private readonly material: string;
+  private readonly storageNodes = new Map<string, string>();
+  private readonly storageBindings = new Map<string, string>();
+  private readonly storageEdges: readonly string[];
 
   constructor(request: PolicyEvaluationRequest, retained: PolicyRecordGraph) {
     if (
@@ -81,6 +88,17 @@ export class CapturedGraphReinspection {
       this.logicalRoots.set(key, canonical(binding));
     }
     this.material = canonical(graphMaterial(retained));
+    for (const node of retained.storageInventory.nodes) {
+      const key = policyEvaluationSourceReferenceKey(node.capture.read.source);
+      if (this.storageNodes.has(key)) throw new PolicyCapturedObservationRecheckError(key);
+      this.storageNodes.set(key, canonical(node));
+    }
+    for (const binding of retained.storageInventory.logicalRoots) {
+      const key = policyEvaluationSourceReferenceKey(binding.parent);
+      if (this.storageBindings.has(key)) throw new PolicyCapturedObservationRecheckError(key);
+      this.storageBindings.set(key, canonical(binding));
+    }
+    this.storageEdges = retained.storageInventory.edges.map(canonical);
   }
 
   /** Called on selector-prefetched records before enqueueing their descendants. */
@@ -108,6 +126,23 @@ export class CapturedGraphReinspection {
   edge(index: number, edge: PolicyRecordGraphEdge) {
     if (this.edges[index] !== canonical(edge))
       throw new PolicyCapturedObservationRecheckError(`edge:${index}`);
+  }
+
+  storageNode(node: PolicyStorageInventoryNode) {
+    const key = policyEvaluationSourceReferenceKey(node.capture.read.source);
+    if (this.storageNodes.get(key) !== canonical(node))
+      throw new PolicyCapturedObservationRecheckError(`storage_node:${key}`);
+  }
+
+  storageBinding(binding: PolicyLogicalRootBinding) {
+    const key = policyEvaluationSourceReferenceKey(binding.parent);
+    if (this.storageBindings.get(key) !== canonical(binding))
+      throw new PolicyCapturedObservationRecheckError(`storage_root:${key}`);
+  }
+
+  storageEdge(index: number, edge: PolicyStorageInventoryEdge) {
+    if (this.storageEdges[index] !== canonical(edge))
+      throw new PolicyCapturedObservationRecheckError(`storage_edge:${index}`);
   }
 
   complete(graph: PolicyRecordGraph) {

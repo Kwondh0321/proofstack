@@ -1222,7 +1222,7 @@ describe("criterion authority reinspection under source transaction guards", () 
       { maxRecords: 10000, maxRecordBytes: 8_388_608 },
     );
     // Keep retained-row admission dominant after complete rule dependency reinspection.
-    const unrelated = Array.from({ length: 550 }, (_, index) =>
+    const unrelated = Array.from({ length: 1000 }, (_, index) =>
       criterionStatusHistoryFixture(f.approved, {
         statusRecordId: `csr_unrelated_${index.toString().padStart(4, "0")}`,
         status: "draft",
@@ -1238,7 +1238,7 @@ describe("criterion authority reinspection under source transaction guards", () 
       async () => structuredClone(history),
     );
     const baseline = await f.run();
-    expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(552);
+    expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(1002);
     expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
     const limits = { ...f.h.request().limits, maxAcquisitionRecords: baseline.usage.records };
     const exact = await f.run({ limits });

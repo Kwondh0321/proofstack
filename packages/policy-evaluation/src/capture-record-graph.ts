@@ -7,15 +7,9 @@ import {
   serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
-  type PolicyEvaluationControlRead,
-  type PolicyEvaluationEvidenceRead,
   type PolicyEvaluationEvidenceReference,
-  type PolicyEvaluationImplementationParentSource,
-  type PolicyEvaluationSelectorParentSource,
   type PolicyEvaluationSelectorRead,
   policyEvaluationRequestReference,
-  readPolicyEvaluationImplementationResolution,
-  readPolicyEvaluationSelector,
   validatePolicyEvaluationRequestRecord,
 } from "@proofstack/core";
 import {
@@ -23,8 +17,6 @@ import {
   type PolicyDatasetRelations,
   type PolicyEvaluationDatasetRead,
   type PolicyEvaluationModelEndpointCheck,
-  type PolicyEvaluationModelEndpointParentSource,
-  readPolicyEvaluationModelEndpointResolution,
 } from "@proofstack/datasets";
 import {
   inspectPolicyEvaluationReplayPlanBindings,
@@ -61,6 +53,10 @@ import {
   inspectCapturedPolicyAssessments,
   type PolicyAssessmentBindings,
 } from "./capture-policy-assessments.js";
+import {
+  acquirePolicyStorageInventory,
+  type PolicyStorageInventory,
+} from "./capture-storage-inventory.js";
 import { deriveCapturedRecordClosure, type PolicyRecordClosure } from "./derive-record-closure.js";
 import {
   emptyEndpointProfiles,
@@ -74,17 +70,20 @@ import {
   readAndExpandPolicyRecord,
 } from "./record-routing.js";
 import { CapturedGraphReinspection } from "./reinspect-captured-observations.js";
-import {
-  isResolvableProtocolReference,
-  type PolicyProtocolParentSource,
-  type PolicyProtocolResolution,
-  readParentProtocolResolution,
+import type {
+  PolicyProtocolParentSource,
+  PolicyProtocolResolution,
 } from "./resolve-parent-protocol.js";
 import {
   inspectRetainedPolicyRecord,
   type PolicyRetainedRecordCapture,
   type PolicyRetainedRecordStorage,
 } from "./retained-record-routing.js";
+import {
+  isStoredSelectorReference,
+  type PolicyStoredSelectorResolution,
+  readStoredSelectorReference,
+} from "./stored-selector-routing.js";
 
 export interface PolicyRecordGraphEdge {
   readonly parent: PolicyEvaluationSourceReference;
@@ -131,6 +130,8 @@ export interface PolicyRecordGraph {
     readonly configuration: "configured" | "unconfigured";
     readonly bindings: readonly PolicyLogicalRootBinding[];
   };
+  /** Original roots and future bodies retained separately from semantic operands. */
+  readonly storageInventory: PolicyStorageInventory;
   readonly entries: readonly PolicyEvaluationManifestEntry[];
   /** Independently re-derived retained record inventory and explicit non-record frontier. */
   readonly recordClosure: PolicyRecordClosure;
@@ -265,6 +266,7 @@ export async function acquirePolicyRecordGraph(
   const artifacts = new Map<string, string>();
   const edges: PolicyRecordGraphEdge[] = [];
   const logicalRootBindings = new Map<string, PolicyLogicalRootBinding>();
+  const storedSelectors = new Map<string, PolicyStoredSelectorResolution>();
   const admitEdge = (edge: PolicyRecordGraphEdge) => {
     reinspection?.edge(edges.length, edge);
     edges.push(edge);
@@ -388,134 +390,99 @@ export async function acquirePolicyRecordGraph(
           const target = { kind: "qualification_policy" as const, reference: reference.reference };
           admitEdge({ ...parent, target });
           enqueue(target);
-        } else if (isResolvableProtocolReference(reference)) {
-          // Every occurrence admits the entire parent and every returned candidate before selection.
+        } else if (isStoredSelectorReference(reference)) {
+          // Retain the original full child material even when its semantic observation is unavailable.
+          // Reserve whole-parent reinspection before all four fixed owning joins, including repeats.
           budget.addReferences(references.length, referenceBytes);
-          const resolved = await readParentProtocolResolution(
-            {
-              evaluationTime,
-              scope,
-              source: source as PolicyProtocolParentSource,
-              path: reference.path,
-              limits,
-              replayLimits,
-            },
+          const capture = {
             read,
-            ports.protocolDefinitions ?? emptyProtocolDefinitions,
+            storage: expansion.storage ?? null,
+          } as PolicyRetainedRecordCapture;
+          const stored = await readStoredSelectorReference(
+            { evaluationTime, scope, source, replayLimits },
+            capture,
+            reference,
+            limits,
+            ports,
           );
-          admitEdge({ ...parent, target: null, protocolResolution: resolved });
-          for (const member of resolved.matches) {
-            if (member.status !== "retained") continue;
-            reinspection?.read(member.read);
-            const capture = inspectRetainedPolicyRecord(
-              { evaluationTime, scope, source: member.read.source, replayLimits },
-              member.record,
-            );
-            if (!capture || canonical(capture.read) !== canonical(member.read))
-              throw new PolicyRecordGraphError(
-                "observation_conflict",
-                policyEvaluationSourceReferenceKey(member.read.source),
+          storedSelectors.set(canonical({ parent: source, path: reference.path }), stored);
+          if (stored.kind === "protocol") {
+            const { childResolution, selector, inspectionUsage } = stored.report;
+            const resolved: PolicyProtocolResolution = {
+              ...childResolution,
+              parent: {
+                source: source as PolicyProtocolParentSource,
+                recordSha256: read.observation.recordSha256,
+              },
+              reference,
+              selector,
+              inspectionUsage,
+            };
+            admitEdge({ ...parent, target: null, protocolResolution: resolved });
+            for (const member of resolved.matches) {
+              if (member.status !== "retained") continue;
+              reinspection?.read(member.read);
+              const child = stored.report.childCaptures[member.index];
+              if (!child || canonical(child.read) !== canonical(member.read))
+                throw new PolicyRecordGraphError(
+                  "observation_conflict",
+                  policyEvaluationSourceReferenceKey(member.read.source),
+                );
+              enqueue(member.read.source, member.read, child.storage);
+            }
+          } else {
+            const resolved = stored.report.childResolution;
+            const endpointChecks =
+              stored.kind === "endpoint" ? stored.report.semanticChecks : undefined;
+            if (resolved.status === "resolved") {
+              admitEdge({
+                ...parent,
+                target: resolved.evidence.source,
+                ...(endpointChecks ? { endpointChecks } : {}),
+              });
+              reinspection?.read(resolved.evidence as PolicyRecordRead);
+              enqueue(
+                resolved.evidence.source,
+                resolved.evidence as PolicyRecordRead,
+                stored.report.childCapture?.storage ?? null,
               );
-            // Scope failures retain null storage; descriptor compatibility remains a separate
-            // parent-resolution outcome even when the exact independent child is valid.
-            enqueue(member.read.source, member.read, capture.storage);
+            } else {
+              if (stored.kind === "endpoint") {
+                const result = stored.report.childResolution;
+                if (result.status === "resolved")
+                  throw new TypeError("Inconsistent endpoint resolution");
+                admitEdge({
+                  ...parent,
+                  target: null,
+                  endpointChecks: stored.report.semanticChecks,
+                  endpointFailure:
+                    result.status === "missing"
+                      ? { status: "missing" }
+                      : { status: "unavailable", reason: result.reason },
+                });
+              } else if (stored.kind === "implementation") {
+                const result = stored.report.childResolution;
+                if (result.status === "resolved")
+                  throw new TypeError("Inconsistent implementation resolution");
+                admitEdge({
+                  ...parent,
+                  target: null,
+                  registrationFailure:
+                    result.status === "missing"
+                      ? { status: "missing" }
+                      : { status: "unavailable", reason: result.reason },
+                });
+              } else
+                admitEdge({
+                  ...parent,
+                  target: null,
+                  selectorFailure:
+                    resolved.status === "missing"
+                      ? { status: "missing" }
+                      : { status: "unavailable", reason: resolved.reason },
+                });
+            }
           }
-        } else if (reference.kind === "endpoint_profile_selector") {
-          // Every original occurrence reinspects the complete parent before its exact lookup.
-          budget.addReferences(references.length, referenceBytes);
-          const resolved = await readPolicyEvaluationModelEndpointResolution(
-            {
-              evaluationTime,
-              scope,
-              source: source as PolicyEvaluationModelEndpointParentSource,
-              path: reference.path,
-              limits,
-            },
-            read as PolicyEvaluationDatasetRead,
-            ports.endpointProfiles ?? emptyEndpointProfiles,
-          );
-          if (resolved.status === "resolved") {
-            admitEdge({
-              ...parent,
-              target: resolved.evidence.source,
-              endpointChecks: resolved.checks,
-            });
-            reinspection?.read(resolved.evidence);
-            enqueue(resolved.evidence.source, resolved.evidence);
-          } else {
-            admitEdge({
-              ...parent,
-              target: null,
-              endpointChecks: resolved.checks,
-              endpointFailure:
-                resolved.status === "missing"
-                  ? { status: "missing" }
-                  : { status: "unavailable", reason: resolved.reason },
-            });
-          }
-        } else if (reference.kind === "registered_implementation") {
-          // Charge complete parent reinspection before another read, including repeated origins.
-          budget.addReferences(references.length, referenceBytes);
-          const resolved = await readPolicyEvaluationImplementationResolution(
-            {
-              evaluationTime,
-              scope,
-              source: source as PolicyEvaluationImplementationParentSource,
-              path: reference.path,
-              limits,
-            },
-            read as PolicyEvaluationEvidenceRead,
-            ports.implementationRegistrations ?? emptyImplementationRegistrations,
-          );
-          if (resolved.status === "resolved") {
-            admitEdge({ ...parent, target: resolved.evidence.source });
-            reinspection?.read(resolved.evidence);
-            enqueue(resolved.evidence.source, resolved.evidence);
-          } else {
-            admitEdge({
-              ...parent,
-              target: null,
-              registrationFailure:
-                resolved.status === "missing"
-                  ? { status: "missing" }
-                  : { status: "unavailable", reason: resolved.reason },
-            });
-          }
-        } else if (
-          reference.kind === "criterion_selector" ||
-          reference.kind === "model_evaluator_selector" ||
-          reference.kind === "evaluation_run_identity" ||
-          (reference.kind === "control_declaration" &&
-            reference.declaration.kind === "comparison_predecessor")
-        ) {
-          const resolved = await readPolicyEvaluationSelector(
-            {
-              evaluationTime,
-              scope,
-              source: source as PolicyEvaluationSelectorParentSource,
-              path: reference.path,
-              limits,
-            },
-            read as PolicyEvaluationControlRead | PolicyEvaluationEvidenceRead,
-            {
-              comparison: ports.control.comparison,
-              evaluation: ports.evidence.evaluation,
-              modelAssurance: ports.evidence.modelAssurance,
-            },
-          );
-          if (resolved.status === "resolved") {
-            admitEdge({ ...parent, target: resolved.evidence.source });
-            reinspection?.read(resolved.evidence as PolicyRecordRead);
-            enqueue(resolved.evidence.source, resolved.evidence as PolicyRecordRead);
-          } else
-            admitEdge({
-              ...parent,
-              target: null,
-              selectorFailure:
-                resolved.status === "missing"
-                  ? { status: "missing" }
-                  : { status: "unavailable", reason: resolved.reason },
-            });
         } else {
           if (reference.kind === "artifact") {
             const id = reference.reference.artifactId;
@@ -622,6 +589,21 @@ export async function acquirePolicyRecordGraph(
         limits,
       ),
     );
+    const inventoryReinspection = reinspection;
+    const storageInventory = await acquirePolicyStorageInventory(
+      request,
+      ports,
+      rootPorts,
+      budget,
+      { nodes, bindings: [...logicalRootBindings.values()], selectors: storedSelectors },
+      inventoryReinspection
+        ? {
+            node: (node) => inventoryReinspection.storageNode(node),
+            binding: (binding) => inventoryReinspection.storageBinding(binding),
+            edge: (index, edge) => inventoryReinspection.storageEdge(index, edge),
+          }
+        : undefined,
+    );
     const graph: PolicyRecordGraph = {
       request: policyEvaluationRequestReference(request),
       scope,
@@ -629,6 +611,7 @@ export async function acquirePolicyRecordGraph(
       roots,
       nodes,
       edges,
+      storageInventory,
       logicalRoots: {
         configuration: rootPorts ? "configured" : "unconfigured",
         bindings: [...logicalRootBindings.entries()]

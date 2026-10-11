@@ -153,6 +153,31 @@ const cases = (Object.keys(documents) as Family[]).flatMap((family) => {
 });
 
 describe("original stored definition capture", () => {
+  it.each(["read", "storage"] as const)(
+    "preserves canonical negative-zero equivalence in the separate %s body",
+    (side) => {
+      const selected = cases.find(({ family }) => family === "qualification");
+      if (!selected) throw new Error("Expected qualification policy vector");
+      const s = fixture(selected.family, selected.vector);
+      const capture = qualification.inspectPolicyEvaluationQualificationPolicyCapture(
+        s.input as never,
+        s.record,
+      );
+      const record = side === "read" ? capture.read.record : capture.storage?.record;
+      if (!record) throw new Error("Expected retained policy body");
+      expect(Reflect.get(record, "unexpectedErrorLimit")).toBe(0);
+      Reflect.set(record, "unexpectedErrorLimit", -0);
+      expect(Object.is(Reflect.get(record, "unexpectedErrorLimit"), -0)).toBe(true);
+      const frontier = qualification.enumeratePolicyEvaluationStoredQualificationPolicyReferences(
+        s.input as never,
+        capture,
+        limits,
+      );
+      expect(frontier.storage.recordSha256).toBe(hash(s.record));
+      expect(frontier.references).toEqual(references("qualification", s.record));
+      expect(capture.storage?.recordSha256).toBe(hash(s.record));
+    },
+  );
   it.each(cases)(
     "$label rejects absent/invalid storage, all scope substitutions and forged future witnesses",
     ({ family, vector }) => {

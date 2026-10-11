@@ -532,6 +532,43 @@ export function inspectPolicyEvaluationStoredSelector(
   return inspectStoredChild(prepareStoredSelector(input, capture), raw);
 }
 
+/**
+ * Inspect a bounded group of original stored children against one privately owned parent.
+ * Every path must occur in that parent's complete admitted grammar; each child is independently
+ * validated. No lookup, caller validator, shared observation cache or semantic-time change.
+ */
+export function inspectPolicyEvaluationStoredSelectors(
+  input: ReadPolicyEvaluationSelectorInput,
+  capture: PolicyEvaluationSelectorParentCapture,
+  children: readonly { readonly path: string; readonly record: unknown }[],
+): readonly PolicyEvaluationStoredSelectorRead[] {
+  const prepared = prepareStoredSelector(input, capture);
+  if (!Array.isArray(children) || children.length > prepared.frontier.references.length)
+    throw new PolicyEvaluationSelectorReadInputError();
+  let owned: typeof children;
+  try {
+    owned = structuredClone(children);
+  } catch (cause) {
+    throw new PolicyEvaluationSelectorReadInputError({ cause });
+  }
+  for (let index = 0; index < owned.length; index++)
+    if (!Object.hasOwn(owned, index)) throw new PolicyEvaluationSelectorReadInputError();
+  return owned.map((child) => {
+    if (
+      !child ||
+      Object.keys(child).some((key) => key !== "path" && key !== "record") ||
+      !Object.hasOwn(child, "record")
+    )
+      throw new PolicyEvaluationSelectorReadInputError();
+    const reference = prepared.frontier.references.find((value) => value.path === child.path);
+    if (!reference || !isResolvable(reference)) throw new PolicyEvaluationSelectorReadInputError();
+    return inspectStoredChild(
+      { ...prepared, fixed: { ...prepared.fixed, path: child.path }, reference },
+      child.record,
+    );
+  });
+}
+
 /** Whole stored-parent admission precedes the same fixed exact child lookup as ordinary reads. */
 export async function readPolicyEvaluationStoredSelector(
   input: ReadPolicyEvaluationSelectorInput,

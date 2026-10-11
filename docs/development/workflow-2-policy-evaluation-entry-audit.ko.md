@@ -62,6 +62,10 @@ closure와 sealed publication은 아직 열려 있습니다.
 
 ## 진입 결정과 의존성 근거
 
+[요청 소유 재귀 저장 목록](workflow-2-policy-storage-inventory.ko.md)은 원래 논리 root와
+유효한 미래 저장 선언을 의미 피연산자와 별도로 탐색합니다. 관련 저장 관계, 현재 권한/존재성,
+전체 guard 출처, 내부 유한 한도와 보호된 원자적 봉인은 남아 있으며 checkpoint 3을 승인하지 않습니다.
+
 [원문·최초 루트 수집 선행 작업](workflow-2-policy-logical-root-capture.ko.md)은 의미 시간을
 바꾸지 않고 검증한 원문과 고정 소유 바인딩을 보존합니다. 루트 전용 인벤토리·관계, 현재 권한,
 전체 finite admission·봉인은 남아 있습니다. 체크포인트 3 승인이 아니며 Workflow 2는 2/7입니다.

@@ -41,6 +41,11 @@ export {
   type PolicyRecordGraphEdge,
 } from "./capture-record-graph.js";
 export type { PolicyRuleInputs } from "./capture-rule-inputs.js";
+export type {
+  PolicyStorageInventory,
+  PolicyStorageInventoryEdge,
+  PolicyStorageInventoryNode,
+} from "./capture-storage-inventory.js";
 export {
   capturePolicyTraceEvidence,
   type PolicyTraceArtifactReference,

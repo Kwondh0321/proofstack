@@ -55,8 +55,9 @@ replay는 원래 한도로 전체 이력 행과 canonical 바이트를 검사하
 반복 출현·정확한/바로 아래 한도·완료된 replay·getter/await 변조를 다룹니다. coverage와 시간
 한도는 유지합니다.
 
-root-only 너비 우선 목록·독립 expected closure·관련 저장 관계·현재 권한/존재성·전체 guard
-출처·내부 한도는 계속 필요합니다. 과거 artifact 선언이 classified 원문 자동 조회를 허용하지
+이 join은 이제 별도의 [요청 소유 재귀 저장 목록](workflow-2-policy-storage-inventory.ko.md)에
+연결됩니다. 관련 저장 관계·현재 권한/존재성·전체 guard 출처·내부 한도는 봉인 전에 계속
+필요합니다. 과거 artifact 선언이 classified 원문 자동 조회를 허용하지
 않습니다. 읽기 트랜잭션 종료 뒤의 보고서로 봉인할 수 없으며 전체 closure·현재 migration·
 살아 있는 job/lease/fence/epoch/state/DB expiry를 같은 원자적 발행까지 유지해야 합니다.
 새 role/grant·migration·공개 route·job·worker·production composition은 추가하지 않습니다.

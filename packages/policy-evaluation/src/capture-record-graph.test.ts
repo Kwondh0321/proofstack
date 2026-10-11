@@ -10,6 +10,9 @@ import {
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
   PolicyEvaluationSourceReferenceSchema,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSchema,
   policyEvaluationSourceReferenceKey,
   type QualificationPolicyDefinition,
   type QualificationPolicyRecord,
@@ -25,9 +28,6 @@ import {
   type RuntimeDefinition,
   type RuntimeDefinitionRecord,
   type TargetReleaseDefinition,
-  type ProtocolDefinition,
-  type ProtocolDefinitionRecord,
-  ProtocolDefinitionSchema,
 } from "@proofstack/contracts";
 import {
   assemblePolicyEvaluationManifest,
@@ -37,6 +37,7 @@ import {
   digestEvaluationImplementationRegistration,
   digestEvaluationRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
+  digestProtocolDefinition,
   digestQualificationPolicy,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
@@ -44,11 +45,10 @@ import {
   evaluationRecordDescriptors,
   StaticEndpointProfileCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
+  StaticProtocolDefinitionCatalogue,
   StaticQualificationPolicyCatalogue,
   StaticRuntimeDefinitionCatalogue,
   validatePolicyEvaluationManifest,
-  digestProtocolDefinition,
-  StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
   comparisonDefinitionFixture,
@@ -74,21 +74,30 @@ import {
   MemoryReplayDefinitionRepository,
   MemoryReplayJobRepository,
 } from "@proofstack/replay/testing";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AcquisitionBudget } from "./acquisition-budget.js";
+import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
 import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
 import { inspectCapturedEvaluationSnapshots } from "./capture-evaluation-snapshots.js";
+import { inspectCapturedLogicalRootBindings } from "./capture-logical-root.js";
 import { inspectCapturedPolicyAssessments } from "./capture-policy-assessments.js";
-import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import { acquirePolicyRecordGraph, capturePolicyRecordGraph } from "./capture-record-graph.js";
+import { inspectPolicyStorageInventory } from "./capture-storage-inventory.js";
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
+import type { PolicyEvaluationLogicalRootPorts } from "./logical-root-ports.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 import { isResolvableProtocolReference } from "./resolve-parent-protocol.js";
-import type { PolicyEvaluationLogicalRootPorts } from "./logical-root-ports.js";
-import { inspectCapturedLogicalRootBindings } from "./capture-logical-root.js";
+import { isStoredSelectorReference } from "./stored-selector-routing.js";
+
+// Keep request-local spy call/result graphs from accumulating across hundreds of captures.
+// Restore only after every assertion in the test, preserving its complete occurrence history.
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
 
 type Fields = Record<string, unknown>;
 const requestVector = JSON.parse(
@@ -203,10 +212,7 @@ function missingRepositories() {
 
 function registrationInspectionUsage(graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) {
   const references = graph.edges
-    .filter(
-      ({ reference }) =>
-        reference.kind === "registered_implementation" || isResolvableProtocolReference(reference),
-    )
+    .filter(({ reference }) => isStoredSelectorReference(reference))
     .flatMap(({ parent }) => {
       const node = graph.nodes.find(
         ({ read }) =>
@@ -221,6 +227,59 @@ function registrationInspectionUsage(graph: Awaited<ReturnType<typeof capturePol
     referenceBytes: references.reduce(
       (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
       0,
+    ),
+  };
+}
+
+function storageInspectionUsage(graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) {
+  const references = graph.storageInventory.nodes.flatMap((node) => node.references ?? []);
+  const repeated = graph.storageInventory.edges.flatMap((edge) => {
+    if (!edge.resolution) return [];
+    const parent = graph.storageInventory.nodes.find(
+      (node) =>
+        policyEvaluationSourceReferenceKey(node.capture.read.source) ===
+        policyEvaluationSourceReferenceKey(edge.parent),
+    );
+    if (!parent?.references) throw new Error("Missing stored selector parent");
+    const semanticOccurrence = graph.edges.some(
+      (semantic) =>
+        JSON.stringify(semantic.parent) === JSON.stringify(edge.parent) &&
+        semantic.reference.path === edge.reference.path,
+    );
+    const reinspected =
+      edge.resolution.kind === "protocol" || Boolean(edge.resolution.report.childCapture?.storage);
+    return [
+      ...(!semanticOccurrence ? parent.references : []),
+      ...(reinspected ? parent.references : []),
+    ];
+  });
+  const all = [...references, ...references, ...repeated];
+  return {
+    references: all.length,
+    referenceBytes: all.reduce(
+      (sum, reference) => sum + encodeEvaluationCanonicalJson(reference).byteLength,
+      0,
+    ),
+  };
+}
+
+function storagePrefetch(graph: Awaited<ReturnType<typeof capturePolicyRecordGraph>>) {
+  return {
+    nodes: graph.nodes,
+    bindings: graph.logicalRoots.bindings,
+    selectors: new Map(
+      graph.storageInventory.edges.flatMap((edge) =>
+        edge.resolution
+          ? [
+              [
+                Buffer.from(
+                  encodeEvaluationCanonicalJson({ parent: edge.parent, path: edge.reference.path }),
+                ).toString("utf8"),
+                edge.resolution,
+              ] as const,
+            ]
+          : [],
+      ),
     ),
   };
 }
@@ -1691,6 +1750,30 @@ describe("independent retained record closure", () => {
     expect(graph).toEqual(original);
     expect(derived.closure).not.toHaveProperty("sealed");
     expect(derived.closure).not.toHaveProperty("authority");
+  });
+
+  it("owns a changing graph witness once before independently validating its stored bodies", async () => {
+    const setup = await harness("history", { dataset: "matched", replayBindings: true });
+    const graph = await capturePolicyRecordGraph(setup.input, setup.repositories);
+    const original = structuredClone(graph);
+    let reads = 0;
+    Object.defineProperty(graph, "nodes", {
+      enumerable: true,
+      get: () => {
+        reads++;
+        return reads === 1 ? original.nodes : [];
+      },
+    });
+    const derived = deriveCapturedRecordClosure(setup.input, graph, limits);
+    expect(derived).toEqual({ entries: original.entries, closure: original.recordClosure });
+    expect(reads).toBe(1);
+    const candidate = original.nodes.find(({ read }) => read.source.kind === "release_candidate");
+    if (candidate?.read.source.kind !== "release_candidate")
+      throw new Error("Missing original candidate witness");
+    candidate.read.source.reference.candidateVersionId = "changed_after_owned_validation";
+    expect(
+      derived.entries.find(({ source }) => source.kind === "release_candidate")?.source,
+    ).toEqual({ kind: "release_candidate", reference: setup.input.candidate });
   });
 
   it("derives both unavailable roots without claiming a verified empty graph", async () => {
@@ -3294,6 +3377,7 @@ describe("request-rooted recursive record graph", () => {
       graph.replayPlans,
     ].map((report) => report.inspectionUsage);
     inspections.push(registrationInspectionUsage(graph));
+    inspections.push(storageInspectionUsage(graph));
     expect(graph.usage.references).toBe(
       graph.edges.length + inspections.reduce((sum, usage) => sum + usage.references, 0),
     );
@@ -3341,14 +3425,16 @@ describe("request-rooted recursive record graph", () => {
       const referenceCount =
         graph.edges.length +
         reports.reduce((sum, report) => sum + report.inspectionUsage.references, 0) +
-        registrationInspectionUsage(graph).references;
+        registrationInspectionUsage(graph).references +
+        storageInspectionUsage(graph).references;
       const referenceBytes =
         graph.edges.reduce(
           (sum, edge) => sum + encodeEvaluationCanonicalJson(edge.reference).byteLength,
           0,
         ) +
         reports.reduce((sum, report) => sum + report.inspectionUsage.referenceBytes, 0) +
-        registrationInspectionUsage(graph).referenceBytes;
+        registrationInspectionUsage(graph).referenceBytes +
+        storageInspectionUsage(graph).referenceBytes;
       expect(graph.modelAssurance.inspectionUsage.references).toBe(0);
       expect(graph.usage.records).toBeLessThan(referenceCount);
       expect(graph.usage).toMatchObject({ references: referenceCount, referenceBytes });
@@ -3880,6 +3966,121 @@ describe("owning original roots within request-owned graph capture", () => {
         maxReferenceBytes: 67108864,
       }),
     ).toThrow();
+  });
+  it("recursively inventories both future request roots and original roots without semantic promotion", async () => {
+    const h = await harness();
+    const candidate = candidateDigest({
+      ...h.candidate,
+      candidateVersionId: "candidate_graph_future_inventory",
+      createdAt: "2027-01-01T00:00:00.000Z",
+    });
+    const policy = policyDigest({
+      ...h.policy,
+      policyVersionId: "policy_graph_future_inventory",
+      publishedAt: "2027-01-01T00:00:00.000Z",
+    });
+    await (
+      h.repositories.control.releaseCandidate as MemoryReleaseCandidateRepository
+    ).publishReleaseCandidate(candidate);
+    await (
+      h.repositories.control.releasePolicy as MemoryReleasePolicyRepository
+    ).publishReleasePolicy(policy);
+    const input = request(candidate, policy);
+    const graph = await capturePolicyRecordGraph(input, {
+      ...h.repositories,
+      logicalRoots: roots(h),
+    });
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.edges).toHaveLength(0);
+    expect(graph.nodes.every((node) => node.read.observation.status === "unavailable")).toBe(true);
+    expect(graph.storageInventory.nodes.length).toBeGreaterThan(20);
+    expect(graph.storageInventory.edges.length).toBeGreaterThan(
+      graph.storageInventory.nodes.length,
+    );
+    const originalCandidate = graph.storageInventory.nodes.find(
+      (node) =>
+        node.capture.read.source.kind === "release_candidate" &&
+        node.capture.read.source.reference.candidateVersionId === h.candidate.candidateVersionId,
+    );
+    expect(originalCandidate?.capture.storage?.record).toEqual(h.candidate);
+    const futureNode = graph.storageInventory.nodes[0];
+    expect(futureNode?.capture.read.observation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(futureNode?.references?.length).toBeGreaterThan(0);
+    expect(() =>
+      inspectPolicyStorageInventory(input, graph.storageInventory, storagePrefetch(graph)),
+    ).not.toThrow();
+    expect(graph.storageInventory).not.toHaveProperty("sealed");
+    expect(graph.storageInventory).not.toHaveProperty("verdict");
+  });
+  it.each([
+    "node",
+    "edge",
+    "binding",
+    "order",
+    "origin",
+    "target",
+    "receipt",
+    "root",
+    "frontier",
+  ] as const)(
+    "rejects storage inventory %s substitution by independently rebuilding closure",
+    async (attack) => {
+      const h = await harness();
+      const graph = await capturePolicyRecordGraph(h.input, {
+        ...h.repositories,
+        logicalRoots: roots(h),
+      });
+      const inventory = structuredClone(graph.storageInventory);
+      if (attack === "node") (inventory.nodes as unknown[]).splice(2, 1);
+      if (attack === "edge") (inventory.edges as unknown[]).splice(2, 1);
+      if (attack === "binding") (inventory.logicalRoots as unknown[]).splice(0, 1);
+      if (attack === "order") (inventory.nodes as unknown[]).reverse();
+      if (attack === "origin")
+        Reflect.set(inventory.edges[0] as object, "parentRecordSha256", "f".repeat(64));
+      if (attack === "target") Reflect.set(inventory.edges[0] as object, "targets", []);
+      if (attack === "receipt")
+        Reflect.set(
+          inventory.nodes[0]?.capture.storage as object,
+          "receiptTime",
+          "2027-01-01T00:00:00.000Z",
+        );
+      if (attack === "root") (inventory.roots as unknown[]).reverse();
+      if (attack === "frontier") Reflect.set(inventory.frontier, "declarations", 0);
+      expect(() =>
+        inspectPolicyStorageInventory(h.input, inventory, storagePrefetch(graph)),
+      ).toThrow();
+    },
+  );
+  it("rechecks a root-only stored receipt before following its descendants", async () => {
+    const h = await harness();
+    const future = candidateDigest({
+      ...h.candidate,
+      candidateVersionId: "candidate_graph_reinspection",
+      createdAt: "2027-01-01T00:00:00.000Z",
+    });
+    await (
+      h.repositories.control.releaseCandidate as MemoryReleaseCandidateRepository
+    ).publishReleaseCandidate(future);
+    const input = request(future, h.policy);
+    const repositories = { ...h.repositories, logicalRoots: roots(h) };
+    const retained = await capturePolicyRecordGraph(input, repositories);
+    const candidate = retained.storageInventory.nodes.find(
+      (node) =>
+        node.capture.read.source.kind === "release_candidate" &&
+        node.capture.read.source.reference.candidateVersionId === h.candidate.candidateVersionId,
+    );
+    if (!candidate?.capture.storage) throw new Error("Missing root-only candidate");
+    Reflect.set(candidate, "capture", structuredClone(candidate.capture));
+    Reflect.set(candidate.capture.storage, "receiptTime", "2027-01-01T00:00:00.000Z");
+    await expect(
+      acquirePolicyRecordGraph(input, repositories, new AcquisitionBudget(input.limits), retained),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: `storage_node:release_candidate:${h.candidate.candidateVersionId}`,
+    });
   });
   it("preserves the original missing configuration through guarded reinspection", async () => {
     const h = await harness();
@@ -5637,7 +5838,83 @@ describe("retained registration graph acquisition", () => {
           ({ read }) => read.source.kind === "evaluation_implementation_registration",
         ),
       ).toBe(false);
+      const stored = graph.storageInventory.nodes.filter(
+        (node) => node.capture.read.source.kind === "evaluation_implementation_registration",
+      );
+      expect(stored).toHaveLength(future ? records.length : 0);
+      if (future)
+        for (const node of stored) {
+          expect(node.capture.read.observation).toEqual({
+            status: "unavailable",
+            reason: "not_yet_available",
+          });
+          expect(node.capture.storage?.receiptTime).toBe("2026-10-02T00:00:00.000Z");
+        }
     }
+  });
+
+  it("rejects a changed future registration during guarded reinspection even when semantic failures are equal", async () => {
+    const setup = await harness();
+    const records = retainedRegistrations(setup).map((record) => ({
+      ...record,
+      registeredAt: "2026-10-02T00:00:00.000Z",
+    }));
+    const repositories = {
+      ...setup.repositories,
+      implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue(records),
+    };
+    const retained = await capturePolicyRecordGraph(setup.input, repositories);
+    const changed = new StaticEvaluationImplementationRegistrationCatalogue(
+      records.map((record) => ({ ...record, registeredByPrincipalId: "changed_future_receipt" })),
+    );
+    await expect(
+      acquirePolicyRecordGraph(
+        setup.input,
+        { ...repositories, implementationRegistrations: changed },
+        new AcquisitionBudget(setup.input.limits),
+        retained,
+      ),
+    ).rejects.toMatchObject({
+      reason: "source_revision_changed",
+      identity: expect.stringMatching(/^storage_edge:/u),
+    });
+  });
+
+  it("rejects self-consistently rehashed future storage against the original owning lookup", async () => {
+    const setup = await harness();
+    const records = retainedRegistrations(setup).map((record) => ({
+      ...record,
+      registeredAt: "2026-10-02T00:00:00.000Z",
+    }));
+    const graph = await capturePolicyRecordGraph(setup.input, {
+      ...setup.repositories,
+      implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue(records),
+    });
+    const inventory = structuredClone(graph.storageInventory);
+    const node = inventory.nodes.find(
+      (item) => item.capture.read.source.kind === "evaluation_implementation_registration",
+    );
+    if (!node?.capture.storage) throw new Error("Missing future stored registration");
+    const ordered = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(ordered);
+      if (value !== null && typeof value === "object")
+        return Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, ordered(Reflect.get(value, key))]),
+        );
+      return value;
+    };
+    const digest = (value: unknown) =>
+      createHash("sha256")
+        .update(Buffer.from(JSON.stringify(ordered(value)), "utf8"))
+        .digest("hex");
+    expect(node.capture.storage.recordSha256).toBe(digest(node.capture.storage.record));
+    Reflect.set(node.capture.storage.record, "registeredByPrincipalId", "substituted_receipt");
+    Reflect.set(node.capture.storage, "recordSha256", digest(node.capture.storage.record));
+    expect(() =>
+      inspectPolicyStorageInventory(setup.input, inventory, storagePrefetch(graph)),
+    ).toThrow();
   });
 
   it("rejects missing/substituted registration nodes and origin edges during independent closure derivation", async () => {
