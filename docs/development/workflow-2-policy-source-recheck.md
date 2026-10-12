@@ -6,6 +6,12 @@ Status: optional, trusted read-only reinspection integrated into authorized arti
 Workflow 2 remains **2/7** accepted checkpoints. This is not a snapshot publisher, worker,
 lease/fence, policy result, release approval or a token of freshness after transaction completion.
 
+The [stored catalog prerequisite](workflow-2-policy-stored-artifact-catalogs.md) extends known
+guard origins to complete original storage declarations. Stored-only catalogs are rechecked
+at the native DB cut without object/key I/O. Full original policy captures detect changed
+body/hash/receipt even when both original-time semantic observations remain unavailable.
+Metadata reports separately count semantic records, storage records and storage edges.
+
 ## Ownership and connection
 
 `capturePolicyArtifactEvidence` accepts one optional server-owned `sourceTransactions` or

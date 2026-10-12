@@ -8,6 +8,7 @@ import {
 } from "@proofstack/contracts";
 import {
   digestPolicyEvaluationRequestDefinition,
+  inspectPolicyEvaluationControlCapture,
   inspectPolicyEvaluationControlRecord,
   policyEvaluationRequestReference,
   releaseCandidateReference,
@@ -24,6 +25,8 @@ import { AcquisitionBudget } from "./acquisition-budget.js";
 import type { PolicyArtifactCapture } from "./capture-artifact-evidence.js";
 import type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 import type { PolicyRecordGraphEdge } from "./capture-record-graph.js";
+import type { PolicyStorageInventory } from "./capture-storage-inventory.js";
+import type { PolicyStoredArtifactCapture } from "./capture-stored-artifacts.js";
 import { deriveCapturedPolicySourceGuards } from "./derive-source-guards.js";
 import type { PolicyRecordExpansion } from "./record-routing.js";
 
@@ -87,6 +90,14 @@ function fixture() {
   if (candidateRead.observation.status !== "verified")
     throw new Error("Expected verified candidate fixture");
   const candidateRecordSha256 = candidateRead.observation.recordSha256;
+  const rootCapture = inspectPolicyEvaluationControlCapture(
+    { scope, evaluationTime, source: policySource },
+    policy,
+  );
+  const candidateCapture = inspectPolicyEvaluationControlCapture(
+    { scope, evaluationTime, source: candidateSource },
+    candidate,
+  );
   // These inputs represent already acquired internal observations, not a public caller snapshot.
   // The artifact-capture suite separately exercises the authorized request-owning entry point.
   const input = {
@@ -99,14 +110,27 @@ function fixture() {
       nodes: [
         {
           read: candidateRead,
+          storage: candidateCapture.storage,
           references: [],
         },
-        { read: root, references: [] },
+        { read: root, storage: rootCapture.storage, references: [] },
       ] as PolicyRecordExpansion[],
       edges: [] as PolicyRecordGraphEdge[],
+      storageInventory: {
+        logicalRootConfiguration: "unconfigured",
+        roots: [candidateSource, policySource],
+        nodes: [
+          { capture: candidateCapture, references: [] },
+          { capture: rootCapture, references: [] },
+        ],
+        logicalRoots: [],
+        edges: [],
+        frontier: { records: 0, logicalRoots: 0, declarations: 0 },
+      } as PolicyStorageInventory,
     },
     traceReferences: [] as { reference: ContentReference }[],
     artifacts: [] as PolicyArtifactCapture[],
+    storedArtifacts: [] as PolicyStoredArtifactCapture[],
     lifecycle: {
       scope,
       policy: request.policy,
@@ -155,8 +179,15 @@ function fixture() {
         ? releasePolicyReference(record)
         : { ...request.policy, policyVersionId: id },
     };
-    const read = inspectPolicyEvaluationControlRecord({ scope, evaluationTime, source }, record);
-    input.graph.nodes.push({ read, references: read.record ? [] : null });
+    const capture = inspectPolicyEvaluationControlCapture(
+      { scope, evaluationTime, source },
+      record,
+    );
+    input.graph.nodes.push({ ...capture, references: capture.read.record ? [] : null });
+    (input.graph.storageInventory.nodes as PolicyStorageInventory["nodes"][number][]).push({
+      capture,
+      references: capture.storage ? [] : null,
+    });
   };
   const successor = (publishedAt = "2026-10-01T00:30:00.000Z") => {
     const record = releasePolicyRepositoryFixture("guard_next", scope, {
@@ -184,7 +215,41 @@ function fixture() {
   };
   const run = (budget = new AcquisitionBudget(request.limits)) =>
     deriveCapturedPolicySourceGuards(input, budget);
-  return { input, policy, append, addPolicy, successor, run };
+  const appendStored = (ref = reference, identityOnly = false) => {
+    const edges = input.graph.storageInventory.edges as PolicyStorageInventory["edges"][number][];
+    const edgeIndex = edges.length;
+    const path = `/buildArtifacts/${edgeIndex}/artifact`;
+    edges.push({
+      parent: candidateSource,
+      parentRecordSha256: candidateRecordSha256,
+      targets: [],
+      reference: identityOnly
+        ? {
+            kind: "control_declaration",
+            path,
+            declaration: { kind: "artifact_identity", reference: ref.artifactId },
+          }
+        : { kind: "artifact", path, reference: structuredClone(ref) },
+    });
+    if (!identityOnly)
+      input.storedArtifacts.push({
+        origin: {
+          edgeIndex,
+          parent: candidateSource,
+          parentRecordSha256: candidateRecordSha256,
+          path,
+        },
+        read: {
+          scope,
+          reference: structuredClone(ref),
+          evaluationTime,
+          observedAt,
+          catalog: null,
+          observation: { status: "missing" },
+        },
+      });
+  };
+  return { input, policy, append, appendStored, addPolicy, successor, run };
 }
 
 describe("complete installed-domain source guard derivation", () => {
@@ -213,17 +278,23 @@ describe("complete installed-domain source guard derivation", () => {
       {
         kind: "release_policy",
         id: "artifact_shared",
-        origins: [{ kind: "policy_node", nodeIndex: 2 }],
+        origins: [
+          { kind: "policy_node", nodeIndex: 2 },
+          { kind: "storage_policy_node", nodeIndex: 2 },
+        ],
       },
       {
         kind: "release_policy",
         id: h.policy.policyVersionId,
-        origins: [{ kind: "policy_node", nodeIndex: 1 }],
+        origins: [
+          { kind: "policy_node", nodeIndex: 1 },
+          { kind: "storage_policy_node", nodeIndex: 1 },
+        ],
       },
     ]);
     expect(plan.usage).toEqual({
       resources: 4,
-      origins: 6,
+      origins: 8,
       canonicalBytes: Buffer.byteLength(JSON.stringify(plan.guards)),
     });
     expect(plan).not.toHaveProperty("sealed");
@@ -243,6 +314,7 @@ describe("complete installed-domain source guard derivation", () => {
     ]);
     expect(plan.guards.find(({ id }) => id === future.policyVersionId)?.origins).toEqual([
       { kind: "policy_node", nodeIndex: 2 },
+      { kind: "storage_policy_node", nodeIndex: 2 },
     ]);
     expect(h.input.request.policy).toEqual(releasePolicyReference(h.policy));
     expect(plan.guards.some(({ id }) => id === h.policy.policyVersionId)).toBe(true);
@@ -252,11 +324,120 @@ describe("complete installed-domain source guard derivation", () => {
     });
   });
 
+  it("preserves every repeated storage alias including double-digit positions and ID-only origins", () => {
+    const h = fixture();
+    for (let index = 0; index < 12; index++) h.appendStored();
+    h.appendStored(reference, true);
+    const plan = h.run();
+    expect(plan.guards.find(({ id }) => id === reference.artifactId)?.origins).toEqual([
+      ...Array.from({ length: 12 }, (_, captureIndex) => ({
+        kind: "stored_artifact_capture",
+        captureIndex,
+      })),
+      { kind: "storage_artifact_identity", edgeIndex: 12 },
+    ]);
+    expect(plan.usage).toEqual({
+      resources: 2,
+      origins: 15,
+      canonicalBytes: Buffer.byteLength(JSON.stringify(plan.guards), "utf8"),
+    });
+    const exact = new AcquisitionBudget({
+      ...h.input.request.limits,
+      maxAcquisitionRecordBytes: plan.usage.canonicalBytes,
+    });
+    expect(h.run(exact)).toEqual(plan);
+    const short = new AcquisitionBudget({
+      ...h.input.request.limits,
+      maxAcquisitionRecordBytes: plan.usage.canonicalBytes - 1,
+    });
+    expect(() => h.run(short)).toThrow(expect.objectContaining({ reason: "byte_limit" }));
+  });
+
+  it("retains a sole known artifact ID guard without supplying a descriptor or catalog observation", () => {
+    const h = fixture();
+    h.appendStored(reference, true);
+    expect(h.input.storedArtifacts).toEqual([]);
+    expect(h.run().guards.find(({ id }) => id === reference.artifactId)).toEqual({
+      kind: "artifact",
+      id: reference.artifactId,
+      origins: [{ kind: "storage_artifact_identity", edgeIndex: 0 }],
+    });
+    h.appendStored();
+    expect(h.run().guards.find(({ id }) => id === reference.artifactId)?.origins).toEqual([
+      { kind: "stored_artifact_capture", captureIndex: 0 },
+      { kind: "storage_artifact_identity", edgeIndex: 0 },
+    ]);
+  });
+
+  it.each([
+    "missing",
+    "extra",
+    "index",
+    "parent",
+    "hash",
+    "path",
+    "reference",
+    "scope",
+    "time",
+  ] as const)("rejects a %s stored artifact composition change", (kind) => {
+    const h = fixture();
+    h.appendStored();
+    const captured = required(h.input.storedArtifacts[0]);
+    if (kind === "missing") h.input.storedArtifacts.pop();
+    if (kind === "extra") h.input.storedArtifacts.push(structuredClone(captured));
+    if (kind === "index") Object.assign(captured.origin, { edgeIndex: 10 });
+    if (kind === "parent") Object.assign(captured.origin, { parent: h.input.graph.roots[1] });
+    if (kind === "hash") Object.assign(captured.origin, { parentRecordSha256: "f".repeat(64) });
+    if (kind === "path") Object.assign(captured.origin, { path: "/omissions/10/artifactId" });
+    if (kind === "reference")
+      Object.assign(captured.read, { reference: { ...reference, sha256: "f".repeat(64) } });
+    if (kind === "scope")
+      Object.assign(captured.read, {
+        scope: { ...h.input.request.scope, projectId: "project_other" },
+      });
+    if (kind === "time") Object.assign(captured.read, { evaluationTime: observedAt });
+    expect(h.run).toThrow(expect.objectContaining({ reason: "observation_conflict" }));
+  });
+
+  it.each(["descriptor", "observation"] as const)(
+    "rejects repeated storage %s conflicts",
+    (kind) => {
+      const h = fixture();
+      h.appendStored();
+      h.appendStored(kind === "descriptor" ? { ...reference, sha256: "f".repeat(64) } : reference);
+      if (kind === "observation")
+        Object.assign(required(h.input.storedArtifacts[1]).read, {
+          observation: { status: "unavailable", reason: "record_invalid" },
+        });
+      expect(h.run).toThrow(
+        expect.objectContaining({
+          reason: kind === "descriptor" ? "reference_conflict" : "observation_conflict",
+        }),
+      );
+    },
+  );
+
+  it("merges original-cut unavailable policy storage with a legitimately later retained successor without promotion", () => {
+    const h = fixture();
+    const successor = h.successor();
+    h.addPolicy(successor);
+    const plan = h.run();
+    expect(h.input.graph.nodes[2]?.read.observation).toMatchObject({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(plan.guards.find(({ id }) => id === successor.policyVersionId)?.origins).toEqual([
+      { kind: "policy_node", nodeIndex: 2 },
+      { kind: "storage_policy_node", nodeIndex: 2 },
+      { kind: "policy_successor", historyIndex: 0 },
+    ]);
+  });
+
   it("merges the same verified successor observation instead of dropping either origin", () => {
     const h = fixture();
     const later = h.successor("2026-09-30T23:00:00.000Z");
     h.addPolicy(later);
-    expect(h.run().guards.find(({ id }) => id === later.policyVersionId)?.origins).toHaveLength(2);
+    expect(h.run().guards.find(({ id }) => id === later.policyVersionId)?.origins).toHaveLength(3);
   });
 
   it("preserves a withdrawn root without inventing a successor coordinate", () => {
@@ -270,7 +451,10 @@ describe("complete installed-domain source guard derivation", () => {
       {
         kind: "release_policy",
         id: h.policy.policyVersionId,
-        origins: [{ kind: "policy_node", nodeIndex: 1 }],
+        origins: [
+          { kind: "policy_node", nodeIndex: 1 },
+          { kind: "storage_policy_node", nodeIndex: 1 },
+        ],
       },
     ]);
   });

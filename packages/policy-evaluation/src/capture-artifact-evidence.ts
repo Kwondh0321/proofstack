@@ -58,6 +58,12 @@ import {
 } from "./capture-policy-lifecycle.js";
 import { inspectCapturedRuleInputs, type PolicyRuleInputs } from "./capture-rule-inputs.js";
 import {
+  acquireStoredPolicyArtifacts,
+  artifactCatalogMaterial,
+  type PolicyStoredArtifactCapture,
+  storedArtifactOccurrences,
+} from "./capture-stored-artifacts.js";
+import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
@@ -117,6 +123,12 @@ export type PolicyArtifactEvidenceCapture = {
   | {
       readonly status: "artifacts_captured";
       readonly artifacts: readonly PolicyArtifactCapture[];
+      /** Complete stored declarations; catalog readiness does not verify content bytes. */
+      readonly storedArtifacts: readonly PolicyStoredArtifactCapture[];
+      readonly storedArtifactInspectionUsage: {
+        readonly references: number;
+        readonly referenceBytes: number;
+      };
       readonly sourceGuards: readonly PolicyEvaluationSourceGuard[];
       /** Read-only observations under source guards; not a seal or later publication authority. */
       readonly sourceRecheck?: PolicyEvaluationSourceRecheck;
@@ -269,11 +281,34 @@ export async function capturePolicyArtifactEvidence(
     });
     // Preflight every known descriptor before any content reads; stored classification is still
     // checked again by the owning reader so an understated declaration cannot bypass authority.
-    for (const { reference } of occurrences) {
+    const descriptors = new Map<string, string>();
+    for (const { reference } of [
+      ...occurrences,
+      ...storedArtifactOccurrences(traceCapture.comparisonCapture.graph),
+    ]) {
       if (reference.classification === "restricted")
         requireCapability(principal, "artifact:read:restricted");
+      const descriptor = canonical(reference);
+      const previous = descriptors.get(reference.artifactId);
+      if (previous !== undefined && previous !== descriptor)
+        throw new PolicyRecordGraphError("reference_conflict", `artifact:${reference.artifactId}`);
+      descriptors.set(reference.artifactId, descriptor);
     }
     const catalog = budget.wrap(dependencies.catalog);
+    const storedArtifactCapture = await acquireStoredPolicyArtifacts(
+      request,
+      traceCapture.comparisonCapture.graph,
+      principal,
+      catalog,
+      clock,
+      budget,
+    );
+    const storedObservations = new Map(
+      storedArtifactCapture.captures.map(({ read }) => [
+        read.reference.artifactId,
+        canonical({ catalog: read.catalog, observation: read.observation }),
+      ]),
+    );
     const observations = new Map<string, string>();
     const artifacts: PolicyArtifactCapture[] = [];
     for (const { origin, reference } of occurrences) {
@@ -307,6 +342,12 @@ export async function capturePolicyArtifactEvidence(
           `artifact:${reference.artifactId}`,
         );
       observations.set(reference.artifactId, fingerprint);
+      const stored = storedObservations.get(reference.artifactId);
+      if (stored !== undefined && stored !== canonical(artifactCatalogMaterial(read)))
+        throw new PolicyRecordGraphError(
+          "observation_conflict",
+          `artifact:${reference.artifactId}`,
+        );
       artifacts.push({ origin, read });
     }
     const fixtureBindings = inspectCapturedFixtureBindings(
@@ -380,6 +421,7 @@ export async function capturePolicyArtifactEvidence(
         graph: traceCapture.comparisonCapture.graph,
         traceReferences: traceCapture.artifactReferences,
         artifacts,
+        storedArtifacts: storedArtifactCapture.captures,
         lifecycle: afterArtifacts,
         criterionAuthority: criteriaAfterArtifacts,
       },
@@ -406,12 +448,23 @@ export async function capturePolicyArtifactEvidence(
       )
         throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
     }
+    for (const { read } of storedArtifactCapture.captures) {
+      if (
+        read.observation.status === "content_pending" &&
+        read.catalog?.metadata.retention.mode === "expire" &&
+        policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
+          policyEvaluationTimestampOrderKey(completedAt)
+      )
+        throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+    }
     return {
       status: "artifacts_captured",
       traceCapture,
       startedAt,
       completedAt,
       artifacts,
+      storedArtifacts: storedArtifactCapture.captures,
+      storedArtifactInspectionUsage: storedArtifactCapture.inspectionUsage,
       sourceGuards: sourceGuardPlan.guards,
       ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
       fixtureBindings,

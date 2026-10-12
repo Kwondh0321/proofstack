@@ -16,6 +16,7 @@ import {
 } from "@proofstack/contracts";
 import {
   type CriterionStatusHistoryLimits,
+  inspectPolicyEvaluationControlCapture,
   inspectPolicyEvaluationControlRecord,
   inspectPolicyEvaluationEvidenceRecord,
 } from "@proofstack/core";
@@ -26,6 +27,7 @@ import {
   type PolicyCriterionAuthorityObservation,
 } from "./capture-criterion-authority.js";
 import { observeCapturedPolicyLifecycle } from "./capture-policy-lifecycle.js";
+import { artifactCatalogMaterial } from "./capture-stored-artifacts.js";
 import {
   acquirePolicyTraceEvidence,
   type PolicyTraceEvidenceCapture,
@@ -72,6 +74,8 @@ export interface PolicyEvaluationSourceRecheck {
   /** Present only for request-owned graph/trace reinspection on the held metadata connection. */
   readonly metadata?: {
     readonly recordObservations: number;
+    readonly storageRecordObservations: number;
+    readonly storageEdgeObservations: number;
     readonly traceObservations: number;
     readonly recordReads: number;
     readonly traceReads: number;
@@ -126,7 +130,7 @@ export async function deriveAndRecheckCapturedPolicySources(
     throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
   const plan = deriveCapturedPolicySourceGuards(input, budget);
   if (!transactions && !metadata) return plan;
-  const { request, graph, artifacts, lifecycle, criterionAuthority } = input;
+  const { request, graph, artifacts, storedArtifacts, lifecycle, criterionAuthority } = input;
   const reinspect = async (
     supplied: PolicyEvaluationSourceRecheckPorts,
     metadataPorts?: PolicyEvaluationMetadataPorts,
@@ -175,6 +179,8 @@ export async function deriveAndRecheckCapturedPolicySources(
         throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
       metadataRecheck = {
         recordObservations: recaptured.comparisonCapture.graph.nodes.length,
+        storageRecordObservations: recaptured.comparisonCapture.graph.storageInventory.nodes.length,
+        storageEdgeObservations: recaptured.comparisonCapture.graph.storageInventory.edges.length,
         traceObservations: recaptured.traces.length,
         recordReads: recaptured.comparisonCapture.graph.usage.reads - before.reads,
         traceReads: recaptured.usage.reads - recaptured.comparisonCapture.graph.usage.reads,
@@ -188,10 +194,17 @@ export async function deriveAndRecheckCapturedPolicySources(
         const origin = origins.find((origin) => origin.kind === "artifact_capture");
         const captured =
           origin?.kind === "artifact_capture" ? artifacts[origin.captureIndex] : undefined;
+        const storageOrigin = origins.find((origin) => origin.kind === "stored_artifact_capture");
+        const stored =
+          storageOrigin?.kind === "stored_artifact_capture"
+            ? storedArtifacts[storageOrigin.captureIndex]
+            : undefined;
         // Derivation established complete origins. Unsupported references deliberately remain
         // unqueried, but their known IDs are still guarded; never waive other known coordinates.
-        if (!captured) throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
-        if (ArtifactContentReferenceSchema.safeParse(captured.read.reference).success)
+        const reference = captured?.read.reference ?? stored?.read.reference;
+        // ID-only omissions retain their guard without inventing a descriptor or catalog read.
+        if (!reference) continue;
+        if (ArtifactContentReferenceSchema.safeParse(reference).success)
           artifactRecords.set(id, await ports.findArtifact(id));
       }
     }
@@ -239,6 +252,19 @@ export async function deriveAndRecheckCapturedPolicySources(
       if (canonical(current.observation) !== canonical(read.observation))
         throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
     }
+    for (const { capture } of graph.storageInventory.nodes) {
+      if (capture.read.source.kind !== "release_policy") continue;
+      const current = inspectPolicyEvaluationControlCapture(
+        {
+          source: capture.read.source,
+          scope: request.scope,
+          evaluationTime: request.evaluationTime,
+        },
+        policyRecords.get(capture.read.source.reference.policyVersionId),
+      );
+      if (canonical(current) !== canonical(capture))
+        throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+    }
     for (const { read } of artifacts) {
       const current = inspectPolicyEvaluationArtifactCatalog(
         {
@@ -253,16 +279,25 @@ export async function deriveAndRecheckCapturedPolicySources(
           : null,
         observedAt.data,
       );
-      const contentWasAttempted =
-        read.observation.status === "verified" ||
-        (read.observation.status === "unavailable" &&
-          (read.observation.reason === "object_missing" ||
-            read.observation.reason === "content_integrity_failed"));
+      if (canonical(current) !== canonical(artifactCatalogMaterial(read)))
+        throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
+    }
+    for (const { read } of storedArtifacts) {
+      const current = inspectPolicyEvaluationArtifactCatalog(
+        {
+          scope: request.scope,
+          principal,
+          reference: read.reference,
+          evaluationTime: request.evaluationTime,
+          maxReadBytes: MAX_ENCRYPTED_ARTIFACT_OBJECT_BYTES,
+        },
+        artifactRecords.has(read.reference.artifactId)
+          ? artifactRecords.get(read.reference.artifactId)
+          : null,
+        observedAt.data,
+      );
       if (
-        canonical(current.catalog) !== canonical(read.catalog) ||
-        (contentWasAttempted
-          ? current.observation.status !== "content_pending"
-          : canonical(current.observation) !== canonical(read.observation))
+        canonical(current) !== canonical({ catalog: read.catalog, observation: read.observation })
       )
         throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
     }

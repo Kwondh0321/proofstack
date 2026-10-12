@@ -3,8 +3,13 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
+[저장 artifact 카탈로그 기반 기능](workflow-2-policy-stored-artifact-catalogs.ko.md)은 미래·역사적
+저장 선언의 카탈로그 전용 관측과 알려진 artifact/policy의 guard origin 전체를 연결합니다.
+관련 저장 관계, 현재 의미·권한·부재, 내부 한도와 원자적 봉인 게시는 아직 남아 있습니다.
+checkpoint 3은 미완료이며 Workflow 2 승인 수는 2/7입니다.
+
 [저장 선언 열거기](workflow-2-policy-stored-reference-enumeration.ko.md)는 설치된 출처 48종 전체의
-원래 관측 상태를 유지하며 선언을 열거합니다. 원본 root만의 전체 의존 목록·관련 저장 의미와
+원래 관측 상태를 유지하며 선언을 열거합니다. 원본 root의 재귀 저장 목록은 구현했으며 관련 저장 의미와
 봉인 게시는 아직 진행 중이며 Workflow 2는 7개 중 2개 checkpoint 승인 상태입니다.
 
 [의존 증거 목록 기반 기능](workflow-2-policy-evaluation-manifest-contract.ko.md)은 정확한 참조,

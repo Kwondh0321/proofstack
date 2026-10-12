@@ -7,42 +7,42 @@ import {
   type ContentReference,
   type EndpointProfileDefinition,
   type EndpointProfileRecord,
-  type ProtocolDefinition,
-  type ProtocolDefinitionRecord,
-  ProtocolDefinitionSelectorSchema,
-  ProtocolDefinitionSchema,
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
-  type QualificationPolicyDefinition,
-  type QualificationPolicyRecord,
   encodeEvaluationCanonicalJson,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
+  type ProtocolDefinition,
+  type ProtocolDefinitionRecord,
+  ProtocolDefinitionSchema,
+  ProtocolDefinitionSelectorSchema,
+  type QualificationPolicyDefinition,
+  type QualificationPolicyRecord,
+  type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
-  type RecordedInteractionFixtureVersionDefinition,
   type RuntimeDefinition,
   type RuntimeDefinitionRecord,
 } from "@proofstack/contracts";
 import {
-  digestEvaluationRecordDefinition,
   digestEndpointProfile,
-  digestProtocolDefinition,
-  readPolicyEvaluationProtocolRecord,
-  enumeratePolicyEvaluationProtocolReferences,
-  readPolicyEvaluationEndpointProfileRecord,
   digestEvaluationImplementationRegistration,
-  readPolicyEvaluationImplementationRecord,
-  digestQualificationPolicy,
-  readPolicyEvaluationQualificationPolicyRecord,
+  digestEvaluationRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
+  digestProtocolDefinition,
+  digestQualificationPolicy,
   digestReleaseCandidateDefinition,
+  digestRuntimeDefinition,
+  enumeratePolicyEvaluationProtocolReferences,
   evaluationRecordDescriptors,
+  readPolicyEvaluationEndpointProfileRecord,
+  readPolicyEvaluationImplementationRecord,
+  readPolicyEvaluationProtocolRecord,
+  readPolicyEvaluationQualificationPolicyRecord,
+  readPolicyEvaluationRuntimeRecord,
   releaseCandidateReference,
   releasePolicyReference,
   StaticEndpointProfileCatalogue,
-  digestRuntimeDefinition,
-  readPolicyEvaluationRuntimeRecord,
   StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
@@ -57,19 +57,19 @@ import {
   releasePolicyRepositoryFixture,
 } from "@proofstack/core/testing";
 import {
+  digestRecordedInteractionFixtureVersionDefinition,
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
-  digestRecordedInteractionFixtureVersionDefinition,
 } from "@proofstack/datasets";
 import {
   capturePolicyArtifactEvidence,
+  inspectParentProtocolResolution,
   type PolicyArtifactEvidenceRepositories,
   type PolicyCandidateAuthorities,
   type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
   readParentProtocolResolution,
-  inspectParentProtocolResolution,
 } from "@proofstack/policy-evaluation";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -148,7 +148,10 @@ async function fixture(
   metadataMode = false,
   withModelEndpoint = false,
   withProtocols = false,
+  withStoredCatalog = false,
 ) {
+  if (withStoredCatalog && !withProtocols)
+    throw new Error("Stored catalog fixture requires protocols");
   const namespace = `recheck_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const evaluation = withCriteria ? createEvaluationRepositoryTestHarness(namespace) : undefined;
   const evaluationRepository = new PostgresEvaluationRepository(api);
@@ -245,6 +248,7 @@ async function fixture(
     sha256: createHash("sha256").update(contents).digest("hex"),
   };
   const protocolRecords: ProtocolDefinitionRecord[] = [];
+  const storedReference = { ...reference, artifactId: "artifact_stored_catalog" };
   if (withProtocols) {
     if (!withModelEndpoint) throw new Error("Protocol graph fixture requires original capture");
     const captured = JSON.parse(
@@ -310,7 +314,18 @@ async function fixture(
       registeredByPrincipalId: _by,
       ...body
     } = first;
-    const alias = { ...body, protocolDefinitionId: `protocol_${namespace}_future` };
+    const alias = {
+      ...body,
+      protocolDefinitionId: `protocol_${namespace}_future`,
+      ...(withStoredCatalog
+        ? {
+            specification: storedReference,
+            ...("implementation" in body
+              ? { implementation: storedReference, configuration: storedReference }
+              : {}),
+          }
+        : {}),
+    };
     protocolRecords.push({
       ...alias,
       scope,
@@ -356,6 +371,26 @@ async function fixture(
     encrypted.receipt,
     "2026-09-04T00:01:00.000001Z",
   );
+  const storedObjectKey = `objects/${scope.tenantId}/stored-only`;
+  let storedCatalog: Awaited<ReturnType<PostgresArtifactCatalogRepository["activate"]>> | undefined;
+  if (withStoredCatalog) {
+    const storedMetadata = { ...metadata, contentReference: storedReference };
+    const storedPlan = await encryption.createPlan(storedMetadata);
+    await catalog.reserve({
+      metadata: storedMetadata,
+      encryption: storedPlan,
+      objectKey: storedObjectKey,
+      createdByPrincipalId: "principal_stored_writer",
+    });
+    const encrypted = await encryption.encrypt(storedMetadata, storedPlan, contents);
+    // No object is installed: a catalog readiness report must not become byte verification.
+    storedCatalog = await catalog.activate(
+      scope,
+      storedReference.artifactId,
+      encrypted.receipt,
+      "2026-09-04T00:01:00.000001Z",
+    );
+  }
   const policy = releasePolicyRepositoryFixture(namespace, scope);
   await policies.publishReleasePolicy(policy);
   const candidate = releaseCandidateFixture(namespace, scope);
@@ -648,6 +683,7 @@ async function fixture(
     },
   };
   let objectReads = 0;
+  const objectKeysRead: string[] = [];
   const metadataTransactions: PolicyEvaluationMetadataTransactions = {
     runMetadata: async (exact, operation) => {
       await hooks.beforeRun?.();
@@ -676,6 +712,7 @@ async function fixture(
         objects: {
           get: async (key) => {
             objectReads++;
+            objectKeysRead.push(key);
             await hooks.readContent?.();
             return objects.get(key);
           },
@@ -693,6 +730,15 @@ async function fixture(
       actorPrincipalId: "principal_maintenance",
       trigger: "manual",
       reason: "Exercise source recheck serialization",
+      occurredAt: "2026-10-01T02:00:00.000Z",
+    });
+  const tombstoneStored = () =>
+    maintenance.tombstone(scope, {
+      artifactId: storedReference.artifactId,
+      tombstoneId: `tombstone_stored_${namespace}`,
+      actorPrincipalId: "principal_maintenance",
+      trigger: "manual",
+      reason: "Exercise future-only catalog guards",
       occurredAt: "2026-10-01T02:00:00.000Z",
     });
   const cleanContext = async () => {
@@ -734,6 +780,11 @@ async function fixture(
     endpointProfile,
     modelFixture,
     protocolRecords,
+    storedReference,
+    storedCatalog,
+    storedObjectKey,
+    objectKeysRead,
+    tombstoneStored,
     tombstone,
     cleanContext,
     waitForWriter,
@@ -742,6 +793,93 @@ async function fixture(
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("retains three future-only catalog aliases under actual guards without reading stored-only objects", async () => {
+    const f = await fixture(false, true, true, true, true);
+    const result = await f.run();
+    if (result.status !== "artifacts_captured")
+      throw new Error("Expected guarded stored artifacts");
+    const captures = result.storedArtifacts.filter(
+      ({ read }) => read.reference.artifactId === f.storedReference.artifactId,
+    );
+    expect(captures).toHaveLength(3);
+    for (const { read, origin } of captures) {
+      expect(read.observation).toEqual({ status: "content_pending" });
+      expect(read.catalog?.metadata).toEqual(f.storedCatalog?.metadata);
+      expect(origin.parent.kind).toBe("protocol_definition");
+    }
+    expect(
+      result.artifacts.some(
+        ({ read }) => read.reference.artifactId === f.storedReference.artifactId,
+      ),
+    ).toBe(false);
+    expect(f.objectKeysRead).not.toContain(f.storedObjectKey);
+    const origins = result.sourceGuards.find(
+      ({ kind, id }) => kind === "artifact" && id === f.storedReference.artifactId,
+    )?.origins;
+    expect(origins).toEqual(
+      result.storedArtifacts.flatMap(({ read }, captureIndex) =>
+        read.reference.artifactId === f.storedReference.artifactId
+          ? [{ kind: "stored_artifact_capture", captureIndex }]
+          : [],
+      ),
+    );
+    expect(result.sourceRecheck?.metadata?.storageRecordObservations).toBe(
+      result.traceCapture.comparisonCapture.graph.storageInventory.nodes.length,
+    );
+    expect(result.sourceRecheck?.metadata?.storageEdgeObservations).toBe(
+      result.traceCapture.comparisonCapture.graph.storageInventory.edges.length,
+    );
+    expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
+    await f.cleanContext();
+  });
+
+  it("rejects an intervening actual future-only catalog tombstone and restores the held pool context", async () => {
+    const f = await fixture(false, true, true, true, true);
+    let changed = false;
+    f.hooks.readContent = async () => {
+      if (!changed) {
+        changed = true;
+        await f.tombstoneStored();
+      }
+    };
+    await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(changed).toBe(true);
+    expect(f.objectKeysRead).not.toContain(f.storedObjectKey);
+    expect((await catalog.find(f.scope, f.storedReference.artifactId))?.metadata.state).toBe(
+      "tombstoned",
+    );
+    await f.cleanContext();
+  });
+
+  it("blocks an actual future-only catalog writer until the complete metadata observation transaction ends", async () => {
+    const f = await fixture(false, true, true, true, true);
+    let pending: Promise<{ value: unknown } | { error: unknown }> | undefined;
+    f.hooks.underGuards = async (ports) => {
+      pending = f.tombstoneStored().then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      await f.waitForWriter();
+      expect(await ports.findArtifact(f.storedReference.artifactId)).toMatchObject({
+        metadata: { state: "available" },
+      });
+    };
+    try {
+      const result = await f.run();
+      expect(result.status).toBe("artifacts_captured");
+      if (!pending) throw new Error("Writer did not reach the source guard");
+      const outcome = await pending;
+      if ("error" in outcome) throw outcome.error;
+      expect((await catalog.find(f.scope, f.storedReference.artifactId))?.metadata.state).toBe(
+        "tombstoned",
+      );
+      expect(f.objectKeysRead).not.toContain(f.storedObjectKey);
+      await f.cleanContext();
+    } finally {
+      await pending;
+    }
+  });
+
   it("reads retained candidate and policy originals through fixed held-client root ports", async () => {
     const f = await fixture(false, true);
     const result = await f.run();

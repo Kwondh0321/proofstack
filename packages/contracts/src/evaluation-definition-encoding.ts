@@ -173,6 +173,7 @@ export const COMPARISON_EVIDENCE_SNAPSHOT_DEFINITION_DOMAIN =
 export const COMPARISON_RESULT_DEFINITION_DOMAIN = "proofstack.comparison-result.v1" as const;
 
 const MAX_CANONICAL_NESTING_DEPTH = 64;
+const MAX_CANONICAL_KEY_ENCODINGS = 256;
 
 export interface ScopedEvaluationDefinition<Definition> {
   readonly definition: Definition;
@@ -187,7 +188,12 @@ function containsUnpairedSurrogate(value: string): boolean {
   return UNPAIRED_SURROGATE.test(value);
 }
 
-function canonicalJson(value: unknown, active: WeakSet<object>, depth: number): string {
+function canonicalJson(
+  value: unknown,
+  active: WeakSet<object>,
+  depth: number,
+  keyEncodings: Map<string, string>,
+): string {
   if (depth > MAX_CANONICAL_NESTING_DEPTH) {
     throw new RangeError(
       `Canonical evaluation definitions cannot exceed ${MAX_CANONICAL_NESTING_DEPTH} levels`,
@@ -221,7 +227,7 @@ function canonicalJson(value: unknown, active: WeakSet<object>, depth: number): 
         if (!Object.hasOwn(value, index)) {
           throw new TypeError("Canonical evaluation definitions cannot contain sparse arrays");
         }
-        items.push(canonicalJson(value[index], active, depth + 1));
+        items.push(canonicalJson(value[index], active, depth + 1, keyEncodings));
       }
       return `[${items.join(",")}]`;
     }
@@ -230,22 +236,32 @@ function canonicalJson(value: unknown, active: WeakSet<object>, depth: number): 
     if (prototype !== Object.prototype && prototype !== null) {
       throw new TypeError("Canonical evaluation definitions require plain JSON objects");
     }
-    if (Reflect.ownKeys(value).some((key) => typeof key === "symbol")) {
+    if (Object.getOwnPropertySymbols(value).length > 0) {
       throw new TypeError("Canonical evaluation definitions cannot contain symbol keys");
     }
-    const entries = Object.keys(value)
-      .sort()
-      .map((key) => {
+    const keys = Object.keys(value).sort();
+    let result = "{";
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index] as string;
+      let encodedKey = keyEncodings.get(key);
+      if (encodedKey === undefined) {
         if (containsUnpairedSurrogate(key)) {
           throw new TypeError("Canonical evaluation definition keys require Unicode scalars");
         }
-        return `${JSON.stringify(key)}:${canonicalJson(
-          (value as Record<string, unknown>)[key],
-          active,
-          depth + 1,
-        )}`;
-      });
-    return `{${entries.join(",")}}`;
+        encodedKey = JSON.stringify(key);
+        // Only immutable key text is reused, within this invocation and a fixed small ceiling.
+        // Every object, current value, depth and active reference still passes strict admission.
+        if (keyEncodings.size < MAX_CANONICAL_KEY_ENCODINGS) keyEncodings.set(key, encodedKey);
+      }
+      if (index > 0) result += ",";
+      result += `${encodedKey}:${canonicalJson(
+        (value as Record<string, unknown>)[key],
+        active,
+        depth + 1,
+        keyEncodings,
+      )}`;
+    }
+    return `${result}}`;
   } finally {
     active.delete(value);
   }
@@ -298,7 +314,7 @@ export function encodeEvaluationCanonicalJson(value: unknown): Uint8Array {
 
 /** Same strict canonical JSON as the byte encoder; avoids a byte round trip for comparisons. */
 export function serializeEvaluationCanonicalJson(value: unknown): string {
-  return canonicalJson(value, new WeakSet<object>(), 0);
+  return canonicalJson(value, new WeakSet<object>(), 0, new Map<string, string>());
 }
 
 function createScopedDefinitionSchema<Definition extends z.ZodType>(definition: Definition) {

@@ -63,9 +63,9 @@ before lookup. Each storage node, root binding and edge is compared during guard
 reinspection before following descendants, followed by complete final material equality.
 
 This increment performs no artifact object or key I/O, source publication or predicate
-evaluation. Historical artifact declarations still require separately authorized catalog,
-ownership, integrity and guard-origin observations without automatic classified plaintext
-fetching. Current semantic/authority/presence closure, every relevant storage relationship,
+evaluation. The subsequent [stored artifact catalog prerequisite](workflow-2-policy-stored-artifact-catalogs.md)
+adds separately authorized catalog, ownership, integrity and complete known artifact/policy
+guard origins without automatic plaintext fetching. Current semantic/authority/presence closure, every relevant storage relationship,
 native SQL/scan/wire/deadline admission and durable job-wide limits remain required.
 
 The read-only reinspection transaction ends before its report returns. A later publisher

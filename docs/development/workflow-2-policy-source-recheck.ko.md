@@ -6,6 +6,11 @@
 수는 **2/7**입니다. 스냅샷 발행기·워커·lease/fence·정책 결과·출시 승인이나 트랜잭션 종료 후의
 최신성 토큰이 아닙니다.
 
+[저장 카탈로그 기반 기능](workflow-2-policy-stored-artifact-catalogs.ko.md)은 알려진 guard origin을
+원래 저장 선언 전체로 확장합니다. 저장 전용 카탈로그를 native DB 시각에서 객체/key I/O 없이
+재검사합니다. 원래 의미 관측이 모두 unavailable이어도 저장 policy 전체 body/hash/영수증
+변경을 감지합니다. metadata 보고서는 의미 record와 storage record·storage edge 수를 구별합니다.
+
 ## 소유권과 연결
 
 `capturePolicyArtifactEvidence`에 서버가 소유한 선택적 `sourceTransactions` 또는

@@ -775,6 +775,7 @@ describe("combined policy-authority inspection admission", () => {
       expect(baseline.policyAuthority.inspectionUsage.references).toBeGreaterThan(0);
       expect(baseline.usage.references).toBe(
         baseline.traceCapture.usage.references +
+          baseline.storedArtifactInspectionUsage.references +
           baseline.policyAuthority.inspectionUsage.references +
           baseline.applicability.inspectionUsage.references +
           baseline.comparisonRules.inspectionUsage.references +
@@ -785,6 +786,7 @@ describe("combined policy-authority inspection admission", () => {
       );
       expect(baseline.usage.referenceBytes).toBe(
         baseline.traceCapture.usage.referenceBytes +
+          baseline.storedArtifactInspectionUsage.referenceBytes +
           baseline.policyAuthority.inspectionUsage.referenceBytes +
           baseline.applicability.inspectionUsage.referenceBytes +
           baseline.comparisonRules.inspectionUsage.referenceBytes +

@@ -26,6 +26,9 @@
 | --- | --- |
 | 부재·이용 불가를 포함한 모든 그래프 정책 노드 | `release_policy` + `policyVersionId`; `policy_node` + `nodeIndex` |
 | 그래프의 모든 아티팩트 간선 다음 원래 트레이스 descriptor 전체 | `artifact` + `artifactId`; `artifact_capture` + `captureIndex` |
+| 원래 unavailable을 포함한 모든 저장 policy 노드 | `release_policy` + `policyVersionId`; `storage_policy_node` + `nodeIndex` |
+| 전체 설명이 있는 모든 원래 저장 artifact 선언 | `artifact` + `artifactId`; `stored_artifact_capture` + `captureIndex` |
+| ID만 있는 모든 원래 저장 artifact 선언 | `artifact` + 선언 ID; `storage_artifact_identity` + `edgeIndex` |
 | 보존된 대체 이력의 모든 후속 정책 | `release_policy` + 후속 버전 ID; `policy_successor` + `historyIndex` |
 
 고유 좌표는 종류 다음 ID의 코드 단위 순서로 정렬하고, 좌표마다 모든 출처를 수집 순서로
@@ -36,13 +39,18 @@
 
 평가 시점 뒤에 발행된 후속 정책도 해당 도메인의 이력 읽기가 나중의 수집 시점에서 유지할 수
 있습니다. 그 좌표를 추가하되 역사적 요청 정책을 바꾸지 않습니다. 같은 좌표의 descriptor와
-관측은 완전히 같아야 합니다. 부재 대 검증된 기록, 다른 전체 영수증 해시, 카탈로그·소유권
+보존 내용은 완전히 같아야 합니다. 원래 unavailable과 나중 verified policy 관측도 전체 저장
+body·해시·영수증을 대조합니다. 카탈로그 준비 상태 대조는 반복 내용 관측의 엄격한 전체 일치
+검사와 구별합니다. [저장 카탈로그 경계](workflow-2-policy-stored-artifact-catalogs.ko.md)를 따릅니다.
+부재 대 보존된 기록, 다른 전체 영수증 해시, 카탈로그·소유권
 변경이나 상충하는 결과는 `reference_conflict` 또는 `observation_conflict`로 중단합니다.
-유리한 관측을 선택하거나 다른 시점의 결과가 일관된다고 추정하지 않습니다. 기존 이력 검증이
+유리한 관측을 선택하거나 미래 저장 내용을 의미 피연산자로 승격하지 않습니다. 기존 이력 검증이
 후속 정책의 스코프·이전 버전·정확한 참조·영수증 시점 연결을 계속 확인합니다.
 
 정확한 그래프 요청·스코프·시각·루트 순서, 검증된 정책 루트와 이력의 문맥·전체 루트 해시,
-그래프/트레이스 발생에 대응하는 아티팩트 수집 순서를 확인합니다. 누락·추가·순서 변경·대체는
+그래프/트레이스 발생에 대응하는 내용 수집 순서와 원래 저장 간선에 대응하는 전체 카탈로그
+관찰 순서를 확인합니다. ID 선언은 설명이나 조회를 만들지 않으며 별도 전체 설명을 독립적으로
+검사합니다. 누락·추가·순서 변경·대체는
 부분 결과 없이 실패합니다. 읽을 수 없는 부모의 알 수 없는 자식은 미확인으로 남습니다.
 `roots_unavailable`에는 `sourceGuards` 필드가 없고 계획 사용량은 0입니다. 성공한 빈 계획이 아닙니다.
 
@@ -74,7 +82,7 @@
 [공개 수집 테스트](../../packages/policy-evaluation/src/capture-artifact-evidence.test.ts)는 실제
 요청 소유 메모리 저장소와 인증된 파일 암호화를 사용합니다. 전체 좌표, 읽을 수 없는 이전 정책의
 미해결 경계, 정당하게 나중에 발행된 후속 정책, 카탈로그 I/O 없는 지원 밖 참조, I/O 전 호출자
-부분 계획 거절, 기존 조회 수와 증거 발생 수 유지를 확인합니다. 조합·단위 검증이지 새로 완성된
+부분 계획 거절, 반복 인가된 저장 카탈로그 조회와 전체 누적 한도를 확인합니다. 조합·단위 검증이지 새로 완성된
 PostgreSQL 스냅샷 발행기의 종단 간 승인 검사가 아닙니다.
 
 선택적 [잠금 아래 출처 재검사](workflow-2-policy-source-recheck.ko.md)는 내부에서 계획을 도출하고

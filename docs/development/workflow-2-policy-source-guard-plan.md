@@ -11,7 +11,7 @@ sealed snapshot, policy result, worker capability or release approval.
 The [installed source serialization domain](workflow-2-policy-source-locks.md) covers exactly two
 resource kinds: tenant-wide artifact IDs and release-policy version IDs. A successful
 `capturePolicyArtifactEvidence` now returns `sourceGuards` derived internally from that invocation's
-validated request, acquired graph, exact trace references, artifact observations and retained
+validated request, acquired semantic/storage graph, exact trace references, content/catalog observations and retained
 terminal lifecycle history. Callers cannot choose a guard subset, submit a capture graph or select
 a different policy root. The derivation function and shared admission meter are not package-root
 exports; the coordinate, origin and usage types describe capture output only.
@@ -28,6 +28,9 @@ not proof of request-owned acquisition and must not authorize publication.
 | --- | --- |
 | Every graph release-policy node, including missing/unavailable versions | `release_policy` + `policyVersionId`; `policy_node` + `nodeIndex` |
 | Every graph artifact edge, then every original trace artifact descriptor | `artifact` + `artifactId`; `artifact_capture` + `captureIndex` |
+| Every stored release-policy node, including original unavailable captures | `release_policy` + `policyVersionId`; `storage_policy_node` + `nodeIndex` |
+| Every full original storage artifact declaration | `artifact` + `artifactId`; `stored_artifact_capture` + `captureIndex` |
+| Every original storage artifact ID-only declaration | `artifact` + declared ID; `storage_artifact_identity` + `edgeIndex` |
 | Every retained supersession successor | `release_policy` + successor version ID; `policy_successor` + `historyIndex` |
 
 Unique coordinates are sorted by code-unit resource kind, then ID. Each coordinate preserves all
@@ -39,15 +42,21 @@ The original observations and complete hashes stay in the capture; origins point
 
 A successor published after `evaluationTime` can still be retained by the owning lifecycle reader
 at the later capture cut. Its guard is included without replacing the exact historical request
-policy. Duplicate coordinates require identical full descriptors and observations. Missing versus
-verified records, different full receipt hashes, catalog/ownership changes or other conflicting
+policy. Duplicate coordinates require identical full descriptors and retained material. Full policy
+storage body/hash/receipt is compared even when the original-cut observation is unavailable and
+a later lifecycle observation is verified. Catalog readiness is compared with attempted content
+separately from the stricter repeated-content agreement; see the
+[stored catalog boundary](workflow-2-policy-stored-artifact-catalogs.md). Missing versus
+retained records, different full receipt hashes, catalog/ownership changes or other conflicting
 outcomes abort with `reference_conflict` or `observation_conflict`; the plan does not pick a preferred
-observation or infer that differently timed observations are coherent. Existing owning lifecycle
+observation or promote future storage to a semantic operand. Existing owning lifecycle
 validation continues to bind successor scope, predecessor, exact reference and receipt cut.
 
 Derivation checks the exact graph request, scope, time and ordered roots, the verified policy root
 and lifecycle context/full root hash, and the complete artifact-capture sequence against graph and
-trace occurrences. Missing, extra, reordered or substituted capture entries fail without a partial
+trace occurrences, plus the complete stored-catalog sequence against original storage occurrences.
+ID-only declarations create no descriptor or catalog read; separately retained full descriptors
+remain independently checked. Missing, extra, reordered or substituted capture entries fail without a partial
 result. Unknown children of an unreadable parent remain unknown. `roots_unavailable` has no
 `sourceGuards` field and zero plan usage; it is not a successful empty plan.
 
@@ -83,7 +92,7 @@ The [public capture tests](../../packages/policy-evaluation/src/capture-artifact
 exercise the real request-owning memory repositories and authenticated artifact encryption. They
 verify complete output coordinates, retained missing predecessor frontiers, a legitimately later
 supersession successor, unsupported descriptors without catalog I/O, rejection of caller-supplied
-subsets before I/O, unchanged acquisition call counts and unchanged reference-occurrence counting.
+subsets before I/O, repeated authorized storage catalog reads and complete cumulative admission.
 These are composition and unit checks, not a newly implemented PostgreSQL publisher acceptance test.
 
 Optional [guarded source recheck](workflow-2-policy-source-recheck.md) now derives this plan internally,

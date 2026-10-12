@@ -46,6 +46,10 @@ export type {
   PolicyStorageInventoryEdge,
   PolicyStorageInventoryNode,
 } from "./capture-storage-inventory.js";
+export type {
+  PolicyStoredArtifactCapture,
+  PolicyStoredArtifactOrigin,
+} from "./capture-stored-artifacts.js";
 export {
   capturePolicyTraceEvidence,
   type PolicyTraceArtifactReference,

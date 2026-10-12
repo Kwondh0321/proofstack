@@ -12,23 +12,24 @@ import {
 import {
   type ArtifactMetadata,
   type ContentReference,
-  encodeEvaluationCanonicalJson,
   EvidenceEnvelopeSchema,
+  encodeEvaluationCanonicalJson,
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
-  policyEvaluationSourceReferenceKey,
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
   ProtocolDefinitionSchema,
-  type ReleaseCandidate,
-  type ReleasePolicy,
+  policyEvaluationSourceReferenceKey,
   type RecordedInteractionFixtureVersionDefinition,
   type RegressionDatasetVersionDefinition,
   type RegressionFixtureVersionDefinition,
+  type ReleaseCandidate,
+  type ReleasePolicy,
 } from "@proofstack/contracts";
 import {
+  digestComparisonRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
   digestProtocolDefinition,
   digestReleaseCandidateDefinition,
@@ -40,10 +41,14 @@ import {
   StaticProtocolDefinitionCatalogue,
 } from "@proofstack/core";
 import {
+  comparisonDefinitionFixture,
   comparisonFixtureScope,
+  comparisonResultFixture,
+  comparisonSnapshotFixture,
   MemoryEvidenceRepository,
   MemoryReleaseCandidateRepository,
   MemoryReleasePolicyRepository,
+  policyAuthorityFixture,
   releaseCandidateFixture,
   releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
@@ -55,19 +60,19 @@ import {
 } from "@proofstack/datasets";
 import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing";
 import { describe, expect, it, vi } from "vitest";
+import { AcquisitionBudget } from "./acquisition-budget.js";
 import {
   capturePolicyArtifactEvidence,
   type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
-import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
 import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
-import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
-import { deriveCapturedRuleDependencies } from "./derive-rule-dependencies.js";
 import {
   observeCapturedCandidateAuthority,
   type PolicyCandidateAuthorities,
 } from "./capture-candidate-authority.js";
-import { AcquisitionBudget } from "./acquisition-budget.js";
+import { inspectCapturedFixtureBindings } from "./capture-fixture-bindings.js";
+import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
+import { deriveCapturedRuleDependencies } from "./derive-rule-dependencies.js";
 import * as publicApi from "./index.js";
 import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
 import type {
@@ -119,6 +124,7 @@ async function harness(
     mutateCandidate?(candidate: ReleaseCandidate): void;
     mutatePolicy?(policy: ReleasePolicy): void;
     predecessor?: ReleaseCandidate;
+    policyPredecessor?: ReleasePolicy;
   } = {},
 ) {
   const datasets = new MemoryRegressionVersionRepository();
@@ -275,6 +281,7 @@ async function harness(
   const candidates = new MemoryReleaseCandidateRepository();
   const policies = new MemoryReleasePolicyRepository();
   if (changes.predecessor) await candidates.publishReleaseCandidate(changes.predecessor);
+  if (changes.policyPredecessor) await policies.publishReleasePolicy(changes.policyPredecessor);
   await candidates.publishReleaseCandidate(candidate);
   await policies.publishReleasePolicy(policy);
   const absent = new Proxy({}, { get: () => async () => null });
@@ -450,6 +457,503 @@ async function harness(
     fixtureDefinition,
   };
 }
+
+async function storedBindingHarness(
+  classification: ContentReference["classification"] = "confidential",
+) {
+  const { binding } = policyAuthorityFixture({
+    scope,
+    mutateBinding: (body) => {
+      body.authorityEvidence = {
+        ...reference,
+        artifactId: "artifact_stored_binding",
+        classification,
+      };
+    },
+  });
+  // This valid original registration is unavailable at the immutable evaluation cut.
+  binding.registeredAt = "2026-10-01T00:00:00.001Z";
+  const base = await harness(false, 1, {
+    mutatePolicy: (policy) => {
+      policy.installationBinding = {
+        bindingVersionId: binding.bindingVersionId,
+        definitionSha256: binding.definitionSha256,
+        installationId: binding.installationId,
+      };
+    },
+  });
+  const resolve = vi.fn(async () => structuredClone(binding));
+  const repositories = {
+    ...base.repositories,
+    control: { ...base.repositories.control, installationBinding: { resolve } },
+  };
+  const h = {
+    ...base,
+    repositories,
+    execute: (request = base.request) =>
+      capturePolicyArtifactEvidence(
+        request,
+        base.actor,
+        repositories,
+        base.evidence,
+        base.dependencies,
+      ),
+  };
+  const { availableAt: _availableAt, ...fields } = h.active.metadata;
+  const metadata: ArtifactMetadata = {
+    ...fields,
+    state: "reserved",
+    contentReference: binding.authorityEvidence,
+  };
+  const plan = await h.dependencies.encryption.createPlan(metadata);
+  const reserved = {
+    metadata,
+    encryption: plan,
+    objectKey: "objects/v1/catalog-only-binding",
+    createdByPrincipalId: "principal_stored_writer",
+  };
+  await h.catalog.reserve(reserved);
+  const encrypted = await h.dependencies.encryption.encrypt(metadata, plan, content);
+  // Catalog readiness deliberately has no corresponding object in the memory object store.
+  const active = await h.catalog.activate(
+    scope,
+    binding.authorityEvidence.artifactId,
+    encrypted.receipt,
+    createdAt,
+  );
+  return { h, binding, resolve, reserved, active };
+}
+
+describe("original stored artifact catalogs without content acquisition", () => {
+  it("preserves twelve actual repeated parent paths and all content/storage origins without deduplicating catalog admission", async () => {
+    const h = await harness(false, 1, {
+      mutateCandidate: (body) => {
+        body.buildArtifacts = Array.from({ length: 12 }, (_, index) => ({
+          artifact: { ...reference },
+          role: `build_${index.toString().padStart(2, "0")}`,
+        }));
+      },
+    });
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing repeated stored capture");
+    const captures = output.storedArtifacts.filter(
+      ({ read }) => read.reference.artifactId === reference.artifactId,
+    );
+    expect(captures).toHaveLength(12);
+    expect(captures.map(({ origin }) => origin.path)).toEqual(
+      Array.from({ length: 12 }, (_, index) => `/buildArtifacts/${index}/artifact`),
+    );
+    expect(captures.every(({ read }) => read.observation.status === "content_pending")).toBe(true);
+    expect(h.get).toHaveBeenCalledTimes(14);
+    expect(h.decrypt).toHaveBeenCalledTimes(14);
+    const sharedOrigins = output.sourceGuards.find(
+      ({ id }) => id === reference.artifactId,
+    )?.origins;
+    expect(sharedOrigins).toEqual([
+      ...output.artifacts.flatMap(({ read }, captureIndex) =>
+        read.reference.artifactId === reference.artifactId
+          ? [{ kind: "artifact_capture", captureIndex }]
+          : [],
+      ),
+      ...output.storedArtifacts.flatMap(({ read }, captureIndex) =>
+        read.reference.artifactId === reference.artifactId
+          ? [{ kind: "stored_artifact_capture", captureIndex }]
+          : [],
+      ),
+    ]);
+    expect(h.find.mock.calls.filter(([, id]) => id === reference.artifactId)).toHaveLength(
+      12 + 14 * 2,
+    );
+  });
+
+  it.each(["missing", "receipt"] as const)(
+    "rejects a repeated stored catalog %s change before any content I/O",
+    async (kind) => {
+      const h = await harness(false, 1, {
+        mutateCandidate: (body) => {
+          body.buildArtifacts = [
+            { artifact: { ...reference }, role: "build_0" },
+            { artifact: { ...reference }, role: "build_1" },
+          ];
+        },
+      });
+      const changed = structuredClone(h.active);
+      changed.metadata.availableAt = "2026-09-04T00:02:00.000Z";
+      let calls = 0;
+      const find = MemoryArtifactCatalogRepository.prototype.find;
+      h.find.mockImplementation((exact, id) =>
+        id !== reference.artifactId
+          ? find.call(h.catalog, exact, id)
+          : Promise.resolve(++calls === 1 ? h.active : kind === "missing" ? null : changed),
+      );
+      await expect(h.execute()).rejects.toMatchObject({
+        reason: "observation_conflict",
+        identity: "artifact:artifact_shared",
+      });
+      expect(h.get).not.toHaveBeenCalled();
+      expect(h.decrypt).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains a future parent's original path/hash and catalog readiness without reading its object or key", async () => {
+    const { h, binding, active } = await storedBindingHarness();
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing stored catalog capture");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const edgeIndex = graph.storageInventory.edges.findIndex(
+      ({ reference }) =>
+        reference.kind === "artifact" &&
+        reference.reference.artifactId === binding.authorityEvidence.artifactId,
+    );
+    const edge = graph.storageInventory.edges[edgeIndex];
+    if (!edge) throw new Error("Missing original storage edge");
+    const captureIndex = output.storedArtifacts.findIndex(
+      ({ read }) => read.reference.artifactId === binding.authorityEvidence.artifactId,
+    );
+    const captured = output.storedArtifacts[captureIndex];
+    expect(captured).toMatchObject({
+      origin: {
+        edgeIndex,
+        parent: edge.parent,
+        parentRecordSha256: edge.parentRecordSha256,
+        path: "/authorityEvidence",
+      },
+      read: {
+        scope,
+        reference: binding.authorityEvidence,
+        evaluationTime: h.request.evaluationTime,
+        observedAt,
+        catalog: { metadata: active.metadata, ownership: null },
+        observation: { status: "content_pending" },
+      },
+    });
+    expect(
+      graph.nodes.find(({ read }) => read.source.kind === "policy_installation_binding")?.read
+        .observation,
+    ).toMatchObject({ status: "unavailable", reason: "not_yet_available" });
+    expect(graph.edges.some(({ parent }) => parent.kind === "policy_installation_binding")).toBe(
+      false,
+    );
+    expect(
+      output.artifacts.some(
+        ({ read }) => read.reference.artifactId === binding.authorityEvidence.artifactId,
+      ),
+    ).toBe(false);
+    expect(h.get).toHaveBeenCalledTimes(3);
+    expect(h.decrypt).toHaveBeenCalledTimes(3);
+    expect(h.get.mock.calls.some(([key]) => key === active.objectKey)).toBe(false);
+    expect(
+      output.sourceGuards.find(({ id }) => id === binding.authorityEvidence.artifactId)?.origins,
+    ).toEqual([{ kind: "stored_artifact_capture", captureIndex }]);
+    // Independent native sorted-JSON oracle, without the implementation canonical encoder.
+    const json = (value: unknown): string =>
+      JSON.stringify(value, (_key, item: unknown) =>
+        item !== null && typeof item === "object" && !Array.isArray(item)
+          ? Object.fromEntries(
+              Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+            )
+          : item,
+      );
+    expect(captured?.read.catalog?.recordSha256).toBe(
+      createHash("sha256").update(json(active)).digest("hex"),
+    );
+    expect(output.storedArtifactInspectionUsage).toEqual({
+      references: output.storedArtifacts.length,
+      referenceBytes: output.storedArtifacts.reduce(
+        (bytes, { origin, read }) =>
+          bytes +
+          Buffer.byteLength(json({ origin, reference: read.reference })) +
+          Buffer.byteLength(json(read)),
+        0,
+      ),
+    });
+    expect(JSON.stringify(output)).not.toContain(active.objectKey);
+    expect(JSON.stringify(output)).not.toContain(active.encryption.wrappedDataKey.ciphertext);
+  });
+
+  it("preflights a future stored restricted declaration before any catalog/content/key I/O", async () => {
+    const { h } = await storedBindingHarness("restricted");
+    await expect(h.execute()).rejects.toMatchObject({ code: "forbidden" });
+    expect(h.find).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+    expect(h.decrypt).not.toHaveBeenCalled();
+    h.actor.capabilities.push("artifact:read:restricted");
+    expect((await h.execute()).status).toBe("artifacts_captured");
+    expect(h.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("authorizes actual stored restricted classification before any content I/O even when the declaration understates it", async () => {
+    const { h, binding, active } = await storedBindingHarness();
+    const raw = structuredClone(active);
+    raw.metadata.contentReference.classification = "restricted";
+    const find = MemoryArtifactCatalogRepository.prototype.find;
+    h.find.mockImplementation((exact, id) =>
+      id === binding.authorityEvidence.artifactId
+        ? Promise.resolve(raw)
+        : find.call(h.catalog, exact, id),
+    );
+    await expect(h.execute()).rejects.toMatchObject({ code: "forbidden" });
+    expect(h.get).not.toHaveBeenCalled();
+    expect(h.decrypt).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "missing",
+    "invalid",
+    "scope",
+    "descriptor",
+    "reserved",
+    "tombstoned",
+    "purged",
+    "not_yet_available",
+    "retention_expired",
+  ] as const)("preserves catalog-only %s without content acquisition", async (kind) => {
+    const { h, binding, active, reserved } = await storedBindingHarness();
+    const raw = structuredClone(kind === "reserved" ? reserved : active);
+    if (kind === "invalid") Object.assign(raw, { extra: true });
+    if (kind === "scope") raw.metadata.scope = { ...scope, projectId: "project_other" };
+    if (kind === "descriptor") raw.metadata.contentReference.sha256 = "f".repeat(64);
+    if (kind === "tombstoned" || kind === "purged") {
+      raw.metadata.state = kind;
+      raw.metadata.tombstonedAt = "2026-09-30T00:00:00.000Z";
+    }
+    if (kind === "purged") raw.metadata.purgedAt = "2026-09-30T00:01:00.000Z";
+    if (kind === "not_yet_available") raw.metadata.availableAt = "2026-10-01T00:00:00.001Z";
+    if (kind === "retention_expired")
+      raw.metadata.retention = { mode: "expire", expiresAt: observedAt };
+    const find = MemoryArtifactCatalogRepository.prototype.find;
+    h.find.mockImplementation((exact, id) =>
+      id === binding.authorityEvidence.artifactId
+        ? Promise.resolve(kind === "missing" ? null : raw)
+        : find.call(h.catalog, exact, id),
+    );
+    const output = await h.execute();
+    if (output.status !== "artifacts_captured") throw new Error("Missing catalog capture");
+    const read = output.storedArtifacts.find(
+      ({ read }) => read.reference.artifactId === binding.authorityEvidence.artifactId,
+    )?.read;
+    expect(read?.observation).toEqual(
+      kind === "missing"
+        ? { status: "missing" }
+        : {
+            status: "unavailable",
+            reason:
+              kind === "invalid"
+                ? "record_invalid"
+                : kind === "scope" || kind === "descriptor"
+                  ? "reference_mismatch"
+                  : kind,
+          },
+    );
+    expect(h.get).toHaveBeenCalledTimes(3);
+    expect(h.decrypt).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects a full same-ID descriptor conflict across semantic and future stored parents before catalog/content I/O", async () => {
+    const { h, binding } = await storedBindingHarness();
+    h.event.evidence.contentReferences = [
+      { ...reference, artifactId: binding.authorityEvidence.artifactId, sha256: "f".repeat(64) },
+    ];
+    h.exact.mockResolvedValue([h.event]);
+    await expect(h.execute()).rejects.toMatchObject({ reason: "reference_conflict" });
+    expect(h.find).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+    expect(h.decrypt).not.toHaveBeenCalled();
+  });
+
+  it("rejects only stored catalog readiness that expires at aggregate completion", async () => {
+    const { h, binding, active } = await storedBindingHarness();
+    await h.execute();
+    const lastCall = h.clock.now.mock.calls.length;
+    const expiry = "2026-10-01T02:00:00.001Z";
+    const changed = structuredClone(active);
+    changed.metadata.retention = { mode: "expire", expiresAt: expiry };
+    const find = MemoryArtifactCatalogRepository.prototype.find;
+    h.find.mockImplementation((exact, id) =>
+      id === binding.authorityEvidence.artifactId
+        ? Promise.resolve(changed)
+        : find.call(h.catalog, exact, id),
+    );
+    let calls = 0;
+    h.clock.now.mockImplementation(() => new Date(++calls === lastCall ? expiry : observedAt));
+    h.get.mockClear();
+    h.decrypt.mockClear();
+    await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(h.get).toHaveBeenCalledTimes(3);
+    expect(h.decrypt).toHaveBeenCalledTimes(3);
+  });
+
+  it("retains the original omission ID without an extra catalog lookup or inventing content verification", async () => {
+    const definition = comparisonDefinitionFixture("stored_omission", scope);
+    const baseline = comparisonSnapshotFixture("stored_omission", scope, definition, "baseline");
+    const candidate = comparisonSnapshotFixture("stored_omission", scope, definition, "candidate");
+    // Generic canonical vectors are independent records. Bind this stored graph's original
+    // role references explicitly rather than presenting their conflicting example hashes as lineage.
+    for (const [role, snapshot] of [
+      ["baseline", baseline],
+      ["candidate", candidate],
+    ] as const) {
+      const subject = definition[role];
+      const declared = subject.fixtures[0];
+      if (!declared) throw new Error("Missing original comparison subject");
+      declared.assessments = [];
+      declared.modelAssuranceAssessments = [];
+      snapshot.dataset = subject.dataset;
+      for (const fixture of snapshot.fixtures) {
+        fixture.fixture = declared.fixture;
+        fixture.replay = declared.replay;
+        fixture.assurance = [];
+        fixture.evaluationOutcomes = [];
+        fixture.numericObservations = [];
+        fixture.safetyEvents = [];
+      }
+    }
+    const {
+      createdAt: _definitionAt,
+      createdByPrincipalId: _definitionBy,
+      definitionSha256: _definitionHash,
+      schemaVersion: _definitionVersion,
+      scope: _definitionScope,
+      ...definitionBody
+    } = definition;
+    definition.definitionSha256 = digestComparisonRecordDefinition(
+      "comparison_definition",
+      scope,
+      definitionBody,
+    );
+    baseline.comparison.definitionSha256 = definition.definitionSha256;
+    candidate.comparison.definitionSha256 = definition.definitionSha256;
+    const fixture = baseline.fixtures[0];
+    if (!fixture) throw new Error("Missing owning snapshot fixture");
+    fixture.artifacts = [
+      {
+        artifact: { ...reference, artifactId: "artifact_omitted_only" },
+        availability: "unavailable",
+      },
+    ];
+    for (const fixture of candidate.fixtures) fixture.artifacts = [];
+    const {
+      createdAt: _candidateAt,
+      createdByPrincipalId: _candidateBy,
+      definitionSha256: _candidateHash,
+      schemaVersion: _candidateVersion,
+      scope: _candidateScope,
+      ...candidateBody
+    } = candidate;
+    candidate.definitionSha256 = digestComparisonRecordDefinition(
+      "comparison_evidence_snapshot",
+      scope,
+      candidateBody,
+    );
+    baseline.omissions = [
+      {
+        artifactId: "artifact_omitted_only",
+        fixtureId: fixture.fixture.fixtureId,
+        reason: "artifact_unavailable",
+        sourceKind: "artifact",
+      },
+    ];
+    const {
+      createdAt: _at,
+      createdByPrincipalId: _by,
+      definitionSha256: _hash,
+      schemaVersion: _version,
+      scope: _scope,
+      ...snapshotBody
+    } = baseline;
+    baseline.definitionSha256 = digestComparisonRecordDefinition(
+      "comparison_evidence_snapshot",
+      scope,
+      snapshotBody,
+    );
+    const result = comparisonResultFixture(
+      "stored_omission",
+      scope,
+      definition,
+      baseline,
+      candidate,
+    );
+    result.artifactChanges = [];
+    result.verdictMarginals = [];
+    result.verdictTransitions = [];
+    const candidateFixture = candidate.fixtures[0];
+    if (!candidateFixture) throw new Error("Missing candidate snapshot fixture");
+    for (const item of result.cases) {
+      if ("baseline" in item) item.baseline = fixture.fixture;
+      if ("candidate" in item) item.candidate = candidateFixture.fixture;
+    }
+    const {
+      createdAt: _resultAt,
+      createdByPrincipalId: _resultBy,
+      definitionSha256: _resultHash,
+      schemaVersion: _resultVersion,
+      scope: _resultScope,
+      ...resultBody
+    } = result;
+    result.definitionSha256 = digestComparisonRecordDefinition(
+      "comparison_result",
+      scope,
+      resultBody,
+    );
+    result.createdAt = "2026-10-01T00:00:00.001Z";
+    const base = await harness(false, 1, {
+      mutateCandidate: (body) => {
+        body.comparisons = [
+          { resultId: result.resultId, definitionSha256: result.definitionSha256 },
+        ];
+      },
+    });
+    const records = {
+      findComparisonDefinition: vi.fn(async () => definition),
+      findComparisonEvidenceSnapshot: vi.fn(async (_scope: typeof scope, id: string) =>
+        id === baseline.snapshotId ? baseline : id === candidate.snapshotId ? candidate : null,
+      ),
+      findComparisonResult: vi.fn(async () => result),
+    };
+    const repositories = {
+      ...base.repositories,
+      control: { ...base.repositories.control, comparison: records },
+    };
+    const h = { ...base, repositories };
+    const f = await recheckHarness(1, h);
+    const output = await f.run();
+    if (output.status !== "artifacts_captured")
+      throw new Error("Missing original omission capture");
+    const graph = output.traceCapture.comparisonCapture.graph;
+    const edgeIndex = graph.storageInventory.edges.findIndex(
+      ({ reference }) =>
+        reference.kind === "control_declaration" &&
+        reference.declaration.kind === "artifact_identity" &&
+        reference.declaration.reference === "artifact_omitted_only",
+    );
+    expect(edgeIndex).toBeGreaterThanOrEqual(0);
+    expect(graph.storageInventory.edges[edgeIndex]).toMatchObject({
+      parent: { kind: "comparison_snapshot" },
+      reference: {
+        path: "/omissions/0/artifactId",
+        declaration: { reference: "artifact_omitted_only" },
+      },
+    });
+    const captureIndex = output.storedArtifacts.findIndex(
+      ({ read }) => read.reference.artifactId === "artifact_omitted_only",
+    );
+    expect(output.sourceGuards.find(({ id }) => id === "artifact_omitted_only")?.origins).toEqual([
+      { kind: "stored_artifact_capture", captureIndex },
+      { kind: "storage_artifact_identity", edgeIndex },
+    ]);
+    expect(f.ports.tryGuard).toHaveBeenCalledWith("artifact", "artifact_omitted_only");
+    // The separately retained full descriptor owns exactly one initial and one guarded lookup.
+    expect(
+      f.ports.findArtifact.mock.calls.filter(([id]) => id === "artifact_omitted_only"),
+    ).toHaveLength(1);
+    expect(base.find.mock.calls.filter(([, id]) => id === "artifact_omitted_only")).toHaveLength(2);
+    expect(output.storedArtifacts[captureIndex]?.read.observation).toEqual({ status: "missing" });
+    expect(
+      output.artifacts.some(({ read }) => read.reference.artifactId === "artifact_omitted_only"),
+    ).toBe(false);
+    expect(f.state.phase).toBe("committed");
+  });
+});
 
 describe("complete ordered policy rule inputs", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
@@ -1604,6 +2108,14 @@ describe("request-rooted authorized artifact capture", () => {
       ...output.artifacts.map(({ read }) =>
         JSON.stringify(["artifact", read.reference.artifactId]),
       ),
+      ...output.storedArtifacts.map(({ read }) =>
+        JSON.stringify(["artifact", read.reference.artifactId]),
+      ),
+      ...graph.storageInventory.nodes.flatMap(({ capture }) =>
+        capture.read.source.kind === "release_policy"
+          ? [JSON.stringify(["release_policy", capture.read.source.reference.policyVersionId])]
+          : [],
+      ),
     ]);
     expect(output.sourceGuards.map(({ kind, id }) => JSON.stringify([kind, id]))).toEqual(
       [...expectedCoordinates].sort(),
@@ -1611,18 +2123,27 @@ describe("request-rooted authorized artifact capture", () => {
     expect(
       output.sourceGuards.find(({ kind, id }) => kind === "artifact" && id === reference.artifactId)
         ?.origins,
-    ).toEqual(
-      output.artifacts.flatMap(({ read }, captureIndex) =>
+    ).toEqual([
+      ...output.artifacts.flatMap(({ read }, captureIndex) =>
         read.reference.artifactId === reference.artifactId
           ? [{ kind: "artifact_capture", captureIndex }]
           : [],
       ),
-    );
+      ...output.storedArtifacts.flatMap(({ read }, captureIndex) =>
+        read.reference.artifactId === reference.artifactId
+          ? [{ kind: "stored_artifact_capture", captureIndex }]
+          : [],
+      ),
+    ]);
     expect(output.usage.sourceGuards).toEqual({
       resources: expectedCoordinates.size,
       origins:
         graph.nodes.filter(({ read }) => read.source.kind === "release_policy").length +
-        output.artifacts.length,
+        graph.storageInventory.nodes.filter(
+          ({ capture }) => capture.read.source.kind === "release_policy",
+        ).length +
+        output.artifacts.length +
+        output.storedArtifacts.length,
       canonicalBytes: Buffer.byteLength(JSON.stringify(output.sourceGuards)),
     });
     for (const [captureIndex, { read }] of output.artifacts.entries())
@@ -1646,7 +2167,8 @@ describe("request-rooted authorized artifact capture", () => {
         output.assessmentRules.inspectionUsage.references +
         output.ruleInputs.inspectionUsage.references +
         output.ruleDependencies.inspectionUsage.references +
-        output.artifactRules.inspectionUsage.references,
+        output.artifactRules.inspectionUsage.references +
+        output.storedArtifactInspectionUsage.references,
     );
     expect(output.usage.artifacts).toEqual({
       reads: 3,
@@ -1884,7 +2406,17 @@ describe("request-rooted authorized artifact capture", () => {
       output.sourceGuards.find(
         ({ kind, id }) => kind === "release_policy" && id === h.policy.policyVersionId,
       )?.origins,
-    ).toEqual([{ kind: "policy_node", nodeIndex }]);
+    ).toEqual([
+      { kind: "policy_node", nodeIndex },
+      {
+        kind: "storage_policy_node",
+        nodeIndex: graph.storageInventory.nodes.findIndex(
+          ({ capture }) =>
+            capture.read.source.kind === "release_policy" &&
+            capture.read.source.reference.policyVersionId === h.policy.policyVersionId,
+        ),
+      },
+    ]);
   });
 
   it("preflights restricted references before any artifact lookup and permits explicit access", async () => {
@@ -1949,7 +2481,8 @@ describe("request-rooted authorized artifact capture", () => {
       let calls = 0;
       h.find.mockImplementation(async (_scope, id) => {
         if (id !== reference.artifactId) return null;
-        if (++calls <= 2) return h.active;
+        // One catalog-only storage occurrence precedes the first content read's two lookups.
+        if (++calls <= 3) return h.active;
         return kind === "missing" ? null : changed;
       });
       await expect(h.execute()).rejects.toMatchObject({
@@ -1972,7 +2505,7 @@ describe("request-rooted authorized artifact capture", () => {
     const h = await harness();
     let calls = 0;
     h.find.mockImplementation(async (_scope, id) =>
-      id === reference.artifactId && ++calls === 1 ? h.active : null,
+      id === reference.artifactId && ++calls <= 2 ? h.active : null,
     );
     await expect(h.execute()).rejects.toMatchObject({ reason: "source_revision_changed" });
   });
@@ -2061,11 +2594,13 @@ describe("request-rooted authorized artifact capture", () => {
     expect(publicApi).not.toHaveProperty("inspectCapturedFixtureBindings");
     expect(publicApi).not.toHaveProperty("deriveCapturedPolicySourceGuards");
     expect(publicApi).not.toHaveProperty("deriveAndRecheckCapturedPolicySources");
+    expect(publicApi).not.toHaveProperty("acquireStoredPolicyArtifacts");
+    expect(publicApi).not.toHaveProperty("storedArtifactOccurrences");
   });
 });
 
-async function recheckHarness(eventCount = 1) {
-  const h = await harness(false, eventCount);
+async function recheckHarness(eventCount = 1, supplied?: Awaited<ReturnType<typeof harness>>) {
+  const h = supplied ?? (await harness(false, eventCount));
   const calls: string[] = [];
   const state = { phase: "outside" };
   const ports = {
@@ -2118,6 +2653,129 @@ async function recheckHarness(eventCount = 1) {
     });
   return { h, calls, ports, state, transactions, run };
 }
+
+describe("guarded original storage catalog and policy observations", () => {
+  it("guards and uniquely rereads a future-only catalog without content/key I/O under the transaction", async () => {
+    const { h, binding } = await storedBindingHarness();
+    const f = await recheckHarness(1, h);
+    const output = await f.run();
+    if (output.status !== "artifacts_captured") throw new Error("Missing guarded capture");
+    expect(f.calls.slice(1, 1 + output.sourceGuards.length)).toEqual(
+      output.sourceGuards.map(({ kind, id }) => `guard:${kind}:${id}`),
+    );
+    expect(
+      f.ports.findArtifact.mock.calls.filter(([id]) => id === binding.authorityEvidence.artifactId),
+    ).toHaveLength(1);
+    expect(f.h.get).toHaveBeenCalledTimes(3);
+    expect(f.h.decrypt).toHaveBeenCalledTimes(3);
+    expect(f.state.phase).toBe("committed");
+    expect(
+      output.storedArtifacts.find(
+        ({ read }) => read.reference.artifactId === binding.authorityEvidence.artifactId,
+      )?.read.observation,
+    ).toEqual({ status: "content_pending" });
+    expect(output.sourceRecheck?.artifactReads).toBe(f.ports.findArtifact.mock.calls.length);
+    expect(output).not.toHaveProperty("sealed");
+  });
+
+  it("rolls back a future-only artifact guard failure before every authoritative read", async () => {
+    const { h, binding } = await storedBindingHarness();
+    const f = await recheckHarness(1, h);
+    f.ports.tryGuard.mockImplementation(
+      async (_kind, id) => id !== binding.authorityEvidence.artifactId,
+    );
+    await expect(f.run()).rejects.toMatchObject({ reason: "guard_unavailable" });
+    expect(f.ports.findArtifact).not.toHaveBeenCalled();
+    expect(f.ports.findPolicy).not.toHaveBeenCalled();
+    expect(f.ports.listPolicyHistory).not.toHaveBeenCalled();
+    expect(f.ports.observationTime).not.toHaveBeenCalled();
+    expect(f.state.phase).toBe("rolled_back");
+  });
+
+  it.each(["missing", "receipt", "ownership", "private_key", "expiry"] as const)(
+    "rolls back a future-only catalog %s revision at the native DB cut",
+    async (kind) => {
+      const { h, binding, active } = await storedBindingHarness();
+      const f = await recheckHarness(1, h);
+      const changed = structuredClone(active);
+      if (kind === "receipt") changed.metadata.availableAt = "2026-09-04T00:00:00.001Z";
+      if (kind === "private_key")
+        Object.assign(changed.encryption.wrappedDataKey, { keyId: "key_changed" });
+      if (kind === "ownership")
+        Object.assign(changed, {
+          ownership: {
+            schemaVersion: "0.1",
+            scope,
+            artifactId: binding.authorityEvidence.artifactId,
+            boundAt: "2026-09-05T00:00:00.000Z",
+            boundByPrincipalId: "principal_owner",
+            owner: {
+              kind: "regression_fixture_version",
+              fixtureId: "fixture_owner",
+              fixtureVersionId: "fixture_owner_v1",
+            },
+          },
+        });
+      if (kind === "expiry") {
+        // Only the stored-only catalog expires at this native precision; semantic content remains valid.
+        changed.metadata.retention = { mode: "expire", expiresAt: "2026-10-01T02:00:00.000001Z" };
+        const find = MemoryArtifactCatalogRepository.prototype.find;
+        h.find.mockImplementation((exact, id) =>
+          id === binding.authorityEvidence.artifactId
+            ? Promise.resolve(changed)
+            : find.call(h.catalog, exact, id),
+        );
+        f.ports.observationTime.mockResolvedValue("2026-10-01T02:00:00.000001Z");
+      }
+      f.ports.findArtifact.mockImplementation((id) =>
+        id === binding.authorityEvidence.artifactId
+          ? Promise.resolve(kind === "missing" ? null : changed)
+          : h.catalog.find(scope, id),
+      );
+      await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+      expect(f.state.phase).toBe("rolled_back");
+      expect(f.calls).not.toContain("commit");
+      expect(h.get).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it("detects a changed full policy receipt even when both original-cut observations stay unavailable", async () => {
+    const future = releasePolicyRepositoryFixture("guard_future_policy", scope, {
+      publishedAt: "2026-10-01T00:00:00.001Z",
+    });
+    const h = await harness(false, 1, {
+      policyPredecessor: future,
+      mutatePolicy: (policy) => {
+        policy.policyId = future.policyId;
+        policy.predecessor = releasePolicyReference(future);
+        policy.semanticVersion = "2.0.0";
+      },
+    });
+    const f = await recheckHarness(1, h);
+    const baseline = await h.execute();
+    if (baseline.status !== "artifacts_captured") throw new Error("Missing original capture");
+    const graph = baseline.traceCapture.comparisonCapture.graph;
+    const capture = graph.storageInventory.nodes.find(
+      ({ capture }) =>
+        capture.read.source.kind === "release_policy" &&
+        capture.read.source.reference.policyVersionId === future.policyVersionId,
+    )?.capture;
+    expect(capture?.read.observation).toMatchObject({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(capture?.storage?.record).toEqual(future);
+    const changed = { ...future, publishedAt: "2026-10-01T00:00:00.002Z" };
+    f.ports.findPolicy.mockImplementation((id) =>
+      id === future.policyVersionId
+        ? Promise.resolve(changed)
+        : h.policies.findReleasePolicy(scope, id),
+    );
+    await expect(f.run()).rejects.toMatchObject({ reason: "source_revision_changed" });
+    expect(f.ports.tryGuard).toHaveBeenCalledWith("release_policy", future.policyVersionId);
+    expect(f.state.phase).toBe("rolled_back");
+  });
+});
 
 async function metadataRecheckHarness() {
   const f = await recheckHarness();

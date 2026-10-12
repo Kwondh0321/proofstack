@@ -10,11 +10,19 @@ import { type AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-bu
 import type { PolicyArtifactCapture } from "./capture-artifact-evidence.js";
 import type { PolicyLifecycleObservation } from "./capture-policy-lifecycle.js";
 import type { PolicyRecordGraph } from "./capture-record-graph.js";
+import {
+  artifactCatalogMaterial,
+  type PolicyStoredArtifactCapture,
+  storedArtifactOccurrences,
+} from "./capture-stored-artifacts.js";
 import type { PolicyTraceArtifactReference } from "./capture-trace-evidence.js";
 
 export type PolicyEvaluationSourceGuardOrigin =
   | { readonly kind: "artifact_capture"; readonly captureIndex: number }
   | { readonly kind: "policy_node"; readonly nodeIndex: number }
+  | { readonly kind: "storage_policy_node"; readonly nodeIndex: number }
+  | { readonly kind: "stored_artifact_capture"; readonly captureIndex: number }
+  | { readonly kind: "storage_artifact_identity"; readonly edgeIndex: number }
   | { readonly kind: "policy_successor"; readonly historyIndex: number };
 
 /** A coordinate map for the installed lock domain, not a lock, revision token or authority. */
@@ -35,10 +43,11 @@ interface Inputs {
   readonly request: PolicyEvaluationRequest;
   readonly graph: Pick<
     PolicyRecordGraph,
-    "request" | "scope" | "evaluationTime" | "roots" | "nodes" | "edges"
+    "request" | "scope" | "evaluationTime" | "roots" | "nodes" | "edges" | "storageInventory"
   >;
   readonly traceReferences: readonly Pick<PolicyTraceArtifactReference, "reference">[];
   readonly artifacts: readonly PolicyArtifactCapture[];
+  readonly storedArtifacts: readonly PolicyStoredArtifactCapture[];
   readonly lifecycle: PolicyLifecycleObservation;
 }
 
@@ -48,7 +57,7 @@ function canonical(value: unknown): string {
 
 /** Internal composition over the complete request-owned capture; never a public subset input. */
 export function deriveCapturedPolicySourceGuards(
-  { request, graph, traceReferences, artifacts, lifecycle }: Inputs,
+  { request, graph, traceReferences, artifacts, storedArtifacts, lifecycle }: Inputs,
   budget: AcquisitionBudget,
 ): {
   readonly guards: readonly PolicyEvaluationSourceGuard[];
@@ -101,19 +110,23 @@ export function deriveCapturedPolicySourceGuards(
     kind: PolicyEvaluationSourceGuard["kind"],
     id: string,
     origin: PolicyEvaluationSourceGuardOrigin,
-    descriptor: unknown,
-    observation: unknown,
+    descriptor?: unknown,
+    observation?: unknown,
   ) => {
     const key = JSON.stringify([kind, id]);
     if (!OpaqueIdSchema.safeParse(id).success)
       throw new PolicyRecordGraphError("reference_conflict", key);
-    const exact = canonical(descriptor);
+    const exact = descriptor === undefined ? undefined : canonical(descriptor);
     const previousDescriptor = descriptors.get(key);
-    if (previousDescriptor !== undefined && previousDescriptor !== exact)
+    if (exact !== undefined && previousDescriptor !== undefined && previousDescriptor !== exact)
       throw new PolicyRecordGraphError("reference_conflict", key);
-    const observed = canonical(observation);
+    const observed = observation === undefined ? undefined : canonical(observation);
     const previousObservation = observations.get(key);
-    if (previousObservation !== undefined && previousObservation !== observed)
+    if (
+      observed !== undefined &&
+      previousObservation !== undefined &&
+      previousObservation !== observed
+    )
       throw new PolicyRecordGraphError("observation_conflict", key);
     let resource = resources.get(key);
     if (!resource) {
@@ -128,20 +141,33 @@ export function deriveCapturedPolicySourceGuards(
     );
     resource.origins.push(origin);
     originCount++;
-    descriptors.set(key, exact);
-    observations.set(key, observed);
+    if (exact !== undefined) descriptors.set(key, exact);
+    if (observed !== undefined) observations.set(key, observed);
   };
   const policy = (
     reference: ReleasePolicyReference,
     origin: PolicyEvaluationSourceGuardOrigin,
     observation: unknown,
   ) => add("release_policy", reference.policyVersionId, origin, reference, observation);
-  graph.nodes.forEach(({ read }, nodeIndex) => {
+  graph.nodes.forEach(({ read, storage }, nodeIndex) => {
     if (read.source.kind === "release_policy")
-      policy(read.source.reference, { kind: "policy_node", nodeIndex }, read.observation);
+      policy(
+        read.source.reference,
+        { kind: "policy_node", nodeIndex },
+        storage ?? read.observation,
+      );
+  });
+  graph.storageInventory.nodes.forEach(({ capture }, nodeIndex) => {
+    if (capture.read.source.kind === "release_policy")
+      policy(
+        capture.read.source.reference,
+        { kind: "storage_policy_node", nodeIndex },
+        capture.storage ?? capture.read.observation,
+      );
   });
 
   let captureIndex = 0;
+  const contentObservations = new Map<string, string>();
   const artifact = (
     origin: PolicyArtifactCapture["origin"],
     reference: PolicyArtifactCapture["read"]["reference"],
@@ -155,10 +181,21 @@ export function deriveCapturedPolicySourceGuards(
       captured.read.evaluationTime !== request.evaluationTime
     )
       throw new PolicyRecordGraphError("observation_conflict");
-    add("artifact", reference.artifactId, { kind: "artifact_capture", captureIndex }, reference, {
+    const content = canonical({
       catalog: captured.read.catalog,
       observation: captured.read.observation,
     });
+    const previousContent = contentObservations.get(reference.artifactId);
+    if (previousContent !== undefined && previousContent !== content)
+      throw new PolicyRecordGraphError("observation_conflict");
+    contentObservations.set(reference.artifactId, content);
+    add(
+      "artifact",
+      reference.artifactId,
+      { kind: "artifact_capture", captureIndex },
+      reference,
+      artifactCatalogMaterial(captured.read),
+    );
     captureIndex++;
   };
   graph.edges.forEach((edge, edgeIndex) => {
@@ -169,6 +206,37 @@ export function deriveCapturedPolicySourceGuards(
     artifact({ kind: "trace", artifactReferenceIndex }, reference);
   });
   if (captureIndex !== artifacts.length) throw new PolicyRecordGraphError("observation_conflict");
+  const storedOccurrences = storedArtifactOccurrences(graph);
+  if (storedOccurrences.length !== storedArtifacts.length)
+    throw new PolicyRecordGraphError("observation_conflict");
+  storedOccurrences.forEach(({ origin, reference }, captureIndex) => {
+    const captured = storedArtifacts[captureIndex];
+    if (
+      !captured ||
+      canonical(captured.origin) !== canonical(origin) ||
+      canonical(captured.read.reference) !== canonical(reference) ||
+      canonical(captured.read.scope) !== canonical(request.scope) ||
+      captured.read.evaluationTime !== request.evaluationTime
+    )
+      throw new PolicyRecordGraphError("observation_conflict");
+    add(
+      "artifact",
+      reference.artifactId,
+      { kind: "stored_artifact_capture", captureIndex },
+      reference,
+      { catalog: captured.read.catalog, observation: captured.read.observation },
+    );
+  });
+  graph.storageInventory.edges.forEach(({ reference }, edgeIndex) => {
+    if (
+      reference.kind === "control_declaration" &&
+      reference.declaration.kind === "artifact_identity"
+    )
+      add("artifact", reference.declaration.reference, {
+        kind: "storage_artifact_identity",
+        edgeIndex,
+      });
+  });
   lifecycle.history.forEach(({ record, successor }, historyIndex) => {
     if (record.kind === "superseded") {
       if (
@@ -180,8 +248,9 @@ export function deriveCapturedPolicySourceGuards(
         record.successor,
         { kind: "policy_successor", historyIndex },
         {
-          status: "verified",
+          record: successor.record,
           recordSha256: successor.recordSha256,
+          receiptTime: successor.record.publishedAt,
         },
       );
     } else if (successor !== null) throw new PolicyRecordGraphError("observation_conflict");

@@ -248,6 +248,39 @@ describe("canonical evaluation JSON primitive", () => {
     expect(encodeEvaluationCanonicalJson(value)).toEqual(expected);
   });
 
+  it("retains exact ordered key bytes and strict value admission across repeated and diverse keys", () => {
+    const keys = Array.from(
+      { length: 320 },
+      (_, index) => `key_${index.toString().padStart(4, "0")}`,
+    );
+    const row = Object.fromEntries(keys.map((key, index) => [key, index]));
+    const value = [row, { ...row, "é한😀": "mixed", 'quote"\\': "escaped" }];
+    const expectedRows = value.map((item) =>
+      Object.fromEntries(
+        Object.keys(item)
+          .sort()
+          .map((key) => [key, item[key as keyof typeof item]]),
+      ),
+    );
+    const expected = JSON.stringify(expectedRows);
+    expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+    expect(encodeEvaluationCanonicalJson(value)).toEqual(
+      Uint8Array.from(Buffer.from(expected, "utf8")),
+    );
+    for (const invalid of [
+      [row, { ...row, "\ud800": true }],
+      [row, { ...row, key_0000: "\udc00" }],
+      [row, { ...row, key_0000: Number.NaN }],
+      [row, { ...row, [Symbol("hidden")]: true }],
+    ]) {
+      expect(() => serializeEvaluationCanonicalJson(invalid)).toThrow(TypeError);
+      expect(() => encodeEvaluationCanonicalJson(invalid)).toThrow(TypeError);
+    }
+    const changed = [row, { ...row, key_0000: -1 }];
+    expect(serializeEvaluationCanonicalJson(changed)).not.toBe(expected);
+    expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+  });
+
   it("retains the same strict JSON admission for canonical text without encoding bytes", () => {
     const circular: { self?: unknown } = {};
     circular.self = circular;

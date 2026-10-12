@@ -14,8 +14,10 @@
 
 The [request-owned recursive storage inventory](workflow-2-policy-storage-inventory.md) now follows
 original logical roots and valid future stored declarations separately from semantic operands.
-Relevant storage relationships, current authority/presence, complete guard origins, internal
-finite admission and guarded atomic sealing remain open; checkpoint 3 is not accepted.
+The [stored artifact catalog prerequisite](workflow-2-policy-stored-artifact-catalogs.md) adds
+catalog-only observations and complete known artifact/policy guard origins. Relevant storage
+relationships, current authority/presence, internal finite admission and guarded atomic sealing
+remain open; checkpoint 3 is not accepted.
 
 The [original-storage/root capture prerequisite](workflow-2-policy-logical-root-capture.md) retains
 validated original bodies and fixed owning root bindings without moving semantic time. Root-only

@@ -40,8 +40,9 @@ core selector도 다른 계열과 마찬가지로 조회 전에 부모 전체 �
 간선을 후손 탐색 전에 대조하고 최종 전체 기록도 다시 비교합니다.
 
 이 변경은 artifact 객체나 key를 읽거나 source를 게시하거나 predicate를 평가하지
-않습니다. 과거 artifact 선언의 catalog·소유권·무결성·guard 출처 관찰은 별도로 필요하며
-분류된 평문을 자동으로 읽어서는 안 됩니다. 전체 현재 의미·권한·부재 closure, 관련 저장
+않습니다. 후속 [저장 artifact 카탈로그 기반 기능](workflow-2-policy-stored-artifact-catalogs.ko.md)은
+별도로 인가된 catalog·소유권·무결성과 알려진 artifact/policy guard origin 전체를 연결하며
+분류된 평문을 자동으로 읽지 않습니다. 전체 현재 의미·권한·부재 closure, 관련 저장
 관계, native SQL/scan/wire/deadline 한도 및 영속 job 전체 한도는 아직 남아 있습니다.
 
 소유 패키지의 저장 경계는 검사 결과의 전체 canonical JSON을 검증한 뒤 독립적으로
