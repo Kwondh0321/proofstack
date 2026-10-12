@@ -50,6 +50,7 @@ export type {
   PolicyStoredArtifactCapture,
   PolicyStoredArtifactOrigin,
 } from "./capture-stored-artifacts.js";
+export type { PolicyStoredRelationships } from "./capture-stored-relations.js";
 export {
   capturePolicyTraceEvidence,
   type PolicyTraceArtifactReference,

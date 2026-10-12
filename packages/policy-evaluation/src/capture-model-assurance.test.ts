@@ -455,6 +455,7 @@ describe("captured model and human assurance bindings", () => {
         graph.modelAssurance,
         graph.datasetRelations,
         graph.replayPlans,
+        graph.storedRelationships,
       ];
       expect(graph.modelAssurance.parents).toHaveLength(3);
       expect(graph.modelAssurance.inspectionUsage.references).toBeGreaterThan(0);

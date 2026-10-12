@@ -65,7 +65,10 @@ reinspection before following descendants, followed by complete final material e
 This increment performs no artifact object or key I/O, source publication or predicate
 evaluation. The subsequent [stored artifact catalog prerequisite](workflow-2-policy-stored-artifact-catalogs.md)
 adds separately authorized catalog, ownership, integrity and complete known artifact/policy
-guard origins without automatic plaintext fetching. Current semantic/authority/presence closure, every relevant storage relationship,
+guard origins without automatic plaintext fetching. The
+[original dataset/replay relationship inspection](workflow-2-policy-stored-relationships.md)
+adds complete original-body checks and request-owned node/edge origins while preserving semantic
+unavailability. Current semantic/authority/presence closure and remaining evaluation/model storage relationships,
 native SQL/scan/wire/deadline admission and durable job-wide limits remain required.
 
 The read-only reinspection transaction ends before its report returns. A later publisher

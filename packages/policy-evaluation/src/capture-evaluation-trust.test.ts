@@ -1217,38 +1217,45 @@ describe("criterion authority reinspection under source transaction guards", () 
     expect(f.state.outcome).toBe("rolled_back");
   });
 
-  it("charges every unrelated history row and rolls back one record below exact cumulative admission", async () => {
-    const f = await guardedCriterionHarness();
-    const original = await f.h.repositories.evidence.evaluation.listCriterionSetStatuses(
-      f.h.evaluation.scope,
-      { maxRecords: 10000, maxRecordBytes: 8_388_608 },
-    );
-    // Keep retained-row admission dominant after complete rule dependency reinspection.
-    const unrelated = Array.from({ length: 1000 }, (_, index) =>
-      criterionStatusHistoryFixture(f.approved, {
-        statusRecordId: `csr_unrelated_${index.toString().padStart(4, "0")}`,
-        status: "draft",
-        expiresAt: undefined,
-        criterionSet: { ...f.approved.criterionSet, criterionSetVersionId: "crv_other" },
-        previousStatus: undefined,
-      }),
-    );
-    const history = [...original, ...unrelated].sort((a, b) =>
-      a.statusRecordId < b.statusRecordId ? -1 : 1,
-    );
-    vi.spyOn(f.h.repositories.evidence.evaluation, "listCriterionSetStatuses").mockImplementation(
-      async () => structuredClone(history),
-    );
-    const baseline = await f.run();
-    expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(1002);
-    expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
-    const limits = { ...f.h.request().limits, maxAcquisitionRecords: baseline.usage.records };
-    const exact = await f.run({ limits });
-    expect(exact.usage).toEqual(baseline.usage);
-    await expect(
-      f.run({ limits: { ...limits, maxAcquisitionRecords: limits.maxAcquisitionRecords - 1 } }),
-    ).rejects.toMatchObject({ reason: "record_limit" });
-    expect(f.state.outcome).toBe("rolled_back");
-    expect(f.ports.listCriterionSetStatuses).toHaveBeenCalledTimes(3);
-  });
+  it.each(["exact", "one_below"] as const)(
+    "charges every unrelated history row at %s cumulative admission",
+    async (boundary) => {
+      const f = await guardedCriterionHarness();
+      const original = await f.h.repositories.evidence.evaluation.listCriterionSetStatuses(
+        f.h.evaluation.scope,
+        { maxRecords: 10000, maxRecordBytes: 8_388_608 },
+      );
+      // Keep retained-row admission dominant after complete rule dependency reinspection.
+      const unrelated = Array.from({ length: 1000 }, (_, index) =>
+        criterionStatusHistoryFixture(f.approved, {
+          statusRecordId: `csr_unrelated_${index.toString().padStart(4, "0")}`,
+          status: "draft",
+          expiresAt: undefined,
+          criterionSet: { ...f.approved.criterionSet, criterionSetVersionId: "crv_other" },
+          previousStatus: undefined,
+        }),
+      );
+      const history = [...original, ...unrelated].sort((a, b) =>
+        a.statusRecordId < b.statusRecordId ? -1 : 1,
+      );
+      vi.spyOn(f.h.repositories.evidence.evaluation, "listCriterionSetStatuses").mockImplementation(
+        async () => structuredClone(history),
+      );
+      const baseline = await f.run();
+      expect(baseline.sourceRecheck?.criterionHistoryRows).toBe(1002);
+      expect(baseline.usage.records).toBeGreaterThan(baseline.usage.references);
+      const limits = { ...f.h.request().limits, maxAcquisitionRecords: baseline.usage.records };
+      if (boundary === "exact") {
+        const exact = await f.run({ limits });
+        expect(exact.usage).toEqual(baseline.usage);
+        expect(f.state.outcome).toBe("committed");
+      } else {
+        await expect(
+          f.run({ limits: { ...limits, maxAcquisitionRecords: limits.maxAcquisitionRecords - 1 } }),
+        ).rejects.toMatchObject({ reason: "record_limit" });
+        expect(f.state.outcome).toBe("rolled_back");
+      }
+      expect(f.ports.listCriterionSetStatuses).toHaveBeenCalledTimes(2);
+    },
+  );
 });

@@ -42,8 +42,11 @@ core selector도 다른 계열과 마찬가지로 조회 전에 부모 전체 �
 이 변경은 artifact 객체나 key를 읽거나 source를 게시하거나 predicate를 평가하지
 않습니다. 후속 [저장 artifact 카탈로그 기반 기능](workflow-2-policy-stored-artifact-catalogs.ko.md)은
 별도로 인가된 catalog·소유권·무결성과 알려진 artifact/policy guard origin 전체를 연결하며
-분류된 평문을 자동으로 읽지 않습니다. 전체 현재 의미·권한·부재 closure, 관련 저장
-관계, native SQL/scan/wire/deadline 한도 및 영속 job 전체 한도는 아직 남아 있습니다.
+분류된 평문을 자동으로 읽지 않습니다.
+[원래 dataset/replay 관계 검사](workflow-2-policy-stored-relationships.ko.md)는 전체 원본 본문
+검사와 요청 소유 node/edge 출처를 연결하고 semantic unavailable 상태를 보존합니다.
+전체 현재 의미·권한·부재 closure, 남은 evaluation/model 저장 관계,
+native SQL/scan/wire/deadline 한도 및 영속 job 전체 한도는 아직 남아 있습니다.
 
 소유 패키지의 저장 경계는 검사 결과의 전체 canonical JSON을 검증한 뒤 독립적으로
 소유한 복사본을 구조적으로 비교합니다. 구조가 같으면 같은 전체 기록을 두 번 직렬화하지

@@ -12,6 +12,13 @@
 
 ## Entry decision and dependency evidence
 
+The [original stored dataset/replay relationship inspection](workflow-2-policy-stored-relationships.md)
+checks complete original memberships, fixture promotion, replay plan dependencies and successful
+histories, preserving original receipts and semantic unavailability. Fixed composition binds every
+relationship to original storage node/edge origins and includes repeated history/report admission.
+Remaining evaluation/model storage relationships, complete current authority/presence/selector
+closure, native admission and atomic sealing remain open; Workflow 2 remains 2/7.
+
 The [request-owned recursive storage inventory](workflow-2-policy-storage-inventory.md) now follows
 original logical roots and valid future stored declarations separately from semantic operands.
 The [stored artifact catalog prerequisite](workflow-2-policy-stored-artifact-catalogs.md) adds

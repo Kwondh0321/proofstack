@@ -7,10 +7,17 @@ import {
   REPLAY_BUDGET_DIMENSIONS,
 } from "@proofstack/contracts";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { inspectPolicyEvaluationReplayDefinition } from "./policy-evaluation-replay-definition-reader.js";
-import { inspectPolicyEvaluationReplayResultBindings as inspect } from "./policy-evaluation-replay-result-bindings.js";
+import {
+  inspectPolicyEvaluationReplayDefinition,
+  inspectPolicyEvaluationReplayDefinitionCapture,
+} from "./policy-evaluation-replay-definition-reader.js";
+import {
+  inspectPolicyEvaluationReplayResultBindings as inspect,
+  inspectPolicyEvaluationStoredReplayResultBindings as inspectStored,
+} from "./policy-evaluation-replay-result-bindings.js";
 import {
   inspectPolicyEvaluationReplayResult,
+  inspectPolicyEvaluationReplayResultCapture,
   type PolicyEvaluationReplayResultReadInput,
 } from "./policy-evaluation-replay-result-reader.js";
 import { digestReplayPlanDefinition } from "./replay-definition-digest.js";
@@ -234,6 +241,287 @@ const mismatches = (h: ReturnType<typeof harness>) =>
     .execute()
     .checks.filter((c) => c.observation.status === "mismatch")
     .map((c) => c.kind);
+
+type Mutable<T> = { -readonly [Key in keyof T]: Mutable<T[Key]> };
+const storedLimits = { maxReferences: 1000, maxReferenceBytes: 4 * 1024 * 1024 };
+function storedHarness(future = false, retry = false) {
+  const h = harness({ retry });
+  const input = { ...h.input, ...(future ? { evaluationTime: time(0) } : {}) };
+  const evidence = inspectPolicyEvaluationReplayResultCapture(input, h.snapshot) as Mutable<
+    ReturnType<typeof inspectPolicyEvaluationReplayResultCapture>
+  >;
+  const planEvidence = inspectPolicyEvaluationReplayDefinitionCapture(
+    { scope: input.scope, evaluationTime: input.evaluationTime, source: h.planRead.source },
+    h.plan,
+  ) as Mutable<ReturnType<typeof inspectPolicyEvaluationReplayDefinitionCapture>>;
+  return {
+    ...h,
+    input,
+    evidence,
+    planEvidence,
+    semanticReport: h.execute(),
+    execute: () => inspectStored(input, evidence, planEvidence, storedLimits),
+  };
+}
+
+describe("original stored successful replay history relationships", () => {
+  it.each([
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ])("preserves original history with future=%s and retry=%s", (future, retry) => {
+    const h = storedHarness(future, retry);
+    const report = h.execute();
+    expect(report.authorityBoundary).toBe("stored_relationships_only");
+    expect(report.evaluationTime).toBe(h.input.evaluationTime);
+    expect(report.recordObservation).toEqual(
+      future ? { status: "unavailable", reason: "not_yet_available" } : h.read.observation,
+    );
+    expect(report.recordSha256).toBe(h.evidence.storage?.recordSha256);
+    expect(report.receiptTime).toBe(h.snapshot.job.terminal?.committedAt);
+    expect(report.checks).toEqual(h.semanticReport.checks);
+    expect(report.plan).toMatchObject({
+      source: h.planRead.source,
+      recordObservation: h.planRead.observation,
+      storage: { receiptTime: h.plan.createdAt },
+    });
+    if (future) expect(h.evidence.read.record).toBeNull();
+    if (retry)
+      expect(
+        report.checks.some(
+          (check) =>
+            check.observation.status === "unavailable" &&
+            check.observation.reason === "lease_expiry_unretained",
+        ),
+      ).toBe(true);
+    expect(report).not.toHaveProperty("sealed");
+    expect(report).not.toHaveProperty("executionVerified");
+  });
+
+  it("checks an original future plan receipt instead of hiding it behind unavailability", () => {
+    const h = storedHarness(true);
+    const plan = { ...h.plan, createdAt: time(20000) };
+    h.planEvidence = inspectPolicyEvaluationReplayDefinitionCapture(
+      { scope: h.input.scope, evaluationTime: h.input.evaluationTime, source: h.planRead.source },
+      plan,
+    );
+    const report = inspectStored(h.input, h.evidence, h.planEvidence, storedLimits);
+    expect(report.plan.recordObservation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(report.plan.storage?.receiptTime).toBe(plan.createdAt);
+    expect(report.checks.find((check) => check.kind === "plan_receipt")?.observation).toEqual({
+      status: "mismatch",
+    });
+  });
+
+  it.each(["missing", "record_invalid", "reference_mismatch"])(
+    "preserves an explicit %s plan without manufacturing a valid empty history",
+    (reason) => {
+      const h = storedHarness(true);
+      const observation =
+        reason === "missing"
+          ? { status: "missing" as const }
+          : {
+              status: "unavailable" as const,
+              reason: reason as "record_invalid" | "reference_mismatch",
+            };
+      const planEvidence = {
+        read: { source: h.planRead.source, record: null, observation },
+        storage: null,
+      };
+      const report = inspectStored(h.input, h.evidence, planEvidence, storedLimits);
+      expect(report.plan).toEqual({
+        source: h.planRead.source,
+        recordObservation: observation,
+        storage: null,
+      });
+      expect(report.checks.find((check) => check.kind === "plan_receipt")?.observation).toEqual({
+        status: "unavailable",
+        reason: "plan_unavailable",
+      });
+      expect(report.checks.find((check) => check.kind === "budget_closed")?.observation).toEqual({
+        status: "matched",
+      });
+    },
+  );
+
+  it("counts every repeated history row and the complete output at exact limits", () => {
+    const h = storedHarness(true, true);
+    const report = h.execute();
+    const rowCount =
+      h.snapshot.attempts.length +
+      h.snapshot.budgetLedger.length +
+      h.snapshot.cancellationAcknowledgements.length +
+      h.snapshot.executionObservations.length +
+      h.snapshot.usageObservations.length;
+    expect(report.inspectionUsage.references).toBe(4 + rowCount);
+    const exact = {
+      maxReferences: report.inspectionUsage.references,
+      maxReferenceBytes: report.inspectionUsage.referenceBytes,
+    };
+    expect(inspectStored(h.input, h.evidence, h.planEvidence, exact)).toEqual(report);
+    expect(() =>
+      inspectStored(h.input, h.evidence, h.planEvidence, {
+        ...exact,
+        maxReferences: exact.maxReferences - 1,
+      }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspectStored(h.input, h.evidence, h.planEvidence, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow("reference_bytes_exceeded");
+    expect(() =>
+      inspectStored(h.input, h.evidence, h.planEvidence, { ...exact, maxReferences: 2 }),
+    ).toThrow("reference_limit_exceeded");
+  });
+
+  it("detaches returned references, observations and checked history from the originals", () => {
+    const h = storedHarness(true);
+    const original = structuredClone([h.evidence, h.planEvidence]);
+    const report = h.execute();
+    Object.assign(report.source.reference, { jobId: "other_job" });
+    Object.assign(report.plan.storage!, { receiptTime: time(100000) });
+    expect([h.evidence, h.planEvidence]).toEqual(original);
+    expect(h.execute()).not.toEqual(report);
+  });
+
+  it("keeps admission of source material independent of sufficient operational read ceilings", () => {
+    const h = storedHarness(true, true);
+    const report = h.execute();
+    expect(
+      inspectStored(
+        {
+          ...h.input,
+          limits: {
+            maximumRecords: h.input.limits.maximumRecords - 1,
+            maximumRecordBytes: h.input.limits.maximumRecordBytes - 1,
+          },
+        },
+        h.evidence,
+        h.planEvidence,
+        storedLimits,
+      ),
+    ).toEqual(report);
+  });
+
+  it.each([
+    "result_hash",
+    "result_receipt",
+    "result_body",
+    "promotion",
+    "result_missing",
+    "plan_hash",
+    "plan_receipt",
+    "plan_body",
+    "plan_scope",
+    "plan_source",
+    "plan_null_verified",
+    "plan_null_future",
+    "plan_null_record",
+  ])("rejects original record substitution: %s", (kind) => {
+    const h = storedHarness(true);
+    const result = h.evidence;
+    const plan = h.planEvidence;
+    if (kind === "result_hash") result.storage!.recordSha256 = "f".repeat(64);
+    if (kind === "result_receipt") result.storage!.receiptTime = time(10000);
+    if (kind === "result_body") result.storage!.record.job.createdByPrincipalId = "other_principal";
+    if (kind === "promotion")
+      result.read = {
+        source: result.read.source,
+        record: result.storage!.record,
+        observation: { status: "verified", recordSha256: result.storage!.recordSha256 },
+      };
+    if (kind === "result_missing") result.storage = null;
+    if (kind === "plan_hash") plan.storage!.recordSha256 = "f".repeat(64);
+    if (kind === "plan_receipt") plan.storage!.receiptTime = time(10000);
+    if (kind === "plan_body") plan.storage!.record.createdByPrincipalId = "other_principal";
+    if (kind === "plan_scope") plan.storage!.record.scope.projectId = "other_project";
+    if (kind === "plan_source")
+      Object.assign(plan.read.source.reference, { planVersionId: "other_version" });
+    if (kind === "plan_null_verified") {
+      plan.read = {
+        source: plan.read.source,
+        record: null as never,
+        observation: { status: "verified", recordSha256: plan.storage!.recordSha256 },
+      };
+      plan.storage = null;
+    }
+    if (kind === "plan_null_future") {
+      plan.read = {
+        source: plan.read.source,
+        record: null,
+        observation: { status: "unavailable", reason: "not_yet_available" },
+      };
+      plan.storage = null;
+    }
+    if (kind === "plan_null_record") {
+      plan.read = {
+        source: plan.read.source,
+        record: plan.storage!.record as never,
+        observation: { status: "missing" },
+      };
+      plan.storage = null;
+    }
+    expect(() => h.execute()).toThrow();
+  });
+
+  it.each([
+    "input",
+    "time",
+    "scope",
+    "plan_null",
+    "plan_extra",
+    "plan_read",
+    "plan_read_extra",
+    "plan_observation",
+    "result_extra",
+    "zero_records",
+    "zero_bytes",
+    "result_bytes",
+    "native_rows",
+    "native_bytes",
+  ])("rejects invalid/over-limit stored result input: %s", (kind) => {
+    const h = storedHarness();
+    let input: unknown = h.input;
+    let evidence: unknown = h.evidence;
+    let plan: unknown = h.planEvidence;
+    const bounded = { ...storedLimits };
+    if (kind === "input") input = null;
+    if (kind === "time") input = { ...h.input, evaluationTime: "yesterday" };
+    if (kind === "scope") input = { ...h.input, scope: {} };
+    if (kind === "plan_null") plan = null;
+    if (kind === "plan_extra") plan = { ...h.planEvidence, extra: true };
+    if (kind === "plan_read") plan = { read: null, storage: null };
+    if (kind === "plan_read_extra")
+      plan = { ...h.planEvidence, read: { ...h.planEvidence.read, extra: true } };
+    if (kind === "plan_observation")
+      plan = {
+        ...h.planEvidence,
+        read: { ...h.planEvidence.read, observation: { status: "trusted" } },
+      };
+    if (kind === "result_extra") evidence = { ...h.evidence, selected: true };
+    if (kind === "zero_records") bounded.maxReferences = 0;
+    if (kind === "zero_bytes") bounded.maxReferenceBytes = 0;
+    if (kind === "result_bytes") bounded.maxReferenceBytes = 1000;
+    if (kind === "native_rows")
+      input = { ...h.input, limits: { ...h.input.limits, maximumRecords: 1 } };
+    if (kind === "native_bytes")
+      input = { ...h.input, limits: { ...h.input.limits, maximumRecordBytes: 1 } };
+    expect(() =>
+      inspectStored(
+        input as typeof h.input,
+        evidence as typeof h.evidence,
+        plan as typeof h.planEvidence,
+        bounded,
+      ),
+    ).toThrow();
+  });
+});
 
 describe("captured replay result to plan bindings", () => {
   it("validates a real memory-published completed history and preserves detached full hashes", () => {

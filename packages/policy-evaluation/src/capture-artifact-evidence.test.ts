@@ -2240,8 +2240,8 @@ describe("request-rooted authorized artifact capture", () => {
   });
 
   it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
-    const h = await harness(false, 450);
-    // Four content-bearing events plus 446 metadata-only events keep record admission above all
+    const h = await harness(false, 500);
+    // Four content-bearing events plus 496 metadata-only events keep record admission above all
     // parent/rule reference inspection. Each event stays below the owning 32-reference maximum.
     h.events.forEach((event, index) => {
       event.evidence.contentReferences =

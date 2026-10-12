@@ -76,6 +76,7 @@ import {
 } from "@proofstack/replay/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AcquisitionBudget } from "./acquisition-budget.js";
+import { inspectCapturedStoredRelationships } from "./capture-stored-relations.js";
 import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
 import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
@@ -923,6 +924,211 @@ async function harness(
     endpointProfile,
   };
 }
+
+describe("original stored dataset and replay relationship composition", () => {
+  it("binds complete original relationships to exact stored parent/edge occurrences", async () => {
+    const h = await harness("history", {
+      dataset: "matched",
+      replayBindings: true,
+      endpointProfile: true,
+    });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const report = graph.storedRelationships;
+    expect(report.authorityBoundary).toBe("stored_relationships_only");
+    expect(report.datasets.parents.length).toBeGreaterThan(0);
+    expect(report.replayPlans.plans).toHaveLength(1);
+    expect(report.replayResults).toHaveLength(1);
+    for (const [parents, origins] of [
+      [
+        report.datasets.parents.map((parent) => ({ ...parent, dependencies: parent.relations })),
+        report.datasetOrigins,
+      ],
+      [report.replayPlans.plans, report.replayPlanOrigins],
+      [
+        report.replayResults.map((result) => ({
+          ...result,
+          dependencies: [{ path: "/job/plan", source: result.plan.source }],
+        })),
+        report.replayResultOrigins,
+      ],
+    ] as const) {
+      expect(origins).toHaveLength(parents.length);
+      parents.forEach((parent, index) => {
+        const origin = origins[index]!;
+        const capture = graph.storageInventory.nodes[origin.nodeIndex]!.capture;
+        expect(capture.read.source).toEqual(parent.source);
+        expect(capture.storage?.recordSha256).toBe(parent.recordSha256);
+        expect(capture.storage?.receiptTime).toBe(parent.receiptTime);
+        expect(origin.dependencyEdgeIndexes).toHaveLength(parent.dependencies.length);
+        parent.dependencies.forEach((dependency, dependencyIndex) => {
+          const edge =
+            graph.storageInventory.edges[origin.dependencyEdgeIndexes[dependencyIndex]!]!;
+          expect(edge).toMatchObject({
+            parent: parent.source,
+            parentRecordSha256: parent.recordSha256,
+            reference: { path: dependency.path },
+            targets: [dependency.source],
+          });
+        });
+      });
+    }
+    const budget = new AcquisitionBudget(h.input.limits);
+    expect(inspectCapturedStoredRelationships(h.input, graph.storageInventory, budget)).toEqual(
+      report,
+    );
+    expect(budget.usage()).toMatchObject(report.inspectionUsage);
+    expect(graph).not.toHaveProperty("sealed");
+  });
+
+  it("retains future original dataset membership without promoting unavailable evidence", async () => {
+    const h = await harness("history", { dataset: "matched", replayBindings: true });
+    const original = h.repositories.datasets.findDatasetVersion.bind(h.repositories.datasets);
+    const repositories = {
+      ...h.repositories,
+      datasets: {
+        ...h.repositories.datasets,
+        findFixtureVersion: h.repositories.datasets.findFixtureVersion.bind(
+          h.repositories.datasets,
+        ),
+        findRecordedInteractionFixtureVersion:
+          h.repositories.datasets.findRecordedInteractionFixtureVersion.bind(
+            h.repositories.datasets,
+          ),
+        findDatasetVersion: async (...args: Parameters<typeof original>) => {
+          const value = await original(...args);
+          return value ? { ...value, createdAt: "2099-01-01T00:00:00.123Z" } : null;
+        },
+      },
+    };
+    const graph = await capturePolicyRecordGraph(h.input, repositories);
+    const parents = graph.storedRelationships.datasets.parents.filter(
+      (parent) => parent.source.kind === "dataset_version",
+    );
+    expect(parents.length).toBeGreaterThan(0);
+    for (const parent of parents) {
+      expect(parent.recordObservation).toEqual({
+        status: "unavailable",
+        reason: "not_yet_available",
+      });
+      expect(parent.receiptTime).toBe("2099-01-01T00:00:00.123Z");
+      expect(parent.relations.length).toBeGreaterThan(0);
+      expect(parent.relations.every((relation) => relation.observation.status === "matched")).toBe(
+        true,
+      );
+    }
+    expect(
+      graph.nodes
+        .filter(({ read }) => read.source.kind === "dataset_version")
+        .every(({ read }) => read.record === null && read.observation.status === "unavailable"),
+    ).toBe(true);
+    expect(
+      graph.storedRelationships.replayPlans.plans[0]?.dependencies.find(
+        (value) => value.source.kind === "dataset_version",
+      ),
+    ).toMatchObject({
+      recordObservation: { status: "unavailable", reason: "not_yet_available" },
+      storage: { receiptTime: "2099-01-01T00:00:00.123Z" },
+    });
+    expect(
+      (
+        await acquirePolicyRecordGraph(
+          h.input,
+          repositories,
+          new AcquisitionBudget(h.input.limits),
+          graph,
+        )
+      ).storedRelationships,
+    ).toEqual(graph.storedRelationships);
+  });
+
+  it.each([
+    "duplicate_node",
+    "duplicate_edge",
+    "edge_omission",
+    "parent_hash",
+    "target_digest",
+    "plan_omission",
+    "null_verified_result",
+  ])("rejects original relationship coordinate substitution: %s", async (kind) => {
+    const h = await harness("history", { dataset: "matched", replayBindings: true });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const inventory = structuredClone(graph.storageInventory);
+    const origin = graph.storedRelationships.replayResultOrigins[0]!;
+    const index = origin.dependencyEdgeIndexes[0]!;
+    const edge = inventory.edges[index]!;
+    if (kind === "duplicate_node")
+      Object.assign(inventory, { nodes: [...inventory.nodes, inventory.nodes[0]] });
+    if (kind === "duplicate_edge") Object.assign(inventory, { edges: [...inventory.edges, edge] });
+    if (kind === "edge_omission")
+      Object.assign(inventory, {
+        edges: inventory.edges.filter((_, position) => position !== index),
+      });
+    if (kind === "parent_hash") Object.assign(edge, { parentRecordSha256: "f".repeat(64) });
+    if (kind === "target_digest")
+      Object.assign(edge, {
+        targets: [
+          {
+            ...edge.targets[0],
+            reference: { ...edge.targets[0]!.reference, definitionSha256: "f".repeat(64) },
+          },
+        ],
+      });
+    if (kind === "plan_omission")
+      Object.assign(inventory, {
+        nodes: inventory.nodes.filter(({ capture }) => capture.read.source.kind !== "replay_plan"),
+      });
+    if (kind === "null_verified_result")
+      Object.assign(inventory.nodes[origin.nodeIndex]!.capture, { storage: null });
+    expect(() =>
+      inspectCapturedStoredRelationships(h.input, inventory, new AcquisitionBudget(h.input.limits)),
+    ).toThrow();
+  });
+
+  it("preserves missing histories and finite count/byte admission with whole-report headroom", async () => {
+    const h = await harness("valid", { dataset: "matched", replayBindings: true });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    expect(graph.storedRelationships.unavailableResults.length).toBeGreaterThan(0);
+    for (const frame of graph.storedRelationships.unavailableResults) {
+      const capture = graph.storageInventory.nodes[frame.nodeIndex]!.capture;
+      expect(capture.storage).toBeNull();
+      expect(frame.source).toEqual(capture.read.source);
+      expect(frame.observation).toEqual(capture.read.observation);
+    }
+    const usage = graph.storedRelationships.inspectionUsage;
+    const limits = {
+      ...h.input.limits,
+      maxAcquisitionRecords: usage.references,
+      maxAcquisitionRecordBytes: usage.referenceBytes,
+    };
+    expect(
+      inspectCapturedStoredRelationships(
+        h.input,
+        graph.storageInventory,
+        new AcquisitionBudget(limits),
+      ),
+    ).toEqual(graph.storedRelationships);
+    expect(() =>
+      inspectCapturedStoredRelationships(
+        h.input,
+        graph.storageInventory,
+        new AcquisitionBudget({
+          ...limits,
+          maxAcquisitionRecords: limits.maxAcquisitionRecords - 1,
+        }),
+      ),
+    ).toThrow("reference_limit");
+    expect(() =>
+      inspectCapturedStoredRelationships(
+        h.input,
+        graph.storageInventory,
+        new AcquisitionBudget({
+          ...limits,
+          maxAcquisitionRecordBytes: limits.maxAcquisitionRecordBytes - 1,
+        }),
+      ),
+    ).toThrow("byte_limit");
+  });
+});
 
 describe("candidate-owned assessment rule input projection", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
@@ -3375,6 +3581,7 @@ describe("request-rooted recursive record graph", () => {
       graph.modelAssurance,
       graph.datasetRelations,
       graph.replayPlans,
+      graph.storedRelationships,
     ].map((report) => report.inspectionUsage);
     inspections.push(registrationInspectionUsage(graph));
     inspections.push(storageInspectionUsage(graph));
@@ -3420,6 +3627,7 @@ describe("request-rooted recursive record graph", () => {
         graph.evaluationReplays,
         graph.datasetRelations,
         graph.replayPlans,
+        graph.storedRelationships,
       ];
       for (const report of reports) expect(report.inspectionUsage.references).toBeGreaterThan(0);
       const referenceCount =
@@ -3470,7 +3678,10 @@ describe("request-rooted recursive record graph", () => {
     expect(graph.entries).toHaveLength(2);
     expect(graph.entries.every(({ observation }) => observation.status === "missing")).toBe(true);
     expect(graph.unresolved).toEqual({ records: 2, references: 0, logicalRoots: 0 });
-    expect(graph.usage).toMatchObject({ reads: 2, records: 2, bytes: 8, references: 0 });
+    expect(graph.usage).toMatchObject({ reads: 2, records: 2, bytes: 8, references: 2 });
+    expect(graph.storedRelationships.datasets.parents).toEqual([]);
+    expect(graph.storedRelationships.replayPlans.plans).toEqual([]);
+    expect(graph.storedRelationships.replayResults).toEqual([]);
     expect(missing.calls.map(({ domain }) => domain)).toEqual(["candidate", "policy"]);
   });
 
@@ -3525,12 +3736,26 @@ describe("request-rooted recursive record graph", () => {
       });
     }
     const missing = missingRepositories();
+    const baseline = await capturePolicyRecordGraph(setup.input, missing.repositories);
+    const totalBytes = baseline.usage.bytes + baseline.usage.referenceBytes;
     const exact = request(setup.candidate, setup.policy, {
       ...setup.input.limits,
       maxAcquisitionRecords: 2,
-      maxAcquisitionRecordBytes: 8,
+      maxAcquisitionRecordBytes: totalBytes,
     });
-    expect((await capturePolicyRecordGraph(exact, missing.repositories)).usage.bytes).toBe(8);
+    expect(baseline.usage.bytes).toBe(8);
+    expect((await capturePolicyRecordGraph(exact, missing.repositories)).usage).toEqual(
+      baseline.usage,
+    );
+    await expect(
+      capturePolicyRecordGraph(
+        request(setup.candidate, setup.policy, {
+          ...exact.limits,
+          maxAcquisitionRecordBytes: totalBytes - 1,
+        }),
+        missing.repositories,
+      ),
+    ).rejects.toMatchObject({ reason: "byte_limit" });
     await expect(
       capturePolicyRecordGraph(
         request(setup.candidate, setup.policy, { ...exact.limits, maxAcquisitionRecordBytes: 7 }),
@@ -6475,8 +6700,8 @@ describe("complete retained protocol graph mappings", () => {
     }
   });
 
-  it("reinspects complete candidate lists and original future receipts before descendants", async () => {
-    const { h, records, repositories, empty } = await setup();
+  it("reinspects an unchanged complete candidate list before descendants", async () => {
+    const { h, repositories } = await setup();
     const retained = await capturePolicyRecordGraph(h.input, repositories);
     expect(
       await acquirePolicyRecordGraph(
@@ -6486,14 +6711,19 @@ describe("complete retained protocol graph mappings", () => {
         retained,
       ),
     ).toEqual(retained);
-    const first = records[0];
-    if (!first) throw new Error("Missing original definition");
-    for (const protocolDefinitions of [
-      new StaticProtocolDefinitionCatalogue([]),
-      new StaticProtocolDefinitionCatalogue(
-        records.map((r) => ({ ...r, registeredByPrincipalId: "changed" })),
-      ),
-    ])
+  });
+
+  it.each(["missing", "receipt_changed"] as const)(
+    "rejects a %s complete candidate list before descendants",
+    async (change) => {
+      const { h, records, repositories } = await setup();
+      if (!records[0]) throw new Error("Missing original definition");
+      const retained = await capturePolicyRecordGraph(h.input, repositories);
+      const protocolDefinitions = new StaticProtocolDefinitionCatalogue(
+        change === "missing"
+          ? []
+          : records.map((r) => ({ ...r, registeredByPrincipalId: "changed" })),
+      );
       await expect(
         acquirePolicyRecordGraph(
           h.input,
@@ -6502,9 +6732,19 @@ describe("complete retained protocol graph mappings", () => {
           retained,
         ),
       ).rejects.toMatchObject({ reason: "source_revision_changed" });
+    },
+  );
+
+  it("rejects an empty retained candidate list before current descendants", async () => {
+    const { h, repositories, empty } = await setup();
     await expect(
       acquirePolicyRecordGraph(h.input, repositories, new AcquisitionBudget(h.input.limits), empty),
     ).rejects.toMatchObject({ reason: "source_revision_changed" });
+  });
+
+  it("reinspects original future receipts before descendants", async () => {
+    const { h, records, repositories } = await setup();
+    if (!records[0]) throw new Error("Missing original definition");
     const futureRecords = records.map((r) => ({ ...r, registeredAt: "2099-01-01T00:00:00.000Z" }));
     const futurePorts = {
       ...repositories,

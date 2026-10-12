@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   encodeEvaluationCanonicalJson,
@@ -12,11 +13,16 @@ import { describe, expect, it, vi } from "vitest";
 import { digestRecordedInteractionFixtureVersionDefinition } from "./interaction-fixture-definition-digest.js";
 import {
   inspectPolicyEvaluationDataset,
+  inspectPolicyEvaluationDatasetCapture,
+  type PolicyEvaluationDatasetCapture,
   type PolicyEvaluationDatasetRead,
   type PolicyEvaluationDatasetRecord,
   type PolicyEvaluationDatasetSource,
 } from "./policy-evaluation-dataset-reader.js";
-import { inspectPolicyEvaluationDatasetRelations as inspect } from "./policy-evaluation-dataset-relations.js";
+import {
+  inspectPolicyEvaluationDatasetRelations as inspect,
+  inspectPolicyEvaluationStoredDatasetRelations as inspectStored,
+} from "./policy-evaluation-dataset-relations.js";
 import {
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
@@ -36,6 +42,7 @@ const receipt = {
   createdByPrincipalId: "principal_publisher",
 };
 type Fixture = RegressionFixtureVersion | RecordedInteractionFixtureVersion;
+type Mutable<T> = { -readonly [Key in keyof T]: Mutable<T[Key]> };
 
 function fixture(
   versionId: string,
@@ -192,6 +199,332 @@ function harness() {
     execute: () => inspect(context, evidence, limits),
   };
 }
+
+function storedHarness(future = false) {
+  const h = harness();
+  const records = h.records.map((record) => ({
+    ...structuredClone(record),
+    ...(future ? { createdAt: "2099-01-01T00:00:00.123Z" } : {}),
+  }));
+  const captures = records.map((record) =>
+    inspectPolicyEvaluationDatasetCapture({ ...context, source: source(record) }, record),
+  ) as Mutable<PolicyEvaluationDatasetCapture>[];
+  return { ...h, records, captures, execute: () => inspectStored(context, captures, limits) };
+}
+
+describe("original stored dataset relationships", () => {
+  it.each([false, true])(
+    "checks every original relationship with future=%s without changing the cut",
+    (future) => {
+      const h = storedHarness(future);
+      const report = h.execute();
+      expect(report.authorityBoundary).toBe("stored_relationships_only");
+      expect(report.evaluationTime).toBe(context.evaluationTime);
+      expect(report.parents).toHaveLength(6);
+      expect(report.unavailableParents).toEqual([]);
+      expect(report.parents.flatMap(({ relations }) => relations)).toHaveLength(7);
+      for (const parent of report.parents) {
+        const record = h.records.find(
+          (value) =>
+            source(value).reference.definitionSha256 === parent.source.reference.definitionSha256,
+        );
+        expect(record).toBeDefined();
+        // Native JSON is an independent byte/hash oracle for these ASCII fixture records.
+        const canonical = (value: unknown): unknown =>
+          Array.isArray(value)
+            ? value.map(canonical)
+            : value !== null && typeof value === "object"
+              ? Object.fromEntries(
+                  Object.entries(value)
+                    .sort(([a], [b]) => (a < b ? -1 : 1))
+                    .map(([key, child]) => [key, canonical(child)]),
+                )
+              : value;
+        expect(parent.recordSha256).toBe(
+          createHash("sha256")
+            .update(JSON.stringify(canonical(record)), "utf8")
+            .digest("hex"),
+        );
+        expect(parent.receiptTime).toBe(record?.createdAt);
+        expect(parent.recordObservation).toEqual(
+          future
+            ? { status: "unavailable", reason: "not_yet_available" }
+            : { status: "verified", recordSha256: parent.recordSha256 },
+        );
+        for (const relation of parent.relations) {
+          expect(relation.observation).toEqual({ status: "matched" });
+          expect(relation.storage).not.toBeNull();
+          if (future)
+            expect(relation.recordObservation).toEqual({
+              status: "unavailable",
+              reason: "not_yet_available",
+            });
+        }
+      }
+      expect(inspectStored(context, [...h.captures].reverse(), limits)).toEqual(report);
+      expect(
+        h.captures.every(
+          ({ read }) => read.observation.status === (future ? "unavailable" : "verified"),
+        ),
+      ).toBe(true);
+      expect(report).not.toHaveProperty("sealed");
+      expect(report).not.toHaveProperty("eligible");
+    },
+  );
+
+  it("retains mixed original availability and detached receipts", () => {
+    const h = storedHarness();
+    const index = h.records.findIndex(
+      (value) => value.definitionSha256 === h.currentDataset.definitionSha256,
+    );
+    const future = { ...h.records[index]!, createdAt: "2099-01-01T00:00:00.123Z" };
+    h.captures[index] = inspectPolicyEvaluationDatasetCapture(
+      { ...context, source: source(future) },
+      future,
+    );
+    const report = h.execute();
+    const parent = report.parents.find(
+      (value) => value.source.reference.definitionSha256 === future.definitionSha256,
+    )!;
+    expect(parent.recordObservation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(
+      parent.relations.every(
+        (value) =>
+          value.recordObservation.status === "verified" && value.observation.status === "matched",
+      ),
+    ).toBe(true);
+    Object.assign(parent.source.reference, { definitionSha256: "f".repeat(64) });
+    expect(h.execute()).not.toEqual(report);
+  });
+
+  it.each(["missing", "record_invalid", "reference_mismatch"])(
+    "keeps %s storage as an explicit unavailable relationship",
+    (reason) => {
+      const h = storedHarness(true);
+      const index = h.records.findIndex(
+        (value) => value.definitionSha256 === h.promoted.definitionSha256,
+      );
+      const observation =
+        reason === "missing"
+          ? { status: "missing" as const }
+          : {
+              status: "unavailable" as const,
+              reason: reason as "record_invalid" | "reference_mismatch",
+            };
+      h.captures[index] = {
+        read: { source: source(h.promoted), record: null, observation },
+        storage: null,
+      };
+      const report = h.execute();
+      expect(report.unavailableParents).toEqual([{ source: source(h.promoted), observation }]);
+      const relation = report.parents
+        .find(
+          (value) => value.source.reference.definitionSha256 === h.currentDataset.definitionSha256,
+        )
+        ?.relations.find(
+          (value) => value.source.reference.definitionSha256 === h.promoted.definitionSha256,
+        );
+      expect(relation).toMatchObject({
+        recordObservation: observation,
+        storage: null,
+        observation: { status: "unavailable" },
+      });
+    },
+  );
+
+  it.each(["trace", "format"])(
+    "detects %s disagreement even when every original record is future",
+    (kind) => {
+      const base = fixture("fixture_base");
+      const predecessor = kind === "format" ? recorded(base) : base;
+      const successor = recorded(
+        predecessor,
+        "fixture_future",
+        kind === "trace"
+          ? (snapshot) => {
+              snapshot.eventIds.reverse();
+            }
+          : undefined,
+      );
+      const values = kind === "format" ? [base, predecessor, successor] : [base, successor];
+      const captures = values.map((value) => {
+        const record = { ...value, createdAt: "2099-01-01T00:00:00.123Z" };
+        return inspectPolicyEvaluationDatasetCapture(
+          { ...context, source: source(record) },
+          record,
+        );
+      });
+      const report = inspectStored(context, captures, limits);
+      expect(
+        report.parents.find(
+          (value) => value.source.reference.definitionSha256 === successor.definitionSha256,
+        )?.relations[0],
+      ).toMatchObject({
+        recordObservation: { status: "unavailable", reason: "not_yet_available" },
+        observation: {
+          status: "mismatch",
+          reason: kind === "trace" ? "trace_snapshot_mismatch" : "predecessor_format_mismatch",
+        },
+      });
+    },
+  );
+
+  it("admits complete parents, repeated references and report bytes at exact limits", () => {
+    const h = storedHarness(true);
+    const report = h.execute();
+    const exact = {
+      maxReferences: report.inspectionUsage.references,
+      maxReferenceBytes: report.inspectionUsage.referenceBytes,
+    };
+    expect(inspectStored(context, h.captures, exact)).toEqual(report);
+    expect(() =>
+      inspectStored(context, h.captures, { ...exact, maxReferences: exact.maxReferences - 1 }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspectStored(context, h.captures, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow("reference_bytes_exceeded");
+    expect(report.inspectionUsage.references).toBe(1 + 6 + 7);
+  });
+
+  it.each([
+    "hash",
+    "receipt",
+    "body",
+    "scope",
+    "promotion",
+    "reference",
+    "duplicate",
+    "omission",
+    "null_verified",
+    "null_future",
+    "null_record",
+  ])("rejects original capture substitution: %s", (kind) => {
+    const h = storedHarness(true);
+    const capture = h.captures[0]!;
+    if (kind === "hash") capture.storage!.recordSha256 = "f".repeat(64);
+    if (kind === "receipt") capture.storage!.receiptTime = "2099-01-01T00:00:00.124Z";
+    if (kind === "body") capture.storage!.record.createdByPrincipalId = "another_publisher";
+    if (kind === "scope") capture.storage!.record.scope.tenantId = "another_tenant";
+    if (kind === "promotion")
+      capture.read = {
+        source: capture.read.source,
+        record: capture.storage!.record,
+        observation: { status: "verified", recordSha256: capture.storage!.recordSha256 },
+      };
+    if (kind === "reference") capture.read.source.reference.definitionSha256 = "f".repeat(64);
+    if (kind === "duplicate") h.captures.push(structuredClone(capture));
+    if (kind === "omission") h.captures.shift();
+    if (kind === "null_verified") {
+      capture.read = {
+        source: capture.read.source,
+        record: null as never,
+        observation: { status: "verified", recordSha256: capture.storage!.recordSha256 },
+      };
+      capture.storage = null;
+    }
+    if (kind === "null_future") capture.storage = null;
+    if (kind === "null_record") {
+      capture.read = {
+        ...capture.read,
+        observation: { status: "missing" },
+        record: capture.storage!.record as never,
+      };
+      capture.storage = null;
+    }
+    expect(() => h.execute()).toThrow();
+  });
+
+  it.each(["zero_references", "parent_references", "zero_bytes", "parent_bytes"])(
+    "rejects %s before admitting unbounded parent material",
+    (kind) => {
+      const h = storedHarness();
+      const bounded = { ...limits };
+      if (kind === "zero_references") bounded.maxReferences = 0;
+      if (kind === "parent_references") bounded.maxReferences = h.captures.length;
+      if (kind === "zero_bytes") bounded.maxReferenceBytes = 0;
+      if (kind === "parent_bytes")
+        bounded.maxReferenceBytes = Buffer.byteLength(
+          JSON.stringify({
+            evaluationTime: context.evaluationTime,
+            scope: {
+              environmentId: context.scope.environmentId,
+              projectId: context.scope.projectId,
+              tenantId: context.scope.tenantId,
+            },
+          }),
+          "utf8",
+        );
+      expect(() => inspectStored(context, h.captures, bounded)).toThrow(
+        kind.endsWith("references") ? "reference_limit_exceeded" : "reference_bytes_exceeded",
+      );
+    },
+  );
+
+  it.each([
+    "context_null",
+    "context_extra",
+    "scope",
+    "time",
+    "array",
+    "sparse",
+    "accessor",
+    "capture_null",
+    "capture_extra",
+    "capture_read_missing",
+    "read_extra",
+    "unsupported",
+    "undefined_storage",
+  ])("rejects malformed stored relation input: %s", (kind) => {
+    const h = storedHarness();
+    let input: unknown = structuredClone(context);
+    let evidence: unknown = h.captures;
+    if (kind === "context_null") input = null;
+    if (kind === "context_extra") input = { ...context, selected: true };
+    if (kind === "scope") input = { ...context, scope: {} };
+    if (kind === "time") input = { ...context, evaluationTime: "yesterday" };
+    if (kind === "array") evidence = {};
+    if (kind === "sparse") evidence = new Array(1);
+    if (kind === "accessor")
+      Object.defineProperty(h.captures, "0", { enumerable: true, get: () => h.captures[1] });
+    if (kind === "capture_null") evidence = [null];
+    if (kind === "capture_extra") evidence = [{ ...h.captures[0], selected: true }];
+    if (kind === "capture_read_missing") evidence = [{ read: null, storage: null }];
+    if (kind === "read_extra")
+      evidence = [{ ...h.captures[0], read: { ...h.captures[0]!.read, selected: true } }];
+    if (kind === "unsupported")
+      evidence = [
+        {
+          read: {
+            source: {
+              kind: "source_snapshot",
+              reference: { sourceSnapshotId: "source_other", definitionSha256: "f".repeat(64) },
+            },
+            observation: { status: "missing" },
+            record: null,
+          },
+          storage: null,
+        },
+      ];
+    if (kind === "undefined_storage")
+      evidence = [{ read: h.captures[0]!.read, storage: undefined }];
+    expect(() =>
+      inspectStored(input as typeof context, evidence as PolicyEvaluationDatasetCapture[], limits),
+    ).toThrow();
+  });
+
+  it("represents an admitted empty domain without inventing a source", () => {
+    const report = inspectStored(context, [], limits);
+    expect(report.parents).toEqual([]);
+    expect(report.unavailableParents).toEqual([]);
+    expect(report.inspectionUsage.references).toBe(1);
+  });
+});
 
 describe("captured dataset membership and fixture predecessor semantics", () => {
   it("joins each exact record once, preserves membership order and every shared relation", () => {

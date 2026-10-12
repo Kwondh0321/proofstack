@@ -12,19 +12,27 @@ import {
 import {
   digestRuntimeDefinition,
   inspectPolicyEvaluationRuntimeRecord,
+  inspectPolicyEvaluationRuntimeCapture,
   digestEndpointProfile,
   inspectPolicyEvaluationEndpointProfileRecord,
+  inspectPolicyEvaluationEndpointProfileCapture,
 } from "@proofstack/core";
 import {
   digestRecordedInteractionFixtureVersionDefinition,
   digestRegressionDatasetVersionDefinition,
   digestRegressionFixtureVersionDefinition,
   inspectPolicyEvaluationDataset,
+  inspectPolicyEvaluationDatasetCapture,
 } from "@proofstack/datasets";
 import { describe, expect, it, vi } from "vitest";
-import { inspectPolicyEvaluationReplayDefinition } from "./policy-evaluation-replay-definition-reader.js";
+import {
+  inspectPolicyEvaluationReplayDefinition,
+  inspectPolicyEvaluationReplayDefinitionCapture,
+} from "./policy-evaluation-replay-definition-reader.js";
 import {
   inspectPolicyEvaluationReplayPlanBindings as inspect,
+  inspectPolicyEvaluationStoredReplayPlanBindings as inspectStored,
+  type PolicyStoredReplayPlanBindingCapture,
   type PolicyReplayPlanBindingRead,
 } from "./policy-evaluation-replay-plan-bindings.js";
 import {
@@ -302,6 +310,292 @@ function harness(changes: Changes = {}) {
     execute: () => inspect(context, reads, limits),
   };
 }
+
+type Mutable<T> = { -readonly [Key in keyof T]: Mutable<T[Key]> };
+function storedHarness(changes: Changes = {}, future = false) {
+  const h = harness(changes);
+  const context = {
+    ...h.context,
+    ...(future ? { evaluationTime: "2026-09-08T00:00:00.000Z" } : {}),
+  };
+  const captures = h.reads.map((read): PolicyStoredReplayPlanBindingCapture => {
+    const { source } = read;
+    if (source.kind === "endpoint_profile")
+      return inspectPolicyEvaluationEndpointProfileCapture(
+        { ...context, source },
+        changes.endpointObservation === "missing" ? null : h.endpoint,
+      );
+    if (source.kind === "replay_plan" || source.kind === "target_release")
+      return inspectPolicyEvaluationReplayDefinitionCapture({ ...context, source }, read.record);
+    if (source.kind === "dataset_version" || source.kind === "regression_fixture_version")
+      return inspectPolicyEvaluationDatasetCapture({ ...context, source }, read.record);
+    return inspectPolicyEvaluationRuntimeCapture(
+      {
+        ...context,
+        source: source as Extract<
+          typeof source,
+          { kind: "replay_runtime_profile" | "replay_isolation_profile" }
+        >,
+      },
+      read.record,
+    );
+  }) as Mutable<PolicyStoredReplayPlanBindingCapture>[];
+  return {
+    ...h,
+    context,
+    captures,
+    semanticReport: h.execute(),
+    execute: () => inspectStored(context, captures, limits),
+  };
+}
+
+describe("original stored replay plan relationships", () => {
+  it.each([false, true])(
+    "inspects complete original plans and endpoint records with future=%s",
+    (future) => {
+      const h = storedHarness({ liveEndpoint: true }, future);
+      const report = h.execute();
+      expect(report.authorityBoundary).toBe("stored_relationships_only");
+      expect(report.evaluationTime).toBe(h.context.evaluationTime);
+      expect(report.plans).toHaveLength(1);
+      expect(report.unavailablePlans).toEqual([]);
+      expect(report.plans[0]?.checks).toEqual(h.semanticReport.plans[0]?.checks);
+      expect(report.plans[0]?.checks.every((check) => check.observation.status === "matched")).toBe(
+        true,
+      );
+      const plan = report.plans[0]!;
+      expect(plan.recordObservation).toEqual(
+        future
+          ? { status: "unavailable", reason: "not_yet_available" }
+          : { status: "verified", recordSha256: plan.recordSha256 },
+      );
+      expect(plan.receiptTime).toBe(h.plan.createdAt);
+      expect(plan.dependencies.map(({ path }) => path)).toEqual([
+        "/dataset",
+        "/runtimeProfile",
+        "/isolationProfile",
+        "/targetRelease",
+        "/boundaries/0/invocation/fixture",
+        "/boundaries/1/endpointProfile",
+      ]);
+      expect(plan.dependencies.every((value) => value.storage !== null)).toBe(true);
+      expect(inspectStored(h.context, [...h.captures].reverse(), limits)).toEqual(report);
+      expect(report).not.toHaveProperty("sealed");
+      expect(report).not.toHaveProperty("executed");
+    },
+  );
+
+  it("keeps a future endpoint body without turning it into available provider authority", () => {
+    const h = storedHarness({ liveEndpoint: true, endpointObservation: "future" });
+    const report = h.execute();
+    const endpoint = report.plans[0]?.dependencies.find(
+      (value) => value.source.kind === "endpoint_profile",
+    );
+    expect(endpoint).toMatchObject({
+      recordObservation: { status: "unavailable", reason: "not_yet_available" },
+      storage: { receiptTime: "2026-09-10T00:00:00.001Z" },
+    });
+    expect(
+      report.plans[0]?.checks
+        .filter((check) => check.kind.startsWith("endpoint_"))
+        .map((check) => check.observation.status),
+    ).toEqual(["matched", "matched", "matched"]);
+    expect(
+      h.captures.find((value) => value.read.source.kind === "endpoint_profile")?.read.record,
+    ).toBeNull();
+  });
+
+  it("retains missing plans and subordinate endpoint unavailability", () => {
+    const h = storedHarness({ liveEndpoint: true, endpointObservation: "missing" });
+    const report = h.execute();
+    expect(
+      report.plans[0]?.dependencies.find((value) => value.source.kind === "endpoint_profile"),
+    ).toMatchObject({ storage: null, recordObservation: { status: "missing" } });
+    expect(
+      report.plans[0]?.checks
+        .filter((check) => check.kind.startsWith("endpoint_"))
+        .every((check) => check.observation.status === "unavailable"),
+    ).toBe(true);
+    h.captures[0] = {
+      read: {
+        source: h.captures[0]!.read.source,
+        record: null,
+        observation: { status: "missing" },
+      },
+      storage: null,
+    } as Mutable<PolicyStoredReplayPlanBindingCapture>;
+    const missing = h.execute();
+    expect(missing.plans).toEqual([]);
+    expect(missing.unavailablePlans).toEqual([
+      { source: h.captures[0].read.source, observation: { status: "missing" } },
+    ]);
+  });
+
+  it("preserves original-body mismatches instead of hiding them behind future observations", () => {
+    const h = storedHarness(
+      {
+        target: (value) => {
+          value.runtime.platform = "darwin";
+        },
+      },
+      true,
+    );
+    const report = h.execute();
+    expect(report.plans[0]?.recordObservation).toEqual({
+      status: "unavailable",
+      reason: "not_yet_available",
+    });
+    expect(
+      report.plans[0]?.checks.find((check) => check.kind === "runtime_configuration")?.observation,
+    ).toEqual({ status: "mismatch" });
+  });
+
+  it("uses exact count and byte admission without changing thresholds", () => {
+    const h = storedHarness({ liveEndpoint: true }, true);
+    const report = h.execute();
+    const exact = {
+      maxReferences: report.inspectionUsage.references,
+      maxReferenceBytes: report.inspectionUsage.referenceBytes,
+    };
+    expect(inspectStored(h.context, h.captures, exact)).toEqual(report);
+    expect(() =>
+      inspectStored(h.context, h.captures, { ...exact, maxReferences: exact.maxReferences - 1 }),
+    ).toThrow("reference_limit_exceeded");
+    expect(() =>
+      inspectStored(h.context, h.captures, {
+        ...exact,
+        maxReferenceBytes: exact.maxReferenceBytes - 1,
+      }),
+    ).toThrow("reference_bytes_exceeded");
+    expect(report.inspectionUsage.references).toBe(
+      1 + h.captures.length + report.plans[0]!.dependencies.length,
+    );
+  });
+
+  it.each([
+    "receipt",
+    "hash",
+    "body",
+    "promotion",
+    "duplicate",
+    "omission",
+    "scope",
+    "reference",
+    "null_record",
+    "null_verified",
+    "null_future",
+  ])("rejects complete original substitution: %s", (kind) => {
+    const h = storedHarness({}, true);
+    const capture = h.captures[0]!;
+    if (kind === "receipt") capture.storage!.receiptTime = "2026-09-09T00:00:00.001Z";
+    if (kind === "hash") capture.storage!.recordSha256 = "f".repeat(64);
+    if (kind === "body")
+      Object.assign(capture.storage!.record, { createdByPrincipalId: "another_principal" });
+    if (kind === "promotion")
+      capture.read = {
+        source: capture.read.source,
+        record: capture.storage!.record,
+        observation: { status: "verified", recordSha256: capture.storage!.recordSha256 },
+      } as typeof capture.read;
+    if (kind === "duplicate") h.captures.push(structuredClone(capture));
+    if (kind === "omission") h.captures.splice(1, 1);
+    if (kind === "scope") capture.storage!.record.scope.tenantId = "other_tenant";
+    if (kind === "reference")
+      Object.assign(capture.read.source.reference, { definitionSha256: "f".repeat(64) });
+    if (kind === "null_record") {
+      capture.read = {
+        ...capture.read,
+        record: capture.storage!.record as never,
+        observation: { status: "missing" },
+      };
+      capture.storage = null;
+    }
+    if (kind === "null_verified") {
+      capture.read = {
+        source: capture.read.source,
+        record: null as never,
+        observation: { status: "verified", recordSha256: capture.storage!.recordSha256 },
+      } as typeof capture.read;
+      capture.storage = null;
+    }
+    if (kind === "null_future") capture.storage = null;
+    expect(() => h.execute()).toThrow();
+  });
+
+  it.each([
+    "input",
+    "extra",
+    "scope",
+    "time",
+    "array",
+    "sparse",
+    "accessor",
+    "capture",
+    "read",
+    "read_extra",
+    "capture_extra",
+    "unsupported",
+    "undefined_storage",
+    "record_limit",
+    "byte_limit",
+    "parent_limit",
+    "parent_bytes",
+  ])("rejects invalid stored plan input: %s", (kind) => {
+    const h = storedHarness();
+    let input: unknown = h.context;
+    let evidence: unknown = h.captures;
+    const bounded = { ...limits };
+    if (kind === "input") input = null;
+    if (kind === "extra") input = { ...h.context, selected: true };
+    if (kind === "scope") input = { ...h.context, scope: {} };
+    if (kind === "time") input = { ...h.context, evaluationTime: "yesterday" };
+    if (kind === "array") evidence = {};
+    if (kind === "sparse") evidence = new Array(1);
+    if (kind === "accessor")
+      Object.defineProperty(h.captures, "0", { enumerable: true, get: () => h.captures[1] });
+    if (kind === "capture") evidence = [null];
+    if (kind === "read") evidence = [{ read: null, storage: null }];
+    if (kind === "read_extra")
+      evidence = [{ ...h.captures[0], read: { ...h.captures[0]!.read, extra: true } }];
+    if (kind === "capture_extra") evidence = [{ ...h.captures[0], extra: true }];
+    if (kind === "unsupported")
+      evidence = [
+        {
+          read: {
+            source: {
+              kind: "source_snapshot",
+              reference: { sourceSnapshotId: "source_other", definitionSha256: "f".repeat(64) },
+            },
+            observation: { status: "missing" },
+            record: null,
+          },
+          storage: null,
+        },
+      ];
+    if (kind === "undefined_storage")
+      evidence = [{ read: h.captures[0]!.read, storage: undefined }];
+    if (kind === "record_limit") bounded.maxReferences = 0;
+    if (kind === "byte_limit") bounded.maxReferenceBytes = 0;
+    if (kind === "parent_limit") bounded.maxReferences = h.captures.length;
+    if (kind === "parent_bytes")
+      bounded.maxReferenceBytes = encodeEvaluationCanonicalJson(h.context).byteLength;
+    expect(() =>
+      inspectStored(
+        input as typeof h.context,
+        evidence as PolicyStoredReplayPlanBindingCapture[],
+        bounded,
+      ),
+    ).toThrow();
+  });
+
+  it("admits an empty domain and returns detached original projections", () => {
+    expect(inspectStored(harness().context, [], limits).plans).toEqual([]);
+    const h = storedHarness();
+    const report = h.execute();
+    Object.assign(report.plans[0]!.source.reference, { definitionSha256: "f".repeat(64) });
+    expect(h.execute()).not.toEqual(report);
+  });
+});
 
 describe("captured replay plan bindings", () => {
   it("binds exact independent live endpoint data while preserving the original destination, operation and boundary context", () => {

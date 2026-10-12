@@ -57,6 +57,10 @@ import {
   acquirePolicyStorageInventory,
   type PolicyStorageInventory,
 } from "./capture-storage-inventory.js";
+import {
+  inspectCapturedStoredRelationships,
+  type PolicyStoredRelationships,
+} from "./capture-stored-relations.js";
 import { deriveCapturedRecordClosure, type PolicyRecordClosure } from "./derive-record-closure.js";
 import {
   emptyEndpointProfiles,
@@ -132,6 +136,8 @@ export interface PolicyRecordGraph {
   };
   /** Original roots and future bodies retained separately from semantic operands. */
   readonly storageInventory: PolicyStorageInventory;
+  /** Original dataset/fixture/replay relationships, separate from semantic evidence. */
+  readonly storedRelationships: PolicyStoredRelationships;
   readonly entries: readonly PolicyEvaluationManifestEntry[];
   /** Independently re-derived retained record inventory and explicit non-record frontier. */
   readonly recordClosure: PolicyRecordClosure;
@@ -612,6 +618,7 @@ export async function acquirePolicyRecordGraph(
       nodes,
       edges,
       storageInventory,
+      storedRelationships: inspectCapturedStoredRelationships(request, storageInventory, budget),
       logicalRoots: {
         configuration: rootPorts ? "configured" : "unconfigured",
         bindings: [...logicalRootBindings.entries()]

@@ -1864,6 +1864,18 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
       },
     });
     expect(result.traceCapture.comparisonCapture.graph.unresolved.records).toBeGreaterThan(0);
+    const stored = result.traceCapture.comparisonCapture.graph.storedRelationships;
+    expect(stored.authorityBoundary).toBe("stored_relationships_only");
+    expect(stored.datasets).toMatchObject({
+      scope: f.scope,
+      evaluationTime: result.traceCapture.comparisonCapture.graph.evaluationTime,
+    });
+    expect(stored.replayPlans).toMatchObject({
+      scope: f.scope,
+      evaluationTime: result.traceCapture.comparisonCapture.graph.evaluationTime,
+    });
+    expect(stored.inspectionUsage.references).toBeGreaterThan(0);
+    expect(stored).not.toHaveProperty("sealed");
     expect(result.sourceRecheck?.metadata?.recordReads).toBeGreaterThan(2);
     expect(result.sourceRecheck?.observedAt).toMatch(/\.\d{6}Z$/u);
     expect(f.objectReads()).toBe(1);
