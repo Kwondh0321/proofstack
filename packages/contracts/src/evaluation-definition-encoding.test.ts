@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   encodeDiscoveryRecordDefinition,
   encodeEvaluationCanonicalJson,
@@ -161,35 +161,18 @@ describe("canonical evaluation source definition encoding", () => {
   });
 });
 
-describe("canonical evaluation JSON primitive", () => {
-  it.each(Array.from({ length: 32 }, (_, block) => block * 2048))(
-    "matches independent native UTF-8 admission for UTF-16 units from %i",
-    (start) => {
-      for (let unit = start; unit < start + 2048; unit++) {
-        const text = String.fromCharCode(unit);
-        const scalar = Buffer.from(text, "utf8").toString("utf8") === text;
-        for (const value of [text, { [text]: 1 }]) {
-          if (!scalar) {
-            expect(() => serializeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
-            expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
-          } else {
-            const expected = JSON.stringify(value);
-            expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
-            expect(encodeEvaluationCanonicalJson(value)).toEqual(
-              Uint8Array.from(Buffer.from(expected, "utf8")),
-            );
-          }
-        }
-      }
-    },
-  );
-
-  it("preserves paired boundaries and rejects malformed mixed surrogate sequences", () => {
-    const units = [0x41, 0xd800, 0xdbff, 0xdc00, 0xdfff, 0xfffd];
-    for (const first of units) {
-      for (const second of units) {
-        for (const third of units) {
-          const text = String.fromCharCode(first, second, third);
+describe.each([true, false])(
+  "canonical evaluation JSON primitive with native UTF-8 = %s",
+  (native) => {
+    beforeEach(() => {
+      if (!native) vi.stubGlobal("TextEncoder", undefined);
+    });
+    afterEach(() => vi.unstubAllGlobals());
+    it.each(Array.from({ length: 32 }, (_, block) => block * 2048))(
+      "matches independent native UTF-8 admission for UTF-16 units from %i",
+      (start) => {
+        for (let unit = start; unit < start + 2048; unit++) {
+          const text = String.fromCharCode(unit);
           const scalar = Buffer.from(text, "utf8").toString("utf8") === text;
           for (const value of [text, { [text]: 1 }]) {
             if (!scalar) {
@@ -204,153 +187,177 @@ describe("canonical evaluation JSON primitive", () => {
             }
           }
         }
+      },
+    );
+
+    it("preserves paired boundaries and rejects malformed mixed surrogate sequences", () => {
+      const units = [0x41, 0xd800, 0xdbff, 0xdc00, 0xdfff, 0xfffd];
+      for (const first of units) {
+        for (const second of units) {
+          for (const third of units) {
+            const text = String.fromCharCode(first, second, third);
+            const scalar = Buffer.from(text, "utf8").toString("utf8") === text;
+            for (const value of [text, { [text]: 1 }]) {
+              if (!scalar) {
+                expect(() => serializeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
+                expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/Unicode scalar/);
+              } else {
+                const expected = JSON.stringify(value);
+                expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+                expect(encodeEvaluationCanonicalJson(value)).toEqual(
+                  Uint8Array.from(Buffer.from(expected, "utf8")),
+                );
+              }
+            }
+          }
+        }
       }
-    }
-  });
-
-  it.each([
-    ["\u007f", [0x7f]],
-    ["\u0080", [0xc2, 0x80]],
-    ["\u07ff", [0xdf, 0xbf]],
-    ["\u0800", [0xe0, 0xa0, 0x80]],
-    ["\ud7ff", [0xed, 0x9f, 0xbf]],
-    ["\ue000", [0xee, 0x80, 0x80]],
-    ["\uffff", [0xef, 0xbf, 0xbf]],
-    ["\u{10000}", [0xf0, 0x90, 0x80, 0x80]],
-    ["\u{10ffff}", [0xf4, 0x8f, 0xbf, 0xbf]],
-  ] as const)("preserves exact scalar UTF-8 bytes for %j", (text, bytes) => {
-    expect(encodeEvaluationCanonicalJson(text)).toEqual(Uint8Array.from([0x22, ...bytes, 0x22]));
-  });
-
-  it("uses deterministic JCS ordering, JSON scalar forms, and exact UTF-8", () => {
-    const expected = '{"a":"é한😀","z":[null,false,true,0,1.5,1e+30]}';
-    const encoded = encodeEvaluationCanonicalJson({
-      z: [null, false, true, -0, 1.5, 1e30],
-      a: "é한😀",
     });
-    expect(Buffer.from(encoded).toString("utf8")).toBe(expected);
-    expect(encoded).toEqual(Uint8Array.from(Buffer.from(expected)));
-    expect(
-      serializeEvaluationCanonicalJson({
+
+    it.each([
+      ["\u007f", [0x7f]],
+      ["\u0080", [0xc2, 0x80]],
+      ["\u07ff", [0xdf, 0xbf]],
+      ["\u0800", [0xe0, 0xa0, 0x80]],
+      ["\ud7ff", [0xed, 0x9f, 0xbf]],
+      ["\ue000", [0xee, 0x80, 0x80]],
+      ["\uffff", [0xef, 0xbf, 0xbf]],
+      ["\u{10000}", [0xf0, 0x90, 0x80, 0x80]],
+      ["\u{10ffff}", [0xf4, 0x8f, 0xbf, 0xbf]],
+    ] as const)("preserves exact scalar UTF-8 bytes for %j", (text, bytes) => {
+      expect(encodeEvaluationCanonicalJson(text)).toEqual(Uint8Array.from([0x22, ...bytes, 0x22]));
+    });
+
+    it("uses deterministic JCS ordering, JSON scalar forms, and exact UTF-8", () => {
+      const expected = '{"a":"é한😀","z":[null,false,true,0,1.5,1e+30]}';
+      const encoded = encodeEvaluationCanonicalJson({
         z: [null, false, true, -0, 1.5, 1e30],
         a: "é한😀",
-      }),
-    ).toBe(expected);
-  });
+      });
+      expect(Buffer.from(encoded).toString("utf8")).toBe(expected);
+      expect(encoded).toEqual(Uint8Array.from(Buffer.from(expected)));
+      expect(
+        serializeEvaluationCanonicalJson({
+          z: [null, false, true, -0, 1.5, 1e30],
+          a: "é한😀",
+        }),
+      ).toBe(expected);
+    });
 
-  it("retains mixed-width scalar offsets and independent output across a large canonical body", () => {
-    const value = { text: "ASCII\u007fé한😀A\u{10000}B\u{10ffff}C\u0000".repeat(1024) };
-    const expected = Uint8Array.from(Buffer.from(JSON.stringify(value), "utf8"));
-    const first = encodeEvaluationCanonicalJson(value);
-    expect(first).toEqual(expected);
-    expect(serializeEvaluationCanonicalJson(value)).toBe(JSON.stringify(value));
-    first.fill(0);
-    expect(encodeEvaluationCanonicalJson(value)).toEqual(expected);
-  });
+    it("retains mixed-width scalar offsets and independent output across a large canonical body", () => {
+      const value = { text: "ASCII\u007fé한😀A\u{10000}B\u{10ffff}C\u0000".repeat(1024) };
+      const expected = Uint8Array.from(Buffer.from(JSON.stringify(value), "utf8"));
+      const first = encodeEvaluationCanonicalJson(value);
+      expect(first).toEqual(expected);
+      expect(serializeEvaluationCanonicalJson(value)).toBe(JSON.stringify(value));
+      first.fill(0);
+      expect(encodeEvaluationCanonicalJson(value)).toEqual(expected);
+    });
 
-  it("retains exact ordered key bytes and strict value admission across repeated and diverse keys", () => {
-    const keys = Array.from(
-      { length: 320 },
-      (_, index) => `key_${index.toString().padStart(4, "0")}`,
+    it("retains exact ordered key bytes and strict value admission across repeated and diverse keys", () => {
+      const keys = Array.from(
+        { length: 320 },
+        (_, index) => `key_${index.toString().padStart(4, "0")}`,
+      );
+      const row = Object.fromEntries(keys.map((key, index) => [key, index]));
+      const value = [row, { ...row, "é한😀": "mixed", 'quote"\\': "escaped" }];
+      const expectedRows = value.map((item) =>
+        Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key as keyof typeof item]]),
+        ),
+      );
+      const expected = JSON.stringify(expectedRows);
+      expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+      expect(encodeEvaluationCanonicalJson(value)).toEqual(
+        Uint8Array.from(Buffer.from(expected, "utf8")),
+      );
+      for (const invalid of [
+        [row, { ...row, "\ud800": true }],
+        [row, { ...row, key_0000: "\udc00" }],
+        [row, { ...row, key_0000: Number.NaN }],
+        [row, { ...row, [Symbol("hidden")]: true }],
+      ]) {
+        expect(() => serializeEvaluationCanonicalJson(invalid)).toThrow(TypeError);
+        expect(() => encodeEvaluationCanonicalJson(invalid)).toThrow(TypeError);
+      }
+      const changed = [row, { ...row, key_0000: -1 }];
+      expect(serializeEvaluationCanonicalJson(changed)).not.toBe(expected);
+      expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
+    });
+
+    it("retains the same strict JSON admission for canonical text without encoding bytes", () => {
+      const circular: { self?: unknown } = {};
+      circular.self = circular;
+      const sparse: unknown[] = [];
+      sparse.length = 1;
+      let deep: unknown = null;
+      for (let depth = 0; depth < 66; depth += 1) deep = [deep];
+      for (const value of [
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+        undefined,
+        1n,
+        Symbol("unsupported"),
+        () => undefined,
+        circular,
+        sparse,
+        new Date(0),
+        { [Symbol("hidden")]: true },
+        "\ud800",
+        "\udc00",
+        { "\ud800": true },
+      ]) {
+        expect(() => serializeEvaluationCanonicalJson(value)).toThrow(TypeError);
+        expect(() => encodeEvaluationCanonicalJson(value)).toThrow(TypeError);
+      }
+      expect(() => serializeEvaluationCanonicalJson(deep)).toThrow(RangeError);
+      expect(() => encodeEvaluationCanonicalJson(deep)).toThrow(RangeError);
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+      "rejects non-finite number %s",
+      (value) => {
+        expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/finite JSON numbers/);
+      },
     );
-    const row = Object.fromEntries(keys.map((key, index) => [key, index]));
-    const value = [row, { ...row, "é한😀": "mixed", 'quote"\\': "escaped" }];
-    const expectedRows = value.map((item) =>
-      Object.fromEntries(
-        Object.keys(item)
-          .sort()
-          .map((key) => [key, item[key as keyof typeof item]]),
-      ),
+
+    it.each([undefined, 1n, Symbol("unsupported"), () => undefined])(
+      "rejects non-JSON value %s",
+      (value) => {
+        expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/JSON values only/);
+      },
     );
-    const expected = JSON.stringify(expectedRows);
-    expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
-    expect(encodeEvaluationCanonicalJson(value)).toEqual(
-      Uint8Array.from(Buffer.from(expected, "utf8")),
-    );
-    for (const invalid of [
-      [row, { ...row, "\ud800": true }],
-      [row, { ...row, key_0000: "\udc00" }],
-      [row, { ...row, key_0000: Number.NaN }],
-      [row, { ...row, [Symbol("hidden")]: true }],
-    ]) {
-      expect(() => serializeEvaluationCanonicalJson(invalid)).toThrow(TypeError);
-      expect(() => encodeEvaluationCanonicalJson(invalid)).toThrow(TypeError);
-    }
-    const changed = [row, { ...row, key_0000: -1 }];
-    expect(serializeEvaluationCanonicalJson(changed)).not.toBe(expected);
-    expect(serializeEvaluationCanonicalJson(value)).toBe(expected);
-  });
 
-  it("retains the same strict JSON admission for canonical text without encoding bytes", () => {
-    const circular: { self?: unknown } = {};
-    circular.self = circular;
-    const sparse: unknown[] = [];
-    sparse.length = 1;
-    let deep: unknown = null;
-    for (let depth = 0; depth < 66; depth += 1) deep = [deep];
-    for (const value of [
-      Number.NaN,
-      Number.POSITIVE_INFINITY,
-      Number.NEGATIVE_INFINITY,
-      undefined,
-      1n,
-      Symbol("unsupported"),
-      () => undefined,
-      circular,
-      sparse,
-      new Date(0),
-      { [Symbol("hidden")]: true },
-      "\ud800",
-      "\udc00",
-      { "\ud800": true },
-    ]) {
-      expect(() => serializeEvaluationCanonicalJson(value)).toThrow(TypeError);
-      expect(() => encodeEvaluationCanonicalJson(value)).toThrow(TypeError);
-    }
-    expect(() => serializeEvaluationCanonicalJson(deep)).toThrow(RangeError);
-    expect(() => encodeEvaluationCanonicalJson(deep)).toThrow(RangeError);
-  });
+    it("rejects circular references, sparse arrays, prototypes, symbols, and malformed keys", () => {
+      const circular: { self?: unknown } = {};
+      circular.self = circular;
+      expect(() => encodeEvaluationCanonicalJson(circular)).toThrow(/circular references/);
 
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
-    "rejects non-finite number %s",
-    (value) => {
-      expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/finite JSON numbers/);
-    },
-  );
+      const sparse: unknown[] = [];
+      sparse.length = 2;
+      sparse[1] = "present";
+      expect(() => encodeEvaluationCanonicalJson(sparse)).toThrow(/sparse arrays/);
 
-  it.each([undefined, 1n, Symbol("unsupported"), () => undefined])(
-    "rejects non-JSON value %s",
-    (value) => {
-      expect(() => encodeEvaluationCanonicalJson(value)).toThrow(/JSON values only/);
-    },
-  );
+      expect(() => encodeEvaluationCanonicalJson(new Date(0))).toThrow(/plain JSON objects/);
 
-  it("rejects circular references, sparse arrays, prototypes, symbols, and malformed keys", () => {
-    const circular: { self?: unknown } = {};
-    circular.self = circular;
-    expect(() => encodeEvaluationCanonicalJson(circular)).toThrow(/circular references/);
+      const symbolKey = { value: true, [Symbol("hidden")]: false };
+      expect(() => encodeEvaluationCanonicalJson(symbolKey)).toThrow(/symbol keys/);
 
-    const sparse: unknown[] = [];
-    sparse.length = 2;
-    sparse[1] = "present";
-    expect(() => encodeEvaluationCanonicalJson(sparse)).toThrow(/sparse arrays/);
+      const malformedKey: Record<string, boolean> = {};
+      malformedKey["\ud800"] = true;
+      expect(() => encodeEvaluationCanonicalJson(malformedKey)).toThrow(
+        /keys require Unicode scalars/,
+      );
+      expect(() => encodeEvaluationCanonicalJson("\udc00")).toThrow(/Unicode scalar strings/);
+    });
 
-    expect(() => encodeEvaluationCanonicalJson(new Date(0))).toThrow(/plain JSON objects/);
-
-    const symbolKey = { value: true, [Symbol("hidden")]: false };
-    expect(() => encodeEvaluationCanonicalJson(symbolKey)).toThrow(/symbol keys/);
-
-    const malformedKey: Record<string, boolean> = {};
-    malformedKey["\ud800"] = true;
-    expect(() => encodeEvaluationCanonicalJson(malformedKey)).toThrow(
-      /keys require Unicode scalars/,
-    );
-    expect(() => encodeEvaluationCanonicalJson("\udc00")).toThrow(/Unicode scalar strings/);
-  });
-
-  it("rejects values beyond the bounded canonical nesting depth", () => {
-    let nested: unknown = null;
-    for (let depth = 0; depth < 66; depth += 1) nested = [nested];
-    expect(() => encodeEvaluationCanonicalJson(nested)).toThrow(/cannot exceed 64 levels/);
-  });
-});
+    it("rejects values beyond the bounded canonical nesting depth", () => {
+      let nested: unknown = null;
+      for (let depth = 0; depth < 66; depth += 1) nested = [nested];
+      expect(() => encodeEvaluationCanonicalJson(nested)).toThrow(/cannot exceed 64 levels/);
+    });
+  },
+);

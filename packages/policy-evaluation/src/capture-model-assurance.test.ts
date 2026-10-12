@@ -35,6 +35,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import { inspectCapturedModelAssurance } from "./capture-model-assurance.js";
+import { inspectCapturedStoredRelationships } from "./capture-stored-relations.js";
+import { AcquisitionBudget } from "./acquisition-budget.js";
 import { capturePolicyRecordGraph } from "./capture-record-graph.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 import { isStoredSelectorReference } from "./stored-selector-routing.js";
@@ -344,7 +346,7 @@ async function harness(
   };
   const input = {
     ...requestDefinition,
-    schemaVersion: "0.1",
+    schemaVersion: "0.1" as const,
     scope,
     createdAt: requestDefinition.evaluationTime,
     createdByPrincipalId: "usr_graph",
@@ -441,6 +443,72 @@ describe("candidate-owned model assessment rule inputs", () => {
 });
 
 describe("captured model and human assurance bindings", () => {
+  it.each(["human_review_record", "model_assurance_assessment"] as const)(
+    "inspects original future %s while preserving semantic unavailability",
+    async (kind) => {
+      const h = await harness(({ family, fixture }) => {
+        if (family === "model" && fixture.kind === kind)
+          fixture.record.recordedAt = "2026-10-02T00:00:00.000Z";
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const stored = graph.storedRelationships;
+      expect(stored.modelAssurance.parents).toHaveLength(1);
+      const parent = stored.modelAssurance.parents[0]!;
+      const origin = stored.modelAssuranceOrigins[0]!;
+      const original = graph.storageInventory.nodes[origin.nodeIndex]!.capture;
+      expect(parent).toMatchObject({
+        source: original.read.source,
+        recordSha256: original.storage?.recordSha256,
+        receiptTime: original.storage?.receiptTime,
+        recordObservation: original.read.observation,
+      });
+      expect(origin.dependencyEdgeIndexes).toEqual(parent.dependencyEdgeIndexes);
+      if (kind === "model_assurance_assessment") {
+        expect(graph.modelAssurance.parents).toEqual([]);
+        expect(parent.recordObservation).toEqual({
+          status: "unavailable",
+          reason: "not_yet_available",
+        });
+      } else {
+        expect(
+          graph.modelAssurance.parents[0]?.checks.find((c) => c.kind === "human_quorum")
+            ?.observation.status,
+        ).toBe("unavailable");
+        expect(
+          parent.checks.find((c) => c.kind === "dependency_receipts")?.observation.status,
+        ).toBe("mismatch");
+      }
+      const before = structuredClone(graph.storageInventory);
+      const detached = inspectCapturedStoredRelationships(
+        h.input,
+        graph.storageInventory,
+        new AcquisitionBudget(h.input.limits),
+      );
+      detached.modelAssurance.parents[0]!.source.reference.assessmentExtensionId = "maa_changed";
+      expect(graph.storageInventory).toEqual(before);
+    },
+  );
+
+  it("preserves a missing model evaluator mapping in both semantic and stored body reports", async () => {
+    const h = await harness();
+    const find = h.model.find.bind(h.model);
+    vi.spyOn(h.model, "find").mockImplementation((scope, kind, id) =>
+      kind === "model_assisted_evaluator" ? Promise.resolve(null) : find(scope, kind, id),
+    );
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    for (const report of [graph.modelAssurance, graph.storedRelationships.modelAssurance]) {
+      expect(report.parents).toHaveLength(1);
+      expect(report.parents[0]?.checks.some((c) => c.observation.status === "unavailable")).toBe(
+        true,
+      );
+    }
+    const missing = graph.storageInventory.edges.filter(
+      (e) => e.reference.kind === "model_evaluator_selector",
+    );
+    expect(missing.length).toBeGreaterThan(0);
+    expect(missing.every((e) => e.targets.length === 0)).toBe(true);
+  });
+
   it.each(["references", "bytes"] as const)(
     "charges shared model-base inspections against the combined request %s budget",
     async (dimension) => {
@@ -895,29 +963,30 @@ describe("captured model and human assurance bindings", () => {
     expect(checks?.filter((c) => c.observation.status === "mismatch")).toEqual([]);
   });
 
-  it.each(["human_review_record", "model_qualification_report"] as const)(
-    "uses half-open validity at the stored assessment time for %s",
-    async (kind) => {
-      for (const [until, expected] of [
-        ["2026-09-02T05:59:59.999Z", "mismatch"],
-        ["2026-09-02T06:00:00.000Z", "mismatch"],
-        ["2026-09-02T06:00:00.001Z", "matched"],
-      ] as const) {
-        const h = await harness(({ family, fixture }) => {
-          if (family !== "model") return;
-          if (fixture.kind === kind) {
-            if (fixture.kind === "human_review_record") fixture.record.expiresAt = until;
-            else fixture.record.validUntil = until;
-          }
-          if (fixture.kind === "model_assurance_assessment")
-            fixture.record.validUntil = "2026-09-02T06:00:00.001Z";
-        });
-        const graph = await capturePolicyRecordGraph(h.input, h.repositories);
-        const checkKind = kind === "human_review_record" ? "human_quorum" : "qualification";
-        const checks = graph.modelAssurance.parents[0]?.checks.filter((c) => c.kind === checkKind);
-        expect(checks?.length).toBeGreaterThan(0);
-        expect(checks?.every((c) => c.observation.status === expected)).toBe(true);
-      }
+  it.each([
+    ["human_review_record", "2026-09-02T05:59:59.999Z", "mismatch"],
+    ["human_review_record", "2026-09-02T06:00:00.000Z", "mismatch"],
+    ["human_review_record", "2026-09-02T06:00:00.001Z", "matched"],
+    ["model_qualification_report", "2026-09-02T05:59:59.999Z", "mismatch"],
+    ["model_qualification_report", "2026-09-02T06:00:00.000Z", "mismatch"],
+    ["model_qualification_report", "2026-09-02T06:00:00.001Z", "matched"],
+  ] as const)(
+    "uses half-open validity at the stored assessment time for %s ending %s",
+    async (kind, until, expected) => {
+      const h = await harness(({ family, fixture }) => {
+        if (family !== "model") return;
+        if (fixture.kind === kind) {
+          if (fixture.kind === "human_review_record") fixture.record.expiresAt = until;
+          else fixture.record.validUntil = until;
+        }
+        if (fixture.kind === "model_assurance_assessment")
+          fixture.record.validUntil = "2026-09-02T06:00:00.001Z";
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const checkKind = kind === "human_review_record" ? "human_quorum" : "qualification";
+      const checks = graph.modelAssurance.parents[0]?.checks.filter((c) => c.kind === checkKind);
+      expect(checks?.length).toBeGreaterThan(0);
+      expect(checks?.every((c) => c.observation.status === expected)).toBe(true);
     },
   );
 
@@ -952,6 +1021,17 @@ describe("captured model and human assurance bindings", () => {
     const two = await harness(undefined, { copies: 2 });
     const graph = await capturePolicyRecordGraph(two.input, two.repositories);
     expect(graph.modelAssurance.parents).toHaveLength(2);
+    expect(graph.storedRelationships.modelAssurance.parents).toHaveLength(2);
+    expect(graph.storedRelationships.modelAssurance.inspectionUsage).toEqual({
+      references: single.storedRelationships.modelAssurance.inspectionUsage.references * 2,
+      referenceBytes: single.storedRelationships.modelAssurance.inspectionUsage.referenceBytes * 2,
+    });
+    const storedFirst = graph.storedRelationships.modelAssuranceOrigins[0]!;
+    const storedSecond = graph.storedRelationships.modelAssuranceOrigins[1]!;
+    expect(storedFirst.nodeIndex).not.toBe(storedSecond.nodeIndex);
+    expect(
+      storedFirst.dependencyEdgeIndexes.some((i) => storedSecond.dependencyEdgeIndexes.includes(i)),
+    ).toBe(true);
     expect(graph.modelAssurance.inspectionUsage).toEqual({
       references: single.modelAssurance.inspectionUsage.references * 2,
       referenceBytes: single.modelAssurance.inspectionUsage.referenceBytes * 2,

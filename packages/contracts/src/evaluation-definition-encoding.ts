@@ -268,6 +268,15 @@ function canonicalJson(
 }
 
 function encodeUtf8(value: string): Uint8Array {
+  // Native UTF-8 avoids two interpreted passes over every full retained body. Keep the
+  // ES-only fallback for hosts without this optional capability; scalar admission above
+  // still precedes both paths and every call returns its own exact byte array.
+  const NativeEncoder = (
+    globalThis as typeof globalThis & {
+      TextEncoder?: new () => { encode(text: string): Uint8Array };
+    }
+  ).TextEncoder;
+  if (typeof NativeEncoder === "function") return new NativeEncoder().encode(value);
   let byteLength = 0;
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);

@@ -1900,6 +1900,30 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
     const under = result.criterionAuthority.underGuards;
     if (under?.status !== "observed") throw new Error("Expected guarded criterion authority");
     expect(under.completedAt).toBe(result.sourceRecheck?.observedAt);
+    const graph = result.traceCapture.comparisonCapture.graph;
+    const stored = graph.storedRelationships;
+    expect(stored.evaluationSnapshots.parents.some((p) => p.source.kind === "assessment")).toBe(
+      true,
+    );
+    expect(stored.evaluationReplays.parents.length).toBeGreaterThan(0);
+    for (const [part, origins] of [
+      [stored.evaluationSnapshots, stored.evaluationSnapshotOrigins],
+      [stored.evaluationReplays, stored.evaluationReplayOrigins],
+    ] as const) {
+      expect(origins).toHaveLength(part.parents.length);
+      part.parents.forEach((parent, index) => {
+        const origin = origins[index]!;
+        const capture = graph.storageInventory.nodes[origin.nodeIndex]!.capture;
+        expect(parent).toMatchObject({
+          source: capture.read.source,
+          recordSha256: capture.storage?.recordSha256,
+          receiptTime: capture.storage?.receiptTime,
+          recordObservation: capture.read.observation,
+        });
+        expect(origin.dependencyEdgeIndexes).toEqual(parent.dependencyEdgeIndexes);
+      });
+    }
+    expect(stored).not.toHaveProperty("sealed");
     expect(f.objectReads()).toBe(1);
     await f.cleanContext();
   });

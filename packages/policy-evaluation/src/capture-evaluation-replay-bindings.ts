@@ -10,9 +10,15 @@ import {
   type PolicyEvaluationEvidenceReferenceLimits,
   PolicyEvaluationReferenceCollector,
 } from "@proofstack/core";
+import type { PolicyReplayPlanBindings, PolicyReplayResultBindings } from "@proofstack/replay";
 import { PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyRecordGraph } from "./capture-record-graph.js";
 import type { PolicyRecordRead } from "./record-routing.js";
+import {
+  type PolicyRelationshipMaterial,
+  type PolicyRelationshipMaterialGraph,
+  semanticRelationshipMaterial,
+} from "./relationship-material.js";
 
 type Source = PolicyEvaluationSourceReference;
 type RunSource = Extract<Source, { kind: "evaluation_run" }>;
@@ -45,6 +51,25 @@ export interface PolicyEvaluationReplayBindings {
   readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
 }
 
+export interface PolicyEvaluationReplayMaterialBindings {
+  readonly parents: readonly (PolicyEvaluationReplayBindings["parents"][number] & {
+    readonly receiptTime: string | null;
+    readonly recordObservation: PolicyRecordRead["observation"];
+  })[];
+  readonly unavailableParents: PolicyEvaluationReplayBindings["unavailableParents"];
+  readonly inspectionUsage: PolicyEvaluationReplayBindings["inspectionUsage"];
+}
+
+export interface PolicyReplayMaterialReports {
+  readonly plans: readonly (Pick<
+    PolicyReplayPlanBindings["plans"][number],
+    "source" | "recordSha256" | "checks"
+  > & {
+    readonly dependencies: readonly { readonly bodyPresent: boolean }[];
+  })[];
+  readonly results: readonly PolicyReplayResultBindings[];
+}
+
 function same(left: unknown, right: unknown): boolean {
   return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
     encodeEvaluationCanonicalJson(right),
@@ -64,9 +89,36 @@ export function inspectCapturedEvaluationReplayBindings(
   graph: Pick<PolicyRecordGraph, "nodes" | "edges" | "replayPlans" | "replayResults">,
   limits: PolicyEvaluationEvidenceReferenceLimits,
 ): PolicyEvaluationReplayBindings {
+  const report = inspectEvaluationReplayMaterial(
+    semanticRelationshipMaterial(graph),
+    {
+      plans: graph.replayPlans.plans.map((plan) => ({
+        ...plan,
+        dependencies: plan.dependencies.map((dependency) => ({
+          bodyPresent: dependency.recordObservation.status === "verified",
+        })),
+      })),
+      results: graph.replayResults.results,
+    },
+    limits,
+  );
+  return {
+    ...report,
+    parents: report.parents.map(
+      ({ receiptTime: _receipt, recordObservation: _observation, ...p }) => p,
+    ),
+  };
+}
+
+/** Original replay body relationships; callers own semantic versus stored availability. */
+export function inspectEvaluationReplayMaterial(
+  graph: PolicyRelationshipMaterialGraph,
+  replay: PolicyReplayMaterialReports,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+): PolicyEvaluationReplayMaterialBindings {
   const meter = new PolicyEvaluationReferenceCollector(limits);
   const nodes = new Map(
-    graph.nodes.map(({ read }) => [policyEvaluationSourceReferenceKey(read.source), read]),
+    graph.nodes.map((read) => [policyEvaluationSourceReferenceKey(read.source), read]),
   );
   const edgeKey = (source: Source, path: string) =>
     JSON.stringify([policyEvaluationSourceReferenceKey(source), path]);
@@ -77,39 +129,43 @@ export function inspectCapturedEvaluationReplayBindings(
     edges.set(key, index);
   });
   const plans = new Map(
-    graph.replayPlans.plans.map((report) => [
+    replay.plans.map((report) => [
       policyEvaluationSourceReferenceKey(report.source),
       {
         report,
         status: combined([
           ...report.checks.map((check) => check.observation.status),
-          ...report.dependencies.map((dependency) => dependency.recordObservation.status),
+          ...report.dependencies.map((dependency) =>
+            dependency.bodyPresent ? "verified" : "unavailable",
+          ),
         ]),
       },
     ]),
   );
   const results = new Map(
-    graph.replayResults.results.map((report) => [
+    replay.results.map((report) => [
       policyEvaluationSourceReferenceKey(report.source),
       { report, status: combined(report.checks.map((check) => check.observation.status)) },
     ]),
   );
-  const parents: PolicyEvaluationReplayBindings["parents"][number][] = [];
+  const parents: PolicyEvaluationReplayMaterialBindings["parents"][number][] = [];
   const unavailableParents: PolicyEvaluationReplayBindings["unavailableParents"][number][] = [];
   const ordered = [...nodes.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   for (const [, parent] of ordered) {
     if (parent.source.kind !== "evaluation_run") continue;
-    if (parent.observation.status !== "verified") {
+    if (parent.body === null) {
+      if (parent.observation.status === "verified")
+        throw new PolicyRecordGraphError("reference_conflict");
       unavailableParents.push({ source: parent.source, observation: parent.observation });
       continue;
     }
-    const run = parent.record as EvaluationRun;
+    const run = parent.body.record as EvaluationRun;
     const indexes: number[] = [];
     const dependency = (
-      owner: PolicyRecordRead,
+      owner: PolicyRelationshipMaterial,
       path: string,
       source: Source,
-    ): PolicyRecordRead => {
+    ): PolicyRelationshipMaterial => {
       const key = edgeKey(owner.source, path);
       const index = edges.get(key);
       const edge = index === undefined ? undefined : graph.edges[index];
@@ -117,13 +173,13 @@ export function inspectCapturedEvaluationReplayBindings(
       if (
         index === undefined ||
         !edge ||
-        owner.observation.status !== "verified" ||
-        edge.parentRecordSha256 !== owner.observation.recordSha256 ||
+        owner.body === null ||
+        edge.parentRecordSha256 !== owner.body.recordSha256 ||
         !same(edge.parent, owner.source) ||
         edge.reference.kind !== "record" ||
         !same(edge.reference.source, source) ||
         !same(edge.target, source) ||
-        edge.selectorFailure !== undefined ||
+        edge.hasSelectorFailure ||
         !child ||
         !same(child.source, source)
       )
@@ -149,8 +205,7 @@ export function inspectCapturedEvaluationReplayBindings(
       kind: "target_release",
       reference: run.replay.targetRelease,
     });
-    const plan =
-      planRead.observation.status === "verified" ? (planRead.record as ReplayPlan) : null;
+    const plan = planRead.body ? (planRead.body.record as ReplayPlan) : null;
     if (plan) {
       dependency(planRead, "/dataset", { kind: "dataset_version", reference: plan.dataset });
       dependency(planRead, "/targetRelease", {
@@ -184,10 +239,10 @@ export function inspectCapturedEvaluationReplayBindings(
     );
     const planReport = plans.get(policyEvaluationSourceReferenceKey(planRead.source));
     if (
-      planRead.observation.status === "verified" &&
+      planRead.body !== null &&
       (!planReport ||
         !same(planReport.report.source, planRead.source) ||
-        planReport.report.recordSha256 !== planRead.observation.recordSha256 ||
+        planReport.report.recordSha256 !== planRead.body.recordSha256 ||
         planReport.report.checks.length === 0)
     )
       throw new PolicyRecordGraphError(
@@ -197,16 +252,16 @@ export function inspectCapturedEvaluationReplayBindings(
     check(
       "plan_prerequisites",
       "/replay/plan",
-      planRead.observation.status === "verified"
+      planRead.body !== null
         ? (planReport as NonNullable<typeof planReport>).status
         : "unavailable",
     );
     const resultReport = results.get(policyEvaluationSourceReferenceKey(resultRead.source));
     if (
-      resultRead.observation.status === "verified" &&
+      resultRead.body !== null &&
       (!resultReport ||
         !same(resultReport.report.source, resultRead.source) ||
-        resultReport.report.recordSha256 !== resultRead.observation.recordSha256 ||
+        resultReport.report.recordSha256 !== resultRead.body.recordSha256 ||
         resultReport.report.checks.length === 0 ||
         !same(resultReport.report.plan.source, planRead.source) ||
         !same(resultReport.report.plan.recordObservation, planRead.observation))
@@ -218,13 +273,15 @@ export function inspectCapturedEvaluationReplayBindings(
     check(
       "result_history",
       "/replay",
-      resultRead.observation.status === "verified"
+      resultRead.body !== null
         ? (resultReport as NonNullable<typeof resultReport>).status
         : "unavailable",
     );
     parents.push({
       source: parent.source,
-      recordSha256: parent.observation.recordSha256,
+      recordSha256: parent.body.recordSha256,
+      receiptTime: parent.body.receiptTime,
+      recordObservation: parent.observation,
       dependencyEdgeIndexes: indexes,
       checks,
     });

@@ -3,10 +3,10 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
-[원래 dataset/replay 저장 관계 검사](workflow-2-policy-stored-relationships.ko.md)는 원래
-membership, fixture promotion, replay plan 의존성과 성공한 이력을 검사하고 실제 receipt와
+[원래 저장 관계 검사](workflow-2-policy-stored-relationships.ko.md)는 원래
+membership, fixture promotion, replay 의존성/이력, evaluation snapshot과 model/human assurance를 검사하고 실제 receipt와
 semantic unavailable 상태를 보존합니다. 고정 composer는 원래 storage node/edge 출처를
-검증하며 반복 history row와 전체 보고서 비용을 포함합니다. 남은 evaluation/model 저장 관계,
+검증하며 전체 원본 cut inventory 재검사, 반복 history row와 전체 보고서 비용을 포함합니다.
 완전한 현재 authority/presence/selector closure, native 한도 및 원자적 봉인은 진행 중이며
 Workflow 2는 7개 중 2개 checkpoint 승인 상태입니다.
 

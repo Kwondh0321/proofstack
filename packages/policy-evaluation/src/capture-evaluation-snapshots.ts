@@ -15,10 +15,15 @@ import {
   PolicyEvaluationReferenceCollector,
 } from "@proofstack/core";
 import { PolicyRecordGraphError } from "./acquisition-budget.js";
-import type { PolicyRecordGraph, PolicyRecordGraphEdge } from "./capture-record-graph.js";
-import type { PolicyRecordRead } from "./record-routing.js";
+import type { PolicyRecordGraph } from "./capture-record-graph.js";
 import {
-  inspectCapturedEvaluationRun,
+  type PolicyRelationshipMaterial,
+  type PolicyRelationshipMaterialEdge,
+  type PolicyRelationshipMaterialGraph,
+  semanticRelationshipMaterial,
+} from "./relationship-material.js";
+import {
+  inspectEvaluationRunMaterial,
   type PolicyEvaluationRunBindingCheck,
 } from "./capture-evaluation-run-bindings.js";
 
@@ -62,6 +67,15 @@ export interface PolicyEvaluationSnapshotBindings {
   readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
 }
 
+export interface PolicyEvaluationMaterialSnapshotBindings {
+  readonly parents: readonly (PolicyEvaluationSnapshotBindings["parents"][number] & {
+    readonly receiptTime: string | null;
+    readonly recordObservation: PolicyEvaluationManifestEntry["observation"];
+  })[];
+  readonly unavailableParents: PolicyEvaluationSnapshotBindings["unavailableParents"];
+  readonly inspectionUsage: PolicyEvaluationSnapshotBindings["inspectionUsage"];
+}
+
 function isParent(source: PolicyEvaluationSourceReference): source is ParentSource {
   return ["evaluation_run", "evaluation_run_result", "evaluation_aggregate", "assessment"].includes(
     source.kind,
@@ -91,11 +105,25 @@ export function inspectCapturedEvaluationSnapshots(
   graph: Pick<PolicyRecordGraph, "nodes" | "edges">,
   limits: PolicyEvaluationEvidenceReferenceLimits,
 ): PolicyEvaluationSnapshotBindings {
+  const report = inspectEvaluationSnapshotMaterial(semanticRelationshipMaterial(graph), limits);
+  return {
+    ...report,
+    parents: report.parents.map(
+      ({ receiptTime: _receipt, recordObservation: _observation, ...p }) => p,
+    ),
+  };
+}
+
+/** Shared fixed body rules over distinctly owned semantic or original stored material. */
+export function inspectEvaluationSnapshotMaterial(
+  graph: PolicyRelationshipMaterialGraph,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+): PolicyEvaluationMaterialSnapshotBindings {
   const meter = new PolicyEvaluationReferenceCollector(limits);
   const nodes = new Map(
-    graph.nodes.map(({ read }) => [policyEvaluationSourceReferenceKey(read.source), read]),
+    graph.nodes.map((read) => [policyEvaluationSourceReferenceKey(read.source), read]),
   );
-  const edges = new Map<string, { edge: PolicyRecordGraphEdge; index: number }>();
+  const edges = new Map<string, { edge: PolicyRelationshipMaterialEdge; index: number }>();
   const edgeKey = (source: PolicyEvaluationSourceReference, path: string) =>
     JSON.stringify([policyEvaluationSourceReferenceKey(source), path]);
   graph.edges.forEach((edge, index) => {
@@ -104,7 +132,7 @@ export function inspectCapturedEvaluationSnapshots(
     if (edges.has(key)) throw new PolicyRecordGraphError("reference_conflict", key);
     edges.set(key, { edge, index });
   });
-  const parents: PolicyEvaluationSnapshotBindings["parents"][number][] = [];
+  const parents: PolicyEvaluationMaterialSnapshotBindings["parents"][number][] = [];
   const unavailableParents: PolicyEvaluationSnapshotBindings["unavailableParents"][number][] = [];
   const histories = new Map<string, Status>();
   const definitions = new Map<string, Status>();
@@ -114,9 +142,9 @@ export function inspectCapturedEvaluationSnapshots(
   >();
 
   const charge = (index: number) => {
-    const edge = graph.edges[index] as PolicyRecordGraphEdge;
+    const edge = graph.edges[index] as PolicyRelationshipMaterialEdge;
     if (edge.target) meter.record(edge.reference.path, edge.target.kind, edge.target.reference);
-    else if (edge.reference.kind === "evaluation_run_identity" && edge.selectorFailure)
+    else if (edge.reference.kind === "evaluation_run_identity" && edge.unresolvedSelector)
       meter.runIdentity(edge.reference.path, edge.reference.evaluationRunId);
     else
       throw new PolicyRecordGraphError(
@@ -125,16 +153,16 @@ export function inspectCapturedEvaluationSnapshots(
       );
   };
   const dependency = (
-    parent: PolicyRecordRead,
+    parent: PolicyRelationshipMaterial,
     path: string,
     kind: PolicyEvaluationSourceReference["kind"],
     indexes: number[],
-  ): PolicyRecordRead | undefined => {
+  ): PolicyRelationshipMaterial | undefined => {
     const link = edges.get(edgeKey(parent.source, path));
     if (
       !link ||
-      parent.observation.status !== "verified" ||
-      link.edge.parentRecordSha256 !== parent.observation.recordSha256 ||
+      parent.body === null ||
+      link.edge.parentRecordSha256 !== parent.body.recordSha256 ||
       !same(link.edge.parent, parent.source)
     )
       throw new PolicyRecordGraphError("reference_conflict", edgeKey(parent.source, path));
@@ -146,8 +174,7 @@ export function inspectCapturedEvaluationSnapshots(
       throw new PolicyRecordGraphError("reference_conflict", edgeKey(parent.source, path));
     return child;
   };
-  const body = (read: PolicyRecordRead | undefined) =>
-    read?.observation.status === "verified" ? read.record : undefined;
+  const body = (read: PolicyRelationshipMaterial | undefined) => read?.body?.record;
   const check = (
     kind: PolicyEvaluationSnapshotCheck["kind"],
     path: string,
@@ -173,7 +200,9 @@ export function inspectCapturedEvaluationSnapshots(
   ] as const) {
     for (const [key, parent] of ordered) {
       if (parent.source.kind !== kind || !isParent(parent.source)) continue;
-      if (parent.observation.status !== "verified") {
+      if (parent.body === null) {
+        if (parent.observation.status === "verified")
+          throw new PolicyRecordGraphError("reference_conflict");
         unavailableParents.push({ source: parent.source, observation: parent.observation });
         continue;
       }
@@ -181,13 +210,13 @@ export function inspectCapturedEvaluationSnapshots(
       const checks: PolicyEvaluationSnapshotCheck[] = [];
       if (kind === "evaluation_run") {
         checks.push(
-          ...inspectCapturedEvaluationRun(parent, (source, path, childKind) =>
+          ...inspectEvaluationRunMaterial(parent, (source, path, childKind) =>
             dependency(source, path, childKind, dependencies),
           ),
         );
         definitions.set(key, combinedStatus(checks));
       } else if (kind === "evaluation_run_result") {
-        const result = parent.record as EvaluationRunResult;
+        const result = parent.body.record as EvaluationRunResult;
         const runRead = dependency(parent, "/evaluationRunId", "evaluation_run", dependencies);
         const run = body(runRead);
         const observations = result.observations.map((_, i) =>
@@ -211,7 +240,7 @@ export function inspectCapturedEvaluationSnapshots(
         );
         histories.set(key, combinedStatus(checks));
       } else if (kind === "evaluation_aggregate") {
-        const aggregate = parent.record as EvaluationAggregate;
+        const aggregate = parent.body.record as EvaluationAggregate;
         const policy = body(
           dependency(parent, "/aggregationPolicy", "aggregation_policy", dependencies),
         );
@@ -246,7 +275,7 @@ export function inspectCapturedEvaluationSnapshots(
         const historyStatus = combinedStatus(checks);
         aggregates.set(key, { snapshot, dependencies: [...dependencies], status: historyStatus });
       } else {
-        const assessment = parent.record as Assessment;
+        const assessment = parent.body.record as Assessment;
         const aggregate = dependency(parent, "/aggregate", "evaluation_aggregate", dependencies);
         const retained = aggregate
           ? aggregates.get(policyEvaluationSourceReferenceKey(aggregate.source))
@@ -275,7 +304,9 @@ export function inspectCapturedEvaluationSnapshots(
       }
       parents.push({
         source: parent.source,
-        recordSha256: parent.observation.recordSha256,
+        recordSha256: parent.body.recordSha256,
+        receiptTime: parent.body.receiptTime,
+        recordObservation: parent.observation,
         dependencyEdgeIndexes: dependencies,
         checks,
       });

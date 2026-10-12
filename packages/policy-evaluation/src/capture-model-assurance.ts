@@ -36,10 +36,15 @@ import { PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyEvaluationSnapshotBindings } from "./capture-evaluation-snapshots.js";
 import type { PolicyRecordGraph } from "./capture-record-graph.js";
 import type { PolicyRecordRead } from "./record-routing.js";
+import {
+  type PolicyRelationshipMaterial,
+  type PolicyRelationshipMaterialGraph,
+  semanticRelationshipMaterial,
+} from "./relationship-material.js";
 
 type Source = Extract<PolicyEvaluationSourceReference, { kind: "model_assurance_assessment" }>;
 type Status = "matched" | "mismatch" | "unavailable";
-type Retained<T> = { readonly read: PolicyRecordRead; readonly value: T };
+type Retained<T> = { readonly read: PolicyRelationshipMaterial; readonly value: T };
 type Truth = boolean | undefined;
 
 export interface PolicyModelAssuranceCheck {
@@ -80,6 +85,15 @@ export interface PolicyModelAssuranceBindings {
   readonly inspectionUsage: { readonly references: number; readonly referenceBytes: number };
 }
 
+export interface PolicyModelAssuranceMaterialBindings {
+  readonly parents: readonly (PolicyModelAssuranceBindings["parents"][number] & {
+    readonly receiptTime: string | null;
+    readonly recordObservation: PolicyRecordRead["observation"];
+  })[];
+  readonly unavailableParents: PolicyModelAssuranceBindings["unavailableParents"];
+  readonly inspectionUsage: PolicyModelAssuranceBindings["inspectionUsage"];
+}
+
 function same(left: unknown, right: unknown): boolean {
   return Buffer.from(encodeEvaluationCanonicalJson(left)).equals(
     encodeEvaluationCanonicalJson(right),
@@ -108,9 +122,28 @@ export function inspectCapturedModelAssurance(
   evaluation: PolicyEvaluationSnapshotBindings,
   limits: PolicyEvaluationEvidenceReferenceLimits,
 ): PolicyModelAssuranceBindings {
+  const report = inspectModelAssuranceMaterial(
+    semanticRelationshipMaterial(graph),
+    evaluation,
+    limits,
+  );
+  return {
+    ...report,
+    parents: report.parents.map(
+      ({ receiptTime: _receipt, recordObservation: _observation, ...p }) => p,
+    ),
+  };
+}
+
+/** Fixed body rules shared by semantic and original stored witnesses, never authority inference. */
+export function inspectModelAssuranceMaterial(
+  graph: PolicyRelationshipMaterialGraph,
+  evaluation: PolicyEvaluationSnapshotBindings,
+  limits: PolicyEvaluationEvidenceReferenceLimits,
+): PolicyModelAssuranceMaterialBindings {
   const meter = new PolicyEvaluationReferenceCollector(limits);
   const nodes = new Map(
-    graph.nodes.map(({ read }) => [policyEvaluationSourceReferenceKey(read.source), read]),
+    graph.nodes.map((read) => [policyEvaluationSourceReferenceKey(read.source), read]),
   );
   const edgeKey = (source: PolicyEvaluationSourceReference, path: string) =>
     JSON.stringify([policyEvaluationSourceReferenceKey(source), path]);
@@ -123,16 +156,18 @@ export function inspectCapturedModelAssurance(
   const snapshots = new Map(
     evaluation.parents.map((parent) => [policyEvaluationSourceReferenceKey(parent.source), parent]),
   );
-  const parents: PolicyModelAssuranceBindings["parents"][number][] = [];
+  const parents: PolicyModelAssuranceMaterialBindings["parents"][number][] = [];
   const unavailableParents: PolicyModelAssuranceBindings["unavailableParents"][number][] = [];
   const ordered = [...nodes.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   for (const [, parent] of ordered) {
     if (parent.source.kind !== "model_assurance_assessment") continue;
-    if (parent.observation.status !== "verified") {
+    if (parent.body === null) {
+      if (parent.observation.status === "verified")
+        throw new PolicyRecordGraphError("reference_conflict");
       unavailableParents.push({ source: parent.source, observation: parent.observation });
       continue;
     }
-    const assessment = parent.record as ModelAssuranceAssessment;
+    const assessment = parent.body.record as ModelAssuranceAssessment;
     const at = assessment.evaluatedAt;
     const checks: PolicyModelAssuranceCheck[] = [];
     const dependencies: number[] = [];
@@ -154,7 +189,7 @@ export function inspectCapturedModelAssurance(
       });
     };
     const read = <T>(
-      owner: PolicyRecordRead | undefined,
+      owner: PolicyRelationshipMaterial | undefined,
       path: string,
       kind: PolicyEvaluationSourceReference["kind"],
     ): Retained<T> | undefined => {
@@ -168,11 +203,11 @@ export function inspectCapturedModelAssurance(
       if (
         index === undefined ||
         !edge ||
-        owner.observation.status !== "verified" ||
-        edge.parentRecordSha256 !== owner.observation.recordSha256 ||
-        !same(edge.parent, owner.source) ||
-        !edge.target ||
-        edge.target.kind !== kind
+        edge.target === null ||
+        edge.target.kind !== kind ||
+        owner.body === null ||
+        edge.parentRecordSha256 !== owner.body.recordSha256 ||
+        !same(edge.parent, owner.source)
       )
         throw new PolicyRecordGraphError("reference_conflict", key);
       meter.record(path, kind, edge.target.reference);
@@ -180,15 +215,19 @@ export function inspectCapturedModelAssurance(
       const child = nodes.get(policyEvaluationSourceReferenceKey(edge.target));
       if (!child || !same(child.source, edge.target))
         throw new PolicyRecordGraphError("reference_conflict", key);
-      if (child.observation.status !== "verified") {
+      if (child.body === null) {
         receipts.push(undefined);
         return undefined;
       }
-      const fields = child.record as unknown as Record<string, unknown>;
-      const receipt = fields["recordedAt"] ?? fields["publishedAt"] ?? fields["createdAt"];
+      const fields = child.body.record as Record<string, unknown>;
+      const receipt =
+        child.body.receiptTime ??
+        fields["recordedAt"] ??
+        fields["publishedAt"] ??
+        fields["createdAt"];
       if (typeof receipt !== "string") throw new PolicyRecordGraphError("reference_conflict", key);
       receipts.push(beforeOrAt(receipt, at));
-      return { read: child, value: child.record as T };
+      return { read: child, value: child.body.record as T };
     };
     const deadline = (value: { readonly validUntil: string } | undefined) =>
       validity.push(
@@ -616,7 +655,9 @@ export function inspectCapturedModelAssurance(
     );
     parents.push({
       source: parent.source,
-      recordSha256: parent.observation.recordSha256,
+      recordSha256: parent.body.recordSha256,
+      receiptTime: parent.body.receiptTime,
+      recordObservation: parent.observation,
       dependencyEdgeIndexes: dependencies,
       checks,
     });

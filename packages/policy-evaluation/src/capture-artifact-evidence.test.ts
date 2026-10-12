@@ -2240,8 +2240,8 @@ describe("request-rooted authorized artifact capture", () => {
   });
 
   it("uses remaining record and raw JSON byte budgets rather than resetting after traces", async () => {
-    const h = await harness(false, 500);
-    // Four content-bearing events plus 496 metadata-only events keep record admission above all
+    const h = await harness(false, 700);
+    // Four content-bearing events plus 696 metadata-only events keep record admission above all
     // parent/rule reference inspection. Each event stays below the owning 32-reference maximum.
     h.events.forEach((event, index) => {
       event.evidence.contentReferences =
@@ -3264,7 +3264,7 @@ describe("request-owned source recheck composition", () => {
     // Retain a real successor/history so record admission remains the limiting dimension
     // after candidate assessment and closure inspection also charge reference occurrences.
     const prepare = async () => {
-      const fixture = await recheckHarness(450);
+      const fixture = await recheckHarness(700);
       fixture.h.events.forEach((event, index) => {
         event.evidence.contentReferences =
           index < 4 ? Array.from({ length: 24 }, () => reference) : [];
@@ -3312,7 +3312,7 @@ describe("request-owned source recheck composition", () => {
   });
 
   it("charges each retained terminal-history row as well as its reread operation", async () => {
-    const f = await recheckHarness(450);
+    const f = await recheckHarness(700);
     // Keep record admission, rather than reference admission, the limiting dimension.
     f.h.events.forEach((event, index) => {
       event.evidence.contentReferences =
@@ -3335,7 +3335,7 @@ describe("request-owned source recheck composition", () => {
       recheck.guards + recheck.artifactReads + recheck.policyReads + 2 + 1,
     );
     expect(output.usage.records).toBeGreaterThan(output.usage.references);
-    const fresh = await recheckHarness(450);
+    const fresh = await recheckHarness(700);
     fresh.h.events.forEach((event, index) => {
       event.evidence.contentReferences =
         index < 4 ? Array.from({ length: 24 }, () => reference) : [];

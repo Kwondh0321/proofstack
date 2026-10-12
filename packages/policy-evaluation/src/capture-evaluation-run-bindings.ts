@@ -6,13 +6,19 @@ import {
   type EvaluatorSpec,
   type OracleSpec,
   type PolicyEvaluationSourceReference,
+  policyEvaluationSourceReferenceKey,
   type QualificationFixtureSet,
   type QualificationReport,
   encodeEvaluationCanonicalJson,
   policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
 import { digestApplicabilityContext, evaluateApplicability } from "@proofstack/core";
+import { PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyRecordRead } from "./record-routing.js";
+import {
+  type PolicyRelationshipMaterial,
+  semanticRelationshipRead,
+} from "./relationship-material.js";
 
 export interface PolicyEvaluationRunBindingCheck {
   readonly kind:
@@ -38,13 +44,33 @@ export interface PolicyEvaluationRunBindingCheck {
 }
 
 type ReadDependency = (
-  parent: PolicyRecordRead,
+  parent: PolicyRelationshipMaterial,
   path: string,
   kind: PolicyEvaluationSourceReference["kind"],
-) => PolicyRecordRead | undefined;
+) => PolicyRelationshipMaterial | undefined;
 
-function body<T>(read: PolicyRecordRead | undefined): T | undefined {
-  return read?.observation.status === "verified" ? (read.record as T) : undefined;
+/** Keep the existing semantic helper's verified-only access and original callback records. */
+export function inspectCapturedEvaluationRun(
+  parent: PolicyRecordRead,
+  read: (
+    owner: PolicyRecordRead,
+    path: string,
+    kind: PolicyEvaluationSourceReference["kind"],
+  ) => PolicyRecordRead | undefined,
+): readonly PolicyEvaluationRunBindingCheck[] {
+  const originals = new Map([[policyEvaluationSourceReferenceKey(parent.source), parent]]);
+  return inspectEvaluationRunMaterial(semanticRelationshipRead(parent), (owner, path, kind) => {
+    const original = originals.get(policyEvaluationSourceReferenceKey(owner.source));
+    if (!original) throw new PolicyRecordGraphError("reference_conflict");
+    const child = read(original, path, kind);
+    if (!child) return undefined;
+    originals.set(policyEvaluationSourceReferenceKey(child.source), child);
+    return semanticRelationshipRead(child);
+  });
+}
+
+function body<T>(read: PolicyRelationshipMaterial | undefined): T | undefined {
+  return read?.body ? (read.body.record as T) : undefined;
 }
 
 function same(left: unknown, right: unknown): boolean {
@@ -57,12 +83,13 @@ function beforeOrAt(left: string, right: string): boolean {
   return policyEvaluationTimestampOrderKey(left) <= policyEvaluationTimestampOrderKey(right);
 }
 
-/** Internal composition only. The fixed capture supplies verified parents and metered edges. */
-export function inspectCapturedEvaluationRun(
-  parent: PolicyRecordRead,
+/** Shared body rules; the owning semantic/stored wrapper controls availability and admission. */
+export function inspectEvaluationRunMaterial(
+  parent: PolicyRelationshipMaterial,
   read: ReadDependency,
 ): readonly PolicyEvaluationRunBindingCheck[] {
-  const run = parent.record as EvaluationRun;
+  if (!parent.body) throw new PolicyRecordGraphError("reference_conflict");
+  const run = parent.body.record as EvaluationRun;
   const checks: PolicyEvaluationRunBindingCheck[] = [];
   const check = (
     kind: PolicyEvaluationRunBindingCheck["kind"],
@@ -182,7 +209,11 @@ export function inspectCapturedEvaluationRun(
       report === undefined
         ? undefined
         : body<QualificationFixtureSet>(
-            read(reportRead as PolicyRecordRead, "/fixtureSet", "qualification_fixture_set"),
+            read(
+              reportRead as PolicyRelationshipMaterial,
+              "/fixtureSet",
+              "qualification_fixture_set",
+            ),
           );
     // Owning schemas guarantee unique fixture versions. Index once instead of a quadratic
     // criterion-fixture by qualification-corpus search for every retained run.

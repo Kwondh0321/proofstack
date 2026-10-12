@@ -21,6 +21,19 @@ import {
 } from "@proofstack/replay";
 import { type AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyStorageInventory } from "./capture-storage-inventory.js";
+import {
+  inspectEvaluationReplayMaterial,
+  type PolicyEvaluationReplayMaterialBindings,
+} from "./capture-evaluation-replay-bindings.js";
+import {
+  inspectEvaluationSnapshotMaterial,
+  type PolicyEvaluationMaterialSnapshotBindings,
+} from "./capture-evaluation-snapshots.js";
+import {
+  inspectModelAssuranceMaterial,
+  type PolicyModelAssuranceMaterialBindings,
+} from "./capture-model-assurance.js";
+import { storedRelationshipMaterial } from "./relationship-material.js";
 
 type Source = PolicyEvaluationSourceReference;
 type Origin = {
@@ -37,6 +50,12 @@ export interface PolicyStoredRelationships {
   readonly replayPlanOrigins: readonly Origin[];
   readonly replayResults: readonly PolicyStoredReplayResultBindings[];
   readonly replayResultOrigins: readonly Origin[];
+  readonly evaluationSnapshots: PolicyEvaluationMaterialSnapshotBindings;
+  readonly evaluationSnapshotOrigins: readonly Origin[];
+  readonly evaluationReplays: PolicyEvaluationReplayMaterialBindings;
+  readonly evaluationReplayOrigins: readonly Origin[];
+  readonly modelAssurance: PolicyModelAssuranceMaterialBindings;
+  readonly modelAssuranceOrigins: readonly Origin[];
   readonly unavailableResults: readonly {
     readonly nodeIndex: number;
     readonly source: Extract<Source, { kind: "replay_result" }>;
@@ -60,6 +79,7 @@ export function inspectCapturedStoredRelationships(
     maxReferences: request.limits.maxAcquisitionRecords,
     maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
   };
+  const material = storedRelationshipMaterial(request, inventory, budget);
   const canonical = (value: unknown) => serializeEvaluationCanonicalJson(value);
   const conflict = (): never => {
     throw new PolicyRecordGraphError("observation_conflict");
@@ -192,6 +212,63 @@ export function inspectCapturedStoredRelationships(
       origin(source, report.recordSha256, [{ path: "/job/plan", source: report.plan.source }]),
     );
   });
+  const evaluationSnapshots = admit(inspectEvaluationSnapshotMaterial(material, limits));
+  const evaluationReplays = admit(
+    inspectEvaluationReplayMaterial(
+      material,
+      {
+        plans: replayPlans.plans.map((plan) => ({
+          ...plan,
+          dependencies: plan.dependencies.map((dependency) => ({
+            bodyPresent: dependency.storage !== null,
+          })),
+        })),
+        results: replayResults,
+      },
+      limits,
+    ),
+  );
+  const modelAssurance = admit(
+    inspectModelAssuranceMaterial(material, evaluationSnapshots, limits),
+  );
+  const materialOrigin = (parent: {
+    readonly source: Source;
+    readonly recordSha256: string;
+    readonly receiptTime: string | null;
+    readonly recordObservation: unknown;
+    readonly dependencyEdgeIndexes: readonly number[];
+  }): Origin => {
+    const nodeIndex = nodes.get(policyEvaluationSourceReferenceKey(parent.source));
+    const capture = nodeIndex === undefined ? undefined : inventory.nodes[nodeIndex]?.capture;
+    if (
+      nodeIndex === undefined ||
+      !capture?.storage ||
+      capture.storage.recordSha256 !== parent.recordSha256 ||
+      capture.storage.receiptTime !== parent.receiptTime ||
+      canonical(capture.read.source) !== canonical(parent.source) ||
+      canonical(capture.read.observation) !== canonical(parent.recordObservation)
+    )
+      return conflict();
+    // Nested/repeated dependencies keep their actual owner, not a substituted top-level parent.
+    for (const index of parent.dependencyEdgeIndexes) {
+      const edge = inventory.edges[index];
+      const owner = edge && nodes.get(policyEvaluationSourceReferenceKey(edge.parent));
+      const ownerCapture = owner === undefined ? undefined : inventory.nodes[owner]?.capture;
+      if (
+        !edge ||
+        !ownerCapture?.storage ||
+        canonical(ownerCapture.read.source) !== canonical(edge.parent) ||
+        ownerCapture.storage.recordSha256 !== edge.parentRecordSha256
+      )
+        return conflict();
+    }
+    const frame = { nodeIndex, dependencyEdgeIndexes: parent.dependencyEdgeIndexes };
+    budget.addReferences(
+      1 + frame.dependencyEdgeIndexes.length,
+      Buffer.byteLength(canonical(frame), "utf8"),
+    );
+    return frame;
+  };
   const report = {
     authorityBoundary: "stored_relationships_only" as const,
     datasets,
@@ -204,6 +281,12 @@ export function inspectCapturedStoredRelationships(
     ),
     replayResults,
     replayResultOrigins,
+    evaluationSnapshots,
+    evaluationSnapshotOrigins: evaluationSnapshots.parents.map(materialOrigin),
+    evaluationReplays,
+    evaluationReplayOrigins: evaluationReplays.parents.map(materialOrigin),
+    modelAssurance,
+    modelAssuranceOrigins: modelAssurance.parents.map(materialOrigin),
     unavailableResults,
   };
   budget.addReferences(0, Buffer.byteLength(canonical(report), "utf8"));

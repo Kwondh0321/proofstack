@@ -926,6 +926,174 @@ async function harness(
 }
 
 describe("original stored dataset and replay relationship composition", () => {
+  it.each(["promote", "omit_storage"] as const)(
+    "rejects a future assessment witness substitution: %s",
+    async (field) => {
+      const h = await harness(undefined, {
+        mutate: (fixture) => {
+          if (fixture.kind === "assessment") fixture.record.createdAt = "2099-01-01T00:00:00.000Z";
+        },
+      });
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const inventory = structuredClone(graph.storageInventory);
+      const capture = inventory.nodes.find(
+        (n) => n.capture.read.source.kind === "assessment",
+      )!.capture;
+      if (!capture.storage) throw new Error("Missing future assessment storage");
+      expect(capture.read.observation).toEqual({
+        status: "unavailable",
+        reason: "not_yet_available",
+      });
+      if (field === "promote") {
+        Reflect.set(capture.read, "observation", {
+          status: "verified",
+          recordSha256: capture.storage.recordSha256,
+        });
+        Reflect.set(capture.read, "record", capture.storage.record);
+      } else Reflect.set(capture, "storage", null);
+      expect(() =>
+        inspectCapturedStoredRelationships(
+          h.input,
+          inventory,
+          new AcquisitionBudget(h.input.limits),
+        ),
+      ).toThrow();
+    },
+  );
+
+  it.each(["2026-08-31T23:59:59.999Z", "2026-09-02T00:00:00.000Z", "2026-10-01T00:00:00.000Z"])(
+    "inspects original evaluation bodies without changing the request cut %s",
+    async (cut) => {
+      const h = await harness("history", { dataset: "matched", replayBindings: true });
+      const {
+        schemaVersion: _version,
+        scope,
+        createdAt: _at,
+        createdByPrincipalId: _by,
+        definitionSha256: _hash,
+        ...definition
+      } = h.input;
+      definition.evaluationTime = cut;
+      const input = {
+        ...h.input,
+        ...definition,
+        createdAt: cut,
+        definitionSha256: digestPolicyEvaluationRequestDefinition(scope, definition),
+      };
+      const graph = await capturePolicyRecordGraph(input, h.repositories);
+      expect(graph.evaluationTime).toBe(cut);
+      const report = graph.storedRelationships;
+      expect(new Set(report.evaluationSnapshots.parents.map((p) => p.source.kind))).toEqual(
+        new Set(["evaluation_run", "evaluation_run_result", "evaluation_aggregate", "assessment"]),
+      );
+      expect(report.evaluationReplays.parents).toHaveLength(2);
+      for (const [part, origins] of [
+        [report.evaluationSnapshots, report.evaluationSnapshotOrigins],
+        [report.evaluationReplays, report.evaluationReplayOrigins],
+      ] as const) {
+        expect(origins).toHaveLength(part.parents.length);
+        part.parents.forEach((parent, index) => {
+          const origin = origins[index]!;
+          const capture = graph.storageInventory.nodes[origin.nodeIndex]!.capture;
+          expect(parent.recordSha256).toBe(capture.storage?.recordSha256);
+          expect(parent.receiptTime).toBe(capture.storage?.receiptTime);
+          expect(parent.recordObservation).toEqual(capture.read.observation);
+          expect(capture.read.source).toEqual(parent.source);
+          expect(origin.dependencyEdgeIndexes).toEqual(parent.dependencyEdgeIndexes);
+          expect(parent.checks.length).toBeGreaterThan(0);
+          for (const edgeIndex of origin.dependencyEdgeIndexes) {
+            const edge = graph.storageInventory.edges[edgeIndex]!;
+            const owner = graph.storageInventory.nodes.find(
+              ({ capture: c }) =>
+                policyEvaluationSourceReferenceKey(c.read.source) ===
+                policyEvaluationSourceReferenceKey(edge.parent),
+            );
+            expect(edge.parentRecordSha256).toBe(owner?.capture.storage?.recordSha256);
+          }
+        });
+      }
+      if (cut.startsWith("2026-08")) {
+        expect(graph.evaluationSnapshots.parents).toEqual([]);
+        expect(graph.evaluationReplays.parents).toEqual([]);
+        expect(
+          report.evaluationSnapshots.parents.every(
+            (p) => p.recordObservation.status === "unavailable",
+          ),
+        ).toBe(true);
+        expect(
+          report.evaluationReplays.parents.every(
+            (p) => p.recordObservation.status === "unavailable",
+          ),
+        ).toBe(true);
+      }
+      expect(graph).not.toHaveProperty("sealed");
+    },
+  );
+
+  it.each([
+    "body",
+    "hash",
+    "receipt",
+    "scope",
+    "observation",
+    "semantic_body",
+    "extra_capture",
+    "omit_node",
+    "duplicate_node",
+    "omit_edge",
+    "duplicate_edge",
+    "parent_hash",
+    "target",
+    "frontier",
+  ] as const)("rejects substituted original evaluation material: %s", async (field) => {
+    const h = await harness("history", { dataset: "matched", replayBindings: true });
+    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+    const inventory = structuredClone(graph.storageInventory);
+    const index = inventory.nodes.findIndex(
+      ({ capture }) => capture.read.source.kind === "assessment",
+    );
+    const node = inventory.nodes[index]!;
+    if (!node.capture.storage) throw new Error("Missing original assessment body");
+    const edgeIndex = inventory.edges.findIndex((edge) => edge.parent.kind === "assessment");
+    const edge = inventory.edges[edgeIndex]!;
+    if (field === "body")
+      Reflect.set(node.capture.storage.record as object, "assessmentId", "as_substituted");
+    if (field === "hash") Reflect.set(node.capture.storage, "recordSha256", "0".repeat(64));
+    if (field === "receipt")
+      Reflect.set(node.capture.storage, "receiptTime", "2026-10-02T00:00:00.000Z");
+    if (field === "scope")
+      Reflect.set(
+        (node.capture.storage.record as { scope: object }).scope,
+        "tenantId",
+        "tenant_other",
+      );
+    if (field === "observation")
+      Reflect.set(node.capture.read, "observation", { status: "unavailable", reason: "invented" });
+    if (field === "semantic_body") Reflect.set(node.capture.read, "record", null);
+    if (field === "extra_capture") Reflect.set(node.capture, "unvalidated", true);
+    if (field === "omit_node")
+      Reflect.set(
+        inventory,
+        "nodes",
+        inventory.nodes.filter((_, i) => i !== index),
+      );
+    if (field === "duplicate_node") Reflect.set(inventory, "nodes", [...inventory.nodes, node]);
+    if (field === "omit_edge")
+      Reflect.set(
+        inventory,
+        "edges",
+        inventory.edges.filter((_, i) => i !== edgeIndex),
+      );
+    if (field === "duplicate_edge") Reflect.set(inventory, "edges", [...inventory.edges, edge]);
+    if (field === "parent_hash") Reflect.set(edge, "parentRecordSha256", "0".repeat(64));
+    if (field === "target") Reflect.set(edge, "targets", []);
+    if (field === "frontier") Reflect.set(inventory.frontier, "records", 0);
+    expect(() =>
+      inspectCapturedStoredRelationships(h.input, inventory, new AcquisitionBudget(h.input.limits)),
+    ).toThrow();
+    expect(graph.storageInventory).not.toEqual(inventory);
+  });
+
   it("binds complete original relationships to exact stored parent/edge occurrences", async () => {
     const h = await harness("history", {
       dataset: "matched",
@@ -1823,13 +1991,19 @@ describe("request-owned record graph reinspection", () => {
 
   it("keeps cumulative record limit failures distinct from revision changes", async () => {
     const h = await harness();
+    const repositories = missingRepositories().repositories;
+    const baseline = await capturePolicyRecordGraph(h.input, repositories);
     const input = request(h.candidate, h.policy, {
       ...h.input.limits,
-      maxAcquisitionRecords: 2,
+      maxAcquisitionRecords: Math.max(baseline.usage.records, baseline.usage.references),
     });
-    const repositories = missingRepositories().repositories;
     const budget = new AcquisitionBudget(input.limits);
     const retained = await acquirePolicyRecordGraph(input, repositories, budget);
+    // Additional request-owned reads consume the remaining record budget without changing
+    // source revisions or reference admission. Reinspection must preserve that failure reason.
+    const reader = budget.wrap({ find: async () => null });
+    while (budget.usage().records < input.limits.maxAcquisitionRecords) await reader.find();
+    expect(budget.usage().records).toBe(input.limits.maxAcquisitionRecords);
     await expect(
       acquirePolicyRecordGraph(input, repositories, budget, retained),
     ).rejects.toMatchObject({ code: "policy_record_graph_failed", reason: "record_limit" });
@@ -3678,7 +3852,7 @@ describe("request-rooted recursive record graph", () => {
     expect(graph.entries).toHaveLength(2);
     expect(graph.entries.every(({ observation }) => observation.status === "missing")).toBe(true);
     expect(graph.unresolved).toEqual({ records: 2, references: 0, logicalRoots: 0 });
-    expect(graph.usage).toMatchObject({ reads: 2, records: 2, bytes: 8, references: 2 });
+    expect(graph.usage).toMatchObject({ reads: 2, records: 2, bytes: 8, references: 5 });
     expect(graph.storedRelationships.datasets.parents).toEqual([]);
     expect(graph.storedRelationships.replayPlans.plans).toEqual([]);
     expect(graph.storedRelationships.replayResults).toEqual([]);
@@ -3740,7 +3914,7 @@ describe("request-rooted recursive record graph", () => {
     const totalBytes = baseline.usage.bytes + baseline.usage.referenceBytes;
     const exact = request(setup.candidate, setup.policy, {
       ...setup.input.limits,
-      maxAcquisitionRecords: 2,
+      maxAcquisitionRecords: Math.max(baseline.usage.records, baseline.usage.references),
       maxAcquisitionRecordBytes: totalBytes,
     });
     expect(baseline.usage.bytes).toBe(8);
@@ -5296,33 +5470,49 @@ describe("original model endpoint graph mapping", () => {
     },
   );
 
-  it("meters each whole-parent inspection and lookup at exact and one-below cumulative limits", async () => {
-    const h = await setup();
-    const graph = await capturePolicyRecordGraph(h.input, h.repositories);
-    const exact = {
-      ...h.input.limits,
-      maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references),
-      maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
-    };
-    expect(
-      (await capturePolicyRecordGraph(request(h.candidate, h.policy, exact), h.repositories)).usage,
-    ).toEqual(graph.usage);
-    for (const patch of [
-      { maxAcquisitionRecords: exact.maxAcquisitionRecords - 1 },
-      { maxAcquisitionRecordBytes: exact.maxAcquisitionRecordBytes - 1 },
-    ])
-      await expect(
-        capturePolicyRecordGraph(
-          request(h.candidate, h.policy, { ...exact, ...patch }),
-          h.repositories,
-        ),
-      ).rejects.toThrow();
-    for (const patch of [
-      { maxReferences: graph.recordClosure.inspectionUsage.references - 1 },
-      { maxReferenceBytes: graph.recordClosure.inspectionUsage.referenceBytes - 1 },
-    ])
-      expect(() => deriveCapturedRecordClosure(h.input, graph, { ...limits, ...patch })).toThrow();
-  });
+  it.each([
+    "exact",
+    "records_one_below",
+    "bytes_one_below",
+    "closure_references_one_below",
+    "closure_bytes_one_below",
+  ] as const)(
+    "meters each whole-parent model inspection at %s cumulative limits",
+    async (boundary) => {
+      const h = await setup();
+      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const exact = {
+        ...h.input.limits,
+        maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references),
+        maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
+      };
+      if (boundary === "exact") {
+        expect(
+          (await capturePolicyRecordGraph(request(h.candidate, h.policy, exact), h.repositories))
+            .usage,
+        ).toEqual(graph.usage);
+      } else if (boundary === "records_one_below" || boundary === "bytes_one_below") {
+        const patch =
+          boundary === "records_one_below"
+            ? { maxAcquisitionRecords: exact.maxAcquisitionRecords - 1 }
+            : { maxAcquisitionRecordBytes: exact.maxAcquisitionRecordBytes - 1 };
+        await expect(
+          capturePolicyRecordGraph(
+            request(h.candidate, h.policy, { ...exact, ...patch }),
+            h.repositories,
+          ),
+        ).rejects.toThrow();
+      } else {
+        const patch =
+          boundary === "closure_references_one_below"
+            ? { maxReferences: graph.recordClosure.inspectionUsage.references - 1 }
+            : { maxReferenceBytes: graph.recordClosure.inspectionUsage.referenceBytes - 1 };
+        expect(() =>
+          deriveCapturedRecordClosure(h.input, graph, { ...limits, ...patch }),
+        ).toThrow();
+      }
+    },
+  );
 
   it.each(["digest", "receipt", "absence"] as const)(
     "rejects intervening %s changes under one original model identity",
@@ -5350,91 +5540,105 @@ describe("original model endpoint graph mapping", () => {
     },
   );
 
-  it("independently rejects omitted/substituted model origins, sources, receipts and contextual projections", async () => {
+  it.each([
+    "omit_edge",
+    "path",
+    "parent_hash",
+    "target",
+    "omit_node",
+    "receipt",
+    "omit_checks",
+    "checks_order",
+    "checks_status",
+    "checks_extra",
+    "failure",
+    "cross_kind",
+  ])("independently rejects substituted model origin or projection: %s", async (fault) => {
     const h = await setup();
     const graph = await capturePolicyRecordGraph(h.input, h.repositories);
     const edgeIndex = graph.edges.findIndex(
       ({ reference }) => reference.kind === "endpoint_profile_selector",
     );
     const nodeIndex = graph.nodes.findIndex(({ read }) => read.source.kind === "endpoint_profile");
-    for (const fault of [
-      "omit_edge",
-      "path",
-      "parent_hash",
-      "target",
-      "omit_node",
-      "receipt",
-      "omit_checks",
-      "checks_order",
-      "checks_status",
-      "checks_extra",
-      "failure",
-      "cross_kind",
-    ]) {
-      const changed = structuredClone(graph);
-      const edge = changed.edges[edgeIndex];
-      const node = changed.nodes[nodeIndex];
-      if (!edge || !node) throw new Error("Missing retained model observation");
-      if (fault === "omit_edge")
-        Reflect.set(
-          changed,
-          "edges",
-          changed.edges.filter((_, i) => i !== edgeIndex),
-        );
-      else if (fault === "path") Reflect.set(edge.reference, "path", "/source");
-      else if (fault === "parent_hash") Reflect.set(edge, "parentRecordSha256", "0".repeat(64));
-      else if (fault === "target") Reflect.set(edge, "target", null);
-      else if (fault === "omit_node")
-        Reflect.set(
-          changed,
-          "nodes",
-          changed.nodes.filter((_, i) => i !== nodeIndex),
-        );
-      else if (fault === "receipt")
-        Reflect.set(node.read.record as object, "registeredByPrincipalId", "operator_other");
-      else if (fault === "omit_checks") Reflect.deleteProperty(edge, "endpointChecks");
-      else if (fault === "checks_order")
-        Reflect.set(edge, "endpointChecks", [...(edge.endpointChecks ?? [])].reverse());
-      else if (fault === "checks_status")
-        Reflect.set(edge.endpointChecks?.[0]?.observation as object, "status", "mismatch");
-      else if (fault === "checks_extra")
-        Reflect.set(edge.endpointChecks?.[0] as object, "authority", true);
-      else if (fault === "failure") Reflect.set(edge, "endpointFailure", { status: "missing" });
-      else {
-        const other = changed.edges.find(
-          ({ reference }) => reference.kind !== "endpoint_profile_selector",
-        );
-        if (!other) throw new Error("Missing non-model edge");
-        Reflect.set(other, "endpointChecks", checks("unavailable"));
-      }
-      expect(() => deriveCapturedRecordClosure(h.input, changed, limits), fault).toThrow();
+    const changed = structuredClone(graph);
+    const edge = changed.edges[edgeIndex];
+    const node = changed.nodes[nodeIndex];
+    if (!edge || !node) throw new Error("Missing retained model observation");
+    if (fault === "omit_edge")
+      Reflect.set(
+        changed,
+        "edges",
+        changed.edges.filter((_, i) => i !== edgeIndex),
+      );
+    else if (fault === "path") Reflect.set(edge.reference, "path", "/source");
+    else if (fault === "parent_hash") Reflect.set(edge, "parentRecordSha256", "0".repeat(64));
+    else if (fault === "target") Reflect.set(edge, "target", null);
+    else if (fault === "omit_node")
+      Reflect.set(
+        changed,
+        "nodes",
+        changed.nodes.filter((_, i) => i !== nodeIndex),
+      );
+    else if (fault === "receipt")
+      Reflect.set(node.read.record as object, "registeredByPrincipalId", "operator_other");
+    else if (fault === "omit_checks") Reflect.deleteProperty(edge, "endpointChecks");
+    else if (fault === "checks_order")
+      Reflect.set(edge, "endpointChecks", [...(edge.endpointChecks ?? [])].reverse());
+    else if (fault === "checks_status")
+      Reflect.set(edge.endpointChecks?.[0]?.observation as object, "status", "mismatch");
+    else if (fault === "checks_extra")
+      Reflect.set(edge.endpointChecks?.[0] as object, "authority", true);
+    else if (fault === "failure") Reflect.set(edge, "endpointFailure", { status: "missing" });
+    else {
+      const other = changed.edges.find(
+        ({ reference }) => reference.kind !== "endpoint_profile_selector",
+      );
+      if (!other) throw new Error("Missing non-model edge");
+      Reflect.set(other, "endpointChecks", checks("unavailable"));
     }
+    expect(() => deriveCapturedRecordClosure(h.input, changed, limits), fault).toThrow();
   });
 
-  it("reinspects mapping and original full receipts before following descendants, including absent creation", async () => {
-    const h = await setup();
-    if (!h.endpointProfile) throw new Error("Missing independent endpoint");
-    const retained = await capturePolicyRecordGraph(h.input, h.repositories);
-    expect(
-      await acquirePolicyRecordGraph(
+  it.each(["unchanged", "missing", "receipt", "descriptor", "absent_creation"] as const)(
+    "reinspects model endpoint mapping and original receipts before descendants: %s",
+    async (mode) => {
+      const h = await setup();
+      const originalEndpointProfiles = h.repositories.endpointProfiles;
+      if (!h.endpointProfile || !originalEndpointProfiles)
+        throw new Error("Missing independent endpoint");
+      const missing = {
+        ...h.repositories,
+        endpointProfiles: new StaticEndpointProfileCatalogue([]),
+      };
+      const retained = await capturePolicyRecordGraph(
         h.input,
-        h.repositories,
-        new AcquisitionBudget(h.input.limits),
-        retained,
-      ),
-    ).toEqual(retained);
-    const missing = { ...h.repositories, endpointProfiles: new StaticEndpointProfileCatalogue([]) };
-    for (const endpointProfiles of [
-      missing.endpointProfiles,
-      new StaticEndpointProfileCatalogue([
-        { ...h.endpointProfile, registeredByPrincipalId: "operator_other" },
-      ]),
-      new StaticEndpointProfileCatalogue([
-        changedEndpoint(h.endpointProfile, (r) => {
-          r.provider = "other/provider";
-        }),
-      ]),
-    ])
+        mode === "absent_creation" ? missing : h.repositories,
+      );
+      if (mode === "unchanged") {
+        expect(
+          await acquirePolicyRecordGraph(
+            h.input,
+            h.repositories,
+            new AcquisitionBudget(h.input.limits),
+            retained,
+          ),
+        ).toEqual(retained);
+        return;
+      }
+      const endpointProfiles =
+        mode === "missing"
+          ? missing.endpointProfiles
+          : mode === "receipt"
+            ? new StaticEndpointProfileCatalogue([
+                { ...h.endpointProfile, registeredByPrincipalId: "operator_other" },
+              ])
+            : mode === "descriptor"
+              ? new StaticEndpointProfileCatalogue([
+                  changedEndpoint(h.endpointProfile, (r) => {
+                    r.provider = "other/provider";
+                  }),
+                ])
+              : originalEndpointProfiles;
       await expect(
         acquirePolicyRecordGraph(
           h.input,
@@ -5446,19 +5650,8 @@ describe("original model endpoint graph mapping", () => {
         code: "policy_captured_observation_recheck_failed",
         reason: "source_revision_changed",
       });
-    const absent = await capturePolicyRecordGraph(h.input, missing);
-    await expect(
-      acquirePolicyRecordGraph(
-        h.input,
-        h.repositories,
-        new AcquisitionBudget(h.input.limits),
-        absent,
-      ),
-    ).rejects.toMatchObject({
-      code: "policy_captured_observation_recheck_failed",
-      reason: "source_revision_changed",
-    });
-  });
+    },
+  );
   it("rejects conflicting descriptors under one artifact identity instead of accepting a context-only mismatch", async () => {
     const h = await setup();
     if (!h.endpointProfile) throw new Error("Missing independent endpoint");
@@ -5610,25 +5803,35 @@ describe("retained live endpoint profile graph acquisition", () => {
       ).rejects.toThrow();
   });
 
-  it("retains known exact targets for missing, future and invalid profiles, including an absent optional catalogue", async () => {
-    const h = await setup();
-    const record = h.endpointProfile;
-    if (!record) throw new Error("Missing independently defined endpoint");
-    for (const [raw, observation] of [
-      [null, { status: "missing" }],
-      [
-        { ...record, registeredAt: "2026-10-02T00:00:00.001Z" },
-        { status: "unavailable", reason: "not_yet_available" },
-      ],
-      [
-        { ...record, authority: "approved" },
-        { status: "unavailable", reason: "record_invalid" },
-      ],
-      [
-        { ...record, definitionSha256: "0".repeat(64) },
-        { status: "unavailable", reason: "record_invalid" },
-      ],
-    ]) {
+  it.each(["missing", "future", "invalid_authority", "invalid_digest", "unconfigured"] as const)(
+    "retains known exact endpoint targets for %s profiles",
+    async (mode) => {
+      const h = await setup();
+      const record = h.endpointProfile;
+      if (!record) throw new Error("Missing independently defined endpoint");
+      if (mode === "unconfigured") {
+        const { endpointProfiles: _absent, ...repositories } = h.repositories;
+        const graph = await capturePolicyRecordGraph(h.input, repositories);
+        expect(
+          graph.nodes.find(({ read }) => read.source.kind === "endpoint_profile")?.read.observation,
+        ).toEqual({ status: "missing" });
+        return;
+      }
+      const raw =
+        mode === "missing"
+          ? null
+          : mode === "future"
+            ? { ...record, registeredAt: "2026-10-02T00:00:00.001Z" }
+            : mode === "invalid_authority"
+              ? { ...record, authority: "approved" }
+              : { ...record, definitionSha256: "0".repeat(64) };
+      const observation =
+        mode === "missing"
+          ? { status: "missing" }
+          : {
+              status: "unavailable",
+              reason: mode === "future" ? "not_yet_available" : "record_invalid",
+            };
       const lookup = vi.fn(async () => raw);
       const graph = await capturePolicyRecordGraph(h.input, {
         ...h.repositories,
@@ -5651,13 +5854,8 @@ describe("retained live endpoint profile graph acquisition", () => {
           .every((c) => c.observation.status === "unavailable"),
       ).toBe(true);
       expect(deriveCapturedRecordClosure(h.input, graph, limits).entries).toEqual(graph.entries);
-    }
-    const { endpointProfiles: _absent, ...repositories } = h.repositories;
-    const graph = await capturePolicyRecordGraph(h.input, repositories);
-    expect(
-      graph.nodes.find(({ read }) => read.source.kind === "endpoint_profile")?.read.observation,
-    ).toEqual({ status: "missing" });
-  });
+    },
+  );
 
   it("rejects conflicting original expected hashes instead of selecting a body", async () => {
     const h = await harness("valid", {
@@ -5834,25 +6032,27 @@ describe("retained qualification policy graph acquisition", () => {
     }
   });
 
-  it("retains exact declared targets and explicit missing/future/invalid observations without fabricated bodies", async () => {
-    const setup = await harness(undefined, { qualificationPolicy: true });
-    const record = setup.qualificationPolicy;
-    if (!record) throw new Error("Missing independently defined policy");
-    for (const [raw, observation] of [
-      [null, { status: "missing" }],
-      [
-        { ...record, publishedAt: "2026-10-02T00:00:00.000Z" },
-        { status: "unavailable", reason: "not_yet_available" },
-      ],
-      [
-        { ...record, approved: true },
-        { status: "unavailable", reason: "record_invalid" },
-      ],
-      [
-        { ...record, definitionSha256: "0".repeat(64) },
-        { status: "unavailable", reason: "record_invalid" },
-      ],
-    ]) {
+  it.each(["missing", "future", "invalid_flag", "invalid_digest"] as const)(
+    "retains exact declared qualification-policy targets and explicit %s observations without fabricated bodies",
+    async (mode) => {
+      const setup = await harness(undefined, { qualificationPolicy: true });
+      const record = setup.qualificationPolicy;
+      if (!record) throw new Error("Missing independently defined policy");
+      const [raw, observation] = {
+        missing: [null, { status: "missing" }],
+        future: [
+          { ...record, publishedAt: "2026-10-02T00:00:00.000Z" },
+          { status: "unavailable", reason: "not_yet_available" },
+        ],
+        invalid_flag: [
+          { ...record, approved: true },
+          { status: "unavailable", reason: "record_invalid" },
+        ],
+        invalid_digest: [
+          { ...record, definitionSha256: "0".repeat(64) },
+          { status: "unavailable", reason: "record_invalid" },
+        ],
+      }[mode];
       const lookup = vi.fn(async () => raw);
       const graph = await capturePolicyRecordGraph(setup.input, {
         ...setup.repositories,
@@ -5869,7 +6069,11 @@ describe("retained qualification policy graph acquisition", () => {
       expect(deriveCapturedRecordClosure(setup.input, graph, limits).entries).toEqual(
         graph.entries,
       );
-    }
+    },
+  );
+
+  it("preserves explicit missing qualification-policy authority when its port is unconfigured", async () => {
+    const setup = await harness(undefined, { qualificationPolicy: true });
     const { qualificationPolicies: _absent, ...repositories } = setup.repositories;
     const graph = await capturePolicyRecordGraph(setup.input, repositories);
     expect(
@@ -6650,19 +6854,20 @@ describe("complete retained protocol graph mappings", () => {
     }
   });
 
-  it("retains valid substituted scope/descriptor members as unavailable instead of choosing a sibling", async () => {
-    const { h, repositories, records } = await setup();
-    const first = records[0];
-    if (!first) throw new Error("Missing original protocol definition");
-    const {
-      scope,
-      schemaVersion: _schema,
-      definitionSha256: _sha,
-      registeredAt,
-      registeredByPrincipalId,
-      ...body
-    } = first;
-    for (const fault of ["scope", "descriptor"] as const) {
+  it.each(["scope", "descriptor"] as const)(
+    "retains valid substituted %s protocol members as unavailable instead of choosing a sibling",
+    async (fault) => {
+      const { h, repositories, records } = await setup();
+      const first = records[0];
+      if (!first) throw new Error("Missing original protocol definition");
+      const {
+        scope,
+        schemaVersion: _schema,
+        definitionSha256: _sha,
+        registeredAt,
+        registeredByPrincipalId,
+        ...body
+      } = first;
       const definition = ProtocolDefinitionSchema.parse({
         ...body,
         protocolDefinitionId: "protocol_substituted",
@@ -6697,8 +6902,8 @@ describe("complete retained protocol graph mappings", () => {
           reason: "reference_mismatch",
         });
       expect(derive(h, graph)).toEqual({ entries: graph.entries, closure: graph.recordClosure });
-    }
-  });
+    },
+  );
 
   it("reinspects an unchanged complete candidate list before descendants", async () => {
     const { h, repositories } = await setup();
