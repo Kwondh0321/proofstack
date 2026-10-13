@@ -70,6 +70,11 @@ native SQL/scan/wire/deadline 한도 및 영속 job 전체 한도는 아직 남�
 migration, API route, job, worker, 공개 SDK 배포 또는 production 조합은 추가하지 않습니다.
 checkpoint 승인이나 production 준비 완료를 뜻하지 않습니다.
 
+[Input record source 유도](workflow-2-policy-input-record-sources.ko.md)는 이 원본 inventory와
+독립적으로 다시 유도한 semantic source를 연결하며, record manifest의 모든 부모/대상
+origin, unavailable 관측, mapping 및 body/receipt witness를 보존합니다. Record 영역의
+목록을 완전한 source authority나 sealed snapshot으로 해석하지 않습니다.
+
 검사는 미래 요청/root 전용 source, 반복 출처와 cycle, 누락·잘못된 join, 미래 본문 대체,
 순서가 있는 closure 변조, guarded 재검사 및 정확한/하나 모자란 누적 행·참조·바이트 한도를
 다룹니다. 기존 커버리지 기준과 실행 제한을 유지합니다.

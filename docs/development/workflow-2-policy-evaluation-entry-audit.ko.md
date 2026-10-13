@@ -386,6 +386,12 @@ mutable 권한과 physical 무결성 closure·sealed 계약·같은 트랜잭션
 정확한 DB 시점을 보존합니다. 보고 전에 읽기 트랜잭션이 끝나므로 전체 출처·부재·선택자
 closure, 현재 실행 fence와 snapshot/job 원자 발행은 여전히 남아 있습니다.
 
+후속 [요청 소유 input record source](workflow-2-policy-input-record-sources.ko.md)는 소유
+semantic/original record closure를 독립적으로 연결하고 모든 부모/대상 origin과 원래
+availability를 보존하여 기존 manifest verifier에 완전한 record 집합을 제공합니다.
+Caller 목록을 신뢰하거나 미래 body를 승격하지 않습니다. Authority 이력, artifact/trace 입력,
+완전한 typed snapshot closure와 guarded publication은 별도로 남아 있습니다.
+
 Domain을 분리한 canonical vector와 함께 엄격하고 불변이며 version이 있는 다음 record를 추가한다.
 
 1. `PolicyEvaluationRequest`: 정확한 candidate·policy 참조, 명시적 `evaluationTime`, 고정

@@ -71,6 +71,11 @@ adds complete original-body checks and request-owned node/edge origins while pre
 unavailability. Current semantic/authority/presence closure,
 native SQL/scan/wire/deadline admission and durable job-wide limits remain required.
 
+The [input record source derivation](workflow-2-policy-input-record-sources.md) joins this original
+inventory to independently re-derived semantic sources, preserving all original parent/target
+origins, unavailable observations, mappings and body/receipt witnesses for the record manifest.
+It does not turn that record-domain inventory into complete source authority or a sealed snapshot.
+
 The read-only reinspection transaction ends before its report returns. A later publisher
 must validate complete closure, current migration, worker job/lease/fence/epoch/state and
 native database expiry and publish atomically while all guards remain held on that same

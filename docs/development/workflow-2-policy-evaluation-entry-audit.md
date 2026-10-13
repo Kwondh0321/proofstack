@@ -513,6 +513,12 @@ criteria/successors under the metadata barrier and a verified current migration 
 the exact DB cut. That read transaction ends before reporting; complete all-source/absence/selector
 closure, live execution fences and atomic snapshot/job publication remain open.
 
+The subsequent [request-owned input record sources](workflow-2-policy-input-record-sources.md)
+independently joins the owning semantic/original record closures, preserves every parent/target
+origin and original availability, and supplies a complete record set to the existing manifest
+verifier. It does not trust caller lists or promote future bodies. Authority histories,
+artifact/trace inputs, complete typed snapshot closure and guarded publication remain separate.
+
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,

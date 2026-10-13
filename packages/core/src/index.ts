@@ -3,6 +3,7 @@ export * from "./auth/workload-delegation.js";
 export * from "./clock.js";
 export * from "./errors.js";
 export * from "./evaluation/applicability.js";
+export * from "./evaluation/canonical-json-hash.js";
 export * from "./evaluation/comparison-artifact-metrics.js";
 export * from "./evaluation/comparison-assurance-metrics.js";
 export * from "./evaluation/comparison-coverage-metrics.js";

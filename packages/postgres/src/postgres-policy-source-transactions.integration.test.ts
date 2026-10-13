@@ -10,6 +10,7 @@ import {
   type EvaluationImplementationRegistrationDefinition,
   type EvaluationImplementationRegistrationRecord,
   encodeEvaluationCanonicalJson,
+  policyEvaluationSourceReferenceKey,
   type PolicyEvaluationRequestDefinition,
   PrincipalContextSchema,
   type ProtocolDefinition,
@@ -63,6 +64,7 @@ import {
 } from "@proofstack/datasets";
 import {
   capturePolicyArtifactEvidence,
+  capturePolicyInputRecordSources,
   inspectParentProtocolResolution,
   type PolicyArtifactEvidenceRepositories,
   type PolicyCandidateAuthorities,
@@ -764,6 +766,7 @@ async function fixture(
       .toBeGreaterThan(0);
   return {
     namespace,
+    request,
     evaluation,
     evaluationRepository,
     scope,
@@ -793,6 +796,49 @@ async function fixture(
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("derives the complete input record manifest from one held native metadata scope", async () => {
+    const f = await fixture(true, true, true, true);
+    const captured = await f.transactions.runMetadata(f.scope, async (ports) => {
+      const acquired = await withExactScopeTransaction(
+        admin,
+        f.scope,
+        async (client) =>
+          (
+            await client.query<{ acquired: boolean }>(
+              "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+            )
+          ).rows[0]?.acquired,
+      );
+      expect(acquired).toBe(false);
+      return capturePolicyInputRecordSources(f.request, ports.records);
+    });
+    expect(captured.status).toBe("record_sources_captured");
+    expect(captured.sources.authorityBoundary).toBe("record_sources_only");
+    expect(captured.sources.scope).toEqual(f.scope);
+    expect(captured.sources.records.length).toBeGreaterThan(2);
+    for (const { entry, storage, origins } of captured.sources.records) {
+      const node = captured.graph.storageInventory.nodes.find(
+        ({ capture }) =>
+          policyEvaluationSourceReferenceKey(capture.read.source) ===
+          policyEvaluationSourceReferenceKey(entry.source),
+      );
+      expect(node).toBeDefined();
+      expect(entry.source).toEqual(node?.capture.read.source);
+      expect(entry.observation).toEqual(node?.capture.read.observation);
+      expect(storage).toEqual(
+        node?.capture.storage
+          ? {
+              recordSha256: node.capture.storage.recordSha256,
+              receiptTime: node.capture.storage.receiptTime,
+            }
+          : null,
+      );
+      expect(origins.some(({ kind }) => kind === "stored_node")).toBe(true);
+    }
+    expect(captured.usage.references).toBeGreaterThan(captured.sources.inspectionUsage.references);
+    expect(captured.usage.records).toBeGreaterThan(0);
+    expect(f.objectReads()).toBe(0);
+  });
   it("retains three future-only catalog aliases under actual guards without reading stored-only objects", async () => {
     const f = await fixture(false, true, true, true, true);
     const result = await f.run();

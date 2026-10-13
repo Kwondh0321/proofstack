@@ -58,6 +58,10 @@ export {
   type PolicyTraceEvidenceCapture,
 } from "./capture-trace-evidence.js";
 export type { PolicyRecordClosure } from "./derive-record-closure.js";
+export {
+  capturePolicyInputRecordSources,
+  type PolicyInputRecordSources,
+} from "./derive-input-record-sources.js";
 export type { PolicyRuleDependencyClosure } from "./derive-rule-dependencies.js";
 export type {
   PolicyEvaluationSourceGuard,
