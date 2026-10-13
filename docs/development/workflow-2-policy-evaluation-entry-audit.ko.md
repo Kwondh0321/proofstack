@@ -122,6 +122,11 @@ Request·result·worker와 전체 체크포인트 승인은 여전히 미완료�
 
 ## 고정할 입력과 record 경계
 
+[엄격한 스냅샷 레코드 입력 구성 요소](workflow-2-policy-snapshot-record-inputs.ko.md)는 원래
+레코드 해시·수신 시각·사용 위치와 의미 시점의 가용성을 보존합니다. 본문 파싱 전 유한 한도 승인과
+독립 canonical 벡터를 포함하며, 전체 권한·아티팩트·추적·선택자 입력, 스냅샷/결과 계약과 가드
+아래 게시는 아직 열려 있습니다.
+
 [요청 contract 구현](workflow-2-policy-evaluation-request-contract.ko.md)은 정확한 요청, scope를
 결속한 canonical vector, 원본 정밀도를 유지하는 의미 시각, 유한한 실행 상한과 요청 전용 전송 크기
 여유를 고정한다. Scheduler, source capture, snapshot·result contract, runtime budget 강제,

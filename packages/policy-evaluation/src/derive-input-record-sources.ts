@@ -1,7 +1,9 @@
 import {
   type PolicyEvaluationManifestEntry,
   PolicyEvaluationManifestEntrySchema,
+  type PolicyEvaluationRecordOrigin,
   type PolicyEvaluationRequest,
+  PolicyEvaluationSnapshotRecordInputsSchema,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
   serializeEvaluationCanonicalJson,
@@ -17,16 +19,7 @@ import { inspectPolicyStorageInventory } from "./capture-storage-inventory.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 
-type Origin =
-  | { readonly kind: "request_root"; readonly rootIndex: number }
-  | { readonly kind: "semantic_node"; readonly nodeIndex: number }
-  | { readonly kind: "stored_node"; readonly nodeIndex: number }
-  | { readonly kind: "semantic_edge"; readonly edgeIndex: number }
-  | { readonly kind: "semantic_edge_parent"; readonly edgeIndex: number }
-  | { readonly kind: "stored_edge"; readonly edgeIndex: number; readonly targetIndex: number }
-  | { readonly kind: "stored_edge_parent"; readonly edgeIndex: number }
-  | { readonly kind: "logical_root"; readonly bindingIndex: number }
-  | { readonly kind: "logical_root_parent"; readonly bindingIndex: number };
+type Origin = Readonly<PolicyEvaluationRecordOrigin>;
 
 export interface PolicyInputRecordSources {
   /** Record-domain closure only; authority histories, artifacts and traces remain separate inputs. */
@@ -278,8 +271,19 @@ export function derivePolicyInputRecordSources(
     Buffer.byteLength(canonical(material), "utf8"),
   );
   const after = budget.usage();
+  // Validate the admitted record component only after its complete output has been metered.
+  // Other source domains remain separate; this component is not sealed publication authority.
+  const capturedRecords = PolicyEvaluationSnapshotRecordInputsSchema.safeParse({
+    schemaVersion: "0.1",
+    request: reference,
+    scope: request.scope,
+    evaluationTime: request.evaluationTime,
+    records: material.records,
+  });
+  if (!capturedRecords.success) conflict();
   return structuredClone({
     ...material,
+    records: capturedRecords.data.records,
     inspectionUsage: {
       references: after.references - before.references,
       referenceBytes: after.referenceBytes - before.referenceBytes,

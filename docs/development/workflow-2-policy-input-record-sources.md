@@ -5,6 +5,10 @@
 
 Status: implementation prerequisite; Workflow 2 checkpoint 3 remains open (2/7 accepted).
 
+The [strict snapshot record component](workflow-2-policy-snapshot-record-inputs.md) adds
+versioned original metadata validation and canonical vectors. Server derivation validates it
+after output admission; full owning validation and all other input domains remain separate.
+
 The workspace server entry `capturePolicyInputRecordSources` acquires the graph and derives its
 record sources on one request-owned meter. It accepts the existing exact-scope read repositories,
 performs no content/key reads and returns the owned graph separately from source metadata.

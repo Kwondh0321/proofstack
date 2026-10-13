@@ -36,6 +36,8 @@ export * from "./policy-evaluation-request.js";
 export * from "./policy-evaluation-request-api.js";
 export * from "./policy-evaluation-request-encoding.js";
 export * from "./policy-evaluation-source-reference.js";
+export * from "./policy-evaluation-snapshot-records.js";
+export * from "./policy-evaluation-snapshot-records-encoding.js";
 export * from "./policy-evaluation-time.js";
 export * from "./primitives.js";
 export * from "./protocol-definition.js";

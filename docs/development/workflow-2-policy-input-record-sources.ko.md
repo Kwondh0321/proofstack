@@ -5,6 +5,10 @@
 
 상태: 구현 선행 조건; Workflow 2 checkpoint 3은 열려 있습니다(7개 중 2개 승인).
 
+[엄격한 스냅샷 레코드 구성 요소](workflow-2-policy-snapshot-record-inputs.ko.md)가 버전이 있는
+원래 메타데이터 검증과 canonical 벡터를 추가합니다. 서버 유도는 출력 한도 승인 후 이를 검사하며,
+소유 도메인 검증과 다른 입력 도메인 검증은 별도로 유지됩니다.
+
 Workspace 서버 진입점 `capturePolicyInputRecordSources`는 하나의 요청 소유 meter에서 graph를
 획득하고 record source를 유도합니다. 기존 exact-scope 읽기 repository를 받고 content/key는
 읽지 않으며 소유 graph와 source 메타데이터를 별도로 반환합니다. Guarded 서버 조합이

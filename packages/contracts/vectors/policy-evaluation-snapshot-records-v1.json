@@ -1,0 +1,74 @@
+{
+  "format": "proofstack.policy-evaluation-snapshot-records-vectors.v1",
+  "vectors": [
+    {
+      "input": {
+        "schemaVersion": "0.1",
+        "request": {
+          "evaluationRequestId": "request_snapshot",
+          "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "scope": {
+          "tenantId": "tenant_snapshot",
+          "projectId": "project_snapshot",
+          "environmentId": "env_snapshot"
+        },
+        "evaluationTime": "2026-10-03T00:00:00.000000000000000000000000000001Z",
+        "records": [
+          {
+            "entry": {
+              "source": {
+                "kind": "assessment",
+                "reference": {
+                  "assessmentId": "assessment_0",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "observation": {
+                "status": "verified",
+                "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            "storage": {
+              "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "receiptTime": "2026-10-03T00:00:00.000000000000000000000000000001Z"
+            },
+            "origins": [
+              {
+                "kind": "stored_node",
+                "nodeIndex": 0
+              }
+            ]
+          },
+          {
+            "entry": {
+              "source": {
+                "kind": "assessment",
+                "reference": {
+                  "assessmentId": "assessment_1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "observation": {
+                "status": "verified",
+                "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            "storage": {
+              "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "receiptTime": "2026-10-03T00:00:00.000000000000000000000000000001Z"
+            },
+            "origins": [
+              {
+                "kind": "stored_node",
+                "nodeIndex": 1
+              }
+            ]
+          }
+        ]
+      },
+      "encodedByteLength": 1493,
+      "sha256": "50bdaaa4a32a29626a55ad7bb8da6a71f0752733a6ca38bdfa02037ae21810ff"
+    }
+  ]
+}

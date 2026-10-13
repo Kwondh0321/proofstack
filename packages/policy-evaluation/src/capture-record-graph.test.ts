@@ -10,6 +10,7 @@ import {
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
   PolicyEvaluationSourceReferenceSchema,
+  PolicyEvaluationSnapshotRecordInputsSchema,
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
   ProtocolDefinitionSchema,
@@ -936,6 +937,15 @@ describe("complete record input source union", () => {
     expect(captured.status).toBe("record_sources_captured");
     expect(captured.sources.request).toEqual(captured.graph.request);
     expect(captured.sources.scope).toEqual(h.input.scope);
+    expect(
+      PolicyEvaluationSnapshotRecordInputsSchema.parse({
+        schemaVersion: "0.1",
+        request: captured.sources.request,
+        scope: captured.sources.scope,
+        evaluationTime: captured.sources.evaluationTime,
+        records: captured.sources.records,
+      }).records,
+    ).toEqual(captured.sources.records);
     expect(captured.usage.references).toBe(
       captured.graph.usage.references + captured.sources.inspectionUsage.references,
     );
@@ -1035,6 +1045,15 @@ describe("complete record input source union", () => {
       reason: "not_yet_available",
     });
     expect(future?.storage?.receiptTime).toBe("2099-01-01T00:00:00.000Z");
+    expect(
+      PolicyEvaluationSnapshotRecordInputsSchema.parse({
+        schemaVersion: "0.1",
+        request: result.request,
+        scope: result.scope,
+        evaluationTime: result.evaluationTime,
+        records: result.records,
+      }).records,
+    ).toEqual(result.records);
     expect(future?.storage?.recordSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(result.records.length).toBeGreaterThan(graph.nodes.length);
   });

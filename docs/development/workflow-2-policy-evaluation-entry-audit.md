@@ -81,6 +81,11 @@ remain open; this slice does not change the roadmap completion count.
 
 ## Frozen input and record boundary
 
+The [strict snapshot record input component](workflow-2-policy-snapshot-record-inputs.md) binds
+original record hashes/receipts/uses without changing semantic availability, with finite admission
+before material parsing and independent canonical vectors. Complete typed authority/artifact/trace/
+selector input, snapshot/result contracts and guarded publication remain open.
+
 The [request-contract implementation](workflow-2-policy-evaluation-request-contract.md) fixes the
 exact request, scoped canonical vector, full-precision semantic time, finite execution ceilings,
 and request-only transport headroom. It does not yet implement the scheduler, source capture,
