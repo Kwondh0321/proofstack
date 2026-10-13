@@ -1,0 +1,189 @@
+{
+  "oracle": "Independent Python json UTF-8/hashlib; synthetic contract data, not evaluator execution",
+  "definition": {
+    "evaluationId": "evaluation_independent_vector",
+    "request": {
+      "evaluationRequestId": "request_independent_vector",
+      "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "snapshot": {
+      "snapshotId": "snapshot_independent_vector",
+      "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "candidate": {
+      "candidateId": "candidate_independent_vector",
+      "candidateVersionId": "candidate_version_1",
+      "definitionSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "policy": {
+      "policyId": "policy_independent_vector",
+      "policyVersionId": "policy_version_1",
+      "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "algorithm": {
+      "id": "proofstack.deterministic-policy",
+      "version": "1.0.0"
+    },
+    "evaluationTime": "2026-10-13T18:00:00.123456Z",
+    "ruleCount": 10,
+    "rules": [
+      {
+        "ruleIndex": 0,
+        "ruleId": "rule_01",
+        "predicateKind": "comparison_threshold",
+        "outcome": "satisfied",
+        "evidence": {
+          "kind": "exact_threshold",
+          "operand": "delta",
+          "value": {
+            "representation": "rational",
+            "numerator": "-1",
+            "denominator": "3",
+            "unit": "basis_points"
+          },
+          "threshold": "-0.3",
+          "unit": "basis_points",
+          "comparator": "less_than",
+          "order": -1
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 1,
+        "ruleId": "rule_02",
+        "predicateKind": "coverage_floor",
+        "outcome": "violated",
+        "evidence": {
+          "kind": "count_floor",
+          "population": "decidedCount",
+          "observedCount": 2,
+          "minimumCount": 3,
+          "order": -1
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 2,
+        "ruleId": "rule_03",
+        "predicateKind": "coverage_floor",
+        "outcome": "satisfied",
+        "evidence": {
+          "kind": "ratio_floor",
+          "numeratorPopulation": "pairedObservedCount",
+          "denominatorPopulation": "pairedTotalCount",
+          "numerator": 1,
+          "denominator": 3,
+          "minimumBasisPoints": 3333,
+          "order": 1
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 3,
+        "ruleId": "rule_04",
+        "predicateKind": "uncertainty_bound",
+        "outcome": "satisfied",
+        "evidence": {
+          "kind": "uncertainty_bound",
+          "bound": "lower",
+          "value": "0.5",
+          "thresholdBasisPoints": 5000,
+          "comparator": "at_least",
+          "method": "wilson_score_interval",
+          "methodVersion": "1.0.0",
+          "confidenceLevelBasisPoints": 9500,
+          "successCount": 7,
+          "trialCount": 10,
+          "samplingAssumption": "supported",
+          "order": 0
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 4,
+        "ruleId": "rule_05",
+        "predicateKind": "eligibility_required",
+        "outcome": "violated",
+        "evidence": {
+          "kind": "eligibility",
+          "assessmentClass": "model_assurance",
+          "eligibility": "ineligible"
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 5,
+        "ruleId": "rule_06",
+        "predicateKind": "artifact_required",
+        "outcome": "violated",
+        "evidence": {
+          "kind": "artifact",
+          "status": "component_missing",
+          "reference": null
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 6,
+        "ruleId": "rule_07",
+        "predicateKind": "safety_event_ceiling",
+        "outcome": "violated",
+        "evidence": {
+          "kind": "safety_ceiling",
+          "eventClass": "guardrail_check",
+          "observedCount": 1,
+          "maximumCount": 0,
+          "candidatePopulationComplete": false,
+          "order": 1
+        },
+        "limitations": ["incomplete_candidate_population"]
+      },
+      {
+        "ruleIndex": 7,
+        "ruleId": "rule_08",
+        "predicateKind": "comparison_threshold",
+        "outcome": "not_applicable",
+        "evidence": {
+          "kind": "applicability_mismatch"
+        },
+        "limitations": []
+      },
+      {
+        "ruleIndex": 8,
+        "ruleId": "rule_09",
+        "predicateKind": "approval_required",
+        "outcome": "indeterminate",
+        "evidence": {
+          "kind": "not_evaluated",
+          "reason": "approval_not_evaluated"
+        },
+        "limitations": ["approval_not_evaluated"]
+      },
+      {
+        "ruleIndex": 9,
+        "ruleId": "rule_10",
+        "predicateKind": "coverage_floor",
+        "outcome": "indeterminate",
+        "evidence": {
+          "kind": "not_evaluated",
+          "reason": "policy_expired"
+        },
+        "limitations": ["historical_observation_only"]
+      }
+    ],
+    "outcomeCounts": {
+      "satisfied": 3,
+      "violated": 4,
+      "indeterminate": 2,
+      "not_applicable": 1
+    }
+  },
+  "scope": {
+    "tenantId": "tenant_independent_vector",
+    "projectId": "project_independent_vector",
+    "environmentId": "environment_independent_vector"
+  },
+  "byteLength": 3745,
+  "sha256": "422178dc893e06f6192837389a62a30a81cdbfbae75fd96a7cad700837be7550",
+  "canonicalUtf8": "{\"definition\":{\"algorithm\":{\"id\":\"proofstack.deterministic-policy\",\"version\":\"1.0.0\"},\"candidate\":{\"candidateId\":\"candidate_independent_vector\",\"candidateVersionId\":\"candidate_version_1\",\"definitionSha256\":\"3333333333333333333333333333333333333333333333333333333333333333\"},\"evaluationId\":\"evaluation_independent_vector\",\"evaluationTime\":\"2026-10-13T18:00:00.123456Z\",\"outcomeCounts\":{\"indeterminate\":2,\"not_applicable\":1,\"satisfied\":3,\"violated\":4},\"policy\":{\"definitionSha256\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"policyId\":\"policy_independent_vector\",\"policyVersionId\":\"policy_version_1\"},\"request\":{\"definitionSha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"evaluationRequestId\":\"request_independent_vector\"},\"ruleCount\":10,\"rules\":[{\"evidence\":{\"comparator\":\"less_than\",\"kind\":\"exact_threshold\",\"operand\":\"delta\",\"order\":-1,\"threshold\":\"-0.3\",\"unit\":\"basis_points\",\"value\":{\"denominator\":\"3\",\"numerator\":\"-1\",\"representation\":\"rational\",\"unit\":\"basis_points\"}},\"limitations\":[],\"outcome\":\"satisfied\",\"predicateKind\":\"comparison_threshold\",\"ruleId\":\"rule_01\",\"ruleIndex\":0},{\"evidence\":{\"kind\":\"count_floor\",\"minimumCount\":3,\"observedCount\":2,\"order\":-1,\"population\":\"decidedCount\"},\"limitations\":[],\"outcome\":\"violated\",\"predicateKind\":\"coverage_floor\",\"ruleId\":\"rule_02\",\"ruleIndex\":1},{\"evidence\":{\"denominator\":3,\"denominatorPopulation\":\"pairedTotalCount\",\"kind\":\"ratio_floor\",\"minimumBasisPoints\":3333,\"numerator\":1,\"numeratorPopulation\":\"pairedObservedCount\",\"order\":1},\"limitations\":[],\"outcome\":\"satisfied\",\"predicateKind\":\"coverage_floor\",\"ruleId\":\"rule_03\",\"ruleIndex\":2},{\"evidence\":{\"bound\":\"lower\",\"comparator\":\"at_least\",\"confidenceLevelBasisPoints\":9500,\"kind\":\"uncertainty_bound\",\"method\":\"wilson_score_interval\",\"methodVersion\":\"1.0.0\",\"order\":0,\"samplingAssumption\":\"supported\",\"successCount\":7,\"thresholdBasisPoints\":5000,\"trialCount\":10,\"value\":\"0.5\"},\"limitations\":[],\"outcome\":\"satisfied\",\"predicateKind\":\"uncertainty_bound\",\"ruleId\":\"rule_04\",\"ruleIndex\":3},{\"evidence\":{\"assessmentClass\":\"model_assurance\",\"eligibility\":\"ineligible\",\"kind\":\"eligibility\"},\"limitations\":[],\"outcome\":\"violated\",\"predicateKind\":\"eligibility_required\",\"ruleId\":\"rule_05\",\"ruleIndex\":4},{\"evidence\":{\"kind\":\"artifact\",\"reference\":null,\"status\":\"component_missing\"},\"limitations\":[],\"outcome\":\"violated\",\"predicateKind\":\"artifact_required\",\"ruleId\":\"rule_06\",\"ruleIndex\":5},{\"evidence\":{\"candidatePopulationComplete\":false,\"eventClass\":\"guardrail_check\",\"kind\":\"safety_ceiling\",\"maximumCount\":0,\"observedCount\":1,\"order\":1},\"limitations\":[\"incomplete_candidate_population\"],\"outcome\":\"violated\",\"predicateKind\":\"safety_event_ceiling\",\"ruleId\":\"rule_07\",\"ruleIndex\":6},{\"evidence\":{\"kind\":\"applicability_mismatch\"},\"limitations\":[],\"outcome\":\"not_applicable\",\"predicateKind\":\"comparison_threshold\",\"ruleId\":\"rule_08\",\"ruleIndex\":7},{\"evidence\":{\"kind\":\"not_evaluated\",\"reason\":\"approval_not_evaluated\"},\"limitations\":[\"approval_not_evaluated\"],\"outcome\":\"indeterminate\",\"predicateKind\":\"approval_required\",\"ruleId\":\"rule_09\",\"ruleIndex\":8},{\"evidence\":{\"kind\":\"not_evaluated\",\"reason\":\"policy_expired\"},\"limitations\":[\"historical_observation_only\"],\"outcome\":\"indeterminate\",\"predicateKind\":\"coverage_floor\",\"ruleId\":\"rule_10\",\"ruleIndex\":9}],\"snapshot\":{\"definitionSha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"snapshotId\":\"snapshot_independent_vector\"}},\"definitionDomain\":\"proofstack.policy-evaluation-result.v1\",\"encodingVersion\":\"proofstack.policy-evaluation-result-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"environment_independent_vector\",\"projectId\":\"project_independent_vector\",\"tenantId\":\"tenant_independent_vector\"}}"
+}

@@ -61,6 +61,7 @@ publication. It must not trust a supplied expected list, release guards between 
 publication or turn a digest into source truth.
 
 See [source inputs](workflow-2-policy-snapshot-source-inputs.md),
+[result contracts](workflow-2-policy-result-contract.md),
 [rule inputs](workflow-2-policy-snapshot-rule-inputs.md),
 [entry audit](workflow-2-policy-evaluation-entry-audit.md), and
 [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md).

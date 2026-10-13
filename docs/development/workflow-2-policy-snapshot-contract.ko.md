@@ -56,6 +56,7 @@ publication permission을 부여하지 않습니다. 기존 read-only recheck tr
 guard를 해제하거나 digest를 source truth로 바꾸면 안 됩니다.
 
 [Source 입력](workflow-2-policy-snapshot-source-inputs.ko.md),
+[결과 계약](workflow-2-policy-result-contract.ko.md),
 [Rule 입력](workflow-2-policy-snapshot-rule-inputs.ko.md),
 [진입 감사](workflow-2-policy-evaluation-entry-audit.ko.md),
 [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.ko.md)를 함께 읽으세요.
