@@ -79,6 +79,7 @@ import {
   type PolicyEvaluationSourceTransactions,
 } from "./recheck-captured-sources.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+import type { PolicySnapshotRuleInputs } from "./project-rule-inputs.js";
 
 export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
   /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
@@ -143,6 +144,8 @@ export type PolicyArtifactEvidenceCapture = {
       readonly comparisonRules: PolicyComparisonRuleBindings;
       readonly assessmentRules: PolicyAssessmentRuleInputs;
       readonly ruleInputs: PolicyRuleInputs;
+      /** Strict bounded rule projections, still requiring complete closure and atomic sealing. */
+      readonly snapshotRules: PolicySnapshotRuleInputs;
       readonly ruleDependencies: PolicyRuleDependencyClosure;
       readonly evaluationTrust: PolicyEvaluationTrustPrerequisites;
       readonly criterionAuthority: {
@@ -366,17 +369,24 @@ export async function capturePolicyArtifactEvidence(
       evaluationTrust.inspectionUsage.references,
       evaluationTrust.inspectionUsage.referenceBytes,
     );
-    const { artifactRules, comparisonRules, assessmentRules, ruleInputs, ruleDependencies } =
-      inspectCapturedRuleInputs(request, traceCapture.comparisonCapture, artifacts, {
-        maxReferences: request.limits.maxAcquisitionRecords,
-        maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
-      });
+    const {
+      artifactRules,
+      comparisonRules,
+      assessmentRules,
+      ruleInputs,
+      ruleDependencies,
+      snapshotRules,
+    } = inspectCapturedRuleInputs(request, traceCapture.comparisonCapture, artifacts, {
+      maxReferences: request.limits.maxAcquisitionRecords,
+      maxReferenceBytes: request.limits.maxAcquisitionRecordBytes,
+    });
     for (const report of [
       artifactRules,
       comparisonRules,
       assessmentRules,
       ruleInputs,
       ruleDependencies,
+      snapshotRules,
     ])
       budget.addReferences(
         report.inspectionUsage.references,
@@ -478,6 +488,7 @@ export async function capturePolicyArtifactEvidence(
       comparisonRules,
       assessmentRules,
       ruleInputs,
+      snapshotRules,
       ruleDependencies,
       evaluationTrust,
       criterionAuthority: {

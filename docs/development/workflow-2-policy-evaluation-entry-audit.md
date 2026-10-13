@@ -526,6 +526,11 @@ artifact/trace inputs, complete typed snapshot closure and guarded publication r
 
 Add these separate, strict, versioned records with domain-separated canonical vectors:
 
+The [strict rule input component](workflow-2-policy-snapshot-rule-inputs.md) retains all seven
+original predicate families, exact selected source witnesses and bounded operand projections after
+owning reinspection. It preserves missingness and unresolved approval with cumulative admission;
+it is not a whole snapshot/result, complete authority closure, predicate outcome or atomic seal.
+
 1. `PolicyEvaluationRequest`: exact candidate and policy references, explicit `evaluationTime`,
    fixed evaluator/algorithm version, and bounded immutable execution limits. It contains no
    caller-selected result, operand, verdict, approval, scope override, server receipt, lease, or

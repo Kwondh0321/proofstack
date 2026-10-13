@@ -79,6 +79,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AcquisitionBudget } from "./acquisition-budget.js";
 import { inspectCapturedStoredRelationships } from "./capture-stored-relations.js";
 import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
+import { capturePolicyComparisonEvidence } from "./capture-comparison-evidence.js";
+import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
 import { inspectCapturedCandidateAssessmentLineage } from "./capture-candidate-assessment-lineage.js";
 import { inspectCapturedEvaluationReplayBindings } from "./capture-evaluation-replay-bindings.js";
 import { inspectCapturedEvaluationRun } from "./capture-evaluation-run-bindings.js";
@@ -1679,6 +1681,48 @@ describe("candidate-owned assessment rule input projection", () => {
     };
     return h;
   }
+
+  it("projects owning assessment counts, Wilson intervals and eligibility without copying member/run bodies", async () => {
+    const h = await inputs();
+    const capture = await capturePolicyComparisonEvidence(h.input, h.repositories);
+    const artifacts = capture.graph.edges.flatMap((edge, edgeIndex) =>
+      edge.reference.kind === "artifact"
+        ? [
+            {
+              origin: { kind: "record" as const, edgeIndex },
+              read: {
+                scope: h.input.scope,
+                evaluationTime: h.input.evaluationTime,
+                reference: edge.reference.reference,
+                startedAt: h.input.createdAt,
+                completedAt: h.input.createdAt,
+                catalog: null,
+                observation: { status: "missing" as const },
+                usage: { catalogReads: 1, objectReads: 0, objectBytes: 0 },
+              },
+            },
+          ]
+        : [],
+    );
+    const reports = inspectCapturedRuleInputs(h.input, capture, artifacts, limits);
+    const frames = reports.snapshotRules.inputs.rules.filter(({ rule }) =>
+      rule.ruleId.startsWith("assessment_input_"),
+    );
+    expect(frames).toHaveLength(6);
+    for (const frame of frames) {
+      if (frame.input.kind !== "assessment" || frame.input.binding.status !== "inputs_retained")
+        throw new Error("Missing original assessment projection");
+      const operand = frame.input.binding.operand;
+      expect(operand).not.toHaveProperty("members");
+      if (operand.kind === "coverage_count" || operand.kind === "uncertainty_interval") {
+        if (operand.aggregate.status !== "verified")
+          throw new Error("Missing original aggregate projection");
+        expect(Object.keys(operand.aggregate.projection.counts)).toHaveLength(9);
+        expect(operand.aggregate.projection).not.toHaveProperty("members");
+        expect(operand.aggregate.projection).not.toHaveProperty("runs");
+      }
+    }
+  });
 
   it("retains original coverage, Wilson bounds and repeated eligibility without computing outcomes", async () => {
     const h = await inputs();

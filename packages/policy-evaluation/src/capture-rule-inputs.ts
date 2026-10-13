@@ -16,6 +16,7 @@ import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
 import type { PolicyComparisonEvidenceCapture } from "./capture-comparison-evidence.js";
 import { inspectCapturedComparisonRules } from "./capture-comparison-rules.js";
 import { deriveCapturedRuleDependencies } from "./derive-rule-dependencies.js";
+import { projectCapturedRuleInputs } from "./project-rule-inputs.js";
 
 type Rule = ReleasePolicy["rules"][number];
 type Approval = Extract<Rule["predicate"], { kind: "approval_required" }>;
@@ -174,5 +175,13 @@ export function inspectCapturedRuleInputs(
     maxReferences: limits.maxReferences - references,
     maxReferenceBytes: limits.maxReferenceBytes - referenceBytes,
   });
-  return structuredClone({ ...reports, ruleDependencies });
+  charge(
+    ruleDependencies.inspectionUsage.references,
+    ruleDependencies.inspectionUsage.referenceBytes,
+  );
+  const snapshotRules = projectCapturedRuleInputs(owned.capture, owned.artifacts, reports, {
+    maxReferences: limits.maxReferences - references,
+    maxReferenceBytes: limits.maxReferenceBytes - referenceBytes,
+  });
+  return structuredClone({ ...reports, ruleDependencies, snapshotRules });
 }

@@ -9,6 +9,9 @@ Status: record-component contract prerequisite; Workflow 2 checkpoint 3 remains 
 full-precision semantic time and ordered original record witnesses. It is one component of future
 sealed input. Authority histories, selectors, artifacts, traces, complete rule projections,
 snapshot/result records and guarded publication still require their own contracts and validation.
+The separate [strict rule input component](workflow-2-policy-snapshot-rule-inputs.md) now preserves
+all seven original rule families and bounded operands after owning reinspection; it does not close
+the other input domains or establish a seal.
 
 Witnesses retain original manifest observations, full stored-body hashes, original receipt text
 and every original node/root/parent/target use. Verified semantic and stored hashes must agree.

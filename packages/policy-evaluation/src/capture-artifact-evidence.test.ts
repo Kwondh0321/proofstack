@@ -17,6 +17,7 @@ import {
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
+  PolicyEvaluationSnapshotRuleInputsSchema,
   PrincipalContextSchema,
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
@@ -75,6 +76,7 @@ import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
 import { deriveCapturedRuleDependencies } from "./derive-rule-dependencies.js";
 import * as publicApi from "./index.js";
 import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
+import { projectCapturedRuleInputs } from "./project-rule-inputs.js";
 import type {
   PolicyEvaluationSourceRecheckPorts,
   PolicyEvaluationSourceTransactions,
@@ -1018,6 +1020,19 @@ describe("complete ordered policy rule inputs", () => {
       expect(frame.rule.sources.length).toBeGreaterThan(0);
     }
     expect(report).not.toHaveProperty("outcome");
+    expect(PolicyEvaluationSnapshotRuleInputsSchema.parse(output.snapshotRules.inputs)).toEqual(
+      output.snapshotRules.inputs,
+    );
+    expect(output.snapshotRules.inputs.rules.map(({ rule }) => rule)).toEqual(h.policy.rules);
+    expect(output.snapshotRules.inputs.rules.map(({ input }) => input.kind)).toEqual(
+      report.rules.map(({ binding }) => binding.kind),
+    );
+    expect(output.snapshotRules.inputs.rules[0]?.input).toEqual({
+      kind: "approval",
+      status: "not_evaluated",
+      reason: "approval_not_evaluated",
+    });
+    expect(output.snapshotRules.inputs).not.toHaveProperty("sealed");
     expect(publicApi).not.toHaveProperty("inspectCapturedRuleInputs");
   });
 
@@ -1194,6 +1209,56 @@ describe("complete ordered policy rule inputs", () => {
       expect(spy).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "comparison_frame",
+    "comparison_member",
+    "assessment_frame",
+    "artifact_frame",
+    "artifact_member",
+    "artifact_read",
+    "root_kind",
+  ] as const)("rejects corrupt internal projection coordinates: %s", async (fault) => {
+    const { h, output } = await setup();
+    const owned = structuredClone(output);
+    const capture = owned.traceCapture.comparisonCapture;
+    if (capture.status !== "inventory_captured")
+      throw new Error("Missing original comparison capture");
+    const kind = fault.startsWith("artifact")
+      ? "artifact"
+      : fault.startsWith("assessment")
+        ? "assessment"
+        : "comparison";
+    const original = owned.ruleInputs.rules.find(({ binding }) => binding.kind === kind);
+    if (!original || original.binding.kind === "approval")
+      throw new Error("Missing original rule binding");
+    if (fault.endsWith("frame")) Reflect.set(original.binding, "inputIndex", 99999);
+    else if (fault === "comparison_member") {
+      const frame = owned.comparisonRules.rules[original.binding.inputIndex];
+      if (!frame) throw new Error("Missing comparison frame");
+      Reflect.set(frame, "comparisonIndex", 99999);
+    } else if (fault === "root_kind") {
+      Reflect.set(owned.ruleInputs.candidate, "source", owned.ruleInputs.policy.source);
+    } else {
+      const frame = owned.artifactRules.rules[original.binding.inputIndex];
+      if (!frame || frame.binding.status !== "component_present")
+        throw new Error("Missing artifact frame");
+      if (fault === "artifact_member") Reflect.set(frame.binding, "memberIndex", 99999);
+      else {
+        const member = owned.artifactRules.members[frame.binding.memberIndex];
+        if (!member || member.status !== "artifact_declared")
+          throw new Error("Missing artifact member");
+        Reflect.set(member, "artifactCaptureIndex", 99999);
+      }
+    }
+    for (const spy of [h.find, h.get, h.decrypt, h.exact, h.root]) spy.mockClear();
+    expect(() => projectCapturedRuleInputs(capture, owned.artifacts, owned, limits)).toThrow(
+      "observation_conflict",
+    );
+    for (const spy of [h.find, h.get, h.decrypt, h.exact, h.root])
+      expect(spy).not.toHaveBeenCalled();
+    expect(publicApi).not.toHaveProperty("projectCapturedRuleInputs");
+  });
+
   it("admits all family and full-rule frames at exact canonical count/byte limits and rejects one below", async () => {
     const { h, output } = await setup();
     const capture = output.traceCapture.comparisonCapture;
@@ -1212,6 +1277,7 @@ describe("complete ordered policy rule inputs", () => {
       assembled.comparisonRules,
       assembled.assessmentRules,
       assembled.ruleDependencies,
+      assembled.snapshotRules,
     ];
     const exact = {
       maxReferences:
@@ -2166,6 +2232,7 @@ describe("request-rooted authorized artifact capture", () => {
         output.comparisonRules.inspectionUsage.references +
         output.assessmentRules.inspectionUsage.references +
         output.ruleInputs.inspectionUsage.references +
+        output.snapshotRules.inspectionUsage.references +
         output.ruleDependencies.inspectionUsage.references +
         output.artifactRules.inspectionUsage.references +
         output.storedArtifactInspectionUsage.references,

@@ -12,6 +12,7 @@ import {
   encodeEvaluationCanonicalJson,
   policyEvaluationSourceReferenceKey,
   type PolicyEvaluationRequestDefinition,
+  PolicyEvaluationSnapshotRuleInputsSchema,
   PrincipalContextSchema,
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
@@ -1136,6 +1137,16 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
         });
     }
     expect(result.ruleInputs).not.toHaveProperty("outcome");
+    expect(PolicyEvaluationSnapshotRuleInputsSchema.parse(result.snapshotRules.inputs)).toEqual(
+      result.snapshotRules.inputs,
+    );
+    expect(result.snapshotRules.inputs.rules.map(({ rule }) => rule)).toEqual(
+      result.ruleInputs.rules.map(({ rule }) => rule),
+    );
+    expect(result.snapshotRules.inputs.request).toEqual(graph.request);
+    expect(result.snapshotRules.inputs.scope).toEqual(graph.scope);
+    expect(result.snapshotRules.inputs.evaluationTime).toBe(graph.evaluationTime);
+    expect(result.snapshotRules.inputs).not.toHaveProperty("sealed");
     expect(result.ruleDependencies).toMatchObject({
       authorityBoundary: "captured_dependencies_only",
       request: graph.request,

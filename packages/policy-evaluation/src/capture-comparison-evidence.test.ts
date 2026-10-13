@@ -42,6 +42,8 @@ import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing"
 import { describe, expect, it, vi } from "vitest";
 import { capturePolicyComparisonEvidence } from "./capture-comparison-evidence.js";
 import { inspectCapturedComparisonRules } from "./capture-comparison-rules.js";
+import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
+import { projectCapturedRuleInputs } from "./project-rule-inputs.js";
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import * as publicApi from "./index.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
@@ -394,6 +396,63 @@ describe("candidate-owned comparison rule input bindings", () => {
     expect(h.repositories.control.comparison.findComparisonEvidenceSnapshot).toHaveBeenCalledTimes(
       2,
     );
+  });
+
+  it("projects owning verified comparison inputs and rejects substituted lineage without new I/O", async () => {
+    const h = await harness(inputs());
+    const capture = await capturePolicyComparisonEvidence(h.request, h.repositories);
+    if (capture.status !== "inventory_captured")
+      throw new Error("Missing original comparison inventory");
+    const artifacts = capture.graph.edges.flatMap((edge, edgeIndex) =>
+      edge.reference.kind === "artifact"
+        ? [
+            {
+              origin: { kind: "record" as const, edgeIndex },
+              read: {
+                scope: h.request.scope,
+                evaluationTime: h.request.evaluationTime,
+                reference: edge.reference.reference,
+                startedAt: h.request.createdAt,
+                completedAt: h.request.createdAt,
+                catalog: null,
+                observation: { status: "missing" as const },
+                usage: { catalogReads: 1, objectReads: 0, objectBytes: 0 },
+              },
+            },
+          ]
+        : [],
+    );
+    const reports = inspectCapturedRuleInputs(h.request, capture, artifacts, limits);
+    const frames = reports.snapshotRules.inputs.rules.filter(
+      ({ input }) => input.kind === "comparison" && input.binding.status === "metric_bound",
+    );
+    expect(frames).toHaveLength(5);
+    for (const frame of frames) {
+      const original = reports.comparisonRules.rules.find(
+        ({ ruleIndex }) => ruleIndex === frame.ruleIndex,
+      );
+      if (
+        original?.binding.status !== "metric_bound" ||
+        frame.input.kind !== "comparison" ||
+        frame.input.binding.status !== "metric_bound"
+      )
+        throw new Error("Missing original bound metric");
+      expect(frame.input.binding.metric.result).toEqual(original.binding.metric.result);
+      expect(frame.input.binding.metric.witnesses.result.recordSha256).toBe(
+        original.binding.metric.recordHashes.result,
+      );
+    }
+    const bound = reports.comparisonRules.rules.find(
+      ({ binding }) => binding.status === "metric_bound",
+    );
+    const member = bound && capture.comparisons[bound.comparisonIndex];
+    if (!member) throw new Error("Missing original selected comparison");
+    Reflect.set(member, "status", "lineage_invalid");
+    h.reads.length = 0;
+    expect(() => projectCapturedRuleInputs(capture, artifacts, reports, limits)).toThrow(
+      "observation_conflict",
+    );
+    expect(h.reads).toEqual([]);
   });
 
   it.each([

@@ -1,0 +1,357 @@
+{
+  "format": "proofstack.policy-evaluation-snapshot-rules.v1",
+  "vectors": [
+    {
+      "input": {
+        "schemaVersion": "0.1",
+        "request": {
+          "evaluationRequestId": "request_rule_snapshot",
+          "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "evaluationTime": "2026-10-03T00:00:00.000000000000000000000000000001Z",
+        "candidate": {
+          "source": {
+            "kind": "release_candidate",
+            "reference": {
+              "candidateId": "candidate_rules",
+              "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "candidateVersionId": "candidate_rules_v1"
+            }
+          },
+          "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "policy": {
+          "source": {
+            "kind": "release_policy",
+            "reference": {
+              "policyId": "policy_checkout_staging",
+              "policyVersionId": "policy_checkout_staging_v1",
+              "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "rules": [
+          {
+            "ruleIndex": 0,
+            "rule": {
+              "nonWaivable": true,
+              "predicate": {
+                "conflictRule": "reject_declared_conflict",
+                "excludeCandidateAuthor": true,
+                "excludePolicyAuthor": true,
+                "humanReviewerGroupIds": ["group_release_review"],
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "kind": "approval_required",
+                "quorum": 2,
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+              },
+              "rationale": "A later high-risk decision requires two independent reviewers.",
+              "ruleId": "approval_gate",
+              "severity": "critical",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "approval",
+              "status": "not_evaluated",
+              "reason": "approval_not_evaluated"
+            }
+          },
+          {
+            "ruleIndex": 1,
+            "rule": {
+              "nonWaivable": true,
+              "predicate": {
+                "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+                "componentKind": "build_artifact",
+                "kind": "artifact_required",
+                "maximumDataClassification": "internal",
+                "requireDigest": true,
+                "role": "agent_bundle"
+              },
+              "rationale": "The evaluated bundle must be the exact retained build artifact.",
+              "ruleId": "artifact_bundle",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "artifact",
+              "binding": {
+                "status": "component_missing"
+              }
+            }
+          },
+          {
+            "ruleIndex": 2,
+            "rule": {
+              "nonWaivable": false,
+              "predicate": {
+                "comparator": "less_than_or_equal",
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "kind": "comparison_threshold",
+                "metricId": "metric_regression_errors",
+                "metricKind": "trace_event_count",
+                "operand": "candidate",
+                "threshold": "0",
+                "unit": "events"
+              },
+              "rationale": "The retained candidate comparison must not contain regression errors.",
+              "ruleId": "comparison_regression",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "comparison",
+              "selection": {
+                "status": "missing",
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "binding": {
+                "status": "comparison_unusable",
+                "reason": "selection_unresolved"
+              }
+            }
+          },
+          {
+            "ruleIndex": 3,
+            "rule": {
+              "nonWaivable": false,
+              "predicate": {
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "denominator": "paired_total",
+                "kind": "coverage_floor",
+                "metricId": "metric_regression_errors",
+                "minimumBasisPoints": 9500,
+                "numerator": "paired_observed",
+                "sourceKind": "comparison_metric_ratio",
+                "unit": "basis_points"
+              },
+              "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+              "ruleId": "coverage_floor",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "comparison",
+              "selection": {
+                "status": "missing",
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "binding": {
+                "status": "comparison_unusable",
+                "reason": "selection_unresolved"
+              }
+            }
+          },
+          {
+            "ruleIndex": 4,
+            "rule": {
+              "nonWaivable": true,
+              "predicate": {
+                "assessment": {
+                  "assessmentId": "assessment_checkout_safety",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                },
+                "assessmentClass": "evaluation",
+                "expected": "eligible",
+                "kind": "eligibility_required"
+              },
+              "rationale": "The exact policy-independent safety assessment must remain eligible.",
+              "ruleId": "eligibility_base",
+              "severity": "critical",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "assessment",
+              "source": {
+                "kind": "assessment",
+                "reference": {
+                  "assessmentId": "assessment_checkout_safety",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                }
+              },
+              "binding": {
+                "status": "not_declared"
+              }
+            }
+          },
+          {
+            "ruleIndex": 5,
+            "rule": {
+              "nonWaivable": true,
+              "predicate": {
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "eventClass": "uncertain_side_effect",
+                "kind": "safety_event_ceiling",
+                "maximumCount": 0,
+                "metricId": "metric_uncertain_side_effects",
+                "unit": "events"
+              },
+              "rationale": "The retained replay must contain no uncertain side-effect event.",
+              "ruleId": "safety_ceiling",
+              "severity": "critical",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "comparison",
+              "selection": {
+                "status": "missing",
+                "comparison": {
+                  "comparisonId": "comparison_checkout",
+                  "comparisonVersionId": "comparison_checkout_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                }
+              },
+              "binding": {
+                "status": "comparison_unusable",
+                "reason": "selection_unresolved"
+              }
+            }
+          },
+          {
+            "ruleIndex": 6,
+            "rule": {
+              "nonWaivable": false,
+              "predicate": {
+                "assessment": {
+                  "assessmentId": "assessment_checkout_safety",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                },
+                "bound": "lower",
+                "comparator": "at_least",
+                "confidenceLevelBasisPoints": 9500,
+                "intervalMethod": "wilson_score_interval",
+                "intervalMethodVersion": "1.0.0",
+                "kind": "uncertainty_bound",
+                "thresholdBasisPoints": 9000,
+                "unit": "basis_points"
+              },
+              "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+              "ruleId": "uncertainty_floor",
+              "severity": "high",
+              "sources": [
+                {
+                  "review": {
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                    "sourceReviewId": "review_release_standard"
+                  },
+                  "source": {
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "sourceSnapshotId": "source_release_standard"
+                  }
+                }
+              ]
+            },
+            "input": {
+              "kind": "assessment",
+              "source": {
+                "kind": "assessment",
+                "reference": {
+                  "assessmentId": "assessment_checkout_safety",
+                  "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                }
+              },
+              "binding": {
+                "status": "not_declared"
+              }
+            }
+          }
+        ],
+        "ruleCount": 7
+      },
+      "encodedByteLength": 8321,
+      "sha256": "b1220285bce1dcea73dfff675673cc3d68caacd3c8d5c1ff20fe9877650d5a8d"
+    }
+  ]
+}

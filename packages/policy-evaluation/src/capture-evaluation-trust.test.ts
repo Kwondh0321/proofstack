@@ -763,6 +763,7 @@ describe("retained evaluation trust prerequisites", () => {
           capture.assessmentRules.inspectionUsage.references +
           capture.ruleInputs.inspectionUsage.references +
           capture.ruleDependencies.inspectionUsage.references +
+          capture.snapshotRules.inspectionUsage.references +
           capture.evaluationTrust.inspectionUsage.references +
           capture.artifactRules.inspectionUsage.references +
           criterionReferences,
@@ -776,6 +777,7 @@ describe("retained evaluation trust prerequisites", () => {
           capture.assessmentRules.inspectionUsage.referenceBytes +
           capture.ruleInputs.inspectionUsage.referenceBytes +
           capture.ruleDependencies.inspectionUsage.referenceBytes +
+          capture.snapshotRules.inspectionUsage.referenceBytes +
           capture.evaluationTrust.inspectionUsage.referenceBytes +
           capture.artifactRules.inspectionUsage.referenceBytes +
           capture.usage.sourceGuards.canonicalBytes +

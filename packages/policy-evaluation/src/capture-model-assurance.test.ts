@@ -34,6 +34,8 @@ import {
 } from "@proofstack/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { inspectCapturedAssessmentRules } from "./capture-assessment-rules.js";
+import { resolveCapturedComparisonEvidence } from "./capture-comparison-evidence.js";
+import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
 import { inspectCapturedModelAssurance } from "./capture-model-assurance.js";
 import { inspectCapturedStoredRelationships } from "./capture-stored-relations.js";
 import { AcquisitionBudget } from "./acquisition-budget.js";
@@ -437,6 +439,47 @@ describe("candidate-owned model assessment rule inputs", () => {
         expect(binding.prerequisites.assessmentSnapshotIndex).toBeNull();
         expect(binding.operand).not.toHaveProperty("dimensions");
         expect(binding).not.toHaveProperty("outcome");
+      }
+      const capture = resolveCapturedComparisonEvidence(input, graph);
+      const artifacts = graph.edges.flatMap((edge, edgeIndex) =>
+        edge.reference.kind === "artifact"
+          ? [
+              {
+                origin: { kind: "record" as const, edgeIndex },
+                read: {
+                  scope: input.scope,
+                  evaluationTime: input.evaluationTime,
+                  reference: edge.reference.reference,
+                  startedAt: input.createdAt,
+                  completedAt: input.createdAt,
+                  catalog: null,
+                  observation: { status: "missing" as const },
+                  usage: { catalogReads: 1, objectReads: 0, objectBytes: 0 },
+                },
+              },
+            ]
+          : [],
+      );
+      const projected = inspectCapturedRuleInputs(
+        input,
+        capture,
+        artifacts,
+        limits,
+      ).snapshotRules.inputs.rules.find(({ rule }) => rule.ruleId === "assessment_input_model");
+      if (projected?.input.kind !== "assessment")
+        throw new Error("Missing original model projection");
+      if (availability === "missing")
+        expect(projected.input.binding).toEqual({
+          status: "assessment_unavailable",
+          observation: { status: "missing" },
+        });
+      else {
+        if (projected.input.binding.status !== "inputs_retained")
+          throw new Error("Missing retained model projection");
+        expect(projected.input.binding.operand).toEqual(
+          binding?.status === "inputs_retained" ? binding.operand : null,
+        );
+        expect(projected.input.binding).not.toHaveProperty("record");
       }
     },
   );
