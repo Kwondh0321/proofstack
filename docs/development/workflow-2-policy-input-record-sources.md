@@ -5,6 +5,9 @@
 
 Status: implementation prerequisite; Workflow 2 checkpoint 3 remains open (2/7 accepted).
 
+The [strict relationship component and manifest join](workflow-2-policy-snapshot-source-inputs.md)
+add exact retained relationship/source-witness validation without replacing owning reinspection.
+
 The [strict snapshot record component](workflow-2-policy-snapshot-record-inputs.md) adds
 versioned original metadata validation and canonical vectors. Server derivation validates it
 after output admission; full owning validation and all other input domains remain separate.

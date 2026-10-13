@@ -5,6 +5,9 @@
 
 상태: 구현 선행 조건; Workflow 2 checkpoint 3은 열려 있습니다(7개 중 2개 승인).
 
+[엄격한 관계 구성 요소와 manifest 연결](workflow-2-policy-snapshot-source-inputs.ko.md)이
+소유 재검사를 유지하며 보존된 관계와 source witness의 정확한 일치를 검사합니다.
+
 [엄격한 스냅샷 레코드 구성 요소](workflow-2-policy-snapshot-record-inputs.ko.md)가 버전이 있는
 원래 메타데이터 검증과 canonical 벡터를 추가합니다. 서버 유도는 출력 한도 승인 후 이를 검사하며,
 소유 도메인 검증과 다른 입력 도메인 검증은 별도로 유지됩니다.

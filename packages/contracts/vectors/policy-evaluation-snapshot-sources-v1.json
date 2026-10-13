@@ -1,0 +1,174 @@
+{
+  "generator": "Independent Python json.dumps (sorted keys, compact UTF-8) and hashlib.sha256; integer-only, BMP property keys.",
+  "vectors": [
+    {
+      "input": {
+        "records": {
+          "schemaVersion": "0.1",
+          "request": {
+            "evaluationRequestId": "request_sources",
+            "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "scope": {
+            "tenantId": "tenant_sources",
+            "projectId": "project_sources",
+            "environmentId": "env_sources"
+          },
+          "evaluationTime": "2026-10-03T00:00:00.000000000000000000000000000001Z",
+          "records": [
+            {
+              "entry": {
+                "source": {
+                  "kind": "criterion_set",
+                  "reference": {
+                    "criterionSetId": "criteria_sources",
+                    "criterionSetVersionId": "criteria_sources_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                "observation": {
+                  "status": "verified",
+                  "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "storage": {
+                "recordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "receiptTime": "2026-10-03T00:00:00.000000000000000000000000000001Z"
+              },
+              "origins": [
+                {
+                  "kind": "semantic_edge_parent",
+                  "edgeIndex": 0
+                },
+                {
+                  "kind": "stored_edge_parent",
+                  "edgeIndex": 0
+                },
+                {
+                  "kind": "logical_root_parent",
+                  "bindingIndex": 0
+                },
+                {
+                  "kind": "logical_root",
+                  "bindingIndex": 0
+                }
+              ]
+            },
+            {
+              "entry": {
+                "source": {
+                  "kind": "protocol_definition",
+                  "reference": {
+                    "protocolDefinitionId": "protocol_sources",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                "observation": {
+                  "status": "missing"
+                }
+              },
+              "storage": null,
+              "origins": [
+                {
+                  "kind": "stored_edge",
+                  "edgeIndex": 0,
+                  "targetIndex": 0
+                }
+              ]
+            }
+          ]
+        },
+        "semanticFrontier": [
+          {
+            "parent": {
+              "kind": "criterion_set",
+              "reference": {
+                "criterionSetId": "criteria_sources",
+                "criterionSetVersionId": "criteria_sources_v1",
+                "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            "parentRecordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "edgeIndex": 0,
+            "kind": "artifact",
+            "reference": {
+              "kind": "artifact",
+              "path": "/資料/이름",
+              "reference": {
+                "artifactId": "artifact_sources",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "classification": "internal",
+                "mediaType": "application/json",
+                "sizeBytes": 1
+              }
+            },
+            "target": null
+          }
+        ],
+        "storedMappings": [
+          {
+            "parent": {
+              "kind": "criterion_set",
+              "reference": {
+                "criterionSetId": "criteria_sources",
+                "criterionSetVersionId": "criteria_sources_v1",
+                "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            },
+            "parentRecordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "edgeIndex": 0,
+            "reference": {
+              "kind": "protocol_declaration",
+              "path": "/source/captureAdapter",
+              "reference": {
+                "name": "capture_adapter",
+                "version": "1.0.0"
+              }
+            },
+            "targets": [
+              {
+                "kind": "protocol_definition",
+                "reference": {
+                  "protocolDefinitionId": "protocol_sources",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            ],
+            "cardinality": "unique",
+            "resolutionSha256": null
+          }
+        ],
+        "logicalRoots": {
+          "configuration": "configured",
+          "mappings": [
+            {
+              "parent": {
+                "kind": "criterion_set",
+                "reference": {
+                  "criterionSetId": "criteria_sources",
+                  "criterionSetVersionId": "criteria_sources_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "parentRecordSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "bindingIndex": 0,
+              "state": {
+                "status": "retained",
+                "root": {
+                  "kind": "criterion_set",
+                  "reference": {
+                    "criterionSetId": "criteria_sources",
+                    "criterionSetVersionId": "criteria_sources_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "encodedByteLength": 3459,
+      "sha256": "11f10dc27214c14c7e180c28a6f9932a35dd91c2e4dfa9458dfcfcdceea52fa8"
+    }
+  ]
+}

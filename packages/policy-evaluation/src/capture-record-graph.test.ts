@@ -11,6 +11,7 @@ import {
   type PolicyEvaluationRequestDefinition,
   PolicyEvaluationSourceReferenceSchema,
   PolicyEvaluationSnapshotRecordInputsSchema,
+  PolicyEvaluationSnapshotSourceInputsSchema,
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
   ProtocolDefinitionSchema,
@@ -50,6 +51,7 @@ import {
   StaticQualificationPolicyCatalogue,
   StaticRuntimeDefinitionCatalogue,
   validatePolicyEvaluationManifest,
+  validatePolicyEvaluationSnapshotSources,
 } from "@proofstack/core";
 import {
   comparisonDefinitionFixture,
@@ -948,6 +950,39 @@ describe("complete record input source union", () => {
         records: captured.sources.records,
       }).records,
     ).toEqual(captured.sources.records);
+    const sources = PolicyEvaluationSnapshotSourceInputsSchema.parse({
+      records: {
+        schemaVersion: "0.1",
+        request: captured.sources.request,
+        scope: captured.sources.scope,
+        evaluationTime: captured.sources.evaluationTime,
+        records: captured.sources.records,
+      },
+      semanticFrontier: captured.sources.semanticFrontier,
+      storedMappings: captured.sources.storedMappings,
+      logicalRoots: captured.sources.logicalRoots,
+    });
+    const pageSet = assemblePolicyEvaluationManifest({
+      entries: captured.sources.records.map(({ entry }) => entry),
+      manifestId: "manifest_input_sources",
+      request: captured.sources.request,
+      scope: captured.sources.scope,
+    });
+    expect(
+      validatePolicyEvaluationSnapshotSources({
+        expected: {
+          request: captured.sources.request,
+          scope: captured.sources.scope,
+          evaluationTime: captured.sources.evaluationTime,
+          manifest: {
+            manifestId: pageSet.manifest.manifestId,
+            definitionSha256: pageSet.manifest.definitionSha256,
+          },
+        },
+        sources,
+        pageSet,
+      }),
+    ).toEqual(sources);
     expect(captured.usage.references).toBe(
       captured.graph.usage.references + captured.sources.inspectionUsage.references,
     );

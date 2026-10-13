@@ -4,6 +4,7 @@ import {
   type PolicyEvaluationRecordOrigin,
   type PolicyEvaluationRequest,
   PolicyEvaluationSnapshotRecordInputsSchema,
+  PolicyEvaluationSnapshotSourceInputsSchema,
   type PolicyEvaluationSourceReference,
   policyEvaluationSourceReferenceKey,
   serializeEvaluationCanonicalJson,
@@ -281,9 +282,19 @@ export function derivePolicyInputRecordSources(
     records: material.records,
   });
   if (!capturedRecords.success) conflict();
+  const capturedSources = PolicyEvaluationSnapshotSourceInputsSchema.safeParse({
+    records: capturedRecords.data,
+    semanticFrontier: material.semanticFrontier,
+    storedMappings: material.storedMappings,
+    logicalRoots: material.logicalRoots,
+  });
+  if (!capturedSources.success) conflict();
   return structuredClone({
     ...material,
-    records: capturedRecords.data.records,
+    records: capturedSources.data.records.records,
+    semanticFrontier: capturedSources.data.semanticFrontier,
+    storedMappings: capturedSources.data.storedMappings,
+    logicalRoots: capturedSources.data.logicalRoots,
     inspectionUsage: {
       references: after.references - before.references,
       referenceBytes: after.referenceBytes - before.referenceBytes,
