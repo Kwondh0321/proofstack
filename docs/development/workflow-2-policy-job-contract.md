@@ -50,7 +50,9 @@ for scope and escaped correlation metadata. Larger append-only transition, heart
 acknowledgement and durable budget ledgers still require exact bounded history pagination. The
 contracts do not establish native pool/SQL/wire admission or interrupt pending repository I/O.
 
-Next implement memory/shared transition conformance, durable budget/history storage, complete
+The [atomic memory scheduler](workflow-2-policy-memory-scheduler.md) implements fixed transitions,
+authorization-first internal use cases and initial shared repository conformance. Next implement
+durable budget/history storage, complete
 current source/authority/presence/selector closure and held atomic snapshot/pages/job/fence
 publication. Capture content outside guards; lock the owning job/attempt first, then retain all
 source/migration/recovery guards and native execution authority through the same transaction.

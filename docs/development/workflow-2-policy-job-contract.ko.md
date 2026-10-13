@@ -42,7 +42,8 @@ attempt에 scope와 이스케이프된 correlation ID 여유를 둡니다. 전�
 durable budget ledger의 큰 이력은 별도 정확한 pagination이 필요합니다. native pool·SQL·
 wire admission이나 실행 중 I/O 취소가 이 계약만으로 확보되는 것은 아닙니다.
 
-memory/shared 전이 conformance, durable budget/history, 완전한 현재 closure와 같은 열린
+[atomic memory scheduler](workflow-2-policy-memory-scheduler.ko.md)는 고정 전이, 권한 우선
+내부 use case와 초기 shared conformance를 구현합니다. durable budget/history, 완전한 현재 closure와 같은 열린
 transaction의 snapshot/pages/job/fence 게시를 이어서 구현해야 합니다. content는 guard
 밖에서 읽고 job/attempt를 먼저 잠근 후 모든 source/migration/recovery guard와 현재 실행
 권한을 원자적 게시까지 유지합니다. 순수 predicate, 결과 재계산·원자적 outbox 게시, PG
