@@ -43,6 +43,8 @@ import { describe, expect, it, vi } from "vitest";
 import { capturePolicyComparisonEvidence } from "./capture-comparison-evidence.js";
 import { inspectCapturedComparisonRules } from "./capture-comparison-rules.js";
 import { inspectCapturedRuleInputs } from "./capture-rule-inputs.js";
+import { prepareCapturedSnapshotInputs } from "./prepare-snapshot-inputs.js";
+import { AcquisitionBudget } from "./acquisition-budget.js";
 import { projectCapturedRuleInputs } from "./project-rule-inputs.js";
 import { capturePolicyTraceEvidence } from "./capture-trace-evidence.js";
 import * as publicApi from "./index.js";
@@ -425,6 +427,16 @@ describe("candidate-owned comparison rule input bindings", () => {
     const reports = inspectCapturedRuleInputs(h.request, capture, artifacts, limits);
     const frames = reports.snapshotRules.inputs.rules.filter(
       ({ input }) => input.kind === "comparison" && input.binding.status === "metric_bound",
+    );
+    const prepared = prepareCapturedSnapshotInputs(
+      h.request,
+      capture.graph,
+      reports.snapshotRules.inputs,
+      "manifest_comparison_inputs",
+      new AcquisitionBudget(h.request.limits),
+    );
+    expect(prepared.manifest.pages.flatMap(({ entries }) => entries)).toEqual(
+      prepared.sources.records.records.map(({ entry }) => entry),
     );
     expect(frames).toHaveLength(5);
     for (const frame of frames) {

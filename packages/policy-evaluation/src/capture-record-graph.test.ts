@@ -97,6 +97,7 @@ import {
   derivePolicyInputRecordSources,
 } from "./derive-input-record-sources.js";
 import { deriveCapturedRecordClosure } from "./derive-record-closure.js";
+import { prepareCapturedSnapshotInputs } from "./prepare-snapshot-inputs.js";
 import type { PolicyEvaluationLogicalRootPorts } from "./logical-root-ports.js";
 import { type PolicyRecordGraphRepositories, readAndExpandPolicyRecord } from "./record-routing.js";
 import { isResolvableProtocolReference } from "./resolve-parent-protocol.js";
@@ -1743,6 +1744,16 @@ describe("candidate-owned assessment rule input projection", () => {
     const frames = reports.snapshotRules.inputs.rules.filter(({ rule }) =>
       rule.ruleId.startsWith("assessment_input_"),
     );
+    const prepared = prepareCapturedSnapshotInputs(
+      h.input,
+      capture.graph,
+      reports.snapshotRules.inputs,
+      "manifest_assessment_inputs",
+      new AcquisitionBudget(h.input.limits),
+    );
+    expect(prepared.manifest.pages.flatMap(({ entries }) => entries)).toEqual(
+      prepared.sources.records.records.map(({ entry }) => entry),
+    );
     expect(frames).toHaveLength(6);
     for (const frame of frames) {
       if (frame.input.kind !== "assessment" || frame.input.binding.status !== "inputs_retained")
@@ -1837,8 +1848,64 @@ describe("candidate-owned assessment rule input projection", () => {
         vi.spyOn(repository, "findEvaluationAggregate").mockResolvedValue(null);
       if (missing === "policy")
         vi.spyOn(repository, "findAggregationPolicy").mockResolvedValue(null);
-      const graph = await capturePolicyRecordGraph(h.input, h.repositories);
+      const capture = await capturePolicyComparisonEvidence(h.input, h.repositories);
+      const graph = capture.graph;
       const report = inspectCapturedAssessmentRules(h.input, graph, limits);
+      const artifacts = graph.edges.flatMap((edge, edgeIndex) =>
+        edge.reference.kind === "artifact"
+          ? [
+              {
+                origin: { kind: "record" as const, edgeIndex },
+                read: {
+                  scope: h.input.scope,
+                  evaluationTime: h.input.evaluationTime,
+                  reference: edge.reference.reference,
+                  startedAt: h.input.createdAt,
+                  completedAt: h.input.createdAt,
+                  catalog: null,
+                  observation: { status: "missing" as const },
+                  usage: { catalogReads: 1, objectReads: 0, objectBytes: 0 },
+                },
+              },
+            ]
+          : [],
+      );
+      const rules = inspectCapturedRuleInputs(h.input, capture, artifacts, limits).snapshotRules
+        .inputs;
+      const prepared = prepareCapturedSnapshotInputs(
+        h.input,
+        graph,
+        rules,
+        `manifest_missing_${missing}`,
+        new AcquisitionBudget(h.input.limits),
+      );
+      expect(prepared.manifest.pages.flatMap(({ entries }) => entries)).toEqual(
+        prepared.sources.records.records.map(({ entry }) => entry),
+      );
+      const changed = structuredClone(rules);
+      for (const { input } of changed.rules) {
+        if (input.kind !== "assessment") continue;
+        if (input.binding.status === "assessment_unavailable")
+          input.binding.observation = { status: "unavailable", reason: "record_invalid" };
+        else if (input.binding.status === "inputs_retained") {
+          const operand = input.binding.operand;
+          if (operand.kind !== "coverage_count" && operand.kind !== "uncertainty_interval")
+            continue;
+          const retained = missing === "aggregate" ? operand.aggregate : operand.aggregationPolicy;
+          if (retained.status !== "unavailable")
+            throw new Error("Missing original unavailable operand");
+          retained.observation = { status: "unavailable", reason: "record_invalid" };
+        }
+      }
+      expect(() =>
+        prepareCapturedSnapshotInputs(
+          h.input,
+          graph,
+          changed,
+          `manifest_changed_${missing}`,
+          new AcquisitionBudget(h.input.limits),
+        ),
+      ).toThrow("observation_conflict");
       for (const rule of report.rules) {
         if (missing === "assessment")
           expect(rule.binding).toEqual({

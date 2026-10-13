@@ -34,6 +34,27 @@ observation을 바꾼 뒤 manifest hash를 다시 계산해도 통과할 수 없
 자체나 공개 expected list가 아니라 소유 획득에서 유도합니다. 반환된 메타데이터는 caller
 object와 분리됩니다.
 
+## 동일 요청의 서버 조합
+
+`capturePolicySnapshotInputs`는 기존 권한 검사가 있는 artifact 획득과 같은 내부 누적 meter를
+사용합니다. 원본 record witness를 유도하고 candidate/policy 및 선택된 comparison/assessment의
+body witness와 unavailable observation을 연결하며, 선택적인 read-only source recheck 전에
+정확한 manifest를 만듭니다. 이 진입점으로 graph, expected list, operand, verdict를 제출하지
+않습니다. Manifest identity는 서버 옵션이며 repository/object 읽기 전에 검사합니다.
+기존 artifact capture의 동작과 출력 형태를 유지합니다.
+
+유도·재검사, 준비된 모든 source occurrence, manifest entry/page/descriptor/root와 정확한
+canonical byte를 같은 meter에 누적합니다. 전체 소유 rule 입력은 `snapshotRules`에 한 번
+유지하고 새 `snapshotInputs`에는 source metadata와 manifest를 추가합니다. 두 번째 획득이나
+content/key 읽기는 없습니다. 알 수 없는 root는 입력을 꾸미지 않고 `roots_unavailable`을
+보존합니다. Missing model/assessment/aggregate/policy는 원래 observation을 유지하며,
+observation이나 body witness를 바꾸면 연결을 거부합니다.
+
+Workspace 서버 입력이며 새 공개 response 계약이나 bounded snapshot page API가 아닙니다.
+Native PostgreSQL 검사는 이 조합 이후 scoped metadata 재검사와 scope 정리를 확인합니다.
+Transaction은 반환 전에 끝나며 publication까지 유지되지 않습니다. 현재 authority, 전체
+closure, sealed 계약과 원자적 publication은 진입 감사의 후속 요건으로 남아 있습니다.
+
 Canonical domain은 `proofstack.policy-evaluation-snapshot-sources.v1`, encoding은
 `proofstack.policy-evaluation-snapshot-sources-jcs.v1`입니다. 별도 Python UTF-8/JSON/hashlib
 벡터는 Unicode path, missing source, 원래 위치와 logical-root binding을 포함합니다.

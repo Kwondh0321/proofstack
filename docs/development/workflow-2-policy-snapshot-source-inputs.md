@@ -36,6 +36,28 @@ an observation and recomputing valid manifest hashes does not bypass the join. D
 from owning acquisition, never from the manifest or a publicly submitted expected list.
 Returned metadata is detached from caller objects.
 
+## One-request server composition
+
+`capturePolicySnapshotInputs` uses the existing authorized artifact acquisition and its private
+cumulative meter. It derives original record witnesses, joins candidate/policy and selected
+comparison/assessment body witnesses and unavailable observations, and assembles the exact manifest
+before optional read-only source recheck. No graph, expected list, operand or verdict is submitted
+through this entry point. The manifest identity is a server option validated before repository or
+object reads. Existing artifact capture preserves its behavior and output shape.
+
+Derivation/reinspection, every prepared source occurrence, every manifest entry/page/descriptor/root
+and exact canonical bytes consume the same meter. The complete owning rule inputs remain once in
+`snapshotRules`; the new `snapshotInputs` adds source metadata and manifest without copying a second
+rule report. This mode performs no second acquisition or content/key reads. Unknown roots preserve
+`roots_unavailable` without fabricated inputs. Missing model/assessment/aggregate/policy evidence
+keeps its owning observation; changing that observation or a body witness rejects the join.
+
+These are workspace server inputs, not a new public response contract or a bounded snapshot page
+API. Native PostgreSQL coverage exercises the same composition followed by scoped metadata
+reinspection and verifies scope cleanup. The transaction ends before return; it is not held
+through publication. Current authority, complete closure, sealed contracts and atomic publication
+remain the entry audit's subsequent requirements.
+
 Canonical domain: `proofstack.policy-evaluation-snapshot-sources.v1`.
 Encoding: `proofstack.policy-evaluation-snapshot-sources-jcs.v1`. The independent Python
 UTF-8/JSON/hashlib vector includes Unicode occurrence paths, missing sources, original positions

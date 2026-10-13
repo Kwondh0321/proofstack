@@ -64,8 +64,10 @@ import { describe, expect, it, vi } from "vitest";
 import { AcquisitionBudget } from "./acquisition-budget.js";
 import {
   capturePolicyArtifactEvidence,
+  capturePolicySnapshotInputs,
   type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
+import { prepareCapturedSnapshotInputs } from "./prepare-snapshot-inputs.js";
 import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
 import {
   observeCapturedCandidateAuthority,
@@ -957,6 +959,138 @@ describe("original stored artifact catalogs without content acquisition", () => 
   });
 });
 
+describe("one-request snapshot input composition", () => {
+  const options = { manifestId: "manifest_composed_inputs" };
+  function capture(h: Awaited<ReturnType<typeof harness>>, input = h.request) {
+    return capturePolicySnapshotInputs(
+      input,
+      h.actor,
+      h.repositories,
+      h.evidence,
+      h.dependencies,
+      options,
+    );
+  }
+  it("preserves unavailable roots without fabricating snapshot inputs or reading content", async () => {
+    const h = await harness();
+    h.root.mockResolvedValue(null);
+    const result = await capture(h);
+    expect(result.status).toBe("roots_unavailable");
+    expect(result).not.toHaveProperty("snapshotInputs");
+    expect(h.get).not.toHaveBeenCalled();
+  });
+  it("joins original witnesses, all seven rules and manifest without a second acquisition", async () => {
+    const baseline = await harness();
+    const original = await baseline.execute();
+    const h = await harness();
+    const result = await capture(h);
+    if (result.status !== "artifacts_captured" || original.status !== "artifacts_captured")
+      throw new Error("Missing composed input capture");
+    expect(result.snapshotInputs.sources.records.request).toEqual(
+      result.snapshotRules.inputs.request,
+    );
+    expect(result.snapshotInputs.sources.records.scope).toEqual(h.request.scope);
+    expect(result.snapshotInputs.sources.records.evaluationTime).toBe(h.request.evaluationTime);
+    expect(result.snapshotInputs.manifest.pages.flatMap(({ entries }) => entries)).toEqual(
+      result.snapshotInputs.sources.records.records.map(({ entry }) => entry),
+    );
+    expect(result.snapshotRules.inputs.rules).toHaveLength(7);
+    expect(result.usage.reads).toBe(original.usage.reads);
+    expect(result.usage.records).toBe(original.usage.records);
+    expect(result.usage.bytes).toBe(original.usage.bytes);
+    expect(h.get).toHaveBeenCalledTimes(baseline.get.mock.calls.length);
+    expect(h.decrypt).toHaveBeenCalledTimes(baseline.decrypt.mock.calls.length);
+    expect(h.exact).toHaveBeenCalledTimes(baseline.exact.mock.calls.length);
+    expect(result.usage.references).toBe(
+      original.usage.references + result.snapshotInputs.inspectionUsage.references,
+    );
+    expect(result.usage.referenceBytes).toBe(
+      original.usage.referenceBytes + result.snapshotInputs.inspectionUsage.referenceBytes,
+    );
+    expect(result.snapshotInputs).not.toHaveProperty("sealed");
+    expect(result.snapshotInputs).not.toHaveProperty("workerId");
+    expect(result.snapshotInputs).not.toHaveProperty("rules");
+    expect(original).not.toHaveProperty("snapshotInputs");
+  });
+  it.each(["references", "bytes"] as const)(
+    "admits exact combined %s and rejects one below",
+    async (kind) => {
+      const initial = await harness();
+      const baseline = await capture(initial);
+      if (baseline.status !== "artifacts_captured") throw new Error("Missing composed baseline");
+      const exact = {
+        maxAcquisitionRecords: Math.max(baseline.usage.references, baseline.usage.records),
+        maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
+      };
+      const h = await harness();
+      const result = await capture(h, withLimits(h.request, exact));
+      expect(result.status).toBe("artifacts_captured");
+      const below = await harness();
+      await expect(
+        capture(
+          below,
+          withLimits(below.request, {
+            ...exact,
+            ...(kind === "references"
+              ? { maxAcquisitionRecords: exact.maxAcquisitionRecords - 1 }
+              : { maxAcquisitionRecordBytes: exact.maxAcquisitionRecordBytes - 1 }),
+          }),
+        ),
+      ).rejects.toMatchObject({ reason: kind === "references" ? "reference_limit" : "byte_limit" });
+    },
+  );
+  it("rejects an invalid server manifest identity before record or object reads", async () => {
+    const h = await harness();
+    await expect(
+      capturePolicySnapshotInputs(h.request, h.actor, h.repositories, h.evidence, h.dependencies, {
+        manifestId: "https://source.example/latest",
+      }),
+    ).rejects.toThrow();
+    expect(h.root).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+  });
+  it("rejects absent server options before record or object reads", async () => {
+    const h = await harness();
+    await expect(
+      capturePolicySnapshotInputs(
+        h.request,
+        h.actor,
+        h.repositories,
+        h.evidence,
+        h.dependencies,
+        undefined as unknown as { manifestId: string },
+      ),
+    ).rejects.toThrow();
+    expect(h.root).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+  });
+  it.each(["body", "request", "cut", "source"] as const)(
+    "rejects a substituted rule %s in the fixed join",
+    async (kind) => {
+      const h = await harness();
+      const output = await h.execute();
+      if (output.status !== "artifacts_captured") throw new Error("Missing owning rule capture");
+      const rules = structuredClone(output.snapshotRules.inputs);
+      if (kind === "body") rules.candidate.recordSha256 = "b".repeat(64);
+      else if (kind === "source") {
+        if (rules.candidate.source.kind !== "release_candidate")
+          throw new Error("Missing root source");
+        rules.candidate.source.reference.candidateVersionId = "candidate_substituted";
+      } else if (kind === "request") rules.request.evaluationRequestId = "request_substituted";
+      else rules.evaluationTime = "2026-10-03T00:00:00.000000000000000000000000000001Z";
+      expect(() =>
+        prepareCapturedSnapshotInputs(
+          h.request,
+          output.traceCapture.comparisonCapture.graph,
+          rules,
+          options.manifestId,
+          new AcquisitionBudget(h.request.limits),
+        ),
+      ).toThrow("observation_conflict");
+    },
+  );
+});
+
 describe("complete ordered policy rule inputs", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 8_388_608 };
   async function setup() {
@@ -1143,6 +1277,39 @@ describe("complete ordered policy rule inputs", () => {
       binding: { status: "assessment_unavailable", observation: { status: "missing" } },
     });
     expect(frame).not.toHaveProperty("outcome");
+    const prepared = prepareCapturedSnapshotInputs(
+      h.request,
+      output.traceCapture.comparisonCapture.graph,
+      output.snapshotRules.inputs,
+      "manifest_missing_model_inputs",
+      new AcquisitionBudget(h.request.limits),
+    );
+    expect(
+      prepared.sources.records.records.some(
+        ({ entry }) =>
+          entry.source.kind === "model_assurance_assessment" &&
+          entry.observation.status === "missing",
+      ),
+    ).toBe(true);
+    const changed = structuredClone(output.snapshotRules.inputs);
+    const modelFrame = changed.rules.find(
+      ({ rule }) => rule.ruleId === "additional_model_eligibility",
+    );
+    if (
+      modelFrame?.input.kind !== "assessment" ||
+      modelFrame.input.binding.status !== "assessment_unavailable"
+    )
+      throw new Error("Missing retained model availability");
+    modelFrame.input.binding.observation = { status: "unavailable", reason: "record_invalid" };
+    expect(() =>
+      prepareCapturedSnapshotInputs(
+        h.request,
+        output.traceCapture.comparisonCapture.graph,
+        changed,
+        "manifest_changed_model_inputs",
+        new AcquisitionBudget(h.request.limits),
+      ),
+    ).toThrow("observation_conflict");
   });
 
   it("preserves repeated comparisons with distinct full source and waiver metadata and one approval", async () => {

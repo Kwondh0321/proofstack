@@ -9,6 +9,7 @@ import {
 import {
   type ContentReference,
   type PrincipalContext,
+  OpaqueIdSchema,
   PrincipalContextSchema,
   policyEvaluationTimestampOrderKey,
   serializeEvaluationCanonicalJson,
@@ -80,6 +81,10 @@ import {
 } from "./recheck-captured-sources.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
 import type { PolicySnapshotRuleInputs } from "./project-rule-inputs.js";
+import {
+  prepareCapturedSnapshotInputs,
+  type PolicyPreparedSnapshotInputs,
+} from "./prepare-snapshot-inputs.js";
 
 export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
   /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
@@ -178,6 +183,50 @@ export async function capturePolicyArtifactEvidence(
   evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
   dependencies: PolicyArtifactEvidenceDependencies,
 ): Promise<PolicyArtifactEvidenceCapture> {
+  return (await acquirePolicyArtifactEvidence(input, actor, repositories, evidence, dependencies))
+    .capture;
+}
+
+export type PolicySnapshotInputCapture =
+  | Extract<PolicyArtifactEvidenceCapture, { status: "roots_unavailable" }>
+  | (Extract<PolicyArtifactEvidenceCapture, { status: "artifacts_captured" }> & {
+      /** Prepared retained inputs; publication requires complete current authority and live guards. */
+      readonly snapshotInputs: PolicyPreparedSnapshotInputs;
+    });
+
+/** Fixed server-owned composition; no submitted graph, expected closure, snapshot or result. */
+export async function capturePolicySnapshotInputs(
+  input: unknown,
+  actor: PrincipalContext,
+  repositories: PolicyArtifactEvidenceRepositories,
+  evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
+  dependencies: PolicyArtifactEvidenceDependencies,
+  options: { readonly manifestId: string },
+): Promise<PolicySnapshotInputCapture> {
+  const result = await acquirePolicyArtifactEvidence(
+    input,
+    actor,
+    repositories,
+    evidence,
+    dependencies,
+    { manifestId: options?.manifestId },
+  );
+  if (result.capture.status === "roots_unavailable") return result.capture;
+  if (!result.snapshotInputs) throw new TypeError("Missing internal snapshot input composition");
+  return { ...result.capture, snapshotInputs: result.snapshotInputs };
+}
+
+async function acquirePolicyArtifactEvidence(
+  input: unknown,
+  actor: PrincipalContext,
+  repositories: PolicyArtifactEvidenceRepositories,
+  evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
+  dependencies: PolicyArtifactEvidenceDependencies,
+  snapshotOptions?: { readonly manifestId: string },
+): Promise<{
+  readonly capture: PolicyArtifactEvidenceCapture;
+  readonly snapshotInputs?: PolicyPreparedSnapshotInputs;
+}> {
   const request = validatePolicyEvaluationRequestRecord(input);
   const principal = PrincipalContextSchema.parse(actor);
   const sourceTransactions = dependencies.sourceTransactions;
@@ -186,6 +235,7 @@ export async function capturePolicyArtifactEvidence(
   if (principal.tenantId !== request.scope.tenantId)
     throw new ForbiddenError("Artifact capture scope does not match principal");
   requireEnvironmentAccess(principal, request.scope.projectId, request.scope.environmentId);
+  const manifestId = snapshotOptions ? OpaqueIdSchema.parse(snapshotOptions.manifestId) : undefined;
   if (sourceTransactions && metadataTransactions)
     throw new TypeError("Expected one policy recheck transaction mode");
 
@@ -227,11 +277,13 @@ export async function capturePolicyArtifactEvidence(
     });
     if (traceCapture.status === "roots_unavailable")
       return {
-        status: "roots_unavailable",
-        traceCapture,
-        startedAt,
-        completedAt: clock.now().toISOString(),
-        usage: usage(),
+        capture: {
+          status: "roots_unavailable",
+          traceCapture,
+          startedAt,
+          completedAt: clock.now().toISOString(),
+          usage: usage(),
+        },
       };
     const policyRepository = budget.wrap(repositories.control.releasePolicy);
     const beforeArtifacts = await observeCapturedPolicyLifecycle(
@@ -425,6 +477,16 @@ export async function capturePolicyArtifactEvidence(
       criterionAuthorityMaterialFingerprint(criteriaAfterArtifacts)
     )
       throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+    const snapshotInputs =
+      manifestId === undefined
+        ? undefined
+        : prepareCapturedSnapshotInputs(
+            request,
+            traceCapture.comparisonCapture.graph,
+            snapshotRules.inputs,
+            manifestId,
+            budget,
+          );
     const sourceGuardPlan = await deriveAndRecheckCapturedPolicySources(
       {
         request,
@@ -468,38 +530,41 @@ export async function capturePolicyArtifactEvidence(
         throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
     }
     return {
-      status: "artifacts_captured",
-      traceCapture,
-      startedAt,
-      completedAt,
-      artifacts,
-      storedArtifacts: storedArtifactCapture.captures,
-      storedArtifactInspectionUsage: storedArtifactCapture.inspectionUsage,
-      sourceGuards: sourceGuardPlan.guards,
-      ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
-      fixtureBindings,
-      artifactRules,
-      candidateAuthority: {
-        beforeArtifacts: candidateBeforeArtifacts,
-        afterArtifacts: candidateAfterArtifacts,
+      capture: {
+        status: "artifacts_captured",
+        traceCapture,
+        startedAt,
+        completedAt,
+        artifacts,
+        storedArtifacts: storedArtifactCapture.captures,
+        storedArtifactInspectionUsage: storedArtifactCapture.inspectionUsage,
+        sourceGuards: sourceGuardPlan.guards,
+        ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
+        fixtureBindings,
+        artifactRules,
+        candidateAuthority: {
+          beforeArtifacts: candidateBeforeArtifacts,
+          afterArtifacts: candidateAfterArtifacts,
+        },
+        policyAuthority,
+        applicability,
+        comparisonRules,
+        assessmentRules,
+        ruleInputs,
+        snapshotRules,
+        ruleDependencies,
+        evaluationTrust,
+        criterionAuthority: {
+          beforeArtifacts: criteriaBeforeArtifacts,
+          afterArtifacts: criteriaAfterArtifacts,
+          ...("criterionAuthority" in sourceGuardPlan
+            ? { underGuards: sourceGuardPlan.criterionAuthority }
+            : {}),
+        },
+        policyLifecycle: { beforeArtifacts, afterArtifacts },
+        usage: usage(),
       },
-      policyAuthority,
-      applicability,
-      comparisonRules,
-      assessmentRules,
-      ruleInputs,
-      snapshotRules,
-      ruleDependencies,
-      evaluationTrust,
-      criterionAuthority: {
-        beforeArtifacts: criteriaBeforeArtifacts,
-        afterArtifacts: criteriaAfterArtifacts,
-        ...("criterionAuthority" in sourceGuardPlan
-          ? { underGuards: sourceGuardPlan.criterionAuthority }
-          : {}),
-      },
-      policyLifecycle: { beforeArtifacts, afterArtifacts },
-      usage: usage(),
+      ...(snapshotInputs ? { snapshotInputs } : {}),
     };
   } finally {
     await budget.settle();

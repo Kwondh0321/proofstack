@@ -65,6 +65,7 @@ import {
 } from "@proofstack/datasets";
 import {
   capturePolicyArtifactEvidence,
+  capturePolicySnapshotInputs,
   capturePolicyInputRecordSources,
   inspectParentProtocolResolution,
   type PolicyArtifactEvidenceRepositories,
@@ -152,6 +153,7 @@ async function fixture(
   withModelEndpoint = false,
   withProtocols = false,
   withStoredCatalog = false,
+  withSnapshotInputs = false,
 ) {
   if (withStoredCatalog && !withProtocols)
     throw new Error("Stored catalog fixture requires protocols");
@@ -643,6 +645,9 @@ async function fixture(
   if (!base) throw new Error("Expected immutable request vector");
   const definition = {
     ...base,
+    // A distinct request declares the extra original-source/output inspection work up front.
+    // Existing fixtures retain 10,000; no running job receives a budget increase or refund.
+    limits: withSnapshotInputs ? { ...base.limits, maxAcquisitionRecords: 20000 } : base.limits,
     evaluationRequestId: `request_${namespace}`,
     evaluationTime: "2026-10-01T00:00:00.000Z",
     candidate: releaseCandidateReference(candidate),
@@ -704,8 +709,8 @@ async function fixture(
       );
     },
   };
-  const run = (candidateAuthorities?: PolicyCandidateAuthorities) =>
-    capturePolicyArtifactEvidence(
+  const captureArguments = (candidateAuthorities?: PolicyCandidateAuthorities) =>
+    [
       request,
       actor,
       repositories,
@@ -713,7 +718,7 @@ async function fixture(
       {
         catalog,
         objects: {
-          get: async (key) => {
+          get: async (key: string) => {
             objectReads++;
             objectKeysRead.push(key);
             await hooks.readContent?.();
@@ -725,7 +730,13 @@ async function fixture(
         ...(candidateAuthorities ? { candidateAuthorities } : {}),
         ...(metadataMode ? { metadataTransactions } : { sourceTransactions }),
       },
-    );
+    ] as const;
+  const run = (candidateAuthorities?: PolicyCandidateAuthorities) =>
+    capturePolicyArtifactEvidence(...captureArguments(candidateAuthorities));
+  const runSnapshot = () =>
+    capturePolicySnapshotInputs(...captureArguments(), {
+      manifestId: `manifest_${namespace}`,
+    });
   const tombstone = () =>
     maintenance.tombstone(scope, {
       artifactId: reference.artifactId,
@@ -777,6 +788,7 @@ async function fixture(
     encryption,
     hooks,
     run,
+    runSnapshot,
     observer,
     transactions,
     versions,
@@ -797,6 +809,33 @@ async function fixture(
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("joins one native artifact capture to exact record/rule/manifest inputs before readonly recheck", async () => {
+    const f = await fixture(true, true, true, true, false, true);
+    const result = await f.runSnapshot();
+    if (result.status !== "artifacts_captured") throw new Error("Missing composed native inputs");
+    expect(result.snapshotInputs.sources.records.scope).toEqual(f.scope);
+    expect(result.snapshotInputs.sources.records.request).toEqual(
+      result.snapshotRules.inputs.request,
+    );
+    expect(result.snapshotInputs.manifest.pages.flatMap(({ entries }) => entries)).toEqual(
+      result.snapshotInputs.sources.records.records.map(({ entry }) => entry),
+    );
+    expect(result.sourceRecheck?.status).toBe("observations_rechecked");
+    expect(result.snapshotInputs.sources.records.records.length).toBeGreaterThan(2);
+    expect(result.snapshotInputs.inspectionUsage.references).toBeGreaterThan(0);
+    expect(result.snapshotInputs.inspectionUsage.referenceBytes).toBeGreaterThan(0);
+    expect(f.request.limits.maxAcquisitionRecords).toBe(20000);
+    expect(result.usage.references).toBeGreaterThan(10000);
+    expect(result.usage.references).toBeLessThanOrEqual(20000);
+    expect(result.snapshotInputs).not.toHaveProperty("sealed");
+    await f.cleanContext();
+  });
+  it("rolls back and cleans the native scope when composed work exhausts the original request budget", async () => {
+    const f = await fixture(true, true, true, true);
+    expect(f.request.limits.maxAcquisitionRecords).toBe(10000);
+    await expect(f.runSnapshot()).rejects.toMatchObject({ reason: "reference_limit" });
+    await f.cleanContext();
+  });
   it("derives the complete input record manifest from one held native metadata scope", async () => {
     const f = await fixture(true, true, true, true);
     const captured = await f.transactions.runMetadata(f.scope, async (ports) => {

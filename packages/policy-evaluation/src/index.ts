@@ -42,6 +42,7 @@ export {
 } from "./capture-record-graph.js";
 export type { PolicyRuleInputs } from "./capture-rule-inputs.js";
 export type { PolicySnapshotRuleInputs } from "./project-rule-inputs.js";
+export type { PolicyPreparedSnapshotInputs } from "./prepare-snapshot-inputs.js";
 export type {
   PolicyStorageInventory,
   PolicyStorageInventoryEdge,
