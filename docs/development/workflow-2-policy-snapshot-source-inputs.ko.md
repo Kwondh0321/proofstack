@@ -5,6 +5,9 @@
 
 상태: 구현 선행 조건; Workflow 2 checkpoint 3은 열려 있습니다(7개 중 2개 승인).
 
+[전체 엄격한 snapshot 입력·page 계약](workflow-2-policy-snapshot-contract.ko.md)은 원자적
+publication을 별도로 유지하며 한도가 있는 canonical storage 정의를 추가합니다.
+
 `PolicyEvaluationSnapshotSourceInputsSchema`는 기존 원본 record witness와 부모에 연결된
 semantic frontier, stored non-record mapping, original logical-root binding을 연결합니다.
 원래 edge/binding index, 전체 부모 body hash, JSON pointer, 정확한 source reference와 반복

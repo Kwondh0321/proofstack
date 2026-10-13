@@ -5,6 +5,9 @@
 
 Status: implementation prerequisite; Workflow 2 checkpoint 3 remains open (2/7 accepted).
 
+The [whole strict snapshot input and page contracts](workflow-2-policy-snapshot-contract.md)
+add bounded canonical storage definitions while keeping atomic publication separate.
+
 `PolicyEvaluationSnapshotSourceInputsSchema` joins existing strict original record witnesses
 with parent-bound semantic frontiers, stored non-record mappings and original logical-root
 bindings. It preserves original edge/binding indices, full parent body hashes, JSON-pointer

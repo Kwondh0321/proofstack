@@ -68,6 +68,7 @@ export * from "./policy/policy-evaluation-implementation-resolution.js";
 export * from "./policy/policy-evaluation-lifecycle-reader.js";
 export * from "./policy/policy-evaluation-manifest.js";
 export * from "./policy/policy-evaluation-snapshot-sources.js";
+export * from "./policy/policy-evaluation-snapshot.js";
 export * from "./policy/policy-evaluation-protocol-reader.js";
 export * from "./policy/policy-evaluation-qualification-policy-reader.js";
 export * from "./policy/policy-evaluation-request-record-validation.js";

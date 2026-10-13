@@ -46,6 +46,7 @@ import {
   releasePolicyReference,
   StaticEndpointProfileCatalogue,
   StaticProtocolDefinitionCatalogue,
+  validatePolicyEvaluationSnapshot,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -66,6 +67,7 @@ import {
 import {
   capturePolicyArtifactEvidence,
   capturePolicySnapshotInputs,
+  capturePolicySnapshotDefinition,
   capturePolicyInputRecordSources,
   inspectParentProtocolResolution,
   type PolicyArtifactEvidenceRepositories,
@@ -154,6 +156,7 @@ async function fixture(
   withProtocols = false,
   withStoredCatalog = false,
   withSnapshotInputs = false,
+  withSnapshotDefinition = false,
 ) {
   if (withStoredCatalog && !withProtocols)
     throw new Error("Stored catalog fixture requires protocols");
@@ -647,7 +650,11 @@ async function fixture(
     ...base,
     // A distinct request declares the extra original-source/output inspection work up front.
     // Existing fixtures retain 10,000; no running job receives a budget increase or refund.
-    limits: withSnapshotInputs ? { ...base.limits, maxAcquisitionRecords: 20000 } : base.limits,
+    limits: withSnapshotDefinition
+      ? { ...base.limits, maxAcquisitionRecords: 50000 }
+      : withSnapshotInputs
+        ? { ...base.limits, maxAcquisitionRecords: 20000 }
+        : base.limits,
     evaluationRequestId: `request_${namespace}`,
     evaluationTime: "2026-10-01T00:00:00.000Z",
     candidate: releaseCandidateReference(candidate),
@@ -737,6 +744,11 @@ async function fixture(
     capturePolicySnapshotInputs(...captureArguments(), {
       manifestId: `manifest_${namespace}`,
     });
+  const runDefinition = () =>
+    capturePolicySnapshotDefinition(...captureArguments(), {
+      manifestId: `manifest_definition_${namespace}`,
+      snapshotId: `snapshot_${namespace}`,
+    });
   const tombstone = () =>
     maintenance.tombstone(scope, {
       artifactId: reference.artifactId,
@@ -789,6 +801,7 @@ async function fixture(
     hooks,
     run,
     runSnapshot,
+    runDefinition,
     observer,
     transactions,
     versions,
@@ -809,6 +822,29 @@ async function fixture(
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("captures complete typed snapshot definition pages through native metadata recheck without publication authority", async () => {
+    const f = await fixture(true, true, true, true, false, false, true);
+    const result = await f.runDefinition();
+    if (result.status !== "artifacts_captured")
+      throw new Error("Missing native snapshot definition");
+    const inputs = validatePolicyEvaluationSnapshot({
+      expected: {
+        snapshot: {
+          snapshotId: result.snapshotDefinition.definition.snapshotId,
+          definitionSha256: result.snapshotDefinition.definitionSha256,
+        },
+        request: result.snapshotInputs.sources.records.request,
+        scope: f.scope,
+      },
+      pageSet: result.snapshotDefinition,
+    });
+    expect(inputs.request).toEqual(f.request);
+    expect(inputs.criterionAuthority.underGuards?.status).toBe("observed");
+    expect(result.sourceRecheck?.status).toBe("observations_rechecked");
+    expect(result.snapshotDefinition).not.toHaveProperty("sealedAt");
+    expect(result.usage.references).toBeLessThanOrEqual(f.request.limits.maxAcquisitionRecords);
+    await f.cleanContext();
+  });
   it("joins one native artifact capture to exact record/rule/manifest inputs before readonly recheck", async () => {
     const f = await fixture(true, true, true, true, false, true);
     const result = await f.runSnapshot();

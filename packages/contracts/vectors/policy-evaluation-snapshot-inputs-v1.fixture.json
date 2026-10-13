@@ -1,0 +1,3594 @@
+{
+  "schemaVersion": "0.1",
+  "request": {
+    "algorithm": {
+      "id": "proofstack.deterministic-policy",
+      "version": "1.0.0"
+    },
+    "candidate": {
+      "candidateId": "candidate_artifact_graph",
+      "candidateVersionId": "candidate_artifact_graph_v1",
+      "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+    },
+    "evaluationRequestId": "request_artifact",
+    "evaluationTime": "2026-10-01T00:00:00.000Z",
+    "limits": {
+      "heartbeatIntervalMilliseconds": 1000,
+      "leaseDurationMilliseconds": 5000,
+      "maxAcquisitionRecordBytes": 8388608,
+      "maxAcquisitionRecords": 10000,
+      "maxArtifactReadBytes": 1048576,
+      "maxAttempts": 2,
+      "maxRuleEvaluations": 256,
+      "perAttemptTimeoutMilliseconds": 20000,
+      "retryBackoffMilliseconds": 100,
+      "retryableErrors": ["source_revision_changed"],
+      "totalDeadlineMilliseconds": 60000
+    },
+    "policy": {
+      "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+      "policyId": "policy_artifact_graph",
+      "policyVersionId": "policy_artifact_graph_v1"
+    },
+    "createdAt": "2026-10-01T01:00:00.000Z",
+    "createdByPrincipalId": "principal_request",
+    "definitionSha256": "99edc2698b49d1aadfcb74d27d44872e168c742be9fe256610187c58957545cb",
+    "schemaVersion": "0.1",
+    "scope": {
+      "environmentId": "env_artifact_graph_primary",
+      "projectId": "prj_artifact_graph_primary",
+      "tenantId": "ten_artifact_graph"
+    }
+  },
+  "capturedAt": "2026-10-01T02:00:00.000Z",
+  "roots": {
+    "candidate": {
+      "assessments": [
+        {
+          "assessmentId": "assessment_candidate",
+          "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "buildArtifacts": [
+        {
+          "artifact": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          },
+          "role": "agent_bundle"
+        },
+        {
+          "artifact": {
+            "artifactId": "artifact_sbom",
+            "classification": "metadata",
+            "mediaType": "application/spdx+json",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "sizeBytes": 2048
+          },
+          "role": "sbom"
+        }
+      ],
+      "comparisons": [
+        {
+          "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "resultId": "comparison_candidate"
+        }
+      ],
+      "contentProjection": "artifact_references_only",
+      "datasets": [
+        {
+          "datasetId": "dataset_artifact",
+          "datasetVersionId": "dataset_artifact_v1",
+          "definitionSha256": "d68598123293a8b59f3a1f17d35c20d55b11f6f8e0910b256e226b2e057a40b0"
+        }
+      ],
+      "description": "Exact checkout-agent candidate for a staging release gate.",
+      "knownLimitations": ["Provider exposes the served model version but not model weights."],
+      "modelAssuranceAssessments": [
+        {
+          "assessmentExtensionId": "model_assessment_candidate",
+          "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+        }
+      ],
+      "name": "Checkout agent candidate",
+      "omissions": [
+        {
+          "kind": "tool_contract",
+          "reason": "intentionally_not_used",
+          "rationale": "The candidate intentionally has no refund tool.",
+          "role": "refund_tool"
+        }
+      ],
+      "runtimeComponents": [
+        {
+          "adapter": {
+            "adapterId": "adapter_model_provider",
+            "adapterVersionId": "adapter_model_provider_v1",
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+          },
+          "kind": "model",
+          "providerId": "provider_example",
+          "providerModelId": "checkout-model",
+          "resolution": {
+            "resolutionEvidence": {
+              "artifactId": "artifact_model_resolution",
+              "classification": "confidential",
+              "mediaType": "application/json",
+              "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "sizeBytes": 256
+            },
+            "resolvedModelVersion": "checkout-model-2026-09-01",
+            "status": "exact"
+          },
+          "role": "primary_model"
+        },
+        {
+          "content": {
+            "artifactId": "artifact_system_prompt",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "sizeBytes": 512
+          },
+          "kind": "prompt",
+          "role": "system_prompt"
+        },
+        {
+          "content": {
+            "artifactId": "artifact_payment_tool",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 384
+          },
+          "kind": "tool_contract",
+          "role": "payment_tool"
+        }
+      ],
+      "source": {
+        "commit": {
+          "algorithm": "sha1",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "repositoryUrl": "https://github.com/example/checkout-agent.git",
+        "tree": {
+          "algorithm": "sha256",
+          "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      },
+      "target": {
+        "environmentId": "env_artifact_graph_primary",
+        "jurisdiction": "us",
+        "locale": "en-us",
+        "maximumDataClassification": "confidential",
+        "populationTags": ["business", "checkout"],
+        "purpose": "Repository conformance release candidate.",
+        "riskTier": "high",
+        "taskKind": "checkout_agent"
+      },
+      "targetRelease": {
+        "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "targetAdapter": {
+          "name": "local_target",
+          "protocolVersion": "1.0.0",
+          "version": "1.0.0"
+        },
+        "targetId": "target_checkout_agent",
+        "targetReleaseId": "target_checkout_agent_v1",
+        "workerProtocol": {
+          "name": "json_line",
+          "version": "1.0.0"
+        }
+      },
+      "candidateId": "candidate_artifact_graph",
+      "candidateVersionId": "candidate_artifact_graph_v1",
+      "createdAt": "2026-09-06T15:00:00.000Z",
+      "createdByPrincipalId": "principal_artifact_graph",
+      "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8",
+      "schemaVersion": "0.1",
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      }
+    },
+    "policy": {
+      "applicability": {
+        "jurisdiction": {
+          "operator": "equals",
+          "value": "us"
+        },
+        "locale": {
+          "operator": "one_of",
+          "values": ["en-us", "ko-kr"]
+        },
+        "maximumDataClassification": {
+          "operator": "equals",
+          "value": "confidential"
+        },
+        "populationTags": {
+          "operator": "contains_all",
+          "values": ["business", "checkout"]
+        },
+        "purpose": {
+          "operator": "equals",
+          "value": "Evaluate an exact checkout-agent candidate before staging release."
+        },
+        "riskTier": {
+          "operator": "equals",
+          "value": "high"
+        },
+        "taskKind": {
+          "operator": "equals",
+          "value": "checkout_agent"
+        }
+      },
+      "assumptions": [
+        "The retained comparison population represents the intended staging population."
+      ],
+      "changeRationale": "Establish the repository conformance release policy.",
+      "contentProjection": "references_and_bounded_metadata_only",
+      "counterevidence": [],
+      "description": "Bounded declarative rules for one staging release class.",
+      "effectiveAt": "2026-09-07T00:00:00.000Z",
+      "exclusions": ["Production deployment is outside this policy version."],
+      "expiresAt": "2027-03-07T00:00:00.000Z",
+      "installationBinding": {
+        "bindingVersionId": "binding_checkout_v1",
+        "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523",
+        "installationId": "installation_checkout"
+      },
+      "knownLimitations": [
+        "Publication does not establish that the selected thresholds are sufficient."
+      ],
+      "mode": "mandatory",
+      "name": "Checkout staging release policy",
+      "rationale": "Require retained evidence and independent review before a later release decision.",
+      "rules": [
+        {
+          "nonWaivable": true,
+          "predicate": {
+            "conflictRule": "reject_declared_conflict",
+            "excludeCandidateAuthor": true,
+            "excludePolicyAuthor": true,
+            "humanReviewerGroupIds": ["group_release_review"],
+            "independenceGroupIds": ["group_release_review", "group_security_review"],
+            "kind": "approval_required",
+            "quorum": 2,
+            "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+          },
+          "rationale": "A later high-risk decision requires two independent reviewers.",
+          "ruleId": "approval_gate",
+          "severity": "critical",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        {
+          "nonWaivable": true,
+          "predicate": {
+            "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+            "componentKind": "build_artifact",
+            "kind": "artifact_required",
+            "maximumDataClassification": "internal",
+            "requireDigest": true,
+            "role": "agent_bundle"
+          },
+          "rationale": "The evaluated bundle must be the exact retained build artifact.",
+          "ruleId": "artifact_bundle",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        {
+          "nonWaivable": false,
+          "predicate": {
+            "comparator": "less_than_or_equal",
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "kind": "comparison_threshold",
+            "metricId": "metric_regression_errors",
+            "metricKind": "trace_event_count",
+            "operand": "candidate",
+            "threshold": "0",
+            "unit": "events"
+          },
+          "rationale": "The retained candidate comparison must not contain regression errors.",
+          "ruleId": "comparison_regression",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        {
+          "nonWaivable": false,
+          "predicate": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "denominator": "paired_total",
+            "kind": "coverage_floor",
+            "metricId": "metric_regression_errors",
+            "minimumBasisPoints": 9500,
+            "numerator": "paired_observed",
+            "sourceKind": "comparison_metric_ratio",
+            "unit": "basis_points"
+          },
+          "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+          "ruleId": "coverage_floor",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        {
+          "nonWaivable": true,
+          "predicate": {
+            "assessment": {
+              "assessmentId": "assessment_checkout_safety",
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            },
+            "assessmentClass": "evaluation",
+            "expected": "eligible",
+            "kind": "eligibility_required"
+          },
+          "rationale": "The exact policy-independent safety assessment must remain eligible.",
+          "ruleId": "eligibility_base",
+          "severity": "critical",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        {
+          "nonWaivable": true,
+          "predicate": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "eventClass": "uncertain_side_effect",
+            "kind": "safety_event_ceiling",
+            "maximumCount": 0,
+            "metricId": "metric_uncertain_side_effects",
+            "unit": "events"
+          },
+          "rationale": "The retained replay must contain no uncertain side-effect event.",
+          "ruleId": "safety_ceiling",
+          "severity": "critical",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        {
+          "nonWaivable": false,
+          "predicate": {
+            "assessment": {
+              "assessmentId": "assessment_checkout_safety",
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            },
+            "bound": "lower",
+            "comparator": "at_least",
+            "confidenceLevelBasisPoints": 9500,
+            "intervalMethod": "wilson_score_interval",
+            "intervalMethodVersion": "1.0.0",
+            "kind": "uncertainty_bound",
+            "thresholdBasisPoints": 9000,
+            "unit": "basis_points"
+          },
+          "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+          "ruleId": "uncertainty_floor",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        }
+      ],
+      "semanticVersion": "1.0.0",
+      "sources": [
+        {
+          "review": {
+            "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+            "sourceReviewId": "review_release_standard"
+          },
+          "source": {
+            "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+            "sourceSnapshotId": "source_release_standard"
+          }
+        }
+      ],
+      "issuerPrincipalId": "principal_artifact_graph",
+      "policyId": "policy_artifact_graph",
+      "policyVersionId": "policy_artifact_graph_v1",
+      "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+      "publishedAt": "2026-09-07T01:00:00.000Z",
+      "publishedByPrincipalId": "principal_artifact_graph",
+      "schemaVersion": "0.1",
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      }
+    }
+  },
+  "sources": {
+    "records": {
+      "schemaVersion": "0.1",
+      "request": {
+        "definitionSha256": "99edc2698b49d1aadfcb74d27d44872e168c742be9fe256610187c58957545cb",
+        "evaluationRequestId": "request_artifact"
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "records": [
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "assessment",
+              "reference": {
+                "assessmentId": "assessment_candidate",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 2
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 0
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 0,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "assessment",
+              "reference": {
+                "assessmentId": "assessment_checkout_safety",
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 12
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 1
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 26
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 32
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 26,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 32,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "comparison_definition",
+              "reference": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 11
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 2
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 20
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 23
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 29
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 20,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 23,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 29,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "comparison_result",
+              "reference": {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "resultId": "comparison_candidate"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 3
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 3
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 3
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 3,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "recordSha256": "6addc770197f696252572ecb434322287c15cec31b4dd85737942b6b5c4bcdc0",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "dataset_version",
+              "reference": {
+                "datasetId": "dataset_artifact",
+                "datasetVersionId": "dataset_artifact_v1",
+                "definitionSha256": "d68598123293a8b59f3a1f17d35c20d55b11f6f8e0910b256e226b2e057a40b0"
+              }
+            }
+          },
+          "storage": {
+            "recordSha256": "6addc770197f696252572ecb434322287c15cec31b4dd85737942b6b5c4bcdc0",
+            "receiptTime": "2026-09-07T00:00:00.000Z"
+          },
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 4
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 4
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 4
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 37
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 4,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 37
+            },
+            {
+              "kind": "logical_root_parent",
+              "bindingIndex": 2
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "model_assurance_assessment",
+              "reference": {
+                "assessmentExtensionId": "model_assessment_candidate",
+                "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 5
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 5
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 5
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 5,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "policy_installation_binding",
+              "reference": {
+                "bindingVersionId": "binding_checkout_v1",
+                "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523",
+                "installationId": "installation_checkout"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 8
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 6
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 13
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 13,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "recordSha256": "608f02b8ff881cd6e1003c95f52e60127482484be5678dd3b03f6c8c2639a40c",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "regression_fixture_version",
+              "reference": {
+                "fixtureId": "fixture_artifact",
+                "fixtureVersionId": "fixture_artifact_v1",
+                "definitionSha256": "041ec6abb263937c2f90f053a84bf779a15ce03018c883b1e5dd8fd58683483b"
+              }
+            }
+          },
+          "storage": {
+            "recordSha256": "608f02b8ff881cd6e1003c95f52e60127482484be5678dd3b03f6c8c2639a40c",
+            "receiptTime": "2026-09-05T00:00:00.000Z"
+          },
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 13
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 7
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 37
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 38
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 37,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 38
+            },
+            {
+              "kind": "logical_root_parent",
+              "bindingIndex": 3
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "recordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "release_candidate",
+              "reference": {
+                "candidateId": "candidate_artifact_graph",
+                "candidateVersionId": "candidate_artifact_graph_v1",
+                "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+              }
+            }
+          },
+          "storage": {
+            "recordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+            "receiptTime": "2026-09-06T15:00:00.000Z"
+          },
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 0
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 8
+            },
+            {
+              "kind": "request_root",
+              "rootIndex": 0
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 0
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 1
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 2
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 3
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 4
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 5
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 6
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 7
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 8
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 9
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 10
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 11
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 12
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 0
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 1
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 2
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 3
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 4
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 5
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 6
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 7
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 8
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 9
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 10
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 11
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 12
+            },
+            {
+              "kind": "logical_root_parent",
+              "bindingIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "recordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "release_policy",
+              "reference": {
+                "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+                "policyId": "policy_artifact_graph",
+                "policyVersionId": "policy_artifact_graph_v1"
+              }
+            }
+          },
+          "storage": {
+            "recordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+            "receiptTime": "2026-09-07T01:00:00.000Z"
+          },
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 1
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 9
+            },
+            {
+              "kind": "request_root",
+              "rootIndex": 1
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 13
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 14
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 15
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 16
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 17
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 18
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 19
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 20
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 21
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 22
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 23
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 24
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 25
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 26
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 27
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 28
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 29
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 30
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 31
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 32
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 33
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 34
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 35
+            },
+            {
+              "kind": "semantic_edge_parent",
+              "edgeIndex": 36
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 13
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 14
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 15
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 16
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 17
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 18
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 19
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 20
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 21
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 22
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 23
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 24
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 25
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 26
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 27
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 28
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 29
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 30
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 31
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 32
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 33
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 34
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 35
+            },
+            {
+              "kind": "stored_edge_parent",
+              "edgeIndex": 36
+            },
+            {
+              "kind": "logical_root_parent",
+              "bindingIndex": 1
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "runtime_adapter",
+              "reference": {
+                "adapterId": "adapter_model_provider",
+                "adapterVersionId": "adapter_model_provider_v1",
+                "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 6
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 10
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 7
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 7,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "source_review",
+              "reference": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 9
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 11
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 15
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 18
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 21
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 24
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 27
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 30
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 33
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 35
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 15,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 18,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 21,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 24,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 27,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 30,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 33,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 35,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "source_snapshot",
+              "reference": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 10
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 12
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 16
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 19
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 22
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 25
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 28
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 31
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 34
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 36
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 16,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 19,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 22,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 25,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 28,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 31,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 34,
+              "targetIndex": 0
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 36,
+              "targetIndex": 0
+            }
+          ]
+        },
+        {
+          "entry": {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "target_release",
+              "reference": {
+                "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "targetAdapter": {
+                  "name": "local_target",
+                  "protocolVersion": "1.0.0",
+                  "version": "1.0.0"
+                },
+                "targetId": "target_checkout_agent",
+                "targetReleaseId": "target_checkout_agent_v1",
+                "workerProtocol": {
+                  "name": "json_line",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          },
+          "storage": null,
+          "origins": [
+            {
+              "kind": "stored_node",
+              "nodeIndex": 7
+            },
+            {
+              "kind": "semantic_node",
+              "nodeIndex": 13
+            },
+            {
+              "kind": "semantic_edge",
+              "edgeIndex": 12
+            },
+            {
+              "kind": "stored_edge",
+              "edgeIndex": 12,
+              "targetIndex": 0
+            }
+          ]
+        }
+      ]
+    },
+    "semanticFrontier": [
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 1,
+        "kind": "artifact",
+        "reference": {
+          "kind": "artifact",
+          "path": "/buildArtifacts/0/artifact",
+          "reference": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 2,
+        "kind": "artifact",
+        "reference": {
+          "kind": "artifact",
+          "path": "/buildArtifacts/1/artifact",
+          "reference": {
+            "artifactId": "artifact_sbom",
+            "classification": "metadata",
+            "mediaType": "application/spdx+json",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "sizeBytes": 2048
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 6,
+        "kind": "retained_declaration",
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/runtimeComponents/0",
+          "declaration": {
+            "kind": "model_declaration",
+            "reference": {
+              "providerId": "provider_example",
+              "providerModelId": "checkout-model",
+              "resolution": {
+                "resolutionEvidence": {
+                  "artifactId": "artifact_model_resolution",
+                  "classification": "confidential",
+                  "mediaType": "application/json",
+                  "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                  "sizeBytes": 256
+                },
+                "resolvedModelVersion": "checkout-model-2026-09-01",
+                "status": "exact"
+              }
+            }
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 8,
+        "kind": "artifact",
+        "reference": {
+          "kind": "artifact",
+          "path": "/runtimeComponents/0/resolution/resolutionEvidence",
+          "reference": {
+            "artifactId": "artifact_model_resolution",
+            "classification": "confidential",
+            "mediaType": "application/json",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "sizeBytes": 256
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 9,
+        "kind": "artifact",
+        "reference": {
+          "kind": "artifact",
+          "path": "/runtimeComponents/1/content",
+          "reference": {
+            "artifactId": "artifact_system_prompt",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "sizeBytes": 512
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 10,
+        "kind": "artifact",
+        "reference": {
+          "kind": "artifact",
+          "path": "/runtimeComponents/2/content",
+          "reference": {
+            "artifactId": "artifact_payment_tool",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 384
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 11,
+        "kind": "retained_declaration",
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/source",
+          "declaration": {
+            "kind": "candidate_source",
+            "reference": {
+              "commit": {
+                "algorithm": "sha1",
+                "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "repositoryUrl": "https://github.com/example/checkout-agent.git",
+              "tree": {
+                "algorithm": "sha256",
+                "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_policy",
+          "reference": {
+            "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+            "policyId": "policy_artifact_graph",
+            "policyVersionId": "policy_artifact_graph_v1"
+          }
+        },
+        "parentRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+        "edgeIndex": 14,
+        "kind": "retained_declaration",
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/rules/0/predicate",
+          "declaration": {
+            "kind": "approval_requirement",
+            "reference": {
+              "conflictRule": "reject_declared_conflict",
+              "excludeCandidateAuthor": true,
+              "excludePolicyAuthor": true,
+              "humanReviewerGroupIds": ["group_release_review"],
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "kind": "approval_required",
+              "quorum": 2,
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+            }
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "release_policy",
+          "reference": {
+            "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+            "policyId": "policy_artifact_graph",
+            "policyVersionId": "policy_artifact_graph_v1"
+          }
+        },
+        "parentRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+        "edgeIndex": 17,
+        "kind": "retained_declaration",
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/rules/1/predicate",
+          "declaration": {
+            "kind": "artifact_requirement",
+            "reference": {
+              "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+              "componentKind": "build_artifact",
+              "kind": "artifact_required",
+              "maximumDataClassification": "internal",
+              "requireDigest": true,
+              "role": "agent_bundle"
+            }
+          }
+        },
+        "target": null
+      },
+      {
+        "parent": {
+          "kind": "regression_fixture_version",
+          "reference": {
+            "fixtureId": "fixture_artifact",
+            "fixtureVersionId": "fixture_artifact_v1",
+            "definitionSha256": "041ec6abb263937c2f90f053a84bf779a15ce03018c883b1e5dd8fd58683483b"
+          }
+        },
+        "parentRecordSha256": "608f02b8ff881cd6e1003c95f52e60127482484be5678dd3b03f6c8c2639a40c",
+        "edgeIndex": 38,
+        "kind": "trace",
+        "reference": {
+          "kind": "trace_snapshot_selector",
+          "path": "/source",
+          "selector": {
+            "capturedAt": "2026-09-05T00:00:00.000Z",
+            "eventIds": ["event_artifact"],
+            "kind": "trace_snapshot",
+            "observedEventCount": 1,
+            "sourceCompleteness": "observed_snapshot",
+            "traceId": "0123456789abcdef0123456789abcdef"
+          }
+        },
+        "target": null
+      }
+    ],
+    "storedMappings": [
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 1,
+        "reference": {
+          "kind": "artifact",
+          "path": "/buildArtifacts/0/artifact",
+          "reference": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 2,
+        "reference": {
+          "kind": "artifact",
+          "path": "/buildArtifacts/1/artifact",
+          "reference": {
+            "artifactId": "artifact_sbom",
+            "classification": "metadata",
+            "mediaType": "application/spdx+json",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "sizeBytes": 2048
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 6,
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/runtimeComponents/0",
+          "declaration": {
+            "kind": "model_declaration",
+            "reference": {
+              "providerId": "provider_example",
+              "providerModelId": "checkout-model",
+              "resolution": {
+                "resolutionEvidence": {
+                  "artifactId": "artifact_model_resolution",
+                  "classification": "confidential",
+                  "mediaType": "application/json",
+                  "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                  "sizeBytes": 256
+                },
+                "resolvedModelVersion": "checkout-model-2026-09-01",
+                "status": "exact"
+              }
+            }
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 8,
+        "reference": {
+          "kind": "artifact",
+          "path": "/runtimeComponents/0/resolution/resolutionEvidence",
+          "reference": {
+            "artifactId": "artifact_model_resolution",
+            "classification": "confidential",
+            "mediaType": "application/json",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "sizeBytes": 256
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 9,
+        "reference": {
+          "kind": "artifact",
+          "path": "/runtimeComponents/1/content",
+          "reference": {
+            "artifactId": "artifact_system_prompt",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "sizeBytes": 512
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 10,
+        "reference": {
+          "kind": "artifact",
+          "path": "/runtimeComponents/2/content",
+          "reference": {
+            "artifactId": "artifact_payment_tool",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 384
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "edgeIndex": 11,
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/source",
+          "declaration": {
+            "kind": "candidate_source",
+            "reference": {
+              "commit": {
+                "algorithm": "sha1",
+                "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "repositoryUrl": "https://github.com/example/checkout-agent.git",
+              "tree": {
+                "algorithm": "sha256",
+                "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_policy",
+          "reference": {
+            "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+            "policyId": "policy_artifact_graph",
+            "policyVersionId": "policy_artifact_graph_v1"
+          }
+        },
+        "parentRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+        "edgeIndex": 14,
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/rules/0/predicate",
+          "declaration": {
+            "kind": "approval_requirement",
+            "reference": {
+              "conflictRule": "reject_declared_conflict",
+              "excludeCandidateAuthor": true,
+              "excludePolicyAuthor": true,
+              "humanReviewerGroupIds": ["group_release_review"],
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "kind": "approval_required",
+              "quorum": 2,
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+            }
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "release_policy",
+          "reference": {
+            "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+            "policyId": "policy_artifact_graph",
+            "policyVersionId": "policy_artifact_graph_v1"
+          }
+        },
+        "parentRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+        "edgeIndex": 17,
+        "reference": {
+          "kind": "control_declaration",
+          "path": "/rules/1/predicate",
+          "declaration": {
+            "kind": "artifact_requirement",
+            "reference": {
+              "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+              "componentKind": "build_artifact",
+              "kind": "artifact_required",
+              "maximumDataClassification": "internal",
+              "requireDigest": true,
+              "role": "agent_bundle"
+            }
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      },
+      {
+        "parent": {
+          "kind": "regression_fixture_version",
+          "reference": {
+            "fixtureId": "fixture_artifact",
+            "fixtureVersionId": "fixture_artifact_v1",
+            "definitionSha256": "041ec6abb263937c2f90f053a84bf779a15ce03018c883b1e5dd8fd58683483b"
+          }
+        },
+        "parentRecordSha256": "608f02b8ff881cd6e1003c95f52e60127482484be5678dd3b03f6c8c2639a40c",
+        "edgeIndex": 38,
+        "reference": {
+          "kind": "trace_snapshot_selector",
+          "path": "/source",
+          "selector": {
+            "capturedAt": "2026-09-05T00:00:00.000Z",
+            "eventIds": ["event_artifact"],
+            "kind": "trace_snapshot",
+            "observedEventCount": 1,
+            "sourceCompleteness": "observed_snapshot",
+            "traceId": "0123456789abcdef0123456789abcdef"
+          }
+        },
+        "targets": [],
+        "cardinality": "zero",
+        "resolutionSha256": null
+      }
+    ],
+    "logicalRoots": {
+      "configuration": "unconfigured",
+      "mappings": [
+        {
+          "parent": {
+            "kind": "release_candidate",
+            "reference": {
+              "candidateId": "candidate_artifact_graph",
+              "candidateVersionId": "candidate_artifact_graph_v1",
+              "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+            }
+          },
+          "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+          "bindingIndex": 0,
+          "state": {
+            "status": "unresolved",
+            "reason": "root_port_unconfigured"
+          }
+        },
+        {
+          "parent": {
+            "kind": "release_policy",
+            "reference": {
+              "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+              "policyId": "policy_artifact_graph",
+              "policyVersionId": "policy_artifact_graph_v1"
+            }
+          },
+          "parentRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+          "bindingIndex": 1,
+          "state": {
+            "status": "unresolved",
+            "reason": "root_port_unconfigured"
+          }
+        },
+        {
+          "parent": {
+            "kind": "dataset_version",
+            "reference": {
+              "datasetId": "dataset_artifact",
+              "datasetVersionId": "dataset_artifact_v1",
+              "definitionSha256": "d68598123293a8b59f3a1f17d35c20d55b11f6f8e0910b256e226b2e057a40b0"
+            }
+          },
+          "parentRecordSha256": "6addc770197f696252572ecb434322287c15cec31b4dd85737942b6b5c4bcdc0",
+          "bindingIndex": 2,
+          "state": {
+            "status": "unresolved",
+            "reason": "root_port_unconfigured"
+          }
+        },
+        {
+          "parent": {
+            "kind": "regression_fixture_version",
+            "reference": {
+              "fixtureId": "fixture_artifact",
+              "fixtureVersionId": "fixture_artifact_v1",
+              "definitionSha256": "041ec6abb263937c2f90f053a84bf779a15ce03018c883b1e5dd8fd58683483b"
+            }
+          },
+          "parentRecordSha256": "608f02b8ff881cd6e1003c95f52e60127482484be5678dd3b03f6c8c2639a40c",
+          "bindingIndex": 3,
+          "state": {
+            "status": "unresolved",
+            "reason": "root_port_unconfigured"
+          }
+        }
+      ]
+    }
+  },
+  "rules": {
+    "schemaVersion": "0.1",
+    "request": {
+      "definitionSha256": "99edc2698b49d1aadfcb74d27d44872e168c742be9fe256610187c58957545cb",
+      "evaluationRequestId": "request_artifact"
+    },
+    "scope": {
+      "environmentId": "env_artifact_graph_primary",
+      "projectId": "prj_artifact_graph_primary",
+      "tenantId": "ten_artifact_graph"
+    },
+    "evaluationTime": "2026-10-01T00:00:00.000Z",
+    "candidate": {
+      "source": {
+        "kind": "release_candidate",
+        "reference": {
+          "candidateId": "candidate_artifact_graph",
+          "candidateVersionId": "candidate_artifact_graph_v1",
+          "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+        }
+      },
+      "recordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da"
+    },
+    "policy": {
+      "source": {
+        "kind": "release_policy",
+        "reference": {
+          "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+          "policyId": "policy_artifact_graph",
+          "policyVersionId": "policy_artifact_graph_v1"
+        }
+      },
+      "recordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f"
+    },
+    "ruleCount": 7,
+    "rules": [
+      {
+        "ruleIndex": 0,
+        "rule": {
+          "nonWaivable": true,
+          "predicate": {
+            "conflictRule": "reject_declared_conflict",
+            "excludeCandidateAuthor": true,
+            "excludePolicyAuthor": true,
+            "humanReviewerGroupIds": ["group_release_review"],
+            "independenceGroupIds": ["group_release_review", "group_security_review"],
+            "kind": "approval_required",
+            "quorum": 2,
+            "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+          },
+          "rationale": "A later high-risk decision requires two independent reviewers.",
+          "ruleId": "approval_gate",
+          "severity": "critical",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "approval",
+          "status": "not_evaluated",
+          "reason": "approval_not_evaluated"
+        }
+      },
+      {
+        "ruleIndex": 1,
+        "rule": {
+          "nonWaivable": true,
+          "predicate": {
+            "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+            "componentKind": "build_artifact",
+            "kind": "artifact_required",
+            "maximumDataClassification": "internal",
+            "requireDigest": true,
+            "role": "agent_bundle"
+          },
+          "rationale": "The evaluated bundle must be the exact retained build artifact.",
+          "ruleId": "artifact_bundle",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "artifact",
+          "binding": {
+            "status": "artifact_declared",
+            "reference": {
+              "artifactId": "artifact_shared",
+              "classification": "confidential",
+              "mediaType": "text/plain",
+              "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+              "sizeBytes": 30
+            },
+            "catalog": {
+              "recordSha256": "e5cf1fd0ed7b8804c5d6eee08d82e204a74354a9e8fc36330b4e694d10aba436",
+              "ownership": null
+            },
+            "observation": {
+              "status": "verified",
+              "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+              "sizeBytes": 30
+            }
+          }
+        }
+      },
+      {
+        "ruleIndex": 2,
+        "rule": {
+          "nonWaivable": false,
+          "predicate": {
+            "comparator": "less_than_or_equal",
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "kind": "comparison_threshold",
+            "metricId": "metric_regression_errors",
+            "metricKind": "trace_event_count",
+            "operand": "candidate",
+            "threshold": "0",
+            "unit": "events"
+          },
+          "rationale": "The retained candidate comparison must not contain regression errors.",
+          "ruleId": "comparison_regression",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "comparison",
+          "selection": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "knownMatches": [],
+            "status": "unresolved",
+            "unresolvedMembers": [
+              {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "resultId": "comparison_candidate"
+              }
+            ]
+          },
+          "binding": {
+            "status": "comparison_unusable",
+            "reason": "selection_unresolved"
+          }
+        }
+      },
+      {
+        "ruleIndex": 3,
+        "rule": {
+          "nonWaivable": false,
+          "predicate": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "denominator": "paired_total",
+            "kind": "coverage_floor",
+            "metricId": "metric_regression_errors",
+            "minimumBasisPoints": 9500,
+            "numerator": "paired_observed",
+            "sourceKind": "comparison_metric_ratio",
+            "unit": "basis_points"
+          },
+          "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+          "ruleId": "coverage_floor",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "comparison",
+          "selection": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "knownMatches": [],
+            "status": "unresolved",
+            "unresolvedMembers": [
+              {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "resultId": "comparison_candidate"
+              }
+            ]
+          },
+          "binding": {
+            "status": "comparison_unusable",
+            "reason": "selection_unresolved"
+          }
+        }
+      },
+      {
+        "ruleIndex": 4,
+        "rule": {
+          "nonWaivable": true,
+          "predicate": {
+            "assessment": {
+              "assessmentId": "assessment_checkout_safety",
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            },
+            "assessmentClass": "evaluation",
+            "expected": "eligible",
+            "kind": "eligibility_required"
+          },
+          "rationale": "The exact policy-independent safety assessment must remain eligible.",
+          "ruleId": "eligibility_base",
+          "severity": "critical",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "assessment",
+          "source": {
+            "kind": "assessment",
+            "reference": {
+              "assessmentId": "assessment_checkout_safety",
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            }
+          },
+          "binding": {
+            "status": "not_declared"
+          }
+        }
+      },
+      {
+        "ruleIndex": 5,
+        "rule": {
+          "nonWaivable": true,
+          "predicate": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "eventClass": "uncertain_side_effect",
+            "kind": "safety_event_ceiling",
+            "maximumCount": 0,
+            "metricId": "metric_uncertain_side_effects",
+            "unit": "events"
+          },
+          "rationale": "The retained replay must contain no uncertain side-effect event.",
+          "ruleId": "safety_ceiling",
+          "severity": "critical",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "comparison",
+          "selection": {
+            "comparison": {
+              "comparisonId": "comparison_checkout",
+              "comparisonVersionId": "comparison_checkout_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "knownMatches": [],
+            "status": "unresolved",
+            "unresolvedMembers": [
+              {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "resultId": "comparison_candidate"
+              }
+            ]
+          },
+          "binding": {
+            "status": "comparison_unusable",
+            "reason": "selection_unresolved"
+          }
+        }
+      },
+      {
+        "ruleIndex": 6,
+        "rule": {
+          "nonWaivable": false,
+          "predicate": {
+            "assessment": {
+              "assessmentId": "assessment_checkout_safety",
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            },
+            "bound": "lower",
+            "comparator": "at_least",
+            "confidenceLevelBasisPoints": 9500,
+            "intervalMethod": "wilson_score_interval",
+            "intervalMethodVersion": "1.0.0",
+            "kind": "uncertainty_bound",
+            "thresholdBasisPoints": 9000,
+            "unit": "basis_points"
+          },
+          "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+          "ruleId": "uncertainty_floor",
+          "severity": "high",
+          "sources": [
+            {
+              "review": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              },
+              "source": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          ]
+        },
+        "input": {
+          "kind": "assessment",
+          "source": {
+            "kind": "assessment",
+            "reference": {
+              "assessmentId": "assessment_checkout_safety",
+              "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            }
+          },
+          "binding": {
+            "status": "not_declared"
+          }
+        }
+      }
+    ]
+  },
+  "manifest": {
+    "manifest": {
+      "entryCount": 14,
+      "manifestId": "manifest_composed_inputs",
+      "pages": [
+        {
+          "definitionSha256": "f047e147db6035b33098837a98e02d92e54c240cb049618f93f93f52e2040579",
+          "entryCount": 14,
+          "firstKey": "assessment:assessment_candidate",
+          "lastKey": "target_release:target_checkout_agent_v1",
+          "pageIndex": 0
+        }
+      ],
+      "request": {
+        "definitionSha256": "99edc2698b49d1aadfcb74d27d44872e168c742be9fe256610187c58957545cb",
+        "evaluationRequestId": "request_artifact"
+      },
+      "definitionSha256": "9c581b060f19f6480eb7e5d73d94773dbfc1ce177e6522a05342924ef83321a6",
+      "schemaVersion": "0.1",
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      }
+    },
+    "pages": [
+      {
+        "entries": [
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "assessment",
+              "reference": {
+                "assessmentId": "assessment_candidate",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "assessment",
+              "reference": {
+                "assessmentId": "assessment_checkout_safety",
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "comparison_definition",
+              "reference": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "comparison_result",
+              "reference": {
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "resultId": "comparison_candidate"
+              }
+            }
+          },
+          {
+            "observation": {
+              "recordSha256": "6addc770197f696252572ecb434322287c15cec31b4dd85737942b6b5c4bcdc0",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "dataset_version",
+              "reference": {
+                "datasetId": "dataset_artifact",
+                "datasetVersionId": "dataset_artifact_v1",
+                "definitionSha256": "d68598123293a8b59f3a1f17d35c20d55b11f6f8e0910b256e226b2e057a40b0"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "model_assurance_assessment",
+              "reference": {
+                "assessmentExtensionId": "model_assessment_candidate",
+                "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "policy_installation_binding",
+              "reference": {
+                "bindingVersionId": "binding_checkout_v1",
+                "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523",
+                "installationId": "installation_checkout"
+              }
+            }
+          },
+          {
+            "observation": {
+              "recordSha256": "608f02b8ff881cd6e1003c95f52e60127482484be5678dd3b03f6c8c2639a40c",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "regression_fixture_version",
+              "reference": {
+                "fixtureId": "fixture_artifact",
+                "fixtureVersionId": "fixture_artifact_v1",
+                "definitionSha256": "041ec6abb263937c2f90f053a84bf779a15ce03018c883b1e5dd8fd58683483b"
+              }
+            }
+          },
+          {
+            "observation": {
+              "recordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "release_candidate",
+              "reference": {
+                "candidateId": "candidate_artifact_graph",
+                "candidateVersionId": "candidate_artifact_graph_v1",
+                "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+              }
+            }
+          },
+          {
+            "observation": {
+              "recordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+              "status": "verified"
+            },
+            "source": {
+              "kind": "release_policy",
+              "reference": {
+                "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+                "policyId": "policy_artifact_graph",
+                "policyVersionId": "policy_artifact_graph_v1"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "runtime_adapter",
+              "reference": {
+                "adapterId": "adapter_model_provider",
+                "adapterVersionId": "adapter_model_provider_v1",
+                "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "source_review",
+              "reference": {
+                "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                "sourceReviewId": "review_release_standard"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "source_snapshot",
+              "reference": {
+                "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                "sourceSnapshotId": "source_release_standard"
+              }
+            }
+          },
+          {
+            "observation": {
+              "status": "missing"
+            },
+            "source": {
+              "kind": "target_release",
+              "reference": {
+                "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "targetAdapter": {
+                  "name": "local_target",
+                  "protocolVersion": "1.0.0",
+                  "version": "1.0.0"
+                },
+                "targetId": "target_checkout_agent",
+                "targetReleaseId": "target_checkout_agent_v1",
+                "workerProtocol": {
+                  "name": "json_line",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        ],
+        "entryCount": 14,
+        "manifestId": "manifest_composed_inputs",
+        "pageIndex": 0,
+        "request": {
+          "definitionSha256": "99edc2698b49d1aadfcb74d27d44872e168c742be9fe256610187c58957545cb",
+          "evaluationRequestId": "request_artifact"
+        },
+        "definitionSha256": "f047e147db6035b33098837a98e02d92e54c240cb049618f93f93f52e2040579",
+        "schemaVersion": "0.1",
+        "scope": {
+          "environmentId": "env_artifact_graph_primary",
+          "projectId": "prj_artifact_graph_primary",
+          "tenantId": "ten_artifact_graph"
+        }
+      }
+    ]
+  },
+  "policyAuthority": {
+    "source": {
+      "kind": "release_policy",
+      "reference": {
+        "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+        "policyId": "policy_artifact_graph",
+        "policyVersionId": "policy_artifact_graph_v1"
+      }
+    },
+    "recordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+    "evaluationTime": "2026-10-01T00:00:00.000Z",
+    "requirements": {
+      "status": "invalid",
+      "findings": [
+        {
+          "reason": "installation_binding_unavailable"
+        },
+        {
+          "reason": "source_review_unavailable",
+          "sourceReviewId": "review_release_standard",
+          "sourceSnapshotId": "source_release_standard"
+        },
+        {
+          "reason": "source_snapshot_unavailable",
+          "sourceReviewId": "review_release_standard",
+          "sourceSnapshotId": "source_release_standard"
+        }
+      ]
+    },
+    "dependencyEdgeIndexes": [13, 36, 35, 16, 15, 19, 18, 22, 21, 25, 24, 28, 27, 31, 30, 34, 33],
+    "artifactCaptureIndexes": []
+  },
+  "policyLifecycle": {
+    "beforeArtifacts": {
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "policy": {
+        "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+        "policyId": "policy_artifact_graph",
+        "policyVersionId": "policy_artifact_graph_v1"
+      },
+      "policyRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "observationSha256": "5778476cab83c56b4ec82655aee7fb143e65edd256c33a7f825402ea8f64512c",
+      "state": "no_terminal_event_at_evaluation",
+      "history": []
+    },
+    "afterArtifacts": {
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "policy": {
+        "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+        "policyId": "policy_artifact_graph",
+        "policyVersionId": "policy_artifact_graph_v1"
+      },
+      "policyRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "observationSha256": "5778476cab83c56b4ec82655aee7fb143e65edd256c33a7f825402ea8f64512c",
+      "state": "no_terminal_event_at_evaluation",
+      "history": []
+    }
+  },
+  "candidateAuthority": {
+    "beforeArtifacts": {
+      "status": "not_configured"
+    },
+    "afterArtifacts": {
+      "status": "not_configured"
+    }
+  },
+  "criterionAuthority": {
+    "beforeArtifacts": {
+      "status": "not_required"
+    },
+    "afterArtifacts": {
+      "status": "not_required"
+    }
+  },
+  "applicability": {
+    "scope": {
+      "environmentId": "env_artifact_graph_primary",
+      "projectId": "prj_artifact_graph_primary",
+      "tenantId": "ten_artifact_graph"
+    },
+    "evaluationTime": "2026-10-01T00:00:00.000Z",
+    "authorityBoundary": "retained_prerequisites_only",
+    "candidate": {
+      "source": {
+        "kind": "release_candidate",
+        "reference": {
+          "candidateId": "candidate_artifact_graph",
+          "candidateVersionId": "candidate_artifact_graph_v1",
+          "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+        }
+      },
+      "recordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da"
+    },
+    "policy": {
+      "source": {
+        "kind": "release_policy",
+        "reference": {
+          "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+          "policyId": "policy_artifact_graph",
+          "policyVersionId": "policy_artifact_graph_v1"
+        }
+      },
+      "recordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f"
+    },
+    "installationBinding": {
+      "source": {
+        "kind": "policy_installation_binding",
+        "reference": {
+          "bindingVersionId": "binding_checkout_v1",
+          "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523",
+          "installationId": "installation_checkout"
+        }
+      },
+      "observation": {
+        "status": "missing"
+      }
+    },
+    "lifecycle": {
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "policy": {
+        "definitionSha256": "9423cb828333ac06ba39f78c3681cb9294124dccd44242374f723cab1665e7e3",
+        "policyId": "policy_artifact_graph",
+        "policyVersionId": "policy_artifact_graph_v1"
+      },
+      "policyRecordSha256": "c2e2a29a39b75dea295baf3a7d015b41a9a53302cd8a2b3f53c95d257ef17a8f",
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "observationSha256": "5778476cab83c56b4ec82655aee7fb143e65edd256c33a7f825402ea8f64512c",
+      "state": "no_terminal_event_at_evaluation",
+      "history": []
+    },
+    "dimensions": [
+      {
+        "field": "jurisdiction",
+        "policyPath": "/applicability/jurisdiction",
+        "candidatePath": "/target/jurisdiction",
+        "selector": {
+          "operator": "equals",
+          "value": "us"
+        },
+        "targetValue": "us",
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      },
+      {
+        "field": "locale",
+        "policyPath": "/applicability/locale",
+        "candidatePath": "/target/locale",
+        "selector": {
+          "operator": "one_of",
+          "values": ["en-us", "ko-kr"]
+        },
+        "targetValue": "en-us",
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      },
+      {
+        "field": "maximumDataClassification",
+        "policyPath": "/applicability/maximumDataClassification",
+        "candidatePath": "/target/maximumDataClassification",
+        "selector": {
+          "operator": "equals",
+          "value": "confidential"
+        },
+        "targetValue": "confidential",
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      },
+      {
+        "field": "populationTags",
+        "policyPath": "/applicability/populationTags",
+        "candidatePath": "/target/populationTags",
+        "selector": {
+          "operator": "contains_all",
+          "values": ["business", "checkout"]
+        },
+        "targetValue": ["business", "checkout"],
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      },
+      {
+        "field": "purpose",
+        "policyPath": "/applicability/purpose",
+        "candidatePath": "/target/purpose",
+        "selector": {
+          "operator": "equals",
+          "value": "Evaluate an exact checkout-agent candidate before staging release."
+        },
+        "targetValue": "Repository conformance release candidate.",
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      },
+      {
+        "field": "riskTier",
+        "policyPath": "/applicability/riskTier",
+        "candidatePath": "/target/riskTier",
+        "selector": {
+          "operator": "equals",
+          "value": "high"
+        },
+        "targetValue": "high",
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      },
+      {
+        "field": "taskKind",
+        "policyPath": "/applicability/taskKind",
+        "candidatePath": "/target/taskKind",
+        "selector": {
+          "operator": "equals",
+          "value": "checkout_agent"
+        },
+        "targetValue": "checkout_agent",
+        "status": "not_evaluated",
+        "reason": "authority_unverified"
+      }
+    ],
+    "conjunction": "not_evaluated"
+  },
+  "evaluationTrust": {
+    "parents": [],
+    "unavailableParents": []
+  },
+  "traces": [
+    {
+      "edgeIndex": 38,
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "selector": {
+        "capturedAt": "2026-09-05T00:00:00.000Z",
+        "eventIds": ["event_artifact"],
+        "kind": "trace_snapshot",
+        "observedEventCount": 1,
+        "sourceCompleteness": "observed_snapshot",
+        "traceId": "0123456789abcdef0123456789abcdef"
+      },
+      "observation": {
+        "status": "verified",
+        "eventsSha256": "64ab2ee99fd4f82d089ad305c77d9911a836bdcee0f7cb950941f97609b1f48b",
+        "eventSha256": ["1d9405fa711e5fd881d66f2ffd6ce3aaf5259bc0e386ae12cfecd4a7bf6404d7"]
+      }
+    }
+  ],
+  "traceArtifactReferences": [
+    {
+      "traceCaptureIndex": 0,
+      "eventId": "event_artifact",
+      "eventRecordSha256": "1d9405fa711e5fd881d66f2ffd6ce3aaf5259bc0e386ae12cfecd4a7bf6404d7",
+      "path": "/events/0/evidence/contentReferences/0",
+      "reference": {
+        "artifactId": "artifact_shared",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      }
+    },
+    {
+      "traceCaptureIndex": 0,
+      "eventId": "event_artifact",
+      "eventRecordSha256": "1d9405fa711e5fd881d66f2ffd6ce3aaf5259bc0e386ae12cfecd4a7bf6404d7",
+      "path": "/events/0/evidence/contentReferences/1",
+      "reference": {
+        "artifactId": "artifact_shared",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "origin": {
+        "kind": "record",
+        "edgeIndex": 1
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_shared",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": {
+        "metadata": {
+          "availableAt": "2026-09-04T00:01:00.000Z",
+          "contentReference": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          },
+          "createdAt": "2026-09-04T00:00:00.000Z",
+          "redaction": {
+            "status": "not_required"
+          },
+          "retention": {
+            "expiresAt": "2026-10-02T00:00:00.000Z",
+            "mode": "expire"
+          },
+          "schemaVersion": "0.1",
+          "scope": {
+            "environmentId": "env_artifact_graph_primary",
+            "projectId": "prj_artifact_graph_primary",
+            "tenantId": "ten_artifact_graph"
+          },
+          "state": "available"
+        },
+        "ownership": null,
+        "recordSha256": "e5cf1fd0ed7b8804c5d6eee08d82e204a74354a9e8fc36330b4e694d10aba436"
+      },
+      "observation": {
+        "status": "verified",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      }
+    },
+    {
+      "origin": {
+        "kind": "record",
+        "edgeIndex": 2
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_sbom",
+        "classification": "metadata",
+        "mediaType": "application/spdx+json",
+        "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "sizeBytes": 2048
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "kind": "record",
+        "edgeIndex": 8
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_model_resolution",
+        "classification": "confidential",
+        "mediaType": "application/json",
+        "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+        "sizeBytes": 256
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "kind": "record",
+        "edgeIndex": 9
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_system_prompt",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "sizeBytes": 512
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "kind": "record",
+        "edgeIndex": 10
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_payment_tool",
+        "classification": "internal",
+        "mediaType": "application/schema+json",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 384
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "kind": "trace",
+        "artifactReferenceIndex": 0
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_shared",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": {
+        "metadata": {
+          "availableAt": "2026-09-04T00:01:00.000Z",
+          "contentReference": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          },
+          "createdAt": "2026-09-04T00:00:00.000Z",
+          "redaction": {
+            "status": "not_required"
+          },
+          "retention": {
+            "expiresAt": "2026-10-02T00:00:00.000Z",
+            "mode": "expire"
+          },
+          "schemaVersion": "0.1",
+          "scope": {
+            "environmentId": "env_artifact_graph_primary",
+            "projectId": "prj_artifact_graph_primary",
+            "tenantId": "ten_artifact_graph"
+          },
+          "state": "available"
+        },
+        "ownership": null,
+        "recordSha256": "e5cf1fd0ed7b8804c5d6eee08d82e204a74354a9e8fc36330b4e694d10aba436"
+      },
+      "observation": {
+        "status": "verified",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      }
+    },
+    {
+      "origin": {
+        "kind": "trace",
+        "artifactReferenceIndex": 1
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "reference": {
+        "artifactId": "artifact_shared",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      },
+      "startedAt": "2026-10-01T02:00:00.000Z",
+      "completedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": {
+        "metadata": {
+          "availableAt": "2026-09-04T00:01:00.000Z",
+          "contentReference": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          },
+          "createdAt": "2026-09-04T00:00:00.000Z",
+          "redaction": {
+            "status": "not_required"
+          },
+          "retention": {
+            "expiresAt": "2026-10-02T00:00:00.000Z",
+            "mode": "expire"
+          },
+          "schemaVersion": "0.1",
+          "scope": {
+            "environmentId": "env_artifact_graph_primary",
+            "projectId": "prj_artifact_graph_primary",
+            "tenantId": "ten_artifact_graph"
+          },
+          "state": "available"
+        },
+        "ownership": null,
+        "recordSha256": "e5cf1fd0ed7b8804c5d6eee08d82e204a74354a9e8fc36330b4e694d10aba436"
+      },
+      "observation": {
+        "status": "verified",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      }
+    }
+  ],
+  "storedArtifacts": [
+    {
+      "origin": {
+        "edgeIndex": 1,
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "path": "/buildArtifacts/0/artifact"
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "reference": {
+        "artifactId": "artifact_shared",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+        "sizeBytes": 30
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "observedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": {
+        "metadata": {
+          "availableAt": "2026-09-04T00:01:00.000Z",
+          "contentReference": {
+            "artifactId": "artifact_shared",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "fff5d1a7d66959aad7a90f75b82f6ff33e2453e74984a9c7f9662b78e537df36",
+            "sizeBytes": 30
+          },
+          "createdAt": "2026-09-04T00:00:00.000Z",
+          "redaction": {
+            "status": "not_required"
+          },
+          "retention": {
+            "expiresAt": "2026-10-02T00:00:00.000Z",
+            "mode": "expire"
+          },
+          "schemaVersion": "0.1",
+          "scope": {
+            "environmentId": "env_artifact_graph_primary",
+            "projectId": "prj_artifact_graph_primary",
+            "tenantId": "ten_artifact_graph"
+          },
+          "state": "available"
+        },
+        "ownership": null,
+        "recordSha256": "e5cf1fd0ed7b8804c5d6eee08d82e204a74354a9e8fc36330b4e694d10aba436"
+      },
+      "observation": {
+        "status": "content_pending"
+      }
+    },
+    {
+      "origin": {
+        "edgeIndex": 2,
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "path": "/buildArtifacts/1/artifact"
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "reference": {
+        "artifactId": "artifact_sbom",
+        "classification": "metadata",
+        "mediaType": "application/spdx+json",
+        "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "sizeBytes": 2048
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "observedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "edgeIndex": 8,
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "path": "/runtimeComponents/0/resolution/resolutionEvidence"
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "reference": {
+        "artifactId": "artifact_model_resolution",
+        "classification": "confidential",
+        "mediaType": "application/json",
+        "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+        "sizeBytes": 256
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "observedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "edgeIndex": 9,
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "path": "/runtimeComponents/1/content"
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "reference": {
+        "artifactId": "artifact_system_prompt",
+        "classification": "confidential",
+        "mediaType": "text/plain",
+        "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "sizeBytes": 512
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "observedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    },
+    {
+      "origin": {
+        "edgeIndex": 10,
+        "parent": {
+          "kind": "release_candidate",
+          "reference": {
+            "candidateId": "candidate_artifact_graph",
+            "candidateVersionId": "candidate_artifact_graph_v1",
+            "definitionSha256": "65dcbd3cc8a9acd61a4ec31a2bbc4489b6391dd7c0e3194c023fa2d3e4fa5bc8"
+          }
+        },
+        "parentRecordSha256": "bcd2e73b834689697fc45b2315f345b49a8776c4de7c65d61024bb4c2cd6a3da",
+        "path": "/runtimeComponents/2/content"
+      },
+      "scope": {
+        "environmentId": "env_artifact_graph_primary",
+        "projectId": "prj_artifact_graph_primary",
+        "tenantId": "ten_artifact_graph"
+      },
+      "reference": {
+        "artifactId": "artifact_payment_tool",
+        "classification": "internal",
+        "mediaType": "application/schema+json",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 384
+      },
+      "evaluationTime": "2026-10-01T00:00:00.000Z",
+      "observedAt": "2026-10-01T02:00:00.000Z",
+      "catalog": null,
+      "observation": {
+        "status": "missing"
+      }
+    }
+  ],
+  "fixtureBindings": [],
+  "sourceGuards": [
+    {
+      "kind": "artifact",
+      "id": "artifact_model_resolution",
+      "origins": [
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 2
+        },
+        {
+          "kind": "stored_artifact_capture",
+          "captureIndex": 2
+        }
+      ]
+    },
+    {
+      "kind": "artifact",
+      "id": "artifact_payment_tool",
+      "origins": [
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 4
+        },
+        {
+          "kind": "stored_artifact_capture",
+          "captureIndex": 4
+        }
+      ]
+    },
+    {
+      "kind": "artifact",
+      "id": "artifact_sbom",
+      "origins": [
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 1
+        },
+        {
+          "kind": "stored_artifact_capture",
+          "captureIndex": 1
+        }
+      ]
+    },
+    {
+      "kind": "artifact",
+      "id": "artifact_shared",
+      "origins": [
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 0
+        },
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 5
+        },
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 6
+        },
+        {
+          "kind": "stored_artifact_capture",
+          "captureIndex": 0
+        }
+      ]
+    },
+    {
+      "kind": "artifact",
+      "id": "artifact_system_prompt",
+      "origins": [
+        {
+          "kind": "artifact_capture",
+          "captureIndex": 3
+        },
+        {
+          "kind": "stored_artifact_capture",
+          "captureIndex": 3
+        }
+      ]
+    },
+    {
+      "kind": "release_policy",
+      "id": "policy_artifact_graph_v1",
+      "origins": [
+        {
+          "kind": "policy_node",
+          "nodeIndex": 9
+        },
+        {
+          "kind": "storage_policy_node",
+          "nodeIndex": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "generator": "Independent Python json.dumps sorted compact UTF-8, hashlib.sha256, base64.urlsafe_b64encode; no TypeScript encoder used. Expanded scenarios add synthetic missing metadata to test storage geometry, not source authority.",
+  "fixture": "policy-evaluation-snapshot-inputs-v1.fixture.json",
+  "vectors": [
+    {
+      "extraMissingProtocolSources": 0,
+      "inputByteLength": 75372,
+      "inputSha256": "83c6eb300f0ba613bda0ad60f3dd2d4153e5c0765a75737d074dab4ad113f19e",
+      "rootEncodedByteLength": 1370,
+      "rootSha256": "bd04b3cb07482b2557b4b20cfce18728426be1dc4387791ec2aabc4671f2e5ab",
+      "pages": [
+        {
+          "pageIndex": 0,
+          "encodedByteLength": 102461,
+          "sha256": "cfb98170bee4523990aa06b5e8de0c0c24fcc5187b108d57b06c7a9f63df1ff2"
+        }
+      ]
+    },
+    {
+      "extraMissingProtocolSources": 1200,
+      "inputByteLength": 815551,
+      "inputSha256": "2c6dd32a612055fe700c4aa764187fd1c1aae589265672f923bdeefa87427ebd",
+      "rootEncodedByteLength": 1795,
+      "rootSha256": "d82ef7329e90cd5822d877f0e640b02f486a4fcf0fb8cb85cbc75f0792f56b54",
+      "pages": [
+        {
+          "pageIndex": 0,
+          "encodedByteLength": 354918,
+          "sha256": "de2cf632453ca7c0b17586bb1f5e1fe4ba560b9cea4e009212ecba9be4d99c25"
+        },
+        {
+          "pageIndex": 1,
+          "encodedByteLength": 355028,
+          "sha256": "d9f7ed290de1e14ca1285f3d5b01e573e28330e1205caf923e520ff18aa4192e"
+        },
+        {
+          "pageIndex": 2,
+          "encodedByteLength": 355028,
+          "sha256": "b5c9d239194faa36b922bfadf39151ad0b7dfb906c86aafd3713b59453dcb2ad"
+        },
+        {
+          "pageIndex": 3,
+          "encodedByteLength": 39996,
+          "sha256": "cb6344b029b161fffd7242573a22e26ee8ce39b154da0c7772559864dc0d8644"
+        }
+      ]
+    }
+  ]
+}

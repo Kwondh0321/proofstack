@@ -9,6 +9,7 @@ import type {
 } from "@proofstack/contracts";
 import {
   EvidenceScopeSchema,
+  RELEASE_POLICY_AUTHORITY_REASONS,
   OpaqueIdSchema,
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
@@ -21,48 +22,7 @@ import { validateEvaluationRecord } from "../evaluation/evaluation-record-valida
 import { InvalidReleasePolicyAuthorityInputError } from "./release-policy-errors.js";
 import { validatePolicyInstallationBindingRecord } from "./release-policy-record-validation.js";
 
-export const RELEASE_POLICY_AUTHORITY_REASONS = [
-  "installation_authority_evidence_unavailable",
-  "installation_binding_interval_mismatch",
-  "installation_binding_not_current",
-  "installation_binding_not_registered",
-  "installation_binding_reference_mismatch",
-  "installation_binding_scope_mismatch",
-  "installation_binding_unavailable",
-  "issuer_not_authorized",
-  "policy_expired_at_evaluation",
-  "policy_mode_not_authorized",
-  "policy_not_effective_at_evaluation",
-  "policy_not_publishable_at_time",
-  "reviewer_qualification_evidence_unavailable",
-  "reviewer_qualification_not_current",
-  "reviewer_qualification_not_independent",
-  "reviewer_qualification_not_qualified",
-  "reviewer_qualification_reference_mismatch",
-  "reviewer_qualification_scope_mismatch",
-  "reviewer_qualification_source_kind_mismatch",
-  "reviewer_qualification_unavailable",
-  "source_conflict_review_incomplete",
-  "source_conflict_unresolved",
-  "source_content_unavailable",
-  "source_identity_disputed",
-  "source_identity_evidence_unavailable",
-  "source_identity_not_current",
-  "source_identity_not_independent",
-  "source_identity_unverified",
-  "source_license_unusable",
-  "source_not_current",
-  "source_not_effective",
-  "source_reference_mismatch",
-  "source_review_basis_unavailable",
-  "source_review_not_approved",
-  "source_review_not_current",
-  "source_review_not_independent",
-  "source_review_relationship_disclosed",
-  "source_review_unavailable",
-  "source_scope_mismatch",
-  "source_snapshot_unavailable",
-] as const;
+export { RELEASE_POLICY_AUTHORITY_REASONS } from "@proofstack/contracts";
 
 export type ReleasePolicyAuthorityReason = (typeof RELEASE_POLICY_AUTHORITY_REASONS)[number];
 type QualifiedSourceReference = ReleasePolicyDefinition["sources"][number];

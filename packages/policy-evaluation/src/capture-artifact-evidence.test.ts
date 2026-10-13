@@ -33,6 +33,8 @@ import {
   digestComparisonRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
   digestProtocolDefinition,
+  assemblePolicyEvaluationSnapshot,
+  validatePolicyEvaluationSnapshot,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
   type ReleaseCandidateRevisionReference,
@@ -65,9 +67,11 @@ import { AcquisitionBudget } from "./acquisition-budget.js";
 import {
   capturePolicyArtifactEvidence,
   capturePolicySnapshotInputs,
+  capturePolicySnapshotDefinition,
   type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
 import { prepareCapturedSnapshotInputs } from "./prepare-snapshot-inputs.js";
+import { compileCapturedSnapshotInputs } from "./compile-snapshot-inputs.js";
 import { inspectCapturedArtifactRules } from "./capture-artifact-rules.js";
 import {
   observeCapturedCandidateAuthority,
@@ -1011,6 +1015,35 @@ describe("one-request snapshot input composition", () => {
     expect(result.snapshotInputs).not.toHaveProperty("workerId");
     expect(result.snapshotInputs).not.toHaveProperty("rules");
     expect(original).not.toHaveProperty("snapshotInputs");
+    const compiled = compileCapturedSnapshotInputs(
+      h.request,
+      result,
+      result.snapshotInputs,
+      new AcquisitionBudget(h.request.limits),
+    );
+    expect(compiled.inputs.rules).toEqual(result.snapshotRules.inputs);
+    expect(compiled.inputs.roots.candidate).toEqual(h.candidate);
+    expect(compiled.inputs.roots.policy).toEqual(h.policy);
+    expect(compiled.inputs.traces.every((trace) => !Object.hasOwn(trace, "events"))).toBe(true);
+    expect(compiled.inputs.artifacts.every((artifact) => !Object.hasOwn(artifact, "usage"))).toBe(
+      true,
+    );
+    const pageSet = assemblePolicyEvaluationSnapshot({
+      snapshotId: "snapshot_compiled_inputs",
+      inputs: compiled.inputs,
+    });
+    const restored = validatePolicyEvaluationSnapshot({
+      expected: {
+        snapshot: {
+          snapshotId: pageSet.definition.snapshotId,
+          definitionSha256: pageSet.definitionSha256,
+        },
+        request: pageSet.definition.request,
+        scope: h.request.scope,
+      },
+      pageSet,
+    });
+    expect(restored).toEqual(compiled.inputs);
   });
   it.each(["references", "bytes"] as const)(
     "admits exact combined %s and rejects one below",
@@ -1089,6 +1122,111 @@ describe("one-request snapshot input composition", () => {
       ).toThrow("observation_conflict");
     },
   );
+});
+
+describe("one-request complete snapshot definition capture", () => {
+  const options = { manifestId: "manifest_full_inputs", snapshotId: "snapshot_full_inputs" };
+  const capture = (h: Awaited<ReturnType<typeof harness>>, request = h.request) =>
+    capturePolicySnapshotDefinition(
+      request,
+      h.actor,
+      h.repositories,
+      h.evidence,
+      h.dependencies,
+      options,
+    );
+  it("compiles complete typed inputs and canonical pages from the same acquisition and cumulative meter", async () => {
+    const original = await harness();
+    await original.execute();
+    const h = await harness();
+    const result = await capture(h);
+    if (result.status !== "artifacts_captured")
+      throw new Error("Missing complete snapshot definition capture");
+    const inputs = validatePolicyEvaluationSnapshot({
+      expected: {
+        snapshot: {
+          snapshotId: options.snapshotId,
+          definitionSha256: result.snapshotDefinition.definitionSha256,
+        },
+        request: result.snapshotInputs.sources.records.request,
+        scope: h.request.scope,
+      },
+      pageSet: result.snapshotDefinition,
+    });
+    expect(inputs.roots.candidate).toEqual(h.candidate);
+    expect(inputs.roots.policy).toEqual(h.policy);
+    expect(inputs.rules).toEqual(result.snapshotRules.inputs);
+    expect(inputs.artifacts).toHaveLength(result.artifacts.length);
+    expect(result.snapshotDefinition).not.toHaveProperty("sealedAt");
+    expect(result.snapshotDefinition.definition).not.toHaveProperty("workerId");
+    expect(h.get).toHaveBeenCalledTimes(original.get.mock.calls.length);
+    expect(h.decrypt).toHaveBeenCalledTimes(original.decrypt.mock.calls.length);
+    expect(h.exact).toHaveBeenCalledTimes(original.exact.mock.calls.length);
+  });
+  it.each(["references", "bytes"] as const)(
+    "preserves exact whole-definition %s admission and rejects one below",
+    async (kind) => {
+      const h = await harness();
+      const baseline = await capture(h);
+      if (baseline.status !== "artifacts_captured")
+        throw new Error("Missing complete definition baseline");
+      let limits = {
+        maxAcquisitionRecords: Math.max(baseline.usage.records, baseline.usage.references),
+        maxAcquisitionRecordBytes: baseline.usage.bytes + baseline.usage.referenceBytes,
+      };
+      // Each calibration is a newly constructed immutable request in fresh disposable state.
+      // The complete payload retains limits themselves, so their decimal width affects byte use.
+      // No running invocation receives a changed/refunded meter or an operational retry.
+      let stabilized = false;
+      for (let calibration = 0; calibration < 3; calibration++) {
+        const exact = await harness();
+        const result = await capture(exact, withLimits(exact.request, limits));
+        if (result.status !== "artifacts_captured")
+          throw new Error("Missing exact definition capture");
+        const used = {
+          maxAcquisitionRecords: Math.max(result.usage.records, result.usage.references),
+          maxAcquisitionRecordBytes: result.usage.bytes + result.usage.referenceBytes,
+        };
+        if (
+          used.maxAcquisitionRecords === limits.maxAcquisitionRecords &&
+          used.maxAcquisitionRecordBytes === limits.maxAcquisitionRecordBytes
+        ) {
+          stabilized = true;
+          expect(used).toEqual(limits);
+          break;
+        }
+        limits = used;
+      }
+      expect(stabilized).toBe(true);
+      const below = await harness();
+      await expect(
+        capture(
+          below,
+          withLimits(below.request, {
+            ...limits,
+            ...(kind === "references"
+              ? { maxAcquisitionRecords: limits.maxAcquisitionRecords - 1 }
+              : { maxAcquisitionRecordBytes: limits.maxAcquisitionRecordBytes - 1 }),
+          }),
+        ),
+      ).rejects.toMatchObject({ reason: kind === "references" ? "reference_limit" : "byte_limit" });
+    },
+  );
+  it("rejects absent snapshot identity before any repository or object reads", async () => {
+    const h = await harness();
+    await expect(
+      capturePolicySnapshotDefinition(
+        h.request,
+        h.actor,
+        h.repositories,
+        h.evidence,
+        h.dependencies,
+        { manifestId: options.manifestId } as { manifestId: string; snapshotId: string },
+      ),
+    ).rejects.toThrow();
+    expect(h.root).not.toHaveBeenCalled();
+    expect(h.get).not.toHaveBeenCalled();
+  });
 });
 
 describe("complete ordered policy rule inputs", () => {
