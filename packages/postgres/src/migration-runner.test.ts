@@ -139,6 +139,7 @@ describe("migration inspection", () => {
         "0051_artifact_timestamp_integrity",
         "0052_policy_evaluation_metadata_barrier",
         "0053_model_assurance_scalar_integrity",
+        "0054_policy_evaluation_capabilities",
       ],
     });
   });

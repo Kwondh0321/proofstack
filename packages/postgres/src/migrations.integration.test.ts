@@ -172,6 +172,7 @@ describe("PostgreSQL evidence schema", () => {
       "0051_artifact_timestamp_integrity",
       "0052_policy_evaluation_metadata_barrier",
       "0053_model_assurance_scalar_integrity",
+      "0054_policy_evaluation_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -567,6 +568,8 @@ describe("PostgreSQL evidence schema", () => {
       readonly comparisonManagementWorkload: boolean;
       readonly comparisonReadWorkload: boolean;
       readonly policyAuthorWorkload: boolean;
+      readonly policyExecutionWorkload: boolean;
+      readonly policyCancellationWorkload: boolean;
       readonly policyManageUser: boolean;
       readonly policyReadWorkload: boolean;
       readonly replayManagementWorkload: boolean;
@@ -597,6 +600,12 @@ describe("PostgreSQL evidence schema", () => {
           public.proofstack_valid_workload_capabilities(
             ARRAY['policy:author']::text[]
           ) AS "policyAuthorWorkload",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['policy:evaluation:execute']::text[]
+          ) AS "policyExecutionWorkload",
+          public.proofstack_valid_workload_capabilities(
+            ARRAY['policy:evaluation:cancel']::text[]
+          ) AS "policyCancellationWorkload",
           public.proofstack_valid_user_capabilities(
             ARRAY['policy:manage']::text[]
           ) AS "policyManageUser",
@@ -615,6 +624,8 @@ describe("PostgreSQL evidence schema", () => {
       evaluationManagementWorkload: false,
       evaluationModelRunWorkload: true,
       policyAuthorWorkload: false,
+      policyExecutionWorkload: false,
+      policyCancellationWorkload: true,
       policyManageUser: false,
       policyReadWorkload: true,
       replayManagementWorkload: false,

@@ -48,5 +48,6 @@ Never trust caller outcomes or publish from an ended read-only source recheck. A
 modes share rule evidence; decisions and human approval belong to later checkpoints.
 
 See [snapshot contracts](workflow-2-policy-snapshot-contract.md),
+[job contracts and execution authority](workflow-2-policy-job-contract.md),
 [entry audit](workflow-2-policy-evaluation-entry-audit.md), and
 [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md).

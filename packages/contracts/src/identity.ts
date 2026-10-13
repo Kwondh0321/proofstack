@@ -39,6 +39,8 @@ export const CapabilitySchema = z.enum([
   "policy:read",
   "policy:author",
   "policy:evaluate",
+  "policy:evaluation:execute",
+  "policy:evaluation:cancel",
   "approval:decide",
   "audit:read",
   "identity:read",
@@ -62,6 +64,7 @@ export const WORKLOAD_DELEGABLE_CAPABILITIES = [
   "release:read",
   "policy:read",
   "policy:evaluate",
+  "policy:evaluation:cancel",
 ] as const satisfies readonly z.infer<typeof CapabilitySchema>[];
 
 export const WorkloadCapabilitySchema = z.enum(WORKLOAD_DELEGABLE_CAPABILITIES);

@@ -43,5 +43,6 @@ canonical 길이는 3,745바이트, SHA-256은
 recheck로 게시하지 않습니다. advisory/mandatory의 규칙 근거는 같으며 결정·승인은 후속 작업입니다.
 
 [Snapshot 계약](workflow-2-policy-snapshot-contract.ko.md),
+[job 계약·실행 권한](workflow-2-policy-job-contract.ko.md),
 [entry audit](workflow-2-policy-evaluation-entry-audit.ko.md),
 [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.ko.md)를 참고하세요.

@@ -1,0 +1,104 @@
+{
+  "oracle": "Independent Python JSON/UTF-8/hashlib; synthetic scheduler contract fixture, not an executed worker",
+  "definition": {
+    "jobId": "job_policy",
+    "request": {
+      "evaluationRequestId": "policy_evaluation_request_example",
+      "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+    }
+  },
+  "scope": {
+    "environmentId": "env_example",
+    "projectId": "project_example",
+    "tenantId": "tenant_example"
+  },
+  "canonicalUtf8": "{\"definition\":{\"jobId\":\"job_policy\",\"request\":{\"definitionSha256\":\"6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e\",\"evaluationRequestId\":\"policy_evaluation_request_example\"}},\"definitionDomain\":\"proofstack.policy-evaluation-job.v1\",\"encodingVersion\":\"proofstack.policy-evaluation-job-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_example\",\"projectId\":\"project_example\",\"tenantId\":\"tenant_example\"}}",
+  "byteLength": 441,
+  "sha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+  "snapshot": {
+    "request": {
+      "algorithm": {
+        "id": "proofstack.deterministic-policy",
+        "version": "1.0.0"
+      },
+      "candidate": {
+        "candidateId": "candidate_reference",
+        "candidateVersionId": "candidate_reference_v1",
+        "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "evaluationRequestId": "policy_evaluation_request_example",
+      "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+      "limits": {
+        "heartbeatIntervalMilliseconds": 5000,
+        "leaseDurationMilliseconds": 30000,
+        "maxAcquisitionRecordBytes": 16777216,
+        "maxAcquisitionRecords": 10000,
+        "maxArtifactReadBytes": 67108864,
+        "maxAttempts": 3,
+        "maxRuleEvaluations": 384,
+        "perAttemptTimeoutMilliseconds": 120000,
+        "retryBackoffMilliseconds": 1000,
+        "retryableErrors": [
+          "lease_expired",
+          "source_revision_changed",
+          "source_temporarily_unavailable",
+          "worker_interrupted"
+        ],
+        "totalDeadlineMilliseconds": 600000
+      },
+      "policy": {
+        "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "policyId": "policy_reference",
+        "policyVersionId": "policy_reference_v1"
+      },
+      "scope": {
+        "environmentId": "env_example",
+        "projectId": "project_example",
+        "tenantId": "tenant_example"
+      },
+      "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e",
+      "schemaVersion": "0.1",
+      "createdAt": "2026-09-07T12:00:00.000Z",
+      "createdByPrincipalId": "principal_controller"
+    },
+    "job": {
+      "jobId": "job_policy",
+      "request": {
+        "evaluationRequestId": "policy_evaluation_request_example",
+        "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+      },
+      "scope": {
+        "environmentId": "env_example",
+        "projectId": "project_example",
+        "tenantId": "tenant_example"
+      },
+      "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+      "schemaVersion": "0.1",
+      "createdAt": "2026-09-07T12:00:00.123456Z",
+      "createdByPrincipalId": "principal_controller",
+      "deadlineAt": "2026-09-07T12:10:00.000Z",
+      "updatedAt": "2026-09-07T12:00:00.123456Z",
+      "stateVersion": 1,
+      "recoveryEpoch": 0,
+      "lastFencingToken": 0,
+      "attemptCount": 0,
+      "status": "queued",
+      "currentLease": null,
+      "snapshot": null,
+      "result": null,
+      "retryAt": null,
+      "terminal": null
+    },
+    "attempts": [],
+    "cancellation": null,
+    "usage": {
+      "reads": 0,
+      "records": 0,
+      "recordBytes": 0,
+      "references": 0,
+      "referenceBytes": 0,
+      "artifactReadBytes": 0,
+      "ruleEvaluations": 0
+    }
+  }
+}
