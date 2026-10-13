@@ -27,6 +27,8 @@ pnpm check
 
 The lockfile must not change during installation. pnpm also enforces a minimum package release age
 and an explicit native-build allowlist.
+The [repository check guide](repository-checks.md) explains the combined package task graph,
+uncached validation and separate service-backed gates.
 
 ## Profile A: disposable memory
 

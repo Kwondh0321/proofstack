@@ -13,7 +13,7 @@
     "build": "turbo run build",
     "boundaries": "node scripts/check-boundaries.mjs",
     "artifacts:maintenance": "pnpm --filter @proofstack/artifact-maintenance cli",
-    "check": "pnpm format:check && pnpm boundaries && pnpm docs:check && pnpm claims:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "check": "pnpm format:check && pnpm boundaries && pnpm docs:check && pnpm claims:check && biome lint . && pnpm test:acceptance:runner && turbo run lint typecheck test build --concurrency=2",
     "claims:check": "node scripts/check-public-claims.mjs",
     "clean": "turbo run clean && rm -rf .turbo coverage",
     "dev": "turbo run dev",
