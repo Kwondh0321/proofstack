@@ -83,12 +83,13 @@ heartbeat/lease 시간·강제 제약·환경 간 outbox·epoch 무효화·원�
 추가합니다. 어댑터 단위 검사는 잘못된 응답, 재계산된 hash의 치환, 전체 rollback·연결 정리를
 검사합니다.
 
-조정된 PostgreSQL/S3 백업·복원 검사는 queued·acquiring·retry-ready·cancelled 정책 작업,
-양수 예약 비용과 원래 취소를 포함합니다. 원래 graph와 DB 복구 시각에서 변경된 job·attempt·
-이력 행을 독립적으로 재구성하며, 새 테이블 여섯 개와 원래 요청·예약·outbox·이전 이력 prefix를
-전체 DB 비교에서 유지합니다. 복원 후 별도 역할 pool이 이전 worker fence·직접 DML·소유자 복구를
-거부하고, 원래 입력·사용량을 유지한 새 epoch의 claim을 실행합니다. 아직 구현되지 않은
-sealed/running/completed result 게시나 모든 scheduler 상태의 승인을 뜻하지 않습니다.
+조정된 PostgreSQL/S3 백업·복원 검사는 queued·acquiring·retry-ready·cancelled 및 native 봉인된
+정책 작업, 양수 예약 비용과 원래 취소를 포함합니다. 원래 graph와 DB 복구 시각에서 변경된
+job·attempt·이력 행을 독립적으로 재구성하며, 작업과 snapshot 테이블의 원래 요청·예약·
+root/page·outbox·이전 이력 prefix를 전체 DB 비교에서 유지합니다. 복원 후 별도 역할 pool이
+이전 worker fence·직접 DML·소유자 복구를 거부하고, 원래 입력·사용량을 유지한 새 epoch의
+claim을 실행합니다. [Native snapshot 저장](workflow-2-policy-snapshot-storage.ko.md)은
+아직 구현되지 않은 running/completed result 게시나 모든 scheduler 상태의 승인을 뜻하지 않습니다.
 
 정책 운영 저장소에 주는 pool은 checkout timeout 1–500 ms, 연결 수 1–16, 대기 수 64 미만을
 충족해야 합니다. 저장소가 주어진 pool 설정을 변경하지는 않습니다. `createPostgresPool`의

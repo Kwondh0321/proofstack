@@ -575,9 +575,12 @@ detector.
 The [native snapshot storage prerequisite](workflow-2-policy-snapshot-storage.md) now preserves
 one current job/attempt and READ COMMITTED client through metadata reinspection, immutable
 page/root storage, same-attempt binding, history and final deferred native fence validation.
-Its real restoration includes original sealed input rows. Durable job-wide acquisition admission,
-full memory/native conformance, predicates/results/worker/API/SDK and checkpoint exit remain open;
-native storage does not accept checkpoint 3 or grant release/approval authority.
+Its real restoration includes original sealed input rows. Optional
+[expected artifact byte admission](workflow-2-policy-artifact-admission.md) commits a fresh owning
+worker reservation before each physical object attempt and retains costs after read/publication
+failure. Full job-wide metadata/read/reference and bounded transport admission, memory/native
+conformance, predicates/results/worker/API/SDK and checkpoint exit remain open; native storage
+does not accept checkpoint 3 or grant release/approval authority.
 
 The [retained implementation registration acquisition](workflow-2-implementation-registration.md)
 adds independently supplied canonical registration data, a bounded immutable installation catalogue,

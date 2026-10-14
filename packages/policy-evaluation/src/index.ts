@@ -92,3 +92,7 @@ export type {
   PolicyRecordRead,
 } from "./record-routing.js";
 export * from "./resolve-parent-protocol.js";
+export {
+  PolicyArtifactByteAdmissionError,
+  type PolicyArtifactByteAdmission,
+} from "./artifact-byte-admission.js";

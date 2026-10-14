@@ -43,7 +43,10 @@ The real PostgreSQL/S3 restoration graph includes original snapshot roots/pages 
 recovery preserves those bytes/receipts while invalidating leases and re-provisioning roles.
 
 This increment does not compose a production worker or a public route. Durable job-wide admission
-before source I/O remains open: charging inside this transaction would refund spent work on rollback.
+before all source I/O remains open: charging inside this transaction would refund spent work on rollback.
+The optional [expected artifact byte admission](workflow-2-policy-artifact-admission.md) now commits
+reservations before get and preserves them on publication rollback; this does not close the entire
+metadata/object transport/oversized-response accounting boundary.
 Memory/native full publication conformance, computing/completed restoration states, all predicates,
 atomic results, worker/API/SDK/contributor acceptance and the independent checkpoint exit still
 precede checkpoint approval. No policy verdict, human approval or release authority is introduced.

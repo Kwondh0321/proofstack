@@ -68,6 +68,11 @@ import { MemoryRegressionVersionRepository } from "@proofstack/datasets/testing"
 import { describe, expect, it, vi } from "vitest";
 import { AcquisitionBudget } from "./acquisition-budget.js";
 import {
+  type PolicyArtifactByteAdmission,
+  PolicyArtifactByteAdmissionError,
+  PolicyArtifactByteReservations,
+} from "./artifact-byte-admission.js";
+import {
   capturePolicyArtifactEvidence,
   capturePolicySnapshotInputs,
   capturePolicySnapshotDefinition,
@@ -4575,6 +4580,8 @@ async function sealingHarness() {
       expect(f.state.phase).toBe("inside");
       expect(principalId).toBe(actor.principalId);
       f.calls.push("publish_snapshot");
+      const current = await jobs.findJob(scope, fence.jobId);
+      if (!current) throw new Error("Missing owning job at publication");
       const reference = {
         snapshotId: definition.definition.snapshotId,
         definitionSha256: definition.definitionSha256,
@@ -4591,7 +4598,7 @@ async function sealingHarness() {
           ...fence,
         },
         job: sealPolicyEvaluationJob({
-          snapshot: claimed,
+          snapshot: current,
           now: observedAt,
           recoveryEpoch: 0,
           fence,
@@ -4608,7 +4615,11 @@ async function sealingHarness() {
       );
     },
   };
-  const run = (input: unknown = request, principal = actor) =>
+  const run = (
+    input: unknown = request,
+    principal = actor,
+    artifactByteAdmission?: PolicyArtifactByteAdmission,
+  ) =>
     sealPolicyEvaluationSnapshot(
       input,
       principal,
@@ -4620,10 +4631,218 @@ async function sealingHarness() {
         snapshotId: "snapshot_atomic_seal",
         fence,
         transactions,
+        ...(artifactByteAdmission ? { artifactByteAdmission } : {}),
       },
     );
-  return { ...f, request, actor, claimed, fence, publish, transactions, run };
+  return { ...f, request, actor, claimed, fence, publish, transactions, run, jobs };
 }
+
+function admissionFor(f: Awaited<ReturnType<typeof sealingHarness>>) {
+  let ordinal = 0;
+  const reserveWork = vi.fn(
+    async (command: Parameters<MemoryPolicyEvaluationJobRepository["reserveWork"]>[0]) => {
+      expect(f.state.phase).toBe("outside");
+      f.calls.push("reserve_expected_bytes");
+      return f.jobs.reserveWork(command);
+    },
+  );
+  const admission: PolicyArtifactByteAdmission = {
+    repository: { reserveWork },
+    nextReservationId: () => `artifact_reservation_${++ordinal}`,
+  };
+  return { admission, reserveWork };
+}
+describe("worker artifact byte reservations before physical object attempts", () => {
+  it("retains expected charges for unreadable objects without pretending complete received bytes", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const failure = new Error("Object store unavailable after admission");
+    f.h.get.mockRejectedValue(failure);
+    await expect(f.run(f.request, f.actor, admission)).rejects.toBe(failure);
+    const charged = reserveWork.mock.calls.reduce(
+      (sum, [command]) => sum + command.delta.artifactReadBytes,
+      0,
+    );
+    expect(charged).toBeGreaterThan(0);
+    expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(charged);
+    expect(reserveWork.mock.calls).toHaveLength(f.h.get.mock.calls.length);
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+  it("retains expected reservation for a null object response", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    f.h.get.mockResolvedValue(null);
+    const result = await f.run(f.request, f.actor, admission);
+    const charged = reserveWork.mock.calls.reduce(
+      (sum, [command]) => sum + command.delta.artifactReadBytes,
+      0,
+    );
+    expect(charged).toBeGreaterThan(0);
+    expect(result.job.usage.artifactReadBytes).toBe(charged);
+    expect(reserveWork.mock.calls).toHaveLength(f.h.get.mock.calls.length);
+  });
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER])(
+    "refuses invalid expected ciphertext bytes %s before reservation and remains tainted",
+    async (bytes) => {
+      const f = await sealingHarness();
+      const { admission, reserveWork } = admissionFor(f);
+      const meter = new PolicyArtifactByteReservations(f.request, f.fence, admission);
+      await expect(meter.beforeRead(bytes)).rejects.toBeInstanceOf(
+        PolicyArtifactByteAdmissionError,
+      );
+      await expect(meter.beforeRead(1)).rejects.toBeInstanceOf(PolicyArtifactByteAdmissionError);
+      expect(reserveWork).not.toHaveBeenCalled();
+    },
+  );
+  it("never reuses one reservation identity for another physical attempt", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+      ...admission,
+      nextReservationId: () => "reservation_reused",
+    });
+    await meter.beforeRead(1);
+    await expect(meter.beforeRead(1)).rejects.toBeInstanceOf(PolicyArtifactByteAdmissionError);
+    expect(reserveWork).toHaveBeenCalledTimes(1);
+  });
+  it("rejects an unexpected concurrent artifact charge even with valid canonical receipts", async () => {
+    const f = await sealingHarness();
+    const { admission } = admissionFor(f);
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, admission);
+    await meter.beforeRead(1);
+    await f.jobs.reserveWork({
+      scope,
+      fence: f.fence,
+      reservationId: "reservation_other_writer",
+      delta: {
+        reads: 0,
+        records: 0,
+        recordBytes: 0,
+        references: 0,
+        referenceBytes: 0,
+        artifactReadBytes: 3,
+        ruleEvaluations: 0,
+      },
+    });
+    await expect(meter.beforeRead(1)).rejects.toBeInstanceOf(PolicyArtifactByteAdmissionError);
+    expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(5);
+  });
+  it.each(["scope", "request", "fence", "delta", "hash", "usage"] as const)(
+    "blocks object I/O on a substituted %s reservation acknowledgement",
+    async (kind) => {
+      const f = await sealingHarness();
+      const { admission, reserveWork } = admissionFor(f);
+      const original = reserveWork.getMockImplementation()!;
+      reserveWork.mockImplementation(async (command) => {
+        const receipt = structuredClone(await original(command));
+        if (kind === "scope") receipt.snapshot.job.scope.environmentId = "environment_other";
+        if (kind === "request") receipt.snapshot.request.createdByPrincipalId = "principal_other";
+        if (kind === "fence")
+          receipt.snapshot.job.currentLease!.mutationFence.workerId = "worker_other";
+        if (kind === "delta" && receipt.reservation?.definition.operation.kind === "reserve")
+          receipt.reservation.definition.operation.delta.artifactReadBytes++;
+        if (kind === "hash" && receipt.reservation)
+          receipt.reservation.entrySha256 = "0".repeat(64);
+        if (kind === "usage") receipt.snapshot.usage.artifactReadBytes = 0;
+        return receipt;
+      });
+      await expect(f.run(f.request, f.actor, admission)).rejects.toBeDefined();
+      expect(f.h.get).not.toHaveBeenCalled();
+      expect(f.publish).not.toHaveBeenCalled();
+    },
+  );
+  it("rejects publication dropping the already acknowledged artifact charge", async () => {
+    const f = await sealingHarness();
+    const { admission } = admissionFor(f);
+    const original = f.publish.getMockImplementation()!;
+    f.publish.mockImplementation(async (...args) => {
+      const result = await original(...args);
+      return {
+        ...result,
+        job: { ...result.job, usage: { ...result.job.usage, artifactReadBytes: 0 } },
+      };
+    });
+    await expect(f.run(f.request, f.actor, admission)).rejects.toBeInstanceOf(
+      PolicyArtifactByteAdmissionError,
+    );
+    expect(f.state.phase).toBe("rolled_back");
+    expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBeGreaterThan(
+      0,
+    );
+  });
+  it("retains owning request and committed expected bytes before get and through publication", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const get = MemoryArtifactObjectStore.prototype.get.bind(f.h.dependencies.objects);
+    f.h.get.mockImplementation(async (...args) => {
+      const current = await f.jobs.findJob(scope, f.fence.jobId);
+      expect(current!.usage.artifactReadBytes).toBeGreaterThan(0);
+      expect(f.state.phase).toBe("outside");
+      f.calls.push("admitted_get");
+      return get(...args);
+    });
+    const result = await f.run(f.request, f.actor, admission);
+    expect(reserveWork).toHaveBeenCalled();
+    const expected = reserveWork.mock.calls.reduce(
+      (sum, [command]) => sum + command.delta.artifactReadBytes,
+      0,
+    );
+    expect(result.job.usage.artifactReadBytes).toBe(expected);
+    expect(result.job.request).toEqual(f.request);
+    expect(reserveWork.mock.calls).toHaveLength(f.h.get.mock.calls.length);
+    expect(new Set(reserveWork.mock.calls.map(([command]) => command.reservationId)).size).toBe(
+      f.h.get.mock.calls.length,
+    );
+    expect(f.calls.indexOf("reserve_expected_bytes")).toBeLessThan(f.calls.indexOf("admitted_get"));
+    expect(f.calls.indexOf("admitted_get")).toBeLessThan(f.calls.indexOf("publish_snapshot"));
+  });
+  it("preserves committed reservations after publication fails", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const failure = new Error("Publication failed after paid reads");
+    f.publish.mockRejectedValue(failure);
+    await expect(f.run(f.request, f.actor, admission)).rejects.toBe(failure);
+    const current = await f.jobs.findJob(scope, f.fence.jobId);
+    expect(current!.usage.artifactReadBytes).toBe(
+      reserveWork.mock.calls.reduce((sum, [command]) => sum + command.delta.artifactReadBytes, 0),
+    );
+    expect(current!.usage.artifactReadBytes).toBeGreaterThan(0);
+    expect(current!.job.snapshot).toBeNull();
+  });
+  it("rejects denied reservation before get and does not downgrade admission into missing content", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const failure = new Error("Native budget admission refused");
+    reserveWork.mockRejectedValue(failure);
+    await expect(f.run(f.request, f.actor, admission)).rejects.toBe(failure);
+    expect(f.h.get).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+    expect(reserveWork).toHaveBeenCalledTimes(1);
+  });
+  it("requires worker execution before malformed request parsing or admission", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    await expect(
+      f.run("invalid", { ...f.actor, capabilities: ["artifact:read"] }, admission),
+    ).rejects.toThrow();
+    expect(reserveWork).not.toHaveBeenCalled();
+    expect(f.h.get).not.toHaveBeenCalled();
+  });
+  it("rejects a previously acknowledged reservation instead of starting uncharged new I/O", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const original = reserveWork.getMockImplementation()!;
+    reserveWork.mockImplementation(async (command) => {
+      const paid = await original(command);
+      return { ...paid, created: false };
+    });
+    await expect(f.run(f.request, f.actor, admission)).rejects.toBeInstanceOf(
+      PolicyArtifactByteAdmissionError,
+    );
+    expect(f.h.get).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+});
 
 describe("workspace held snapshot publication composition (trusted adapter unit model)", () => {
   it("publishes only inside complete reinspection and preserves the original attempt", async () => {

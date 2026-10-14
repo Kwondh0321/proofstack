@@ -77,6 +77,7 @@ import {
   type PolicyCandidateAuthorities,
   type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSnapshotSealingTransactions,
+  type PolicyArtifactByteAdmission,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
   readParentProtocolResolution,
@@ -923,7 +924,10 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
     endpointProfiles: f.endpointProfile ? [f.endpointProfile] : [],
     protocolDefinitions: f.protocolRecords,
   });
-  const seal = (sealTransactions: PolicyEvaluationSnapshotSealingTransactions = transactions) =>
+  const seal = (
+    sealTransactions: PolicyEvaluationSnapshotSealingTransactions = transactions,
+    artifactByteAdmission?: PolicyArtifactByteAdmission,
+  ) =>
     sealPolicyEvaluationSnapshot(
       created.snapshot.request,
       actor,
@@ -935,6 +939,7 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
         snapshotId: `snapshot_seal_${f.namespace}`,
         fence,
         transactions: sealTransactions,
+        ...(artifactByteAdmission ? { artifactByteAdmission } : {}),
       },
     );
   return {
@@ -955,6 +960,100 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("native artifact budget refusal does not start content I/O or a snapshot", async () => {
+    const h = await nativeSealingHarness();
+    await h.worker.reserveWork({
+      scope: h.f.scope,
+      fence: h.fence,
+      reservationId: `spent_${h.f.namespace}`,
+      delta: {
+        reads: 0,
+        records: 0,
+        recordBytes: 0,
+        references: 0,
+        referenceBytes: 0,
+        artifactReadBytes: h.f.request.limits.maxArtifactReadBytes,
+        ruleEvaluations: 0,
+      },
+    });
+    const admission: PolicyArtifactByteAdmission = {
+      repository: h.worker,
+      nextReservationId: () => `artifact_read_${randomUUID().replaceAll("-", "")}`,
+    };
+    await expect(h.seal(h.transactions, admission)).rejects.toMatchObject({
+      reason: "budget_exhausted",
+    });
+    expect(h.f.objectReads()).toBe(0);
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current!.usage.artifactReadBytes).toBe(h.f.request.limits.maxArtifactReadBytes);
+    expect(current!.job.snapshot).toBeNull();
+  });
+  it("native artifact reservations commit before get and survive later publication rollback", async () => {
+    const h = await nativeSealingHarness();
+    const commands: Parameters<typeof h.worker.reserveWork>[0][] = [];
+    const admission: PolicyArtifactByteAdmission = {
+      repository: {
+        reserveWork: async (command) => {
+          const result = await h.worker.reserveWork(command);
+          commands.push(command);
+          return result;
+        },
+      },
+      nextReservationId: () => `artifact_read_${randomUUID().replaceAll("-", "")}`,
+    };
+    h.f.hooks.readContent = async () => {
+      const current = await h.worker.findJob(h.f.scope, h.jobId);
+      expect(current!.usage.artifactReadBytes).toBe(
+        commands.reduce((sum, command) => sum + command.delta.artifactReadBytes, 0),
+      );
+      expect(current!.usage.artifactReadBytes).toBeGreaterThan(0);
+    };
+    const failure = new Error("Fail after paid content and native publication");
+    const transactions: PolicyEvaluationSnapshotSealingTransactions = {
+      runSealing: (command, operation) =>
+        h.transactions.runSealing(command, (ports) =>
+          operation({
+            ...ports,
+            publishSnapshot: async (...args) => {
+              await ports.publishSnapshot(...args);
+              throw failure;
+            },
+          }),
+        ),
+    };
+    await expect(h.seal(transactions, admission)).rejects.toBe(failure);
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current!.usage.artifactReadBytes).toBe(
+      commands.reduce((sum, command) => sum + command.delta.artifactReadBytes, 0),
+    );
+    expect(current!.job.status).toBe("acquiring");
+    expect(current!.job.snapshot).toBeNull();
+    expect(current!.attempts[0]!.phase).toBe("acquiring");
+    expect(new Set(commands.map((command) => command.reservationId)).size).toBe(h.f.objectReads());
+    for (const table of [
+      "proofstack_policy_evaluation_snapshots",
+      "proofstack_policy_evaluation_snapshot_pages",
+    ]) {
+      const { rows } = await admin.query(
+        `SELECT count(*)::integer AS count FROM public.${table} WHERE tenant_id=$1`,
+        [h.f.scope.tenantId],
+      );
+      expect(rows[0]?.count).toBe(0);
+    }
+  });
+  it("native artifact reservations remain included in the atomically sealed job", async () => {
+    const h = await nativeSealingHarness();
+    const admission: PolicyArtifactByteAdmission = {
+      repository: h.worker,
+      nextReservationId: () => `artifact_read_${randomUUID().replaceAll("-", "")}`,
+    };
+    const sealed = await h.seal(h.transactions, admission);
+    expect(sealed.job.usage.artifactReadBytes).toBeGreaterThan(0);
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(sealed.job);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    expect(head!.sequence).toBe(sealed.job.job.stateVersion - 1);
+    expect(sealed.job.attempts[0]!.mutationFence).toEqual(h.fence);
+  });
   it("native sealing evaluator has no direct snapshot or job DML", async () => {
     const h = await nativeSealingHarness();
     for (const statement of [

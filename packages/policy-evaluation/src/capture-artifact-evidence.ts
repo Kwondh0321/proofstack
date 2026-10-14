@@ -104,6 +104,10 @@ import type {
   PolicyEvaluationSnapshotSealingTransactions,
   PolicyEvaluationSnapshotSealingPorts,
 } from "./snapshot-sealing-transactions.js";
+import {
+  PolicyArtifactByteReservations,
+  type PolicyArtifactByteAdmission,
+} from "./artifact-byte-admission.js";
 
 export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
   /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
@@ -281,6 +285,7 @@ export async function sealPolicyEvaluationSnapshot(
     readonly snapshotId: string;
     readonly fence: PolicyEvaluationWorkerMutationFence;
     readonly transactions: PolicyEvaluationSnapshotSealingTransactions;
+    readonly artifactByteAdmission?: PolicyArtifactByteAdmission;
   },
 ): Promise<PolicyEvaluationSnapshotSealReceipt> {
   const principal = PrincipalContextSchema.parse(actor);
@@ -292,6 +297,9 @@ export async function sealPolicyEvaluationSnapshot(
   const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(options.fence);
   if (fence.workerId !== principal.principalId)
     throw new ForbiddenError("Policy fence belongs to another worker principal");
+  const artifactReservations = options.artifactByteAdmission
+    ? new PolicyArtifactByteReservations(request, fence, options.artifactByteAdmission)
+    : undefined;
   let held: PolicyEvaluationSnapshotSealingPorts | undefined;
   const transactions: PolicyEvaluationMetadataTransactions = {
     runMetadata: (scope, operation) =>
@@ -315,6 +323,7 @@ export async function sealPolicyEvaluationSnapshot(
       snapshotId: options.snapshotId,
       whileHeld: {
         transactions,
+        ...(artifactReservations ? { artifactReservations } : {}),
         publish: async (definition) => {
           if (!held) throw new TypeError("Snapshot publication port has expired");
           const receipt = await held.publishSnapshot(definition, principal.principalId);
@@ -346,6 +355,7 @@ export async function sealPolicyEvaluationSnapshot(
             },
             snapshot: receipt.job,
           });
+          artifactReservations?.requireRetainedUsage(job.usage.artifactReadBytes);
           if (
             job.job.status !== "sealed" ||
             canonical(job.request) !== canonical(request) ||
@@ -389,6 +399,7 @@ async function acquirePolicyArtifactEvidence(
     readonly snapshotId?: string;
     readonly whileHeld?: {
       readonly transactions: PolicyEvaluationMetadataTransactions;
+      readonly artifactReservations?: PolicyArtifactByteReservations;
       readonly publish: (
         definition: PolicyEvaluationSnapshotPageSet,
       ) => Promise<PolicyEvaluationSnapshotSealReceipt>;
@@ -562,12 +573,18 @@ async function acquirePolicyArtifactEvidence(
             get: (objectKey) =>
               budget.readArtifactObject(
                 reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
-                () => dependencies.objects.get(objectKey),
+                async () => {
+                  await snapshotOptions?.whileHeld?.artifactReservations?.beforeRead(
+                    reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
+                  );
+                  return dependencies.objects.get(objectKey);
+                },
               ),
           },
         },
       );
       // Per-read clock/usage fields may differ. Catalog identity and availability/content may not.
+      snapshotOptions?.whileHeld?.artifactReservations?.requireHealthy();
       const fingerprint = canonical({ catalog: read.catalog, observation: read.observation });
       const previous = observations.get(reference.artifactId);
       if (previous !== undefined && previous !== fingerprint)

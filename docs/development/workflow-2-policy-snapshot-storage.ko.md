@@ -36,6 +36,10 @@ control은 고정된 과거 snapshot 읽기를 허용합니다. Owning source SE
 전체 rollback을 다룹니다. 실제 PostgreSQL/S3 복구에는 원본 root/page 및 sealed job을 포함하고
 원래 bytes/receipt를 보존하면서 lease를 무효화하고 역할을 다시 설정합니다.
 
+선택적 [artifact byte admission](workflow-2-policy-artifact-admission.ko.md)은 물리 object 읽기 전에
+예상 encrypted buffer 비용을 별도 worker 예약으로 확정합니다. 실패한 읽기나 게시 rollback도
+확정된 비용을 환급하지 않습니다. 전체 buffer 초과량·부분 transport·숨겨진 retry 비용은 별도 경계입니다.
+
 운영 worker·공개 route·정책 verdict·승인·release 권한은 아직 추가하지 않습니다. Source I/O 이전의
 durable job 전체 비용 집계는 미완료이며 게시 transaction 내부 집계로 rollback 환급을 허용하면 안 됩니다.
 Memory/native 전체 공유 conformance, computing/completed 복구 상태, 전체 predicate와 atomic result,
