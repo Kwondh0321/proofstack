@@ -57,7 +57,7 @@ interface FakeDatabaseOptions {
 }
 
 function fakeDatabase(options: FakeDatabaseOptions = {}): {
-  readonly database: Pick<Pool, "query" | "connect">;
+  readonly database: Pick<Pool, "query" | "connect" | "options" | "waitingCount">;
   readonly queries: string[];
 } {
   const queries: string[] = [];
@@ -95,7 +95,7 @@ function fakeDatabase(options: FakeDatabaseOptions = {}): {
           : [{ has_user_objects: options.hasUserObjects ?? false }],
       };
     },
-  } as unknown as Pick<Pool, "query" | "connect">;
+  } as unknown as Pick<Pool, "query" | "connect" | "options" | "waitingCount">;
   return { database, queries };
 }
 

@@ -90,8 +90,34 @@ heartbeat/lease 시간·강제 제약·환경 간 outbox·epoch 무효화·원�
 거부하고, 원래 입력·사용량을 유지한 새 epoch의 claim을 실행합니다. 아직 구현되지 않은
 sealed/running/completed result 게시나 모든 scheduler 상태의 승인을 뜻하지 않습니다.
 
-이미 읽은 데이터의 제한은 진행 중 I/O의 제한을 뜻하지 않습니다. Pool 할당·SQL 취소와 drain·
-wire 읽기·남은 기한의 admission은 아직 필요합니다. 이 저장소는 공개 route·service·sealed
+정책 운영 저장소에 주는 pool은 checkout timeout 1–500 ms, 연결 수 1–16, 대기 수 64 미만을
+충족해야 합니다. 저장소가 주어진 pool 설정을 변경하지는 않습니다. `createPostgresPool`의
+일반 기본값 5초는 유지되므로 정책 운영·복구에서는 서버 소유 옵션
+`connectionTimeoutMilliseconds`를 500으로 명시하세요. 복구 CLI는 이를 적용합니다.
+서버 작업이 drain되기 전에 반환할 수 있는 pg `query_timeout`은 거부하고, 비활성 기본값
+`false`는 허용합니다.
+
+운영 트랜잭션의 monotonic 상한은 2초이며 서버 statement timeout 최대 1초, lock timeout
+최대 250 ms, pending 쿼리 16개, 총 쿼리 256개로 제한합니다. 소유자 일괄 복구는 별도
+120초·1,200,016쿼리 상한과 기존 100,000-job 좌표 제한을 사용합니다. 잡힌 오류나 기다리지
+않은 쿼리 오류도 전체 트랜잭션을 taint합니다. 만료된 port는 SQL을 실행할 수 없습니다.
+쿼리·callback이 멈추면 watchdog이 연결을 물리적으로 끊고 시작된 SQL을 종료·drain한 뒤
+폐기된 client를 반환합니다. Rollback 실패는 원래 오류를 보존합니다. Callback race나
+pg 읽기 timeout만으로 정리를 대신하지 않습니다.
+
+마이그레이션 0057은 evaluator 전용 DB 기한 admission을 추가합니다. 정확한 job/scope/version,
+선택적 현재 fence와 새 DB 시각을 묶고 job·attempt·lease의 남은 밀리초를 내림해 최대 2초로
+제한합니다. 어댑터는 descriptor를 독립 검증하고 호출 전 monotonic 시각에서 한도를 줄이며
+서버 statement/lock 제한도 줄입니다. 새 claim·lease는 이력·커밋 전에 다시 검사합니다.
+동일 요청·예약의 원본 receipt가 남아도 실행 기한은 늘어나지 않습니다. 활성 claim 자체는
+idempotent하지 않습니다. Control 정리와 저장소 reclaim은 만료 후에도 제한된 경로를
+유지합니다. 종료된 admission 보고서는 이후 권한이 아니며 각 mutation은 현재 상태를 검증합니다.
+
+실제 검사는 pg_sleep 취소·동일 backend 재사용, advisory 잠금 대기, 포화된 pool 대기 제거,
+폐기 backend 교체, 잡힌·미대기 오류의 전체 rollback을 확인합니다. 원래 예약 receipt를
+유지하면서 새 DB 남은 시간이 줄어드는 것, evaluator 전용 권한, 엄격한 만료와 reclaim도
+검사합니다. Worker 전체의 source SQL/wire/read admission, source·암호·객체 I/O, 모든 상태의
+복원과 guard 유지 게시 구성은 아직 필요합니다. 이 저장소는 공개 route·service·sealed
 snapshot publisher·predicate/result publisher·운영 배포 구성을 추가하지 않습니다. 읽기 전용
 source recheck는 반환 전에 끝나므로 그 report에서 나중에 게시하면 안 됩니다. 완전한 closure,
 계속 열린 guard의 게시, 모든 predicate, durable worker/API/SDK/복구 실행과 독립 exit audit가

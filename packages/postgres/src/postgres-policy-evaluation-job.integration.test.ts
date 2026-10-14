@@ -6,6 +6,7 @@ import {
 } from "@proofstack/core/testing";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { withBoundedPolicyTransaction } from "./bounded-policy-transaction.js";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
 import { PostgresPolicyEvaluationJobRecovery } from "./postgres-policy-evaluation-job-recovery.js";
@@ -26,12 +27,12 @@ const credentials = Object.fromEntries(
     { name: `ps_pj_${kind.toLowerCase()}_${key}`, password: `proofstack-test-${kind}-${key}` },
   ]),
 ) as Record<keyof typeof DEFAULT_RUNTIME_ROLE_NAMES, RuntimeRoleCredentials>;
-const admin = new Pool({ connectionString: databaseUrl, max: 4 });
+const admin = new Pool({ connectionString: databaseUrl, max: 4, connectionTimeoutMillis: 500 });
 function poolFor(kind: keyof typeof credentials) {
   const url = new URL(databaseUrl as string);
   url.username = credentials[kind].name;
   url.password = credentials[kind].password;
-  return new Pool({ connectionString: url.toString(), max: 4 });
+  return new Pool({ connectionString: url.toString(), max: 4, connectionTimeoutMillis: 500 });
 }
 const controlPool = poolFor("policyEvaluationControl");
 const workerPool = poolFor("policyEvaluator");
@@ -183,6 +184,10 @@ describe("native scoped policy job state/history and separate roles", () => {
     });
     let paused = false;
     const gatedPool = {
+      options: controlPool.options,
+      get waitingCount() {
+        return controlPool.waitingCount;
+      },
       connect: async () => {
         const client = await controlPool.connect();
         return new Proxy(client, {
@@ -202,7 +207,7 @@ describe("native scoped policy job state/history and separate roles", () => {
           },
         }) as PoolClient;
       },
-    } as unknown as Pick<Pool, "connect">;
+    } as unknown as Pick<Pool, "connect" | "options" | "waitingCount">;
     const reader = new PostgresPolicyEvaluationJobControlRepository(gatedPool);
     const response = reader.findJob(exact, initial.job.jobId);
     try {
@@ -333,6 +338,74 @@ describe("native scoped policy job state/history and separate roles", () => {
       ),
     ).rejects.toThrow("immutable input");
     expect(await control.findJob(exact, created.job.jobId)).toEqual(created);
+  });
+  it("derives fresh native remaining time while an idempotent reservation retains its old lease receipt", async () => {
+    const exact = scope("io_remaining"),
+      request = shortLeaseRequest(exact);
+    request.limits.leaseDurationMilliseconds = 2000;
+    const {
+      createdAt: _at,
+      createdByPrincipalId: _by,
+      definitionSha256: _sha,
+      schemaVersion: _version,
+      scope: _scope,
+      ...definition
+    } = request;
+    request.definitionSha256 = digestPolicyEvaluationRequestDefinition(exact, definition);
+    await control.createJob({ request, jobId: "job_io_remaining" });
+    const command = {
+      scope: exact,
+      jobId: "job_io_remaining",
+      workerId: "worker_io",
+      attemptId: "attempt_io",
+      leaseId: "lease_io",
+    };
+    const claimed = await worker.claimJob(command),
+      fence = claimed.job.currentLease!.mutationFence;
+    const reservationCommand = {
+      scope: exact,
+      fence,
+      reservationId: "reservation_io",
+      delta: { ...claimed.usage, reads: 1 },
+    };
+    const reserved = await worker.reserveWork(reservationCommand);
+    const observe = () =>
+      withBoundedPolicyTransaction(
+        workerPool,
+        (client) =>
+          client.query<{ value: { observedAt: string; remainingMilliseconds: number } }>(
+            "SELECT public.proofstack_policy_evaluation_io_budget($1,$2::jsonb) AS value",
+            [command.jobId, JSON.stringify(fence)],
+          ),
+        { scope: exact },
+      );
+    const first = (await observe()).rows[0]!.value;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const retry = await worker.reserveWork(reservationCommand);
+    expect(retry.created).toBe(false);
+    expect(retry.reservation).toEqual(reserved.reservation);
+    expect(retry.snapshot).toEqual(reserved.snapshot);
+    const later = (await observe()).rows[0]!.value;
+    expect(later.observedAt).not.toBe(first.observedAt);
+    expect(later.remainingMilliseconds).toBeLessThan(first.remainingMilliseconds - 300);
+    await expect(
+      withBoundedPolicyTransaction(
+        controlPool,
+        (client) =>
+          client.query("SELECT public.proofstack_policy_evaluation_io_budget($1,$2::jsonb)", [
+            command.jobId,
+            JSON.stringify(fence),
+          ]),
+        { scope: exact },
+      ),
+    ).rejects.toThrow();
+    const remainingWait =
+      Math.max(0, Date.parse(claimed.job.currentLease!.expiresAt) - Date.now()) + 10;
+    await new Promise((resolve) => setTimeout(resolve, remainingWait));
+    await expect(observe()).rejects.toMatchObject({ code: "55000" });
+    expect((await worker.reclaimJob({ scope: exact, jobId: command.jobId })).job.status).toBe(
+      "retry_ready",
+    );
   });
   it("fails wholly while the migration runner owns its session lock", async () => {
     const exact = scope("migration_lock");

@@ -5,6 +5,7 @@ import {
   type PolicyEvaluationJobHistoryEntryDefinition,
   type PolicyEvaluationJobSnapshot,
   PolicyEvaluationUsageSchema,
+  type PolicyEvaluationWorkerMutationFence,
   PolicyEvaluationWorkerMutationFenceSchema,
   serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
@@ -29,6 +30,7 @@ export class PostgresPolicyEvaluationJobWorkerRepository
     operation: (
       next: PolicyEvaluationJobSnapshot,
     ) => PolicyEvaluationJobHistoryEntryDefinition["operation"],
+    budgetFence: PolicyEvaluationWorkerMutationFence | null | false,
   ) {
     const jobId = OpaqueIdSchema.parse(id);
     return this.transact(scopeInput, async (client, scope) => {
@@ -41,9 +43,13 @@ export class PostgresPolicyEvaluationJobWorkerRepository
         scope,
         jobId,
       );
+      if (budgetFence !== false)
+        await this.admitWorkerBudget(client, previous, budgetFence ?? undefined);
       const latest = await this.lastOnClient(client, scope, previous);
       await this.verifyIntents(client, previous);
       const next = this.inspect(await this.one(client, statement, values), scope, jobId);
+      if (next.job.currentLease)
+        await this.admitWorkerBudget(client, next, next.job.currentLease.mutationFence);
       if (next.job.stateVersion !== previous.job.stateVersion) {
         const action =
           next.job.status === "budget_exhausted" && next.job.stateVersion === 100000
@@ -77,6 +83,7 @@ export class PostgresPolicyEvaluationJobWorkerRepository
           );
         return { kind: "claim", fence };
       },
+      null,
     );
   }
   async heartbeatJob(command: Parameters<PolicyEvaluationJobWorkerRepository["heartbeatJob"]>[0]) {
@@ -87,6 +94,7 @@ export class PostgresPolicyEvaluationJobWorkerRepository
       "SELECT public.proofstack_heartbeat_policy_evaluation_job($1::jsonb) AS value",
       [JSON.stringify(fence)],
       () => ({ kind: "heartbeat", fence }),
+      fence,
     );
   }
   async interruptJob(command: Parameters<PolicyEvaluationJobWorkerRepository["interruptJob"]>[0]) {
@@ -97,6 +105,7 @@ export class PostgresPolicyEvaluationJobWorkerRepository
       "SELECT public.proofstack_interrupt_policy_evaluation_job($1::jsonb,$2) AS value",
       [JSON.stringify(fence), command.reason],
       () => ({ kind: "interrupt", fence, reason: command.reason }),
+      fence,
     );
   }
   async reclaimJob(command: Parameters<PolicyEvaluationJobWorkerRepository["reclaimJob"]>[0]) {
@@ -107,6 +116,7 @@ export class PostgresPolicyEvaluationJobWorkerRepository
       "SELECT public.proofstack_reclaim_policy_evaluation_job($1) AS value",
       [jobId],
       () => ({ kind: "reclaim" }),
+      false,
     );
   }
   async reserveWork(command: Parameters<PolicyEvaluationJobWorkerRepository["reserveWork"]>[0]) {
@@ -123,6 +133,7 @@ export class PostgresPolicyEvaluationJobWorkerRepository
         scope,
         fence.jobId,
       );
+      await this.admitWorkerBudget(client, previous, fence);
       const latest = await this.lastOnClient(client, scope, previous);
       await this.verifyIntents(client, previous);
       const result = await client.query<{
@@ -140,6 +151,8 @@ export class PostgresPolicyEvaluationJobWorkerRepository
           "Policy reservation returned an invalid receipt",
         );
       const next = this.inspect(row.snapshot, scope, fence.jobId);
+      if (next.job.currentLease)
+        await this.admitWorkerBudget(client, next, next.job.currentLease.mutationFence);
       if (next.job.stateVersion === previous.job.stateVersion) {
         if (
           row.created ||

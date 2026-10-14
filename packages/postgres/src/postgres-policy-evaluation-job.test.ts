@@ -3,6 +3,7 @@ import type {
   PolicyEvaluationJobHistoryEntry,
   PolicyEvaluationJobSnapshot,
 } from "@proofstack/contracts";
+import { policyEvaluationTimestampOrderKey } from "@proofstack/contracts";
 import {
   cancelPolicyEvaluationJob,
   claimPolicyEvaluationJob,
@@ -63,6 +64,30 @@ function fixture(index = 0) {
       };
     if (text.includes("create_policy_evaluation_job"))
       return { rows: [{ created: creating, snapshot: graph }] };
+    if (text.includes("policy_evaluation_io_budget")) {
+      const order = policyEvaluationTimestampOrderKey;
+      const expiry = [
+        graph.job.deadlineAt,
+        ...(graph.job.currentLease
+          ? [graph.job.currentLease.expiresAt, graph.job.currentLease.attemptDeadlineAt]
+          : []),
+      ]
+        .map(order)
+        .reduce((left, right) => (left < right ? left : right));
+      return {
+        rows: [
+          {
+            value: {
+              scope: graph.job.scope,
+              job: { jobId: graph.job.jobId, definitionSha256: graph.job.definitionSha256 },
+              stateVersion: graph.job.stateVersion,
+              observedAt: now,
+              remainingMilliseconds: Math.min(2000, Number((expiry - order(now)) / 10n ** 27n)),
+            },
+          },
+        ],
+      };
+    }
     if (
       text.includes("prepare_policy_evaluation_job_mutation") ||
       text.includes("read_policy_evaluation_job")
@@ -133,10 +158,13 @@ function fixture(index = 0) {
     } else return { rows: [] };
     return { rows: [{ value: graph }] };
   });
-  const pool = { connect: vi.fn(async () => ({ query, release })) } as unknown as Pick<
-    Pool,
-    "connect"
-  >;
+  const end = vi.fn(async () => undefined),
+    destroy = vi.fn();
+  const pool = {
+    options: { connectionTimeoutMillis: 500 },
+    waitingCount: 0,
+    connect: vi.fn(async () => ({ query, release, end, connection: { stream: { destroy } } })),
+  } as unknown as Pick<Pool, "connect" | "options" | "waitingCount">;
   return {
     pool,
     calls,
@@ -365,6 +393,36 @@ describe("native policy job adapter contracts, exact reads and whole transaction
       }),
     ).rejects.toThrow("original occurrence");
   });
+  it.each(["cut", "window", "scope", "version"])(
+    "rejects a substituted native I/O %s descriptor",
+    async (kind) => {
+      const f = fixture(1),
+        snapshot = f.graph(),
+        fence = snapshot.job.currentLease!.mutationFence;
+      f.override((text) => {
+        if (!text.includes("policy_evaluation_io_budget")) return undefined;
+        const value = {
+          scope: snapshot.job.scope,
+          job: { jobId, definitionSha256: snapshot.job.definitionSha256 },
+          stateVersion: snapshot.job.stateVersion,
+          observedAt: cut,
+          remainingMilliseconds: 2000,
+        };
+        if (kind === "cut") value.observedAt = "2026-09-07T11:59:59.999999Z";
+        if (kind === "window") value.remainingMilliseconds = 2001;
+        if (kind === "scope") value.scope = { ...scope, tenantId: "tenant_other" };
+        if (kind === "version") value.stateVersion++;
+        return { rows: [{ value }] };
+      });
+      await expect(f.worker.heartbeatJob({ scope, fence })).rejects.toThrow(
+        "I/O admission substituted",
+      );
+      expect(f.calls.at(-1)!.text).toBe("ROLLBACK");
+      expect(f.calls.some((call) => call.text.includes("heartbeat_policy_evaluation_job"))).toBe(
+        false,
+      );
+    },
+  );
   it.each([false, true])(
     "destroys the recovery connection exactly once after rollback failure (bulk=%s)",
     async (bulk) => {

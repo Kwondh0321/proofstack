@@ -142,6 +142,7 @@ describe("migration inspection", () => {
         "0054_policy_evaluation_capabilities",
         "0055_policy_evaluation_job_ledger",
         "0056_policy_evaluation_exact_history_reads",
+        "0057_policy_evaluation_io_admission",
       ],
     });
   });

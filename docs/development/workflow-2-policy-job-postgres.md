@@ -97,8 +97,36 @@ fences, direct DML and owner recovery, then admit a new forward-epoch claim with
 and usage. This exercise does not establish the still-unimplemented sealed/running/completed result
 publication flow or acceptance of every scheduler state.
 
-Materialized limits do not establish bounded pending I/O. Pool acquisition, SQL cancellation and
-draining, wire reads and remaining-deadline admission remain required. No public route, service,
+Operational policy repositories require a supplied pool with a finite 1–500 ms checkout timeout,
+1–16 connections and fewer than 64 waiting checkouts. They do not mutate its configuration.
+`createPostgresPool` keeps its general 5-second default; explicitly set the server-owned
+`connectionTimeoutMilliseconds` option to 500 for policy operation/recovery composition.
+The recovery CLI does so. Configured pg `query_timeout` is rejected because it can return before
+server work drains; the driver's disabled `false` default is accepted.
+
+One operational transaction has a 2-second monotonic ceiling, fixed server statement timeout
+up to 1 second, lock timeout up to 250 ms, 16 pending and 256 total query admissions. Owner bulk
+repair has a separate finite 120-second / 1,200,016-query ceiling and the existing 100,000-job
+coordinate admission. A caught or unawaited query failure taints the whole transaction. Expired
+ports cannot execute SQL. On a stalled query/callback, the watchdog physically destroys the
+connection, ends/drains started SQL and only then releases the destroyed client. Rollback failure
+keeps the original cause. Racing a callback or pg read timeout alone is insufficient cleanup.
+
+Migration 0057 adds an evaluator-only native I/O admission. It binds exact job/scope/version and
+optional live fence to a fresh DB cut, floors remaining milliseconds across job/attempt/lease
+expiry and caps them at 2 seconds. The adapter independently checks that descriptor, shortens its
+monotonic limit from before the query invocation and tightens server statement/lock limits. New
+claim/lease receipts are checked again before history/commit. Old idempotent request/reservation
+receipts do not extend remaining time; an active claim itself is not idempotent. Control cleanup
+and store-owned reclaim retain a bounded path after execution expiry. The admission report does
+not grant authority after its transaction ends; every mutation still checks live normalized state.
+
+Native probes exercise pg_sleep server cancellation and same-backend reuse, real advisory waits,
+saturated checkout removal, destroyed backend replacement, and caught/unawaited whole rollback.
+They also verify shrinking fresh native time while a reservation retry preserves its original
+receipt, evaluator-only admission and strict expiry with later reclaim. Materialized limits still
+do not establish complete worker-wide source SQL/wire/read admission. Source acquisition/crypto/
+object I/O, all-state restoration and held publication composition remain required. No public route, service,
 sealed snapshot publisher, predicate/result publisher or production composition is introduced by
 these operational repositories. Read-only source recheck still ends before returning: never
 publish a snapshot/result later from its report. Complete closure and held-guard publication,

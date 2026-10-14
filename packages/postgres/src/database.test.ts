@@ -37,4 +37,25 @@ describe("createPostgresPool", () => {
     expect(pool.options.application_name).toBe("proofstack");
     expect(pool.options.max).toBe(10);
   });
+  it("supports an explicit finite policy checkout without changing the default", () => {
+    const pool = createPostgresPool({
+      connectionString: "postgresql://runtime@127.0.0.1:5432/proofstack",
+      onIdleError: vi.fn(),
+      connectionTimeoutMilliseconds: 500,
+    });
+    pools.push(pool);
+    expect(pool.options.connectionTimeoutMillis).toBe(500);
+  });
+  it.each([0, -1, 1.5, 5001])(
+    "rejects invalid explicit connection timeout %s before creating a pool",
+    (value) => {
+      expect(() =>
+        createPostgresPool({
+          connectionString: "postgresql://runtime@127.0.0.1:5432/proofstack",
+          onIdleError: vi.fn(),
+          connectionTimeoutMilliseconds: value,
+        }),
+      ).toThrow(RangeError);
+    },
+  );
 });

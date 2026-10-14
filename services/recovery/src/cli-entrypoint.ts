@@ -19,6 +19,7 @@ try {
       backup: createPostgresLogicalBackup,
       createPool: (connectionString, onIdleError) =>
         createPostgresPool({
+          connectionTimeoutMilliseconds: 500,
           applicationName: "proofstack-recovery",
           connectionString,
           maxConnections: 1,

@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { performance } from "node:perf_hooks";
 import {
   type EvidenceScope,
   EvidenceScopeSchema,
@@ -11,6 +12,9 @@ import {
   PolicyEvaluationJobHistoryPageIndexSchema,
   type PolicyEvaluationJobSnapshot,
   PolicyEvaluationJobSnapshotSchema,
+  PolicyEvaluationTimeSchema,
+  type PolicyEvaluationWorkerMutationFence,
+  policyEvaluationTimestampOrderKey,
   serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
@@ -26,10 +30,14 @@ import {
   validatePolicyEvaluationJobHistoryPage,
   validatePolicyEvaluationJobSnapshotRecord,
 } from "@proofstack/core";
-import type { Pool, PoolClient } from "pg";
+import type { PoolClient } from "pg";
+import {
+  type PolicyTransactionPool,
+  tightenPolicyTransaction,
+  withBoundedPolicyTransaction,
+} from "./bounded-policy-transaction.js";
 import { assertMigrationsCurrentOnClient } from "./migration-runner.js";
 import { loadBundledMigrations, type Migration } from "./migrations.js";
-import { withExactReadCommittedScopeTransaction } from "./tenant-transaction.js";
 
 export class PostgresPolicyEvaluationJobContractError extends Error {
   readonly code = "postgres_policy_evaluation_job_contract_invalid";
@@ -50,7 +58,7 @@ function persistenceError(error: unknown): never {
 }
 /** Fixed SQL only, exact transaction scope; no SQL/client/DML port escapes to an application caller. */
 export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluationJobReader {
-  constructor(protected readonly pool: Pick<Pool, "connect">) {}
+  constructor(protected readonly pool: PolicyTransactionPool) {}
   protected async admitMigrations(client: PoolClient, migrations: readonly Migration[]) {
     const guard = await client.query<{ acquired: unknown }>(
       "SELECT pg_try_advisory_xact_lock_shared(1347579483,1) AS acquired",
@@ -68,10 +76,14 @@ export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluat
     const scope = EvidenceScopeSchema.parse(input);
     const migrations = await loadBundledMigrations();
     try {
-      return await withExactReadCommittedScopeTransaction(this.pool, scope, async (client) => {
-        await this.admitMigrations(client, migrations);
-        return work(client, scope);
-      });
+      return await withBoundedPolicyTransaction(
+        this.pool,
+        async (client) => {
+          await this.admitMigrations(client, migrations);
+          return work(client, scope);
+        },
+        { scope },
+      );
     } catch (error) {
       return persistenceError(error);
     }
@@ -87,6 +99,60 @@ export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluat
         "Policy function returned an unexpected row count",
       );
     return rows.rows[0]?.value;
+  }
+  protected async admitWorkerBudget(
+    client: PoolClient,
+    snapshot: PolicyEvaluationJobSnapshot,
+    fence?: PolicyEvaluationWorkerMutationFence,
+  ) {
+    const invokedAt = performance.now();
+    const raw = await this.one(
+      client,
+      "SELECT public.proofstack_policy_evaluation_io_budget($1,$2::jsonb) AS value",
+      [snapshot.job.jobId, fence ? JSON.stringify(fence) : null],
+    );
+    if (
+      typeof raw !== "object" ||
+      raw === null ||
+      Array.isArray(raw) ||
+      Object.keys(raw).length !== 5
+    )
+      throw new PostgresPolicyEvaluationJobContractError(
+        "Policy I/O admission returned an invalid descriptor",
+      );
+    const value = raw as Record<string, unknown>;
+    const cut = PolicyEvaluationTimeSchema.parse(value["observedAt"]);
+    const order = policyEvaluationTimestampOrderKey;
+    let expiry = order(snapshot.job.deadlineAt);
+    if (snapshot.job.currentLease)
+      expiry = [
+        expiry,
+        order(snapshot.job.currentLease.expiresAt),
+        order(snapshot.job.currentLease.attemptDeadlineAt),
+      ].reduce((left, right) => (left < right ? left : right));
+    const milliseconds = Number((expiry - order(cut)) / 10n ** 27n);
+    if (
+      order(cut) < order(snapshot.job.updatedAt) ||
+      milliseconds <= 0 ||
+      value["remainingMilliseconds"] !== Math.min(2000, milliseconds) ||
+      value["stateVersion"] !== snapshot.job.stateVersion ||
+      serializeEvaluationCanonicalJson(value["scope"]) !==
+        serializeEvaluationCanonicalJson(snapshot.job.scope) ||
+      serializeEvaluationCanonicalJson(value["job"]) !==
+        serializeEvaluationCanonicalJson({
+          jobId: snapshot.job.jobId,
+          definitionSha256: snapshot.job.definitionSha256,
+        })
+    )
+      throw new PostgresPolicyEvaluationJobContractError(
+        "Policy I/O admission substituted its subject, cut or remaining window",
+      );
+    const remaining = Math.min(2000, milliseconds);
+    tightenPolicyTransaction(client, remaining, invokedAt);
+    await client.query(
+      "SELECT set_config('statement_timeout',$1,true),set_config('lock_timeout',$2,true)",
+      [String(Math.min(1000, remaining)), String(Math.min(250, remaining))],
+    );
   }
   protected inspect(raw: unknown, scope: EvidenceScope, jobId: string) {
     const graph = PolicyEvaluationJobSnapshotSchema.parse(raw);

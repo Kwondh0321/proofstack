@@ -193,6 +193,7 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_append_policy_evaluation_job_history(jsonb,text,text,jsonb)",
   "public.proofstack_read_policy_evaluation_history_head(text)",
   "public.proofstack_read_policy_evaluation_history_head_at(text,integer)",
+  "public.proofstack_policy_evaluation_io_budget(text,jsonb)",
   "public.proofstack_read_policy_evaluation_history_page(jsonb,integer)",
   "public.proofstack_prepare_policy_evaluation_job_mutation(text)",
   "public.proofstack_policy_evaluation_intent_status(text,text,jsonb,timestamp with time zone)",
@@ -333,6 +334,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
   ],
   policyEvaluator: [
     ...POLICY_JOB_READ_GRANTS,
+    "GRANT EXECUTE ON FUNCTION public.proofstack_policy_evaluation_io_budget(text,jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_policy_evaluation_job(jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_reserve_policy_evaluation_work(jsonb,text,jsonb) TO %ROLE%",

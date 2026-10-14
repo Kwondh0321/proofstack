@@ -317,7 +317,11 @@ const s3Connection = {
   forcePathStyle: true,
   region: s3Region,
 };
-const sourcePool = new Pool({ connectionString: databaseUrl, max: 4 });
+const sourcePool = new Pool({
+  connectionString: databaseUrl,
+  max: 4,
+  connectionTimeoutMillis: 500,
+});
 const bucketClient = createS3Client(s3Connection);
 const sourceObjects = createS3ArtifactObjectStore({
   ...s3Connection,
@@ -2769,7 +2773,11 @@ async function verifyRestoredOperationalPolicyJobs(
     const url = new URL(restoredDatabaseUrl);
     url.username = credentials.name;
     url.password = credentials.password;
-    const pool = new Pool({ connectionString: url.toString(), max: 2 });
+    const pool = new Pool({
+      connectionString: url.toString(),
+      max: 2,
+      connectionTimeoutMillis: 500,
+    });
     runtimePools.push(pool);
     return pool;
   };
@@ -2846,7 +2854,11 @@ beforeAll(async () => {
   const target = new URL(databaseUrl);
   target.pathname = `/${restoredDatabaseName}`;
   restoredDatabaseUrl = target.toString();
-  restoredPool = new Pool({ connectionString: restoredDatabaseUrl, max: 4 });
+  restoredPool = new Pool({
+    connectionString: restoredDatabaseUrl,
+    max: 4,
+    connectionTimeoutMillis: 500,
+  });
 });
 
 afterAll(async () => {

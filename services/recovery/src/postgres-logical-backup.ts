@@ -53,7 +53,7 @@ export interface PostgresLogicalBackupOptions {
 export interface PostgresLogicalRestoreOptions {
   readonly allowPlaintextLoopback: boolean;
   readonly connectionString: string;
-  readonly database: Pick<Pool, "query" | "connect">;
+  readonly database: Pick<Pool, "query" | "connect" | "options" | "waitingCount">;
   readonly dumpPath: string;
   readonly restoreExecutable?: string;
   readonly runner?: PostgresCommandRunner;
