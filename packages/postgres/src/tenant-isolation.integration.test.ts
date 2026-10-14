@@ -131,6 +131,7 @@ const TENANT_TABLES = [
   "proofstack_policy_evaluation_jobs",
   "proofstack_policy_evaluation_requests",
   "proofstack_policy_evaluation_reservations",
+  "proofstack_policy_evaluation_results",
   "proofstack_policy_evaluation_snapshot_pages",
   "proofstack_policy_evaluation_snapshots",
   "proofstack_projection_cursors",

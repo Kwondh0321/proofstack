@@ -1,5 +1,8 @@
 # Policy completion and historical result integrity
 
+For the subsequent native store implementation, see
+[atomic result publication](workflow-2-policy-result-publication.md).
+
 Workflow 2 checkpoint 3 remains open. This core prerequisite closes a logical
 `running` computation and validates a retained result against its original sealed
 input. It does not store or publish a result, expose an API, or execute a worker.

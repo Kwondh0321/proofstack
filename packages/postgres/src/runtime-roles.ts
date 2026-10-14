@@ -72,6 +72,7 @@ const PLATFORM_TABLES = [
   "proofstack_policy_evaluation_job_history",
   "proofstack_policy_evaluation_reservations",
   "proofstack_policy_evaluation_snapshots",
+  "proofstack_policy_evaluation_results",
   "proofstack_policy_evaluation_snapshot_pages",
   "proofstack_api_key_credentials",
   "proofstack_artifact_catalog",
@@ -197,6 +198,9 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_claim_policy_evaluation_job(text,text,text,text)",
   "public.proofstack_heartbeat_policy_evaluation_job(jsonb)",
   "public.proofstack_start_policy_evaluation_computation(jsonb)",
+  "public.proofstack_publish_policy_evaluation_result(jsonb,text,text)",
+  "public.proofstack_read_policy_evaluation_result(text,text)",
+  "public.proofstack_verify_policy_result_commit()",
   "public.proofstack_verify_policy_computation_commit_fence()",
   "public.proofstack_reserve_policy_evaluation_work(jsonb,text,jsonb)",
   "public.proofstack_cancel_policy_evaluation_job(text,text,text,text)",
@@ -333,6 +337,7 @@ const PLATFORM_FUNCTIONS = [
 ] as const;
 
 const POLICY_JOB_READ_GRANTS = [
+  "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_evaluation_result(text,text) TO %ROLE%",
   "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_snapshot(text,text) TO %ROLE%",
   "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_snapshot_page(text,text,integer) TO %ROLE%",
   "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
@@ -376,6 +381,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_policy_evaluation_job(jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_start_policy_evaluation_computation(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_policy_evaluation_result(jsonb,text,text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_reserve_policy_evaluation_work(jsonb,text,jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_interrupt_policy_evaluation_job(jsonb,text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_reclaim_policy_evaluation_job(text) TO %ROLE%",

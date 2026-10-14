@@ -227,8 +227,8 @@ describe("complete policy metadata publication barrier", () => {
          AND NOT (c.relname=ANY($1::text[])) ORDER BY c.relname`,
       [excluded],
     );
-    // 0055 adds six job roots; 0058 adds two immutable snapshot roots to the writer protocol.
-    expect(tables.rows).toHaveLength(93);
+    // 0055 adds six job roots; 0058 adds two snapshot roots; 0060 adds one result root.
+    expect(tables.rows).toHaveLength(94);
     expect(tables.rows.filter(({ partition }) => partition)).toHaveLength(33);
     const triggers = await admin.query<{
       name: string;
@@ -648,7 +648,7 @@ describe("complete policy metadata publication barrier", () => {
               "SELECT count(*)::int AS count FROM public.proofstack_schema_migrations",
             )
           ).rows[0]?.count,
-        ).toBe(59);
+        ).toBe(60);
       },
     );
   });

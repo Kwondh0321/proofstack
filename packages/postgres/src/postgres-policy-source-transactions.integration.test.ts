@@ -5,6 +5,7 @@ import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
 import {
   POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE,
   encodePolicyEvaluationJobHistoryEntry,
+  encodePolicyEvaluationDefinition,
   type ArtifactMetadata,
   type ContentReference,
   type EndpointProfileDefinition,
@@ -52,6 +53,7 @@ import {
   validatePolicyEvaluationSnapshot,
   validatePolicyEvaluationSnapshotRecord,
   computeSealedPolicyEvaluation,
+  digestPolicyEvaluationDefinition,
   createPolicyEvaluationJobHistoryEntry,
   encodePolicyEvaluationJobGraph,
   buildPolicyEvaluationJobOutboxIntents,
@@ -94,6 +96,7 @@ import { createPolicyPostgresPool } from "./database.js";
 import { withBoundedPolicyTransaction } from "./bounded-policy-transaction.js";
 import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
 import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
+import { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
 import { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
@@ -966,7 +969,386 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
   };
 }
 
+async function nativeResultHarness(paidRules = 7, leaseMilliseconds = 20000) {
+  const h = await nativeSealingHarness(leaseMilliseconds);
+  const sealed = await h.seal();
+  await h.worker.startComputation({ scope: h.f.scope, fence: h.fence });
+  if (paidRules > 0)
+    await h.worker.reserveWork({
+      scope: h.f.scope,
+      fence: h.fence,
+      reservationId: `rules_${h.f.namespace}`,
+      delta: {
+        reads: 0,
+        records: 0,
+        recordBytes: 0,
+        references: 0,
+        referenceBytes: 0,
+        artifactReadBytes: 0,
+        ruleEvaluations: paidRules,
+      },
+    });
+  const pageSet = await withBoundedPolicyTransaction(
+    h.pool,
+    async (client) => {
+      const pages = [];
+      for (const descriptor of sealed.snapshot.pages) {
+        const value = await client.query(
+          "SELECT public.proofstack_read_policy_snapshot_page($1,$2,$3) AS value",
+          [sealed.snapshot.snapshotId, sealed.snapshot.definitionSha256, descriptor.pageIndex],
+        );
+        pages.push(PolicyEvaluationSnapshotPageSchema.parse(value.rows[0]?.value));
+      }
+      const {
+        scope: _scope,
+        schemaVersion: _version,
+        definitionSha256: _digest,
+        sealedAt: _sealed,
+        sealedByPrincipalId: _principal,
+        jobId: _job,
+        attemptId: _attempt,
+        workerId: _worker,
+        leaseId: _lease,
+        fencingToken: _fence,
+        recoveryEpoch: _epoch,
+        recordedAt: _at,
+        ...definition
+      } = sealed.snapshot;
+      return {
+        scope: h.f.scope,
+        definition,
+        definitionSha256: sealed.snapshot.definitionSha256,
+        pages,
+      };
+    },
+    { scope: h.f.scope },
+  );
+  return {
+    ...h,
+    sealed,
+    pageSet,
+    results: new PostgresPolicyEvaluationResultRepository(h.pool),
+    command: {
+      scope: h.f.scope,
+      fence: h.fence,
+      evaluationId: `evaluation_${h.f.namespace}`,
+      pageSet,
+    },
+  };
+}
+
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("publishes a native policy result, closed attempt, terminal job, history and canonical outbox atomically", async () => {
+    const h = await nativeResultHarness();
+    const before = await h.worker.findJob(h.f.scope, h.jobId);
+    const result = await h.results.publishResult(h.command);
+    expect(result.created).toBe(true);
+    expect(result.snapshot.job.status).toBe("completed");
+    expect(result.snapshot.job.currentLease).toBeNull();
+    expect(result.snapshot.job.snapshot).toEqual(h.sealed.job.job.snapshot);
+    expect(result.snapshot.usage).toEqual(before?.usage);
+    expect(result.snapshot.attempts.at(-1)?.closure).toEqual({
+      status: "completed",
+      committedAt: result.evaluation.recordedAt,
+    });
+    expect(result.snapshot.job.terminal).toMatchObject({
+      status: "completed",
+      code: "evaluation_completed",
+      committedAt: result.evaluation.recordedAt,
+    });
+    expect(result.evaluation.rules[0]).toMatchObject({
+      outcome: "indeterminate",
+      evidence: { reason: "approval_not_evaluated" },
+    });
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toEqual(result.evaluation);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    if (!head) throw new Error("Missing completed owning history");
+    const page = await h.worker.readHistoryPage(
+      head,
+      Math.floor(head.sequence / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE),
+    );
+    expect(page.entries.at(-1)?.definition.operation).toEqual({
+      kind: "complete",
+      fence: h.fence,
+      result: result.snapshot.job.result,
+      ruleCount: 7,
+    });
+    const canonical = await admin.query(
+      "SELECT count(*)::integer AS count FROM public.proofstack_outbox WHERE tenant_id=$1 AND event_type='policy.evaluation.job.terminal'",
+      [h.f.scope.tenantId],
+    );
+    expect(canonical.rows[0]?.count).toBe(1);
+    const repeated = await h.results.publishResult(h.command);
+    expect(repeated).toEqual({ ...result, created: false });
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it.each([0, 6])(
+    "refuses native policy result publication after paying only %s rules",
+    async (paid) => {
+      const h = await nativeResultHarness(paid);
+      const before = await h.worker.findJob(h.f.scope, h.jobId);
+      await expect(h.results.publishResult(h.command)).rejects.toThrow("prepaid whole rule work");
+      expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+      const retained = await admin.query(
+        "SELECT count(*)::integer AS count FROM public.proofstack_policy_evaluation_results WHERE tenant_id=$1",
+        [h.f.scope.tenantId],
+      );
+      expect(retained.rows[0]?.count).toBe(0);
+    },
+  );
+  it("rejects another native policy result identity after an immutable completion", async () => {
+    const h = await nativeResultHarness();
+    const original = await h.results.publishResult(h.command);
+    await expect(
+      h.results.publishResult({ ...h.command, evaluationId: "evaluation_other" }),
+    ).rejects.toThrow();
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toEqual(original.evaluation);
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(original.snapshot);
+  });
+  it("rolls back native policy result, attempt and history when canonical outbox insertion conflicts", async () => {
+    const h = await nativeResultHarness();
+    const before = await h.worker.findJob(h.f.scope, h.jobId);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    await admin.query(
+      "INSERT INTO public.proofstack_outbox (tenant_id,aggregate_type,aggregate_id,event_type,payload,schema_version,created_at) SELECT tenant_id,aggregate_type,aggregate_id,'policy.evaluation.job.terminal','{}'::jsonb,schema_version,created_at FROM public.proofstack_outbox WHERE tenant_id=$1 AND event_type='policy.evaluation.job.created'",
+      [h.f.scope.tenantId],
+    );
+    await expect(h.results.publishResult(h.command)).rejects.toThrow();
+    // The unrelated conflicting fixture remains; only the attempted publication rolls back.
+    const graph = await admin.query(
+      "SELECT snapshot AS value FROM public.proofstack_policy_evaluation_jobs WHERE tenant_id=$1 AND job_id=$2",
+      [h.f.scope.tenantId, h.jobId],
+    );
+    expect(graph.rows[0]?.value).toEqual(before);
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    const retained = await admin.query(
+      "SELECT count(*)::integer AS count FROM public.proofstack_policy_evaluation_results WHERE tenant_id=$1",
+      [h.f.scope.tenantId],
+    );
+    expect(retained.rows[0]?.count).toBe(0);
+  });
+  it("rejects native policy result publication when cancellation wins the job lock", async () => {
+    const h = await nativeResultHarness();
+    const cancelled = await h.control.cancelJob({
+      scope: h.f.scope,
+      jobId: h.jobId,
+      cancellationId: `cancel_${h.f.namespace}`,
+      principalId: "operator_native",
+      reason: "operator_requested",
+    });
+    await expect(h.results.publishResult(h.command)).rejects.toThrow();
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(cancelled);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+  });
+  it("rolls back native policy result publication without its atomic history and intent", async () => {
+    const h = await nativeResultHarness();
+    const before = await h.worker.findJob(h.f.scope, h.jobId);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    const definition = computeSealedPolicyEvaluation({
+      evaluationId: h.command.evaluationId,
+      expected: {
+        scope: h.f.scope,
+        jobId: h.jobId,
+        request: h.sealed.job.job.request,
+        snapshot: h.sealed.job.job.snapshot!,
+      },
+      record: h.sealed.snapshot,
+      pageSet: h.pageSet,
+    });
+    await expect(
+      withBoundedPolicyTransaction(
+        h.pool,
+        (client) =>
+          client.query(
+            "SELECT public.proofstack_publish_policy_evaluation_result($1::jsonb,$2,$3)",
+            [
+              JSON.stringify(h.fence),
+              Buffer.from(
+                encodePolicyEvaluationDefinition({ scope: h.f.scope, definition }),
+              ).toString("utf8"),
+              digestPolicyEvaluationDefinition(h.f.scope, definition),
+            ],
+          ),
+        { scope: h.f.scope },
+      ),
+    ).rejects.toThrow();
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+  });
+  it("rejects altered original pages before native policy result insertion", async () => {
+    const h = await nativeResultHarness();
+    const before = await h.worker.findJob(h.f.scope, h.jobId);
+    const pageSet = structuredClone(h.pageSet);
+    pageSet.pages.pop();
+    await expect(h.results.publishResult({ ...h.command, pageSet })).rejects.toThrow();
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+  });
+  it("preserves native policy result receipts on an exact retry after the original lease expires", async () => {
+    const h = await nativeResultHarness(7, 10000);
+    const original = await h.results.publishResult(h.command);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    await admin.query(
+      "SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM ($1::timestamptz-clock_timestamp())))+0.05)",
+      [h.claimed.job.currentLease?.expiresAt],
+    );
+    expect(await h.results.publishResult(h.command)).toEqual({ ...original, created: false });
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toEqual(original.evaluation);
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("rolls back native policy result completion when its original lease expires before deferred commit", async () => {
+    const h = await nativeResultHarness(7, 10000);
+    const before = await h.worker.findJob(h.f.scope, h.jobId);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    if (!before || !head) throw new Error("Missing owning running job");
+    const page = await h.worker.readHistoryPage(
+      head,
+      Math.floor(head.sequence / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE),
+    );
+    const previousEntry = page.entries.at(-1);
+    if (!previousEntry) throw new Error("Missing owning running history");
+    const definition = computeSealedPolicyEvaluation({
+      evaluationId: h.command.evaluationId,
+      expected: {
+        scope: h.f.scope,
+        jobId: h.jobId,
+        request: h.sealed.job.job.request,
+        snapshot: h.sealed.job.job.snapshot!,
+      },
+      record: h.sealed.snapshot,
+      pageSet: h.pageSet,
+    });
+    const client = await admin.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+      await client.query(
+        "SELECT set_config('proofstack.tenant_id',$1,true),set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)",
+        [h.f.scope.tenantId, h.f.scope.projectId, h.f.scope.environmentId],
+      );
+      const receipt = await client.query(
+        "SELECT public.proofstack_publish_policy_evaluation_result($1::jsonb,$2,$3) AS value",
+        [
+          JSON.stringify(h.fence),
+          Buffer.from(encodePolicyEvaluationDefinition({ scope: h.f.scope, definition })).toString(
+            "utf8",
+          ),
+          digestPolicyEvaluationDefinition(h.f.scope, definition),
+        ],
+      );
+      const next = receipt.rows[0]?.value.job;
+      const entry = createPolicyEvaluationJobHistoryEntry({
+        previous: before,
+        previousEntry,
+        next,
+        operation: {
+          kind: "complete",
+          fence: h.fence,
+          result: next.job.result,
+          ruleCount: definition.ruleCount,
+        },
+      });
+      await client.query(
+        "SELECT public.proofstack_append_policy_evaluation_job_history($1::jsonb,$2,$3,$4::jsonb)",
+        [
+          JSON.stringify(entry),
+          Buffer.from(encodePolicyEvaluationJobHistoryEntry(entry.definition)).toString("utf8"),
+          Buffer.from(encodePolicyEvaluationJobGraph(next)).toString("utf8"),
+          JSON.stringify(buildPolicyEvaluationJobOutboxIntents(before, next)),
+        ],
+      );
+      await client.query(
+        "SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM ($1::timestamptz-clock_timestamp())))+0.05)",
+        [h.claimed.job.currentLease?.expiresAt],
+      );
+      await expect(client.query("COMMIT")).rejects.toMatchObject({ code: "55000" });
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("limits native policy result mutation to evaluator and denies direct result DML", async () => {
+    const h = await nativeResultHarness();
+    for (const [kind, role] of Object.entries(credentials)) {
+      if (!role) throw new Error("Missing provisioned role");
+      const value = await admin.query(
+        "SELECT has_function_privilege($1,'public.proofstack_publish_policy_evaluation_result(jsonb,text,text)','EXECUTE') AS allowed,has_table_privilege($1,'public.proofstack_policy_evaluation_results','INSERT') AS direct",
+        [role.name],
+      );
+      expect(value.rows[0]?.allowed).toBe(kind === "policyEvaluator");
+      expect(value.rows[0]?.direct).toBe(false);
+    }
+    const definition = computeSealedPolicyEvaluation({
+      evaluationId: h.command.evaluationId,
+      expected: {
+        scope: h.f.scope,
+        jobId: h.jobId,
+        request: h.sealed.job.job.request,
+        snapshot: h.sealed.job.job.snapshot!,
+      },
+      record: h.sealed.snapshot,
+      pageSet: h.pageSet,
+    });
+    await expect(
+      withBoundedPolicyTransaction(
+        h.controlPool,
+        (client) =>
+          client.query(
+            "SELECT public.proofstack_publish_policy_evaluation_result($1::jsonb,$2,$3)",
+            [
+              JSON.stringify(h.fence),
+              Buffer.from(
+                encodePolicyEvaluationDefinition({ scope: h.f.scope, definition }),
+              ).toString("utf8"),
+              digestPolicyEvaluationDefinition(h.f.scope, definition),
+            ],
+          ),
+        { scope: h.f.scope },
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    const protection = await admin.query(
+      "SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid='public.proofstack_policy_evaluation_results'::regclass",
+    );
+    expect(protection.rows).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+  });
+  it("rejects every substituted native policy result fence and hides completed results from foreign scopes", async () => {
+    const h = await nativeResultHarness();
+    const before = await h.worker.findJob(h.f.scope, h.jobId);
+    for (const replacement of [
+      { workerId: "worker_other" },
+      { leaseId: "lease_other" },
+      { attemptId: "attempt_other" },
+      { fencingToken: h.fence.fencingToken + 1 },
+      { recoveryEpoch: h.fence.recoveryEpoch + 1 },
+    ])
+      await expect(
+        h.results.publishResult({ ...h.command, fence: { ...h.fence, ...replacement } }),
+      ).rejects.toThrow();
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+    const result = await h.results.publishResult(h.command);
+    for (const key of ["tenantId", "projectId", "environmentId"] as const) {
+      const foreign = { ...h.f.scope, [key]: "scope_foreign" };
+      expect(await h.results.findResult(foreign, h.jobId, h.pageSet)).toBeNull();
+      await withBoundedPolicyTransaction(
+        h.controlPool,
+        async (client) => {
+          const value = await client.query(
+            "SELECT public.proofstack_read_policy_evaluation_result($1,$2) AS value",
+            [result.evaluation.evaluationId, result.evaluation.definitionSha256],
+          );
+          expect(value.rows).toEqual([{ value: null }]);
+        },
+        { scope: foreign },
+      );
+    }
+    expect(h.idleErrors).toEqual([]);
+  });
   it("starts one sealed native computation without recapture and evaluates the original retained pages", async () => {
     const h = await nativeSealingHarness();
     const sealed = await h.seal();
