@@ -54,6 +54,10 @@ interface DatabaseCliEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_POLICY_AUTHOR_DATABASE_ROLE?: string;
+  readonly PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_ROLE?: string;
+  readonly PROOFSTACK_POLICY_EVALUATOR_DATABASE_PASSWORD?: string;
+  readonly PROOFSTACK_POLICY_EVALUATOR_DATABASE_ROLE?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_PASSWORD?: string;
   readonly PROOFSTACK_PUBLISHER_DATABASE_ROLE?: string;
   readonly PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD?: string;
@@ -303,6 +307,18 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
     environment.PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD;
   const policyAuthorPassword = environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD;
   const replayWorkerPassword = environment.PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD;
+  const policyControlPassword = environment.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_PASSWORD;
+  const policyEvaluatorPassword = environment.PROOFSTACK_POLICY_EVALUATOR_DATABASE_PASSWORD;
+  const policyPairPresent =
+    policyControlPassword !== undefined ||
+    policyEvaluatorPassword !== undefined ||
+    environment.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_ROLE !== undefined ||
+    environment.PROOFSTACK_POLICY_EVALUATOR_DATABASE_ROLE !== undefined;
+  if (policyPairPresent && (!policyControlPassword || !policyEvaluatorPassword)) {
+    throw new DatabaseCliUsageError(
+      "Set both PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_PASSWORD and PROOFSTACK_POLICY_EVALUATOR_DATABASE_PASSWORD when provisioning policy job roles",
+    );
+  }
   if (
     !apiPassword ||
     !artifactPassword ||
@@ -320,6 +336,22 @@ function runtimeRoleOptions(environment: DatabaseCliEnvironment): RuntimeRolePro
     );
   }
   return {
+    ...(policyControlPassword && policyEvaluatorPassword
+      ? {
+          policyEvaluationControl: {
+            name:
+              environment.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_ROLE ??
+              DEFAULT_RUNTIME_ROLE_NAMES.policyEvaluationControl,
+            password: policyControlPassword,
+          },
+          policyEvaluator: {
+            name:
+              environment.PROOFSTACK_POLICY_EVALUATOR_DATABASE_ROLE ??
+              DEFAULT_RUNTIME_ROLE_NAMES.policyEvaluator,
+            password: policyEvaluatorPassword,
+          },
+        }
+      : {}),
     api: {
       name: environment.PROOFSTACK_API_DATABASE_ROLE ?? DEFAULT_RUNTIME_ROLE_NAMES.api,
       password: apiPassword,

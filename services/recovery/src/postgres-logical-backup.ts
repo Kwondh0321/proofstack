@@ -2,7 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, type Stats } from "node:fs";
 import { chmod, link, lstat, open, unlink } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
-import { validatePostgresConnectionString } from "@proofstack/postgres";
+import {
+  PostgresPolicyEvaluationJobRecovery,
+  validatePostgresConnectionString,
+} from "@proofstack/postgres";
 import type { Pool } from "pg";
 import { RecoveryOperationError } from "./errors.js";
 import { NativePostgresCommandRunner, type PostgresCommandRunner } from "./postgres-command.js";
@@ -50,7 +53,7 @@ export interface PostgresLogicalBackupOptions {
 export interface PostgresLogicalRestoreOptions {
   readonly allowPlaintextLoopback: boolean;
   readonly connectionString: string;
-  readonly database: Pick<Pool, "query">;
+  readonly database: Pick<Pool, "query" | "connect">;
   readonly dumpPath: string;
   readonly restoreExecutable?: string;
   readonly runner?: PostgresCommandRunner;
@@ -418,6 +421,11 @@ export async function restorePostgresLogicalBackup(
     throw operationError("database-restore", "logical restore did not complete", error);
   }
   await invalidateRestoredReplayLeases(options.database);
+  try {
+    await new PostgresPolicyEvaluationJobRecovery(options.database).recoverAllAtCurrentEpoch();
+  } catch (error) {
+    throw operationError("database-restore", "policy job recovery did not complete", error);
+  }
   const receipt = await digestFile(options.dumpPath, "database-restore");
   return { engineVersion: server, ...receipt };
 }

@@ -56,9 +56,10 @@ Control and worker use cases depend on separate repository interfaces. This type
 not substitute for authentication: internal history head/page reads require `policy:read` before
 body parsing or repository access, bind the head to the authorized route's exact scope/job and
 reject substituted heads or page indexes. HTTP/SDK history transport remains unimplemented.
-This interface separation does
-not provision PostgreSQL roles/pools or enforce a database grant. Durable normalized storage,
-recovery and epoch advancement, held snapshot publication, pure predicates, immutable result and
+Interface separation alone does not enforce database grants. The subsequent
+[PostgreSQL operational ledger](workflow-2-policy-job-postgres.md) adds normalized storage,
+separate optional role grants and owner recovery at a forward store epoch. Held snapshot publication,
+pure predicates, immutable result and
 atomic result/outbox commit, authenticated API/SDK history transport and a physical worker remain
 open. No caller snapshot/result save, public worker identity or publication from an ended read-only
 recheck is introduced. Continue the [entry audit](workflow-2-policy-evaluation-entry-audit.md),

@@ -55,7 +55,12 @@ const credentials = Object.fromEntries(
   ]),
 ) as unknown as RuntimeRoleProvisioningOptions;
 const admin = new Pool({ connectionString: databaseUrl, max: 8 });
-function runtime(kind: keyof RuntimeRoleProvisioningOptions): Pool {
+function runtime(
+  kind: Exclude<
+    keyof RuntimeRoleProvisioningOptions,
+    "policyEvaluationControl" | "policyEvaluator"
+  >,
+): Pool {
   const url = new URL(databaseUrl as string);
   url.username = credentials[kind].name;
   url.password = credentials[kind].password;

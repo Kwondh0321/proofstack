@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import {
   encodeEvaluationCanonicalJson,
   encodePolicyEvaluationJobHistoryEntry,
-  PolicyEvaluationJobHistoryEntrySchema,
-  PolicyEvaluationJobHistoryHeadSchema,
-  PolicyEvaluationJobHistoryPageSchema,
   MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRY_BYTES,
   MAX_POLICY_EVALUATION_JOB_HISTORY_PAGE_BYTES,
-  type PolicyEvaluationJobSnapshot,
-  type PolicyEvaluationJobHistoryEntryDefinition,
   type PolicyEvaluationJobHistoryEntry,
+  type PolicyEvaluationJobHistoryEntryDefinition,
+  PolicyEvaluationJobHistoryEntrySchema,
   type PolicyEvaluationJobHistoryHead,
+  PolicyEvaluationJobHistoryHeadSchema,
+  PolicyEvaluationJobHistoryPageSchema,
+  type PolicyEvaluationJobSnapshot,
 } from "@proofstack/contracts";
 import { validatePolicyEvaluationJobSnapshotRecord } from "./policy-evaluation-job-record-validation.js";
 
@@ -24,7 +24,7 @@ export class PolicyEvaluationJobHistoryError extends Error {
 function sha(bytes: Uint8Array) {
   return createHash("sha256").update(bytes).digest("hex");
 }
-export function digestPolicyEvaluationJobGraph(snapshot: PolicyEvaluationJobSnapshot): string {
+export function encodePolicyEvaluationJobGraph(snapshot: PolicyEvaluationJobSnapshot): Uint8Array {
   const admitted = validatePolicyEvaluationJobSnapshotRecord({
     expected: {
       scope: snapshot.job.scope,
@@ -32,13 +32,14 @@ export function digestPolicyEvaluationJobGraph(snapshot: PolicyEvaluationJobSnap
     },
     snapshot,
   });
-  return sha(
-    encodeEvaluationCanonicalJson({
-      definitionDomain: "proofstack.policy-evaluation-job-graph.v1",
-      schemaVersion: "0.1",
-      snapshot: admitted,
-    }),
-  );
+  return encodeEvaluationCanonicalJson({
+    definitionDomain: "proofstack.policy-evaluation-job-graph.v1",
+    schemaVersion: "0.1",
+    snapshot: admitted,
+  });
+}
+export function digestPolicyEvaluationJobGraph(snapshot: PolicyEvaluationJobSnapshot): string {
+  return sha(encodePolicyEvaluationJobGraph(snapshot));
 }
 export function validatePolicyEvaluationJobHistoryEntry(
   raw: unknown,

@@ -50,6 +50,7 @@ export {
   type PolicyJobConformanceCase,
   policyJobRepositoryConformanceCases,
   policyJobConformanceRequest,
+  createPolicyJobRepositoryConformanceCases,
 } from "./policy-evaluation-job-repository-conformance.js";
 export {
   createModelAssuranceRepositoryTestHarness,

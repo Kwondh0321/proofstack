@@ -11,6 +11,8 @@ export const DEFAULT_RUNTIME_ROLE_NAMES = {
   identity: "proofstack_identity",
   modelEvaluationWorker: "proofstack_model_evaluation_worker",
   policyAuthor: "proofstack_policy_author",
+  policyEvaluationControl: "proofstack_policy_evaluation_control",
+  policyEvaluator: "proofstack_policy_evaluator",
   publisher: "proofstack_publisher",
   replayWorker: "proofstack_replay_worker",
 } as const;
@@ -37,6 +39,8 @@ export interface RuntimeRoleProvisioningOptions {
   readonly identity: RuntimeRoleCredentials;
   readonly modelEvaluationWorker: RuntimeRoleCredentials;
   readonly policyAuthor: RuntimeRoleCredentials;
+  readonly policyEvaluationControl?: RuntimeRoleCredentials;
+  readonly policyEvaluator?: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
   readonly replayWorker: RuntimeRoleCredentials;
 }
@@ -61,6 +65,12 @@ interface StatementRow extends QueryResultRow {
 }
 
 const PLATFORM_TABLES = [
+  "proofstack_policy_evaluation_requests",
+  "proofstack_policy_evaluation_jobs",
+  "proofstack_policy_evaluation_attempts",
+  "proofstack_policy_evaluation_cancellations",
+  "proofstack_policy_evaluation_job_history",
+  "proofstack_policy_evaluation_reservations",
   "proofstack_api_key_credentials",
   "proofstack_artifact_catalog",
   "proofstack_artifact_purge_receipts",
@@ -158,6 +168,33 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_policy_evaluation_scope()",
+  "public.proofstack_policy_evaluation_utc(timestamp with time zone)",
+  "public.proofstack_policy_evaluation_zero_usage()",
+  "public.proofstack_policy_evaluation_project_job(jsonb)",
+  "public.proofstack_policy_evaluation_lock_job(text)",
+  "public.proofstack_policy_evaluation_assert_fence(jsonb,jsonb,timestamp with time zone)",
+  "public.proofstack_policy_evaluation_close_attempt(jsonb,jsonb)",
+  "public.proofstack_policy_evaluation_history_limit(jsonb,timestamp with time zone)",
+  "public.proofstack_policy_evaluation_close_for_retry(jsonb,text,timestamp with time zone)",
+  "public.proofstack_policy_evaluation_history_complete()",
+  "public.proofstack_create_policy_evaluation_job(jsonb,text,text)",
+  "public.proofstack_read_policy_evaluation_job(text)",
+  "public.proofstack_claim_policy_evaluation_job(text,text,text,text)",
+  "public.proofstack_heartbeat_policy_evaluation_job(jsonb)",
+  "public.proofstack_reserve_policy_evaluation_work(jsonb,text,jsonb)",
+  "public.proofstack_cancel_policy_evaluation_job(text,text,text,text)",
+  "public.proofstack_interrupt_policy_evaluation_job(jsonb,text)",
+  "public.proofstack_reclaim_policy_evaluation_job(text)",
+  "public.proofstack_recover_policy_evaluation_job(text)",
+  "public.proofstack_guard_policy_evaluation_job_projection()",
+  "public.proofstack_guard_policy_evaluation_attempt_projection()",
+  "public.proofstack_policy_evaluation_expected_intents(jsonb)",
+  "public.proofstack_append_policy_evaluation_job_history(jsonb,text,text,jsonb)",
+  "public.proofstack_read_policy_evaluation_history_head(text)",
+  "public.proofstack_read_policy_evaluation_history_page(jsonb,integer)",
+  "public.proofstack_prepare_policy_evaluation_job_mutation(text)",
+  "public.proofstack_policy_evaluation_intent_status(text,text,jsonb,timestamp with time zone)",
   "public.proofstack_acknowledge_replay_cancellation(text, text, text, text, text, text, bigint, bigint, text, text)",
   "public.proofstack_acknowledge_replay_cancellation_before_recovery_epoch(text, text, text, text, text, text, bigint, bigint, text, text)",
   "public.proofstack_append_replay_execution_observation(text, text, text, text, text, text, bigint, bigint, text, jsonb)",
@@ -277,7 +314,29 @@ const PLATFORM_FUNCTIONS = [
   "public.proofstack_write_identity_audit(text, text, text, text, text, text, text, timestamptz)",
 ] as const;
 
+const POLICY_JOB_READ_GRANTS = [
+  "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_evaluation_job(text) TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_evaluation_history_head(text) TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_evaluation_history_page(jsonb,integer) TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_prepare_policy_evaluation_job_mutation(text) TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_policy_evaluation_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_append_policy_evaluation_job_history(jsonb,text,text,jsonb) TO %ROLE%",
+] as const;
 const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
+  policyEvaluationControl: [
+    ...POLICY_JOB_READ_GRANTS,
+    "GRANT EXECUTE ON FUNCTION public.proofstack_create_policy_evaluation_job(jsonb,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_cancel_policy_evaluation_job(text,text,text,text) TO %ROLE%",
+  ],
+  policyEvaluator: [
+    ...POLICY_JOB_READ_GRANTS,
+    "GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_policy_evaluation_job(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_reserve_policy_evaluation_work(jsonb,text,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_interrupt_policy_evaluation_job(jsonb,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_reclaim_policy_evaluation_job(text) TO %ROLE%",
+  ],
   api: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT SELECT, INSERT ON TABLE public.proofstack_evidence_events TO %ROLE%",
@@ -412,6 +471,10 @@ function validateCredentials(
 }
 
 function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRoleProvisioningOptions {
+  if ((options.policyEvaluationControl === undefined) !== (options.policyEvaluator === undefined))
+    throw new RuntimeRoleProvisioningError(
+      "Policy control and evaluator roles must be configured together",
+    );
   const validated = {
     api: validateCredentials("api", options.api),
     artifact: validateCredentials("artifact", options.artifact),
@@ -426,6 +489,17 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
     policyAuthor: validateCredentials("policyAuthor", options.policyAuthor),
     publisher: validateCredentials("publisher", options.publisher),
     replayWorker: validateCredentials("replayWorker", options.replayWorker),
+    ...(options.policyEvaluationControl === undefined
+      ? {}
+      : {
+          policyEvaluationControl: validateCredentials(
+            "policyEvaluationControl",
+            options.policyEvaluationControl,
+          ),
+        }),
+    ...(options.policyEvaluator === undefined
+      ? {}
+      : { policyEvaluator: validateCredentials("policyEvaluator", options.policyEvaluator) }),
   };
   const names = Object.values(validated).map(({ name }) => name);
   if (new Set(names).size !== names.length) {
@@ -680,6 +754,12 @@ export async function provisionRuntimeRoles(
       ] as const) {
         const outcome = await provisionRole(client, kind, validated[kind]);
         (outcome === "created" ? createdRoles : updatedRoles).push(validated[kind].name);
+      }
+      for (const kind of ["policyEvaluationControl", "policyEvaluator"] as const) {
+        const credentials = validated[kind];
+        if (credentials === undefined) continue;
+        const outcome = await provisionRole(client, kind, credentials);
+        (outcome === "created" ? createdRoles : updatedRoles).push(credentials.name);
       }
 
       await client.query("COMMIT");

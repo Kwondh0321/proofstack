@@ -76,6 +76,7 @@ export * from "./policy/policy-evaluation-job-history.js";
 export * from "./policy/policy-evaluation-job-history-replay.js";
 export * from "./policy/policy-evaluation-job-outbox.js";
 export * from "./policy/policy-evaluation-history-limit.js";
+export * from "./policy/policy-evaluation-job-recovery.js";
 export * from "./policy/policy-evaluation-job-use-cases.js";
 export * from "./policy/policy-evaluation-scheduler-claim.js";
 export * from "./policy/policy-evaluation-scheduler-budget.js";

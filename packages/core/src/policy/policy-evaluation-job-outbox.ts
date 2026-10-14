@@ -29,7 +29,8 @@ export function buildPolicyEvaluationJobOutboxIntents(
   const common = {
     schemaVersion: "0.1",
     aggregateType: "policy.evaluation.job",
-    aggregateId: job.jobId,
+    // The shared outbox key is tenant-wide; exact job digests include project/environment.
+    aggregateId: `pej_${job.definitionSha256.slice(0, 60)}`,
     tenantId: job.scope.tenantId,
   } as const;
   const payload = {

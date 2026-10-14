@@ -117,6 +117,10 @@ export {
 export { PostgresReplayJobControlRepository } from "./postgres-replay-job-control-repository.js";
 export { readPostgresReplayJobSnapshotOnClient } from "./postgres-replay-job-snapshot.js";
 export { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-repository.js";
+export { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
+export { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
+export { PostgresPolicyEvaluationJobRecovery } from "./postgres-policy-evaluation-job-recovery.js";
+export { PostgresPolicyEvaluationJobContractError } from "./postgres-policy-evaluation-job-base.js";
 export {
   DEFAULT_RUNTIME_ROLE_NAMES,
   provisionRuntimeRoles,

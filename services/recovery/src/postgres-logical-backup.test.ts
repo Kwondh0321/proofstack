@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PostgresPolicyEvaluationJobRecovery } from "@proofstack/postgres";
 import type { Pool, QueryResultRow } from "pg";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RecoveryOperationError } from "./errors.js";
 import type {
   PostgresCommand,
@@ -56,11 +57,16 @@ interface FakeDatabaseOptions {
 }
 
 function fakeDatabase(options: FakeDatabaseOptions = {}): {
-  readonly database: Pick<Pool, "query">;
+  readonly database: Pick<Pool, "query" | "connect">;
   readonly queries: string[];
 } {
   const queries: string[] = [];
   const database = {
+    connect: async () => {
+      throw new Error(
+        "Unit fixture does not implement native recovery; use the spied adapter or real PostgreSQL integration",
+      );
+    },
     query: async <_Row extends QueryResultRow>(text: string) => {
       queries.push(text);
       if (text === "SHOW server_version") {
@@ -89,7 +95,7 @@ function fakeDatabase(options: FakeDatabaseOptions = {}): {
           : [{ has_user_objects: options.hasUserObjects ?? false }],
       };
     },
-  } as unknown as Pick<Pool, "query">;
+  } as unknown as Pick<Pool, "query" | "connect">;
   return { database, queries };
 }
 
@@ -98,9 +104,14 @@ const secretEnvironmentName: string = "PROOFSTACK_RECOVERY_TEST_SECRET";
 
 beforeEach(() => {
   temporaryDirectories = [];
+  vi.spyOn(
+    PostgresPolicyEvaluationJobRecovery.prototype,
+    "recoverAllAtCurrentEpoch",
+  ).mockResolvedValue({ recoveredJobs: 0 });
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })),
   );
@@ -418,6 +429,29 @@ describe("PostgreSQL logical restore", () => {
     });
     expect(queries.some((query) => query.includes("pg_extension"))).toBe(true);
     expect(queries.some((query) => query.includes("pg_type"))).toBe(true);
+    expect(queries.at(-1)).toBe("SELECT * FROM public.proofstack_begin_replay_recovery()");
+    expect(
+      PostgresPolicyEvaluationJobRecovery.prototype.recoverAllAtCurrentEpoch,
+    ).toHaveBeenCalledOnce();
+  });
+
+  it("fails restore acceptance when native policy job repair fails after epoch invalidation", async () => {
+    const dumpPath = await dumpFile();
+    const runner = new FakeRunner();
+    runner.toolVersion = "pg_restore (PostgreSQL) 16.15";
+    const { database, queries } = fakeDatabase();
+    vi.mocked(
+      PostgresPolicyEvaluationJobRecovery.prototype.recoverAllAtCurrentEpoch,
+    ).mockRejectedValueOnce(new Error("private policy repair failure"));
+    await expect(
+      restorePostgresLogicalBackup({
+        allowPlaintextLoopback: true,
+        connectionString: CONNECTION_STRING,
+        database,
+        dumpPath,
+        runner,
+      }),
+    ).rejects.toThrow("policy job recovery did not complete");
     expect(queries.at(-1)).toBe("SELECT * FROM public.proofstack_begin_replay_recovery()");
   });
 

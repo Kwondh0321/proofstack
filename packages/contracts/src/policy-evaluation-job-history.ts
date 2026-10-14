@@ -1,21 +1,21 @@
 import { z } from "zod";
+import { encodeEvaluationCanonicalJson } from "./evaluation-definition-encoding.js";
 import { EvidenceScopeSchema } from "./evidence.js";
-import {
-  PolicyEvaluationJobReferenceSchema,
-  PolicyEvaluationJobStatusSchema,
-} from "./policy-evaluation-job.js";
-import { PolicyEvaluationWorkerMutationFenceSchema } from "./policy-evaluation-job-fence.js";
 import {
   PolicyEvaluationCancellationSchema,
   PolicyEvaluationUsageSchema,
 } from "./policy-evaluation-attempt.js";
 import {
+  PolicyEvaluationJobReferenceSchema,
+  PolicyEvaluationJobStatusSchema,
+} from "./policy-evaluation-job.js";
+import { PolicyEvaluationWorkerMutationFenceSchema } from "./policy-evaluation-job-fence.js";
+import { PolicyEvaluationRetryableErrorSchema } from "./policy-evaluation-request.js";
+import {
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
 } from "./policy-evaluation-time.js";
-import { PolicyEvaluationRetryableErrorSchema } from "./policy-evaluation-request.js";
 import { OpaqueIdSchema, Sha256Schema } from "./primitives.js";
-import { encodeEvaluationCanonicalJson } from "./evaluation-definition-encoding.js";
 
 export const POLICY_EVALUATION_JOB_HISTORY_SCHEMA_VERSION = "0.1" as const;
 export const POLICY_EVALUATION_JOB_HISTORY_DOMAIN =
@@ -52,6 +52,9 @@ const Operation = z.discriminatedUnion("kind", [
     .strict(),
   z.object({ kind: z.literal("reclaim") }).strict(),
   z.object({ kind: z.literal("history_limit") }).strict(),
+  z
+    .object({ kind: z.literal("recovery"), recoveryEpoch: z.number().int().positive().safe() })
+    .strict(),
   z.object({ kind: z.literal("cancel"), intent: PolicyEvaluationCancellationSchema }).strict(),
 ]);
 export const PolicyEvaluationJobHistoryEntryDefinitionSchema = z

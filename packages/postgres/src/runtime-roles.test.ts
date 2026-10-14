@@ -139,6 +139,66 @@ function managedRole(
 }
 
 describe("provisionRuntimeRoles", () => {
+  it("grants disjoint fixed policy operations without table writes, helper or recovery authority", async () => {
+    const client = new FakeClient();
+    const result = await provisionRuntimeRoles(
+      poolWith(client),
+      options({
+        policyEvaluationControl: {
+          name: "proofstack_policy_evaluation_control",
+          password: "fixture-control-password",
+        },
+        policyEvaluator: {
+          name: "proofstack_policy_evaluator",
+          password: "fixture-worker-password",
+        },
+      }),
+    );
+    expect(result.createdRoles).toContain("proofstack_policy_evaluation_control");
+    expect(result.createdRoles).toContain("proofstack_policy_evaluator");
+    const grants = client.queries
+      .map((value) => value.text)
+      .filter((value) => value.startsWith("GRANT"));
+    expect(grants).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_create_policy_evaluation_job(jsonb,text,text) TO "proofstack_policy_evaluation_control"',
+    );
+    expect(grants).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO "proofstack_policy_evaluator"',
+    );
+    for (const role of ["proofstack_policy_evaluation_control", "proofstack_policy_evaluator"]) {
+      const own = grants.filter((value) => value.endsWith(`TO "${role}"`));
+      expect(
+        own.some(
+          (value) =>
+            value.includes("INSERT") ||
+            value.includes("UPDATE") ||
+            value.includes("DELETE") ||
+            value.includes("recover_policy") ||
+            value.includes("project_job"),
+        ),
+      ).toBe(false);
+    }
+    expect(grants).not.toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO "proofstack_policy_evaluation_control"',
+    );
+    expect(grants).not.toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_cancel_policy_evaluation_job(text,text,text,text) TO "proofstack_policy_evaluator"',
+    );
+  });
+  it.each(["policyEvaluationControl", "policyEvaluator"] as const)(
+    "rejects an incomplete optional %s pair without connecting",
+    async (kind) => {
+      const client = new FakeClient(),
+        connections = { count: 0 };
+      await expect(
+        provisionRuntimeRoles(
+          poolWith(client, connections),
+          options({ [kind]: { name: "proofstack_policy_only", password: "fixture-private" } }),
+        ),
+      ).rejects.toThrow();
+      expect(connections.count).toBe(0);
+    },
+  );
   it("revokes private artifact and policy source guards from PUBLIC and every managed role without regranting", async () => {
     const client = new FakeClient();
     const configuration = options();

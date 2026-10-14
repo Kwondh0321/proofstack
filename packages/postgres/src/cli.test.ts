@@ -318,6 +318,64 @@ describe("runDatabaseCli", () => {
     expect(adapters.end).toHaveBeenCalledOnce();
   });
 
+  it("provisions an explicitly supplied policy control/worker pair without printing either password", async () => {
+    const streams = io();
+    const adapters = dependencies({
+      provision: async () => ({
+        createdRoles: ["proofstack_policy_evaluation_control", "proofstack_policy_evaluator"],
+        updatedRoles: [],
+      }),
+    });
+    const base = {
+      PROOFSTACK_DATABASE_URL: "postgresql://local@localhost/proofstack",
+      PROOFSTACK_API_DATABASE_PASSWORD: "fixture-api",
+      PROOFSTACK_ARTIFACT_DATABASE_PASSWORD: "fixture-artifact",
+      PROOFSTACK_CONSUMER_DATABASE_PASSWORD: "fixture-consumer",
+      PROOFSTACK_EVALUATION_WORKER_DATABASE_PASSWORD: "fixture-evaluation",
+      PROOFSTACK_HUMAN_REVIEWER_DATABASE_PASSWORD: "fixture-human",
+      PROOFSTACK_IDENTITY_DATABASE_PASSWORD: "fixture-identity",
+      PROOFSTACK_MODEL_EVALUATION_WORKER_DATABASE_PASSWORD: "fixture-model",
+      PROOFSTACK_POLICY_AUTHOR_DATABASE_PASSWORD: "fixture-policy",
+      PROOFSTACK_PUBLISHER_DATABASE_PASSWORD: "fixture-publisher",
+      PROOFSTACK_REPLAY_WORKER_DATABASE_PASSWORD: "fixture-replay",
+      PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_PASSWORD: "fixture-control-private",
+      PROOFSTACK_POLICY_EVALUATOR_DATABASE_PASSWORD: "fixture-worker-private",
+    };
+    expect(await runDatabaseCli(["provision"], base, streams.value, adapters)).toBe(0);
+    expect(adapters.provision).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        policyEvaluationControl: {
+          name: "proofstack_policy_evaluation_control",
+          password: base.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_PASSWORD,
+        },
+        policyEvaluator: {
+          name: "proofstack_policy_evaluator",
+          password: base.PROOFSTACK_POLICY_EVALUATOR_DATABASE_PASSWORD,
+        },
+      }),
+    );
+    expect([...streams.errors, ...streams.outputs].join(" ")).not.toContain(
+      "fixture-control-private",
+    );
+    expect([...streams.errors, ...streams.outputs].join(" ")).not.toContain(
+      "fixture-worker-private",
+    );
+  });
+
+  it.each([
+    { PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_PASSWORD: "fixture-private" },
+    { PROOFSTACK_POLICY_EVALUATOR_DATABASE_PASSWORD: "fixture-private" },
+    { PROOFSTACK_POLICY_EVALUATOR_DATABASE_ROLE: "proofstack_policy_evaluator" },
+  ])("rejects a partial policy runtime pair before pool allocation", async (values) => {
+    const streams = io(),
+      adapters = dependencies({});
+    await expect(runDatabaseCli(["provision"], values, streams.value, adapters)).rejects.toThrow(
+      "Set both",
+    );
+    expect(adapters.createPool).not.toHaveBeenCalled();
+  });
+
   it("requires all runtime passwords before opening a provisioning connection", async () => {
     const adapters = dependencies({});
 

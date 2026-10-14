@@ -45,8 +45,9 @@ bytes·credential·정책 결정·승인·release 동작을 담지 않습니다.
 control·worker use case의 interface를 분리했습니다. 내부 이력 head/page 조회는 body 해석과
 저장소 접근 전에 `policy:read`를 검사하고 head를 승인된 route의 정확한 scope/job에 묶어
 대체 head·page index를 거부합니다. HTTP/SDK 이력 전송은 아직 구현되지 않았으며,
-interface 분리만으로 PG role/pool/grant가 만들어진 것은 아닙니다.
-영속 normalized 저장, 복구·epoch 증가, guard 유지 snapshot 게시, 순수 predicate, 불변 result와
+interface 분리 자체가 DB grant를 집행하지는 않습니다. 후속
+[PostgreSQL 운영 저장소](workflow-2-policy-job-postgres.ko.md)가 normalized 저장, 선택적 권한 쌍과
+전진 store epoch의 소유자 복구를 추가합니다. guard 유지 snapshot 게시, 순수 predicate, 불변 result와
 atomic outbox, 인증 API/SDK 이력 전송과 물리적 worker는 남습니다. caller snapshot/result 저장,
 공개 worker ID, 종료된 read-only recheck에 근거한 게시를 추가하지 않습니다.
 [진입 감사](workflow-2-policy-evaluation-entry-audit.ko.md),

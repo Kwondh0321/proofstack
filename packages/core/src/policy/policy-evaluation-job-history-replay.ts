@@ -1,21 +1,22 @@
 import {
-  serializeEvaluationCanonicalJson,
   type PolicyEvaluationJobSnapshot,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
+import { exhaustPolicyEvaluationJobHistory } from "./policy-evaluation-history-limit.js";
+import {
+  digestPolicyEvaluationJobGraph,
+  PolicyEvaluationJobHistoryError,
+  validatePolicyEvaluationJobHistoryEntry,
+} from "./policy-evaluation-job-history.js";
+import { recoverPolicyEvaluationJob } from "./policy-evaluation-job-recovery.js";
+import { reservePolicyEvaluationUsage } from "./policy-evaluation-scheduler-budget.js";
+import { cancelPolicyEvaluationJob } from "./policy-evaluation-scheduler-cancel.js";
 import {
   claimPolicyEvaluationJob,
   heartbeatPolicyEvaluationJob,
 } from "./policy-evaluation-scheduler-claim.js";
-import { reservePolicyEvaluationUsage } from "./policy-evaluation-scheduler-budget.js";
 import { interruptPolicyEvaluationJob } from "./policy-evaluation-scheduler-interrupt.js";
 import { reclaimPolicyEvaluationJob } from "./policy-evaluation-scheduler-reclaim.js";
-import { cancelPolicyEvaluationJob } from "./policy-evaluation-scheduler-cancel.js";
-import { exhaustPolicyEvaluationJobHistory } from "./policy-evaluation-history-limit.js";
-import {
-  digestPolicyEvaluationJobGraph,
-  validatePolicyEvaluationJobHistoryEntry,
-  PolicyEvaluationJobHistoryError,
-} from "./policy-evaluation-job-history.js";
 
 /** Re-derive one retained transition; this does not revive a lease or establish current DB authority. */
 export function replayPolicyEvaluationJobHistoryEntry(
@@ -81,6 +82,13 @@ export function replayPolicyEvaluationJobHistoryEntry(
       break;
     case "history_limit":
       next = exhaustPolicyEvaluationJobHistory(previous, definition.committedAt);
+      break;
+    case "recovery":
+      next = recoverPolicyEvaluationJob({
+        snapshot: previous,
+        now: definition.committedAt,
+        recoveryEpoch: operation.recoveryEpoch,
+      });
       break;
     case "cancel":
       next = cancelPolicyEvaluationJob({ snapshot: previous, intent: operation.intent });
