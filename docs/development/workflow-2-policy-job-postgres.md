@@ -112,6 +112,28 @@ ports cannot execute SQL. On a stalled query/callback, the watchdog physically d
 connection, ends/drains started SQL and only then releases the destroyed client. Rollback failure
 keeps the original cause. Racing a callback or pg read timeout alone is insufficient cleanup.
 
+`createPolicyPostgresPool` adds a dedicated native driver with a 500 ms default checkout and
+1–16 clients. Its scoped pg 8.23.0 connection wrapper installs before the first backend frame,
+including authentication and the driver's TLS upgrade attachment. It admits framing before
+forwarding a chunk to the original decoder, using only a five-byte header buffer. A frame is at
+most 1 MiB; an operational transaction admits at most 16 MiB of protocol bytes and 32,768 DataRow
+headers. Owner recovery has separate 512 MiB / 2,000,000-row ceilings. Startup/idle traffic remains
+bounded by 1 MiB. These are protocol bytes, excluding TLS framing, and row headers, not semantic
+source records or artifact bytes. Partial frames cannot reset into a new operation.
+
+Malformed/excess framing and decoder exceptions fail closed. The transaction's existing failure
+handler taints, physically destroys and drains before destroyed release; idle/startup failures
+terminate the stream. Healthy operation and server-cancelled rollback preserve the original
+decoder and clean backend reuse. Native probes cover excessive row/frame responses and replacement
+connections; unit tests cover fragmented framing and synthetic sockets cover pre-authentication rejection.
+The direct driver hook is specific to the installed pinned implementation, not a portable pg API;
+driver upgrades require these tests. Runtime TLS service acceptance remains separate.
+
+General `createPostgresPool` and ordinary supplied pools keep their existing contract. Only the
+dedicated factory installs this wire boundary. Complete source/publication composition must select
+it explicitly and still account for source work against frozen job-wide limits. These transport
+ceilings do not establish complete source admission, authority closure or held publication.
+
 Migration 0057 adds an evaluator-only native I/O admission. It binds exact job/scope/version and
 optional live fence to a fresh DB cut, floors remaining milliseconds across job/attempt/lease
 expiry and caps them at 2 seconds. The adapter independently checks that descriptor, shortens its

@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 import type { EvidenceScope } from "@proofstack/contracts";
 import type { Pool, PoolClient } from "pg";
 import { PostgresTransactionCleanupError } from "./tenant-transaction.js";
+import { beginPolicyWireTransaction } from "./policy-wire-admission.js";
 
 export type PolicyTransactionPool = Pick<Pool, "connect" | "options" | "waitingCount">;
 export const MAX_POLICY_POOL_WAIT_MILLISECONDS = 500;
@@ -193,7 +194,13 @@ export async function withBoundedPolicyTransaction<T>(
   const drain = async () => {
     while (pending.size > 0) await Promise.allSettled([...pending]);
   };
+  let finishWire: (() => void) | undefined;
   try {
+    finishWire = beginPolicyWireTransaction(physical, options.recovery === true, (error) => {
+      active = false;
+      fail(error);
+      void destroy();
+    });
     // URI configuration may override pool options. Inspect the effective driver setting too.
     const effective = (
       physical as PoolClient & { connectionParameters?: { query_timeout?: unknown } }
@@ -264,6 +271,7 @@ export async function withBoundedPolicyTransaction<T>(
     if (timer !== undefined) clearTimeout(timer);
     await drain();
     await destruction?.catch(() => undefined);
+    finishWire?.();
     if (connectionDestroyed) physical.release(true);
     else physical.release();
   }

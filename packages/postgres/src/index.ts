@@ -3,7 +3,11 @@ export {
   PostgresConnectionStringError,
   validatePostgresConnectionString,
 } from "./connection-string.js";
-export { createPostgresPool, type PostgresPoolOptions } from "./database.js";
+export {
+  createPolicyPostgresPool,
+  createPostgresPool,
+  type PostgresPoolOptions,
+} from "./database.js";
 export {
   type BootstrapApiKeyOptions,
   bootstrapApiKey,

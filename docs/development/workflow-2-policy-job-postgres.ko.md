@@ -113,6 +113,26 @@ pg 읽기 timeout만으로 정리를 대신하지 않습니다.
 idempotent하지 않습니다. Control 정리와 저장소 reclaim은 만료 후에도 제한된 경로를
 유지합니다. 종료된 admission 보고서는 이후 권한이 아니며 각 mutation은 현재 상태를 검증합니다.
 
+`createPolicyPostgresPool`은 기본 500 ms checkout과 1–16개 연결의 전용 드라이버를 만듭니다.
+pg 8.23.0 연결별 wrapper는 인증과 TLS upgrade의 첫 backend frame 이전에 설치됩니다.
+원래 decoder에 chunk를 전달하기 전에 frame을 검사하며, 5바이트 header만 보관합니다.
+Frame은 최대 1 MiB, 일반 transaction은 protocol bytes 16 MiB와 DataRow header 32,768개,
+owner 복구는 별도 512 MiB와 2,000,000개로 제한합니다. Startup/idle도 1 MiB로 제한됩니다.
+Protocol bytes는 TLS framing을 제외하며, row header는 의미적 source record나 artifact
+bytes가 아닙니다. 부분 frame을 새 작업으로 초기화할 수 없습니다.
+
+잘못된·초과 frame과 decoder 예외는 실패로 처리됩니다. 현재 transaction을 taint하고
+물리 연결을 종료·drain한 뒤 폐기 release하며, startup/idle 실패도 stream을 종료합니다.
+정상 경로와 서버 취소 후 rollback은 원래 decoder와 깨끗한 backend 재사용을 유지합니다.
+실제 DB 검사는 초과 응답·새 backend를, 단위 검사는 조각난 frame을, synthetic socket
+검사는 인증 전 차단을 확인합니다. 이 hook은 설치된 고정 드라이버 구현에 의존하므로 드라이버 변경 시
+같은 검사가 필요합니다. 실제 TLS 서비스 검증은 별도입니다.
+
+일반 `createPostgresPool`과 기존 supplied pool의 계약은 유지됩니다. 전용 factory만 이
+wire 경계를 설치합니다. Source/publication 구성은 이를 명시적으로 선택하고 frozen
+job 전체의 source 비용도 별도로 계산해야 합니다. 이 한도가 완전한 source admission,
+권한 closure 또는 guard 유지 게시를 증명하지는 않습니다.
+
 실제 검사는 pg_sleep 취소·동일 backend 재사용, advisory 잠금 대기, 포화된 pool 대기 제거,
 폐기 backend 교체, 잡힌·미대기 오류의 전체 rollback을 확인합니다. 원래 예약 receipt를
 유지하면서 새 DB 남은 시간이 줄어드는 것, evaluator 전용 권한, 엄격한 만료와 reclaim도

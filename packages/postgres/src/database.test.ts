@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPostgresPool } from "./database.js";
+import { createPolicyPostgresPool, createPostgresPool } from "./database.js";
 
 const pools: Array<ReturnType<typeof createPostgresPool>> = [];
 
@@ -8,6 +8,36 @@ afterEach(async () => {
 });
 
 describe("createPostgresPool", () => {
+  it("creates a dedicated policy driver without mutating general options or defaults", () => {
+    const options = {
+      connectionString: "postgresql://runtime@127.0.0.1:5432/proofstack",
+      onIdleError: vi.fn(),
+      maxConnections: 1,
+    };
+    const pool = createPolicyPostgresPool(options);
+    pools.push(pool);
+    expect(pool.options.connectionTimeoutMillis).toBe(500);
+    expect(pool.options.Client?.name).toBe("PolicyWireClient");
+    expect(options).not.toHaveProperty("connectionTimeoutMilliseconds");
+  });
+  it.each([501, 5001, 0, -1, 1.5])("rejects invalid policy checkout %s", (timeout) => {
+    expect(() =>
+      createPolicyPostgresPool({
+        connectionString: "postgresql://runtime@127.0.0.1:5432/proofstack",
+        onIdleError: vi.fn(),
+        connectionTimeoutMilliseconds: timeout,
+      }),
+    ).toThrow(RangeError);
+  });
+  it.each([0, -1, 1.5, 17])("rejects invalid policy pool size %s", (maximum) => {
+    expect(() =>
+      createPolicyPostgresPool({
+        connectionString: "postgresql://runtime@127.0.0.1:5432/proofstack",
+        onIdleError: vi.fn(),
+        maxConnections: maximum,
+      }),
+    ).toThrow(RangeError);
+  });
   it("creates a bounded named pool with an idle error observer", () => {
     const onIdleError = vi.fn();
     const pool = createPostgresPool({
