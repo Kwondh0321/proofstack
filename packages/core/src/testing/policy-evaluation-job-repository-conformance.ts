@@ -32,6 +32,102 @@ function check(condition: unknown, message: string): asserts condition {
 }
 export const policyJobRepositoryConformanceCases: readonly PolicyJobConformanceCase[] = [
   {
+    name: "exact earlier history head survives a later claim without substitution",
+    async run({ repository, setTime }) {
+      const request = policyJobConformanceRequest();
+      await repository.createJob({ request, jobId: "job_conformance" });
+      const initial = await repository.findHistoryHead(request.scope, "job_conformance");
+      check(initial !== null && initial.sequence === 0, "Creation has no exact history head");
+      await setTime("2026-09-07T12:00:01.000000Z");
+      await repository.claimJob({
+        scope: request.scope,
+        jobId: "job_conformance",
+        workerId: "worker_conformance",
+        attemptId: "attempt_first",
+        leaseId: "lease_first",
+      });
+      const current = await repository.findHistoryHead(request.scope, "job_conformance");
+      check(
+        current?.sequence === 1 && current.entrySha256 !== initial.entrySha256,
+        "Claim did not atomically append history",
+      );
+      const old = await repository.readHistoryPage(initial, 0);
+      check(
+        old.entries.length === 1 && old.head.entrySha256 === initial.entrySha256,
+        "Current head replaced original prefix",
+      );
+    },
+  },
+  {
+    name: "identical reservation retries retain original receipt and charge once",
+    async run({ repository }) {
+      const request = policyJobConformanceRequest();
+      await repository.createJob({ request, jobId: "job_conformance" });
+      const claimed = await repository.claimJob({
+        scope: request.scope,
+        jobId: "job_conformance",
+        workerId: "worker_conformance",
+        attemptId: "attempt_first",
+        leaseId: "lease_first",
+      });
+      const command = {
+        scope: request.scope,
+        fence: claimed.job.currentLease!.mutationFence,
+        reservationId: "reservation_conformance",
+        delta: { ...claimed.usage, reads: 1, recordBytes: 128 },
+      };
+      const first = await repository.reserveWork(command);
+      const second = await repository.reserveWork(command);
+      check(
+        first.created &&
+          !second.created &&
+          first.reservation?.entrySha256 === second.reservation?.entrySha256,
+        "Reservation retry lost original receipt or charged twice",
+      );
+      check(
+        second.snapshot.usage.reads === 1 && second.snapshot.usage.recordBytes === 128,
+        "Repeated acknowledgement changed original charge",
+      );
+    },
+  },
+  {
+    name: "changed reservation conflicts without partial graph or history change",
+    async run({ repository }) {
+      const request = policyJobConformanceRequest();
+      await repository.createJob({ request, jobId: "job_conformance" });
+      const claimed = await repository.claimJob({
+        scope: request.scope,
+        jobId: "job_conformance",
+        workerId: "worker_conformance",
+        attemptId: "attempt_first",
+        leaseId: "lease_first",
+      });
+      const command = {
+        scope: request.scope,
+        fence: claimed.job.currentLease!.mutationFence,
+        reservationId: "reservation_conformance",
+        delta: { ...claimed.usage, records: 1 },
+      };
+      const first = await repository.reserveWork(command);
+      const head = await repository.findHistoryHead(request.scope, "job_conformance");
+      let failed = false;
+      try {
+        await repository.reserveWork({ ...command, delta: { ...command.delta, records: 2 } });
+      } catch {
+        failed = true;
+      }
+      check(failed, "Changed reservation was accepted");
+      const retained = await repository.findJob(request.scope, "job_conformance");
+      const retainedHead = await repository.findHistoryHead(request.scope, "job_conformance");
+      check(
+        retained?.job.stateVersion === first.snapshot.job.stateVersion &&
+          retained.usage.records === 1 &&
+          retainedHead?.entrySha256 === head?.entrySha256,
+        "Changed reservation partially committed",
+      );
+    },
+  },
+  {
     name: "concurrent identical cancellation retains one original intent and state change",
     async run({ repository }) {
       const request = policyJobConformanceRequest();

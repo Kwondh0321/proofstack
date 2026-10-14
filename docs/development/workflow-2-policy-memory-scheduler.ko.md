@@ -40,3 +40,7 @@ result/outbox 발행이 남습니다. caller snapshot 저장이나 계산된 res
 [진입 감사](workflow-2-policy-evaluation-entry-audit.ko.md)와
 [job 계약](workflow-2-policy-job-contract.ko.md)에 따라 이어갑니다. memory scheduler 통과만으로
 checkpoint 완료, 정책 만족, 사람의 승인, release 권한 또는 운영 준비를 선언하지 않습니다.
+
+[memory 이력·예약 구현](workflow-2-policy-job-history.ko.md)은 고정 pagination 이력,
+전이 재계산과 canonical atomic metadata intent를 보존합니다. typed port와 memory 검사는
+남은 native·영속 acceptance gate를 대신하지 않습니다.

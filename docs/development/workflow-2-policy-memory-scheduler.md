@@ -36,7 +36,7 @@ heartbeat, claim and usage operations.
 
 These are framework-independent internal use cases and a memory reference implementation, not
 public HTTP/SDK routes or a durable PostgreSQL worker. Memory restart loses the records. Complete
-append-only heartbeat/transition/budget ledgers, restoration and recovery-epoch advancement,
+native append-only heartbeat/transition/budget ledgers, restoration and recovery-epoch advancement,
 bounded native waits/wire reads, PostgreSQL control/worker roles, current complete source authority
 and absence/selector closure, held snapshot publication, pure predicates and atomic result/outbox
 publication remain required. There is no caller-snapshot save or computed-result publication port.
@@ -48,3 +48,7 @@ Continue with the [entry audit](workflow-2-policy-evaluation-entry-audit.md) and
 [job contracts](workflow-2-policy-job-contract.md). A green memory scheduler does not accept the
 checkpoint or establish policy satisfaction, human approval, release authority or production
 readiness.
+
+The [memory history/reservation implementation](workflow-2-policy-job-history.md) now retains
+fixed paginated transitions, deterministic replay and canonical atomic metadata intents. Its
+typed ports and memory checks do not replace the remaining native/durable acceptance gates.

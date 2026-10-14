@@ -9,6 +9,8 @@ import {
   cancelPolicyEvaluationJobRequest,
   claimPolicyEvaluationJobRequest,
   mutatePolicyEvaluationWorkerJob,
+  readPolicyEvaluationJobHistoryHead,
+  readPolicyEvaluationJobHistoryPage,
 } from "./policy-evaluation-job-use-cases.js";
 
 const request = policyJobConformanceRequest();
@@ -67,6 +69,67 @@ function harness() {
   };
 }
 describe("authorization-first policy job use cases", () => {
+  it.each(["head", "page"])(
+    "denies history %s before parsing untrusted head or touching the repository",
+    async (kind) => {
+      const h = harness();
+      const calls = [
+        vi.spyOn(h.repository, "findHistoryHead"),
+        vi.spyOn(h.repository, "readHistoryPage"),
+      ];
+      const command = { ...route([]), jobId: "!", head: null, pageIndex: Number.NaN };
+      const pending =
+        kind === "head"
+          ? readPolicyEvaluationJobHistoryHead(command, h.repository)
+          : readPolicyEvaluationJobHistoryPage(command, h.repository);
+      await expect(pending).rejects.toThrow(ForbiddenError);
+      for (const call of calls) expect(call).not.toHaveBeenCalled();
+    },
+  );
+  it("reads an original history head and rejects caller scope overrides before lookup", async () => {
+    const h = harness();
+    await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);
+    const command = { ...route(["policy:read"]), jobId: "job_usecase" };
+    const head = (await readPolicyEvaluationJobHistoryHead(command, h.repository))!;
+    const page = await readPolicyEvaluationJobHistoryPage(
+      { ...command, head, pageIndex: 0 },
+      h.repository,
+    );
+    expect(page.entries[0]!.definition.operation.kind).toBe("created");
+    expect(
+      await readPolicyEvaluationJobHistoryHead({ ...command, jobId: "job_absent" }, h.repository),
+    ).toBeNull();
+    const spy = vi.spyOn(h.repository, "readHistoryPage");
+    await expect(
+      readPolicyEvaluationJobHistoryPage(
+        {
+          ...command,
+          head: { ...head, scope: { ...head.scope, tenantId: "tenant_outside" } },
+          pageIndex: 0,
+        },
+        h.repository,
+      ),
+    ).rejects.toThrow(ForbiddenError);
+    expect(spy).not.toHaveBeenCalled();
+  });
+  it("rejects substituted history query identity and page index", async () => {
+    const h = harness();
+    await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);
+    const command = { ...route(["policy:read"]), jobId: "job_usecase" };
+    const head = (await readPolicyEvaluationJobHistoryHead(command, h.repository))!;
+    const page = await h.repository.readHistoryPage(head, 0);
+    vi.spyOn(h.repository, "readHistoryPage").mockResolvedValue(page);
+    await expect(
+      readPolicyEvaluationJobHistoryPage({ ...command, head, pageIndex: 1 }, h.repository),
+    ).rejects.toThrow("requested page index");
+    vi.spyOn(h.repository, "findHistoryHead").mockResolvedValue({
+      ...head,
+      job: { ...head.job, jobId: "job_substituted" },
+    });
+    await expect(readPolicyEvaluationJobHistoryHead(command, h.repository)).rejects.toThrow(
+      "substituted",
+    );
+  });
   it("returns one original intent for concurrent identical reason-only cancellations", async () => {
     const h = harness();
     await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);

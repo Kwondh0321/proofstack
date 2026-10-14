@@ -1,0 +1,720 @@
+{
+  "oracle": "Independent Python JSON/UTF-8/hashlib on ASCII keys/strings and exact safe integers; synthetic metadata, not a native worker or a seal",
+  "vectors": [
+    {
+      "name": "created",
+      "previous": null,
+      "snapshot": {
+        "request": {
+          "algorithm": {
+            "id": "proofstack.deterministic-policy",
+            "version": "1.0.0"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "evaluationRequestId": "policy_evaluation_request_example",
+          "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+          "limits": {
+            "heartbeatIntervalMilliseconds": 5000,
+            "leaseDurationMilliseconds": 30000,
+            "maxAcquisitionRecordBytes": 16777216,
+            "maxAcquisitionRecords": 10000,
+            "maxArtifactReadBytes": 67108864,
+            "maxAttempts": 3,
+            "maxRuleEvaluations": 384,
+            "perAttemptTimeoutMilliseconds": 120000,
+            "retryBackoffMilliseconds": 1000,
+            "retryableErrors": [
+              "lease_expired",
+              "source_revision_changed",
+              "source_temporarily_unavailable",
+              "worker_interrupted"
+            ],
+            "totalDeadlineMilliseconds": 600000
+          },
+          "policy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "policy_reference",
+            "policyVersionId": "policy_reference_v1"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.000Z",
+          "createdByPrincipalId": "principal_controller"
+        },
+        "job": {
+          "jobId": "job_policy",
+          "request": {
+            "evaluationRequestId": "policy_evaluation_request_example",
+            "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.123456Z",
+          "createdByPrincipalId": "principal_controller",
+          "deadlineAt": "2026-09-07T12:10:00.000Z",
+          "updatedAt": "2026-09-07T12:00:00.123456Z",
+          "stateVersion": 1,
+          "recoveryEpoch": 0,
+          "lastFencingToken": 0,
+          "attemptCount": 0,
+          "status": "queued",
+          "currentLease": null,
+          "snapshot": null,
+          "result": null,
+          "retryAt": null,
+          "terminal": null
+        },
+        "attempts": [],
+        "cancellation": null,
+        "usage": {
+          "reads": 0,
+          "records": 0,
+          "recordBytes": 0,
+          "references": 0,
+          "referenceBytes": 0,
+          "artifactReadBytes": 0,
+          "ruleEvaluations": 0
+        }
+      },
+      "entry": {
+        "schemaVersion": "0.1",
+        "definition": {
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "job": {
+            "jobId": "job_policy",
+            "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027"
+          },
+          "sequence": 0,
+          "stateVersion": 1,
+          "predecessorEntrySha256": null,
+          "previousGraphSha256": null,
+          "graphSha256": "2c0a69bcb394b673b86c528c205e38f68dea27e2ab16f25ee3bab224ef5e5088",
+          "previousStatus": null,
+          "status": "queued",
+          "committedAt": "2026-09-07T12:00:00.123456Z",
+          "operation": {
+            "kind": "created"
+          }
+        },
+        "entrySha256": "6bd5b8248282337bfabb3202885abb74298986f8ff44fcf71da15401aba36736"
+      },
+      "canonicalUtf8": "{\"definition\":{\"committedAt\":\"2026-09-07T12:00:00.123456Z\",\"graphSha256\":\"2c0a69bcb394b673b86c528c205e38f68dea27e2ab16f25ee3bab224ef5e5088\",\"job\":{\"definitionSha256\":\"1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027\",\"jobId\":\"job_policy\"},\"operation\":{\"kind\":\"created\"},\"predecessorEntrySha256\":null,\"previousGraphSha256\":null,\"previousStatus\":null,\"scope\":{\"environmentId\":\"env_example\",\"projectId\":\"project_example\",\"tenantId\":\"tenant_example\"},\"sequence\":0,\"stateVersion\":1,\"status\":\"queued\"},\"definitionDomain\":\"proofstack.policy-evaluation-job-history.v1\",\"encodingVersion\":\"proofstack.policy-evaluation-job-history-jcs.v1\",\"schemaVersion\":\"0.1\"}",
+      "byteLength": 667,
+      "sha256": "6bd5b8248282337bfabb3202885abb74298986f8ff44fcf71da15401aba36736"
+    },
+    {
+      "name": "claim",
+      "previous": {
+        "request": {
+          "algorithm": {
+            "id": "proofstack.deterministic-policy",
+            "version": "1.0.0"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "evaluationRequestId": "policy_evaluation_request_example",
+          "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+          "limits": {
+            "heartbeatIntervalMilliseconds": 5000,
+            "leaseDurationMilliseconds": 30000,
+            "maxAcquisitionRecordBytes": 16777216,
+            "maxAcquisitionRecords": 10000,
+            "maxArtifactReadBytes": 67108864,
+            "maxAttempts": 3,
+            "maxRuleEvaluations": 384,
+            "perAttemptTimeoutMilliseconds": 120000,
+            "retryBackoffMilliseconds": 1000,
+            "retryableErrors": [
+              "lease_expired",
+              "source_revision_changed",
+              "source_temporarily_unavailable",
+              "worker_interrupted"
+            ],
+            "totalDeadlineMilliseconds": 600000
+          },
+          "policy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "policy_reference",
+            "policyVersionId": "policy_reference_v1"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.000Z",
+          "createdByPrincipalId": "principal_controller"
+        },
+        "job": {
+          "jobId": "job_policy",
+          "request": {
+            "evaluationRequestId": "policy_evaluation_request_example",
+            "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.123456Z",
+          "createdByPrincipalId": "principal_controller",
+          "deadlineAt": "2026-09-07T12:10:00.000Z",
+          "updatedAt": "2026-09-07T12:00:00.123456Z",
+          "stateVersion": 1,
+          "recoveryEpoch": 0,
+          "lastFencingToken": 0,
+          "attemptCount": 0,
+          "status": "queued",
+          "currentLease": null,
+          "snapshot": null,
+          "result": null,
+          "retryAt": null,
+          "terminal": null
+        },
+        "attempts": [],
+        "cancellation": null,
+        "usage": {
+          "reads": 0,
+          "records": 0,
+          "recordBytes": 0,
+          "references": 0,
+          "referenceBytes": 0,
+          "artifactReadBytes": 0,
+          "ruleEvaluations": 0
+        }
+      },
+      "snapshot": {
+        "request": {
+          "algorithm": {
+            "id": "proofstack.deterministic-policy",
+            "version": "1.0.0"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "evaluationRequestId": "policy_evaluation_request_example",
+          "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+          "limits": {
+            "heartbeatIntervalMilliseconds": 5000,
+            "leaseDurationMilliseconds": 30000,
+            "maxAcquisitionRecordBytes": 16777216,
+            "maxAcquisitionRecords": 10000,
+            "maxArtifactReadBytes": 67108864,
+            "maxAttempts": 3,
+            "maxRuleEvaluations": 384,
+            "perAttemptTimeoutMilliseconds": 120000,
+            "retryBackoffMilliseconds": 1000,
+            "retryableErrors": [
+              "lease_expired",
+              "source_revision_changed",
+              "source_temporarily_unavailable",
+              "worker_interrupted"
+            ],
+            "totalDeadlineMilliseconds": 600000
+          },
+          "policy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "policy_reference",
+            "policyVersionId": "policy_reference_v1"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.000Z",
+          "createdByPrincipalId": "principal_controller"
+        },
+        "job": {
+          "jobId": "job_policy",
+          "request": {
+            "evaluationRequestId": "policy_evaluation_request_example",
+            "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.123456Z",
+          "createdByPrincipalId": "principal_controller",
+          "deadlineAt": "2026-09-07T12:10:00.000Z",
+          "updatedAt": "2026-09-07T12:00:01.123456Z",
+          "stateVersion": 2,
+          "recoveryEpoch": 0,
+          "lastFencingToken": 1,
+          "attemptCount": 1,
+          "status": "acquiring",
+          "currentLease": {
+            "schemaVersion": "0.1",
+            "scope": {
+              "environmentId": "env_example",
+              "projectId": "project_example",
+              "tenantId": "tenant_example"
+            },
+            "mutationFence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "attemptSequence": 0,
+            "acquiredAt": "2026-09-07T12:00:01.123456Z",
+            "heartbeatAt": "2026-09-07T12:00:01.123456Z",
+            "expiresAt": "2026-09-07T12:00:31.123456Z",
+            "attemptDeadlineAt": "2026-09-07T12:02:01.123456Z",
+            "jobDeadlineAt": "2026-09-07T12:10:00.000Z"
+          },
+          "snapshot": null,
+          "result": null,
+          "retryAt": null,
+          "terminal": null
+        },
+        "attempts": [
+          {
+            "schemaVersion": "0.1",
+            "scope": {
+              "environmentId": "env_example",
+              "projectId": "project_example",
+              "tenantId": "tenant_example"
+            },
+            "mutationFence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "attemptSequence": 0,
+            "startedAt": "2026-09-07T12:00:01.123456Z",
+            "deadlineAt": "2026-09-07T12:02:01.123456Z",
+            "phase": "acquiring",
+            "snapshot": null,
+            "usageAtStart": {
+              "reads": 0,
+              "records": 0,
+              "recordBytes": 0,
+              "references": 0,
+              "referenceBytes": 0,
+              "artifactReadBytes": 0,
+              "ruleEvaluations": 0
+            },
+            "usageAtClose": null,
+            "closure": null
+          }
+        ],
+        "cancellation": null,
+        "usage": {
+          "reads": 0,
+          "records": 0,
+          "recordBytes": 0,
+          "references": 0,
+          "referenceBytes": 0,
+          "artifactReadBytes": 0,
+          "ruleEvaluations": 0
+        }
+      },
+      "entry": {
+        "schemaVersion": "0.1",
+        "definition": {
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "job": {
+            "jobId": "job_policy",
+            "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027"
+          },
+          "sequence": 1,
+          "stateVersion": 2,
+          "predecessorEntrySha256": "6bd5b8248282337bfabb3202885abb74298986f8ff44fcf71da15401aba36736",
+          "previousGraphSha256": "2c0a69bcb394b673b86c528c205e38f68dea27e2ab16f25ee3bab224ef5e5088",
+          "graphSha256": "fb1f819a51c0106da381ee2b593ea816a3f8c0b8556c2e705ed886b6c764dc18",
+          "previousStatus": "queued",
+          "status": "acquiring",
+          "committedAt": "2026-09-07T12:00:01.123456Z",
+          "operation": {
+            "kind": "claim",
+            "fence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            }
+          }
+        },
+        "entrySha256": "617cda6ee3df6e0e90b62e9d590b3a8f9f874cf103416655ee93258ba6206c2a"
+      },
+      "canonicalUtf8": "{\"definition\":{\"committedAt\":\"2026-09-07T12:00:01.123456Z\",\"graphSha256\":\"fb1f819a51c0106da381ee2b593ea816a3f8c0b8556c2e705ed886b6c764dc18\",\"job\":{\"definitionSha256\":\"1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027\",\"jobId\":\"job_policy\"},\"operation\":{\"fence\":{\"attemptId\":\"attempt_policy\",\"fencingToken\":1,\"jobId\":\"job_policy\",\"leaseId\":\"lease_policy\",\"recoveryEpoch\":0,\"workerId\":\"worker_policy\"},\"kind\":\"claim\"},\"predecessorEntrySha256\":\"6bd5b8248282337bfabb3202885abb74298986f8ff44fcf71da15401aba36736\",\"previousGraphSha256\":\"2c0a69bcb394b673b86c528c205e38f68dea27e2ab16f25ee3bab224ef5e5088\",\"previousStatus\":\"queued\",\"scope\":{\"environmentId\":\"env_example\",\"projectId\":\"project_example\",\"tenantId\":\"tenant_example\"},\"sequence\":1,\"stateVersion\":2,\"status\":\"acquiring\"},\"definitionDomain\":\"proofstack.policy-evaluation-job-history.v1\",\"encodingVersion\":\"proofstack.policy-evaluation-job-history-jcs.v1\",\"schemaVersion\":\"0.1\"}",
+      "byteLength": 943,
+      "sha256": "617cda6ee3df6e0e90b62e9d590b3a8f9f874cf103416655ee93258ba6206c2a"
+    },
+    {
+      "name": "reserve",
+      "previous": {
+        "request": {
+          "algorithm": {
+            "id": "proofstack.deterministic-policy",
+            "version": "1.0.0"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "evaluationRequestId": "policy_evaluation_request_example",
+          "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+          "limits": {
+            "heartbeatIntervalMilliseconds": 5000,
+            "leaseDurationMilliseconds": 30000,
+            "maxAcquisitionRecordBytes": 16777216,
+            "maxAcquisitionRecords": 10000,
+            "maxArtifactReadBytes": 67108864,
+            "maxAttempts": 3,
+            "maxRuleEvaluations": 384,
+            "perAttemptTimeoutMilliseconds": 120000,
+            "retryBackoffMilliseconds": 1000,
+            "retryableErrors": [
+              "lease_expired",
+              "source_revision_changed",
+              "source_temporarily_unavailable",
+              "worker_interrupted"
+            ],
+            "totalDeadlineMilliseconds": 600000
+          },
+          "policy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "policy_reference",
+            "policyVersionId": "policy_reference_v1"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.000Z",
+          "createdByPrincipalId": "principal_controller"
+        },
+        "job": {
+          "jobId": "job_policy",
+          "request": {
+            "evaluationRequestId": "policy_evaluation_request_example",
+            "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.123456Z",
+          "createdByPrincipalId": "principal_controller",
+          "deadlineAt": "2026-09-07T12:10:00.000Z",
+          "updatedAt": "2026-09-07T12:00:01.123456Z",
+          "stateVersion": 2,
+          "recoveryEpoch": 0,
+          "lastFencingToken": 1,
+          "attemptCount": 1,
+          "status": "acquiring",
+          "currentLease": {
+            "schemaVersion": "0.1",
+            "scope": {
+              "environmentId": "env_example",
+              "projectId": "project_example",
+              "tenantId": "tenant_example"
+            },
+            "mutationFence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "attemptSequence": 0,
+            "acquiredAt": "2026-09-07T12:00:01.123456Z",
+            "heartbeatAt": "2026-09-07T12:00:01.123456Z",
+            "expiresAt": "2026-09-07T12:00:31.123456Z",
+            "attemptDeadlineAt": "2026-09-07T12:02:01.123456Z",
+            "jobDeadlineAt": "2026-09-07T12:10:00.000Z"
+          },
+          "snapshot": null,
+          "result": null,
+          "retryAt": null,
+          "terminal": null
+        },
+        "attempts": [
+          {
+            "schemaVersion": "0.1",
+            "scope": {
+              "environmentId": "env_example",
+              "projectId": "project_example",
+              "tenantId": "tenant_example"
+            },
+            "mutationFence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "attemptSequence": 0,
+            "startedAt": "2026-09-07T12:00:01.123456Z",
+            "deadlineAt": "2026-09-07T12:02:01.123456Z",
+            "phase": "acquiring",
+            "snapshot": null,
+            "usageAtStart": {
+              "reads": 0,
+              "records": 0,
+              "recordBytes": 0,
+              "references": 0,
+              "referenceBytes": 0,
+              "artifactReadBytes": 0,
+              "ruleEvaluations": 0
+            },
+            "usageAtClose": null,
+            "closure": null
+          }
+        ],
+        "cancellation": null,
+        "usage": {
+          "reads": 0,
+          "records": 0,
+          "recordBytes": 0,
+          "references": 0,
+          "referenceBytes": 0,
+          "artifactReadBytes": 0,
+          "ruleEvaluations": 0
+        }
+      },
+      "snapshot": {
+        "request": {
+          "algorithm": {
+            "id": "proofstack.deterministic-policy",
+            "version": "1.0.0"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "evaluationRequestId": "policy_evaluation_request_example",
+          "evaluationTime": "2026-09-07T11:59:59.999999999999999999999999999999Z",
+          "limits": {
+            "heartbeatIntervalMilliseconds": 5000,
+            "leaseDurationMilliseconds": 30000,
+            "maxAcquisitionRecordBytes": 16777216,
+            "maxAcquisitionRecords": 10000,
+            "maxArtifactReadBytes": 67108864,
+            "maxAttempts": 3,
+            "maxRuleEvaluations": 384,
+            "perAttemptTimeoutMilliseconds": 120000,
+            "retryBackoffMilliseconds": 1000,
+            "retryableErrors": [
+              "lease_expired",
+              "source_revision_changed",
+              "source_temporarily_unavailable",
+              "worker_interrupted"
+            ],
+            "totalDeadlineMilliseconds": 600000
+          },
+          "policy": {
+            "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "policyId": "policy_reference",
+            "policyVersionId": "policy_reference_v1"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.000Z",
+          "createdByPrincipalId": "principal_controller"
+        },
+        "job": {
+          "jobId": "job_policy",
+          "request": {
+            "evaluationRequestId": "policy_evaluation_request_example",
+            "definitionSha256": "6df79abe573357163273d2131a480c2c419fab0d0f72416005ced3ddb2ef7f2e"
+          },
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027",
+          "schemaVersion": "0.1",
+          "createdAt": "2026-09-07T12:00:00.123456Z",
+          "createdByPrincipalId": "principal_controller",
+          "deadlineAt": "2026-09-07T12:10:00.000Z",
+          "updatedAt": "2026-09-07T12:00:01.123456Z",
+          "stateVersion": 3,
+          "recoveryEpoch": 0,
+          "lastFencingToken": 1,
+          "attemptCount": 1,
+          "status": "acquiring",
+          "currentLease": {
+            "schemaVersion": "0.1",
+            "scope": {
+              "environmentId": "env_example",
+              "projectId": "project_example",
+              "tenantId": "tenant_example"
+            },
+            "mutationFence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "attemptSequence": 0,
+            "acquiredAt": "2026-09-07T12:00:01.123456Z",
+            "heartbeatAt": "2026-09-07T12:00:01.123456Z",
+            "expiresAt": "2026-09-07T12:00:31.123456Z",
+            "attemptDeadlineAt": "2026-09-07T12:02:01.123456Z",
+            "jobDeadlineAt": "2026-09-07T12:10:00.000Z"
+          },
+          "snapshot": null,
+          "result": null,
+          "retryAt": null,
+          "terminal": null
+        },
+        "attempts": [
+          {
+            "schemaVersion": "0.1",
+            "scope": {
+              "environmentId": "env_example",
+              "projectId": "project_example",
+              "tenantId": "tenant_example"
+            },
+            "mutationFence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "attemptSequence": 0,
+            "startedAt": "2026-09-07T12:00:01.123456Z",
+            "deadlineAt": "2026-09-07T12:02:01.123456Z",
+            "phase": "acquiring",
+            "snapshot": null,
+            "usageAtStart": {
+              "reads": 0,
+              "records": 0,
+              "recordBytes": 0,
+              "references": 0,
+              "referenceBytes": 0,
+              "artifactReadBytes": 0,
+              "ruleEvaluations": 0
+            },
+            "usageAtClose": null,
+            "closure": null
+          }
+        ],
+        "cancellation": null,
+        "usage": {
+          "reads": 1,
+          "records": 1,
+          "recordBytes": 256,
+          "references": 0,
+          "referenceBytes": 0,
+          "artifactReadBytes": 0,
+          "ruleEvaluations": 0
+        }
+      },
+      "entry": {
+        "schemaVersion": "0.1",
+        "definition": {
+          "scope": {
+            "environmentId": "env_example",
+            "projectId": "project_example",
+            "tenantId": "tenant_example"
+          },
+          "job": {
+            "jobId": "job_policy",
+            "definitionSha256": "1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027"
+          },
+          "sequence": 2,
+          "stateVersion": 3,
+          "predecessorEntrySha256": "617cda6ee3df6e0e90b62e9d590b3a8f9f874cf103416655ee93258ba6206c2a",
+          "previousGraphSha256": "fb1f819a51c0106da381ee2b593ea816a3f8c0b8556c2e705ed886b6c764dc18",
+          "graphSha256": "17f0a0e6e97ccd772a7cd0a358cb2f5f588037fa6e0865a9287918ead28852dd",
+          "previousStatus": "acquiring",
+          "status": "acquiring",
+          "committedAt": "2026-09-07T12:00:01.123456Z",
+          "operation": {
+            "kind": "reserve",
+            "fence": {
+              "jobId": "job_policy",
+              "attemptId": "attempt_policy",
+              "leaseId": "lease_policy",
+              "workerId": "worker_policy",
+              "fencingToken": 1,
+              "recoveryEpoch": 0
+            },
+            "reservationId": "reservation_policy",
+            "delta": {
+              "reads": 1,
+              "records": 1,
+              "recordBytes": 256,
+              "references": 0,
+              "referenceBytes": 0,
+              "artifactReadBytes": 0,
+              "ruleEvaluations": 0
+            }
+          }
+        },
+        "entrySha256": "af2b01862c3f24a8bd37ef985e2600d190c69bb55d3d5101f511bda4eeb25249"
+      },
+      "canonicalUtf8": "{\"definition\":{\"committedAt\":\"2026-09-07T12:00:01.123456Z\",\"graphSha256\":\"17f0a0e6e97ccd772a7cd0a358cb2f5f588037fa6e0865a9287918ead28852dd\",\"job\":{\"definitionSha256\":\"1bba9ece0bec8f0852a4a9522c3cbad46cce4ac9a22178c570db3c6a803ab027\",\"jobId\":\"job_policy\"},\"operation\":{\"delta\":{\"artifactReadBytes\":0,\"reads\":1,\"recordBytes\":256,\"records\":1,\"referenceBytes\":0,\"references\":0,\"ruleEvaluations\":0},\"fence\":{\"attemptId\":\"attempt_policy\",\"fencingToken\":1,\"jobId\":\"job_policy\",\"leaseId\":\"lease_policy\",\"recoveryEpoch\":0,\"workerId\":\"worker_policy\"},\"kind\":\"reserve\",\"reservationId\":\"reservation_policy\"},\"predecessorEntrySha256\":\"617cda6ee3df6e0e90b62e9d590b3a8f9f874cf103416655ee93258ba6206c2a\",\"previousGraphSha256\":\"fb1f819a51c0106da381ee2b593ea816a3f8c0b8556c2e705ed886b6c764dc18\",\"previousStatus\":\"acquiring\",\"scope\":{\"environmentId\":\"env_example\",\"projectId\":\"project_example\",\"tenantId\":\"tenant_example\"},\"sequence\":2,\"stateVersion\":3,\"status\":\"acquiring\"},\"definitionDomain\":\"proofstack.policy-evaluation-job-history.v1\",\"encodingVersion\":\"proofstack.policy-evaluation-job-history-jcs.v1\",\"schemaVersion\":\"0.1\"}",
+      "byteLength": 1111,
+      "sha256": "af2b01862c3f24a8bd37ef985e2600d190c69bb55d3d5101f511bda4eeb25249"
+    }
+  ]
+}

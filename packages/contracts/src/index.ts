@@ -40,6 +40,7 @@ export * from "./policy-evaluation-job-encoding.js";
 export * from "./policy-evaluation-attempt.js";
 export * from "./policy-evaluation-job-snapshot.js";
 export * from "./policy-evaluation-job-api.js";
+export * from "./policy-evaluation-job-history.js";
 export * from "./policy-evaluation-result-api.js";
 export * from "./policy-evaluation-result-encoding.js";
 export * from "./policy-evaluation-request-api.js";

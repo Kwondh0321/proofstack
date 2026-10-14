@@ -9,6 +9,8 @@ import {
   PolicyEvaluationRequestSchema,
   PolicyEvaluationJobSnapshotSchema,
   RequestPolicyEvaluationCancellationSchema,
+  PolicyEvaluationJobHistoryHeadSchema,
+  PolicyEvaluationJobHistoryPageIndexSchema,
   UtcMillisecondTimestampSchema,
   serializeEvaluationCanonicalJson,
   type EvidenceScope,
@@ -18,10 +20,15 @@ import {
 import { requireCapability, requireEnvironmentAccess } from "../auth/authorization.js";
 import type { Clock } from "../clock.js";
 import { ForbiddenError } from "../errors.js";
-import type { PolicyEvaluationJobRepository } from "./policy-evaluation-job-repository.js";
+import type {
+  PolicyEvaluationJobControlRepository,
+  PolicyEvaluationJobReader,
+  PolicyEvaluationJobWorkerRepository,
+} from "./policy-evaluation-job-repository.js";
 import { digestPolicyEvaluationRequestDefinition } from "./policy-evaluation-request-record-validation.js";
 import { validatePolicyEvaluationJobSnapshotRecord } from "./policy-evaluation-job-record-validation.js";
 import { requirePolicyEvaluationExecution } from "./policy-evaluation-worker-authorization.js";
+import { validatePolicyEvaluationJobHistoryPage } from "./policy-evaluation-job-history.js";
 
 interface JobRoute {
   readonly principal: PrincipalContext;
@@ -62,7 +69,7 @@ function returnedJob(
 export async function enqueuePolicyEvaluationJob(
   command: JobRoute & { readonly input: unknown },
   dependencies: {
-    readonly repository: PolicyEvaluationJobRepository;
+    readonly repository: PolicyEvaluationJobControlRepository;
     readonly clock: Clock;
     readonly newJobId: () => string;
   },
@@ -91,17 +98,56 @@ export async function enqueuePolicyEvaluationJob(
 }
 export async function readPolicyEvaluationJob(
   command: JobRoute & { readonly jobId: string },
-  repository: PolicyEvaluationJobRepository,
+  repository: PolicyEvaluationJobReader,
 ) {
   const { scope } = authorizedScope(command, "policy:read");
   const jobId = OpaqueIdSchema.parse(command.jobId);
   const raw = await repository.findJob(scope, jobId);
   return raw === null ? null : returnedJob(raw, scope, jobId);
 }
+export async function readPolicyEvaluationJobHistoryHead(
+  command: JobRoute & { readonly jobId: string },
+  repository: PolicyEvaluationJobReader,
+) {
+  const { scope } = authorizedScope(command, "policy:read");
+  const jobId = OpaqueIdSchema.parse(command.jobId);
+  const raw = await repository.findHistoryHead(scope, jobId);
+  if (raw === null) return null;
+  const head = PolicyEvaluationJobHistoryHeadSchema.parse(raw);
+  if (
+    head.job.jobId !== jobId ||
+    serializeEvaluationCanonicalJson(head.scope) !== serializeEvaluationCanonicalJson(scope)
+  )
+    throw new Error("Policy history repository substituted exact query scope/job");
+  return head;
+}
+export async function readPolicyEvaluationJobHistoryPage(
+  command: JobRoute & {
+    readonly jobId: string;
+    readonly head: unknown;
+    readonly pageIndex: unknown;
+  },
+  repository: PolicyEvaluationJobReader,
+) {
+  const { scope } = authorizedScope(command, "policy:read");
+  const jobId = OpaqueIdSchema.parse(command.jobId);
+  const head = PolicyEvaluationJobHistoryHeadSchema.parse(command.head);
+  if (
+    head.job.jobId !== jobId ||
+    serializeEvaluationCanonicalJson(head.scope) !== serializeEvaluationCanonicalJson(scope)
+  )
+    throw new ForbiddenError("Policy history head does not match authorized route scope/job");
+  const pageIndex = PolicyEvaluationJobHistoryPageIndexSchema.parse(command.pageIndex);
+  const raw = await repository.readHistoryPage(head, pageIndex);
+  const page = validatePolicyEvaluationJobHistoryPage({ expected: head, page: raw });
+  if (page.pageIndex !== pageIndex)
+    throw new Error("Policy history repository substituted requested page index");
+  return page;
+}
 export async function cancelPolicyEvaluationJobRequest(
   command: JobRoute & { readonly jobId: string; readonly input: unknown },
   dependencies: {
-    readonly repository: PolicyEvaluationJobRepository;
+    readonly repository: PolicyEvaluationJobControlRepository;
     readonly newCancellationId: () => string;
   },
 ) {
@@ -149,7 +195,7 @@ function workerScope(command: JobRoute) {
 export async function claimPolicyEvaluationJobRequest(
   command: JobRoute & { readonly jobId: string },
   dependencies: {
-    readonly repository: PolicyEvaluationJobRepository;
+    readonly repository: PolicyEvaluationJobWorkerRepository;
     readonly newAttemptId: () => string;
     readonly newLeaseId: () => string;
   },
@@ -166,6 +212,7 @@ export async function claimPolicyEvaluationJobRequest(
     leaseId,
   });
   const snapshot = returnedJob(raw, scope, jobId);
+  if (snapshot.job.status === "budget_exhausted") return snapshot;
   const current = snapshot.job.currentLease?.mutationFence;
   if (
     current?.workerId !== principal.principalId ||
@@ -182,7 +229,7 @@ export async function mutatePolicyEvaluationWorkerJob(
     readonly operation: "heartbeat" | "reserve" | "interrupt";
     readonly input?: unknown;
   },
-  repository: PolicyEvaluationJobRepository,
+  repository: PolicyEvaluationJobWorkerRepository,
 ) {
   const { principal, scope } = workerScope(command);
   const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(command.fence);
