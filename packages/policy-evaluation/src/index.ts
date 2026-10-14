@@ -1,4 +1,8 @@
 export { PolicyRecordGraphError } from "./acquisition-budget.js";
+export {
+  publishPolicyEvaluationWithReservedRules,
+  PolicyRuleReservationError,
+} from "./publish-with-rule-reservation.js";
 export * from "./capture-artifact-evidence.js";
 export type {
   PolicyEvaluationSnapshotSealingPorts,

@@ -53,6 +53,8 @@ parallelism before running those suites serially; test assertions and timeouts a
 The worker must reserve complete rule work before each computation invocation. This
 adapter checks prepaid admission; it does not by itself account for every failed or repeated
 computation invocation. That durable worker composition remains required.
+The subsequent [per-invocation reservation composition](workflow-2-policy-rule-reservations.md)
+commits a fresh complete fee before invoking this publisher and retains it on failure.
 
 This prerequisite does not complete the checkpoint. Complete durable acquisition accounting,
 memory/shared snapshot and result conformance, a separate executable policy worker,

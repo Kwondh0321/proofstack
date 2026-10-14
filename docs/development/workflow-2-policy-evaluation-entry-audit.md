@@ -747,6 +747,11 @@ Per-invocation durable computation charges, complete acquisition costs, memory/s
 all-state recovery acceptance, the separate executable worker, public API/SDK, contributor flow
 and the independent exit audit remain required. Workflow 2 remains 2/7 accepted checkpoints.
 
+The [per-invocation rule reservation composition](workflow-2-policy-rule-reservations.md)
+now commits a fresh whole-count reservation before native calculation/publication and refuses
+duplicate, ambiguous or expired acknowledgements. Rollback and cancellation retain the fee.
+Complete acquisition/input charges and the other checkpoint gates above remain required.
+
 Use the separation and fencing principles of
 [ADR-0018](../architecture/0018-separate-replay-control-worker-authority.md), without granting the
 policy worker replay execution or upstream evaluation publication powers.

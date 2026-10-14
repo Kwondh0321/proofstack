@@ -80,6 +80,7 @@ import {
   capturePolicySnapshotDefinition,
   capturePolicyInputRecordSources,
   sealPolicyEvaluationSnapshot,
+  publishPolicyEvaluationWithReservedRules,
   inspectParentProtocolResolution,
   type PolicyArtifactEvidenceRepositories,
   type PolicyCandidateAuthorities,
@@ -1038,6 +1039,95 @@ async function nativeResultHarness(paidRules = 7, leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("commits every policy rule invocation before native result publication", async () => {
+    const h = await nativeResultHarness(0);
+    const result = await publishPolicyEvaluationWithReservedRules(
+      {
+        ...h.command,
+        principal: h.actor,
+      },
+      {
+        repository: h.worker,
+        publisher: h.results,
+        snapshotRecord: h.sealed.snapshot,
+        pageSet: h.pageSet,
+        nextReservationId: () => `rule_invocation_${h.f.namespace}`,
+      },
+    );
+    expect(result.created).toBe(true);
+    expect(result.snapshot.usage.ruleEvaluations).toBe(7);
+    expect(result.evaluation.ruleCount).toBe(7);
+    expect(result.snapshot.attempts.at(-1)?.usageAtClose?.ruleEvaluations).toBe(7);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toEqual(result.evaluation);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("retains each policy rule invocation fee after native rollback and refuses duplicate payment reuse", async () => {
+    const h = await nativeResultHarness(0);
+    await admin.query(
+      "INSERT INTO public.proofstack_outbox (tenant_id,aggregate_type,aggregate_id,event_type,payload,schema_version,created_at) SELECT tenant_id,aggregate_type,aggregate_id,'policy.evaluation.job.terminal','{}'::jsonb,schema_version,created_at FROM public.proofstack_outbox WHERE tenant_id=$1 AND event_type='policy.evaluation.job.created'",
+      [h.f.scope.tenantId],
+    );
+    const command = { ...h.command, principal: h.actor };
+    const dependencies = {
+      repository: h.worker,
+      publisher: h.results,
+      snapshotRecord: h.sealed.snapshot,
+      pageSet: h.pageSet,
+      nextReservationId: () => `rule_invocation_${h.f.namespace}`,
+    };
+    await expect(publishPolicyEvaluationWithReservedRules(command, dependencies)).rejects.toThrow();
+    expect((await h.worker.findJob(h.f.scope, h.jobId))?.usage.ruleEvaluations).toBe(7);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+    // The injected conflict and the already committed fee both remain immutable.
+    await expect(publishPolicyEvaluationWithReservedRules(command, dependencies)).rejects.toThrow(
+      "fresh reservation occurrence",
+    );
+    expect((await h.worker.findJob(h.f.scope, h.jobId))?.usage.ruleEvaluations).toBe(7);
+    await expect(
+      publishPolicyEvaluationWithReservedRules(command, {
+        ...dependencies,
+        nextReservationId: () => `rule_invocation_retry_${h.f.namespace}`,
+      }),
+    ).rejects.toThrow();
+    const retained = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(retained?.usage.ruleEvaluations).toBe(14);
+    expect(retained?.job.status).toBe("running");
+    expect(retained?.attempts.at(-1)?.closure).toBeNull();
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("retains paid policy rule invocation work when cancellation commits before publication", async () => {
+    const h = await nativeResultHarness(0);
+    const publisher = {
+      publishResult: async (command: Parameters<typeof h.results.publishResult>[0]) => {
+        await h.control.cancelJob({
+          scope: h.f.scope,
+          jobId: h.jobId,
+          cancellationId: `cancel_paid_${h.f.namespace}`,
+          principalId: "operator_native",
+          reason: "operator_requested",
+        });
+        return h.results.publishResult(command);
+      },
+    };
+    await expect(
+      publishPolicyEvaluationWithReservedRules(
+        { ...h.command, principal: h.actor },
+        {
+          repository: h.worker,
+          publisher,
+          snapshotRecord: h.sealed.snapshot,
+          pageSet: h.pageSet,
+          nextReservationId: () => `rule_invocation_${h.f.namespace}`,
+        },
+      ),
+    ).rejects.toThrow();
+    const retained = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(retained?.usage.ruleEvaluations).toBe(7);
+    expect(retained?.cancellation?.cancellationId).toBe(`cancel_paid_${h.f.namespace}`);
+    expect(await h.results.findResult(h.f.scope, h.jobId, h.pageSet)).toBeNull();
+    expect(h.idleErrors).toEqual([]);
+  });
   it("publishes a native policy result, closed attempt, terminal job, history and canonical outbox atomically", async () => {
     const h = await nativeResultHarness();
     const before = await h.worker.findJob(h.f.scope, h.jobId);
