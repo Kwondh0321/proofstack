@@ -95,11 +95,18 @@ export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluat
       snapshot: graph,
     });
   }
-  protected async headOnClient(client: PoolClient, scope: EvidenceScope, jobId: string) {
+  protected async headOnClient(
+    client: PoolClient,
+    scope: EvidenceScope,
+    jobId: string,
+    sequence?: number,
+  ) {
     const raw = await this.one(
       client,
-      "SELECT public.proofstack_read_policy_evaluation_history_head($1) AS value",
-      [jobId],
+      sequence === undefined
+        ? "SELECT public.proofstack_read_policy_evaluation_history_head($1) AS value"
+        : "SELECT public.proofstack_read_policy_evaluation_history_head_at($1,$2::integer) AS value",
+      sequence === undefined ? [jobId] : [jobId, sequence],
     );
     if (raw === null) return null;
     const head = PolicyEvaluationJobHistoryHeadSchema.parse(raw);
@@ -117,10 +124,16 @@ export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluat
     scope: EvidenceScope,
     snapshot: PolicyEvaluationJobSnapshot,
   ): Promise<PolicyEvaluationJobHistoryEntry> {
-    const head = await this.headOnClient(client, scope, snapshot.job.jobId);
+    const head = await this.headOnClient(
+      client,
+      scope,
+      snapshot.job.jobId,
+      snapshot.job.stateVersion - 1,
+    );
     if (
       head === null ||
       head.sequence + 1 !== snapshot.job.stateVersion ||
+      head.job.definitionSha256 !== snapshot.job.definitionSha256 ||
       head.graphSha256 !== digestPolicyEvaluationJobGraph(snapshot)
     )
       throw new PostgresPolicyEvaluationJobContractError(

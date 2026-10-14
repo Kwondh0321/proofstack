@@ -14,13 +14,19 @@ writer triggers. SQL checks reject absent/null required projections; job guards 
 roots, deadlines, cumulative charges, bound snapshots/results and terminal receipts. An attempt
 retains immutable admission identity and one closure, with its operations in append-only job
 history. Readers compare graph projections with normalized owning records and independently
-verify request/job hashes, latest history and canonical outbox receipts.
+verify request/job hashes, exact retained history and canonical outbox receipts.
 
 `PostgresPolicyEvaluationJobControlRepository` exposes create/cancel/read/history.
 `PostgresPolicyEvaluationJobWorkerRepository` exposes claim/heartbeat/reserve/interrupt/reclaim
 and reads. They accept a supplied pool and use one exact-scope READ COMMITTED connection. Fixed
 SQL functions take the current store epoch and native `clock_timestamp()` receipt after acquiring
 the job lock. Retained JSON is evidence of a past receipt, not a current execution grant.
+
+Migration 0056 binds a graph read to the immutable history head at its own `stateVersion - 1`.
+A valid concurrent cancellation can commit after the graph statement without substituting the
+new head or falsely reporting corruption. Reads still validate exact scope/job digest, graph
+hash and retained page; public history-head lookup remains the latest head. The coherent response
+describes its original operational version and does not revive its lease or grant publication.
 
 Semantic `evaluationTime` remains unchanged. Database operational cuts retain microsecond
 precision; the original request receipt keeps its millisecond contract. Expiry is strict,

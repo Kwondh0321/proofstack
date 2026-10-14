@@ -174,6 +174,7 @@ describe("PostgreSQL evidence schema", () => {
       "0053_model_assurance_scalar_integrity",
       "0054_policy_evaluation_capabilities",
       "0055_policy_evaluation_job_ledger",
+      "0056_policy_evaluation_exact_history_reads",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

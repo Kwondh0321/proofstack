@@ -301,44 +301,56 @@ describe("native policy job adapter contracts, exact reads and whole transaction
       expect(f.release).toHaveBeenCalledExactlyOnceWith();
     },
   );
-  it.each(["row_count", "missing_intent", "substituted_head", "missing_head", "wrong_graph"])(
-    "rejects %s and never commits",
-    async (kind) => {
-      const f = fixture();
-      f.override((text) => {
-        if (kind === "row_count" && text.includes("read_policy_evaluation_job"))
-          return { rows: [] };
-        if (kind === "missing_intent" && text.includes("intent_status"))
-          return { rows: [{ value: "absent" }] };
-        if (
-          (kind === "substituted_head" || kind === "missing_head") &&
-          text.includes("read_policy_evaluation_history_head")
-        )
-          return {
-            rows: [
-              {
-                value:
-                  kind === "missing_head"
-                    ? null
-                    : {
-                        ...policyEvaluationJobHistoryHead(f.entries[0]!),
-                        scope: { ...scope, tenantId: "tenant_other" },
-                      },
+  it.each([
+    "row_count",
+    "missing_intent",
+    "substituted_head",
+    "substituted_digest",
+    "missing_head",
+    "wrong_graph",
+  ])("rejects %s and never commits", async (kind) => {
+    const f = fixture();
+    f.override((text) => {
+      if (kind === "row_count" && text.includes("read_policy_evaluation_job")) return { rows: [] };
+      if (kind === "missing_intent" && text.includes("intent_status"))
+        return { rows: [{ value: "absent" }] };
+      if (kind === "substituted_digest" && text.includes("read_policy_evaluation_history_head"))
+        return {
+          rows: [
+            {
+              value: {
+                ...policyEvaluationJobHistoryHead(f.entries[0]!),
+                job: { jobId, definitionSha256: "0".repeat(64) },
               },
-            ],
-          };
-        if (kind === "wrong_graph" && text.includes("read_policy_evaluation_job"))
-          return {
-            rows: [
-              { value: { ...f.graph(), job: { ...f.graph().job, jobId: "job_substituted" } } },
-            ],
-          };
-        return undefined;
-      });
-      await expect(f.control.findJob(scope, jobId)).rejects.toThrow();
-      expect(f.calls.at(-1)!.text).toBe("ROLLBACK");
-    },
-  );
+            },
+          ],
+        };
+      if (
+        (kind === "substituted_head" || kind === "missing_head") &&
+        text.includes("read_policy_evaluation_history_head")
+      )
+        return {
+          rows: [
+            {
+              value:
+                kind === "missing_head"
+                  ? null
+                  : {
+                      ...policyEvaluationJobHistoryHead(f.entries[0]!),
+                      scope: { ...scope, tenantId: "tenant_other" },
+                    },
+            },
+          ],
+        };
+      if (kind === "wrong_graph" && text.includes("read_policy_evaluation_job"))
+        return {
+          rows: [{ value: { ...f.graph(), job: { ...f.graph().job, jobId: "job_substituted" } } }],
+        };
+      return undefined;
+    });
+    await expect(f.control.findJob(scope, jobId)).rejects.toThrow();
+    expect(f.calls.at(-1)!.text).toBe("ROLLBACK");
+  });
   it("rejects a correctly hashed reservation belonging to another original occurrence", async () => {
     const f = fixture(2);
     f.setReservation(f.entries.at(-1)!);

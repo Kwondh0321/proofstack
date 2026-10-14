@@ -14,13 +14,18 @@ indexes의 여섯 루트를 추가합니다. 모두 tenant/project/environment �
 작업 guard는 원래 요청·기한·누적 비용·이미 결합된 snapshot/result·terminal 기록을 보존합니다.
 Attempt는 불변 실행 식별자와 한 번의 종료 기록을 보존하고, 운영 전이는 append-only 작업
 이력에 남습니다. 읽기는 정규화된 소유 요청·attempt·취소와 graph를 비교하고, 소유 hash,
-마지막 이력 및 canonical outbox 원본을 검증합니다.
+정확한 보존 이력 및 canonical outbox 원본을 검증합니다.
 
 `PostgresPolicyEvaluationJobControlRepository`는 생성·취소·읽기·이력을 제공합니다.
 `PostgresPolicyEvaluationJobWorkerRepository`는 claim·heartbeat·예약·중단·reclaim과
 읽기를 제공합니다. 주어진 pool에서 정확한 범위의 동일 READ COMMITTED 연결을 사용합니다.
 고정 SQL 함수가 작업 잠금 후 현재 복구 epoch와 DB `clock_timestamp()`를 확인합니다.
 저장된 JSON lease는 과거 관측 기록이며 현재 실행 권한이 아닙니다.
+
+마이그레이션 0056은 graph 조회를 해당 `stateVersion - 1`의 불변 이력 head에 묶습니다.
+Graph를 읽은 뒤 정상 취소가 커밋되어도 새 head로 치환하거나 정합성 오류로 처리하지 않습니다.
+정확한 scope/job digest·graph hash·보존된 page 검증을 유지하며, 공개 이력 head 조회는 최신
+head를 반환합니다. 일관된 응답은 원래 운영 버전의 기록이며 lease나 게시 권한을 되살리지 않습니다.
 
 의미 시간 `evaluationTime`은 바뀌지 않습니다. DB 운영 시간은 마이크로초를 보존하고,
 원래 요청의 receipt는 밀리초 계약을 유지합니다. 만료 경계는 엄격하고 heartbeat 간격,

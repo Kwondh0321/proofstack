@@ -4,7 +4,7 @@ import {
   createPolicyJobRepositoryConformanceCases,
   policyJobConformanceRequest,
 } from "@proofstack/core/testing";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
@@ -160,6 +160,66 @@ describe("native scoped policy job state/history and separate roles", () => {
     expect(cancelled.attempts[0]!.closure?.status).toBe("cancelled");
     expect((await control.findHistoryHead(exact, "job_native"))!.sequence).toBe(3);
     await expect(worker.heartbeatJob({ scope: exact, fence })).rejects.toThrow();
+  });
+  it("returns a coherent original graph when cancellation commits between graph and history reads", async () => {
+    const exact = scope("read_race");
+    const initial = (
+      await control.createJob({
+        request: policyJobConformanceRequest(exact),
+        jobId: "job_read_race",
+      })
+    ).snapshot;
+    let observe: () => void = () => {
+      throw new Error("Read barrier not initialized");
+    };
+    let resume: () => void = () => {
+      throw new Error("Read barrier not initialized");
+    };
+    const observed = new Promise<void>((resolve) => {
+      observe = resolve;
+    });
+    const resumed = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    let paused = false;
+    const gatedPool = {
+      connect: async () => {
+        const client = await controlPool.connect();
+        return new Proxy(client, {
+          get(target, property) {
+            if (property === "query")
+              return async (text: string, values?: readonly unknown[]) => {
+                const result = await target.query(text, values ? [...values] : undefined);
+                if (!paused && text.includes("public.proofstack_read_policy_evaluation_job(")) {
+                  paused = true;
+                  observe();
+                  await resumed;
+                }
+                return result;
+              };
+            const value = Reflect.get(target, property, target) as unknown;
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        }) as PoolClient;
+      },
+    } as unknown as Pick<Pool, "connect">;
+    const reader = new PostgresPolicyEvaluationJobControlRepository(gatedPool);
+    const response = reader.findJob(exact, initial.job.jobId);
+    try {
+      await observed;
+      const cancelled = await control.cancelJob({
+        scope: exact,
+        jobId: initial.job.jobId,
+        cancellationId: "cancel_read_race",
+        principalId: "operator_native",
+        reason: "operator_requested",
+      });
+      expect(cancelled.job.status).toBe("cancelled");
+    } finally {
+      resume();
+    }
+    await expect(response).resolves.toEqual(initial);
+    expect((await control.findJob(exact, initial.job.jobId))!.job.status).toBe("cancelled");
   });
   it("preserves scope opacity and denies cross-role operations and direct table writes", async () => {
     const exact = scope("isolate");
