@@ -7,6 +7,8 @@ import {
   POLICY_WIRE_TRANSACTION_BYTES,
   POLICY_WIRE_TRANSACTION_ROWS,
   POLICY_WIRE_RECOVERY_BYTES,
+  POLICY_WIRE_SEAL_BYTES,
+  POLICY_WIRE_SEAL_ROWS,
 } from "./policy-wire-admission.js";
 
 // Independent PostgreSQL backend frame construction. Admission never interprets field values.
@@ -156,5 +158,30 @@ describe("PostgreSQL backend admission before driver decoding", () => {
     idle.finish();
     idle.admit(block);
     expect(() => idle.admit(Buffer.from([90]))).toThrow("wire admission");
+  });
+  it("bounds sealing response bytes independently while preserving normal and recovery limits", () => {
+    const guard = new PolicyWireAdmission();
+    guard.begin("sealing", vi.fn());
+    const block = frame("D", Buffer.alloc(POLICY_WIRE_FRAME_BYTES - 5));
+    for (let total = 0; total < POLICY_WIRE_SEAL_BYTES; total += block.byteLength)
+      guard.admit(block);
+    expect(guard.usage().receivedProtocolBytes).toBe(POLICY_WIRE_SEAL_BYTES);
+    expect(() => guard.admit(Buffer.from([90]))).toThrow("wire admission");
+    expect(POLICY_WIRE_SEAL_BYTES).toBeGreaterThan(POLICY_WIRE_TRANSACTION_BYTES);
+    expect(POLICY_WIRE_SEAL_BYTES).toBeLessThan(POLICY_WIRE_RECOVERY_BYTES);
+  });
+  it("rejects the first excess sealing row header and restores normal admission on later reuse", () => {
+    const guard = new PolicyWireAdmission();
+    guard.begin("sealing", vi.fn());
+    const row = frame("D");
+    for (let count = 0; count < POLICY_WIRE_SEAL_ROWS; count++) guard.admit(row);
+    expect(() => guard.admit(row)).toThrow("wire admission");
+    const reusable = new PolicyWireAdmission();
+    reusable.begin("sealing", vi.fn());
+    reusable.admit(frame("Z"));
+    reusable.finish();
+    reusable.begin(false, vi.fn());
+    for (let count = 0; count < POLICY_WIRE_TRANSACTION_ROWS; count++) reusable.admit(row);
+    expect(() => reusable.admit(row)).toThrow("wire admission");
   });
 });

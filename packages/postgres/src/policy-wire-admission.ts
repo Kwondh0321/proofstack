@@ -13,6 +13,8 @@ export const POLICY_WIRE_TRANSACTION_BYTES = 16 * 1024 * 1024;
 export const POLICY_WIRE_TRANSACTION_ROWS = 32768;
 export const POLICY_WIRE_RECOVERY_BYTES = 512 * 1024 * 1024;
 export const POLICY_WIRE_RECOVERY_ROWS = 2000000;
+export const POLICY_WIRE_SEAL_BYTES = 128 * 1024 * 1024;
+export const POLICY_WIRE_SEAL_ROWS = 200000;
 
 /** Fixed five-byte header storage; never retains a field, row body, credential or artifact. */
 export class PolicyWireAdmission {
@@ -28,13 +30,23 @@ export class PolicyWireAdmission {
   private rejected: PostgresPolicyWireError | undefined;
   private failure: ((error: PostgresPolicyWireError) => void) | undefined;
 
-  begin(recovery: boolean, failure: (error: PostgresPolicyWireError) => void): void {
+  begin(recovery: boolean | "sealing", failure: (error: PostgresPolicyWireError) => void): void {
     // A decoder with an unfinished previous frame cannot become a new admitted operation.
     if (this.blocked || this.headerLength !== 0 || this.remaining !== 0)
       throw new PostgresPolicyWireError();
     this.received = this.rows = this.messages = 0;
-    this.byteLimit = recovery ? POLICY_WIRE_RECOVERY_BYTES : POLICY_WIRE_TRANSACTION_BYTES;
-    this.rowLimit = recovery ? POLICY_WIRE_RECOVERY_ROWS : POLICY_WIRE_TRANSACTION_ROWS;
+    this.byteLimit =
+      recovery === "sealing"
+        ? POLICY_WIRE_SEAL_BYTES
+        : recovery
+          ? POLICY_WIRE_RECOVERY_BYTES
+          : POLICY_WIRE_TRANSACTION_BYTES;
+    this.rowLimit =
+      recovery === "sealing"
+        ? POLICY_WIRE_SEAL_ROWS
+        : recovery
+          ? POLICY_WIRE_RECOVERY_ROWS
+          : POLICY_WIRE_TRANSACTION_ROWS;
     this.failure = failure;
   }
   finish(): void {
@@ -146,7 +158,7 @@ export class PolicyWireClient extends Client {
 /** Ordinary supplied pools retain their existing contract; only the dedicated factory is branded. */
 export function beginPolicyWireTransaction(
   client: Client,
-  recovery: boolean,
+  recovery: boolean | "sealing",
   failure: (error: PostgresPolicyWireError) => void,
 ): (() => void) | undefined {
   const admission = admissions.get(client);

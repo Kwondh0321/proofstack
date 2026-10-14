@@ -888,6 +888,9 @@ importers:
       '@proofstack/model-evaluation-worker':
         specifier: workspace:*
         version: link:../model-evaluation-worker
+      '@proofstack/policy-evaluation':
+        specifier: workspace:*
+        version: link:../../packages/policy-evaluation
       '@proofstack/recovery':
         specifier: workspace:*
         version: link:../../packages/recovery

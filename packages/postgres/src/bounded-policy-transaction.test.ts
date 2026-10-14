@@ -43,6 +43,28 @@ function fixture() {
 }
 afterEach(() => vi.useRealTimers());
 describe("bounded policy transaction lifecycle", () => {
+  it("rejects sealing on an unbranded client before SQL and destroys/releases it once", async () => {
+    const f = fixture();
+    const operation = vi.fn();
+    await expect(
+      withBoundedPolicyTransaction(f.pool, operation, { scope, sealing: true }),
+    ).rejects.toMatchObject({ code: "wire_pool_required" });
+    expect(operation).not.toHaveBeenCalled();
+    expect(f.calls).toEqual([]);
+    expect(f.physical.connection.stream.destroy).toHaveBeenCalledTimes(1);
+    expect(f.physical.end).toHaveBeenCalledTimes(1);
+    expect(f.physical.release).toHaveBeenCalledExactlyOnceWith(true);
+  });
+  it("rejects mixed sealing/owner recovery before checking out a client", async () => {
+    const f = fixture();
+    await expect(
+      withBoundedPolicyTransaction(f.pool, async () => undefined, {
+        sealing: true,
+        recovery: true,
+      }),
+    ).rejects.toThrow("separate transaction purposes");
+    expect(f.pool.connect).not.toHaveBeenCalled();
+  });
   it("sets real server SQL bounds and exact scope, commits only once, then expires its port", async () => {
     const f = fixture();
     let retained: PoolClient | undefined;

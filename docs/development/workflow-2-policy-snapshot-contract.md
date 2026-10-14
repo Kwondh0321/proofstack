@@ -24,10 +24,12 @@ request parsing, plus separately authorized artifact reads. It accepts server id
 trusted transaction ports, never a submitted graph/page set/operand/outcome. Content/key I/O
 precedes guards. It reinspects complete metadata, compiles privately while the transaction remains
 open, and verifies returned snapshot/job/request/fence before completion. The existing read-only
-source report still ends before returning. A trusted-adapter unit model exercises ordering; this
-adds no native publisher, migration/grant, public route or production worker composition. Native
-same-client publication and durable job-wide accounting remain required. An arbitrary adapter or
-valid schema cannot establish them.
+source report still ends before returning. The native
+[held snapshot storage adapter](workflow-2-policy-snapshot-storage.md) now retains one client and
+the current job/attempt through page/root publication, same-attempt binding and canonical history.
+Its deferred integrity and final native fence checks run before commit. This adds no public route,
+policy verdict or production worker composition. Durable job-wide accounting, shared conformance
+and checkpoint exit remain required; arbitrary adapters and valid schemas do not establish them.
 
 Logical seal/start transitions retain the same admitted attempt, lease, request and spent work.
 They enter `sealed`, then `running` on that snapshot; history independently reconstructs both

@@ -35,6 +35,7 @@
     "@proofstack/example-durable-replay": "workspace:*",
     "@proofstack/example-workflow-1-acceptance": "workspace:*",
     "@proofstack/model-evaluation-worker": "workspace:*",
+    "@proofstack/policy-evaluation": "workspace:*",
     "@proofstack/recovery": "workspace:*",
     "@proofstack/s3": "workspace:*",
     "@proofstack/sdk": "workspace:*",

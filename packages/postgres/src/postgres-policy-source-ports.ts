@@ -3,6 +3,7 @@ import {
   PolicyEvaluationTimeSchema,
   type EvidenceScope,
   type PolicyInstallationBinding,
+  type PolicyEvaluationWorkerMutationFence,
 } from "@proofstack/contracts";
 import {
   StaticEndpointProfileCatalogue,
@@ -76,6 +77,7 @@ export function createPostgresPolicySourcePorts(
   call: PolicySourceTransactionCall,
   catalogues: ReturnType<typeof copyPostgresPolicyMetadataCatalogues>,
   migrations: readonly Migration[],
+  fence?: PolicyEvaluationWorkerMutationFence,
 ) {
   const id = (value: string) => OpaqueIdSchema.parse(value);
   let metadataGuarded = false;
@@ -87,7 +89,10 @@ export function createPostgresPolicySourcePorts(
     tryMetadataGuard: () =>
       call(async () => {
         const result = await client.query<{ acquired: unknown }>(
-          "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+          fence
+            ? "SELECT public.proofstack_try_lock_policy_snapshot_metadata($1::jsonb) AS acquired"
+            : "SELECT public.proofstack_try_lock_policy_evaluation_metadata() AS acquired",
+          fence ? [JSON.stringify(fence)] : undefined,
         );
         const acquired = result.rows.length === 1 ? result.rows[0]?.acquired : undefined;
         if (acquired !== true)
@@ -115,8 +120,10 @@ export function createPostgresPolicySourcePorts(
           throw new TypeError("Unsupported policy source guard kind");
         const resourceId = id(value);
         const result = await client.query<{ acquired: unknown }>(
-          "SELECT public.proofstack_try_lock_policy_evaluation_source($1, $2) AS acquired",
-          [kind, resourceId],
+          fence
+            ? "SELECT public.proofstack_try_lock_policy_snapshot_source($1::jsonb,$2,$3) AS acquired"
+            : "SELECT public.proofstack_try_lock_policy_evaluation_source($1, $2) AS acquired",
+          fence ? [JSON.stringify(fence), kind, resourceId] : [kind, resourceId],
         );
         const acquired = result.rows.length === 1 ? result.rows[0]?.acquired : undefined;
         if (acquired !== true)

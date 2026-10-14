@@ -23,9 +23,11 @@ Workspace `sealPolicyEvaluationSnapshot`은 request 파싱 전에 service-token�
 받지 않고 서버 identity/fence와 trusted transaction port만 사용합니다. Content/key I/O 후
 전체 metadata를 재검증하고 열린 transaction에서 내부 컴파일·게시 결과의 snapshot/job/
 request/fence 검증을 수행합니다. 기존 읽기 전용 report는 여전히 반환 전에 transaction이
-끝납니다. Trusted-adapter 단위 모델은 순서를 검사하지만 native publisher·migration/grant·
-공개 route·운영 worker를 추가하지는 않습니다. 실제 원자 게시와 durable job 전체 비용
-집계는 여전히 필요하며 임의 adapter나 유효한 schema만으로 대신할 수 없습니다.
+끝납니다. [Native 저장 어댑터](workflow-2-policy-snapshot-storage.ko.md)는 동일 client와
+현재 job/attempt를 유지해 page/root·동일 attempt의 binding·canonical 이력을 원자 저장합니다.
+지연 무결성 검사와 마지막 native fence 검사는 commit 전에 실행됩니다. 공개 route·정책
+verdict·운영 worker는 추가하지 않습니다. Durable job 전체 비용 집계·공유 conformance·
+checkpoint exit는 여전히 필요하며 임의 adapter나 유효한 schema로 대신할 수 없습니다.
 
 논리적 seal/start 전환은 동일 attempt·lease·request·소모 비용을 유지하며 `sealed`에서
 같은 snapshot의 `running`으로 이동합니다. 이력은 두 전환을 독립 재구성합니다. 과거 record

@@ -9,6 +9,7 @@ export const MAX_POLICY_POOL_WAIT_MILLISECONDS = 500;
 export const MAX_POLICY_POOL_WAITERS = 64;
 export const POLICY_TRANSACTION_MILLISECONDS = 2000;
 export const POLICY_RECOVERY_TRANSACTION_MILLISECONDS = 120000;
+export const POLICY_SEAL_TRANSACTION_MILLISECONDS = 15000;
 const STATEMENT_MILLISECONDS = 1000;
 const LOCK_MILLISECONDS = 250;
 
@@ -19,6 +20,7 @@ export class PostgresPolicyIoError extends Error {
       | "deadline_exceeded"
       | "port_expired"
       | "driver_timeout_unsupported"
+      | "wire_pool_required"
       | "query_admission",
   ) {
     super(`Policy PostgreSQL I/O failed: ${code}`);
@@ -77,8 +79,14 @@ function admitPool(pool: PolicyTransactionPool): void {
 export async function withBoundedPolicyTransaction<T>(
   pool: PolicyTransactionPool,
   work: (client: PoolClient) => Promise<T>,
-  options: { readonly scope?: EvidenceScope; readonly recovery?: boolean } = {},
+  options: {
+    readonly scope?: EvidenceScope;
+    readonly recovery?: boolean;
+    readonly sealing?: boolean;
+  } = {},
 ): Promise<T> {
+  if (options.recovery && options.sealing)
+    throw new TypeError("Policy sealing and owner recovery are separate transaction purposes");
   admitPool(pool);
   const physical = await pool.connect();
   const pending = new Set<Promise<unknown>>();
@@ -120,9 +128,11 @@ export async function withBoundedPolicyTransaction<T>(
     beganAt,
     deadline:
       beganAt +
-      (options.recovery
-        ? POLICY_RECOVERY_TRANSACTION_MILLISECONDS
-        : POLICY_TRANSACTION_MILLISECONDS),
+      (options.sealing
+        ? POLICY_SEAL_TRANSACTION_MILLISECONDS
+        : options.recovery
+          ? POLICY_RECOVERY_TRANSACTION_MILLISECONDS
+          : POLICY_TRANSACTION_MILLISECONDS),
     tighten(milliseconds, invokedAt) {
       budget.deadline = Math.min(budget.deadline, invokedAt + milliseconds);
       schedule();
@@ -165,7 +175,10 @@ export async function withBoundedPolicyTransaction<T>(
             return track(Promise.reject(firstFailure));
           }
           if (tainted) return track(Promise.reject(firstFailure));
-          if (pending.size >= 16 || ++queryCount > (options.recovery ? 1200016 : 256)) {
+          if (
+            pending.size >= 16 ||
+            ++queryCount > (options.recovery || options.sealing ? 1200016 : 256)
+          ) {
             const error = new PostgresPolicyIoError("query_admission");
             fail(error);
             return track(Promise.reject(error));
@@ -196,11 +209,16 @@ export async function withBoundedPolicyTransaction<T>(
   };
   let finishWire: (() => void) | undefined;
   try {
-    finishWire = beginPolicyWireTransaction(physical, options.recovery === true, (error) => {
-      active = false;
-      fail(error);
-      void destroy();
-    });
+    finishWire = beginPolicyWireTransaction(
+      physical,
+      options.sealing ? "sealing" : options.recovery === true,
+      (error) => {
+        active = false;
+        fail(error);
+        void destroy();
+      },
+    );
+    if (options.sealing && !finishWire) throw new PostgresPolicyIoError("wire_pool_required");
     // URI configuration may override pool options. Inspect the effective driver setting too.
     const effective = (
       physical as PoolClient & { connectionParameters?: { query_timeout?: unknown } }
@@ -215,9 +233,11 @@ export async function withBoundedPolicyTransaction<T>(
         String(STATEMENT_MILLISECONDS),
         String(LOCK_MILLISECONDS),
         String(
-          options.recovery
-            ? POLICY_RECOVERY_TRANSACTION_MILLISECONDS
-            : POLICY_TRANSACTION_MILLISECONDS,
+          options.sealing
+            ? POLICY_SEAL_TRANSACTION_MILLISECONDS
+            : options.recovery
+              ? POLICY_RECOVERY_TRANSACTION_MILLISECONDS
+              : POLICY_TRANSACTION_MILLISECONDS,
         ),
       ],
     );

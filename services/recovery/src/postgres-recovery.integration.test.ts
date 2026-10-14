@@ -62,6 +62,14 @@ import {
   CreateModelAssuranceAssessment,
   createPolicyEvaluationJobHistoryEntry,
   digestPolicyEvaluationRequestDefinition,
+  releaseCandidateReference,
+  releasePolicyReference,
+  StaticEndpointProfileCatalogue,
+  StaticEvaluationImplementationRegistrationCatalogue,
+  StaticPolicyInstallationBindingResolver,
+  StaticProtocolDefinitionCatalogue,
+  StaticQualificationPolicyCatalogue,
+  StaticRuntimeDefinitionCatalogue,
   recoverPolicyEvaluationJob,
   SystemClock,
 } from "@proofstack/core";
@@ -120,13 +128,18 @@ import {
   PostgresOidcIdentityRepository,
   PostgresPolicyEvaluationJobControlRepository,
   PostgresPolicyEvaluationJobWorkerRepository,
+  PostgresPolicySnapshotTransactions,
+  createPolicyPostgresPool,
   PostgresProjectionCursorRepository,
   PostgresRegressionVersionRepository,
+  PostgresReplayDefinitionRepository,
+  PostgresReplayJobControlRepository,
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
   provisionRuntimeRoles,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
+import { sealPolicyEvaluationSnapshot } from "@proofstack/policy-evaluation";
 import { encodeRecoveryObjectInventory, verifyRecoverySet } from "@proofstack/recovery";
 import { createS3ArtifactObjectStore, createS3Client } from "@proofstack/s3";
 import {
@@ -233,6 +246,8 @@ const EXPECTED_TABLES = [
   "proofstack_policy_evaluation_jobs",
   "proofstack_policy_evaluation_requests",
   "proofstack_policy_evaluation_reservations",
+  "proofstack_policy_evaluation_snapshot_pages",
+  "proofstack_policy_evaluation_snapshots",
   "proofstack_projection_cursors",
   "proofstack_recorded_interaction_fixture_versions",
   "proofstack_recovery_state",
@@ -2257,6 +2272,108 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
     graphs.push(graph);
   }
   policyJobRecoveryFixtures = graphs;
+  if (!releaseCandidateRecoveryState) throw new Error("Expected actual candidate recovery graph");
+  const policy = releasePolicyRepositoryFixture("recovery_snapshot_policy", scope);
+  await new PostgresReleasePolicyRepository(sourcePool).publishReleasePolicy(policy);
+  const request = policyJobConformanceRequest(scope);
+  request.evaluationRequestId = "policy_recovery_request_sealed";
+  request.candidate = releaseCandidateReference(releaseCandidateRecoveryState.candidate);
+  request.policy = releasePolicyReference(policy);
+  request.limits.maxAcquisitionRecords = 50000;
+  request.limits.leaseDurationMilliseconds = 60000;
+  const {
+    scope: _scope,
+    schemaVersion: _version,
+    createdAt: _at,
+    createdByPrincipalId: _by,
+    definitionSha256: _sha,
+    ...definition
+  } = request;
+  request.definitionSha256 = digestPolicyEvaluationRequestDefinition(scope, definition);
+  const created = await control.createJob({ request, jobId: "policy_recovery_job_sealed" });
+  const claimed = await worker.claimJob({
+    scope,
+    jobId: created.snapshot.job.jobId,
+    workerId: "policy_worker_sealed",
+    attemptId: "policy_attempt_sealed",
+    leaseId: "policy_lease_sealed",
+  });
+  const native = createPolicyPostgresPool({
+    connectionString: databaseUrl,
+    maxConnections: 4,
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  try {
+    const evaluation = new PostgresEvaluationRepository(sourcePool);
+    const comparison = new PostgresComparisonRepository(sourcePool);
+    const candidates = new PostgresReleaseCandidateRepository(sourcePool);
+    const policies = new PostgresReleasePolicyRepository(sourcePool);
+    const datasets = new PostgresRegressionVersionRepository(sourcePool);
+    const sealed = await sealPolicyEvaluationSnapshot(
+      created.snapshot.request,
+      {
+        ...artifactPrincipal(),
+        principalId: "policy_worker_sealed",
+        principalType: "service",
+        capabilities: ["artifact:read", "artifact:read:restricted", "policy:evaluation:execute"],
+        authentication: {
+          method: "service_token",
+          credentialId: "credential_recovery_policy",
+          authenticatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        control: {
+          comparison,
+          releaseCandidate: candidates,
+          releasePolicy: policies,
+          installationBinding: new StaticPolicyInstallationBindingResolver([]),
+        },
+        evidence: { evaluation, modelAssurance: new PostgresModelAssuranceRepository(sourcePool) },
+        datasets,
+        replayDefinitions: new PostgresReplayDefinitionRepository(sourcePool),
+        replayResults: new PostgresReplayJobControlRepository(sourcePool),
+        runtimeDefinitions: new StaticRuntimeDefinitionCatalogue([]),
+        implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue([]),
+        qualificationPolicies: new StaticQualificationPolicyCatalogue([]),
+        endpointProfiles: new StaticEndpointProfileCatalogue([]),
+        protocolDefinitions: new StaticProtocolDefinitionCatalogue([]),
+        logicalRoots: {
+          evaluation,
+          comparison,
+          releaseCandidate: candidates,
+          releasePolicy: policies,
+          datasets,
+        },
+      },
+      new PostgresEvidenceRepository(sourcePool),
+      {
+        catalog: new PostgresArtifactCatalogRepository(sourcePool),
+        objects: sourceObjects,
+        encryption: new ArtifactCipher(
+          new LocalArtifactKeyring({
+            activeKeyId: artifactKeyId,
+            keys: {
+              [artifactKeyId]: artifactKeyMaterial,
+              [rotatedArtifactKeyId]: rotatedArtifactKeyMaterial,
+            },
+          }),
+        ),
+        clock: { now: () => new Date() },
+      },
+      {
+        manifestId: "manifest_recovery_sealed",
+        snapshotId: "snapshot_recovery_sealed",
+        fence: claimed.job.currentLease!.mutationFence,
+        transactions: new PostgresPolicySnapshotTransactions(native),
+      },
+    );
+    policyJobRecoveryFixtures = [...graphs, sealed.job];
+  } finally {
+    await native.end();
+  }
 }
 
 function recoveryRow(raw: unknown): Record<string, unknown> {
@@ -2470,9 +2587,9 @@ async function verifyRestoredPolicyRuntimeAuthority(
     expect(privileges.rows).toEqual(
       Object.entries(roles)
         .map(([kind, { name }]) => ({
-          lifecycle_intent: kind === "policyAuthor",
+          lifecycle_intent: kind === "policyAuthor" || kind === "policyEvaluator",
           lifecycle_publish: kind === "policyAuthor",
-          policy_intent: kind === "policyAuthor",
+          policy_intent: kind === "policyAuthor" || kind === "policyEvaluator",
           policy_publish: kind === "policyAuthor",
           private_lifecycle: false,
           private_policy: false,
@@ -3416,7 +3533,7 @@ describe("coordinated recovery rehearsal", () => {
     expect(restoredRegressionHelperPrivileges.rows).toEqual(
       Object.entries(roles)
         .map(([kind, { name }]) => ({
-          regression_execute: kind === "api",
+          regression_execute: kind === "api" || kind === "policyEvaluator",
           role_name: name,
         }))
         .sort((left, right) =>

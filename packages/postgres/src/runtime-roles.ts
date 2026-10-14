@@ -71,6 +71,8 @@ const PLATFORM_TABLES = [
   "proofstack_policy_evaluation_cancellations",
   "proofstack_policy_evaluation_job_history",
   "proofstack_policy_evaluation_reservations",
+  "proofstack_policy_evaluation_snapshots",
+  "proofstack_policy_evaluation_snapshot_pages",
   "proofstack_api_key_credentials",
   "proofstack_artifact_catalog",
   "proofstack_artifact_purge_receipts",
@@ -168,6 +170,18 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_policy_snapshot_prepare(jsonb)",
+  "public.proofstack_policy_snapshot_io_budget(jsonb)",
+  "public.proofstack_try_lock_policy_snapshot_metadata(jsonb)",
+  "public.proofstack_try_lock_policy_snapshot_source(jsonb,text,text)",
+  "public.proofstack_assert_policy_snapshot_metadata_guard()",
+  "public.proofstack_stage_policy_snapshot_page(jsonb,text,text,text)",
+  "public.proofstack_publish_policy_snapshot(jsonb,text,text)",
+  "public.proofstack_verify_policy_snapshot_page()",
+  "public.proofstack_verify_policy_snapshot_root()",
+  "public.proofstack_verify_policy_snapshot_commit_fence()",
+  "public.proofstack_read_policy_snapshot(text,text)",
+  "public.proofstack_read_policy_snapshot_page(text,text,integer)",
   "public.proofstack_policy_evaluation_scope()",
   "public.proofstack_policy_evaluation_utc(timestamp with time zone)",
   "public.proofstack_policy_evaluation_zero_usage()",
@@ -317,6 +331,8 @@ const PLATFORM_FUNCTIONS = [
 ] as const;
 
 const POLICY_JOB_READ_GRANTS = [
+  "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_snapshot(text,text) TO %ROLE%",
+  "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_snapshot_page(text,text,integer) TO %ROLE%",
   "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
   "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_evaluation_job(text) TO %ROLE%",
   "GRANT EXECUTE ON FUNCTION public.proofstack_read_policy_evaluation_history_head(text) TO %ROLE%",
@@ -334,6 +350,26 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
   ],
   policyEvaluator: [
     ...POLICY_JOB_READ_GRANTS,
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_candidate_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_evaluation_intent_status(text,text,text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_lifecycle_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_regression_publication_intent_status(text,text,text,text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_replay_publication_intent_status(text,text,text,text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    `GRANT SELECT ON TABLE ${PLATFORM_TABLES.filter((table) =>
+      /^(proofstack_(artifact_|comparison_|evaluation_|model_assurance_|interaction_fixture_|regression_|recorded_interaction_fixture_|release_candidate_|release_candidates$|release_policy_|release_policies$|replay_|target_releases$|evidence_events$))/.test(
+        table,
+      ),
+    )
+      .map((table) => `public.${table}`)
+      .join(", ")} TO %ROLE%`,
+    "GRANT EXECUTE ON FUNCTION public.proofstack_read_replay_job_snapshot(text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_policy_snapshot_prepare(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_policy_snapshot_io_budget(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_try_lock_policy_snapshot_metadata(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_try_lock_policy_snapshot_source(jsonb,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_stage_policy_snapshot_page(jsonb,text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_publish_policy_snapshot(jsonb,text,text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_policy_evaluation_io_budget(text,jsonb) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_heartbeat_policy_evaluation_job(jsonb) TO %ROLE%",

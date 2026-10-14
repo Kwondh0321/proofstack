@@ -54,3 +54,4 @@ invalidate an ADR present in this directory.
 - [ADR-0029: Retain distinct protocol definitions without choosing ambiguous matches](0029-retain-distinct-protocol-definitions.md)
 - [ADR-0030: Retain original roots without moving semantic time](0030-retain-original-roots-without-moving-semantic-time.md)
 - [ADR-0031: Persist policy job control and worker history separately](0031-persist-policy-job-control-and-worker-history.md)
+- [ADR-0032: Persist policy snapshots through held worker ports](0032-persist-policy-snapshots-through-held-worker-ports.md)

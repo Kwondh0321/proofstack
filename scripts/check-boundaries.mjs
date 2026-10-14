@@ -118,6 +118,7 @@ const modules = [
       "@proofstack/evaluation-worker",
       "@proofstack/example-workflow-1-acceptance",
       "@proofstack/model-evaluation-worker",
+      "@proofstack/policy-evaluation",
       "@proofstack/sdk",
     ]),
   },

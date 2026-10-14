@@ -13,6 +13,7 @@ import {
   policyEvaluationSourceReferenceKey,
   type PolicyEvaluationRequestDefinition,
   PolicyEvaluationSnapshotRuleInputsSchema,
+  PolicyEvaluationSnapshotPageSchema,
   PrincipalContextSchema,
   type ProtocolDefinition,
   type ProtocolDefinitionRecord,
@@ -47,6 +48,7 @@ import {
   StaticEndpointProfileCatalogue,
   StaticProtocolDefinitionCatalogue,
   validatePolicyEvaluationSnapshot,
+  validatePolicyEvaluationSnapshotRecord,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -69,15 +71,22 @@ import {
   capturePolicySnapshotInputs,
   capturePolicySnapshotDefinition,
   capturePolicyInputRecordSources,
+  sealPolicyEvaluationSnapshot,
   inspectParentProtocolResolution,
   type PolicyArtifactEvidenceRepositories,
   type PolicyCandidateAuthorities,
   type PolicyEvaluationMetadataTransactions,
+  type PolicyEvaluationSnapshotSealingTransactions,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
   readParentProtocolResolution,
 } from "@proofstack/policy-evaluation";
 import { Pool } from "pg";
+import { createPolicyPostgresPool } from "./database.js";
+import { withBoundedPolicyTransaction } from "./bounded-policy-transaction.js";
+import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
+import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
+import { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
@@ -107,6 +116,8 @@ const credentials = Object.fromEntries(
     "identity",
     "modelEvaluationWorker",
     "policyAuthor",
+    "policyEvaluationControl",
+    "policyEvaluator",
     "publisher",
     "replayWorker",
   ].map((kind) => [
@@ -162,6 +173,7 @@ async function fixture(
   withStoredCatalog = false,
   withSnapshotInputs = false,
   withSnapshotDefinition = false,
+  withNativeSeal = false,
 ) {
   if (withStoredCatalog && !withProtocols)
     throw new Error("Stored catalog fixture requires protocols");
@@ -655,11 +667,13 @@ async function fixture(
     ...base,
     // A distinct request declares the extra original-source/output inspection work up front.
     // Existing fixtures retain 10,000; no running job receives a budget increase or refund.
-    limits: withSnapshotDefinition
-      ? { ...base.limits, maxAcquisitionRecords: 50000 }
-      : withSnapshotInputs
-        ? { ...base.limits, maxAcquisitionRecords: 20000 }
-        : base.limits,
+    limits: withNativeSeal
+      ? { ...base.limits, maxAcquisitionRecords: 50000, leaseDurationMilliseconds: 20000 }
+      : withSnapshotDefinition
+        ? { ...base.limits, maxAcquisitionRecords: 50000 }
+        : withSnapshotInputs
+          ? { ...base.limits, maxAcquisitionRecords: 20000 }
+          : base.limits,
     evaluationRequestId: `request_${namespace}`,
     evaluationTime: "2026-10-01T00:00:00.000Z",
     candidate: releaseCandidateReference(candidate),
@@ -796,6 +810,7 @@ async function fixture(
   return {
     namespace,
     request,
+    captureArguments,
     evaluation,
     evaluationRepository,
     scope,
@@ -826,7 +841,393 @@ async function fixture(
   };
 }
 
+async function nativeSealingHarness(leaseMilliseconds = 20000) {
+  const f = await fixture(true, true, true, true, false, false, true, true);
+  // Separate least-privilege control/evaluator pools prove the actual native grants.
+  const idleErrors: Error[] = [];
+  const evaluatorCredentials = credentials.policyEvaluator;
+  const controlCredentials = credentials.policyEvaluationControl;
+  if (!evaluatorCredentials || !controlCredentials)
+    throw new Error("Expected separate policy role credentials");
+  const evaluatorUrl = new URL(databaseUrl as string);
+  evaluatorUrl.username = evaluatorCredentials.name;
+  evaluatorUrl.password = evaluatorCredentials.password;
+  const controlUrl = new URL(databaseUrl as string);
+  controlUrl.username = controlCredentials.name;
+  controlUrl.password = controlCredentials.password;
+  const pool = createPolicyPostgresPool({
+    connectionString: evaluatorUrl.toString(),
+    maxConnections: 4,
+    onIdleError: (error) => idleErrors.push(error),
+  });
+  const controlPool = createPolicyPostgresPool({
+    connectionString: controlUrl.toString(),
+    maxConnections: 4,
+    onIdleError: (error) => idleErrors.push(error),
+  });
+  observedPools.push(pool, controlPool);
+  const control = new PostgresPolicyEvaluationJobControlRepository(controlPool);
+  const worker = new PostgresPolicyEvaluationJobWorkerRepository(pool);
+  const jobId = `job_${f.namespace}`;
+  f.request.limits.leaseDurationMilliseconds = leaseMilliseconds;
+  f.request.limits.heartbeatIntervalMilliseconds = Math.min(
+    1000,
+    Math.floor(leaseMilliseconds / 3),
+  );
+  const {
+    scope: _scope,
+    schemaVersion: _schema,
+    createdAt: _at,
+    createdByPrincipalId: _principal,
+    definitionSha256: _digest,
+    ...requestDefinition
+  } = f.request;
+  f.request.definitionSha256 = digestPolicyEvaluationRequestDefinition(f.scope, requestDefinition);
+  const created = await control.createJob({ request: f.request, jobId });
+  const actor = PrincipalContextSchema.parse({
+    ...f.captureArguments()[1],
+    principalId: `worker_${f.namespace}`,
+    capabilities: ["artifact:read", "artifact:read:restricted", "policy:evaluation:execute"],
+    authentication: {
+      method: "service_token",
+      credentialId: `credential_${f.namespace}`,
+      authenticatedAt: new Date().toISOString(),
+    },
+  });
+  const claimed = await worker.claimJob({
+    scope: f.scope,
+    jobId,
+    workerId: actor.principalId,
+    attemptId: `attempt_${f.namespace}`,
+    leaseId: `lease_${f.namespace}`,
+  });
+  const fence = claimed.job.currentLease!.mutationFence;
+  const [_request, _actor, repositories, evidence, dependencies] = f.captureArguments();
+  const contentDependencies = {
+    catalog: dependencies.catalog,
+    objects: dependencies.objects,
+    encryption: dependencies.encryption,
+    clock: dependencies.clock,
+  };
+  const nativeRepositories = {
+    ...repositories,
+    logicalRoots: {
+      evaluation: f.evaluationRepository,
+      comparison: new PostgresComparisonRepository(api),
+      releaseCandidate: new PostgresReleaseCandidateRepository(api),
+      releasePolicy: policies,
+      datasets: f.versions,
+    },
+  };
+  const transactions = new PostgresPolicySnapshotTransactions(pool, {
+    endpointProfiles: f.endpointProfile ? [f.endpointProfile] : [],
+    protocolDefinitions: f.protocolRecords,
+  });
+  const seal = (sealTransactions: PolicyEvaluationSnapshotSealingTransactions = transactions) =>
+    sealPolicyEvaluationSnapshot(
+      created.snapshot.request,
+      actor,
+      nativeRepositories,
+      evidence,
+      contentDependencies,
+      {
+        manifestId: `manifest_seal_${f.namespace}`,
+        snapshotId: `snapshot_seal_${f.namespace}`,
+        fence,
+        transactions: sealTransactions,
+      },
+    );
+  return {
+    f,
+    pool,
+    controlPool,
+    control,
+    worker,
+    jobId,
+    actor,
+    created,
+    claimed,
+    fence,
+    transactions,
+    seal,
+    idleErrors,
+  };
+}
+
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("native sealing evaluator has no direct snapshot or job DML", async () => {
+    const h = await nativeSealingHarness();
+    for (const statement of [
+      "INSERT INTO public.proofstack_policy_evaluation_snapshots (tenant_id) VALUES ($1)",
+      "UPDATE public.proofstack_policy_evaluation_jobs SET status='sealed' WHERE tenant_id=$1",
+    ])
+      await expect(h.pool.query(statement, [h.f.scope.tenantId])).rejects.toMatchObject({
+        code: "42501",
+      });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+  });
+  it.each(["caught", "unawaited"] as const)(
+    "native sealing taints %s source-port failure and expires retained ports",
+    async (mode) => {
+      const h = await nativeSealingHarness();
+      let retained:
+        | Parameters<Parameters<PolicyEvaluationSnapshotSealingTransactions["runSealing"]>[1]>[0]
+        | undefined;
+      await expect(
+        h.transactions.runSealing({ scope: h.f.scope, fence: h.fence }, async (ports) => {
+          retained = ports;
+          const failed = ports.sources.tryGuard("artifact", "INVALID_ID");
+          if (mode === "caught") await failed.catch(() => undefined);
+          else void failed.catch(() => undefined);
+          return "handled";
+        }),
+      ).rejects.toMatchObject({ name: "ZodError" });
+      await expect(retained!.sources.observationTime()).rejects.toThrow("port has expired");
+      expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+      expect(h.idleErrors).toEqual([]);
+    },
+  );
+  it("native sealing cannot bind an existing job in another exact environment", async () => {
+    const h = await nativeSealingHarness();
+    let entered = false;
+    await expect(
+      h.transactions.runSealing(
+        { scope: { ...h.f.scope, environmentId: "env_other" }, fence: h.fence },
+        async () => {
+          entered = true;
+        },
+      ),
+    ).rejects.toMatchObject({ code: "P0002" });
+    expect(entered).toBe(false);
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+  });
+  it("native sealing refuses a lease expiring during content I/O before database guards", async () => {
+    const h = await nativeSealingHarness(3000);
+    let paused = false;
+    h.f.hooks.readContent = async () => {
+      if (!paused) {
+        paused = true;
+        await new Promise((resolve) => setTimeout(resolve, 3100));
+      }
+    };
+    await expect(h.seal()).rejects.toMatchObject({ code: "55000" });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+    const { rows } = await admin.query(
+      "SELECT count(*)::integer AS count FROM public.proofstack_policy_evaluation_snapshots WHERE tenant_id=$1",
+      [h.f.scope.tenantId],
+    );
+    expect(rows[0]?.count).toBe(0);
+  });
+  it.each(["missing_page", "substituted_frame"] as const)(
+    "native sealing rolls back %s before page insertion",
+    async (kind) => {
+      const h = await nativeSealingHarness();
+      const transactions: PolicyEvaluationSnapshotSealingTransactions = {
+        runSealing: (command, operation) =>
+          h.transactions.runSealing(command, (ports) =>
+            operation({
+              ...ports,
+              publishSnapshot: (definition, principalId) => {
+                const changed = structuredClone(definition);
+                if (kind === "missing_page") changed.pages.pop();
+                else changed.pages[0]!.frames[0]!.dataBase64url = "AAAA";
+                return ports.publishSnapshot(changed, principalId);
+              },
+            }),
+          ),
+      };
+      await expect(h.seal(transactions)).rejects.toMatchObject({
+        name: "PolicyEvaluationSnapshotIntegrityError",
+      });
+      expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+      for (const relation of [
+        "proofstack_policy_evaluation_snapshots",
+        "proofstack_policy_evaluation_snapshot_pages",
+      ]) {
+        const { rows } = await admin.query(
+          `SELECT count(*)::integer AS count FROM public.${relation} WHERE tenant_id=$1`,
+          [h.f.scope.tenantId],
+        );
+        expect(rows[0]?.count).toBe(0);
+      }
+    },
+  );
+  it.each(["api", "policyAuthor", "evaluationWorker", "humanReviewer", "control"] as const)(
+    "native sealing denies %s publication and direct snapshot writes",
+    async (kind) => {
+      const h = await nativeSealingHarness();
+      const denied = kind === "control" ? h.controlPool : runtime(kind);
+      if (kind !== "control") observedPools.push(denied);
+      await expect(
+        denied.query("SELECT public.proofstack_publish_policy_snapshot($1::jsonb,$2,$3)", [
+          JSON.stringify(h.fence),
+          "{}",
+          "0".repeat(64),
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        denied.query(
+          "INSERT INTO public.proofstack_policy_evaluation_snapshots (tenant_id) VALUES ($1)",
+          [h.f.scope.tenantId],
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+      expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+    },
+  );
+  it("native sealing rejects an unfenced metadata cut before executing publication ports", async () => {
+    const h = await nativeSealingHarness();
+    await expect(
+      withBoundedPolicyTransaction(
+        h.pool,
+        (client) =>
+          client.query("SELECT public.proofstack_publish_policy_snapshot($1::jsonb,$2,$3)", [
+            JSON.stringify(h.fence),
+            "{}",
+            "0".repeat(64),
+          ]),
+        { scope: h.f.scope },
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+  });
+  it("native sealing rejects a stale recovery fence before exposing source ports", async () => {
+    const h = await nativeSealingHarness();
+    let entered = false;
+    await expect(
+      h.transactions.runSealing(
+        { scope: h.f.scope, fence: { ...h.fence, recoveryEpoch: h.fence.recoveryEpoch + 1 } },
+        async () => {
+          entered = true;
+        },
+      ),
+    ).rejects.toMatchObject({ code: "40001" });
+    expect(entered).toBe(false);
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+  });
+  it("native sealing preserves cancellation winning before guarded publication", async () => {
+    const h = await nativeSealingHarness();
+    h.f.hooks.readContent = async () => {
+      await h.control.cancelJob({
+        scope: h.f.scope,
+        jobId: h.jobId,
+        cancellationId: `cancel_${h.f.namespace}`,
+        principalId: "principal_cancel",
+        reason: "operator_requested",
+      });
+    };
+    await expect(h.seal()).rejects.toMatchObject({ code: "40001" });
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current?.job.status).toBe("cancelled");
+    expect(current?.job.snapshot).toBeNull();
+    const { rows } = await admin.query(
+      "SELECT count(*)::integer AS count FROM public.proofstack_policy_evaluation_snapshots WHERE tenant_id=$1",
+      [h.f.scope.tenantId],
+    );
+    expect(rows[0]?.count).toBe(0);
+  });
+  it("native sealing rolls back pages, binding and history when work fails after native publication", async () => {
+    const h = await nativeSealingHarness();
+    const original = new Error("Failure after native page/root publication");
+    const transactions: PolicyEvaluationSnapshotSealingTransactions = {
+      runSealing: (command, operation) =>
+        h.transactions.runSealing(command, (ports) =>
+          operation({
+            ...ports,
+            publishSnapshot: async (...args) => {
+              await ports.publishSnapshot(...args);
+              throw original;
+            },
+          }),
+        ),
+    };
+    await expect(h.seal(transactions)).rejects.toBe(original);
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+    for (const relation of [
+      "proofstack_policy_evaluation_snapshots",
+      "proofstack_policy_evaluation_snapshot_pages",
+    ]) {
+      const { rows } = await admin.query(
+        `SELECT count(*)::integer AS count FROM public.${relation} WHERE tenant_id=$1`,
+        [h.f.scope.tenantId],
+      );
+      expect(rows[0]?.count).toBe(0);
+    }
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("atomically stores a native rechecked snapshot and binds the same live acquiring attempt", async () => {
+    const { f, pool, worker, jobId, claimed, fence, seal, idleErrors } =
+      await nativeSealingHarness();
+    const sealed = await seal();
+    expect(sealed.job.job.status).toBe("sealed");
+    expect(sealed.job.attempts).toEqual([
+      { ...claimed.attempts[0], phase: "computing", snapshot: sealed.job.job.snapshot },
+    ]);
+    expect(sealed.job.job.currentLease).toEqual(claimed.job.currentLease);
+    expect(sealed.snapshot).toMatchObject({
+      jobId,
+      attemptId: fence.attemptId,
+      workerId: fence.workerId,
+      leaseId: fence.leaseId,
+      fencingToken: fence.fencingToken,
+      recoveryEpoch: fence.recoveryEpoch,
+      sealedAt: sealed.job.job.updatedAt,
+    });
+    expect(await worker.findJob(f.scope, jobId)).toEqual(sealed.job);
+    await withBoundedPolicyTransaction(
+      pool,
+      async (client) => {
+        const { rows } = await client.query(
+          "SELECT public.proofstack_read_policy_snapshot($1,$2) AS value",
+          [sealed.snapshot.snapshotId, sealed.snapshot.definitionSha256],
+        );
+        expect(rows[0]?.value).toEqual(sealed.snapshot);
+        const pages = [];
+        for (const descriptor of sealed.snapshot.pages) {
+          const page = await client.query(
+            "SELECT public.proofstack_read_policy_snapshot_page($1,$2,$3) AS value",
+            [sealed.snapshot.snapshotId, sealed.snapshot.definitionSha256, descriptor.pageIndex],
+          );
+          expect(page.rows[0]?.value.definitionSha256).toBe(descriptor.definitionSha256);
+          pages.push(PolicyEvaluationSnapshotPageSchema.parse(page.rows[0]?.value));
+        }
+        const {
+          scope: _scope,
+          schemaVersion: _schema,
+          definitionSha256: _digest,
+          sealedAt: _sealed,
+          sealedByPrincipalId: _principal,
+          jobId: _job,
+          attemptId: _attempt,
+          workerId: _worker,
+          leaseId: _lease,
+          fencingToken: _fence,
+          recoveryEpoch: _epoch,
+          recordedAt: _recorded,
+          ...definition
+        } = sealed.snapshot;
+        const checked = validatePolicyEvaluationSnapshotRecord({
+          expected: {
+            scope: f.scope,
+            jobId,
+            snapshot: sealed.job.job.snapshot!,
+            request: sealed.job.job.request,
+          },
+          record: rows[0]?.value,
+          pageSet: {
+            scope: f.scope,
+            definition,
+            definitionSha256: sealed.snapshot.definitionSha256,
+            pages,
+          },
+        });
+        expect(checked.inputs.schemaVersion).toBe("0.2");
+        expect(checked.inputs.request).toEqual(sealed.job.request);
+      },
+      { scope: f.scope },
+    );
+    expect(f.objectReads()).toBeGreaterThan(0);
+    expect(idleErrors).toEqual([]);
+  });
   it("captures complete typed snapshot definition pages through native metadata recheck without publication authority", async () => {
     const f = await fixture(true, true, true, true, false, false, true);
     const result = await f.runDefinition();

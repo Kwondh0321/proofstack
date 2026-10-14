@@ -572,6 +572,13 @@ detector.
 
 ## Exact source binding and acquisition
 
+The [native snapshot storage prerequisite](workflow-2-policy-snapshot-storage.md) now preserves
+one current job/attempt and READ COMMITTED client through metadata reinspection, immutable
+page/root storage, same-attempt binding, history and final deferred native fence validation.
+Its real restoration includes original sealed input rows. Durable job-wide acquisition admission,
+full memory/native conformance, predicates/results/worker/API/SDK and checkpoint exit remain open;
+native storage does not accept checkpoint 3 or grant release/approval authority.
+
 The [retained implementation registration acquisition](workflow-2-implementation-registration.md)
 adds independently supplied canonical registration data, a bounded immutable installation catalogue,
 parent-bound complete descriptor/time checks and cumulative graph/scoped-port admission. Its 45th
