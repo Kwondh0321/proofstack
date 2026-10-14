@@ -10,6 +10,7 @@ import {
   serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
 import {
+  type PolicyEvaluationJobComputationRepository,
   type PolicyEvaluationJobWorkerRepository,
   validatePolicyEvaluationJobHistoryEntry,
 } from "@proofstack/core";
@@ -20,7 +21,7 @@ import {
 
 export class PostgresPolicyEvaluationJobWorkerRepository
   extends PostgresPolicyEvaluationJobReader
-  implements PolicyEvaluationJobWorkerRepository
+  implements PolicyEvaluationJobWorkerRepository, PolicyEvaluationJobComputationRepository
 {
   private async mutate(
     scopeInput: EvidenceScope,
@@ -84,6 +85,19 @@ export class PostgresPolicyEvaluationJobWorkerRepository
         return { kind: "claim", fence };
       },
       null,
+    );
+  }
+  async startComputation(
+    command: Parameters<PolicyEvaluationJobComputationRepository["startComputation"]>[0],
+  ) {
+    const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(command.fence);
+    return this.mutate(
+      command.scope,
+      fence.jobId,
+      "SELECT public.proofstack_start_policy_evaluation_computation($1::jsonb) AS value",
+      [JSON.stringify(fence)],
+      () => ({ kind: "start_computation", fence }),
+      fence,
     );
   }
   async heartbeatJob(command: Parameters<PolicyEvaluationJobWorkerRepository["heartbeatJob"]>[0]) {

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { ArtifactCipher, LocalArtifactKeyring } from "@proofstack/artifacts";
 import { MemoryArtifactObjectStore } from "@proofstack/artifacts/testing";
 import {
+  POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE,
+  encodePolicyEvaluationJobHistoryEntry,
   type ArtifactMetadata,
   type ContentReference,
   type EndpointProfileDefinition,
@@ -49,6 +51,10 @@ import {
   StaticProtocolDefinitionCatalogue,
   validatePolicyEvaluationSnapshot,
   validatePolicyEvaluationSnapshotRecord,
+  computeSealedPolicyEvaluation,
+  createPolicyEvaluationJobHistoryEntry,
+  encodePolicyEvaluationJobGraph,
+  buildPolicyEvaluationJobOutboxIntents,
 } from "@proofstack/core";
 import {
   createEvaluationRepositoryTestHarness,
@@ -961,6 +967,237 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("starts one sealed native computation without recapture and evaluates the original retained pages", async () => {
+    const h = await nativeSealingHarness();
+    const sealed = await h.seal();
+    const readsBefore = h.f.objectReads();
+    const headBefore = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    const started = await h.worker.startComputation({ scope: h.f.scope, fence: h.fence });
+    expect(started.job.status).toBe("running");
+    expect(started.job.snapshot).toEqual(sealed.job.job.snapshot);
+    expect(started.job.currentLease).toEqual(sealed.job.job.currentLease);
+    expect(started.attempts).toEqual(sealed.job.attempts);
+    expect(started.usage).toEqual(sealed.job.usage);
+    expect(started.job.stateVersion).toBe(sealed.job.job.stateVersion + 1);
+    expect(h.f.objectReads()).toBe(readsBefore);
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    if (!head || !headBefore) throw new Error("Missing owning computation history");
+    expect(head.sequence).toBe(headBefore.sequence + 1);
+    const history = await h.worker.readHistoryPage(
+      head,
+      Math.floor(head.sequence / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE),
+    );
+    expect(history.entries.at(-1)?.definition.operation).toEqual({
+      kind: "start_computation",
+      fence: h.fence,
+    });
+    await withBoundedPolicyTransaction(
+      h.pool,
+      async (client) => {
+        const pages = [];
+        for (const descriptor of sealed.snapshot.pages) {
+          const value = await client.query(
+            "SELECT public.proofstack_read_policy_snapshot_page($1,$2,$3) AS value",
+            [sealed.snapshot.snapshotId, sealed.snapshot.definitionSha256, descriptor.pageIndex],
+          );
+          pages.push(PolicyEvaluationSnapshotPageSchema.parse(value.rows[0]?.value));
+        }
+        const {
+          scope: _scope,
+          schemaVersion: _version,
+          definitionSha256: _sha,
+          sealedAt: _sealed,
+          sealedByPrincipalId: _by,
+          jobId: _job,
+          attemptId: _attempt,
+          workerId: _worker,
+          leaseId: _lease,
+          fencingToken: _fence,
+          recoveryEpoch: _epoch,
+          recordedAt: _receipt,
+          ...definition
+        } = sealed.snapshot;
+        const reference = started.job.snapshot;
+        if (!reference) throw new Error("Missing original sealed reference");
+        const result = computeSealedPolicyEvaluation({
+          evaluationId: `result_${h.f.namespace}`,
+          expected: {
+            scope: h.f.scope,
+            jobId: h.jobId,
+            request: started.job.request,
+            snapshot: reference,
+          },
+          record: sealed.snapshot,
+          pageSet: {
+            scope: h.f.scope,
+            definition,
+            definitionSha256: sealed.snapshot.definitionSha256,
+            pages,
+          },
+        });
+        expect(result.snapshot).toEqual(reference);
+        expect(result.request).toEqual(started.job.request);
+        expect(result.rules.map((rule) => rule.ruleIndex)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+        expect(result.rules[0]).toMatchObject({
+          outcome: "indeterminate",
+          evidence: { reason: "approval_not_evaluated" },
+        });
+      },
+      { scope: h.f.scope },
+    );
+    await expect(
+      h.worker.startComputation({ scope: h.f.scope, fence: h.fence }),
+    ).rejects.toMatchObject({
+      name: "PolicyEvaluationSchedulerTransitionError",
+      reason: "state_conflict",
+    });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(started);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("refuses native computation admission before an original snapshot is sealed", async () => {
+    const h = await nativeSealingHarness();
+    await expect(
+      h.worker.startComputation({ scope: h.f.scope, fence: h.fence }),
+    ).rejects.toMatchObject({
+      name: "PolicyEvaluationSchedulerTransitionError",
+      reason: "state_conflict",
+    });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(h.claimed);
+  });
+  it.each(["workerId", "attemptId", "leaseId", "fencingToken", "recoveryEpoch"] as const)(
+    "rejects a substituted native computation %s without changing the sealed graph",
+    async (field) => {
+      const h = await nativeSealingHarness();
+      const sealed = await h.seal();
+      const fence = {
+        ...h.fence,
+        [field]:
+          typeof h.fence[field] === "number" ? Number(h.fence[field]) + 1 : "foreign_computation",
+      };
+      await expect(h.worker.startComputation({ scope: h.f.scope, fence })).rejects.toThrow();
+      expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(sealed.job);
+      expect(h.idleErrors).toEqual([]);
+    },
+  );
+  it("keeps a cancelled seal terminal instead of starting native computation", async () => {
+    const h = await nativeSealingHarness();
+    await h.seal();
+    const cancelled = await h.control.cancelJob({
+      scope: h.f.scope,
+      jobId: h.jobId,
+      cancellationId: `cancel_${h.f.namespace}`,
+      principalId: "operator_computation",
+      reason: "operator_requested",
+    });
+    await expect(
+      h.worker.startComputation({ scope: h.f.scope, fence: h.fence }),
+    ).rejects.toMatchObject({
+      name: "PolicyEvaluationSchedulerTransitionError",
+      reason: "state_conflict",
+    });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(cancelled);
+  });
+  it("hides a sealed job in another exact environment from native computation admission", async () => {
+    const h = await nativeSealingHarness();
+    const sealed = await h.seal();
+    await expect(
+      h.worker.startComputation({
+        scope: { ...h.f.scope, environmentId: "env_foreign" },
+        fence: h.fence,
+      }),
+    ).rejects.toThrow();
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(sealed.job);
+  });
+  it("admits exactly one of two concurrent native computation starts", async () => {
+    const h = await nativeSealingHarness();
+    const sealed = await h.seal();
+    const results = await Promise.allSettled([
+      h.worker.startComputation({ scope: h.f.scope, fence: h.fence }),
+      h.worker.startComputation({ scope: h.f.scope, fence: h.fence }),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current?.job.status).toBe("running");
+    expect(current?.job.stateVersion).toBe(sealed.job.job.stateVersion + 1);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("rolls back native computation and history when the lease expires before deferred commit", async () => {
+    // Complete real sealing first; expiry is tested at deferred COMMIT, not during acquisition.
+    // Keep the existing 15s test timeout and native I/O limits; wait for this actual DB lease cut.
+    const h = await nativeSealingHarness(10000);
+    const sealed = await h.seal();
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    if (!head) throw new Error("Missing owning sealed history");
+    const page = await h.worker.readHistoryPage(
+      head,
+      Math.floor(head.sequence / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE),
+    );
+    const previousEntry = page.entries.at(-1);
+    if (!previousEntry) throw new Error("Missing owning previous entry");
+    const client = await admin.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+      await client.query(
+        "SELECT set_config('proofstack.tenant_id',$1,true),set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)",
+        [h.f.scope.tenantId, h.f.scope.projectId, h.f.scope.environmentId],
+      );
+      const changed = await client.query(
+        "SELECT public.proofstack_start_policy_evaluation_computation($1::jsonb) AS value",
+        [JSON.stringify(h.fence)],
+      );
+      const next = changed.rows[0]?.value;
+      const entry = createPolicyEvaluationJobHistoryEntry({
+        previous: sealed.job,
+        previousEntry,
+        next,
+        operation: { kind: "start_computation", fence: h.fence },
+      });
+      await client.query(
+        "SELECT public.proofstack_append_policy_evaluation_job_history($1::jsonb,$2,$3,$4::jsonb)",
+        [
+          JSON.stringify(entry),
+          Buffer.from(encodePolicyEvaluationJobHistoryEntry(entry.definition)).toString("utf8"),
+          Buffer.from(encodePolicyEvaluationJobGraph(next)).toString("utf8"),
+          JSON.stringify(buildPolicyEvaluationJobOutboxIntents(sealed.job, next)),
+        ],
+      );
+      await client.query(
+        "SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM ($1::timestamptz-clock_timestamp())))+0.05)",
+        [sealed.job.job.currentLease?.expiresAt],
+      );
+      await expect(client.query("COMMIT")).rejects.toMatchObject({ code: "55000" });
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(sealed.job);
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("limits native computation execution to the separate policy evaluator role", async () => {
+    const h = await nativeSealingHarness();
+    const sealed = await h.seal();
+    await expect(
+      withBoundedPolicyTransaction(
+        h.controlPool,
+        (client) =>
+          client.query("SELECT public.proofstack_start_policy_evaluation_computation($1::jsonb)", [
+            JSON.stringify(h.fence),
+          ]),
+        { scope: h.f.scope },
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(sealed.job);
+    for (const [kind, role] of Object.entries(credentials)) {
+      if (!role) throw new Error("Missing provisioned role");
+      const checked = await admin.query(
+        "SELECT has_function_privilege($1,'public.proofstack_start_policy_evaluation_computation(jsonb)','EXECUTE') AS allowed",
+        [role.name],
+      );
+      expect(checked.rows[0]?.allowed).toBe(kind === "policyEvaluator");
+    }
+  });
   it("native bounded artifact admission does not begin I/O after a delayed acknowledgement expires", async () => {
     const h = await nativeSealingHarness(3000);
     let entered = false;

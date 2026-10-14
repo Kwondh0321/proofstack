@@ -75,6 +75,13 @@ export interface PolicyEvaluationJobWorkerRepository extends PolicyEvaluationJob
       | "worker_interrupted";
   }): Promise<PolicyEvaluationJobSnapshot>;
 }
+/** Admission on an already published owning snapshot. No source acquisition or result publication. */
+export interface PolicyEvaluationJobComputationRepository extends PolicyEvaluationJobReader {
+  startComputation(command: {
+    readonly scope: EvidenceScope;
+    readonly fence: PolicyEvaluationWorkerMutationFence;
+  }): Promise<PolicyEvaluationJobSnapshot>;
+}
 /** Memory/conformance aggregate only. Native composition uses separate control/worker pools. */
 export interface PolicyEvaluationJobRepository
   extends PolicyEvaluationJobControlRepository,

@@ -8,11 +8,14 @@ import {
   cancelPolicyEvaluationJob,
   claimPolicyEvaluationJob,
   heartbeatPolicyEvaluationJob,
+  createPolicyEvaluationJobHistoryEntry,
   interruptPolicyEvaluationJob,
   policyEvaluationJobHistoryHead,
   reclaimPolicyEvaluationJob,
   recoverPolicyEvaluationJob,
   reservePolicyEvaluationUsage,
+  sealPolicyEvaluationJob,
+  startPolicyEvaluationComputation,
 } from "@proofstack/core";
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
@@ -121,6 +124,11 @@ function fixture(index = 0) {
         workerId: String(values?.[1]),
         attemptId: String(values?.[2]),
         leaseId: String(values?.[3]),
+      });
+    else if (text.includes("start_policy_evaluation_computation"))
+      graph = startPolicyEvaluationComputation({
+        ...common,
+        fence: JSON.parse(String(values?.[0])),
       });
     else if (text.includes("heartbeat_policy_evaluation_job"))
       graph = heartbeatPolicyEvaluationJob({ ...common, fence: JSON.parse(String(values?.[0])) });
@@ -262,6 +270,53 @@ describe("native policy job adapter contracts, exact reads and whole transaction
       "reserve",
       "interrupt",
     ]);
+  });
+  it("starts one sealed computation with unchanged attempt, lease, snapshot and usage and appends its history", async () => {
+    const f = fixture(1);
+    const previous = structuredClone(f.graph());
+    const fence = previous.job.currentLease?.mutationFence;
+    const previousEntry = f.entries.at(-1);
+    if (!fence || !previousEntry) throw new Error("Missing independent claim vector");
+    const reference = { snapshotId: "snapshot_computation_unit", definitionSha256: "3".repeat(64) };
+    const sealed = sealPolicyEvaluationJob({
+      snapshot: previous,
+      now: cut,
+      recoveryEpoch: previous.job.recoveryEpoch,
+      fence,
+      sealedSnapshot: reference,
+    });
+    f.entries.push(
+      createPolicyEvaluationJobHistoryEntry({
+        previous,
+        previousEntry,
+        next: sealed,
+        operation: { kind: "seal", fence, snapshot: reference },
+      }),
+    );
+    f.setGraph(sealed);
+    f.setNow("2026-09-07T12:00:08.123456Z");
+    const started = await f.worker.startComputation({ scope, fence });
+    expect(started.job.status).toBe("running");
+    expect(started.job.snapshot).toEqual(reference);
+    expect(started.job.currentLease).toEqual(sealed.job.currentLease);
+    expect(started.attempts).toEqual(sealed.attempts);
+    expect(started.usage).toEqual(sealed.usage);
+    expect(started.job.stateVersion).toBe(sealed.job.stateVersion + 1);
+    expect(f.entries.at(-1)?.definition.operation).toEqual({ kind: "start_computation", fence });
+    expect(
+      f.calls.filter((call) => call.text.includes("start_policy_evaluation_computation")),
+    ).toHaveLength(1);
+    await expect(f.worker.startComputation({ scope, fence })).rejects.toThrow("state_conflict");
+    expect(f.calls.at(-1)?.text).toBe("ROLLBACK");
+  });
+  it("validates a computation fence before obtaining a database connection", async () => {
+    const f = fixture(1);
+    const fence = f.graph().job.currentLease?.mutationFence;
+    if (!fence) throw new Error("Missing independent claim vector");
+    await expect(
+      f.worker.startComputation({ scope, fence: { ...fence, fencingToken: 0 } }),
+    ).rejects.toThrow();
+    expect(f.pool.connect).not.toHaveBeenCalled();
   });
   it("gives each physical reserveUsage call a fresh server nonce", async () => {
     const f = fixture(1);
