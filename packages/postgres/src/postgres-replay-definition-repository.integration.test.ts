@@ -53,6 +53,7 @@ if (!databaseUrl) {
 }
 
 const runKey = `${process.pid}_${Date.now()}`;
+let preservedCatalogOutbox: unknown[] = [];
 const credentials = {
   api: {
     name: `proofstack_replay_api_${runKey}`,
@@ -531,7 +532,20 @@ async function removePublicationIntent(
 }
 
 async function resetReplayCatalog(): Promise<void> {
-  await adminPool.query(`TRUNCATE TABLE
+  const client = await adminPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("LOCK TABLE public.proofstack_outbox IN ACCESS EXCLUSIVE MODE");
+    // Test-only catalog reset preserves every unrelated row and its original receipt/identity.
+    // Outbox DELETE guards remain enabled. Its sequence is deliberately not restarted.
+    await client.query(`CREATE TEMP TABLE preserved_catalog_outbox ON COMMIT DROP AS
+      SELECT * FROM public.proofstack_outbox WHERE aggregate_type NOT IN
+        ('replay.job','replay.plan','replay.target-release','regression.fixture-version','regression.dataset-version')`);
+    await client.query("TRUNCATE TABLE public.proofstack_outbox");
+    await client.query(
+      "INSERT INTO public.proofstack_outbox OVERRIDING SYSTEM VALUE SELECT * FROM preserved_catalog_outbox",
+    );
+    await client.query(`TRUNCATE TABLE
     public.proofstack_replay_plan_boundaries,
     public.proofstack_replay_plan_budgets,
     public.proofstack_replay_plans,
@@ -546,19 +560,41 @@ async function resetReplayCatalog(): Promise<void> {
     public.proofstack_regression_fixtures,
     public.proofstack_artifact_purge_receipts,
     public.proofstack_artifact_tombstones,
-    public.proofstack_artifact_catalog,
-    public.proofstack_outbox
+    public.proofstack_artifact_catalog
     RESTART IDENTITY CASCADE`);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 beforeAll(async () => {
   await migrateDatabase(adminPool);
   await provisionRuntimeRoles(adminPool, credentials);
+  preservedCatalogOutbox = (
+    await adminPool.query(
+      `INSERT INTO public.proofstack_outbox
+    (tenant_id,event_type,aggregate_type,aggregate_id,schema_version,payload,created_at)
+    VALUES ($1,'test.catalog.preserved','testing.preserved',$2,'0.1','{"preserve":true}'::jsonb,clock_timestamp()) RETURNING to_jsonb(proofstack_outbox) AS row`,
+      [`ten_replay_preserved_${runKey}`, `preserved_${runKey}`],
+    )
+  ).rows;
 });
 
 beforeEach(async () => {
   faultPool.clearPublicationIntentFailures();
   await resetReplayCatalog();
+  expect(
+    (
+      await adminPool.query(
+        "SELECT to_jsonb(proofstack_outbox) AS row FROM public.proofstack_outbox WHERE tenant_id=$1 AND aggregate_id=$2",
+        [`ten_replay_preserved_${runKey}`, `preserved_${runKey}`],
+      )
+    ).rows,
+  ).toEqual(preservedCatalogOutbox);
 });
 
 afterAll(async () => {

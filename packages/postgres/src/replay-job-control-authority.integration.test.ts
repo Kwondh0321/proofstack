@@ -257,8 +257,7 @@ afterAll(async () => {
   await apiPool.end();
   await adminPool.query(`TRUNCATE TABLE
     public.proofstack_replay_jobs,
-    public.proofstack_replay_plans,
-    public.proofstack_outbox
+    public.proofstack_replay_plans
     RESTART IDENTITY CASCADE`);
   for (const role of Object.values(credentials)) {
     const exists = await adminPool.query<{ readonly present: boolean }>(
