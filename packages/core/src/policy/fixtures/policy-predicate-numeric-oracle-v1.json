@@ -1,0 +1,329 @@
+{
+  "oracle": "Python fractions.Fraction; exact decimal thresholds; synthetic projection only",
+  "vectors": [
+    {
+      "name": "third_above_equal",
+      "numerator": "1",
+      "denominator": "3",
+      "threshold": "0.333333333333333333",
+      "comparator": "equal",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "third_above_not_equal",
+      "numerator": "1",
+      "denominator": "3",
+      "threshold": "0.333333333333333333",
+      "comparator": "not_equal",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "third_above_less_than",
+      "numerator": "1",
+      "denominator": "3",
+      "threshold": "0.333333333333333333",
+      "comparator": "less_than",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "third_above_less_than_or_equal",
+      "numerator": "1",
+      "denominator": "3",
+      "threshold": "0.333333333333333333",
+      "comparator": "less_than_or_equal",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "third_above_greater_than",
+      "numerator": "1",
+      "denominator": "3",
+      "threshold": "0.333333333333333333",
+      "comparator": "greater_than",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "third_above_greater_than_or_equal",
+      "numerator": "1",
+      "denominator": "3",
+      "threshold": "0.333333333333333333",
+      "comparator": "greater_than_or_equal",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_third_below_equal",
+      "numerator": "-1",
+      "denominator": "3",
+      "threshold": "-0.333333333333333333",
+      "comparator": "equal",
+      "order": -1,
+      "outcome": "violated"
+    },
+    {
+      "name": "negative_third_below_not_equal",
+      "numerator": "-1",
+      "denominator": "3",
+      "threshold": "-0.333333333333333333",
+      "comparator": "not_equal",
+      "order": -1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_third_below_less_than",
+      "numerator": "-1",
+      "denominator": "3",
+      "threshold": "-0.333333333333333333",
+      "comparator": "less_than",
+      "order": -1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_third_below_less_than_or_equal",
+      "numerator": "-1",
+      "denominator": "3",
+      "threshold": "-0.333333333333333333",
+      "comparator": "less_than_or_equal",
+      "order": -1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_third_below_greater_than",
+      "numerator": "-1",
+      "denominator": "3",
+      "threshold": "-0.333333333333333333",
+      "comparator": "greater_than",
+      "order": -1,
+      "outcome": "violated"
+    },
+    {
+      "name": "negative_third_below_greater_than_or_equal",
+      "numerator": "-1",
+      "denominator": "3",
+      "threshold": "-0.333333333333333333",
+      "comparator": "greater_than_or_equal",
+      "order": -1,
+      "outcome": "violated"
+    },
+    {
+      "name": "two_thirds_above_equal",
+      "numerator": "2",
+      "denominator": "3",
+      "threshold": "0.666666666666666666",
+      "comparator": "equal",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "two_thirds_above_not_equal",
+      "numerator": "2",
+      "denominator": "3",
+      "threshold": "0.666666666666666666",
+      "comparator": "not_equal",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "two_thirds_above_less_than",
+      "numerator": "2",
+      "denominator": "3",
+      "threshold": "0.666666666666666666",
+      "comparator": "less_than",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "two_thirds_above_less_than_or_equal",
+      "numerator": "2",
+      "denominator": "3",
+      "threshold": "0.666666666666666666",
+      "comparator": "less_than_or_equal",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "two_thirds_above_greater_than",
+      "numerator": "2",
+      "denominator": "3",
+      "threshold": "0.666666666666666666",
+      "comparator": "greater_than",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "two_thirds_above_greater_than_or_equal",
+      "numerator": "2",
+      "denominator": "3",
+      "threshold": "0.666666666666666666",
+      "comparator": "greater_than_or_equal",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "large_integer_above_equal",
+      "numerator": "9007199254740993",
+      "denominator": "1",
+      "threshold": "9007199254740992",
+      "comparator": "equal",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "large_integer_above_not_equal",
+      "numerator": "9007199254740993",
+      "denominator": "1",
+      "threshold": "9007199254740992",
+      "comparator": "not_equal",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "large_integer_above_less_than",
+      "numerator": "9007199254740993",
+      "denominator": "1",
+      "threshold": "9007199254740992",
+      "comparator": "less_than",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "large_integer_above_less_than_or_equal",
+      "numerator": "9007199254740993",
+      "denominator": "1",
+      "threshold": "9007199254740992",
+      "comparator": "less_than_or_equal",
+      "order": 1,
+      "outcome": "violated"
+    },
+    {
+      "name": "large_integer_above_greater_than",
+      "numerator": "9007199254740993",
+      "denominator": "1",
+      "threshold": "9007199254740992",
+      "comparator": "greater_than",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "large_integer_above_greater_than_or_equal",
+      "numerator": "9007199254740993",
+      "denominator": "1",
+      "threshold": "9007199254740992",
+      "comparator": "greater_than_or_equal",
+      "order": 1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "exact_tenth_equal",
+      "numerator": "1",
+      "denominator": "10",
+      "threshold": "0.1",
+      "comparator": "equal",
+      "order": 0,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "exact_tenth_not_equal",
+      "numerator": "1",
+      "denominator": "10",
+      "threshold": "0.1",
+      "comparator": "not_equal",
+      "order": 0,
+      "outcome": "violated"
+    },
+    {
+      "name": "exact_tenth_less_than",
+      "numerator": "1",
+      "denominator": "10",
+      "threshold": "0.1",
+      "comparator": "less_than",
+      "order": 0,
+      "outcome": "violated"
+    },
+    {
+      "name": "exact_tenth_less_than_or_equal",
+      "numerator": "1",
+      "denominator": "10",
+      "threshold": "0.1",
+      "comparator": "less_than_or_equal",
+      "order": 0,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "exact_tenth_greater_than",
+      "numerator": "1",
+      "denominator": "10",
+      "threshold": "0.1",
+      "comparator": "greater_than",
+      "order": 0,
+      "outcome": "violated"
+    },
+    {
+      "name": "exact_tenth_greater_than_or_equal",
+      "numerator": "1",
+      "denominator": "10",
+      "threshold": "0.1",
+      "comparator": "greater_than_or_equal",
+      "order": 0,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_large_below_equal",
+      "numerator": "-9007199254740993",
+      "denominator": "1",
+      "threshold": "-9007199254740992",
+      "comparator": "equal",
+      "order": -1,
+      "outcome": "violated"
+    },
+    {
+      "name": "negative_large_below_not_equal",
+      "numerator": "-9007199254740993",
+      "denominator": "1",
+      "threshold": "-9007199254740992",
+      "comparator": "not_equal",
+      "order": -1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_large_below_less_than",
+      "numerator": "-9007199254740993",
+      "denominator": "1",
+      "threshold": "-9007199254740992",
+      "comparator": "less_than",
+      "order": -1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_large_below_less_than_or_equal",
+      "numerator": "-9007199254740993",
+      "denominator": "1",
+      "threshold": "-9007199254740992",
+      "comparator": "less_than_or_equal",
+      "order": -1,
+      "outcome": "satisfied"
+    },
+    {
+      "name": "negative_large_below_greater_than",
+      "numerator": "-9007199254740993",
+      "denominator": "1",
+      "threshold": "-9007199254740992",
+      "comparator": "greater_than",
+      "order": -1,
+      "outcome": "violated"
+    },
+    {
+      "name": "negative_large_below_greater_than_or_equal",
+      "numerator": "-9007199254740993",
+      "denominator": "1",
+      "threshold": "-9007199254740992",
+      "comparator": "greater_than_or_equal",
+      "order": -1,
+      "outcome": "violated"
+    }
+  ]
+}
