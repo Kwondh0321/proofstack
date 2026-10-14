@@ -81,6 +81,13 @@ remain open; this slice does not change the roadmap completion count.
 
 ## Frozen input and record boundary
 
+The [versioned complete snapshot inputs](workflow-2-policy-snapshot-contract.md) now retain owning
+semantic/stored relationship findings and original ordered rule dependencies in input version
+`0.2`, preserving the historical `0.1` contracts/vectors. An internal held compilation entry and
+same-attempt logical seal/start transitions have trusted-adapter tests. They introduce no native
+publisher or worker route. Complete current authority, native atomic publication, durable job-wide
+accounting and every remaining checkpoint gate stay open; Workflow 2 remains 2/7.
+
 The [strict source relationship inputs and manifest join](workflow-2-policy-snapshot-source-inputs.md)
 bind complete retained record metadata to fixed pages without promoting missing/future evidence
 or turning a valid digest into source authority. Atomic sealed snapshot/result publication remains open.

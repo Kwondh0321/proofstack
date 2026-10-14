@@ -101,26 +101,79 @@ function canonical(value: unknown): string {
   return serializeEvaluationCanonicalJson(value);
 }
 
-/** Internal request-owning composition. Never accepts a precomputed guard subset or public graph. */
+type RecheckInput = Parameters<typeof deriveCapturedPolicySourceGuards>[0] & {
+  readonly criterionAuthority: PolicyCriterionAuthorityObservation;
+};
+type GuardedRecheck = ReturnType<typeof deriveCapturedPolicySourceGuards> & {
+  readonly recheck: PolicyEvaluationSourceRecheck;
+  readonly criterionAuthority: PolicyCriterionAuthorityObservation;
+};
+type MetadataRecheck = {
+  readonly transactions: PolicyEvaluationMetadataTransactions;
+  readonly traceCapture: Extract<PolicyTraceEvidenceCapture, { status: "traces_captured" }>;
+};
+
+/** Existing read-only report. Its transaction has ended before this function returns. */
 export async function deriveAndRecheckCapturedPolicySources(
-  input: Parameters<typeof deriveCapturedPolicySourceGuards>[0] & {
-    readonly criterionAuthority: PolicyCriterionAuthorityObservation;
-  },
+  input: RecheckInput,
   budget: AcquisitionBudget,
   principal: PrincipalContext,
   captureCompletedAt: string,
   transactions?: PolicyEvaluationSourceTransactions,
-  metadata?: {
-    readonly transactions: PolicyEvaluationMetadataTransactions;
-    readonly traceCapture: Extract<PolicyTraceEvidenceCapture, { status: "traces_captured" }>;
-  },
-): Promise<
-  | ReturnType<typeof deriveCapturedPolicySourceGuards>
-  | (ReturnType<typeof deriveCapturedPolicySourceGuards> & {
-      readonly recheck: PolicyEvaluationSourceRecheck;
-      readonly criterionAuthority: PolicyCriterionAuthorityObservation;
-    })
-> {
+  metadata?: MetadataRecheck,
+): Promise<ReturnType<typeof deriveCapturedPolicySourceGuards> | GuardedRecheck> {
+  return runRecheckedSources(
+    input,
+    budget,
+    principal,
+    captureCompletedAt,
+    transactions,
+    metadata,
+    async (value) => value,
+  );
+}
+
+/** Internal continuation only: all reinspection and guards stay on the supplied transaction. */
+export async function withRecheckedCapturedPolicySources<T>(
+  input: RecheckInput,
+  budget: AcquisitionBudget,
+  principal: PrincipalContext,
+  captureCompletedAt: string,
+  metadata: MetadataRecheck,
+  whileHeld: (inspection: GuardedRecheck, ports: PolicyEvaluationMetadataPorts) => Promise<T>,
+): Promise<T> {
+  return runRecheckedSources(
+    input,
+    budget,
+    principal,
+    captureCompletedAt,
+    undefined,
+    metadata,
+    async (value, ports) => {
+      if (
+        !ports ||
+        !("recheck" in value) ||
+        !value.recheck.metadataGuard ||
+        !value.recheck.metadata
+      )
+        throw new PolicyEvaluationSourceRecheckError("guard_invalid", "metadata");
+      return whileHeld(value, ports);
+    },
+  );
+}
+
+async function runRecheckedSources<T>(
+  input: RecheckInput,
+  budget: AcquisitionBudget,
+  principal: PrincipalContext,
+  captureCompletedAt: string,
+  transactions: PolicyEvaluationSourceTransactions | undefined,
+  metadata: MetadataRecheck | undefined,
+  finish: (
+    inspection: ReturnType<typeof deriveCapturedPolicySourceGuards> | GuardedRecheck,
+    ports?: PolicyEvaluationMetadataPorts,
+  ) => Promise<T>,
+): Promise<T> {
   if (transactions && metadata) throw new TypeError("Expected one policy recheck transaction mode");
   if (
     metadata &&
@@ -129,7 +182,7 @@ export async function deriveAndRecheckCapturedPolicySources(
   )
     throw new PolicyEvaluationSourceRecheckError("source_revision_changed");
   const plan = deriveCapturedPolicySourceGuards(input, budget);
-  if (!transactions && !metadata) return plan;
+  if (!transactions && !metadata) return finish(plan);
   const { request, graph, artifacts, storedArtifacts, lifecycle, criterionAuthority } = input;
   const reinspect = async (
     supplied: PolicyEvaluationSourceRecheckPorts,
@@ -359,11 +412,12 @@ export async function deriveAndRecheckCapturedPolicySources(
     };
   };
   const scope = structuredClone(request.scope);
-  const inspection = metadata
-    ? await metadata.transactions.runMetadata(scope, (ports) => reinspect(ports.sources, ports))
+  return metadata
+    ? await metadata.transactions.runMetadata(scope, async (ports) => {
+        const inspection = await reinspect(ports.sources, ports);
+        return finish({ ...plan, ...inspection }, ports);
+      })
     : await (transactions as PolicyEvaluationSourceTransactions).run(scope, (ports) =>
-        reinspect(ports),
+        reinspect(ports).then((inspection) => finish({ ...plan, ...inspection })),
       );
-  // The read transaction has ended here. This observation report is NOT a publication authority.
-  return { ...plan, ...inspection };
 }

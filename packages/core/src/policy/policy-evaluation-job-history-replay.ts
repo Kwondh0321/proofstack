@@ -17,6 +17,10 @@ import {
 } from "./policy-evaluation-scheduler-claim.js";
 import { interruptPolicyEvaluationJob } from "./policy-evaluation-scheduler-interrupt.js";
 import { reclaimPolicyEvaluationJob } from "./policy-evaluation-scheduler-reclaim.js";
+import {
+  sealPolicyEvaluationJob,
+  startPolicyEvaluationComputation,
+} from "./policy-evaluation-scheduler-seal.js";
 
 /** Re-derive one retained transition; this does not revive a lease or establish current DB authority. */
 export function replayPolicyEvaluationJobHistoryEntry(
@@ -45,6 +49,16 @@ export function replayPolicyEvaluationJobHistoryEntry(
   const operation = definition.operation;
   let next: PolicyEvaluationJobSnapshot;
   switch (operation.kind) {
+    case "seal":
+      next = sealPolicyEvaluationJob({
+        ...common,
+        fence: operation.fence,
+        sealedSnapshot: operation.snapshot,
+      });
+      break;
+    case "start_computation":
+      next = startPolicyEvaluationComputation({ ...common, fence: operation.fence });
+      break;
     case "claim":
       next = claimPolicyEvaluationJob({
         ...common,

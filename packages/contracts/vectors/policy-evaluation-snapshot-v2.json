@@ -1,0 +1,14 @@
+{
+  "oracle": "Independent Python JSON/UTF-8/hashlib/base64; synthetic closure findings for geometry/integrity, not source authority or published evaluation",
+  "inputByteLength": 78999,
+  "inputSha256": "df42c98c72212120b36c9287094ad95727bd2f9953713013eb7e49b05710400e",
+  "rootByteLength": 1366,
+  "rootSha256": "ff240cec8e7f413c2401f9923fd017e788214858d8647c4ad8ac947818dc65be",
+  "pages": [
+    {
+      "pageIndex": 0,
+      "byteLength": 107368,
+      "sha256": "e0a3cbe7f1a87785b68d04b23eedce78c741b7731df43f747e43ae0a62468103"
+    }
+  ]
+}

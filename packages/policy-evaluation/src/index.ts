@@ -1,5 +1,10 @@
 export { PolicyRecordGraphError } from "./acquisition-budget.js";
 export * from "./capture-artifact-evidence.js";
+export type {
+  PolicyEvaluationSnapshotSealingPorts,
+  PolicyEvaluationSnapshotSealingTransactions,
+  PolicyEvaluationSnapshotSealReceipt,
+} from "./snapshot-sealing-transactions.js";
 export type { PolicyArtifactRuleBindings } from "./capture-artifact-rules.js";
 export type { PolicyAssessmentRuleInputs } from "./capture-assessment-rules.js";
 export type {

@@ -7,6 +7,8 @@ import {
   POLICY_EVALUATION_SNAPSHOT_FRAME_BYTES,
   POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN,
   POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION,
+  POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN_V2,
+  POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION_V2,
   POLICY_EVALUATION_SNAPSHOT_PAGE_SIZE,
   POLICY_EVALUATION_SNAPSHOT_SCHEMA_VERSION,
   PolicyEvaluationSnapshotInputsSchema,
@@ -210,8 +212,14 @@ export function validatePolicyEvaluationSnapshot(input: {
     >;
     const { definitionDomain, encodingVersion, ...material } = data;
     if (
-      definitionDomain !== POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN ||
-      encodingVersion !== POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION
+      definitionDomain !==
+        (material["schemaVersion"] === "0.2"
+          ? POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN_V2
+          : POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN) ||
+      encodingVersion !==
+        (material["schemaVersion"] === "0.2"
+          ? POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION_V2
+          : POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION)
     )
       throw new Error("Unexpected snapshot input encoding domain/version");
     inputs = PolicyEvaluationSnapshotInputsSchema.parse(material);

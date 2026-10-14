@@ -57,6 +57,7 @@ export * from "./policy-evaluation-candidate-authority.js";
 export * from "./policy-evaluation-snapshot-content.js";
 export * from "./policy-evaluation-snapshot-applicability.js";
 export * from "./policy-evaluation-snapshot-inputs.js";
+export * from "./policy-evaluation-snapshot-closure.js";
 export * from "./policy-evaluation-snapshot.js";
 export * from "./policy-evaluation-snapshot-encoding.js";
 export * from "./policy-evaluation-snapshot-rules.js";

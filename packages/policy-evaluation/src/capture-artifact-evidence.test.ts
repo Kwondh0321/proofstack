@@ -17,6 +17,7 @@ import {
   POLICY_EVALUATION_REQUEST_SCHEMA_VERSION,
   type PolicyEvaluationRequest,
   type PolicyEvaluationRequestDefinition,
+  type PolicyEvaluationSnapshotPageSet,
   PolicyEvaluationSnapshotRuleInputsSchema,
   PrincipalContextSchema,
   type ProtocolDefinition,
@@ -35,6 +36,7 @@ import {
   digestProtocolDefinition,
   assemblePolicyEvaluationSnapshot,
   validatePolicyEvaluationSnapshot,
+  sealPolicyEvaluationJob,
   digestReleaseCandidateDefinition,
   digestReleasePolicyDefinition,
   type ReleaseCandidateRevisionReference,
@@ -49,6 +51,7 @@ import {
   comparisonResultFixture,
   comparisonSnapshotFixture,
   MemoryEvidenceRepository,
+  MemoryPolicyEvaluationJobRepository,
   MemoryReleaseCandidateRepository,
   MemoryReleasePolicyRepository,
   policyAuthorityFixture,
@@ -68,6 +71,7 @@ import {
   capturePolicyArtifactEvidence,
   capturePolicySnapshotInputs,
   capturePolicySnapshotDefinition,
+  sealPolicyEvaluationSnapshot,
   type PolicyArtifactEvidenceRepositories,
 } from "./capture-artifact-evidence.js";
 import { prepareCapturedSnapshotInputs } from "./prepare-snapshot-inputs.js";
@@ -88,6 +92,7 @@ import type {
   PolicyEvaluationSourceTransactions,
 } from "./recheck-captured-sources.js";
 import type { PolicyRecordGraphRepositories } from "./record-routing.js";
+import type { PolicyEvaluationSnapshotSealingTransactions } from "./snapshot-sealing-transactions.js";
 
 const scope = comparisonFixtureScope("artifact_graph");
 const traceId = "0123456789abcdef0123456789abcdef";
@@ -4540,4 +4545,159 @@ describe("candidate-owned artifact rule bindings", () => {
       h.candidate.candidateId,
     );
   });
+});
+
+async function sealingHarness() {
+  const f = await metadataRecheckHarness();
+  const request = { ...f.h.request, createdAt: observedAt };
+  const actor = PrincipalContextSchema.parse({
+    ...f.h.actor,
+    principalId: "worker_snapshot_seal",
+    capabilities: ["artifact:read", "policy:evaluation:execute"],
+    authentication: {
+      authenticatedAt: observedAt,
+      method: "service_token",
+      credentialId: "credential_seal",
+    },
+  });
+  const jobs = new MemoryPolicyEvaluationJobRepository({ now: () => observedAt });
+  await jobs.createJob({ request, jobId: "job_snapshot_seal" });
+  const claimed = await jobs.claimJob({
+    scope,
+    jobId: "job_snapshot_seal",
+    workerId: actor.principalId,
+    attemptId: "attempt_snapshot_seal",
+    leaseId: "lease_snapshot_seal",
+  });
+  const fence = claimed.job.currentLease!.mutationFence;
+  const publish = vi.fn(
+    async (definition: PolicyEvaluationSnapshotPageSet, principalId: string) => {
+      expect(f.state.phase).toBe("inside");
+      expect(principalId).toBe(actor.principalId);
+      f.calls.push("publish_snapshot");
+      const reference = {
+        snapshotId: definition.definition.snapshotId,
+        definitionSha256: definition.definitionSha256,
+      };
+      return {
+        snapshot: {
+          ...definition.definition,
+          scope,
+          definitionSha256: definition.definitionSha256,
+          schemaVersion: "0.1" as const,
+          sealedAt: observedAt,
+          recordedAt: observedAt,
+          sealedByPrincipalId: principalId,
+          ...fence,
+        },
+        job: sealPolicyEvaluationJob({
+          snapshot: claimed,
+          now: observedAt,
+          recoveryEpoch: 0,
+          fence,
+          sealedSnapshot: reference,
+        }),
+      };
+    },
+  );
+  const transactions: PolicyEvaluationSnapshotSealingTransactions = {
+    runSealing: async (command, operation) => {
+      expect(command).toEqual({ scope, fence });
+      return f.metadataTransactions.runMetadata(command.scope, (ports) =>
+        operation({ ...ports, publishSnapshot: publish }),
+      );
+    },
+  };
+  const run = (input: unknown = request, principal = actor) =>
+    sealPolicyEvaluationSnapshot(
+      input,
+      principal,
+      f.h.repositories,
+      f.h.evidence,
+      f.h.dependencies,
+      {
+        manifestId: "manifest_snapshot_seal",
+        snapshotId: "snapshot_atomic_seal",
+        fence,
+        transactions,
+      },
+    );
+  return { ...f, request, actor, claimed, fence, publish, transactions, run };
+}
+
+describe("workspace held snapshot publication composition (trusted adapter unit model)", () => {
+  it("publishes only inside complete reinspection and preserves the original attempt", async () => {
+    const f = await sealingHarness();
+    const get = MemoryArtifactObjectStore.prototype.get.bind(f.h.dependencies.objects);
+    f.h.get.mockImplementation((...args) => {
+      expect(f.state.phase).toBe("outside");
+      return get(...args);
+    });
+    const decrypt = ArtifactCipher.prototype.decrypt.bind(f.h.dependencies.encryption);
+    f.h.decrypt.mockImplementation((...args) => {
+      expect(f.state.phase).toBe("outside");
+      return decrypt(...args);
+    });
+    const result = await f.run();
+    expect(f.publish).toHaveBeenCalledOnce();
+    expect(f.calls.indexOf("publish_snapshot")).toBeLessThan(f.calls.indexOf("commit"));
+    expect(f.state.phase).toBe("committed");
+    expect(result.job.job.status).toBe("sealed");
+    expect(result.job.attempts).toEqual([
+      { ...f.claimed.attempts[0], phase: "computing", snapshot: result.job.job.snapshot },
+    ]);
+    expect(result.snapshot.workerId).toBe(f.actor.principalId);
+    expect(result.snapshot.request).toEqual(f.claimed.job.request);
+  });
+  it.each(["guard", "changed_source"])(
+    "rolls back %s before invoking publication",
+    async (kind) => {
+      const f = await sealingHarness();
+      if (kind === "guard") f.ports.tryGuard.mockResolvedValue(false);
+      else f.ports.findPolicy.mockResolvedValue(null);
+      await expect(f.run()).rejects.toThrow();
+      expect(f.publish).not.toHaveBeenCalled();
+      expect(f.state.phase).toBe("rolled_back");
+      expect(f.calls).not.toContain("commit");
+    },
+  );
+  it.each(["scope", "worker", "job", "binding", "request", "receipt"])(
+    "rejects a substituted %s receipt before transaction completion",
+    async (kind) => {
+      const f = await sealingHarness(),
+        original = f.publish.getMockImplementation();
+      if (!original) throw new Error("Missing trusted publication model");
+      f.publish.mockImplementation(async (...args) => {
+        const value = await original(...args);
+        if (kind === "scope") value.snapshot.scope = { ...scope, projectId: "project_other" };
+        if (kind === "worker") value.snapshot.workerId = "worker_other";
+        if (kind === "job") value.snapshot.jobId = "job_other";
+        if (kind === "binding")
+          value.job.job.snapshot = { ...value.job.job.snapshot!, snapshotId: "snapshot_other" };
+        if (kind === "request")
+          value.job.request = { ...value.job.request, createdAt: "2026-10-01T01:59:59.000Z" };
+        if (kind === "receipt") value.snapshot.sealedAt = "2026-10-01T02:00:00.000001Z";
+        return value;
+      });
+      await expect(f.run()).rejects.toThrow();
+      expect(f.state.phase).toBe("rolled_back");
+      expect(f.calls).not.toContain("commit");
+    },
+  );
+  it.each(["capability", "development", "workload"])(
+    "checks %s execution authority before malformed input or dependencies",
+    async (kind) => {
+      const f = await sealingHarness();
+      const actor = { ...f.actor };
+      if (kind === "capability") actor.capabilities = ["artifact:read"];
+      if (kind === "development")
+        actor.authentication = { ...actor.authentication, method: "development" };
+      if (kind === "workload") actor.principalType = "workload";
+      for (const spy of [f.h.find, f.h.get, f.h.root, f.h.exact]) spy.mockClear();
+      await expect(f.run({ malformed: true }, actor)).rejects.toMatchObject({ code: "forbidden" });
+      for (const spy of [f.h.find, f.h.get, f.h.root, f.h.exact])
+        expect(spy).not.toHaveBeenCalled();
+      expect(f.publish).not.toHaveBeenCalled();
+    },
+  );
 });

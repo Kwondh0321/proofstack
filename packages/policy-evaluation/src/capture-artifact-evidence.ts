@@ -10,6 +10,8 @@ import {
   type ContentReference,
   type PrincipalContext,
   type PolicyEvaluationSnapshotPageSet,
+  PolicyEvaluationWorkerMutationFenceSchema,
+  type PolicyEvaluationWorkerMutationFence,
   POLICY_EVALUATION_SNAPSHOT_FRAME_BYTES,
   POLICY_EVALUATION_SNAPSHOT_PAGE_SIZE,
   encodePolicyEvaluationSnapshotInputs,
@@ -26,7 +28,12 @@ import {
   assemblePolicyEvaluationSnapshot,
   requireCapability,
   requireEnvironmentAccess,
+  requirePolicyEvaluationExecution,
   validatePolicyEvaluationRequestRecord,
+  digestPolicyEvaluationJobDefinition,
+  policyEvaluationRequestReference,
+  validatePolicyEvaluationJobSnapshotRecord,
+  validatePolicyEvaluationSnapshotRecord,
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
 import type { PolicyArtifactRuleBindings } from "./capture-artifact-rules.js";
@@ -81,6 +88,7 @@ import type {
 import type { PolicyEvaluationMetadataTransactions } from "./metadata-transactions.js";
 import {
   deriveAndRecheckCapturedPolicySources,
+  withRecheckedCapturedPolicySources,
   type PolicyEvaluationSourceRecheck,
   type PolicyEvaluationSourceTransactions,
 } from "./recheck-captured-sources.js";
@@ -91,6 +99,11 @@ import {
   prepareCapturedSnapshotInputs,
   type PolicyPreparedSnapshotInputs,
 } from "./prepare-snapshot-inputs.js";
+import type {
+  PolicyEvaluationSnapshotSealReceipt,
+  PolicyEvaluationSnapshotSealingTransactions,
+  PolicyEvaluationSnapshotSealingPorts,
+} from "./snapshot-sealing-transactions.js";
 
 export type PolicyArtifactEvidenceDependencies = PolicyEvaluationArtifactReadDependencies & {
   /** Trusted transaction adapter only; not an HTTP request option or a seal/publication port. */
@@ -256,18 +269,132 @@ export async function capturePolicySnapshotDefinition(
   };
 }
 
+/** Workspace worker entry. Caller supplies no source graph, page definition, operand or outcome. */
+export async function sealPolicyEvaluationSnapshot(
+  input: unknown,
+  actor: PrincipalContext,
+  repositories: PolicyArtifactEvidenceRepositories,
+  evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
+  dependencies: PolicyArtifactEvidenceDependencies,
+  options: {
+    readonly manifestId: string;
+    readonly snapshotId: string;
+    readonly fence: PolicyEvaluationWorkerMutationFence;
+    readonly transactions: PolicyEvaluationSnapshotSealingTransactions;
+  },
+): Promise<PolicyEvaluationSnapshotSealReceipt> {
+  const principal = PrincipalContextSchema.parse(actor);
+  requireCapability(principal, "policy:evaluation:execute");
+  if (principal.principalType !== "service" || principal.authentication.method !== "service_token")
+    throw new ForbiddenError("Policy execution requires a service-token worker principal");
+  const request = validatePolicyEvaluationRequestRecord(input);
+  requirePolicyEvaluationExecution(principal, request.scope);
+  const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(options.fence);
+  if (fence.workerId !== principal.principalId)
+    throw new ForbiddenError("Policy fence belongs to another worker principal");
+  let held: PolicyEvaluationSnapshotSealingPorts | undefined;
+  const transactions: PolicyEvaluationMetadataTransactions = {
+    runMetadata: (scope, operation) =>
+      options.transactions.runSealing({ scope, fence }, async (ports) => {
+        held = ports;
+        try {
+          return await operation(ports);
+        } finally {
+          held = undefined;
+        }
+      }),
+  };
+  const result = await acquirePolicyArtifactEvidence(
+    input,
+    principal,
+    repositories,
+    evidence,
+    dependencies,
+    {
+      manifestId: options.manifestId,
+      snapshotId: options.snapshotId,
+      whileHeld: {
+        transactions,
+        publish: async (definition) => {
+          if (!held) throw new TypeError("Snapshot publication port has expired");
+          const receipt = await held.publishSnapshot(definition, principal.principalId);
+          const reference = {
+            snapshotId: definition.definition.snapshotId,
+            definitionSha256: definition.definitionSha256,
+          };
+          const requestReference = policyEvaluationRequestReference(request);
+          const checked = validatePolicyEvaluationSnapshotRecord({
+            expected: {
+              scope: request.scope,
+              snapshot: reference,
+              request: requestReference,
+              jobId: fence.jobId,
+            },
+            record: receipt.snapshot,
+            pageSet: definition,
+          });
+          const job = validatePolicyEvaluationJobSnapshotRecord({
+            expected: {
+              scope: request.scope,
+              job: {
+                jobId: fence.jobId,
+                definitionSha256: digestPolicyEvaluationJobDefinition(request.scope, {
+                  jobId: fence.jobId,
+                  request: requestReference,
+                }),
+              },
+            },
+            snapshot: receipt.job,
+          });
+          if (
+            job.job.status !== "sealed" ||
+            canonical(job.request) !== canonical(request) ||
+            canonical(job.job.snapshot) !== canonical(reference) ||
+            canonical(job.job.currentLease?.mutationFence) !== canonical(fence) ||
+            job.job.updatedAt !== checked.record.sealedAt ||
+            checked.record.attemptId !== fence.attemptId ||
+            checked.record.workerId !== fence.workerId ||
+            checked.record.leaseId !== fence.leaseId ||
+            checked.record.fencingToken !== fence.fencingToken ||
+            checked.record.recoveryEpoch !== fence.recoveryEpoch
+          )
+            throw new PolicyRecordGraphError("observation_conflict", "sealed_publication_receipt");
+          return { snapshot: checked.record, job };
+        },
+      },
+    },
+  );
+  if (!result.sealedSnapshot)
+    throw new InvalidPolicyEvaluationRequestRecordError(
+      "Policy roots cannot produce a sealed snapshot",
+    );
+  return result.sealedSnapshot;
+}
+
+type AcquisitionResult = {
+  readonly capture: PolicyArtifactEvidenceCapture;
+  readonly snapshotInputs?: PolicyPreparedSnapshotInputs;
+  readonly snapshotDefinition?: PolicyEvaluationSnapshotPageSet;
+  readonly sealedSnapshot?: PolicyEvaluationSnapshotSealReceipt;
+};
+
 async function acquirePolicyArtifactEvidence(
   input: unknown,
   actor: PrincipalContext,
   repositories: PolicyArtifactEvidenceRepositories,
   evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
   dependencies: PolicyArtifactEvidenceDependencies,
-  snapshotOptions?: { readonly manifestId: string; readonly snapshotId?: string },
-): Promise<{
-  readonly capture: PolicyArtifactEvidenceCapture;
-  readonly snapshotInputs?: PolicyPreparedSnapshotInputs;
-  readonly snapshotDefinition?: PolicyEvaluationSnapshotPageSet;
-}> {
+  snapshotOptions?: {
+    readonly manifestId: string;
+    readonly snapshotId?: string;
+    readonly whileHeld?: {
+      readonly transactions: PolicyEvaluationMetadataTransactions;
+      readonly publish: (
+        definition: PolicyEvaluationSnapshotPageSet,
+      ) => Promise<PolicyEvaluationSnapshotSealReceipt>;
+    };
+  },
+): Promise<AcquisitionResult> {
   const request = validatePolicyEvaluationRequestRecord(input);
   const principal = PrincipalContextSchema.parse(actor);
   const sourceTransactions = dependencies.sourceTransactions;
@@ -283,6 +410,13 @@ async function acquirePolicyArtifactEvidence(
       : undefined;
   if (sourceTransactions && metadataTransactions)
     throw new TypeError("Expected one policy recheck transaction mode");
+  if (
+    snapshotOptions?.whileHeld &&
+    (sourceTransactions || metadataTransactions || snapshotId === undefined)
+  )
+    throw new TypeError(
+      "Held publication requires its own complete metadata transaction and snapshot identity",
+    );
 
   let previousTime: string | undefined;
   const clock = {
@@ -532,132 +666,150 @@ async function acquirePolicyArtifactEvidence(
             manifestId,
             budget,
           );
-    const sourceGuardPlan = await deriveAndRecheckCapturedPolicySources(
-      {
-        request,
-        graph: traceCapture.comparisonCapture.graph,
-        traceReferences: traceCapture.artifactReferences,
+    const guardInput = {
+      request,
+      graph: traceCapture.comparisonCapture.graph,
+      traceReferences: traceCapture.artifactReferences,
+      artifacts,
+      storedArtifacts: storedArtifactCapture.captures,
+      lifecycle: afterArtifacts,
+      criterionAuthority: criteriaAfterArtifacts,
+    };
+    const finish = async (
+      sourceGuardPlan: Awaited<ReturnType<typeof deriveAndRecheckCapturedPolicySources>>,
+    ): Promise<AcquisitionResult> => {
+      sourceGuardUsage = sourceGuardPlan.usage;
+      const localCompletedAt = clock.now().toISOString();
+      const completedAt =
+        "recheck" in sourceGuardPlan &&
+        policyEvaluationTimestampOrderKey(sourceGuardPlan.recheck.observedAt) >
+          policyEvaluationTimestampOrderKey(localCompletedAt)
+          ? sourceGuardPlan.recheck.observedAt
+          : localCompletedAt;
+      for (const { read } of artifacts) {
+        if (
+          read.observation.status === "verified" &&
+          read.catalog?.metadata.retention.mode === "expire" &&
+          policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
+            policyEvaluationTimestampOrderKey(completedAt)
+        )
+          throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+      }
+      for (const { read } of storedArtifactCapture.captures) {
+        if (
+          read.observation.status === "content_pending" &&
+          read.catalog?.metadata.retention.mode === "expire" &&
+          policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
+            policyEvaluationTimestampOrderKey(completedAt)
+        )
+          throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+      }
+      const capture: Extract<PolicyArtifactEvidenceCapture, { status: "artifacts_captured" }> = {
+        status: "artifacts_captured",
+        traceCapture,
+        startedAt,
+        completedAt,
         artifacts,
         storedArtifacts: storedArtifactCapture.captures,
-        lifecycle: afterArtifacts,
-        criterionAuthority: criteriaAfterArtifacts,
-      },
+        storedArtifactInspectionUsage: storedArtifactCapture.inspectionUsage,
+        sourceGuards: sourceGuardPlan.guards,
+        ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
+        fixtureBindings,
+        artifactRules,
+        candidateAuthority: {
+          beforeArtifacts: candidateBeforeArtifacts,
+          afterArtifacts: candidateAfterArtifacts,
+        },
+        policyAuthority,
+        applicability,
+        comparisonRules,
+        assessmentRules,
+        ruleInputs,
+        snapshotRules,
+        ruleDependencies,
+        evaluationTrust,
+        criterionAuthority: {
+          beforeArtifacts: criteriaBeforeArtifacts,
+          afterArtifacts: criteriaAfterArtifacts,
+          ...("criterionAuthority" in sourceGuardPlan
+            ? { underGuards: sourceGuardPlan.criterionAuthority }
+            : {}),
+        },
+        policyLifecycle: { beforeArtifacts, afterArtifacts },
+        usage: usage(),
+      };
+      let snapshotDefinition: PolicyEvaluationSnapshotPageSet | undefined;
+      if (snapshotId !== undefined) {
+        if (!snapshotInputs) throw new TypeError("Missing original snapshot source inputs");
+        const compiled = compileCapturedSnapshotInputs(request, capture, snapshotInputs, budget);
+        const encodedInputs = encodePolicyEvaluationSnapshotInputs(compiled.inputs);
+        budget.addReferences(0, encodedInputs.byteLength);
+        const frameCount = Math.ceil(
+          encodedInputs.byteLength / POLICY_EVALUATION_SNAPSHOT_FRAME_BYTES,
+        );
+        budget.addReferences(
+          1 + frameCount + 2 * Math.ceil(frameCount / POLICY_EVALUATION_SNAPSHOT_PAGE_SIZE),
+          0,
+        );
+        snapshotDefinition = assemblePolicyEvaluationSnapshot({
+          snapshotId,
+          inputs: compiled.inputs,
+        });
+        budget.addReferences(
+          0,
+          Buffer.byteLength(serializeEvaluationCanonicalJson(snapshotDefinition), "utf8"),
+        );
+        // Whole compilation/page construction shares this request's original meter; no new capture.
+        const end = clock.now().toISOString();
+        const finalCompletedAt =
+          policyEvaluationTimestampOrderKey(end) < policyEvaluationTimestampOrderKey(completedAt)
+            ? completedAt
+            : end;
+        for (const { read } of artifacts)
+          if (
+            read.observation.status === "verified" &&
+            read.catalog?.metadata.retention.mode === "expire" &&
+            policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
+              policyEvaluationTimestampOrderKey(finalCompletedAt)
+          )
+            throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+        for (const { read } of storedArtifactCapture.captures)
+          if (
+            read.observation.status === "content_pending" &&
+            read.catalog?.metadata.retention.mode === "expire" &&
+            policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
+              policyEvaluationTimestampOrderKey(finalCompletedAt)
+          )
+            throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
+        return {
+          capture: { ...capture, completedAt: finalCompletedAt, usage: usage() },
+          snapshotInputs,
+          snapshotDefinition,
+          ...(snapshotOptions?.whileHeld
+            ? { sealedSnapshot: await snapshotOptions.whileHeld.publish(snapshotDefinition) }
+            : {}),
+        };
+      }
+      return { capture, ...(snapshotInputs ? { snapshotInputs } : {}) };
+    };
+    if (snapshotOptions?.whileHeld)
+      return withRecheckedCapturedPolicySources(
+        guardInput,
+        budget,
+        principal,
+        clock.now().toISOString(),
+        { transactions: snapshotOptions.whileHeld.transactions, traceCapture },
+        (inspection) => finish(inspection),
+      );
+    const sourceGuardPlan = await deriveAndRecheckCapturedPolicySources(
+      guardInput,
       budget,
       principal,
       sourceTransactions || metadataTransactions ? clock.now().toISOString() : startedAt,
       sourceTransactions,
       metadataTransactions ? { transactions: metadataTransactions, traceCapture } : undefined,
     );
-    sourceGuardUsage = sourceGuardPlan.usage;
-    const localCompletedAt = clock.now().toISOString();
-    const completedAt =
-      "recheck" in sourceGuardPlan &&
-      policyEvaluationTimestampOrderKey(sourceGuardPlan.recheck.observedAt) >
-        policyEvaluationTimestampOrderKey(localCompletedAt)
-        ? sourceGuardPlan.recheck.observedAt
-        : localCompletedAt;
-    for (const { read } of artifacts) {
-      if (
-        read.observation.status === "verified" &&
-        read.catalog?.metadata.retention.mode === "expire" &&
-        policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
-          policyEvaluationTimestampOrderKey(completedAt)
-      )
-        throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
-    }
-    for (const { read } of storedArtifactCapture.captures) {
-      if (
-        read.observation.status === "content_pending" &&
-        read.catalog?.metadata.retention.mode === "expire" &&
-        policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
-          policyEvaluationTimestampOrderKey(completedAt)
-      )
-        throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
-    }
-    const capture: Extract<PolicyArtifactEvidenceCapture, { status: "artifacts_captured" }> = {
-      status: "artifacts_captured",
-      traceCapture,
-      startedAt,
-      completedAt,
-      artifacts,
-      storedArtifacts: storedArtifactCapture.captures,
-      storedArtifactInspectionUsage: storedArtifactCapture.inspectionUsage,
-      sourceGuards: sourceGuardPlan.guards,
-      ...("recheck" in sourceGuardPlan ? { sourceRecheck: sourceGuardPlan.recheck } : {}),
-      fixtureBindings,
-      artifactRules,
-      candidateAuthority: {
-        beforeArtifacts: candidateBeforeArtifacts,
-        afterArtifacts: candidateAfterArtifacts,
-      },
-      policyAuthority,
-      applicability,
-      comparisonRules,
-      assessmentRules,
-      ruleInputs,
-      snapshotRules,
-      ruleDependencies,
-      evaluationTrust,
-      criterionAuthority: {
-        beforeArtifacts: criteriaBeforeArtifacts,
-        afterArtifacts: criteriaAfterArtifacts,
-        ...("criterionAuthority" in sourceGuardPlan
-          ? { underGuards: sourceGuardPlan.criterionAuthority }
-          : {}),
-      },
-      policyLifecycle: { beforeArtifacts, afterArtifacts },
-      usage: usage(),
-    };
-    let snapshotDefinition: PolicyEvaluationSnapshotPageSet | undefined;
-    if (snapshotId !== undefined) {
-      if (!snapshotInputs) throw new TypeError("Missing original snapshot source inputs");
-      const compiled = compileCapturedSnapshotInputs(request, capture, snapshotInputs, budget);
-      const encodedInputs = encodePolicyEvaluationSnapshotInputs(compiled.inputs);
-      budget.addReferences(0, encodedInputs.byteLength);
-      const frameCount = Math.ceil(
-        encodedInputs.byteLength / POLICY_EVALUATION_SNAPSHOT_FRAME_BYTES,
-      );
-      budget.addReferences(
-        1 + frameCount + 2 * Math.ceil(frameCount / POLICY_EVALUATION_SNAPSHOT_PAGE_SIZE),
-        0,
-      );
-      snapshotDefinition = assemblePolicyEvaluationSnapshot({
-        snapshotId,
-        inputs: compiled.inputs,
-      });
-      budget.addReferences(
-        0,
-        Buffer.byteLength(serializeEvaluationCanonicalJson(snapshotDefinition), "utf8"),
-      );
-      // Whole compilation/page construction shares this request's original meter; no new capture.
-      const end = clock.now().toISOString();
-      const finalCompletedAt =
-        policyEvaluationTimestampOrderKey(end) < policyEvaluationTimestampOrderKey(completedAt)
-          ? completedAt
-          : end;
-      for (const { read } of artifacts)
-        if (
-          read.observation.status === "verified" &&
-          read.catalog?.metadata.retention.mode === "expire" &&
-          policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
-            policyEvaluationTimestampOrderKey(finalCompletedAt)
-        )
-          throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
-      for (const { read } of storedArtifactCapture.captures)
-        if (
-          read.observation.status === "content_pending" &&
-          read.catalog?.metadata.retention.mode === "expire" &&
-          policyEvaluationTimestampOrderKey(read.catalog.metadata.retention.expiresAt) <=
-            policyEvaluationTimestampOrderKey(finalCompletedAt)
-        )
-          throw new PolicyEvaluationArtifactCaptureError("source_revision_changed");
-      return {
-        capture: { ...capture, completedAt: finalCompletedAt, usage: usage() },
-        snapshotInputs,
-        snapshotDefinition,
-      };
-    }
-    return { capture, ...(snapshotInputs ? { snapshotInputs } : {}) };
+    return finish(sourceGuardPlan);
   } finally {
     await budget.settle();
   }

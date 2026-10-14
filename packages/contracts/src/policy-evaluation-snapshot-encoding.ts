@@ -15,6 +15,10 @@ export const POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN =
   "proofstack.policy-evaluation-snapshot-inputs.v1" as const;
 export const POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION =
   "proofstack.policy-evaluation-snapshot-inputs-jcs.v1" as const;
+export const POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN_V2 =
+  "proofstack.policy-evaluation-snapshot-inputs.v2" as const;
+export const POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION_V2 =
+  "proofstack.policy-evaluation-snapshot-inputs-jcs.v2" as const;
 export const POLICY_EVALUATION_SNAPSHOT_DOMAIN =
   "proofstack.policy-evaluation-snapshot.v1" as const;
 export const POLICY_EVALUATION_SNAPSHOT_ENCODING_VERSION =
@@ -30,8 +34,14 @@ export function encodePolicyEvaluationSnapshotInputs(
 ): Uint8Array {
   return encodeEvaluationCanonicalJson({
     ...PolicyEvaluationSnapshotInputsSchema.parse(inputs),
-    definitionDomain: POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN,
-    encodingVersion: POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION,
+    definitionDomain:
+      inputs.schemaVersion === "0.2"
+        ? POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN_V2
+        : POLICY_EVALUATION_SNAPSHOT_INPUTS_DOMAIN,
+    encodingVersion:
+      inputs.schemaVersion === "0.2"
+        ? POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION_V2
+        : POLICY_EVALUATION_SNAPSHOT_INPUTS_ENCODING_VERSION,
   });
 }
 export function encodePolicyEvaluationSnapshotDefinition(input: {

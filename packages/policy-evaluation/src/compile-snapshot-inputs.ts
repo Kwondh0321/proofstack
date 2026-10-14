@@ -14,6 +14,7 @@ import type { PolicyArtifactEvidenceCapture } from "./capture-artifact-evidence.
 import type { PolicyCandidateAuthorityObservation } from "./capture-candidate-authority.js";
 import type { PolicyCriterionAuthorityObservation } from "./capture-criterion-authority.js";
 import type { PolicyPreparedSnapshotInputs } from "./prepare-snapshot-inputs.js";
+import { compileCapturedSemanticClosure } from "./compile-semantic-closure.js";
 
 type Capture = Extract<PolicyArtifactEvidenceCapture, { status: "artifacts_captured" }>;
 function conflict(): never {
@@ -100,7 +101,7 @@ export function compileCapturedSnapshotInputs(
     return checked.record;
   };
   const material = {
-    schemaVersion: "0.1" as const,
+    schemaVersion: "0.2" as const,
     request,
     capturedAt: capture.completedAt,
     roots: { candidate: root("release_candidate"), policy: root("release_policy") },
@@ -135,6 +136,7 @@ export function compileCapturedSnapshotInputs(
     }),
     storedArtifacts: capture.storedArtifacts.map(({ origin, read }) => ({ origin, ...read })),
     fixtureBindings: capture.fixtureBindings,
+    closure: compileCapturedSemanticClosure(capture, prepared, budget),
     sourceGuards: capture.sourceGuards,
   };
   // Admit every structured output frame and array occurrence, including repeated authority rows,

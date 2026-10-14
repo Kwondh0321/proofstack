@@ -5,6 +5,35 @@
 
 Status: implementation prerequisite; Workflow 2 checkpoint 3 remains open (2/7 accepted).
 
+Input version `0.2` additionally binds complete owning relationship findings and the original
+ordered rule dependency coordinates. Dataset, replay plan/result, evaluation history/replay,
+model/human assurance and candidate assessment findings retain parent body hashes, original
+report/check positions, owner/path, reasons and matched/mismatch/unavailable state. Future stored
+findings use a separate context and do not qualify semantic operands. Every relevant semantic check
+remains at each original rule use; the same logical ID with a changed digest fails the full join.
+Findings remain distinct from recorded eligibility, current authority and policy outcomes.
+
+The version `0.1` schema and canonical vectors remain supported for historical integrity. Version
+`0.2` uses `proofstack.policy-evaluation-snapshot-inputs.v2` and its `jcs.v2` encoding; existing
+root/page formats bind the new input hash. An independent Python synthetic closure vector has
+78,999 input bytes and SHA-256 `df42c98c72212120b36c9287094ad95727bd2f9953713013eb7e49b05710400e`.
+Its example findings test geometry/integrity, not source truth or a published seal.
+
+Workspace `sealPolicyEvaluationSnapshot` requires non-delegable service-token execution before
+request parsing, plus separately authorized artifact reads. It accepts server identities/fence and
+trusted transaction ports, never a submitted graph/page set/operand/outcome. Content/key I/O
+precedes guards. It reinspects complete metadata, compiles privately while the transaction remains
+open, and verifies returned snapshot/job/request/fence before completion. The existing read-only
+source report still ends before returning. A trusted-adapter unit model exercises ordering; this
+adds no native publisher, migration/grant, public route or production worker composition. Native
+same-client publication and durable job-wide accounting remain required. An arbitrary adapter or
+valid schema cannot establish them.
+
+Logical seal/start transitions retain the same admitted attempt, lease, request and spent work.
+They enter `sealed`, then `running` on that snapshot; history independently reconstructs both
+transitions. Historical record validation joins complete canonical pages and exact
+job/request/scope/worker metadata. Pure transitions and historical reads are not live authority.
+
 `PolicyEvaluationSnapshotInputs` retains one exact request, original candidate/policy records,
 record-source metadata and manifest, complete ordered rules, before/after policy lifecycle and
 reference-authority observations, criterion history/selection coordinates, applicability, trust

@@ -5,6 +5,32 @@
 
 상태: 구현 선행 조건; Workflow 2 checkpoint 3은 열려 있습니다(7개 중 2개 승인).
 
+입력 `0.2`는 원래 rule 의존성 위치와 owning 관계 검증 결과도 함께 고정합니다.
+Dataset·replay plan/result·evaluation history/replay·model/human assurance·후보 assessment의
+parent hash, 원래 report/check 위치, owner/path, 이유와 matched/mismatch/unavailable 상태를
+보존합니다. 미래 stored 결과는 별도 context이며 의미적 operand를 적격으로 만들지 않습니다.
+각 rule의 관련 의미적 검사를 빠뜨릴 수 없고 같은 ID의 digest 변경도 전체 참조 비교로 거절합니다.
+관계 결과는 기록된 eligibility·현재 권한·정책 outcome과 구분됩니다.
+
+기존 `0.1` 스키마와 canonical vector는 과거 무결성 검증을 위해 유지됩니다. `0.2`는 별도
+input domain/encoding `v2`를 사용하며 기존 root/page 형식은 그 input hash에 연결됩니다.
+Python 독립 synthetic 벡터는 78,999바이트이며 SHA-256은
+`df42c98c72212120b36c9287094ad95727bd2f9953713013eb7e49b05710400e`입니다.
+이는 geometry/integrity 검사이며 실제 source 권한이나 게시된 seal을 증명하지 않습니다.
+
+Workspace `sealPolicyEvaluationSnapshot`은 request 파싱 전에 service-token의 비위임 실행
+권한을 확인하고 별도의 artifact 읽기 권한도 요구합니다. Caller graph/page/operand/outcome을
+받지 않고 서버 identity/fence와 trusted transaction port만 사용합니다. Content/key I/O 후
+전체 metadata를 재검증하고 열린 transaction에서 내부 컴파일·게시 결과의 snapshot/job/
+request/fence 검증을 수행합니다. 기존 읽기 전용 report는 여전히 반환 전에 transaction이
+끝납니다. Trusted-adapter 단위 모델은 순서를 검사하지만 native publisher·migration/grant·
+공개 route·운영 worker를 추가하지는 않습니다. 실제 원자 게시와 durable job 전체 비용
+집계는 여전히 필요하며 임의 adapter나 유효한 schema만으로 대신할 수 없습니다.
+
+논리적 seal/start 전환은 동일 attempt·lease·request·소모 비용을 유지하며 `sealed`에서
+같은 snapshot의 `running`으로 이동합니다. 이력은 두 전환을 독립 재구성합니다. 과거 record
+검증은 전체 canonical pages와 정확한 job/request/scope/worker를 연결하며 현재 권한은 아닙니다.
+
 `PolicyEvaluationSnapshotInputs`는 정확한 하나의 request, 원래 candidate/policy record,
 record source와 manifest, 순서 있는 전체 rule, 전후 policy lifecycle/reference authority,
 criterion history/selection 위치, applicability, trust 선행 조건, trace fingerprint,
