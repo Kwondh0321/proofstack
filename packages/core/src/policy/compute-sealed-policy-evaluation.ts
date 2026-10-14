@@ -105,29 +105,40 @@ export function computeSealedPolicyEvaluation(input: {
     }
   }
   const authority = inputs.candidateAuthority.afterArtifacts;
-  const candidateKey = policyEvaluationSourceReferenceKey({
-    kind: "release_candidate",
+  const candidateSource = {
+    kind: "release_candidate" as const,
     reference: inputs.request.candidate,
-  });
+  };
+  const candidateKey = policyEvaluationSourceReferenceKey(candidateSource);
   const candidateWitness = records.find(
     (record) => policyEvaluationSourceReferenceKey(record.entry.source) === candidateKey,
   );
-  const policyKey = policyEvaluationSourceReferenceKey({
-    kind: "release_policy",
+  const policySource = {
+    kind: "release_policy" as const,
     reference: inputs.request.policy,
-  });
+  };
+  const policyKey = policyEvaluationSourceReferenceKey(policySource);
   const policyWitness = records.find(
     (record) => policyEvaluationSourceReferenceKey(record.entry.source) === policyKey,
   );
+  const same = (left: unknown, right: unknown) =>
+    left !== undefined &&
+    right !== undefined &&
+    serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
+  if (
+    !same(candidateWitness?.entry.source, candidateSource) ||
+    !same(policyWitness?.entry.source, policySource)
+  )
+    throw new PolicyEvaluationSnapshotIntegrityError("invalid_inputs");
   for (const witness of [inputs.applicability.candidate, inputs.rules.candidate])
     if (
-      policyEvaluationSourceReferenceKey(witness.source) !== candidateKey ||
+      !same(witness.source, candidateSource) ||
       witness.recordSha256 !== candidateWitness?.storage?.recordSha256
     )
       throw new PolicyEvaluationSnapshotIntegrityError("invalid_inputs");
   for (const witness of [inputs.applicability.policy, inputs.rules.policy, inputs.policyAuthority])
     if (
-      policyEvaluationSourceReferenceKey(witness.source) !== policyKey ||
+      !same(witness.source, policySource) ||
       witness.recordSha256 !== policyWitness?.storage?.recordSha256
     )
       throw new PolicyEvaluationSnapshotIntegrityError("invalid_inputs");
@@ -180,6 +191,8 @@ export function computeSealedPolicyEvaluation(input: {
           (occurrence) => policyEvaluationSourceReferenceKey(occurrence.parent) === candidateKey,
         )
       : [];
+  if (rootOccurrences.some((occurrence) => !same(occurrence.parent, candidateSource)))
+    throw new PolicyEvaluationSnapshotIntegrityError("invalid_inputs");
   const candidateQualified =
     authority.status === "observed" &&
     authority.unavailableParents.length === 0 &&
@@ -299,8 +312,7 @@ export function computeSealedPolicyEvaluation(input: {
             (parent) =>
               !criterion.selections.some(
                 (selection) =>
-                  policyEvaluationSourceReferenceKey(selection.parent) ===
-                    policyEvaluationSourceReferenceKey(parent.entry.source) &&
+                  same(selection.parent, parent.entry.source) &&
                   selection.parentRecordSha256 === parent.storage?.recordSha256 &&
                   selection.atEvaluation === "approved_head",
               ),
@@ -318,8 +330,7 @@ export function computeSealedPolicyEvaluation(input: {
           (parent) =>
             !inputs.evaluationTrust.parents.some(
               (observation) =>
-                policyEvaluationSourceReferenceKey(observation.source) ===
-                  policyEvaluationSourceReferenceKey(parent.entry.source) &&
+                same(observation.source, parent.entry.source) &&
                 observation.recordSha256 === parent.storage?.recordSha256,
             ),
         ) ||

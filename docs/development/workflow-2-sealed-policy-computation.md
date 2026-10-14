@@ -17,6 +17,10 @@ seven applicability conditions from the original candidate target and policy sel
 checks the policy's exact semantic-time validity independently of a descriptive authority
 report. Approval always remains `indeterminate` with `approval_not_evaluated`.
 
+Logical source keys locate witnesses; they do not establish exact identity. Root witnesses,
+authority parents, required criterion selections and evaluation trust parents must retain the
+complete original reference, including its definition digest, as well as the full body hash.
+
 Candidate reference observations must retain every root source revision, model declaration
 and adapter, with the original subject, parent body hash and path. Availability is declared
 reference authority, not loaded executable code, a live provider measurement or reviewer

@@ -350,6 +350,60 @@ describe("historical computation from authoritative job-bound sealed inputs", ()
       expect(() => compute(value)).toThrow();
     },
   );
+  it.each([
+    "candidate_observation",
+    "applicability_candidate",
+    "policy_authority",
+    "candidate_witness",
+    "policy_witness",
+  ] as const)(
+    "rejects an exact parent reference digest substitution in %s despite unchanged logical ID/body hash",
+    (target) => {
+      const value = fixture("v2", (inputs) => {
+        qualifiedModel(inputs, true);
+        if (target === "candidate_observation") {
+          for (const observation of Object.values(inputs.candidateAuthority))
+            if (observation.status === "observed") {
+              const parent = requiredAt(observation.occurrences, 0).parent;
+              if (parent.kind !== "release_candidate") throw new Error("Missing candidate parent");
+              parent.reference.definitionSha256 = "0".repeat(64);
+            }
+        } else if (target === "candidate_witness" || target === "policy_witness") {
+          const kind = target === "candidate_witness" ? "release_candidate" : "release_policy";
+          const witness = inputs.sources.records.records.find(
+            (record) => record.entry.source.kind === kind,
+          );
+          if (
+            !witness ||
+            (witness.entry.source.kind !== "release_candidate" &&
+              witness.entry.source.kind !== "release_policy")
+          )
+            throw new Error("Missing original root witness");
+          // Recompute a coherent forged source inventory, retaining the authoritative
+          // request and original root body. An ID-only lookup must not accept it.
+          const originalDigest = witness.entry.source.reference.definitionSha256;
+          inputs.sources = JSON.parse(
+            JSON.stringify(inputs.sources).replaceAll(originalDigest, "0".repeat(64)),
+          );
+          inputs.manifest = assemblePolicyEvaluationManifest({
+            manifestId: inputs.manifest.manifest.manifestId,
+            request: inputs.sources.records.request,
+            scope: inputs.request.scope,
+            entries: inputs.sources.records.records.map(({ entry }) => entry),
+          });
+        } else {
+          const source =
+            target === "applicability_candidate"
+              ? inputs.applicability.candidate.source
+              : inputs.policyAuthority.source;
+          if (source.kind !== "release_candidate" && source.kind !== "release_policy")
+            throw new Error("Missing original root source");
+          source.reference.definitionSha256 = "0".repeat(64);
+        }
+      });
+      expect(() => compute(value)).toThrow();
+    },
+  );
   it.each(["omitted", "subject", "path", "hash", "availability"] as const)(
     "does not qualify %s candidate reference observations",
     (change) => {
