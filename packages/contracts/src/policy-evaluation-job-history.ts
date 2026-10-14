@@ -12,6 +12,8 @@ import {
 import { PolicyEvaluationWorkerMutationFenceSchema } from "./policy-evaluation-job-fence.js";
 import { PolicyEvaluationRetryableErrorSchema } from "./policy-evaluation-request.js";
 import { PolicyEvaluationSnapshotReferenceSchema } from "./policy-evaluation-snapshot.js";
+import { PolicyEvaluationResultReferenceSchema } from "./policy-evaluation-result.js";
+import { MAX_POLICY_RULES } from "./release-policy.js";
 import {
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
@@ -31,6 +33,14 @@ const Sequence = z
   .nonnegative()
   .max(MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES - 1);
 const Operation = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("complete"),
+      fence: PolicyEvaluationWorkerMutationFenceSchema,
+      result: PolicyEvaluationResultReferenceSchema,
+      ruleCount: z.number().int().positive().max(MAX_POLICY_RULES),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal("seal"),

@@ -10,6 +10,7 @@ import {
 } from "./policy-evaluation-job-history.js";
 import { recoverPolicyEvaluationJob } from "./policy-evaluation-job-recovery.js";
 import { reservePolicyEvaluationUsage } from "./policy-evaluation-scheduler-budget.js";
+import { completePolicyEvaluationJob } from "./policy-evaluation-scheduler-complete.js";
 import { cancelPolicyEvaluationJob } from "./policy-evaluation-scheduler-cancel.js";
 import {
   claimPolicyEvaluationJob,
@@ -49,6 +50,14 @@ export function replayPolicyEvaluationJobHistoryEntry(
   const operation = definition.operation;
   let next: PolicyEvaluationJobSnapshot;
   switch (operation.kind) {
+    case "complete":
+      next = completePolicyEvaluationJob({
+        ...common,
+        fence: operation.fence,
+        result: operation.result,
+        ruleCount: operation.ruleCount,
+      });
+      break;
     case "seal":
       next = sealPolicyEvaluationJob({
         ...common,
