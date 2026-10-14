@@ -78,6 +78,13 @@ heartbeat/lease 시간·강제 제약·환경 간 outbox·epoch 무효화·원�
 추가합니다. 어댑터 단위 검사는 잘못된 응답, 재계산된 hash의 치환, 전체 rollback·연결 정리를
 검사합니다.
 
+조정된 PostgreSQL/S3 백업·복원 검사는 queued·acquiring·retry-ready·cancelled 정책 작업,
+양수 예약 비용과 원래 취소를 포함합니다. 원래 graph와 DB 복구 시각에서 변경된 job·attempt·
+이력 행을 독립적으로 재구성하며, 새 테이블 여섯 개와 원래 요청·예약·outbox·이전 이력 prefix를
+전체 DB 비교에서 유지합니다. 복원 후 별도 역할 pool이 이전 worker fence·직접 DML·소유자 복구를
+거부하고, 원래 입력·사용량을 유지한 새 epoch의 claim을 실행합니다. 아직 구현되지 않은
+sealed/running/completed result 게시나 모든 scheduler 상태의 승인을 뜻하지 않습니다.
+
 이미 읽은 데이터의 제한은 진행 중 I/O의 제한을 뜻하지 않습니다. Pool 할당·SQL 취소와 drain·
 wire 읽기·남은 기한의 admission은 아직 필요합니다. 이 저장소는 공개 route·service·sealed
 snapshot publisher·predicate/result publisher·운영 배포 구성을 추가하지 않습니다. 읽기 전용

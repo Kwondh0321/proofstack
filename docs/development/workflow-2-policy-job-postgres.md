@@ -82,6 +82,15 @@ concurrent claim, actual heartbeat/lease time, forced constraints, cross-environ
 epoch invalidation and original terminal/usage/history preservation. Adapter unit tests reject
 malformed receipts and correctly hashed substitutions and verify rollback/connection cleanup.
 
+The coordinated PostgreSQL/S3 backup-and-restore rehearsal includes representative queued,
+acquiring, retry-ready and cancelled policy jobs, positive reservations and original cancellation.
+It independently reconstructs every expected changed job/attempt/history row from the original
+graph and native recovery cut; all six tables, original requests/reservations/intents and history
+prefixes remain in the full database comparison. Separate restored role pools reject old worker
+fences, direct DML and owner recovery, then admit a new forward-epoch claim with original inputs
+and usage. This exercise does not establish the still-unimplemented sealed/running/completed result
+publication flow or acceptance of every scheduler state.
+
 Materialized limits do not establish bounded pending I/O. Pool acquisition, SQL cancellation and
 draining, wire reads and remaining-deadline admission remain required. No public route, service,
 sealed snapshot publisher, predicate/result publisher or production composition is introduced by

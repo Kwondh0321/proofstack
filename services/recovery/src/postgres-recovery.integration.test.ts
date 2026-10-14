@@ -31,6 +31,8 @@ import type {
   EvidenceEnvelope,
   EvidenceScope,
   InteractionCaptureManifest,
+  PolicyEvaluationJobHistoryEntry,
+  PolicyEvaluationJobSnapshot,
   PrincipalContext,
   RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinition,
@@ -44,17 +46,23 @@ import type {
   TargetReleaseDefinition,
 } from "@proofstack/contracts";
 import {
+  encodePolicyEvaluationJobHistoryEntry,
   InteractionCaptureManifestSchema,
+  PolicyEvaluationJobSnapshotSchema,
   RecordedInteractionFixtureVersionDefinitionSchema,
   ReplayJobSchema,
   ReplayPlanSchema,
   ReplayWorkerMutationFenceSchema,
+  serializeEvaluationCanonicalJson,
   TargetReleaseSchema,
   TraceResponseSchema,
 } from "@proofstack/contracts";
 import {
   AuthoritySplitModelAssuranceRepository,
   CreateModelAssuranceAssessment,
+  createPolicyEvaluationJobHistoryEntry,
+  digestPolicyEvaluationRequestDefinition,
+  recoverPolicyEvaluationJob,
   SystemClock,
 } from "@proofstack/core";
 import {
@@ -62,6 +70,7 @@ import {
   createModelAssuranceRepositoryTestHarness,
   createReleasePolicyRepositoryTestHarness,
   FixedClock,
+  policyJobConformanceRequest,
   publishComparisonFixture,
   publishEvaluationFixture,
   releaseCandidateFixture,
@@ -109,6 +118,8 @@ import {
   PostgresEvidenceRepository,
   PostgresModelAssuranceRepository,
   PostgresOidcIdentityRepository,
+  PostgresPolicyEvaluationJobControlRepository,
+  PostgresPolicyEvaluationJobWorkerRepository,
   PostgresProjectionCursorRepository,
   PostgresRegressionVersionRepository,
   PostgresReleaseCandidateRepository,
@@ -2187,6 +2198,156 @@ interface SequenceSnapshotRow {
   readonly sequencename: string;
 }
 
+let policyJobRecoveryFixtures: readonly PolicyEvaluationJobSnapshot[] = [];
+
+async function seedPolicyJobRecoveryFixtures(): Promise<void> {
+  const control = new PostgresPolicyEvaluationJobControlRepository(sourcePool);
+  const worker = new PostgresPolicyEvaluationJobWorkerRepository(sourcePool);
+  const graphs: PolicyEvaluationJobSnapshot[] = [];
+  for (const kind of ["queued", "active", "retry", "cancelled"] as const) {
+    const request = policyJobConformanceRequest(scope);
+    request.evaluationRequestId = `policy_recovery_request_${kind}`;
+    request.limits.leaseDurationMilliseconds = 60000;
+    const {
+      createdAt: _at,
+      createdByPrincipalId: _by,
+      definitionSha256: _sha,
+      schemaVersion: _version,
+      scope: _scope,
+      ...definition
+    } = request;
+    request.definitionSha256 = digestPolicyEvaluationRequestDefinition(scope, definition);
+    const jobId = `policy_recovery_job_${kind}`;
+    let graph = (await control.createJob({ request, jobId })).snapshot;
+    if (kind !== "queued") {
+      graph = await worker.claimJob({
+        scope,
+        jobId,
+        workerId: `policy_worker_${kind}`,
+        attemptId: `policy_attempt_${kind}`,
+        leaseId: `policy_lease_${kind}`,
+      });
+      graph = (
+        await worker.reserveWork({
+          scope,
+          fence: graph.job.currentLease!.mutationFence,
+          reservationId: `policy_reservation_${kind}`,
+          delta: { ...graph.usage, reads: 1, recordBytes: 128 },
+        })
+      ).snapshot;
+    }
+    if (kind === "retry")
+      graph = await worker.interruptJob({
+        scope,
+        fence: graph.job.currentLease!.mutationFence,
+        reason: "worker_interrupted",
+      });
+    if (kind === "cancelled")
+      graph = await control.cancelJob({
+        scope,
+        jobId,
+        cancellationId: "policy_cancel_original",
+        principalId: "principal_controller",
+        reason: "operator_requested",
+      });
+    graphs.push(graph);
+  }
+  policyJobRecoveryFixtures = graphs;
+}
+
+function recoveryRow(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    throw new Error("Recovery row is not an object");
+  return raw as Record<string, unknown>;
+}
+function nativeJsonTime(utc: string): string {
+  // PostgreSQL JSON timestamptz is UTC +00:00 with insignificant fractional zeros removed.
+  return utc
+    .replace(/\.0+Z$/u, "Z")
+    .replace(/(\.\d*?[1-9])0+Z$/u, "$1Z")
+    .replace(/Z$/u, "+00:00");
+}
+/** Independently reconstruct every changed policy row/event; no policy table is excluded. */
+function expectedPolicyRecoveredSnapshot(
+  source: AuthoritativeSnapshot,
+  restored: AuthoritativeSnapshot,
+): AuthoritativeSnapshot {
+  const tables = structuredClone(source.tables) as Record<string, unknown[]>;
+  const jobs = tables["proofstack_policy_evaluation_jobs"]!;
+  const attempts = tables["proofstack_policy_evaluation_attempts"]!;
+  const history = tables["proofstack_policy_evaluation_job_history"]!;
+  const restoredJobs = restored.tables["proofstack_policy_evaluation_jobs"]!.map(recoveryRow);
+  for (const previous of policyJobRecoveryFixtures) {
+    const restoredRow = restoredJobs.find((row) => row["job_id"] === previous.job.jobId)!;
+    const actual = PolicyEvaluationJobSnapshotSchema.parse(restoredRow["snapshot"]);
+    const epoch = previous.job.recoveryEpoch + 1;
+    if (previous.job.terminal === null) expect(actual.job.recoveryEpoch).toBe(epoch);
+    const next = recoverPolicyEvaluationJob({
+      snapshot: previous,
+      now: actual.job.updatedAt,
+      recoveryEpoch: epoch,
+    });
+    expect(actual).toEqual(next);
+    if (previous.job.terminal !== null) continue;
+    const jobIndex = jobs.findIndex((row) => recoveryRow(row)["job_id"] === previous.job.jobId);
+    jobs[jobIndex] = {
+      ...recoveryRow(jobs[jobIndex]),
+      status: next.job.status,
+      state_version: next.job.stateVersion,
+      recovery_epoch: next.job.recoveryEpoch,
+      updated_at: nativeJsonTime(next.job.updatedAt),
+      attempt_id: null,
+      lease_id: null,
+      worker_id: null,
+      lease_expires_at: null,
+      attempt_deadline_at: null,
+      retry_at: next.job.retryAt === null ? null : nativeJsonTime(next.job.retryAt),
+      snapshot: next,
+    };
+    for (let i = 0; i < attempts.length; i++) {
+      const row = recoveryRow(attempts[i]);
+      if (row["job_id"] !== previous.job.jobId) continue;
+      const attempt = next.attempts.find(
+        (value) => value.mutationFence.attemptId === row["attempt_id"],
+      )!;
+      attempts[i] = {
+        ...row,
+        attempt,
+        closed_at: attempt.closure === null ? null : nativeJsonTime(attempt.closure.committedAt),
+      };
+    }
+    const previousEntry = history
+      .map(recoveryRow)
+      .find(
+        (row) =>
+          row["job_id"] === previous.job.jobId && row["sequence"] === previous.job.stateVersion - 1,
+      )!["entry"] as PolicyEvaluationJobHistoryEntry;
+    const entry = createPolicyEvaluationJobHistoryEntry({
+      previous,
+      previousEntry,
+      next,
+      operation: { kind: "recovery", recoveryEpoch: epoch },
+    });
+    history.push({
+      tenant_id: scope.tenantId,
+      project_id: scope.projectId,
+      environment_id: scope.environmentId,
+      job_id: next.job.jobId,
+      sequence: entry.definition.sequence,
+      entry_sha256: entry.entrySha256,
+      previous_entry_sha256: entry.definition.predecessorEntrySha256,
+      graph_sha256: entry.definition.graphSha256,
+      committed_at: nativeJsonTime(entry.definition.committedAt),
+      operation: "recovery",
+      canonical_utf8: Buffer.from(encodePolicyEvaluationJobHistoryEntry(entry.definition)).toString(
+        "utf8",
+      ),
+      entry,
+    });
+  }
+  return { sequences: source.sequences, tables };
+}
+
 interface AuthoritativeSnapshot {
   readonly sequences: readonly SequenceSnapshotRow[];
   readonly tables: Readonly<Record<string, readonly unknown[]>>;
@@ -2554,6 +2715,13 @@ function snapshotWithoutRecoveryTransitions(
     }
     return !transitionalJobIds.has(String(row.job_id));
   });
+  for (const [name, rows] of Object.entries(tables))
+    tables[name] = [...rows].sort((left, right) =>
+      Buffer.compare(
+        Buffer.from(serializeEvaluationCanonicalJson(left)),
+        Buffer.from(serializeEvaluationCanonicalJson(right)),
+      ),
+    );
   return { sequences: snapshot.sequences, tables };
 }
 
@@ -2577,11 +2745,86 @@ function runtimeRoleOptions(): RuntimeRoleProvisioningOptions {
       name: role("policy"),
       password: `recovery-policy-${runKey}`,
     },
+    policyEvaluationControl: {
+      name: role("policy_control"),
+      password: `recovery-policy-control-${runKey}`,
+    },
+    policyEvaluator: {
+      name: role("policy_evaluator"),
+      password: `recovery-policy-evaluator-${runKey}`,
+    },
     publisher: { name: role("publisher"), password: `recovery-publisher-${runKey}` },
     replayWorker: { name: role("worker"), password: `recovery-replay-worker-${runKey}` },
   } satisfies RuntimeRoleProvisioningOptions;
   managedRoles.push(...Object.values(options).map(({ name }) => name));
   return options;
+}
+
+async function verifyRestoredOperationalPolicyJobs(
+  roles: RuntimeRoleProvisioningOptions,
+): Promise<void> {
+  if (!roles.policyEvaluationControl || !roles.policyEvaluator)
+    throw new Error("Policy restore role pair is missing");
+  const connect = (credentials: { readonly name: string; readonly password: string }) => {
+    const url = new URL(restoredDatabaseUrl);
+    url.username = credentials.name;
+    url.password = credentials.password;
+    const pool = new Pool({ connectionString: url.toString(), max: 2 });
+    runtimePools.push(pool);
+    return pool;
+  };
+  const controlPool = connect(roles.policyEvaluationControl),
+    workerPool = connect(roles.policyEvaluator);
+  const control = new PostgresPolicyEvaluationJobControlRepository(controlPool);
+  const worker = new PostgresPolicyEvaluationJobWorkerRepository(workerPool);
+  for (const original of policyJobRecoveryFixtures) {
+    const restored = (await control.findJob(scope, original.job.jobId))!;
+    expect(restored.request).toEqual(original.request);
+    expect(restored.usage).toEqual(original.usage);
+    expect(restored.job.snapshot).toEqual(original.job.snapshot);
+    const oldHead = (await new PostgresPolicyEvaluationJobControlRepository(
+      sourcePool,
+    ).findHistoryHead(scope, original.job.jobId))!;
+    const originalPage = await new PostgresPolicyEvaluationJobControlRepository(
+      sourcePool,
+    ).readHistoryPage(oldHead, 0);
+    expect(await control.readHistoryPage(oldHead, 0)).toEqual(originalPage);
+    if (original.job.terminal !== null) expect(restored).toEqual(original);
+    else expect(restored.job.recoveryEpoch).toBe(original.job.recoveryEpoch + 1);
+  }
+  const original = policyJobRecoveryFixtures.find((value) => value.job.status === "acquiring")!;
+  const restored = (await control.findJob(scope, original.job.jobId))!;
+  expect(restored.attempts[0]!.closure).toMatchObject({
+    status: "interrupted",
+    reason: "worker_interrupted",
+  });
+  await expect(
+    worker.heartbeatJob({ scope, fence: original.job.currentLease!.mutationFence }),
+  ).rejects.toThrow();
+  await expect(
+    workerPool.query("SELECT public.proofstack_recover_policy_evaluation_job($1)", [
+      original.job.jobId,
+    ]),
+  ).rejects.toThrow();
+  await expect(
+    workerPool.query("UPDATE public.proofstack_policy_evaluation_jobs SET recovery_epoch=0"),
+  ).rejects.toThrow();
+  // Genuine elapsed readiness: the recovery cut remains native DB time.
+  const wait = Math.max(0, Date.parse(restored.job.retryAt!) - Date.now()) + 10;
+  await new Promise((resolve) => setTimeout(resolve, wait));
+  const claimed = await worker.claimJob({
+    scope,
+    jobId: original.job.jobId,
+    workerId: "policy_worker_restored",
+    attemptId: "policy_attempt_restored",
+    leaseId: "policy_lease_restored",
+  });
+  expect(claimed.job.currentLease!.mutationFence.recoveryEpoch).toBe(
+    original.job.recoveryEpoch + 1,
+  );
+  expect(claimed.job.lastFencingToken).toBe(original.job.lastFencingToken + 1);
+  expect(claimed.request).toEqual(original.request);
+  expect(claimed.usage).toEqual(original.usage);
 }
 
 beforeAll(async () => {
@@ -2658,6 +2901,7 @@ describe("coordinated recovery rehearsal", () => {
         process.stderr.write(`PostgreSQL tool diagnostic: ${stderr.trim()}\n`);
       },
     });
+    await seedPolicyJobRecoveryFixtures();
     const sourceSnapshot = await authoritativeSnapshot(sourcePool);
     expect(await regressionPublicationIntents(sourcePool)).toEqual(
       expectedRegressionPublicationIntents(),
@@ -2842,7 +3086,9 @@ describe("coordinated recovery rehearsal", () => {
     ]);
     const restoredSnapshot = await authoritativeSnapshot(restoredPool);
     expect(snapshotWithoutRecoveryTransitions(restoredSnapshot)).toEqual(
-      snapshotWithoutRecoveryTransitions(sourceSnapshot),
+      snapshotWithoutRecoveryTransitions(
+        expectedPolicyRecoveredSnapshot(sourceSnapshot, restoredSnapshot),
+      ),
     );
     const releaseCandidates = requiredReleaseCandidateRecoveryState();
     const restoredReleaseCandidateRepository = new PostgresReleaseCandidateRepository(restoredPool);
@@ -3111,6 +3357,7 @@ describe("coordinated recovery rehearsal", () => {
     const roles = runtimeRoleOptions();
     await provisionRuntimeRoles(restoredPool, roles);
     await verifyRestoredPolicyRuntimeAuthority(roles);
+    await verifyRestoredOperationalPolicyJobs(roles);
     const restoredPublicFunctionPrivileges = await restoredPool.query<{ readonly count: number }>(`
       SELECT count(*)::integer AS count
       FROM pg_proc AS procedure
