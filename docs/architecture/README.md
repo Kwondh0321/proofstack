@@ -56,3 +56,4 @@ invalidate an ADR present in this directory.
 - [ADR-0031: Persist policy job control and worker history separately](0031-persist-policy-job-control-and-worker-history.md)
 - [ADR-0032: Persist policy snapshots through held worker ports](0032-persist-policy-snapshots-through-held-worker-ports.md)
 - [ADR-0033: Commit policy results with original execution receipts](0033-commit-policy-results-with-original-execution-receipts.md)
+- [ADR-0034: Retain policy acquisition credit across failures](0034-retain-policy-acquisition-credit-across-failures.md)

@@ -125,6 +125,7 @@ const TENANT_TABLES = [
   "proofstack_model_assurance_records",
   "proofstack_oidc_bindings",
   "proofstack_outbox",
+  "proofstack_policy_acquisition_allowances",
   "proofstack_policy_evaluation_attempts",
   "proofstack_policy_evaluation_cancellations",
   "proofstack_policy_evaluation_job_history",

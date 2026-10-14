@@ -11,6 +11,10 @@ import {
 import { recoverPolicyEvaluationJob } from "./policy-evaluation-job-recovery.js";
 import { reservePolicyEvaluationUsage } from "./policy-evaluation-scheduler-budget.js";
 import { completePolicyEvaluationJob } from "./policy-evaluation-scheduler-complete.js";
+import {
+  reservePolicyEvaluationAcquisition,
+  settlePolicyEvaluationAcquisition,
+} from "./policy-evaluation-acquisition-allowance.js";
 import { cancelPolicyEvaluationJob } from "./policy-evaluation-scheduler-cancel.js";
 import {
   claimPolicyEvaluationJob,
@@ -91,6 +95,21 @@ export function replayPolicyEvaluationJobHistoryEntry(
         ...common,
         fence: operation.fence,
         delta: operation.delta,
+      });
+      break;
+    case "reserve_acquisition":
+      next = reservePolicyEvaluationAcquisition({
+        ...common,
+        fence: operation.fence,
+        allowanceId: operation.allowanceId,
+      });
+      break;
+    case "settle_acquisition":
+      next = settlePolicyEvaluationAcquisition({
+        ...common,
+        fence: operation.fence,
+        allowanceId: operation.allowanceId,
+        usage: operation.usage,
       });
       break;
     case "interrupt":

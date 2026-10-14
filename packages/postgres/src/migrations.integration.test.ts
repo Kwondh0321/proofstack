@@ -179,6 +179,7 @@ describe("PostgreSQL evidence schema", () => {
       "0058_policy_evaluation_snapshot_storage",
       "0059_policy_evaluation_computation_admission",
       "0060_policy_evaluation_result_storage",
+      "0061_policy_acquisition_allowances",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

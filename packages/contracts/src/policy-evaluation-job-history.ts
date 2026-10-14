@@ -14,6 +14,7 @@ import { PolicyEvaluationRetryableErrorSchema } from "./policy-evaluation-reques
 import { PolicyEvaluationSnapshotReferenceSchema } from "./policy-evaluation-snapshot.js";
 import { PolicyEvaluationResultReferenceSchema } from "./policy-evaluation-result.js";
 import { MAX_POLICY_RULES } from "./release-policy.js";
+import { PolicyEvaluationAcquisitionUsageSchema } from "./policy-evaluation-acquisition-allowance.js";
 import {
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
@@ -33,6 +34,21 @@ const Sequence = z
   .nonnegative()
   .max(MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES - 1);
 const Operation = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("reserve_acquisition"),
+      fence: PolicyEvaluationWorkerMutationFenceSchema,
+      allowanceId: OpaqueIdSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("settle_acquisition"),
+      fence: PolicyEvaluationWorkerMutationFenceSchema,
+      allowanceId: OpaqueIdSchema,
+      usage: PolicyEvaluationAcquisitionUsageSchema.nullable(),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal("complete"),

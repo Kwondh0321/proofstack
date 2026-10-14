@@ -8,6 +8,8 @@ import type {
   PolicyEvaluationJobHistoryHead,
   PolicyEvaluationJobHistoryPage,
   PolicyEvaluationJobHistoryEntry,
+  PolicyEvaluationAcquisitionAllowance,
+  PolicyEvaluationAcquisitionUsage,
 } from "@proofstack/contracts";
 
 /** Internal store operations. Server clock/epoch and publication authority are never caller fields. */
@@ -80,6 +82,24 @@ export interface PolicyEvaluationJobComputationRepository extends PolicyEvaluati
   startComputation(command: {
     readonly scope: EvidenceScope;
     readonly fence: PolicyEvaluationWorkerMutationFence;
+  }): Promise<PolicyEvaluationJobSnapshot>;
+}
+/** Internal acquisition credit. No caller clocks, mutable limits or publication capability. */
+export interface PolicyEvaluationAcquisitionRepository extends PolicyEvaluationJobReader {
+  reserveAcquisition(command: {
+    readonly scope: EvidenceScope;
+    readonly fence: PolicyEvaluationWorkerMutationFence;
+    readonly allowanceId: string;
+  }): Promise<{
+    readonly created: boolean;
+    readonly snapshot: PolicyEvaluationJobSnapshot;
+    readonly allowance: PolicyEvaluationAcquisitionAllowance | null;
+  }>;
+  settleAcquisition(command: {
+    readonly scope: EvidenceScope;
+    readonly fence: PolicyEvaluationWorkerMutationFence;
+    readonly allowanceId: string;
+    readonly usage: PolicyEvaluationAcquisitionUsage | null;
   }): Promise<PolicyEvaluationJobSnapshot>;
 }
 /** Memory/conformance aggregate only. Native composition uses separate control/worker pools. */

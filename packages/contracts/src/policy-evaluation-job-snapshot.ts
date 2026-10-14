@@ -14,6 +14,7 @@ import {
   policyEvaluationTimestampOrderKey,
 } from "./policy-evaluation-time.js";
 import { serializeEvaluationCanonicalJson } from "./evaluation-definition-encoding.js";
+import { PolicyEvaluationAcquisitionAllowanceSchema } from "./policy-evaluation-acquisition-allowance.js";
 
 /** Complete bounded scheduler graph. Store/fence/atomic-publication authority is separate. */
 const JobSnapshotObjectSchema = z
@@ -23,6 +24,8 @@ const JobSnapshotObjectSchema = z
     attempts: z.array(PolicyEvaluationAttemptSchema).max(MAX_POLICY_EVALUATION_ATTEMPTS),
     cancellation: PolicyEvaluationCancellationSchema.nullable(),
     usage: PolicyEvaluationUsageSchema,
+    // Absence remains absence: never add a default field to historical canonical graphs.
+    acquisitionAllowance: PolicyEvaluationAcquisitionAllowanceSchema.nullable().optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -32,6 +35,31 @@ const JobSnapshotObjectSchema = z
     const same = (a: unknown, b: unknown) =>
       serializeEvaluationCanonicalJson(a) === serializeEvaluationCanonicalJson(b);
     const issue = (message: string) => context.addIssue({ code: "custom", message });
+    const allowance = value.acquisitionAllowance;
+    if (allowance) {
+      const before = allowance.usageAtReservation;
+      if (
+        job.status !== "acquiring" ||
+        job.snapshot !== null ||
+        cancellation !== null ||
+        !same(allowance.mutationFence, job.currentLease?.mutationFence) ||
+        time(allowance.reservedAt) > time(job.updatedAt) ||
+        time(allowance.reservedAt) < time(attempts.at(-1)?.startedAt ?? job.createdAt) ||
+        before.reads !== usage.reads ||
+        before.records !== usage.records ||
+        before.references !== usage.references ||
+        before.recordBytes !== usage.recordBytes ||
+        before.referenceBytes !== usage.referenceBytes ||
+        allowance.limits.reads !== request.limits.maxAcquisitionRecords - before.reads ||
+        allowance.limits.records !== request.limits.maxAcquisitionRecords - before.records ||
+        allowance.limits.references !== request.limits.maxAcquisitionRecords - before.references ||
+        allowance.limits.recordAndReferenceBytes !==
+          request.limits.maxAcquisitionRecordBytes - before.recordBytes - before.referenceBytes
+      )
+        issue(
+          "Acquisition allowance must bind one acquiring fence and its exact remaining frozen metadata budget",
+        );
+    }
     if (
       !same(request.scope, job.scope) ||
       request.evaluationRequestId !== job.request.evaluationRequestId ||

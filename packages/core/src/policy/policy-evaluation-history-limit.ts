@@ -6,6 +6,7 @@ import {
   type PolicyEvaluationJobSnapshot,
 } from "@proofstack/contracts";
 import { PolicyEvaluationJobHistoryError } from "./policy-evaluation-job-history.js";
+import { chargeUncertainPolicyEvaluationAcquisition } from "./policy-evaluation-acquisition-allowance.js";
 
 /** Last fixed history slot is reserved for an operational terminal receipt, never an outcome. */
 export function exhaustPolicyEvaluationJobHistory(
@@ -24,6 +25,7 @@ export function exhaustPolicyEvaluationJobHistory(
       "History exhaustion requires the exact final reserved slot and forward native receipt",
     );
   const latest = snapshot.attempts.at(-1);
+  chargeUncertainPolicyEvaluationAcquisition(snapshot);
   if (latest?.closure === null) {
     latest.closure = {
       status: "budget_exhausted",

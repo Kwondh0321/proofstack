@@ -17,6 +17,7 @@ import {
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationJobRepository,
+  type PolicyEvaluationAcquisitionRepository,
   PolicyEvaluationJobNotFoundError,
   PolicyEvaluationRequestConflictError,
 } from "../policy/policy-evaluation-job-repository.js";
@@ -31,6 +32,10 @@ import {
   heartbeatPolicyEvaluationJob,
 } from "../policy/policy-evaluation-scheduler-claim.js";
 import { reservePolicyEvaluationUsage } from "../policy/policy-evaluation-scheduler-budget.js";
+import {
+  reservePolicyEvaluationAcquisition,
+  settlePolicyEvaluationAcquisition,
+} from "../policy/policy-evaluation-acquisition-allowance.js";
 import { cancelPolicyEvaluationJob } from "../policy/policy-evaluation-scheduler-cancel.js";
 import { interruptPolicyEvaluationJob } from "../policy/policy-evaluation-scheduler-interrupt.js";
 import { reclaimPolicyEvaluationJob } from "../policy/policy-evaluation-scheduler-reclaim.js";
@@ -57,7 +62,9 @@ interface StoredPolicyJob {
 }
 
 /** Atomic synchronous map commit, inside async ports. No I/O/await occurs between read and swap. */
-export class MemoryPolicyEvaluationJobRepository implements PolicyEvaluationJobRepository {
+export class MemoryPolicyEvaluationJobRepository
+  implements PolicyEvaluationJobRepository, PolicyEvaluationAcquisitionRepository
+{
   private readonly records = new Map<string, StoredPolicyJob>();
   private readonly requests = new Map<string, string>();
   private readonly reservations = new Map<string, PolicyEvaluationJobHistoryEntry>();
@@ -352,6 +359,68 @@ export class MemoryPolicyEvaluationJobRepository implements PolicyEvaluationJobR
           leaseId: command.leaseId,
         }),
       (next) => ({ kind: "claim", fence: next.job.currentLease!.mutationFence }),
+    );
+  }
+  async reserveAcquisition(
+    command: Parameters<PolicyEvaluationAcquisitionRepository["reserveAcquisition"]>[0],
+  ) {
+    const allowanceId = OpaqueIdSchema.parse(command.allowanceId);
+    const { snapshot, stored } = this.read(command.scope, command.fence.jobId);
+    requirePolicyEvaluationLiveFence({
+      snapshot,
+      now: this.clock.now(),
+      recoveryEpoch: this.recoveryEpoch,
+      fence: command.fence,
+    });
+    if (snapshot.acquisitionAllowance) {
+      if (snapshot.acquisitionAllowance.allowanceId !== allowanceId)
+        throw new PolicyEvaluationRequestConflictError();
+      return { created: false, snapshot, allowance: snapshot.acquisitionAllowance };
+    }
+    for (const page of Object.values(stored.pages))
+      for (const entry of page) {
+        const operation = entry.definition.operation;
+        if (operation.kind === "reserve_acquisition" && operation.allowanceId === allowanceId)
+          throw new PolicyEvaluationRequestConflictError();
+      }
+    const next = await this.mutate(
+      command.scope,
+      command.fence.jobId,
+      (current, now) =>
+        reservePolicyEvaluationAcquisition({
+          snapshot: current,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+          fence: command.fence,
+          allowanceId,
+        }),
+      () => ({ kind: "reserve_acquisition", fence: command.fence, allowanceId }),
+    );
+    return {
+      created: next.acquisitionAllowance != null,
+      snapshot: next,
+      allowance: next.acquisitionAllowance ?? null,
+    };
+  }
+  async settleAcquisition(
+    command: Parameters<PolicyEvaluationAcquisitionRepository["settleAcquisition"]>[0],
+  ) {
+    return this.mutate(
+      command.scope,
+      command.fence.jobId,
+      (snapshot, now) =>
+        settlePolicyEvaluationAcquisition({
+          ...command,
+          snapshot,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+        }),
+      () => ({
+        kind: "settle_acquisition",
+        fence: command.fence,
+        allowanceId: command.allowanceId,
+        usage: command.usage,
+      }),
     );
   }
   async reclaimJob(command: Parameters<PolicyEvaluationJobRepository["reclaimJob"]>[0]) {

@@ -7,6 +7,7 @@ import {
 } from "@proofstack/contracts";
 import { PolicyEvaluationJobHistoryError } from "./policy-evaluation-job-history.js";
 import { addPolicyEvaluationMillisecondsUpTo } from "./policy-evaluation-scheduler-time.js";
+import { chargeUncertainPolicyEvaluationAcquisition } from "./policy-evaluation-acquisition-allowance.js";
 
 /** Trusted recovery transition. Global store epoch must advance before any restored worker runs. */
 export function recoverPolicyEvaluationJob(input: {
@@ -30,6 +31,7 @@ export function recoverPolicyEvaluationJob(input: {
   if (job.stateVersion >= MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES)
     throw new PolicyEvaluationJobHistoryError("Recovery history capacity is exhausted");
   const latest = result.attempts.at(-1);
+  const acquisitionExhausted = chargeUncertainPolicyEvaluationAcquisition(result);
   const wasActive = job.currentLease !== null;
   const deadlineReached = time(now) >= time(job.deadlineAt);
   const historyReached = job.stateVersion === MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES - 1;
@@ -45,7 +47,7 @@ export function recoverPolicyEvaluationJob(input: {
   job.currentLease = null;
   job.updatedAt = now;
   job.stateVersion++;
-  if (deadlineReached || historyReached) {
+  if (deadlineReached || historyReached || acquisitionExhausted) {
     job.status = deadlineReached ? "timed_out" : "budget_exhausted";
     job.retryAt = null;
     job.terminal = {

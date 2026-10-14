@@ -743,9 +743,13 @@ now computes from the original stored seal and complete pages, then commits the 
 closed deciding attempt, terminal job, complete history and canonical intent together. Its final
 deferred check preserves the original native execution window after completion clears the lease.
 Historical exact retries and reads preserve original receipts and recompute sealed evidence.
-Per-invocation durable computation charges, complete acquisition costs, memory/shared conformance,
+Complete acquisition/input cost enforcement, memory/shared conformance,
 all-state recovery acceptance, the separate executable worker, public API/SDK, contributor flow
 and the independent exit audit remain required. Workflow 2 remains 2/7 accepted checkpoints.
+
+The [acquisition allowance prerequisite](workflow-2-policy-acquisition-allowances.md) defines
+committed metadata credit, drained settlement and conservative uncertain-cost recovery.
+Its capture/sealing integration remains pending and does not accept this checkpoint.
 
 The [per-invocation rule reservation composition](workflow-2-policy-rule-reservations.md)
 now commits a fresh whole-count reservation before native calculation/publication and refuses

@@ -95,3 +95,7 @@ export {
   releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
 } from "./release-policy-repository-fixtures.js";
+export {
+  policyAcquisitionRepositoryConformanceCases,
+  type PolicyAcquisitionConformanceHarness,
+} from "./policy-acquisition-repository-conformance.js";

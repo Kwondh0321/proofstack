@@ -86,6 +86,11 @@ export * from "./policy/policy-evaluation-scheduler-reclaim.js";
 export * from "./policy/policy-evaluation-scheduler-time.js";
 export * from "./policy/policy-evaluation-scheduler-seal.js";
 export * from "./policy/policy-evaluation-scheduler-complete.js";
+export {
+  reservePolicyEvaluationAcquisition,
+  settlePolicyEvaluationAcquisition,
+  policyEvaluationMetadataUsage,
+} from "./policy/policy-evaluation-acquisition-allowance.js";
 export * from "./policy/policy-evaluation-result-record-validation.js";
 export * from "./policy/policy-evaluation-result-repository.js";
 export * from "./policy/policy-evaluation-snapshot-record-validation.js";

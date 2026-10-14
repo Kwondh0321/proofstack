@@ -43,6 +43,13 @@ export function reservePolicyEvaluationUsage(input: {
   if (time(now) >= time(lease.attemptDeadlineAt) || time(now) >= time(job.deadlineAt))
     fail("deadline_reached");
   if (Object.values(delta).every((value) => value === 0)) fail("empty_reservation");
+  if (
+    result.acquisitionAllowance &&
+    [delta.reads, delta.records, delta.references, delta.recordBytes, delta.referenceBytes].some(
+      (value) => value !== 0,
+    )
+  )
+    fail("state_conflict");
   if (delta.ruleEvaluations > 0 && job.status !== "running") fail("state_conflict");
   const next = { ...result.usage };
   for (const key of Object.keys(next) as (keyof typeof next)[]) next[key] += delta[key];

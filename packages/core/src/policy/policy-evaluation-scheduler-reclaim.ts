@@ -6,6 +6,7 @@ import {
 } from "@proofstack/contracts";
 import { PolicyEvaluationSchedulerTransitionError } from "./policy-evaluation-scheduler-claim.js";
 import { addPolicyEvaluationMillisecondsUpTo } from "./policy-evaluation-scheduler-time.js";
+import { chargeUncertainPolicyEvaluationAcquisition } from "./policy-evaluation-acquisition-allowance.js";
 
 /** Store-controlled expiry observation. An expired worker cannot invoke its old mutation fence. */
 export function reclaimPolicyEvaluationJob(input: {
@@ -29,6 +30,7 @@ export function reclaimPolicyEvaluationJob(input: {
   if (expired && !latest) fail("state_conflict");
   if (!deadlineReached && !expired) fail("state_conflict");
   if (job.stateVersion >= Number.MAX_SAFE_INTEGER) fail("counter_exhausted");
+  const acquisitionExhausted = chargeUncertainPolicyEvaluationAcquisition(result);
   if (latest?.closure === null) {
     latest.closure = deadlineReached
       ? { status: "timed_out", reason: "deadline_reached", committedAt: now }
@@ -39,11 +41,11 @@ export function reclaimPolicyEvaluationJob(input: {
   job.updatedAt = now;
   job.stateVersion++;
   job.retryAt = null;
-  if (deadlineReached) {
-    job.status = "timed_out";
+  if (deadlineReached || acquisitionExhausted) {
+    job.status = deadlineReached ? "timed_out" : "budget_exhausted";
     job.terminal = {
-      status: "timed_out",
-      code: "deadline_reached",
+      status: job.status,
+      code: deadlineReached ? "deadline_reached" : "budget_limit_reached",
       attemptId: latest?.mutationFence.attemptId ?? null,
       committedAt: now,
     };

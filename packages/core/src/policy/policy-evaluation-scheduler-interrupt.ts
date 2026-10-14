@@ -8,6 +8,7 @@ import {
   type PolicyEvaluationWorkerMutationFence,
 } from "@proofstack/contracts";
 import { addPolicyEvaluationMillisecondsUpTo } from "./policy-evaluation-scheduler-time.js";
+import { chargeUncertainPolicyEvaluationAcquisition } from "./policy-evaluation-acquisition-allowance.js";
 import { PolicyEvaluationSchedulerTransitionError } from "./policy-evaluation-scheduler-claim.js";
 
 /** Operational interruption only; never receives a rule outcome or chooses a new semantic cut. */
@@ -55,11 +56,23 @@ export function interruptPolicyEvaluationJob(input: {
   if (reason === "lease_expired") fail("state_conflict");
   if (job.snapshot !== null && reason === "source_revision_changed") fail("state_conflict");
   if (job.stateVersion >= Number.MAX_SAFE_INTEGER) fail("counter_exhausted");
+  const acquisitionExhausted = chargeUncertainPolicyEvaluationAcquisition(result);
   latest.closure = { status: "interrupted", reason, committedAt: now };
   latest.usageAtClose = { ...result.usage };
   job.currentLease = null;
   job.updatedAt = now;
   job.stateVersion++;
+  if (acquisitionExhausted) {
+    job.status = "budget_exhausted";
+    job.retryAt = null;
+    job.terminal = {
+      status: "budget_exhausted",
+      code: "budget_limit_reached",
+      attemptId: latest.mutationFence.attemptId,
+      committedAt: now,
+    };
+    return PolicyEvaluationJobSnapshotSchema.parse(result);
+  }
   const retryAt = addPolicyEvaluationMillisecondsUpTo(
     now,
     request.limits.retryBackoffMilliseconds,

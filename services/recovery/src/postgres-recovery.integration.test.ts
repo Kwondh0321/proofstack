@@ -64,6 +64,7 @@ import {
   AuthoritySplitModelAssuranceRepository,
   CreateModelAssuranceAssessment,
   createPolicyEvaluationJobHistoryEntry,
+  buildPolicyEvaluationJobOutboxIntents,
   digestPolicyEvaluationRequestDefinition,
   validatePolicyEvaluationSnapshotRecord,
   releaseCandidateReference,
@@ -132,6 +133,7 @@ import {
   PostgresOidcIdentityRepository,
   PostgresPolicyEvaluationJobControlRepository,
   PostgresPolicyEvaluationJobWorkerRepository,
+  PostgresPolicyAcquisitionRepository,
   PostgresPolicyEvaluationResultRepository,
   PostgresPolicySnapshotTransactions,
   createPolicyPostgresPool,
@@ -246,6 +248,7 @@ const EXPECTED_TABLES = [
   "proofstack_oidc_bindings",
   "proofstack_oidc_login_transactions",
   "proofstack_outbox",
+  "proofstack_policy_acquisition_allowances",
   "proofstack_policy_evaluation_attempts",
   "proofstack_policy_evaluation_cancellations",
   "proofstack_policy_evaluation_job_history",
@@ -2233,7 +2236,7 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
   const control = new PostgresPolicyEvaluationJobControlRepository(sourcePool);
   const worker = new PostgresPolicyEvaluationJobWorkerRepository(sourcePool);
   const graphs: PolicyEvaluationJobSnapshot[] = [];
-  for (const kind of ["queued", "active", "retry", "cancelled"] as const) {
+  for (const kind of ["queued", "active", "acquisition", "retry", "cancelled"] as const) {
     const request = policyJobConformanceRequest(scope);
     request.evaluationRequestId = `policy_recovery_request_${kind}`;
     request.limits.leaseDurationMilliseconds = 60000;
@@ -2265,6 +2268,14 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
         })
       ).snapshot;
     }
+    if (kind === "acquisition")
+      graph = (
+        await new PostgresPolicyAcquisitionRepository(sourcePool).reserveAcquisition({
+          scope,
+          fence: graph.job.currentLease!.mutationFence,
+          allowanceId: "policy_recovery_acquisition_allowance",
+        })
+      ).snapshot;
     if (kind === "retry")
       graph = await worker.interruptJob({
         scope,
@@ -2483,6 +2494,13 @@ function expectedPolicyRecoveredSnapshot(
   const jobs = tables["proofstack_policy_evaluation_jobs"]!;
   const attempts = tables["proofstack_policy_evaluation_attempts"]!;
   const history = tables["proofstack_policy_evaluation_job_history"]!;
+  const outbox = tables["proofstack_outbox"]!;
+  const sequences = structuredClone(source.sequences);
+  const outboxSequence = sequences.find(
+    (row) => row.sequencename === "proofstack_outbox_outbox_id_seq",
+  )!;
+  if (outboxSequence.last_value === null) throw new Error("Seeded outbox sequence is missing");
+  let outboxLast = BigInt(outboxSequence.last_value);
   const restoredJobs = restored.tables["proofstack_policy_evaluation_jobs"]!.map(recoveryRow);
   for (const previous of policyJobRecoveryFixtures) {
     const restoredRow = restoredJobs.find((row) => row["job_id"] === previous.job.jobId)!;
@@ -2496,6 +2514,48 @@ function expectedPolicyRecoveredSnapshot(
     });
     expect(actual).toEqual(next);
     if (previous.job.terminal !== null) continue;
+    for (const intent of buildPolicyEvaluationJobOutboxIntents(previous, next)) {
+      outboxLast++;
+      const retained = restored.tables["proofstack_outbox"]!.map(recoveryRow).find(
+        (row) =>
+          row["tenant_id"] === intent.tenantId &&
+          row["aggregate_id"] === intent.aggregateId &&
+          row["event_type"] === intent.eventType,
+      )!;
+      expect(retained, "Recovery terminal intent must exist").toBeDefined();
+      const availableAt = retained["available_at"] as string;
+      expect(Date.parse(availableAt)).toBeGreaterThanOrEqual(Date.parse(intent.createdAt));
+      outbox.push({
+        tenant_id: intent.tenantId,
+        outbox_id: Number(outboxLast),
+        schema_version: intent.schemaVersion,
+        event_type: intent.eventType,
+        aggregate_type: intent.aggregateType,
+        aggregate_id: intent.aggregateId,
+        payload: intent.payload,
+        created_at: nativeJsonTime(intent.createdAt),
+        available_at: availableAt,
+        attempt_count: 0,
+        lease_token: null,
+        lease_owner: null,
+        lease_expires_at: null,
+        published_at: null,
+        last_error: null,
+      });
+    }
+    if (previous.acquisitionAllowance) {
+      const allowances = tables["proofstack_policy_acquisition_allowances"]!;
+      const index = allowances.findIndex(
+        (row) => recoveryRow(row)["job_id"] === previous.job.jobId,
+      );
+      expect(index).toBeGreaterThanOrEqual(0);
+      allowances[index] = {
+        ...recoveryRow(allowances[index]),
+        state: "uncertain",
+        closed_at: nativeJsonTime(next.attempts.at(-1)!.closure!.committedAt),
+        requires_live_commit: false,
+      };
+    }
     const jobIndex = jobs.findIndex((row) => recoveryRow(row)["job_id"] === previous.job.jobId);
     jobs[jobIndex] = {
       ...recoveryRow(jobs[jobIndex]),
@@ -2509,6 +2569,13 @@ function expectedPolicyRecoveredSnapshot(
       lease_expires_at: null,
       attempt_deadline_at: null,
       retry_at: next.job.retryAt === null ? null : nativeJsonTime(next.job.retryAt),
+      usage_reads: next.usage.reads,
+      usage_records: next.usage.records,
+      usage_references: next.usage.references,
+      usage_record_bytes: next.usage.recordBytes,
+      usage_reference_bytes: next.usage.referenceBytes,
+      usage_artifact_bytes: next.usage.artifactReadBytes,
+      usage_rule_evaluations: next.usage.ruleEvaluations,
       snapshot: next,
     };
     for (let i = 0; i < attempts.length; i++) {
@@ -2552,7 +2619,12 @@ function expectedPolicyRecoveredSnapshot(
       entry,
     });
   }
-  return { sequences: source.sequences, tables };
+  return {
+    sequences: sequences.map((row) =>
+      row === outboxSequence ? { ...row, last_value: String(outboxLast) } : row,
+    ),
+    tables,
+  };
 }
 
 interface AuthoritativeSnapshot {
@@ -2991,7 +3063,14 @@ async function verifyRestoredOperationalPolicyJobs(
   for (const original of policyJobRecoveryFixtures) {
     const restored = (await control.findJob(scope, original.job.jobId))!;
     expect(restored.request).toEqual(original.request);
-    expect(restored.usage).toEqual(original.usage);
+    if (original.acquisitionAllowance) {
+      expect(restored.job.status).toBe("budget_exhausted");
+      expect(restored.acquisitionAllowance).toBeNull();
+      expect(restored.usage.reads).toBe(original.request.limits.maxAcquisitionRecords);
+      expect(restored.usage.recordBytes + restored.usage.referenceBytes).toBe(
+        original.request.limits.maxAcquisitionRecordBytes,
+      );
+    } else expect(restored.usage).toEqual(original.usage);
     expect(restored.job.snapshot).toEqual(original.job.snapshot);
     const oldHead = (await new PostgresPolicyEvaluationJobControlRepository(
       sourcePool,
@@ -3326,11 +3405,24 @@ describe("coordinated recovery rehearsal", () => {
       },
     ]);
     const restoredSnapshot = await authoritativeSnapshot(restoredPool);
-    expect(snapshotWithoutRecoveryTransitions(restoredSnapshot)).toEqual(
-      snapshotWithoutRecoveryTransitions(
-        expectedPolicyRecoveredSnapshot(sourceSnapshot, restoredSnapshot),
-      ),
+    const actualRecovery = snapshotWithoutRecoveryTransitions(restoredSnapshot);
+    const expectedRecovery = snapshotWithoutRecoveryTransitions(
+      expectedPolicyRecoveredSnapshot(sourceSnapshot, restoredSnapshot),
     );
+    expect(actualRecovery.sequences, "All restored identity sequences").toEqual(
+      expectedRecovery.sequences,
+    );
+    expect(Object.keys(actualRecovery.tables)).toEqual(Object.keys(expectedRecovery.tables));
+    for (const [table, rows] of Object.entries(expectedRecovery.tables)) {
+      expect(actualRecovery.tables[table], `Recovered row count: ${table}`).toHaveLength(
+        rows.length,
+      );
+      for (const [index, row] of rows.entries())
+        expect(
+          actualRecovery.tables[table]![index],
+          `Exact recovered row: ${table}[${index}]`,
+        ).toEqual(row);
+    }
     const releaseCandidates = requiredReleaseCandidateRecoveryState();
     const restoredReleaseCandidateRepository = new PostgresReleaseCandidateRepository(restoredPool);
     await expect(

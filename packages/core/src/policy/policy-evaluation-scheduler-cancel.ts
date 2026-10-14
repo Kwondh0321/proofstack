@@ -7,6 +7,7 @@ import {
   type PolicyEvaluationCancellation,
 } from "@proofstack/contracts";
 import { PolicyEvaluationSchedulerTransitionError } from "./policy-evaluation-scheduler-claim.js";
+import { chargeUncertainPolicyEvaluationAcquisition } from "./policy-evaluation-acquisition-allowance.js";
 
 /** Serialized store supplies original native receipt and authorized cancellation actor. */
 export function cancelPolicyEvaluationJob(input: {
@@ -44,6 +45,7 @@ export function cancelPolicyEvaluationJob(input: {
   if (job.stateVersion >= Number.MAX_SAFE_INTEGER)
     throw new PolicyEvaluationSchedulerTransitionError("counter_exhausted");
   const latest = result.attempts.at(-1);
+  chargeUncertainPolicyEvaluationAcquisition(result);
   if (latest?.closure === null) {
     latest.closure = { status: "cancelled", reason: "cancellation_committed", committedAt: now };
     latest.usageAtClose = { ...result.usage };
