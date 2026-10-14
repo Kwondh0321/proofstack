@@ -33,6 +33,8 @@ import type {
   InteractionCaptureManifest,
   PolicyEvaluationJobHistoryEntry,
   PolicyEvaluationJobSnapshot,
+  PolicyEvaluationSnapshotPageSet,
+  PolicyEvaluation,
   PrincipalContext,
   RecordedInteractionFixtureVersion,
   RecordedInteractionFixtureVersionDefinition,
@@ -49,6 +51,7 @@ import {
   encodePolicyEvaluationJobHistoryEntry,
   InteractionCaptureManifestSchema,
   PolicyEvaluationJobSnapshotSchema,
+  PolicyEvaluationSnapshotPageSchema,
   RecordedInteractionFixtureVersionDefinitionSchema,
   ReplayJobSchema,
   ReplayPlanSchema,
@@ -62,6 +65,7 @@ import {
   CreateModelAssuranceAssessment,
   createPolicyEvaluationJobHistoryEntry,
   digestPolicyEvaluationRequestDefinition,
+  validatePolicyEvaluationSnapshotRecord,
   releaseCandidateReference,
   releasePolicyReference,
   StaticEndpointProfileCatalogue,
@@ -128,6 +132,7 @@ import {
   PostgresOidcIdentityRepository,
   PostgresPolicyEvaluationJobControlRepository,
   PostgresPolicyEvaluationJobWorkerRepository,
+  PostgresPolicyEvaluationResultRepository,
   PostgresPolicySnapshotTransactions,
   createPolicyPostgresPool,
   PostgresProjectionCursorRepository,
@@ -137,6 +142,7 @@ import {
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
   provisionRuntimeRoles,
+  withExactScopeTransaction,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
 import { sealPolicyEvaluationSnapshot } from "@proofstack/policy-evaluation";
@@ -2219,6 +2225,9 @@ interface SequenceSnapshotRow {
 }
 
 let policyJobRecoveryFixtures: readonly PolicyEvaluationJobSnapshot[] = [];
+let policyResultRecoveryFixture:
+  | { pageSet: PolicyEvaluationSnapshotPageSet; evaluation: PolicyEvaluation }
+  | undefined;
 
 async function seedPolicyJobRecoveryFixtures(): Promise<void> {
   const control = new PostgresPolicyEvaluationJobControlRepository(sourcePool);
@@ -2276,104 +2285,180 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
   if (!releaseCandidateRecoveryState) throw new Error("Expected actual candidate recovery graph");
   const policy = releasePolicyRepositoryFixture("recovery_snapshot_policy", scope);
   await new PostgresReleasePolicyRepository(sourcePool).publishReleasePolicy(policy);
-  const request = policyJobConformanceRequest(scope);
-  request.evaluationRequestId = "policy_recovery_request_sealed";
-  request.candidate = releaseCandidateReference(releaseCandidateRecoveryState.candidate);
-  request.policy = releasePolicyReference(policy);
-  request.limits.maxAcquisitionRecords = 50000;
-  request.limits.leaseDurationMilliseconds = 60000;
-  const {
-    scope: _scope,
-    schemaVersion: _version,
-    createdAt: _at,
-    createdByPrincipalId: _by,
-    definitionSha256: _sha,
-    ...definition
-  } = request;
-  request.definitionSha256 = digestPolicyEvaluationRequestDefinition(scope, definition);
-  const created = await control.createJob({ request, jobId: "policy_recovery_job_sealed" });
-  const claimed = await worker.claimJob({
-    scope,
-    jobId: created.snapshot.job.jobId,
-    workerId: "policy_worker_sealed",
-    attemptId: "policy_attempt_sealed",
-    leaseId: "policy_lease_sealed",
-  });
-  const native = createPolicyPostgresPool({
-    connectionString: databaseUrl,
-    maxConnections: 4,
-    onIdleError: (error) => {
-      throw error;
-    },
-  });
-  try {
-    const evaluation = new PostgresEvaluationRepository(sourcePool);
-    const comparison = new PostgresComparisonRepository(sourcePool);
-    const candidates = new PostgresReleaseCandidateRepository(sourcePool);
-    const policies = new PostgresReleasePolicyRepository(sourcePool);
-    const datasets = new PostgresRegressionVersionRepository(sourcePool);
-    const sealed = await sealPolicyEvaluationSnapshot(
-      created.snapshot.request,
-      {
-        ...artifactPrincipal(),
-        principalId: "policy_worker_sealed",
-        principalType: "service",
-        capabilities: ["artifact:read", "artifact:read:restricted", "policy:evaluation:execute"],
-        authentication: {
-          method: "service_token",
-          credentialId: "credential_recovery_policy",
-          authenticatedAt: new Date().toISOString(),
-        },
+  // Keep the original sealed fixture and add a real completed result instead of excluding
+  // empty new tables from the independent authoritative recovery inventory.
+  for (const kind of ["sealed", "completed"] as const) {
+    const request = policyJobConformanceRequest(scope);
+    request.evaluationRequestId = `policy_recovery_request_${kind}`;
+    request.candidate = releaseCandidateReference(releaseCandidateRecoveryState.candidate);
+    request.policy = releasePolicyReference(policy);
+    request.limits.maxAcquisitionRecords = 50000;
+    request.limits.leaseDurationMilliseconds = 60000;
+    const {
+      scope: _scope,
+      schemaVersion: _version,
+      createdAt: _at,
+      createdByPrincipalId: _by,
+      definitionSha256: _sha,
+      ...definition
+    } = request;
+    request.definitionSha256 = digestPolicyEvaluationRequestDefinition(scope, definition);
+    const created = await control.createJob({ request, jobId: `policy_recovery_job_${kind}` });
+    const claimed = await worker.claimJob({
+      scope,
+      jobId: created.snapshot.job.jobId,
+      workerId: `policy_worker_${kind}`,
+      attemptId: `policy_attempt_${kind}`,
+      leaseId: `policy_lease_${kind}`,
+    });
+    const native = createPolicyPostgresPool({
+      connectionString: databaseUrl,
+      maxConnections: 4,
+      onIdleError: (error) => {
+        throw error;
       },
-      {
-        control: {
-          comparison,
-          releaseCandidate: candidates,
-          releasePolicy: policies,
-          installationBinding: new StaticPolicyInstallationBindingResolver([]),
+    });
+    try {
+      const evaluation = new PostgresEvaluationRepository(sourcePool);
+      const comparison = new PostgresComparisonRepository(sourcePool);
+      const candidates = new PostgresReleaseCandidateRepository(sourcePool);
+      const policies = new PostgresReleasePolicyRepository(sourcePool);
+      const datasets = new PostgresRegressionVersionRepository(sourcePool);
+      const sealed = await sealPolicyEvaluationSnapshot(
+        created.snapshot.request,
+        {
+          ...artifactPrincipal(),
+          principalId: `policy_worker_${kind}`,
+          principalType: "service",
+          capabilities: ["artifact:read", "artifact:read:restricted", "policy:evaluation:execute"],
+          authentication: {
+            method: "service_token",
+            credentialId: "credential_recovery_policy",
+            authenticatedAt: new Date().toISOString(),
+          },
         },
-        evidence: { evaluation, modelAssurance: new PostgresModelAssuranceRepository(sourcePool) },
-        datasets,
-        replayDefinitions: new PostgresReplayDefinitionRepository(sourcePool),
-        replayResults: new PostgresReplayJobControlRepository(sourcePool),
-        runtimeDefinitions: new StaticRuntimeDefinitionCatalogue([]),
-        implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue([]),
-        qualificationPolicies: new StaticQualificationPolicyCatalogue([]),
-        endpointProfiles: new StaticEndpointProfileCatalogue([]),
-        protocolDefinitions: new StaticProtocolDefinitionCatalogue([]),
-        logicalRoots: {
-          evaluation,
-          comparison,
-          releaseCandidate: candidates,
-          releasePolicy: policies,
+        {
+          control: {
+            comparison,
+            releaseCandidate: candidates,
+            releasePolicy: policies,
+            installationBinding: new StaticPolicyInstallationBindingResolver([]),
+          },
+          evidence: {
+            evaluation,
+            modelAssurance: new PostgresModelAssuranceRepository(sourcePool),
+          },
           datasets,
+          replayDefinitions: new PostgresReplayDefinitionRepository(sourcePool),
+          replayResults: new PostgresReplayJobControlRepository(sourcePool),
+          runtimeDefinitions: new StaticRuntimeDefinitionCatalogue([]),
+          implementationRegistrations: new StaticEvaluationImplementationRegistrationCatalogue([]),
+          qualificationPolicies: new StaticQualificationPolicyCatalogue([]),
+          endpointProfiles: new StaticEndpointProfileCatalogue([]),
+          protocolDefinitions: new StaticProtocolDefinitionCatalogue([]),
+          logicalRoots: {
+            evaluation,
+            comparison,
+            releaseCandidate: candidates,
+            releasePolicy: policies,
+            datasets,
+          },
         },
-      },
-      new PostgresEvidenceRepository(sourcePool),
-      {
-        catalog: new PostgresArtifactCatalogRepository(sourcePool),
-        objects: sourceObjects,
-        encryption: new ArtifactCipher(
-          new LocalArtifactKeyring({
-            activeKeyId: artifactKeyId,
-            keys: {
-              [artifactKeyId]: artifactKeyMaterial,
-              [rotatedArtifactKeyId]: rotatedArtifactKeyMaterial,
-            },
-          }),
-        ),
-        clock: { now: () => new Date() },
-      },
-      {
-        manifestId: "manifest_recovery_sealed",
-        snapshotId: "snapshot_recovery_sealed",
-        fence: claimed.job.currentLease!.mutationFence,
-        transactions: new PostgresPolicySnapshotTransactions(native),
-      },
-    );
-    policyJobRecoveryFixtures = [...graphs, sealed.job];
-  } finally {
-    await native.end();
+        new PostgresEvidenceRepository(sourcePool),
+        {
+          catalog: new PostgresArtifactCatalogRepository(sourcePool),
+          objects: sourceObjects,
+          encryption: new ArtifactCipher(
+            new LocalArtifactKeyring({
+              activeKeyId: artifactKeyId,
+              keys: {
+                [artifactKeyId]: artifactKeyMaterial,
+                [rotatedArtifactKeyId]: rotatedArtifactKeyMaterial,
+              },
+            }),
+          ),
+          clock: { now: () => new Date() },
+        },
+        {
+          manifestId: `manifest_recovery_${kind}`,
+          snapshotId: `snapshot_recovery_${kind}`,
+          fence: claimed.job.currentLease!.mutationFence,
+          transactions: new PostgresPolicySnapshotTransactions(native),
+        },
+      );
+      if (kind === "completed") {
+        const fence = claimed.job.currentLease!.mutationFence;
+        const computing = new PostgresPolicyEvaluationJobWorkerRepository(native);
+        const started = await computing.startComputation({ scope, fence });
+        const pages = await withExactScopeTransaction(sourcePool, scope, async (client) => {
+          const retained = [];
+          for (const page of sealed.snapshot.pages) {
+            const value = await client.query(
+              "SELECT public.proofstack_read_policy_snapshot_page($1,$2,$3) AS value",
+              [sealed.snapshot.snapshotId, sealed.snapshot.definitionSha256, page.pageIndex],
+            );
+            retained.push(PolicyEvaluationSnapshotPageSchema.parse(value.rows[0]?.value));
+          }
+          return retained;
+        });
+        const {
+          scope: _scope,
+          schemaVersion: _version,
+          definitionSha256: _digest,
+          sealedAt: _sealed,
+          sealedByPrincipalId: _principal,
+          jobId: _job,
+          attemptId: _attempt,
+          workerId: _worker,
+          leaseId: _lease,
+          fencingToken: _fence,
+          recoveryEpoch: _epoch,
+          recordedAt: _receipt,
+          ...snapshotDefinition
+        } = sealed.snapshot;
+        const pageSet: PolicyEvaluationSnapshotPageSet = {
+          scope,
+          definition: snapshotDefinition,
+          definitionSha256: sealed.snapshot.definitionSha256,
+          pages,
+        };
+        const { inputs } = validatePolicyEvaluationSnapshotRecord({
+          expected: {
+            scope,
+            jobId: started.job.jobId,
+            request: started.job.request,
+            snapshot: started.job.snapshot!,
+          },
+          record: sealed.snapshot,
+          pageSet,
+        });
+        await computing.reserveWork({
+          scope,
+          fence,
+          reservationId: "reservation_recovery_completed_rules",
+          delta: {
+            reads: 0,
+            records: 0,
+            recordBytes: 0,
+            references: 0,
+            referenceBytes: 0,
+            artifactReadBytes: 0,
+            ruleEvaluations: inputs.rules.ruleCount,
+          },
+        });
+        const completed = await new PostgresPolicyEvaluationResultRepository(native).publishResult({
+          scope,
+          fence,
+          evaluationId: "evaluation_recovery_completed",
+          pageSet,
+        });
+        expect(completed.created).toBe(true);
+        policyJobRecoveryFixtures = [...policyJobRecoveryFixtures, completed.snapshot];
+        policyResultRecoveryFixture = { pageSet, evaluation: completed.evaluation };
+      } else policyJobRecoveryFixtures = [...policyJobRecoveryFixtures, sealed.job];
+    } finally {
+      await native.end();
+    }
   }
 }
 
@@ -2918,6 +3003,32 @@ async function verifyRestoredOperationalPolicyJobs(
     if (original.job.terminal !== null) expect(restored).toEqual(original);
     else expect(restored.job.recoveryEpoch).toBe(original.job.recoveryEpoch + 1);
   }
+  if (!policyResultRecoveryFixture)
+    throw new Error("Missing actual completed policy recovery fixture");
+  const originalResult = policyResultRecoveryFixture.evaluation;
+  const results = new PostgresPolicyEvaluationResultRepository(controlPool);
+  expect(
+    await results.findResult(scope, originalResult.jobId, policyResultRecoveryFixture.pageSet),
+  ).toEqual(originalResult);
+  const fence = {
+    jobId: originalResult.jobId,
+    attemptId: originalResult.attemptId,
+    workerId: originalResult.workerId,
+    leaseId: originalResult.leaseId,
+    fencingToken: originalResult.fencingToken,
+    recoveryEpoch: originalResult.recoveryEpoch,
+  };
+  const retry = await new PostgresPolicyEvaluationResultRepository(workerPool).publishResult({
+    scope,
+    fence,
+    evaluationId: originalResult.evaluationId,
+    pageSet: policyResultRecoveryFixture.pageSet,
+  });
+  expect(retry.created).toBe(false);
+  expect(retry.evaluation).toEqual(originalResult);
+  expect(retry.snapshot).toEqual(
+    policyJobRecoveryFixtures.find((value) => value.job.jobId === originalResult.jobId),
+  );
   const original = policyJobRecoveryFixtures.find((value) => value.job.status === "acquiring")!;
   const restored = (await control.findJob(scope, original.job.jobId))!;
   expect(restored.attempts[0]!.closure).toMatchObject({

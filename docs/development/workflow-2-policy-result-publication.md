@@ -42,6 +42,14 @@ suite checks malformed native responses, changed completion/retry graphs, substi
 receipts, missing result records and incomplete original pages; that model is not evidence
 of PostgreSQL behavior.
 
+The coordinated PostgreSQL/S3 recovery rehearsal keeps both an active sealed job and a
+distinct completed job with a real stored result. It compares every authoritative table,
+including result rows, across backup and isolated restore, verifies the original sealed
+evidence and result receipts under reprovisioned roles, and retries the original completion
+without reviving its old execution epoch. Full scheduler-state recovery acceptance remains
+required. CI prepares the exact existing database suites' dependency builds with bounded
+parallelism before running those suites serially; test assertions and timeouts are unchanged.
+
 The worker must reserve complete rule work before each computation invocation. This
 adapter checks prepaid admission; it does not by itself account for every failed or repeated
 computation invocation. That durable worker composition remains required.

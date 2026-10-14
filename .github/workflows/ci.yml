@@ -105,6 +105,16 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      # Prepare dependencies concurrently, then keep the suites sharing one database serial.
+      - name: Build PostgreSQL integration targets
+        run: >-
+          pnpm exec turbo run build --concurrency=2
+          --filter=@proofstack/postgres^... --filter=@proofstack/api^... --filter=@proofstack/web^...
+          --filter=@proofstack/example-durable-replay^...
+          --filter=@proofstack/example-evaluation-control-flow^...
+          --filter=@proofstack/example-model-assurance-control-flow^...
+          --filter=@proofstack/example-workflow-1-acceptance^...
+
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration:postgres
 
