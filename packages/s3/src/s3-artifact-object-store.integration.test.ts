@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { CreateBucketCommand, DeleteBucketCommand } from "@aws-sdk/client-s3";
 import { artifactObjectStoreConformanceCases } from "@proofstack/artifacts/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createS3ArtifactObjectStore } from "./s3-artifact-object-store.js";
+import {
+  createS3ArtifactObjectStore,
+  createS3BoundedArtifactReader,
+  S3ArtifactObjectIntegrityError,
+} from "./s3-artifact-object-store.js";
 import { createS3Client, type S3ClientConnectionOptions } from "./s3-client.js";
 
 function requiredEnvironment(name: string): string {
@@ -37,6 +41,38 @@ afterAll(async () => {
 });
 
 describe("S3ArtifactObjectStore integration contract", () => {
+  it("reads only the complete exact ciphertext length through the dedicated bounded port", async () => {
+    const key = `artifacts/bounded_${randomUUID()}/content`;
+    const writer = createS3ArtifactObjectStore({ ...connection, bucket });
+    const reader = createS3BoundedArtifactReader({ ...connection, bucket });
+    const ciphertext = Uint8Array.from([1, 2, 3, 4]);
+    try {
+      await writer.putIfAbsent(key, ciphertext);
+      await expect(
+        reader.get(key, { expectedBytes: 4, signal: AbortSignal.timeout(1000) }),
+      ).resolves.toEqual(ciphertext);
+      // A valid original prefix is not a complete owning object.
+      await expect(
+        reader.get(key, { expectedBytes: 3, signal: AbortSignal.timeout(1000) }),
+      ).rejects.toBeInstanceOf(S3ArtifactObjectIntegrityError);
+      await expect(
+        reader.get(key, { expectedBytes: 5, signal: AbortSignal.timeout(1000) }),
+      ).rejects.toBeInstanceOf(S3ArtifactObjectIntegrityError);
+      await expect(
+        reader.get(`artifacts/missing_${randomUUID()}/content`, {
+          expectedBytes: 4,
+          signal: AbortSignal.timeout(1000),
+        }),
+      ).resolves.toBeNull();
+    } finally {
+      try {
+        await writer.delete(key);
+      } finally {
+        reader.destroy();
+        writer.destroy();
+      }
+    }
+  });
   for (const testCase of artifactObjectStoreConformanceCases) {
     it(testCase.name, async () => {
       await testCase.run((namespace) => {

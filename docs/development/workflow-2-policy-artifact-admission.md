@@ -34,8 +34,12 @@ after native page/root rollback, reject an exhausted budget before I/O and retai
 the sealed job's exact history. These are distinct from mock authority or live-provider acceptance.
 
 This accounts for expected authenticated-encrypted buffers, not partial transport or hidden SDK
-retries. Complete received-buffer counts remain the existing local observation. Oversized returned
-buffers, bounded object transports, metadata/read/record/reference admission and guarded
-reinspection prepayment still require full worker-wide accounting. This optional adapter does not
+retries. Complete received-buffer counts remain the existing local observation. A dedicated
+[single-attempt bounded S3 reader](workflow-2-policy-bounded-object-reads.md) is available as a
+separate adapter prerequisite. Its optional trusted `objectReader` composition bounds each read
+by the acknowledged native lease/attempt/job cut, with monotonic acknowledgement time deducted.
+Full worker composition, oversized arbitrary returned
+buffers, metadata/read/record/reference admission and guarded reinspection prepayment remain open.
+This optional adapter does not
 accept that boundary or compose a production worker. Full shared conformance, deterministic
 predicates/results, worker/API/SDK/contributor flow and independent checkpoint exit remain open.

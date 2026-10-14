@@ -574,9 +574,13 @@ async function acquirePolicyArtifactEvidence(
               budget.readArtifactObject(
                 reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
                 async () => {
-                  await snapshotOptions?.whileHeld?.artifactReservations?.beforeRead(
-                    reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
-                  );
+                  const reservations = snapshotOptions?.whileHeld?.artifactReservations;
+                  if (reservations)
+                    return reservations.readObject(
+                      reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
+                      objectKey,
+                      () => dependencies.objects.get(objectKey),
+                    );
                   return dependencies.objects.get(objectKey);
                 },
               ),

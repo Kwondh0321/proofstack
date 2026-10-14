@@ -16,6 +16,7 @@ export class S3ObjectStorageConfigurationError extends Error {
 
 export interface S3ClientConnectionOptions {
   readonly allowInsecureLoopback?: boolean;
+  readonly maxAttempts?: 1 | 2 | 3;
   readonly connectionTimeoutMs?: number;
   readonly credentials?: S3ClientConfig["credentials"];
   readonly endpoint?: string;
@@ -129,10 +130,13 @@ export function createS3Client(options: S3ClientConnectionOptions): S3Client {
   if (options.forcePathStyle !== undefined && typeof options.forcePathStyle !== "boolean") {
     throw configurationError("S3 path-style policy must be a boolean");
   }
+  const maxAttempts = options.maxAttempts === undefined ? 3 : options.maxAttempts;
+  if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3)
+    throw configurationError("S3 attempt limit must be an integer from 1 to 3");
   const resolved = resolveS3ClientConnectionOptions(options);
 
   const configuration: S3ClientConfig = {
-    maxAttempts: 3,
+    maxAttempts,
     region: resolved.region,
     requestHandler: new NodeHttpHandler({
       connectionTimeout: resolved.connectionTimeoutMs,

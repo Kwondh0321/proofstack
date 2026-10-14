@@ -27,6 +27,11 @@ request/scope/job 정의/fence/ID/delta와 canonical 이력·graph hash·sequenc
 rollback을 검사합니다. 실제 PostgreSQL 검사는 분리된 evaluator pool에서 get 전에 commit한
 비용, 게시 실패 후 보존, 예산 초과 시 I/O 금지 및 sealed job 이력을 확인합니다.
 
+별도 [단일 시도 S3 읽기 어댑터](workflow-2-policy-bounded-object-reads.ko.md)는 선행 요소로
+제공되며 선택적 `objectReader`는 ACK의 native lease/attempt/job 잔여 시간에서 예약 전부터의
+monotonic 경과를 빼 읽기를 제한합니다. 기한 만료·잘못된 크기를 거부하고 비용을 보존합니다.
+전체 worker 구성이 남아 있습니다.
+
 이는 예상 인증 암호문 버퍼의 예약이며 부분 transport·숨겨진 SDK retry 측정이 아닙니다.
 완전히 받은 버퍼의 수치는 기존 local observation입니다. 더 큰 반환 버퍼·bounded object transport·
 metadata/read/record/reference 비용·guarded reinspection 선예약은 여전히 전체 worker 비용 집계에

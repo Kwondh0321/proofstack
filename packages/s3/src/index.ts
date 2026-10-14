@@ -1,6 +1,9 @@
 export {
   type CreateS3ArtifactObjectStoreOptions,
   createS3ArtifactObjectStore,
+  createS3BoundedArtifactReader,
+  type S3BoundedArtifactReader,
+  type S3BoundedArtifactReadOptions,
   S3ArtifactObjectInputError,
   S3ArtifactObjectIntegrityError,
   type S3ArtifactObjectOperation,

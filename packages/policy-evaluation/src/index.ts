@@ -95,4 +95,5 @@ export * from "./resolve-parent-protocol.js";
 export {
   PolicyArtifactByteAdmissionError,
   type PolicyArtifactByteAdmission,
+  type PolicyArtifactBoundedReader,
 } from "./artifact-byte-admission.js";

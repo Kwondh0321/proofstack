@@ -51,6 +51,18 @@ export interface CreateS3ArtifactObjectStoreOptions
   extends S3ArtifactObjectStoreOptions,
     S3ClientConnectionOptions {}
 
+/** Trusted composition supplies the authenticated expected ciphertext size and a finite signal. */
+export interface S3BoundedArtifactReadOptions {
+  readonly expectedBytes: number;
+  readonly signal: AbortSignal;
+}
+
+/** The dedicated factory provides one SDK attempt and exposes no object mutation port. */
+export interface S3BoundedArtifactReader {
+  get(objectKey: string, options: S3BoundedArtifactReadOptions): Promise<Uint8Array | null>;
+  destroy(): void;
+}
+
 interface ObjectDigest {
   readonly base64: string;
   readonly receipt: ArtifactObjectReceipt;
@@ -300,18 +312,48 @@ export class S3ArtifactObjectStore implements ArtifactObjectStore {
     throw new S3ArtifactObjectStoreError("put", { cause: lastError });
   }
 
-  private async retrieve(key: string): Promise<RetrievedObject | null> {
+  async getBounded(
+    objectKey: string,
+    options: S3BoundedArtifactReadOptions,
+  ): Promise<Uint8Array | null> {
+    const key = validateObjectKey(objectKey);
+    const bound = { expectedBytes: options.expectedBytes, signal: options.signal };
+    if (
+      !Number.isSafeInteger(bound.expectedBytes) ||
+      bound.expectedBytes < 1 ||
+      bound.expectedBytes > this.maxObjectBytes ||
+      !(bound.signal instanceof AbortSignal)
+    )
+      throw inputError(
+        "A bounded object read requires an exact finite byte bound and abort signal",
+      );
+    bound.signal.throwIfAborted();
+    const result = await this.retrieve(key, bound);
+    return result?.bytes ?? null;
+  }
+
+  private async retrieve(
+    key: string,
+    bound?: S3BoundedArtifactReadOptions,
+  ): Promise<RetrievedObject | null> {
     try {
       const input = {
         Bucket: this.bucket,
         ChecksumMode: "ENABLED" as const,
         Key: key,
-        Range: `bytes=0-${this.maxObjectBytes}`,
+        Range: `bytes=0-${bound ? bound.expectedBytes - 1 : this.maxObjectBytes}`,
       };
       if (this.expectedBucketOwner !== undefined) {
         Object.assign(input, { ExpectedBucketOwner: this.expectedBucketOwner });
       }
-      const output: GetObjectCommandOutput = await this.client.send(new GetObjectCommand(input));
+      const output: GetObjectCommandOutput = await this.client.send(
+        new GetObjectCommand(input),
+        bound ? { abortSignal: bound.signal } : undefined,
+      );
+      if (bound?.signal.aborted) {
+        await releaseBody(output.Body);
+        bound.signal.throwIfAborted();
+      }
       if (output.DeleteMarker === true) {
         await releaseBody(output.Body);
         return null;
@@ -322,6 +364,13 @@ export class S3ArtifactObjectStore implements ArtifactObjectStore {
         !Number.isSafeInteger(contentLength) ||
         contentLength < 0 ||
         contentLength > this.maxObjectBytes ||
+        (bound !== undefined &&
+          ((output.$metadata?.httpStatusCode !== 200 && output.$metadata?.httpStatusCode !== 206) ||
+            (output.$metadata?.httpStatusCode === 206 && output.ContentRange === undefined) ||
+            contentLength !== bound.expectedBytes ||
+            (output.ContentRange !== undefined &&
+              output.ContentRange !==
+                `bytes 0-${bound.expectedBytes - 1}/${bound.expectedBytes}`))) ||
         output.Body === undefined
       ) {
         await releaseBody(output.Body);
@@ -352,4 +401,15 @@ export function createS3ArtifactObjectStore(
     client.destroy();
     throw error;
   }
+}
+
+/** Ordinary stores keep their retry policy; worker reads use this dedicated single-attempt port. */
+export function createS3BoundedArtifactReader(
+  options: CreateS3ArtifactObjectStoreOptions,
+): S3BoundedArtifactReader {
+  const store = createS3ArtifactObjectStore({ ...options, maxAttempts: 1 });
+  return {
+    get: (key, bound) => store.getBounded(key, bound),
+    destroy: () => store.destroy(),
+  };
 }

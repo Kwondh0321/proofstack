@@ -27,6 +27,22 @@ async function inspectClient(options: Parameters<typeof createS3Client>[0]) {
 }
 
 describe("createS3Client", () => {
+  it.each([1, 2, 3] as const)(
+    "retains an explicit finite SDK attempt limit %s",
+    async (maxAttempts) => {
+      expect((await inspectClient({ region: "local-1", maxAttempts })).maxAttempts).toBe(
+        maxAttempts,
+      );
+    },
+  );
+  it.each([0, 4, 1.5, NaN, Infinity, "1", false, null])(
+    "rejects an invalid SDK attempt limit %s",
+    (maxAttempts) => {
+      expect(() => createS3Client({ region: "local-1", maxAttempts: maxAttempts as 1 })).toThrow(
+        S3ObjectStorageConfigurationError,
+      );
+    },
+  );
   it("builds a bounded AWS client with secure defaults", async () => {
     const result = await inspectClient({ region: "ap-northeast-2" });
     const connection = resolveS3ClientConnectionOptions({ region: "ap-northeast-2" });

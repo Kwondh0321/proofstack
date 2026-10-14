@@ -1,5 +1,7 @@
 import {
   OpaqueIdSchema,
+  POLICY_EVALUATION_TIME_UNITS_PER_MILLISECOND,
+  policyEvaluationTimestampOrderKey,
   serializeEvaluationCanonicalJson,
   type PolicyEvaluationRequest,
   type PolicyEvaluationUsage,
@@ -17,7 +19,15 @@ import {
 /** Trusted worker composition only. A generated ID identifies one physical read reservation. */
 export interface PolicyArtifactByteAdmission {
   readonly repository: Pick<PolicyEvaluationJobWorkerRepository, "reserveWork">;
+  readonly objectReader?: PolicyArtifactBoundedReader;
   nextReservationId(): string;
+}
+/** Trusted cooperative reader: one physical attempt, exact complete-buffer bound and abort cleanup. */
+export interface PolicyArtifactBoundedReader {
+  get(
+    objectKey: string,
+    options: { readonly expectedBytes: number; readonly signal: AbortSignal },
+  ): Promise<Uint8Array | null>;
 }
 export class PolicyArtifactByteAdmissionError extends Error {
   readonly code = "policy_artifact_byte_admission_invalid";
@@ -32,6 +42,7 @@ export class PolicyArtifactByteReservations {
   private readonly ids = new Set<string>();
   private chargedBytes = 0;
   private lastUsage: number | undefined;
+  private readDeadline: number | undefined;
   private failed = false;
   private failure: unknown;
   constructor(
@@ -53,7 +64,43 @@ export class PolicyArtifactByteReservations {
   requireHealthy(): void {
     if (this.failed) throw this.failure;
   }
+  async readObject(
+    expectedBytes: number,
+    objectKey: string,
+    legacyRead: () => Promise<Uint8Array | null>,
+  ): Promise<Uint8Array | null> {
+    await this.beforeRead(expectedBytes);
+    const reader = this.admission.objectReader;
+    if (!reader) return legacyRead();
+    const remaining = Math.floor((this.readDeadline ?? 0) - performance.now());
+    if (remaining < 1) {
+      this.failed = true;
+      this.failure = new PolicyArtifactByteAdmissionError();
+      throw this.failure;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new PolicyArtifactByteAdmissionError()),
+      remaining,
+    );
+    try {
+      const value = await reader.get(objectKey, { expectedBytes, signal: controller.signal });
+      controller.signal.throwIfAborted();
+      if (performance.now() >= (this.readDeadline ?? 0))
+        throw new PolicyArtifactByteAdmissionError();
+      if (value !== null && (!(value instanceof Uint8Array) || value.byteLength !== expectedBytes))
+        throw new PolicyArtifactByteAdmissionError();
+      return value;
+    } catch (error) {
+      this.failed = true;
+      this.failure = error;
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   private async admit(expectedBytes: number): Promise<void> {
+    const started = performance.now();
     if (
       !Number.isSafeInteger(expectedBytes) ||
       expectedBytes < 1 ||
@@ -120,6 +167,20 @@ export class PolicyArtifactByteReservations {
       throw new PolicyArtifactByteAdmissionError();
     this.chargedBytes += expectedBytes;
     this.lastUsage = snapshot.usage.artifactReadBytes;
+    if (this.admission.objectReader) {
+      const expiry = snapshot.job.currentLease?.expiresAt;
+      if (!expiry) throw new PolicyArtifactByteAdmissionError();
+      const milliseconds = Number(
+        (policyEvaluationTimestampOrderKey(expiry) -
+          policyEvaluationTimestampOrderKey(entry.definition.committedAt)) /
+          POLICY_EVALUATION_TIME_UNITS_PER_MILLISECOND,
+      );
+      if (milliseconds < 1 || milliseconds > this.request.limits.leaseDurationMilliseconds)
+        throw new PolicyArtifactByteAdmissionError();
+      // The native receipt already binds attempt/job expiry. Starting before reserveWork
+      // conservatively deducts all acknowledgement wait without consulting host wall time.
+      this.readDeadline = started + milliseconds;
+    }
   }
   /** Returned publication must retain every acknowledged admission, including earlier attempts. */
   requireRetainedUsage(artifactReadBytes: number): void {

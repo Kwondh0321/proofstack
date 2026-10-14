@@ -4552,7 +4552,7 @@ describe("candidate-owned artifact rule bindings", () => {
   });
 });
 
-async function sealingHarness() {
+async function sealingHarness(now: () => string = () => observedAt) {
   const f = await metadataRecheckHarness();
   const request = { ...f.h.request, createdAt: observedAt };
   const actor = PrincipalContextSchema.parse({
@@ -4565,7 +4565,7 @@ async function sealingHarness() {
       credentialId: "credential_seal",
     },
   });
-  const jobs = new MemoryPolicyEvaluationJobRepository({ now: () => observedAt });
+  const jobs = new MemoryPolicyEvaluationJobRepository({ now });
   await jobs.createJob({ request, jobId: "job_snapshot_seal" });
   const claimed = await jobs.claimJob({
     scope,
@@ -4653,6 +4653,158 @@ function admissionFor(f: Awaited<ReturnType<typeof sealingHarness>>) {
   return { admission, reserveWork };
 }
 describe("worker artifact byte reservations before physical object attempts", () => {
+  it("never rounds submillisecond native remaining time up into a physical read window", async () => {
+    let nativeTime = observedAt;
+    const f = await sealingHarness(() => nativeTime);
+    const expiry = f.claimed.job.currentLease!.expiresAt;
+    nativeTime = new Date(Date.parse(expiry) - 1)
+      .toISOString()
+      .replace(/Z$/, "999999999999999999999999999Z");
+    const { admission } = admissionFor(f);
+    const get = vi.fn(async () => new Uint8Array(1));
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+      ...admission,
+      objectReader: { get },
+    });
+    await expect(meter.readObject(1, "objects/exact", vi.fn())).rejects.toBeInstanceOf(
+      PolicyArtifactByteAdmissionError,
+    );
+    expect(get).not.toHaveBeenCalled();
+    expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(1);
+    expect(() => meter.requireHealthy()).toThrow(PolicyArtifactByteAdmissionError);
+  });
+  it("uses the bounded reader with exact admitted bytes and a fresh abort signal", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const get = vi.fn(
+      async (key: string, options: { expectedBytes: number; signal: AbortSignal }) => {
+        expect(options.signal.aborted).toBe(false);
+        expect(reserveWork.mock.lastCall?.[0].delta.artifactReadBytes).toBe(options.expectedBytes);
+        return f.h.get.call(f.h.dependencies.objects, key);
+      },
+    );
+    const result = await f.run(f.request, f.actor, { ...admission, objectReader: { get } });
+    expect(get).toHaveBeenCalled();
+    expect(new Set(get.mock.calls.map(([, options]) => options.signal)).size).toBe(
+      get.mock.calls.length,
+    );
+    expect(result.job.usage.artifactReadBytes).toBeGreaterThan(0);
+  });
+  it.each([0, 2, "non-bytes"])(
+    "rejects a bounded reader's substituted complete response %s",
+    async (value) => {
+      const f = await sealingHarness();
+      const { admission } = admissionFor(f);
+      const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+        ...admission,
+        objectReader: {
+          get: async () =>
+            value === "non-bytes"
+              ? (value as unknown as Uint8Array)
+              : new Uint8Array(value as number),
+        },
+      });
+      const fallback = vi.fn();
+      await expect(meter.readObject(1, "objects/exact", fallback)).rejects.toBeInstanceOf(
+        PolicyArtifactByteAdmissionError,
+      );
+      expect(fallback).not.toHaveBeenCalled();
+      expect(() => meter.requireHealthy()).toThrow(PolicyArtifactByteAdmissionError);
+      expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(1);
+    },
+  );
+  it("allows an absent bounded response without inventing received bytes or a retry", async () => {
+    const f = await sealingHarness();
+    const { admission } = admissionFor(f);
+    const get = vi.fn(async () => null);
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+      ...admission,
+      objectReader: { get },
+    });
+    await expect(meter.readObject(1, "objects/exact", vi.fn())).resolves.toBeNull();
+    expect(get).toHaveBeenCalledOnce();
+    expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(1);
+  });
+  it("deducts acknowledgement wait before admitting physical bounded I/O", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    const original = reserveWork.getMockImplementation()!;
+    const get = vi.fn(async () => new Uint8Array(1));
+    reserveWork.mockImplementation(async (command) => {
+      const result = await original(command);
+      clock.mockReturnValue(f.request.limits.leaseDurationMilliseconds + 1);
+      return result;
+    });
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+      ...admission,
+      objectReader: { get },
+    });
+    try {
+      await expect(meter.readObject(1, "objects/exact", vi.fn())).rejects.toBeInstanceOf(
+        PolicyArtifactByteAdmissionError,
+      );
+      expect(get).not.toHaveBeenCalled();
+      expect(() => meter.requireHealthy()).toThrow(PolicyArtifactByteAdmissionError);
+      expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(1);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+  it("aborts a cooperative bounded read at the native remaining lease and retains its charge", async () => {
+    const f = await sealingHarness();
+    const { admission, reserveWork } = admissionFor(f);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    const original = reserveWork.getMockImplementation()!;
+    reserveWork.mockImplementation(async (command) => {
+      const result = await original(command);
+      clock.mockReturnValue(f.request.limits.leaseDurationMilliseconds - 20);
+      return result;
+    });
+    let signal: AbortSignal | undefined;
+    const get = vi.fn(
+      (_key: string, options: { signal: AbortSignal }) =>
+        new Promise<Uint8Array>((_resolve, reject) => {
+          signal = options.signal;
+          signal.addEventListener("abort", () => reject(signal!.reason), { once: true });
+        }),
+    );
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+      ...admission,
+      objectReader: { get },
+    });
+    try {
+      await expect(meter.readObject(1, "objects/exact", vi.fn())).rejects.toBeInstanceOf(
+        PolicyArtifactByteAdmissionError,
+      );
+      expect(signal!.aborted).toBe(true);
+      expect(get).toHaveBeenCalledOnce();
+      expect((await f.jobs.findJob(scope, f.fence.jobId))!.usage.artifactReadBytes).toBe(1);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+  it("rejects a response completing beyond the cut even before the timer callback runs", async () => {
+    const f = await sealingHarness();
+    const { admission } = admissionFor(f);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    const get = vi.fn(async () => {
+      clock.mockReturnValue(f.request.limits.leaseDurationMilliseconds + 1);
+      return new Uint8Array(1);
+    });
+    const meter = new PolicyArtifactByteReservations(f.request, f.fence, {
+      ...admission,
+      objectReader: { get },
+    });
+    try {
+      await expect(meter.readObject(1, "objects/exact", vi.fn())).rejects.toBeInstanceOf(
+        PolicyArtifactByteAdmissionError,
+      );
+      expect(() => meter.requireHealthy()).toThrow(PolicyArtifactByteAdmissionError);
+    } finally {
+      clock.mockRestore();
+    }
+  });
   it("retains expected charges for unreadable objects without pretending complete received bytes", async () => {
     const f = await sealingHarness();
     const { admission, reserveWork } = admissionFor(f);

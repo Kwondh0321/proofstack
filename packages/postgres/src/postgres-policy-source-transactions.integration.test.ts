@@ -78,6 +78,7 @@ import {
   type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSnapshotSealingTransactions,
   type PolicyArtifactByteAdmission,
+  PolicyArtifactByteAdmissionError,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
   readParentProtocolResolution,
@@ -960,6 +961,64 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("native bounded artifact admission does not begin I/O after a delayed acknowledgement expires", async () => {
+    const h = await nativeSealingHarness(3000);
+    let entered = false;
+    const admission: PolicyArtifactByteAdmission = {
+      repository: {
+        reserveWork: async (command) => {
+          const result = await h.worker.reserveWork(command);
+          await new Promise((resolve) => setTimeout(resolve, 3100));
+          return result;
+        },
+      },
+      nextReservationId: () => `bounded_${randomUUID().replaceAll("-", "")}`,
+      objectReader: {
+        get: async () => {
+          entered = true;
+          return null;
+        },
+      },
+    };
+    await expect(h.seal(h.transactions, admission)).rejects.toBeInstanceOf(
+      PolicyArtifactByteAdmissionError,
+    );
+    expect(entered).toBe(false);
+    expect(h.f.objectReads()).toBe(0);
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current!.job.status).toBe("acquiring");
+    expect(current!.job.snapshot).toBeNull();
+    expect(current!.usage.artifactReadBytes).toBeGreaterThan(0);
+    expect(current!.request).toEqual(h.created.snapshot.request);
+  });
+  it("native bounded artifact reads abort at their remaining lease without refund or publication", async () => {
+    const h = await nativeSealingHarness(3000);
+    let signal: AbortSignal | undefined;
+    const admission: PolicyArtifactByteAdmission = {
+      repository: h.worker,
+      nextReservationId: () => `bounded_${randomUUID().replaceAll("-", "")}`,
+      objectReader: {
+        get: (_key, options) =>
+          new Promise((_resolve, reject) => {
+            signal = options.signal;
+            signal.addEventListener("abort", () => reject(signal!.reason), { once: true });
+          }),
+      },
+    };
+    await expect(h.seal(h.transactions, admission)).rejects.toBeInstanceOf(
+      PolicyArtifactByteAdmissionError,
+    );
+    expect(signal!.aborted).toBe(true);
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current!.usage.artifactReadBytes).toBeGreaterThan(0);
+    expect(current!.job.status).toBe("acquiring");
+    expect(current!.job.snapshot).toBeNull();
+    const { rows } = await admin.query(
+      "SELECT count(*)::integer AS count FROM public.proofstack_policy_evaluation_snapshots WHERE tenant_id=$1",
+      [h.f.scope.tenantId],
+    );
+    expect(rows[0]?.count).toBe(0);
+  });
   it("native artifact budget refusal does not start content I/O or a snapshot", async () => {
     const h = await nativeSealingHarness();
     await h.worker.reserveWork({
