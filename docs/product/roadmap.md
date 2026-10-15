@@ -203,6 +203,10 @@ guarded sealed inputs, exact ordered rules, finite durable jobs, separate worker
 atomic results, bounded API/SDK, all-state recovery and authenticated contributor acceptance.
 Workflow 2 is **3/7 accepted checkpoints** after that publication gate, a checkpoint count rather
 than an effort percentage. Only then may accountable-decision and scoped-approval entry work begin.
+The [accountable-decision entry audit](../development/workflow-2-decision-entry-audit.md) and
+[ADR-0036](../architecture/0036-bind-decisions-to-current-selection-and-reviewer-authority.md)
+fix complete target selection, current reviewer authority, exact approvals/exceptions and guarded
+publication requirements for checkpoint 4. Entry is not implementation or checkpoint acceptance.
 Approval, decision, attestation, CI enforcement, rollback, deployment and production readiness
 remain separate open boundaries.
 

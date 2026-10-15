@@ -58,3 +58,4 @@ invalidate an ADR present in this directory.
 - [ADR-0033: Commit policy results with original execution receipts](0033-commit-policy-results-with-original-execution-receipts.md)
 - [ADR-0034: Retain policy acquisition credit across failures](0034-retain-policy-acquisition-credit-across-failures.md)
 - [ADR-0035: Share scoped candidate reference authorities](0035-share-scoped-candidate-reference-authorities.md)
+- [ADR-0036: Bind decisions to current selection and reviewer authority](0036-bind-decisions-to-current-selection-and-reviewer-authority.md)
