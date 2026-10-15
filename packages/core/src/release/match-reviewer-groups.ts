@@ -1,11 +1,10 @@
 import {
   MAX_POLICY_APPROVAL_GROUPS,
-  MAX_RELEASE_POLICY_SELECTION_POLICIES,
+  MAX_RELEASE_DECISION_APPROVAL_READS,
   OpaqueIdSchema,
 } from "@proofstack/contracts";
 
-export const MAX_RELEASE_QUORUM_REVIEWERS =
-  MAX_POLICY_APPROVAL_GROUPS * MAX_RELEASE_POLICY_SELECTION_POLICIES;
+export const MAX_RELEASE_QUORUM_REVIEWERS = MAX_RELEASE_DECISION_APPROVAL_READS;
 
 export class InvalidReviewerGroupGraphError extends Error {
   readonly code = "invalid_reviewer_group_graph";

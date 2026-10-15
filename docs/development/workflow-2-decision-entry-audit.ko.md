@@ -18,6 +18,9 @@
 [원본 소스 검사](workflow-2-decision-source-validation.ko.md)는 원래 레코드, 캡처된 선택 목록과
 자격 증명 상태를 검증한다. 실제 소유 포트, 현재 검토자 정족수, 비공개 인증과 원자적 게시는 열려 있다.
 
+[캡처된 현재 검토·일반 정족수](workflow-2-current-release-reviews.ko.md)는 현재 관측과 모든
+행위를 보존한다. 실제 소유 포트와 guard를 유지하는 게시가 열려 있어 matched 보고서로 릴리스를 승인할 수 없다.
+
 [전체 결정 입력 사전 고정 계약](workflow-2-decision-input-contracts.ko.md)은 원래 요청 목록을
 보존한다. 네이티브 예약과 현재 게시 권한은 열려 있으며 불변 무결성은 단계 수용이 아니다.
 

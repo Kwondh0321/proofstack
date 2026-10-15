@@ -221,6 +221,9 @@ retain original public observations; they do not establish current authority or 
 The [owning source inspection prerequisite](workflow-2-decision-source-validation.md) validates
 original records, complete captured selection data and credential preimages. Actual owning ports,
 current reviewer quorums, private authentication and guarded publication remain open.
+The [captured reviewer/normal-quorum prerequisite](workflow-2-current-release-reviews.md) retains
+current observations and every normal action. Actual owning source ports and guarded publication
+remain open; a matched captured report cannot authorize release.
 The [reviewer/approval contracts and internal assignment prerequisite](workflow-2-release-approval-contracts.md)
 retain original authenticated receipts and bounded group witnesses. They do not authenticate an
 actor, close current authority or accept checkpoint 4.

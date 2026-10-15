@@ -95,3 +95,7 @@ Before persistence, freeze the complete versioned authority cut including the re
 credential observations and actor provenance. Material 0.1 alone does not contain that full current
 proof. Next close actual reviewer eligibility/quorums and owning ports, then memory/shared/native
 atomic publication, reservations/recovery, API/SDK, real-service contributor and the exit audit.
+
+The [captured reviewer/normal-quorum implementation](workflow-2-current-release-reviews.md) builds
+on these preimages. It still requires actual owning sources, complete publication-cut contracts and
+held native authority before publication; it does not accept checkpoint 4.

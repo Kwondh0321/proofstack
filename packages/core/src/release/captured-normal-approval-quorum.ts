@@ -1,0 +1,386 @@
+import { createHash } from "node:crypto";
+import {
+  EvidenceScopeSchema,
+  MAX_RELEASE_DECISION_APPROVAL_READS,
+  PolicyApprovalRequirementSchema,
+  PolicyEvaluationTimeSchema,
+  policyEvaluationTimestampOrderKey,
+  ReleaseApprovalReferenceSchema,
+  ReleaseApprovalRevocationSchema,
+  ReleaseApprovalSchema,
+  ReleaseApprovalSubjectSchema,
+  ReleaseDecisionIdentityReferenceSchema,
+  ReleaseReviewerAuthoritySchema,
+  ReleaseReviewerAuthorityLifecycleEventSchema,
+  serializeEvaluationCanonicalJson,
+  type ReleaseApproval,
+  type ReleaseApprovalReference,
+  type ReleaseApprovalSubject,
+  type ReleaseDecisionCredentialObservation,
+  type ReleaseDecisionIdentityObservation,
+  type ReleaseDecisionIdentityReference,
+} from "@proofstack/contracts";
+import {
+  releaseApprovalReference,
+  validateReleaseApprovalRecord,
+} from "./release-authority-record-validation.js";
+import {
+  inspectCapturedReleaseReviewerEligibility,
+  validateCapturedReleaseReviewContext,
+  type CapturedReleaseReviewContext,
+  type CapturedReleaseReviewerEligibility,
+} from "./captured-release-reviewer-eligibility.js";
+import { matchDistinctReviewerGroups } from "./match-reviewer-groups.js";
+import type { ReleaseReviewerCensus } from "./release-reviewer-census.js";
+import {
+  type ReleaseDecisionVerificationBudget,
+  ReleaseDecisionVerificationBudgetError,
+} from "./release-decision-verification-budget.js";
+
+export interface CapturedNormalApprovalActor {
+  readonly approval: ReleaseApprovalReference;
+  readonly identity: ReleaseDecisionIdentityReference;
+  readonly grant: ReleaseDecisionIdentityObservation;
+  readonly credential: ReleaseDecisionCredentialObservation;
+  readonly authorityCensus: ReleaseReviewerCensus;
+}
+export type CapturedNormalApprovalState =
+  | "unavailable"
+  | "insufficient"
+  | "conditions_unresolved"
+  | "conflicted"
+  | "opposed"
+  | "escalated"
+  | "matched";
+export type CapturedNormalApprovalRowState =
+  | "revoked"
+  | "superseded"
+  | "expired"
+  | "unavailable"
+  | "ineligible"
+  | "conflicted"
+  | "conditions_unresolved"
+  | "approve"
+  | "oppose"
+  | "escalate"
+  | "abstain";
+export interface CapturedNormalApprovalQuorum {
+  readonly state: CapturedNormalApprovalState;
+  readonly supportingApprovals: readonly ReleaseApprovalReference[];
+  readonly witnesses: readonly {
+    readonly approval: ReleaseApprovalReference;
+    readonly principalId: string;
+    readonly groupId: string;
+    readonly independentHuman: boolean;
+    readonly assurance: "operator_verified" | "synthetic_reference";
+  }[];
+  readonly observations: readonly {
+    readonly approval: ReleaseApprovalReference;
+    readonly state: CapturedNormalApprovalRowState;
+  }[];
+  readonly expiresAt: string | null;
+}
+export class InvalidCapturedNormalApprovalError extends Error {
+  readonly code = "captured_normal_approval_invalid";
+  constructor(options?: ErrorOptions) {
+    super("Invalid complete captured normal approval census", options);
+    this.name = "InvalidCapturedNormalApprovalError";
+  }
+}
+function same(left: unknown, right: unknown): boolean {
+  return serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
+}
+function exactKeys(value: unknown, keys: readonly string[]): void {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).length !== keys.length ||
+    !keys.every((key) => Object.hasOwn(value, key))
+  )
+    throw new InvalidCapturedNormalApprovalError();
+}
+
+/**
+ * Pure complete captured-data resolution. The fixed owning composition must supply the original
+ * subject/context, complete guarded exact normal-subject census and original actor bindings. This is not authentication,
+ * native publication authority, a rule exception, or proof that declared conditions were verified.
+ */
+export function resolveCapturedNormalApprovalQuorum(input: {
+  readonly subject: ReleaseApprovalSubject;
+  readonly context: CapturedReleaseReviewContext;
+  readonly census: {
+    readonly state: "complete" | "unavailable" | "invalid";
+    readonly records: readonly unknown[];
+    readonly revocations: readonly unknown[];
+  };
+  readonly actors: readonly CapturedNormalApprovalActor[];
+  readonly capturedAt: string;
+  readonly budget: ReleaseDecisionVerificationBudget;
+}): CapturedNormalApprovalQuorum {
+  try {
+    const subject = ReleaseApprovalSubjectSchema.parse(input.subject);
+    const scope = EvidenceScopeSchema.parse(subject.scope);
+    const at = PolicyEvaluationTimeSchema.parse(input.capturedAt);
+    const cut = policyEvaluationTimestampOrderKey(at);
+    const context = validateCapturedReleaseReviewContext(input.context);
+    const requirement = PolicyApprovalRequirementSchema.parse(context.requirement);
+    if (context.purpose !== "normal_approval") throw new InvalidCapturedNormalApprovalError();
+    exactKeys(input.census, ["state", "records", "revocations"]);
+    const census = structuredClone(input.census);
+    if (
+      !["complete", "unavailable", "invalid"].includes(census.state) ||
+      !Array.isArray(census.records) ||
+      !Array.isArray(census.revocations) ||
+      !Array.isArray(input.actors) ||
+      [census.records, census.revocations, input.actors].some(
+        (rows) => rows.length > MAX_RELEASE_DECISION_APPROVAL_READS,
+      )
+    )
+      throw new InvalidCapturedNormalApprovalError();
+    const records: ReleaseApproval[] = [];
+    for (const raw of census.records) {
+      input.budget.observe(raw, "approval");
+      const parsed = ReleaseApprovalSchema.parse(raw);
+      const record = validateReleaseApprovalRecord({
+        expected: { scope, reference: releaseApprovalReference(parsed) },
+        record: parsed,
+      });
+      if (
+        policyEvaluationTimestampOrderKey(record.recordedAt) > cut ||
+        record.kind !== "normal_approval" ||
+        !same(record.subject, subject)
+      )
+        throw new InvalidCapturedNormalApprovalError();
+      records.push(record);
+    }
+    records.sort((a, b) =>
+      a.approvalId < b.approvalId ? -1 : a.approvalId > b.approvalId ? 1 : 0,
+    );
+    const byId = new Map(records.map((record) => [record.approvalId, record]));
+    let conflict = byId.size !== records.length;
+    let unavailable = census.state !== "complete";
+    const revoked = new Set<string>();
+    const eventIds = new Set<string>();
+    for (const raw of census.revocations) {
+      input.budget.observe(raw);
+      const event = ReleaseApprovalRevocationSchema.parse(raw);
+      if (!same(scope, event.scope) || policyEvaluationTimestampOrderKey(event.occurredAt) > cut)
+        throw new InvalidCapturedNormalApprovalError();
+      const record = byId.get(event.approval.approvalId);
+      if (eventIds.has(event.eventId) || revoked.has(event.approval.approvalId)) conflict = true;
+      eventIds.add(event.eventId);
+      revoked.add(event.approval.approvalId);
+      if (!record) {
+        unavailable = true;
+        continue;
+      }
+      if (
+        !same(releaseApprovalReference(record), event.approval) ||
+        record.reviewer.principalId !== event.reviewer.principalId ||
+        policyEvaluationTimestampOrderKey(event.occurredAt) <
+          policyEvaluationTimestampOrderKey(record.recordedAt)
+      )
+        throw new InvalidCapturedNormalApprovalError();
+    }
+    const superseded = new Set<string>();
+    for (const record of records) {
+      if (!record.supersedes) continue;
+      const previous = byId.get(record.supersedes.approvalId);
+      if (superseded.has(record.supersedes.approvalId)) conflict = true;
+      superseded.add(record.supersedes.approvalId);
+      if (!previous) {
+        unavailable = true;
+        continue;
+      }
+      if (
+        !same(releaseApprovalReference(previous), record.supersedes) ||
+        previous.reviewer.principalId !== record.reviewer.principalId ||
+        previous.kind !== record.kind ||
+        !same(previous.subject, record.subject) ||
+        policyEvaluationTimestampOrderKey(previous.recordedAt) >
+          policyEvaluationTimestampOrderKey(record.recordedAt)
+      )
+        throw new InvalidCapturedNormalApprovalError();
+    }
+    const completed = new Set<string>();
+    for (const record of records) {
+      const visiting = new Set<string>();
+      let current: ReleaseApproval | undefined = record;
+      while (current && !completed.has(current.approvalId)) {
+        if (visiting.has(current.approvalId)) {
+          conflict = true;
+          break;
+        }
+        visiting.add(current.approvalId);
+        current = current.supersedes ? byId.get(current.supersedes.approvalId) : undefined;
+      }
+      for (const id of visiting) completed.add(id);
+    }
+    const actors = new Map<string, CapturedReleaseReviewerEligibility>();
+    const preimages = new Map<string, string>();
+    const retainPreimage = (key: readonly string[], value: unknown) => {
+      const id = serializeEvaluationCanonicalJson(key);
+      const hash = createHash("sha256")
+        .update(serializeEvaluationCanonicalJson(value))
+        .digest("hex");
+      const previous = preimages.get(id);
+      if (previous !== undefined && previous !== hash) unavailable = true;
+      preimages.set(id, hash);
+    };
+    for (const source of structuredClone(input.actors)) {
+      exactKeys(source, ["approval", "identity", "grant", "credential", "authorityCensus"]);
+      const reference = ReleaseApprovalReferenceSchema.parse(source.approval);
+      const identity = ReleaseDecisionIdentityReferenceSchema.parse(source.identity);
+      if (identity.kind !== "oidc_binding") throw new InvalidCapturedNormalApprovalError();
+      input.budget.observe({ approval: reference, identity });
+      const record = byId.get(reference.approvalId);
+      if (!record || !same(releaseApprovalReference(record), reference))
+        throw new InvalidCapturedNormalApprovalError();
+      if (actors.has(reference.approvalId)) conflict = true;
+      const eligibility = inspectCapturedReleaseReviewerEligibility({
+        scope,
+        reference: record.authority,
+        census: source.authorityCensus,
+        receipt: record.reviewer,
+        identity,
+        grant: source.grant,
+        credential: source.credential,
+        context,
+        recordedAt: record.recordedAt,
+        capturedAt: at,
+        budget: input.budget,
+      });
+      retainPreimage(["identity", identity.kind, identity.bindingId], source.grant);
+      retainPreimage(
+        ["credential", source.credential.reference.kind, source.credential.reference.credentialId],
+        source.credential,
+      );
+      retainPreimage(
+        [
+          "authority_census",
+          record.authority.installationId,
+          record.authority.gateTargetId,
+          record.authority.reviewerPrincipalId,
+          record.authority.authorityId,
+        ],
+        {
+          state: source.authorityCensus.state,
+          records: source.authorityCensus.records.map(serializeEvaluationCanonicalJson).sort(),
+          lifecycle: source.authorityCensus.lifecycle.map(serializeEvaluationCanonicalJson).sort(),
+        },
+      );
+      for (const raw of source.authorityCensus.records) {
+        const authority = ReleaseReviewerAuthoritySchema.parse(raw);
+        retainPreimage(["reviewer_authority", authority.authorityVersionId], authority);
+      }
+      for (const raw of source.authorityCensus.lifecycle) {
+        const event = ReleaseReviewerAuthorityLifecycleEventSchema.parse(raw);
+        retainPreimage(["reviewer_event", event.eventId], event);
+      }
+      actors.set(reference.approvalId, eligibility);
+    }
+    if (actors.size !== byId.size) unavailable = true;
+    const observations: {
+      approval: ReleaseApprovalReference;
+      state: CapturedNormalApprovalRowState;
+    }[] = [];
+    const active = new Map<
+      string,
+      {
+        record: ReleaseApproval;
+        reviewer: Extract<CapturedReleaseReviewerEligibility, { state: "eligible" }>;
+      }
+    >();
+    const activePrincipals = new Set<string>();
+    let opposed = false,
+      escalated = false,
+      conditional = false;
+    for (const record of records) {
+      const reference = releaseApprovalReference(record);
+      let state: CapturedNormalApprovalRowState;
+      const reviewer = actors.get(record.approvalId);
+      if (revoked.has(record.approvalId)) state = "revoked";
+      else if (superseded.has(record.approvalId)) state = "superseded";
+      else if (policyEvaluationTimestampOrderKey(record.expiresAt) <= cut) state = "expired";
+      else if (!reviewer || reviewer.state === "unavailable") {
+        state = "unavailable";
+        unavailable = true;
+      } else if (reviewer.state === "ineligible") state = "ineligible";
+      else {
+        if (activePrincipals.has(reviewer.principalId)) conflict = true;
+        activePrincipals.add(reviewer.principalId);
+        if (record.declaredConflicts.length > 0) {
+          state = "conflicted";
+          conflict = true;
+        } else if (record.action === "oppose") {
+          state = "oppose";
+          opposed = true;
+        } else if (record.action === "escalate") {
+          state = "escalate";
+          escalated = true;
+        } else if (record.action === "abstain") state = "abstain";
+        else if (record.conditions.length > 0) {
+          state = "conditions_unresolved";
+          conditional = true;
+        } else {
+          state = "approve";
+          active.set(reviewer.principalId, { record, reviewer });
+        }
+      }
+      observations.push({ approval: reference, state });
+    }
+    const empty = (state: CapturedNormalApprovalState): CapturedNormalApprovalQuorum => ({
+      state,
+      supportingApprovals: [],
+      witnesses: [],
+      observations,
+      expiresAt: null,
+    });
+    if (conflict) return empty("conflicted");
+    if (unavailable) return empty("unavailable");
+    if (opposed) return empty("opposed");
+    if (escalated) return empty("escalated");
+    if (conditional) return empty("conditions_unresolved");
+    const assignment = matchDistinctReviewerGroups({
+      groupIds: requirement.independenceGroupIds,
+      humanGroupIds: requirement.humanReviewerGroupIds,
+      quorum: requirement.quorum,
+      reviewers: [...active.values()].map(({ reviewer }) => ({
+        principalId: reviewer.principalId,
+        groupIds: reviewer.groupIds,
+        human: reviewer.independentHuman,
+      })),
+    });
+    if (assignment.status !== "matched") return empty("insufficient");
+    let expiresAt: string | null = null;
+    const witnesses = assignment.matched.map((match) => {
+      const source = active.get(match.principalId);
+      if (!source) throw new InvalidCapturedNormalApprovalError();
+      for (const limit of [source.record.expiresAt, source.reviewer.authorityExpiresAt])
+        if (
+          expiresAt === null ||
+          policyEvaluationTimestampOrderKey(limit) < policyEvaluationTimestampOrderKey(expiresAt)
+        )
+          expiresAt = limit;
+      return {
+        approval: releaseApprovalReference(source.record),
+        principalId: match.principalId,
+        groupId: match.groupId,
+        independentHuman: source.reviewer.independentHuman,
+        assurance: source.reviewer.assurance,
+      };
+    });
+    const supportingApprovals = witnesses
+      .map(({ approval }) => approval)
+      .sort((a, b) => (a.approvalId < b.approvalId ? -1 : a.approvalId > b.approvalId ? 1 : 0));
+    return { state: "matched", witnesses, supportingApprovals, observations, expiresAt };
+  } catch (cause) {
+    if (
+      cause instanceof InvalidCapturedNormalApprovalError ||
+      cause instanceof ReleaseDecisionVerificationBudgetError
+    )
+      throw cause;
+    throw new InvalidCapturedNormalApprovalError({ cause });
+  }
+}

@@ -33,6 +33,42 @@ function oracle(graph: ReviewerGroupAssignmentInput): number {
 }
 
 describe("distinct reviewer/group assignment", () => {
+  it.each([4_095, 4_096])(
+    "retains a required late human across all %i admitted approval principals",
+    (count) => {
+      const groups = Array.from({ length: 32 }, (_, i) => `group_${i.toString().padStart(2, "0")}`);
+      const first = groups[0],
+        last = groups.at(-1);
+      if (!first || !last) throw new Error("Missing boundary groups");
+      const reviewers = Array.from({ length: count - 1 }, (_, i) => ({
+        principalId: `reviewer_${i.toString().padStart(4, "0")}`,
+        groupIds: [first],
+        human: false,
+      }));
+      reviewers.push({ principalId: "zz_last_required_human", groupIds: [last], human: true });
+      const result = matchDistinctReviewerGroups({
+        groupIds: groups,
+        reviewers,
+        quorum: 2,
+        humanGroupIds: [last],
+      });
+      expect(result.status).toBe("matched");
+      expect(result.matched).toHaveLength(2);
+      expect(result.matched).toContainEqual({
+        principalId: "zz_last_required_human",
+        groupId: last,
+        humanGroup: true,
+      });
+      expect(
+        matchDistinctReviewerGroups({
+          groupIds: groups,
+          reviewers: reviewers.slice(0, -1),
+          quorum: 2,
+          humanGroupIds: [last],
+        }).status,
+      ).toBe("shortfall");
+    },
+  );
   it("finds the unique full-length 32-group alternating cycle", () => {
     const groupIds = Array.from({ length: 32 }, (_, i) => `group_${i.toString().padStart(3, "0")}`);
     const reviewers = groupIds.map((_, i) => ({

@@ -63,3 +63,4 @@ invalidate an ADR present in this directory.
 - [ADR-0038: Retain original rule outcomes in accountable decisions](0038-retain-original-rule-outcomes-in-accountable-decisions.md)
 - [ADR-0039: Retain bounded decision authority material](0039-retain-bounded-decision-authority-material.md)
 - [ADR-0040: Inspect owning release authority preimages before composition](0040-inspect-owned-release-authority-preimages.md)
+- [ADR-0041: Resolve complete captured normal-review quorums](0041-resolve-complete-captured-normal-review-quorums.md)
