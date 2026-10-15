@@ -196,9 +196,30 @@ import {
   RepositoryReleaseCandidateSourceResolver,
 } from "./repository-release-candidate-source-resolver.js";
 import { registerRoutes } from "./routes.js";
-import { type ApiArtifactStorage, createApiStorage } from "./storage.js";
+import {
+  type ApiArtifactStorage,
+  type ApiPolicyEvaluationStorage,
+  createApiStorage,
+} from "./storage.js";
+import { registerPolicyEvaluationRoutes } from "./policy-evaluation-routes.js";
+import {
+  InvalidPolicyEvaluationJobGraphError,
+  InvalidPolicyEvaluationRequestRecordError,
+  PolicyEvaluationCancellationConflictError,
+  PolicyEvaluationJobHistoryError,
+  PolicyEvaluationJobNotFoundError,
+  PolicyEvaluationRequestConflictError,
+  PolicyEvaluationSchedulerTransitionError,
+  PolicyEvaluationSnapshotIntegrityError,
+  PolicyEvaluationResultIntegrityError,
+} from "@proofstack/core";
+import {
+  PostgresPolicyEvaluationJobContractError,
+  PostgresPolicyIoError,
+} from "@proofstack/postgres";
 
 export interface AppDependencies {
+  readonly policyEvaluationStorage?: ApiPolicyEvaluationStorage;
   readonly artifactContentInspector?: ArtifactContentInspector;
   readonly artifactStorage?: ApiArtifactStorage;
   readonly apiKeyLifecycle?: ApiKeyLifecycleService;
@@ -260,6 +281,7 @@ export async function createApp(
       app.log.error({ error }, "Idle PostgreSQL connection failed");
     });
     const storage =
+      dependencies.policyEvaluationStorage ||
       dependencies.repository ||
       dependencies.comparisonRepository ||
       dependencies.evaluationRepository ||
@@ -272,6 +294,8 @@ export async function createApp(
       dependencies.replayJobControlRepository
         ? {
             ...defaultStorage,
+            policyEvaluation:
+              dependencies.policyEvaluationStorage ?? defaultStorage.policyEvaluation,
             ...(dependencies.artifactStorage ? { artifacts: dependencies.artifactStorage } : {}),
             checkReadiness: dependencies.checkReadiness ?? defaultStorage.checkReadiness,
             comparisonRepository:
@@ -486,6 +510,13 @@ export async function createApp(
       }),
       readCandidate: new ReadReleaseCandidate(storage.releaseCandidateRepository),
     });
+    await registerPolicyEvaluationRoutes(app, {
+      authenticator,
+      ...storage.policyEvaluation,
+      clock,
+      newJobId: () => `policy_job_${randomUUID().replaceAll("-", "")}`,
+      newCancellationId: () => `policy_cancel_${randomUUID().replaceAll("-", "")}`,
+    });
     await registerReleasePolicyRoutes(app, {
       authenticator,
       publishLifecycle: new PublishReleasePolicyLifecycle({
@@ -623,6 +654,48 @@ export async function createApp(
     );
 
     app.setErrorHandler((error, request, reply) => {
+      if (error instanceof PolicyEvaluationJobNotFoundError) {
+        return sendProblem(reply, {
+          code: error.code,
+          detail: "The exact policy evaluation job or retained material was not found",
+          requestId: request.id,
+          status: 404,
+          title: "Policy evaluation not found",
+          type: "https://proofstack.dev/problems/policy-evaluation-not-found",
+        });
+      }
+      if (
+        error instanceof PolicyEvaluationRequestConflictError ||
+        error instanceof PolicyEvaluationCancellationConflictError ||
+        error instanceof PolicyEvaluationSchedulerTransitionError
+      ) {
+        return sendProblem(reply, {
+          code: "policy_evaluation_state_conflict",
+          detail: "The request conflicts with the original policy evaluation identity or state",
+          requestId: request.id,
+          status: 409,
+          title: "Policy evaluation conflict",
+          type: "https://proofstack.dev/problems/policy-evaluation-conflict",
+        });
+      }
+      if (
+        error instanceof InvalidPolicyEvaluationJobGraphError ||
+        error instanceof InvalidPolicyEvaluationRequestRecordError ||
+        error instanceof PolicyEvaluationJobHistoryError ||
+        error instanceof PolicyEvaluationSnapshotIntegrityError ||
+        error instanceof PolicyEvaluationResultIntegrityError ||
+        error instanceof PostgresPolicyEvaluationJobContractError ||
+        error instanceof PostgresPolicyIoError
+      ) {
+        return sendProblem(reply, {
+          code: "policy_evaluation_storage_unavailable",
+          detail: "Policy evaluation storage could not provide verified exact records",
+          requestId: request.id,
+          status: 503,
+          title: "Policy evaluation storage unavailable",
+          type: "https://proofstack.dev/problems/policy-evaluation-storage-unavailable",
+        });
+      }
       if (error instanceof ZodError) {
         return sendProblem(reply, {
           code: "invalid_request",

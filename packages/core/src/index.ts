@@ -72,6 +72,7 @@ export * from "./policy/policy-evaluation-snapshot.js";
 export * from "./policy/policy-evaluation-worker-authorization.js";
 export * from "./policy/policy-evaluation-job-record-validation.js";
 export * from "./policy/policy-evaluation-job-repository.js";
+export * from "./policy/policy-evaluation-public-reads.js";
 export * from "./policy/policy-evaluation-job-history.js";
 export * from "./policy/policy-evaluation-job-history-replay.js";
 export * from "./policy/policy-evaluation-job-outbox.js";

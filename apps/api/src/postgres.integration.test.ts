@@ -24,7 +24,11 @@ import {
   ReplayPlanDefinitionSchema,
   TargetReleaseDefinitionSchema,
 } from "@proofstack/contracts";
-import { releaseCandidateFixture } from "@proofstack/core/testing";
+import { releaseCandidateFixture, policyJobConformanceRequest } from "@proofstack/core/testing";
+import {
+  EnqueuePolicyEvaluationJobResponseSchema,
+  type PolicyEvaluationJobSnapshot,
+} from "@proofstack/contracts";
 import { decodeOtlpJson, encodeOtlpProtobufRequest } from "@proofstack/otlp";
 import {
   bootstrapApiKey,
@@ -228,6 +232,14 @@ const runtimeRoles = {
     name: "proofstack_test_policy_author_runtime",
     password: "proofstack-test-policy-author-runtime",
   },
+  policyEvaluationControl: {
+    name: "proofstack_test_policy_control_runtime",
+    password: "proofstack-test-policy-control-runtime",
+  },
+  policyEvaluator: {
+    name: "proofstack_test_policy_evaluator_runtime",
+    password: "proofstack-test-policy-evaluator-runtime",
+  },
   publisher: {
     name: "proofstack_test_publisher_runtime",
     password: "proofstack-test-publisher-runtime",
@@ -254,6 +266,9 @@ identityDatabaseUrl.password = runtimeRoles.identity.password;
 const policyAuthorDatabaseUrl = new URL(databaseUrl);
 policyAuthorDatabaseUrl.username = runtimeRoles.policyAuthor.name;
 policyAuthorDatabaseUrl.password = runtimeRoles.policyAuthor.password;
+const policyControlDatabaseUrl = new URL(databaseUrl);
+policyControlDatabaseUrl.username = runtimeRoles.policyEvaluationControl.name;
+policyControlDatabaseUrl.password = runtimeRoles.policyEvaluationControl.password;
 const replayWorkerDatabaseUrl = new URL(databaseUrl);
 replayWorkerDatabaseUrl.username = runtimeRoles.replayWorker.name;
 replayWorkerDatabaseUrl.password = runtimeRoles.replayWorker.password;
@@ -304,6 +319,7 @@ function postgresConfig() {
     PROOFSTACK_ENV: "test",
     PROOFSTACK_LOG_LEVEL: "silent",
     PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: policyAuthorDatabaseUrl.toString(),
+    PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: policyControlDatabaseUrl.toString(),
     PROOFSTACK_STORAGE_MODE: "postgres",
   });
 }
@@ -322,6 +338,7 @@ function persistentArtifactConfig() {
     PROOFSTACK_ENV: "test",
     PROOFSTACK_LOG_LEVEL: "silent",
     PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: policyAuthorDatabaseUrl.toString(),
+    PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: policyControlDatabaseUrl.toString(),
     PROOFSTACK_STORAGE_MODE: "postgres",
   });
 }
@@ -334,11 +351,153 @@ function apiKeyConfig() {
     PROOFSTACK_IDENTITY_DATABASE_URL: identityDatabaseUrl.toString(),
     PROOFSTACK_LOG_LEVEL: "silent",
     PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: policyAuthorDatabaseUrl.toString(),
+    PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: policyControlDatabaseUrl.toString(),
     PROOFSTACK_STORAGE_MODE: "postgres",
   });
 }
 
 describe("PostgreSQL-backed API", () => {
+  it("retains exact policy request/cancellation/history through real control pools and API restart", async () => {
+    const scope = {
+      tenantId: "tenant_policy_api",
+      projectId: "project_policy_api",
+      environmentId: "env_policy_api",
+    };
+    const key = await bootstrapApiKey(adminPool, {
+      actorPrincipalId: "usr_policy_api_operator",
+      tenantId: scope.tenantId,
+      name: "policy-api-integration",
+      capabilities: ["policy:evaluate", "policy:read", "policy:evaluation:cancel"],
+      resourceScope: {
+        mode: "restricted",
+        projects: [{ projectId: scope.projectId, environmentIds: [scope.environmentId] }],
+      },
+    });
+    const authorization = `Bearer ${key.value}`;
+    const {
+      scope: _scope,
+      schemaVersion: _version,
+      createdAt: _at,
+      createdByPrincipalId: _by,
+      definitionSha256: _sha,
+      ...input
+    } = policyJobConformanceRequest(scope);
+    const root = `/v1/projects/${scope.projectId}/environments/${scope.environmentId}/policy-evaluation-jobs`;
+    const app = await createApp(apiKeyConfig());
+    let original!: PolicyEvaluationJobSnapshot;
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: root,
+        headers: { authorization },
+        payload: input,
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.headers["cache-control"]).toBe("no-store");
+      original = EnqueuePolicyEvaluationJobResponseSchema.parse(created.json()).snapshot;
+      expect(original.job.scope).toEqual(scope);
+      expect(original.job.status).toBe("queued");
+      const repeated = await app.inject({
+        method: "POST",
+        url: root,
+        headers: { authorization },
+        payload: input,
+      });
+      expect(repeated.statusCode).toBe(200);
+      expect(repeated.json().snapshot).toEqual(original);
+      const changed = await app.inject({
+        method: "POST",
+        url: root,
+        headers: { authorization },
+        payload: { ...input, evaluationTime: "2026-09-07T11:59:59.999Z" },
+      });
+      expect(changed.statusCode).toBe(409);
+      const denied = await app.inject({
+        method: "POST",
+        url: root,
+        headers: {
+          authorization: `Bearer ${issuedApiKey.value}`,
+          "content-type": "application/json",
+        },
+        payload: "{",
+      });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.headers["cache-control"]).toBe("no-store");
+    } finally {
+      await app.close();
+    }
+    const restarted = await createApp(apiKeyConfig());
+    try {
+      const job = `${root}/${original.job.jobId}`;
+      const read = await restarted.inject({ method: "GET", url: job, headers: { authorization } });
+      expect(read.statusCode).toBe(200);
+      expect(read.json().snapshot).toEqual(original);
+      const request = await restarted.inject({
+        method: "GET",
+        url: `${job}/request`,
+        headers: { authorization },
+      });
+      expect(request.statusCode).toBe(200);
+      expect(request.json().request).toEqual(original.request);
+      const history = await restarted.inject({
+        method: "GET",
+        url: `${job}/history`,
+        headers: { authorization },
+      });
+      expect(history.statusCode).toBe(200);
+      const head = history.json().head;
+      const cancelled = await restarted.inject({
+        method: "POST",
+        url: `${job}/cancellation`,
+        headers: { authorization },
+        payload: { reason: "operator_requested" },
+      });
+      expect(cancelled.statusCode).toBe(200);
+      expect(cancelled.json().snapshot.job.status).toBe("cancelled");
+      const repeat = await restarted.inject({
+        method: "POST",
+        url: `${job}/cancellation`,
+        headers: { authorization },
+        payload: { reason: "operator_requested" },
+      });
+      expect(repeat.statusCode).toBe(200);
+      expect(repeat.json().snapshot).toEqual(cancelled.json().snapshot);
+      const query = new URLSearchParams({
+        jobDefinitionSha256: head.job.definitionSha256,
+        sequence: String(head.sequence),
+        entrySha256: head.entrySha256,
+        graphSha256: head.graphSha256,
+      });
+      const page = await restarted.inject({
+        method: "GET",
+        url: `${job}/history/pages/0?${query}`,
+        headers: { authorization },
+      });
+      expect(page.statusCode).toBe(200);
+      expect(page.json().page.head).toEqual(head);
+      expect(page.json().page.entries[0].definition.operation.kind).toBe("created");
+      const pending = await restarted.inject({
+        method: "GET",
+        url: `${job}/result`,
+        headers: { authorization },
+      });
+      expect(pending.statusCode).toBe(404);
+    } finally {
+      await restarted.close();
+    }
+  });
+  it("refuses a worker or administrator connection as API policy control authority", async () => {
+    const worker = new URL(databaseUrl);
+    worker.username = runtimeRoles.policyEvaluator.name;
+    worker.password = runtimeRoles.policyEvaluator.password;
+    for (const connection of [worker.toString(), databaseUrl]) {
+      const config = apiKeyConfig();
+      if (config.storage.mode !== "postgres")
+        throw new Error("Expected isolated native API configuration");
+      config.storage.policyEvaluationControlDatabaseUrl = connection;
+      await expect(createApp(config)).rejects.toThrow("dedicated restricted control role");
+    }
+  });
   it("retains an ingested trace after the API and its pool are restarted", async () => {
     const traceId = "6bf92f3577b34da6a3ce929d0e0e4736";
     const evidence = {

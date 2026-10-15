@@ -39,6 +39,7 @@ const PageIndex = z
   .int()
   .nonnegative()
   .max(MAX_POLICY_EVALUATION_SNAPSHOT_PAGES - 1);
+export const PolicyEvaluationSnapshotPageIndexSchema = PageIndex;
 const ByteLength = z.number().int().positive().max(MAX_POLICY_EVALUATION_SNAPSHOT_INPUT_BYTES);
 const FrameCount = z.number().int().positive().max(MAX_POLICY_EVALUATION_SNAPSHOT_FRAMES);
 const BASE64URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";

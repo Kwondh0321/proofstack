@@ -8,6 +8,8 @@ export {
   createPostgresPool,
   type PostgresPoolOptions,
 } from "./database.js";
+export { assertPostgresPolicyControlRole } from "./policy-control-role.js";
+export { PostgresPolicyIoError } from "./bounded-policy-transaction.js";
 export {
   type BootstrapApiKeyOptions,
   bootstrapApiKey,

@@ -495,6 +495,8 @@ function workflowRuntimeRoleOptions(stage: "restored" | "source") {
     identity: credentials("identity"),
     modelEvaluationWorker: credentials("model"),
     policyAuthor: credentials("policy"),
+    policyEvaluationControl: credentials("policy_control"),
+    policyEvaluator: credentials("policy_evaluator"),
     publisher: credentials("publisher"),
     replayWorker: credentials("replay"),
   } satisfies RuntimeRoleProvisioningOptions;
@@ -611,6 +613,10 @@ async function createWorkflowRuntime(
       databaseUrl: databaseUrlForRole(administrativeUrl, roles.api),
       mode: "postgres",
       policyAuthorDatabaseUrl: databaseUrlForRole(administrativeUrl, roles.policyAuthor),
+      policyEvaluationControlDatabaseUrl: databaseUrlForRole(
+        administrativeUrl,
+        roles.policyEvaluationControl!,
+      ),
     },
   };
   const app = await createApp(apiConfig, {

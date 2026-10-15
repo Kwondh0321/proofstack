@@ -84,3 +84,4 @@ export * from "./replay-worker-protocol-v2.js";
 export * from "./runtime-definition.js";
 export * from "./runtime-definition-encoding.js";
 export * from "./policy-evaluation-acquisition-allowance.js";
+export * from "./policy-evaluation-public-api.js";

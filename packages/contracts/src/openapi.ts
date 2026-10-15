@@ -1,5 +1,24 @@
 import { type ZodType, z } from "zod";
 import {
+  EnqueuePolicyEvaluationJobResponseSchema,
+  ReadPolicyEvaluationSnapshotResponseSchema,
+  ReadPolicyEvaluationSnapshotPageResponseSchema,
+  ReadPolicyEvaluationJobHistoryHeadResponseSchema,
+  ReadPolicyEvaluationJobHistoryPageResponseSchema,
+} from "./policy-evaluation-public-api.js";
+import {
+  ReadPolicyEvaluationJobResponseSchema,
+  RequestPolicyEvaluationCancellationSchema,
+} from "./policy-evaluation-job-api.js";
+import { EnqueuePolicyEvaluationRequestSchema } from "./policy-evaluation-request.js";
+import { ReadPolicyEvaluationRequestResponseSchema } from "./policy-evaluation-request-api.js";
+import { ReadPolicyEvaluationResponseSchema } from "./policy-evaluation-result-api.js";
+import { MAX_POLICY_EVALUATION_SNAPSHOT_PAGES } from "./policy-evaluation-snapshot.js";
+import {
+  MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES,
+  POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE,
+} from "./policy-evaluation-job-history.js";
+import {
   BrowserLoginQuerySchema,
   BrowserLogoutResponseSchema,
   BrowserReturnPathSchema,
@@ -741,8 +760,251 @@ function modelAssuranceJsonResponse(
   };
 }
 
+function policyEvaluationPaths(): Record<string, unknown> {
+  const root = "/v1/projects/{projectId}/environments/{environmentId}/policy-evaluation-jobs";
+  const job = `${root}/{jobId}`;
+  const noStore = {
+    "Cache-Control": {
+      description: "Policy evaluation responses are never cacheable",
+      schema: { const: "no-store", type: "string" },
+    },
+  };
+  const errors = Object.fromEntries(
+    Object.entries({
+      ...problemResponses,
+      "404": {
+        description: "The exact authorized job or retained material was not found",
+        content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+      },
+      "409": {
+        description: "The immutable request, original cancellation or execution state conflicts",
+        content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+      },
+      "413": {
+        description: "The request exceeds the route UTF-8 byte limit",
+        content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+      },
+      "503": {
+        description: "Storage could not provide verified exact policy records",
+        content: { "application/problem+json": { schema: schemaReference("ProblemDocument") } },
+      },
+    }).map(([status, value]) => [status, { ...value, headers: noStore }]),
+  );
+  const scope = [projectParameter, environmentParameter];
+  const identity = [
+    ...scope,
+    { in: "path", name: "jobId", required: true, schema: schemaReference("OpaqueId") },
+  ];
+  const digest = { type: "string", pattern: "^[a-f0-9]{64}$" };
+  const query = (name: string, schema: unknown) => ({ in: "query", name, required: true, schema });
+  const page = (maximum: number) => ({
+    in: "path",
+    name: "pageIndex",
+    required: true,
+    schema: { type: "integer", minimum: 0, maximum },
+  });
+  const json = (schema: string, description: string) => ({
+    description,
+    content: { "application/json": { schema: schemaReference(schema) } },
+    headers: noStore,
+  });
+  function read(
+    operationId: string,
+    summary: string,
+    schema: string,
+    parameters: readonly unknown[],
+  ) {
+    return {
+      operationId,
+      summary,
+      description:
+        "Requires scoped policy:read. Exact historical records retain their original identity and receipts; reads grant no source freshness, execution, approval or release authority.",
+      parameters,
+      responses: { "200": json(schema, summary), ...errors },
+      security: userOrWorkloadSecurity,
+      tags: ["Policy evaluation"],
+    };
+  }
+  return {
+    [root]: {
+      post: {
+        operationId: "enqueuePolicyEvaluation",
+        summary: "Enqueue one immutable bounded policy evaluation request",
+        description:
+          "Requires policy:evaluate; enqueue does not execute or publish a result. Server owns job identity, scope and receipts. Exact retries preserve the original request/job; no caller snapshot, worker identity or verdict is accepted. Request limit is 4096 UTF-8 bytes.",
+        parameters: [...scope, ...browserMutationParameters],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: schemaReference("EnqueuePolicyEvaluationRequest") },
+          },
+        },
+        responses: {
+          "200": json(
+            "EnqueuePolicyEvaluationJobResponse",
+            "Original immutable request/job returned on an exact retry",
+          ),
+          "201": json(
+            "EnqueuePolicyEvaluationJobResponse",
+            "Immutable request and queued job created",
+          ),
+          ...errors,
+        },
+        security: userOrWorkloadSecurity,
+        tags: ["Policy evaluation"],
+      },
+    },
+    [job]: {
+      get: read(
+        "getPolicyEvaluationJob",
+        "Read one exact policy evaluation job",
+        "ReadPolicyEvaluationJobResponse",
+        identity,
+      ),
+    },
+    [`${job}/cancellation`]: {
+      post: {
+        operationId: "cancelPolicyEvaluationJob",
+        summary: "Request cancellation of one exact policy evaluation job",
+        description:
+          "Requires separately grantable policy:evaluation:cancel. Reason-only input is limited to 1024 UTF-8 bytes. The server owns cancellation identity/actor/receipt; identical retries retain the original intent and paid work. Cancellation does not publish a policy verdict.",
+        parameters: [...identity, ...browserMutationParameters],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: schemaReference("RequestPolicyEvaluationCancellation") },
+          },
+        },
+        responses: {
+          "200": json(
+            "ReadPolicyEvaluationJobResponse",
+            "Original cancellation intent and exact job returned",
+          ),
+          ...errors,
+        },
+        security: userOrWorkloadSecurity,
+        tags: ["Policy evaluation"],
+      },
+    },
+    [`${job}/request`]: {
+      get: read(
+        "getPolicyEvaluationRequest",
+        "Read the original policy evaluation request",
+        "ReadPolicyEvaluationRequestResponse",
+        identity,
+      ),
+    },
+    [`${job}/snapshot`]: {
+      get: read(
+        "getPolicyEvaluationSnapshot",
+        "Read the original sealed snapshot header",
+        "ReadPolicyEvaluationSnapshotResponse",
+        identity,
+      ),
+    },
+    [`${job}/snapshot/pages/{pageIndex}`]: {
+      get: read(
+        "getPolicyEvaluationSnapshotPage",
+        "Read one page bound to the retained exact snapshot header",
+        "ReadPolicyEvaluationSnapshotPageResponse",
+        [
+          ...identity,
+          page(MAX_POLICY_EVALUATION_SNAPSHOT_PAGES - 1),
+          query("snapshotId", schemaReference("OpaqueId")),
+          query("definitionSha256", digest),
+        ],
+      ),
+    },
+    [`${job}/result`]: {
+      get: read(
+        "getPolicyEvaluationResult",
+        "Read the original immutable policy evaluation result",
+        "ReadPolicyEvaluationResponse",
+        identity,
+      ),
+    },
+    [`${job}/history`]: {
+      get: read(
+        "getPolicyEvaluationHistoryHead",
+        "Read the current exact history head for retained pagination",
+        "ReadPolicyEvaluationJobHistoryHeadResponse",
+        identity,
+      ),
+    },
+    [`${job}/history/pages/{pageIndex}`]: {
+      get: read(
+        "getPolicyEvaluationHistoryPage",
+        "Read an exact history page at the retained original head",
+        "ReadPolicyEvaluationJobHistoryPageResponse",
+        [
+          ...identity,
+          page(
+            Math.ceil(
+              MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE,
+            ) - 1,
+          ),
+          query("jobDefinitionSha256", digest),
+          query("sequence", {
+            type: "integer",
+            minimum: 0,
+            maximum: MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES - 1,
+          }),
+          query("entrySha256", digest),
+          query("graphSha256", digest),
+        ],
+      ),
+    },
+  };
+}
+
 export function createProofStackOpenApiDocument(): Record<string, unknown> {
   const schemas = {
+    ...componentsFor(
+      "EnqueuePolicyEvaluationRequest",
+      EnqueuePolicyEvaluationRequestSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "RequestPolicyEvaluationCancellation",
+      RequestPolicyEvaluationCancellationSchema,
+      "input",
+    ),
+    ...componentsFor(
+      "EnqueuePolicyEvaluationJobResponse",
+      EnqueuePolicyEvaluationJobResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadPolicyEvaluationJobResponse",
+      ReadPolicyEvaluationJobResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadPolicyEvaluationRequestResponse",
+      ReadPolicyEvaluationRequestResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadPolicyEvaluationSnapshotResponse",
+      ReadPolicyEvaluationSnapshotResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadPolicyEvaluationSnapshotPageResponse",
+      ReadPolicyEvaluationSnapshotPageResponseSchema,
+      "output",
+    ),
+    ...componentsFor("ReadPolicyEvaluationResponse", ReadPolicyEvaluationResponseSchema, "output"),
+    ...componentsFor(
+      "ReadPolicyEvaluationJobHistoryHeadResponse",
+      ReadPolicyEvaluationJobHistoryHeadResponseSchema,
+      "output",
+    ),
+    ...componentsFor(
+      "ReadPolicyEvaluationJobHistoryPageResponse",
+      ReadPolicyEvaluationJobHistoryPageResponseSchema,
+      "output",
+    ),
     ...componentsFor("OpaqueId", OpaqueIdSchema, "input"),
     ...componentsFor("TraceId", TraceIdSchema, "input"),
     ...componentsFor("IngestEvidenceRequest", IngestEvidenceRequestSchema, "input"),
@@ -989,6 +1251,7 @@ export function createProofStackOpenApiDocument(): Record<string, unknown> {
     jsonSchemaDialect: "https://json-schema.org/draft/2020-12/schema",
     openapi: PROOFSTACK_OPENAPI_VERSION,
     paths: {
+      ...policyEvaluationPaths(),
       "/health/live": {
         get: {
           operationId: "getLiveness",

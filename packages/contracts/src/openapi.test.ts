@@ -16,6 +16,63 @@ function collectReferences(value: unknown, references: string[] = []): string[] 
 }
 
 describe("ProofStack OpenAPI document", () => {
+  it("documents bounded policy control/read routes without a public execution or result mutation", () => {
+    const document = createProofStackOpenApiDocument();
+    const paths = document["paths"] as Record<
+      string,
+      Record<
+        string,
+        {
+          responses: Record<string, { headers?: unknown }>;
+          parameters: Array<{ name: string; required?: boolean }>;
+          security: unknown;
+        }
+      >
+    >;
+    const root = "/v1/projects/{projectId}/environments/{environmentId}/policy-evaluation-jobs",
+      job = `${root}/{jobId}`;
+    const policy = Object.entries(paths).filter(([path]) => path.startsWith(root));
+    expect(policy).toHaveLength(9);
+    expect(Object.keys(paths[root]!)).toEqual(["post"]);
+    expect(Object.keys(paths[`${job}/result`]!)).toEqual(["get"]);
+    expect(Object.keys(paths[`${job}/snapshot`]!)).toEqual(["get"]);
+    expect(paths).not.toHaveProperty(`${job}/execute`);
+    for (const [, methods] of policy)
+      for (const operation of Object.values(methods)) {
+        expect(operation.security).toEqual([{ bearerAuth: [] }, { browserSession: [] }]);
+        for (const response of Object.values(operation.responses))
+          expect(response.headers).toMatchObject({
+            "Cache-Control": { schema: { const: "no-store" } },
+          });
+        expect(operation.responses).toHaveProperty("503");
+      }
+    expect(
+      paths[`${job}/snapshot/pages/{pageIndex}`]!.get!.parameters.filter(
+        (parameter) => parameter.required,
+      ).map((parameter) => parameter.name),
+    ).toEqual([
+      "projectId",
+      "environmentId",
+      "jobId",
+      "pageIndex",
+      "snapshotId",
+      "definitionSha256",
+    ]);
+    expect(
+      paths[`${job}/history/pages/{pageIndex}`]!.get!.parameters.filter(
+        (parameter) => parameter.required,
+      ).map((parameter) => parameter.name),
+    ).toEqual([
+      "projectId",
+      "environmentId",
+      "jobId",
+      "pageIndex",
+      "jobDefinitionSha256",
+      "sequence",
+      "entrySha256",
+      "graphSha256",
+    ]);
+  });
   it("describes the implemented workflow routes", () => {
     const document = createProofStackOpenApiDocument();
 

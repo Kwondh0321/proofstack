@@ -310,6 +310,7 @@ redaction, and retry guidance in the
 | `PROOFSTACK_STORAGE_MODE` | `memory` | API | `memory` or `postgres` evidence adapter |
 | `PROOFSTACK_DATABASE_URL` | unset | API | Least-privilege runtime database URL in PostgreSQL mode |
 | `PROOFSTACK_POLICY_AUTHOR_DATABASE_URL` | unset | API | Distinct policy-author URL required in PostgreSQL mode; never substitute the general API URL |
+| `PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL` | unset | API | Required dedicated policy control URL in PostgreSQL mode; separate from evidence, author, identity and worker authority |
 | `PROOFSTACK_IDENTITY_DATABASE_URL` | unset | API | Distinct least-privilege identity URL required outside development auth |
 | `PROOFSTACK_ARTIFACT_DATABASE_URL` | unset | artifact maintenance | Dedicated lifecycle-worker database URL |
 | `PROOFSTACK_REPLAY_WORKER_DATABASE_URL` | unset | replay example/worker | Dedicated least-privilege worker URL; never substitute the migration or API URL |

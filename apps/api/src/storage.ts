@@ -25,9 +25,20 @@ import type {
   InteractionFixtureVersionRepository,
   RegressionVersionRepository,
 } from "@proofstack/datasets";
+import { MemoryPolicyEvaluationJobRepository } from "@proofstack/core/testing";
+import type {
+  PolicyEvaluationJobControlRepository,
+  PolicyEvaluationSnapshotReader,
+  PolicyEvaluationResultReader,
+} from "@proofstack/core";
 import {
   assertMigrationsCurrent,
   createPostgresPool,
+  createPolicyPostgresPool,
+  assertPostgresPolicyControlRole,
+  PostgresPolicyEvaluationJobControlRepository,
+  PostgresPolicySnapshotRepository,
+  PostgresPolicyEvaluationResultRepository,
   PostgresArtifactCatalogRepository,
   PostgresComparisonRepository,
   PostgresEvaluationRepository,
@@ -48,6 +59,12 @@ import { createS3ArtifactObjectStore } from "@proofstack/s3";
 import type { ApiConfig } from "./config.js";
 import { createMemoryInteractionStorage } from "./memory-interaction-storage.js";
 
+export interface ApiPolicyEvaluationStorage {
+  readonly control: PolicyEvaluationJobControlRepository;
+  readonly snapshots: PolicyEvaluationSnapshotReader;
+  readonly results: PolicyEvaluationResultReader;
+}
+
 export interface ApiArtifactStorage {
   readonly catalog: ArtifactCatalogRepository;
   readonly encryption: ArtifactCipher;
@@ -56,6 +73,7 @@ export interface ApiArtifactStorage {
 }
 
 export interface ApiStorage {
+  readonly policyEvaluation: ApiPolicyEvaluationStorage;
   readonly artifacts?: ApiArtifactStorage;
   readonly checkReadiness: () => Promise<void>;
   readonly close: () => Promise<void>;
@@ -80,16 +98,37 @@ type ArtifactObjectStoreFactory = (
 ) => ManagedArtifactObjectStore;
 
 interface StorageDependencies {
+  readonly createPolicyPool: typeof createPolicyPostgresPool;
+  readonly assertPolicyControl: typeof assertPostgresPolicyControlRole;
   readonly assertCurrent: typeof assertMigrationsCurrent;
   readonly createObjectStore: ArtifactObjectStoreFactory;
   readonly createPool: typeof createPostgresPool;
 }
 
 const defaultDependencies: StorageDependencies = {
+  createPolicyPool: createPolicyPostgresPool,
+  assertPolicyControl: assertPostgresPolicyControlRole,
   assertCurrent: assertMigrationsCurrent,
   createObjectStore: createS3ArtifactObjectStore,
   createPool: createPostgresPool,
 };
+
+async function drainStorageResources(
+  objects: ManagedArtifactObjectStore | undefined,
+  pools: readonly ReturnType<typeof createPostgresPool>[],
+) {
+  const errors: unknown[] = [];
+  try {
+    objects?.destroy();
+  } catch (error) {
+    errors.push(error);
+  }
+  const results = await Promise.allSettled(
+    pools.map((pool) => Promise.resolve().then(() => pool.end())),
+  );
+  for (const result of results) if (result.status === "rejected") errors.push(result.reason);
+  return errors;
+}
 
 export async function createApiStorage(
   config: ApiConfig["storage"],
@@ -98,6 +137,9 @@ export async function createApiStorage(
 ): Promise<ApiStorage> {
   if (config.mode === "memory") {
     const interactionStorage = createMemoryInteractionStorage();
+    const policyJobs = new MemoryPolicyEvaluationJobRepository({
+      now: () => new Date().toISOString(),
+    });
     const replayDefinitionRepository = new MemoryReplayDefinitionRepository();
     const replayJobRepository = new MemoryReplayJobRepository({
       definitions: replayDefinitionRepository,
@@ -108,6 +150,7 @@ export async function createApiStorage(
       keys: { key_memory_process: randomBytes(32) },
     });
     return {
+      policyEvaluation: { control: policyJobs, snapshots: policyJobs, results: policyJobs },
       artifacts: {
         catalog: interactionStorage.artifactCatalogRepository,
         encryption: new ArtifactCipher(keyring),
@@ -134,7 +177,9 @@ export async function createApiStorage(
     connectionString: config.databaseUrl,
     onIdleError,
   });
-  let policyAuthorPool: ReturnType<typeof createPostgresPool> | undefined;
+  const ownedPools = [pool];
+  let policyAuthorPool: ReturnType<typeof createPostgresPool>;
+  let policyControlPool: ReturnType<typeof createPolicyPostgresPool>;
   let persistentObjects: ManagedArtifactObjectStore | undefined;
   let artifacts: ApiArtifactStorage | undefined;
   try {
@@ -143,8 +188,20 @@ export async function createApiStorage(
       connectionString: config.policyAuthorDatabaseUrl,
       onIdleError,
     });
+    ownedPools.push(policyAuthorPool);
     await dependencies.assertCurrent(pool);
     await dependencies.assertCurrent(policyAuthorPool);
+    policyControlPool = dependencies.createPolicyPool({
+      applicationName: "proofstack-api-policy-control",
+      connectionString: config.policyEvaluationControlDatabaseUrl,
+      onIdleError,
+    });
+    ownedPools.push(policyControlPool);
+    await dependencies.assertCurrent(policyControlPool);
+    await dependencies.assertPolicyControl(
+      policyControlPool,
+      config.policyEvaluationControlDatabaseUrl,
+    );
     if (config.artifacts.mode === "s3_local_keyring") {
       const keys = Object.fromEntries(
         Object.entries(config.artifacts.keys).map(([keyId, encoded]) => [
@@ -174,30 +231,39 @@ export async function createApiStorage(
       };
     }
   } catch (error) {
-    persistentObjects?.destroy();
-    await Promise.all([pool.end(), ...(policyAuthorPool ? [policyAuthorPool.end()] : [])]);
+    const failures = await drainStorageResources(persistentObjects, ownedPools);
+    if (failures.length)
+      throw new AggregateError(
+        [error, ...failures],
+        "API storage initialization and cleanup failed",
+      );
     throw error;
-  }
-
-  if (!policyAuthorPool) {
-    persistentObjects?.destroy();
-    await pool.end();
-    throw new Error("Policy-author PostgreSQL connection was not initialized");
   }
 
   const regressionVersionRepository = new PostgresRegressionVersionRepository(pool);
   const releasePolicyRepository = new PostgresReleasePolicyRepository(policyAuthorPool);
   return {
+    policyEvaluation: {
+      control: new PostgresPolicyEvaluationJobControlRepository(policyControlPool),
+      snapshots: new PostgresPolicySnapshotRepository(policyControlPool),
+      results: new PostgresPolicyEvaluationResultRepository(policyControlPool),
+    },
     ...(artifacts ? { artifacts } : {}),
     checkReadiness: async () => {
       await Promise.all([
         dependencies.assertCurrent(pool),
         dependencies.assertCurrent(policyAuthorPool),
+        dependencies.assertCurrent(policyControlPool),
+        dependencies.assertPolicyControl(
+          policyControlPool,
+          config.policyEvaluationControlDatabaseUrl,
+        ),
       ]);
     },
     close: async () => {
-      persistentObjects?.destroy();
-      await Promise.all([pool.end(), policyAuthorPool.end()]);
+      const failures = await drainStorageResources(persistentObjects, ownedPools);
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) throw new AggregateError(failures, "API storage cleanup failed");
     },
     comparisonRepository: new PostgresComparisonRepository(pool),
     evaluationRepository: new PostgresEvaluationRepository(pool),

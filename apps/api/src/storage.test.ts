@@ -33,6 +33,7 @@ function postgresConfig() {
     databaseUrl: "postgresql://runtime@127.0.0.1:5432/proofstack",
     mode: "postgres" as const,
     policyAuthorDatabaseUrl: "postgresql://policy-author@127.0.0.1:5432/proofstack",
+    policyEvaluationControlDatabaseUrl: "postgresql://policy-control@127.0.0.1:5432/proofstack",
   };
 }
 
@@ -51,12 +52,19 @@ function persistentPostgresConfig() {
     databaseUrl: "postgresql://runtime@127.0.0.1:5432/proofstack",
     mode: "postgres" as const,
     policyAuthorDatabaseUrl: "postgresql://policy-author@127.0.0.1:5432/proofstack",
+    policyEvaluationControlDatabaseUrl: "postgresql://policy-control@127.0.0.1:5432/proofstack",
   };
 }
 
 function fakeDependencies(options: { readonly assertCurrent?: () => Promise<void> } = {}) {
   const end = vi.fn(async () => undefined);
   const policyAuthorEnd = vi.fn(async () => undefined);
+  const policyControlEnd = vi.fn(async () => undefined);
+  const policyControlPool = { end: policyControlEnd } as unknown as ReturnType<
+    typeof createPostgresPool
+  >;
+  const createPolicyPool = vi.fn(() => policyControlPool);
+  const assertPolicyControl = vi.fn(async () => undefined);
   const pool = { end } as unknown as ReturnType<typeof createPostgresPool>;
   const policyAuthorPool = {
     end: policyAuthorEnd,
@@ -76,6 +84,10 @@ function fakeDependencies(options: { readonly assertCurrent?: () => Promise<void
   };
   const createObjectStore = vi.fn(() => objects);
   return {
+    policyControlEnd,
+    policyControlPool,
+    createPolicyPool,
+    assertPolicyControl,
     assertCurrent,
     createObjectStore,
     createPool,
@@ -90,6 +102,8 @@ function fakeDependencies(options: { readonly assertCurrent?: () => Promise<void
 describe("createApiStorage", () => {
   it("keeps dependency-free memory adapters as the development default", async () => {
     const storage = await createApiStorage({ mode: "memory" }, vi.fn());
+    expect(storage.policyEvaluation.control).toBe(storage.policyEvaluation.snapshots);
+    expect(storage.policyEvaluation.results).toBe(storage.policyEvaluation.snapshots);
 
     expect(storage.comparisonRepository).toBeInstanceOf(MemoryComparisonRepository);
     expect(storage.evaluationRepository).toBeInstanceOf(MemoryEvaluationRepository);
@@ -137,12 +151,18 @@ describe("createApiStorage", () => {
     });
     expect(adapters.assertCurrent).toHaveBeenNthCalledWith(1, adapters.pool);
     expect(adapters.assertCurrent).toHaveBeenNthCalledWith(2, adapters.policyAuthorPool);
+    expect(adapters.assertCurrent).toHaveBeenNthCalledWith(3, adapters.policyControlPool);
+    expect(adapters.assertPolicyControl).toHaveBeenCalledWith(
+      adapters.policyControlPool,
+      postgresConfig().policyEvaluationControlDatabaseUrl,
+    );
 
     await storage.checkReadiness();
-    expect(adapters.assertCurrent).toHaveBeenCalledTimes(4);
+    expect(adapters.assertCurrent).toHaveBeenCalledTimes(6);
     await storage.close();
     expect(adapters.end).toHaveBeenCalledOnce();
     expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
+    expect(adapters.policyControlEnd).toHaveBeenCalledOnce();
   });
 
   it("composes a persistent PostgreSQL catalog, S3 object store, and stable keyring", async () => {
@@ -183,6 +203,64 @@ describe("createApiStorage", () => {
     expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
   });
 
+  it("drains preceding pools when policy control pool construction fails", async () => {
+    const adapters = fakeDependencies(),
+      failure = new Error("test policy pool construction");
+    adapters.createPolicyPool.mockImplementation(() => {
+      throw failure;
+    });
+    await expect(createApiStorage(postgresConfig(), vi.fn(), adapters)).rejects.toBe(failure);
+    expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
+    expect(adapters.policyControlEnd).not.toHaveBeenCalled();
+  });
+  it("rejects changing role authority on readiness and still closes every owned pool", async () => {
+    const adapters = fakeDependencies(),
+      failure = new Error("test effective role changed");
+    const storage = await createApiStorage(postgresConfig(), vi.fn(), adapters);
+    adapters.assertPolicyControl.mockRejectedValue(failure);
+    await expect(storage.checkReadiness()).rejects.toBe(failure);
+    await storage.close();
+    expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
+    expect(adapters.policyControlEnd).toHaveBeenCalledOnce();
+  });
+  it("preserves initialization and cleanup failures after draining all three pools", async () => {
+    const adapters = fakeDependencies(),
+      failure = new Error("test wrong role"),
+      cleanup = new Error("test failed close");
+    adapters.assertPolicyControl.mockRejectedValue(failure);
+    adapters.policyControlEnd.mockRejectedValue(cleanup);
+    const outcome = await createApiStorage(postgresConfig(), vi.fn(), adapters).catch(
+      (error) => error,
+    );
+    expect(outcome).toBeInstanceOf(AggregateError);
+    expect(outcome.errors).toEqual([failure, cleanup]);
+    expect(adapters.end).toHaveBeenCalledOnce();
+    expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
+    expect(adapters.policyControlEnd).toHaveBeenCalledOnce();
+  });
+  it.each([false, true])(
+    "drains pools even if object cleanup throws (multiple failures %s)",
+    async (multiple) => {
+      const adapters = fakeDependencies(),
+        failure = new Error("test object close"),
+        cleanup = new Error("test policy close");
+      const storage = await createApiStorage(persistentPostgresConfig(), vi.fn(), adapters);
+      adapters.objects.destroy.mockImplementation(() => {
+        throw failure;
+      });
+      if (multiple) adapters.policyControlEnd.mockRejectedValue(cleanup);
+      const outcome = await storage.close().catch((error) => error);
+      if (multiple) {
+        expect(outcome).toBeInstanceOf(AggregateError);
+        expect(outcome.errors).toEqual([failure, cleanup]);
+      } else expect(outcome).toBe(failure);
+      expect(adapters.end).toHaveBeenCalledOnce();
+      expect(adapters.policyAuthorEnd).toHaveBeenCalledOnce();
+      expect(adapters.policyControlEnd).toHaveBeenCalledOnce();
+    },
+  );
   it("closes the pool when startup migration verification fails", async () => {
     const failure = new MigrationRequiredError(["0001_evidence_store"]);
     const adapters = fakeDependencies({

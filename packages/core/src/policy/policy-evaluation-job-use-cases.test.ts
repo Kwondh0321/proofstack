@@ -11,7 +11,10 @@ import {
   mutatePolicyEvaluationWorkerJob,
   readPolicyEvaluationJobHistoryHead,
   readPolicyEvaluationJobHistoryPage,
+  PolicyEvaluationCancellationConflictError,
 } from "./policy-evaluation-job-use-cases.js";
+import { PolicyEvaluationJobHistoryError } from "./policy-evaluation-job-history.js";
+import { InvalidPolicyEvaluationJobGraphError } from "./policy-evaluation-job-record-validation.js";
 
 const request = policyJobConformanceRequest();
 const scope = request.scope;
@@ -130,6 +133,60 @@ describe("authorization-first policy job use cases", () => {
       "substituted",
     );
   });
+  it("classifies malformed stored graphs and history separately from caller input", async () => {
+    const h = harness();
+    await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);
+    const command = { ...route(["policy:read"]), jobId: "job_usecase" };
+    const head = (await h.repository.findHistoryHead(scope, command.jobId))!;
+    vi.spyOn(h.repository, "findHistoryHead").mockResolvedValue({} as never);
+    await expect(readPolicyEvaluationJobHistoryHead(command, h.repository)).rejects.toBeInstanceOf(
+      PolicyEvaluationJobHistoryError,
+    );
+    vi.spyOn(h.repository, "readHistoryPage").mockResolvedValue({} as never);
+    await expect(
+      readPolicyEvaluationJobHistoryPage({ ...command, head, pageIndex: 0 }, h.repository),
+    ).rejects.toBeInstanceOf(PolicyEvaluationJobHistoryError);
+    // The same malformed shape supplied by the caller remains an input schema error.
+    await expect(
+      readPolicyEvaluationJobHistoryPage({ ...command, head: {}, pageIndex: 0 }, h.repository),
+    ).rejects.toMatchObject({ name: "ZodError" });
+    vi.spyOn(h.repository, "findJob").mockResolvedValue({} as never);
+    await expect(readPolicyEvaluationJob(command, h.repository)).rejects.toBeInstanceOf(
+      InvalidPolicyEvaluationJobGraphError,
+    );
+  });
+  it("preserves an owning history integrity failure", async () => {
+    const h = harness();
+    await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);
+    const command = { ...route(["policy:read"]), jobId: "job_usecase" };
+    const head = (await h.repository.findHistoryHead(scope, command.jobId))!;
+    const page = await h.repository.readHistoryPage(head, 0);
+    page.entries[0]!.entrySha256 = "f".repeat(64);
+    page.head.entrySha256 = "f".repeat(64);
+    vi.spyOn(h.repository, "readHistoryPage").mockResolvedValue(page);
+    await expect(
+      readPolicyEvaluationJobHistoryPage(
+        { ...command, head: page.head, pageIndex: 0 },
+        h.repository,
+      ),
+    ).rejects.toBeInstanceOf(PolicyEvaluationJobHistoryError);
+  });
+  it("rejects a cancelled graph that omitted its intent as a server integrity failure", async () => {
+    const h = harness();
+    await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);
+    const queued = (await h.repository.findJob(scope, "job_usecase"))!;
+    vi.spyOn(h.repository, "cancelJob").mockResolvedValue(queued);
+    await expect(
+      cancelPolicyEvaluationJobRequest(
+        {
+          ...route(["policy:evaluation:cancel"]),
+          jobId: "job_usecase",
+          input: { reason: "operator_requested" },
+        },
+        { repository: h.repository, newCancellationId: () => "cancel_missing_intent" },
+      ),
+    ).rejects.toBeInstanceOf(InvalidPolicyEvaluationJobGraphError);
+  });
   it("returns one original intent for concurrent identical reason-only cancellations", async () => {
     const h = harness();
     await enqueuePolicyEvaluationJob({ ...route(["policy:evaluate"]), input: definition() }, h);
@@ -243,7 +300,7 @@ describe("authorization-first policy job use cases", () => {
         { ...command, input: { reason: "incident_response" } },
         { repository: h.repository, newCancellationId: () => "cancel_changed" },
       ),
-    ).rejects.toThrow("already binds");
+    ).rejects.toThrow(PolicyEvaluationCancellationConflictError);
     await expect(
       cancelPolicyEvaluationJobRequest(
         {

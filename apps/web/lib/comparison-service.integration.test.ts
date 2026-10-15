@@ -43,6 +43,8 @@ const runtimeRoles: RuntimeRoleProvisioningOptions = {
   identity: credentials("identity"),
   modelEvaluationWorker: credentials("model"),
   policyAuthor: credentials("policy"),
+  policyEvaluationControl: credentials("policy_control"),
+  policyEvaluator: credentials("policy_evaluator"),
   publisher: credentials("publisher"),
   replayWorker: credentials("replay"),
 };
@@ -75,6 +77,7 @@ const apiConfig: ApiConfig = {
     databaseUrl: roleDatabaseUrl(runtimeRoles.api),
     mode: "postgres",
     policyAuthorDatabaseUrl: roleDatabaseUrl(runtimeRoles.policyAuthor),
+    policyEvaluationControlDatabaseUrl: roleDatabaseUrl(runtimeRoles.policyEvaluationControl!),
   },
 };
 

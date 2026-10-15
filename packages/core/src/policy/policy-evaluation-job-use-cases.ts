@@ -26,9 +26,23 @@ import type {
   PolicyEvaluationJobWorkerRepository,
 } from "./policy-evaluation-job-repository.js";
 import { digestPolicyEvaluationRequestDefinition } from "./policy-evaluation-request-record-validation.js";
-import { validatePolicyEvaluationJobSnapshotRecord } from "./policy-evaluation-job-record-validation.js";
+import {
+  InvalidPolicyEvaluationJobGraphError,
+  validatePolicyEvaluationJobSnapshotRecord,
+} from "./policy-evaluation-job-record-validation.js";
 import { requirePolicyEvaluationExecution } from "./policy-evaluation-worker-authorization.js";
-import { validatePolicyEvaluationJobHistoryPage } from "./policy-evaluation-job-history.js";
+import {
+  PolicyEvaluationJobHistoryError,
+  validatePolicyEvaluationJobHistoryPage,
+} from "./policy-evaluation-job-history.js";
+
+export class PolicyEvaluationCancellationConflictError extends Error {
+  readonly code = "policy_evaluation_cancellation_conflict";
+  constructor() {
+    super("Cancellation intent already binds another actor or reason");
+    this.name = "PolicyEvaluationCancellationConflictError";
+  }
+}
 
 interface JobRoute {
   readonly principal: PrincipalContext;
@@ -56,7 +70,12 @@ function returnedJob(
 ): PolicyEvaluationJobSnapshot {
   // Extract identity only after bounded graph parsing in the owning validator. Query scope/ID
   // remain independent; request bindings are separately checked by enqueue below.
-  const record = PolicyEvaluationJobSnapshotSchema.parse(raw);
+  const parsed = PolicyEvaluationJobSnapshotSchema.safeParse(raw);
+  if (!parsed.success)
+    throw new InvalidPolicyEvaluationJobGraphError("Stored policy job graph is malformed", {
+      cause: parsed.error,
+    });
+  const record = parsed.data;
   return validatePolicyEvaluationJobSnapshotRecord({
     expected: {
       scope,
@@ -87,13 +106,17 @@ export async function enqueuePolicyEvaluationJob(
   const jobId = OpaqueIdSchema.parse(dependencies.newJobId());
   const result = await dependencies.repository.createJob({ request, jobId });
   if (typeof result.created !== "boolean")
-    throw new Error("Policy repository returned an invalid creation receipt");
+    throw new InvalidPolicyEvaluationJobGraphError(
+      "Policy repository returned an invalid creation receipt",
+    );
   const snapshot = returnedJob(result.snapshot, scope, result.created ? jobId : undefined);
   if (
     snapshot.request.evaluationRequestId !== request.evaluationRequestId ||
     snapshot.request.definitionSha256 !== request.definitionSha256
   )
-    throw new Error("Policy repository substituted the original evaluation request");
+    throw new InvalidPolicyEvaluationJobGraphError(
+      "Policy repository substituted the original evaluation request",
+    );
   return { created: result.created, snapshot };
 }
 export async function readPolicyEvaluationJob(
@@ -113,12 +136,17 @@ export async function readPolicyEvaluationJobHistoryHead(
   const jobId = OpaqueIdSchema.parse(command.jobId);
   const raw = await repository.findHistoryHead(scope, jobId);
   if (raw === null) return null;
-  const head = PolicyEvaluationJobHistoryHeadSchema.parse(raw);
+  const parsed = PolicyEvaluationJobHistoryHeadSchema.safeParse(raw);
+  if (!parsed.success)
+    throw new PolicyEvaluationJobHistoryError("Stored policy history head is malformed");
+  const head = parsed.data;
   if (
     head.job.jobId !== jobId ||
     serializeEvaluationCanonicalJson(head.scope) !== serializeEvaluationCanonicalJson(scope)
   )
-    throw new Error("Policy history repository substituted exact query scope/job");
+    throw new PolicyEvaluationJobHistoryError(
+      "Policy history repository substituted exact query scope/job",
+    );
   return head;
 }
 export async function readPolicyEvaluationJobHistoryPage(
@@ -139,9 +167,17 @@ export async function readPolicyEvaluationJobHistoryPage(
     throw new ForbiddenError("Policy history head does not match authorized route scope/job");
   const pageIndex = PolicyEvaluationJobHistoryPageIndexSchema.parse(command.pageIndex);
   const raw = await repository.readHistoryPage(head, pageIndex);
-  const page = validatePolicyEvaluationJobHistoryPage({ expected: head, page: raw });
+  let page: ReturnType<typeof validatePolicyEvaluationJobHistoryPage>;
+  try {
+    page = validatePolicyEvaluationJobHistoryPage({ expected: head, page: raw });
+  } catch (cause) {
+    if (cause instanceof PolicyEvaluationJobHistoryError) throw cause;
+    throw new PolicyEvaluationJobHistoryError("Stored policy history page is malformed");
+  }
   if (page.pageIndex !== pageIndex)
-    throw new Error("Policy history repository substituted requested page index");
+    throw new PolicyEvaluationJobHistoryError(
+      "Policy history repository substituted requested page index",
+    );
   return page;
 }
 export async function cancelPolicyEvaluationJobRequest(
@@ -162,7 +198,7 @@ export async function cancelPolicyEvaluationJobRequest(
     previous !== null &&
     (previous.reason !== input.reason || previous.requestedByPrincipalId !== principal.principalId)
   )
-    throw new Error("Cancellation intent already binds another actor or reason");
+    throw new PolicyEvaluationCancellationConflictError();
   const cancellationId =
     previous?.cancellationId ?? OpaqueIdSchema.parse(dependencies.newCancellationId());
   const raw = await dependencies.repository.cancelJob({
@@ -173,13 +209,23 @@ export async function cancelPolicyEvaluationJobRequest(
     reason: input.reason,
   });
   const snapshot = returnedJob(raw, scope, jobId);
-  const intent = PolicyEvaluationCancellationSchema.parse(snapshot.cancellation);
+  const parsedIntent = PolicyEvaluationCancellationSchema.safeParse(snapshot.cancellation);
+  if (!parsedIntent.success)
+    throw new InvalidPolicyEvaluationJobGraphError(
+      "Policy cancellation omitted its original intent",
+      {
+        cause: parsedIntent.error,
+      },
+    );
+  const intent = parsedIntent.data;
   if (
     (previous !== null && intent.cancellationId !== cancellationId) ||
     intent.reason !== input.reason ||
     intent.requestedByPrincipalId !== principal.principalId
   )
-    throw new Error("Policy repository substituted cancellation intent");
+    throw new InvalidPolicyEvaluationJobGraphError(
+      "Policy repository substituted cancellation intent",
+    );
   return snapshot;
 }
 function workerScope(command: JobRoute) {

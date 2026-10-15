@@ -833,6 +833,12 @@ explicit exception. New migrations are forward-only and keep prior checksums int
 
 ## Public and contributor boundary
 
+The [bounded control/read HTTP API](workflow-2-policy-evaluation-api.md) now composes the existing
+immutable requests/jobs and owning snapshot/result/history readers. Dedicated native control-role
+admission, workload authentication, exact retries, cancellation and restart/readback have real
+PostgreSQL/S3 integration evidence. This closes that bounded HTTP prerequisite, not checkpoint 3;
+the authenticated bounded TypeScript SDK, complete contributor flow and independent exit remain.
+
 Provide bounded exact-scope operations to enqueue, read request/job state, cancel, read sealed
 inputs and results, and inspect paginated attempt/cancellation history. They must authenticate and
 authorize before body/route parsing or dependencies. There is no public POST of computed results,

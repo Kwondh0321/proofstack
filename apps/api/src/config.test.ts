@@ -9,6 +9,8 @@ const OIDC_ENV = {
   PROOFSTACK_OIDC_SCOPES: "openid profile email",
   PROOFSTACK_OIDC_TRANSACTION_SECRET: "A".repeat(43),
 } as const;
+const POLICY_CONTROL_DATABASE_URL =
+  "postgresql://policy-control@db.example.test/proofstack?sslmode=verify-full";
 const LOOPBACK_POLICY_AUTHOR_DATABASE_URL = "postgresql://policy-author@127.0.0.1:5432/proofstack";
 const REMOTE_POLICY_AUTHOR_DATABASE_URL =
   "postgresql://policy-author@db.example.com/proofstack?sslmode=verify-full";
@@ -27,12 +29,81 @@ function artifactEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessE
     PROOFSTACK_ARTIFACT_STORAGE_MODE: "s3_local_keyring",
     PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1:5432/proofstack",
     PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+    PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
     PROOFSTACK_STORAGE_MODE: "postgres",
     ...overrides,
   };
 }
 
 describe("loadConfig", () => {
+  it("requires an explicit separate policy control connection only in PostgreSQL mode", () => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_STORAGE_MODE: "postgres",
+        PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1/proofstack",
+        PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+      }),
+    ).toThrow("PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL");
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
+      }),
+    ).toThrow("requires PostgreSQL storage mode");
+  });
+  it.each([
+    "postgresql://runtime@127.0.0.1/proofstack",
+    "postgresql://policy-author@127.0.0.1/proofstack",
+    "postgresql://%72untime@127.0.0.1/proofstack",
+  ])("rejects shared effective control identity %s", (control) => {
+    expect(() =>
+      loadConfig({
+        PROOFSTACK_STORAGE_MODE: "postgres",
+        PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1/proofstack",
+        PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: control,
+      }),
+    ).toThrow("distinct role");
+  });
+  it("rejects control/identity sharing and plaintext remote control transport", () => {
+    const environment = {
+      ...OIDC_ENV,
+      PROOFSTACK_AUTH_MODE: "oidc",
+      PROOFSTACK_ENV: "production",
+      PROOFSTACK_STORAGE_MODE: "postgres",
+      PROOFSTACK_DATABASE_URL:
+        "postgresql://runtime@db.example.test/proofstack?sslmode=verify-full",
+      PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: REMOTE_POLICY_AUTHOR_DATABASE_URL,
+      PROOFSTACK_IDENTITY_DATABASE_URL:
+        "postgresql://identity@db.example.test/proofstack?sslmode=verify-full",
+    };
+    expect(() =>
+      loadConfig({
+        ...environment,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL:
+          "postgresql://%69dentity@db.example.test/proofstack?sslmode=verify-full",
+      }),
+    ).toThrow("distinct role");
+    expect(() =>
+      loadConfig({
+        ...environment,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL:
+          "postgresql://policy-control@db.example.test/proofstack?sslmode=disable",
+      }),
+    ).toThrow();
+    expect(() =>
+      loadConfig({
+        ...environment,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: "not-a-url",
+      }),
+    ).toThrow();
+    expect(() =>
+      loadConfig({
+        ...environment,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL:
+          "postgresql://%GG@db.example.test/proofstack?sslmode=verify-full",
+      }),
+    ).toThrow("role encoding");
+  });
   it("loads safe development defaults", () => {
     expect(loadConfig({})).toMatchObject({
       authMode: "development",
@@ -71,6 +142,7 @@ describe("loadConfig", () => {
         PROOFSTACK_IDENTITY_DATABASE_URL:
           "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: REMOTE_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toMatchObject({ authMode: "oidc", host: "0.0.0.0" });
@@ -107,6 +179,7 @@ describe("loadConfig", () => {
       loadConfig({
         PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1:5432/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toMatchObject({
@@ -146,6 +219,7 @@ describe("loadConfig", () => {
         PROOFSTACK_ARTIFACT_S3_BUCKET: "proofstack-artifacts",
         PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1:5432/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("PROOFSTACK_ARTIFACT_STORAGE_MODE=s3_local_keyring");
@@ -204,12 +278,14 @@ describe("loadConfig", () => {
     expect(() =>
       loadConfig({
         PROOFSTACK_DATABASE_URL: "postgresql://runtime@127.0.0.1:5432/proofstack",
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("PROOFSTACK_POLICY_AUTHOR_DATABASE_URL");
     expect(() =>
       loadConfig({
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow();
@@ -223,6 +299,7 @@ describe("loadConfig", () => {
       loadConfig({
         PROOFSTACK_DATABASE_URL: "postgresql://runtime@db.example.com/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: REMOTE_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("sslmode=verify-full");
@@ -232,6 +309,7 @@ describe("loadConfig", () => {
           "postgresql://runtime@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL:
           "postgresql://policy-author@db.example.com/proofstack",
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("sslmode=verify-full");
@@ -260,6 +338,7 @@ describe("loadConfig", () => {
         PROOFSTACK_IDENTITY_DATABASE_URL:
           "postgresql://identity@db.example.com/proofstack?sslmode=verify-full",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: REMOTE_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toMatchObject({ storage: { mode: "postgres" } });
@@ -290,6 +369,7 @@ describe("loadConfig", () => {
         PROOFSTACK_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
         PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("must use distinct roles");
@@ -300,6 +380,7 @@ describe("loadConfig", () => {
       loadConfig({
         PROOFSTACK_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("Evidence and policy-author PostgreSQL connections must use distinct roles");
@@ -309,6 +390,7 @@ describe("loadConfig", () => {
         PROOFSTACK_DATABASE_URL: "postgresql://api@127.0.0.1:5432/proofstack",
         PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: "postgresql://shared@127.0.0.1:5432/proofstack",
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toThrow("Policy-author and identity PostgreSQL connections must use distinct roles");
@@ -322,6 +404,7 @@ describe("loadConfig", () => {
         PROOFSTACK_DATABASE_URL: "postgresql://api@127.0.0.1:5432/proofstack",
         PROOFSTACK_IDENTITY_DATABASE_URL: "postgresql://identity@127.0.0.1:5432/proofstack",
         PROOFSTACK_POLICY_AUTHOR_DATABASE_URL: LOOPBACK_POLICY_AUTHOR_DATABASE_URL,
+        PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL: POLICY_CONTROL_DATABASE_URL,
         PROOFSTACK_STORAGE_MODE: "postgres",
       }),
     ).toMatchObject({

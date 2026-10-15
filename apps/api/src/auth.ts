@@ -84,6 +84,7 @@ const DEVELOPMENT_CAPABILITIES = [
   "policy:read",
   "policy:author",
   "policy:evaluate",
+  "policy:evaluation:cancel",
   "approval:decide",
   "audit:read",
   "identity:read",

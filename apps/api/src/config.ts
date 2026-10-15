@@ -66,6 +66,7 @@ const StorageConfigSchema = z.discriminatedUnion("mode", [
       databaseUrl: z.string().min(1),
       mode: z.literal("postgres"),
       policyAuthorDatabaseUrl: z.string().min(1),
+      policyEvaluationControlDatabaseUrl: z.string().min(1),
     })
     .strict(),
 ]);
@@ -250,6 +251,42 @@ const ApiConfigSchema = z
         // The connection validators above report malformed URLs with their canonical messages.
       }
 
+      try {
+        validatePostgresConnectionString(value.storage.policyEvaluationControlDatabaseUrl, {
+          allowPlaintextLoopback: value.environment !== "production",
+        });
+      } catch (error) {
+        context.addIssue({
+          code: "custom",
+          message:
+            error instanceof PostgresConnectionStringError
+              ? error.message
+              : "Policy-control PostgreSQL connection settings are invalid",
+          path: ["storage", "policyEvaluationControlDatabaseUrl"],
+        });
+      }
+      try {
+        const controlRole = decodeURIComponent(
+          new URL(value.storage.policyEvaluationControlDatabaseUrl).username,
+        );
+        const otherRoles = [
+          value.storage.databaseUrl,
+          value.storage.policyAuthorDatabaseUrl,
+          ...(value.identityDatabaseUrl ? [value.identityDatabaseUrl] : []),
+        ].map((url) => decodeURIComponent(new URL(url).username));
+        if (otherRoles.includes(controlRole))
+          context.addIssue({
+            code: "custom",
+            message: "Policy-control PostgreSQL connection must use a distinct role",
+            path: ["storage", "policyEvaluationControlDatabaseUrl"],
+          });
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: "Policy-control PostgreSQL role encoding or comparison URL is invalid",
+          path: ["storage", "policyEvaluationControlDatabaseUrl"],
+        });
+      }
       if (value.identityDatabaseUrl) {
         try {
           const evidenceRole = new URL(value.storage.databaseUrl).username;
@@ -303,6 +340,7 @@ interface ProofStackEnvironment extends NodeJS.ProcessEnv {
   readonly PROOFSTACK_OTLP_COMPRESSED_BODY_LIMIT_BYTES?: string;
   readonly PROOFSTACK_OTLP_DECOMPRESSED_BODY_LIMIT_BYTES?: string;
   readonly PROOFSTACK_POLICY_AUTHOR_DATABASE_URL?: string;
+  readonly PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL?: string;
   readonly PROOFSTACK_PORT?: string;
   readonly PROOFSTACK_STORAGE_MODE?: string;
 }
@@ -383,6 +421,14 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
   if (storageMode !== "postgres" && environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_URL) {
     throw new Error("PROOFSTACK_POLICY_AUTHOR_DATABASE_URL requires PostgreSQL storage mode");
   }
+  if (storageMode === "postgres" && !environment.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL)
+    throw new Error(
+      "PostgreSQL storage requires PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL",
+    );
+  if (storageMode !== "postgres" && environment.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL)
+    throw new Error(
+      "PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL requires PostgreSQL storage mode",
+    );
   const artifacts = artifactStorageConfig(environment, storageMode, deploymentEnvironment);
   return ApiConfigSchema.parse({
     authMode: environment.PROOFSTACK_AUTH_MODE ?? "development",
@@ -419,6 +465,8 @@ export function loadConfig(environment: ProofStackEnvironment = process.env): Ap
             databaseUrl: environment.PROOFSTACK_DATABASE_URL,
             mode: "postgres",
             policyAuthorDatabaseUrl: environment.PROOFSTACK_POLICY_AUTHOR_DATABASE_URL,
+            policyEvaluationControlDatabaseUrl:
+              environment.PROOFSTACK_POLICY_EVALUATION_CONTROL_DATABASE_URL,
           }
         : { mode: storageMode },
   });
