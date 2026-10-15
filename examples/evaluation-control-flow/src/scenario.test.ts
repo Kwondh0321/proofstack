@@ -220,6 +220,17 @@ describe("contestable evaluation reference scenario", () => {
         )
       ).record;
       recordedRuns.push(run);
+      for (const criterion of criterionSet.criteria)
+        for (const qualification of criterion.qualificationFixtures)
+          expect(qualification.fixture).toEqual(
+            fixtureSet.cases.find((item) => item.caseId === qualification.fixtureCaseId)?.fixture,
+          );
+      expect(oracleQualification.environmentEvidence).toEqual(
+        evaluatorQualification.environmentEvidence,
+      );
+      expect(oracleQualification.environmentEvidence[0]?.artifactId).not.toBe(
+        run.environmentEvidence[0]?.artifactId,
+      );
       let observation: RawObservation | undefined;
       if (verdict !== "not_applicable") {
         observation = (

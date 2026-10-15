@@ -303,6 +303,23 @@ export function createDurableReplayDefinitions(
   });
 }
 
+/** Plan declarations for actual worker accounting of recorded-only execution; no usage amounts. */
+export function bindMeasuredRecordedStubAccounting(input: unknown): ReplayPlanDefinition {
+  const plan = ReplayPlanDefinitionSchema.parse(input);
+  if (plan.boundaries.some((boundary) => boundary.mode !== "recorded_stub"))
+    throw new TypeError(
+      "Measured recorded-stub accounting requires every boundary to be recorded_stub",
+    );
+  for (const dimension of [
+    "inputTokens",
+    "outputTokens",
+    "providerCostMicrounits",
+    "retrievedBytes",
+  ] as const)
+    plan.budget[dimension].measurement = "measured";
+  return ReplayPlanDefinitionSchema.parse(plan);
+}
+
 /** Creates a new plan definition from admitted operator metadata; never rewrites a retained plan. */
 export function bindDurableReplayProfiles(
   definition: ReplayPlanDefinition,

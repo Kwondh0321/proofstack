@@ -244,6 +244,8 @@ const modules = [
       "@proofstack/example-workflow-2-release-candidate",
       "@proofstack/example-workflow-2-release-policy",
       "@proofstack/model-evaluation-worker",
+      "@proofstack/identity",
+      "@proofstack/policy-worker",
       "@proofstack/postgres",
       "@proofstack/s3",
     ]),

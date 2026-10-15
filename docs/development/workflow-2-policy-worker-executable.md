@@ -27,11 +27,15 @@ issuance/delegation route and does not broaden existing workload capabilities.
 
 The strict catalogue is `{schemaVersion:"0.1", revision, credentials}` with at most 64 records and
 64 KiB UTF-8 JSON. Each record has `kind:"service_token"`, opaque `credentialId`, canonical 16-byte
-`prefix`, `passwordHash`, `principalId`, `tenantId`, exactly `policy:evaluation:execute` and
-`artifact:read`, restricted `resourceScope` with explicit projects and environments,
+`prefix`, `passwordHash`, `principalId`, `tenantId`, mandatory `policy:evaluation:execute` and
+`artifact:read`, optional explicit `artifact:read:restricted`, restricted `resourceScope` with explicit projects and environments,
 `status:"active"|"revoked"`, and millisecond UTC `notBefore`/`expiresAt` with positive validity.
 Prefix and credential IDs must be unique. Unsupported hash parameters, noncanonical encoding,
 unknown fields, implicit broad scope and malformed records invalidate the whole catalogue.
+Grants are unique and limited to those three capabilities. Restricted graph artifacts require
+the optional grant; its absence remains an authorization failure. It does not grant policy
+authoring, workload enqueue authority or access outside the credential's exact scope. Changing
+it during secret verification invalidates confirmation of the original authority.
 
 `FilePolicyWorkerCredentials` reads actual installed state before verification and rereads it
 after asynchronous secret verification. Confirmation binds the exact original identity, hash,

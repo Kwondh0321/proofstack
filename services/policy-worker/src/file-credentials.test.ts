@@ -68,6 +68,29 @@ async function confirmation(provider: FilePolicyWorkerCredentials) {
   return expected;
 }
 describe("actual operator-owned reference worker credential catalogue", () => {
+  it("admits explicitly scoped restricted artifact reads without adding other worker authority", async () => {
+    const f = await fixture();
+    f.row.capabilities.push("artifact:read:restricted");
+    await f.save();
+    const principal = await new ServiceTokenAuthenticator(f.provider).authenticate(
+      token.value,
+      "request_restricted",
+    );
+    expect(principal.capabilities).toEqual(f.row.capabilities);
+    expect(principal.resourceScope).toEqual(f.row.resourceScope);
+  });
+  it.each([
+    ["artifact:read", "artifact:read:restricted"],
+    ["policy:evaluation:execute", "artifact:read:restricted"],
+    ["policy:evaluation:execute", "artifact:read", "artifact:read"],
+  ])("rejects replacement or duplicated mandatory grants: %j", async (...capabilities) => {
+    const f = await fixture();
+    f.row.capabilities = capabilities;
+    await f.save();
+    await expect(f.provider.findActiveServiceByPrefix(token.prefix)).rejects.toBeInstanceOf(
+      PolicyWorkerCredentialCatalogueError,
+    );
+  });
   it("authenticates the actual secret and confirms the entire original authority including validity", async () => {
     const f = await fixture();
     const confirm = vi.spyOn(f.provider, "confirmActiveServiceUse");
@@ -125,22 +148,29 @@ describe("actual operator-owned reference worker credential catalogue", () => {
     delete stripped["expiresAt"];
     expect(await f.provider.confirmActiveServiceUse(stripped as never)).toBe(false);
   });
-  it.each(["principalId", "tenantId", "credentialId", "hash", "scope", "validity", "grant_order"])(
-    "refuses changed immutable %s at confirmation",
-    async (kind) => {
-      const f = await fixture(),
-        expected = await confirmation(f.provider);
-      if (kind === "principalId") f.row.principalId = "worker_changed";
-      if (kind === "tenantId") f.row.tenantId = "tenant_changed";
-      if (kind === "credentialId") f.row.credentialId = "credential_changed";
-      if (kind === "hash") f.row.passwordHash = otherHash;
-      if (kind === "scope") f.row.resourceScope.projects[0]!.environmentIds = ["env_changed"];
-      if (kind === "validity") f.row.expiresAt = "2026-10-15T07:00:00.000Z";
-      if (kind === "grant_order") f.row.capabilities.reverse();
-      await f.save();
-      expect(await f.provider.confirmActiveServiceUse(expected)).toBe(false);
-    },
-  );
+  it.each([
+    "principalId",
+    "tenantId",
+    "credentialId",
+    "hash",
+    "scope",
+    "validity",
+    "grant_order",
+    "restricted_grant",
+  ])("refuses changed immutable %s at confirmation", async (kind) => {
+    const f = await fixture(),
+      expected = await confirmation(f.provider);
+    if (kind === "principalId") f.row.principalId = "worker_changed";
+    if (kind === "tenantId") f.row.tenantId = "tenant_changed";
+    if (kind === "credentialId") f.row.credentialId = "credential_changed";
+    if (kind === "hash") f.row.passwordHash = otherHash;
+    if (kind === "scope") f.row.resourceScope.projects[0]!.environmentIds = ["env_changed"];
+    if (kind === "validity") f.row.expiresAt = "2026-10-15T07:00:00.000Z";
+    if (kind === "grant_order") f.row.capabilities.reverse();
+    if (kind === "restricted_grant") f.row.capabilities.push("artifact:read:restricted");
+    await f.save();
+    expect(await f.provider.confirmActiveServiceUse(expected)).toBe(false);
+  });
   it.each(["revoked", "expired"])("refuses %s after successful lookup", async (kind) => {
     const f = await fixture(),
       expected = await confirmation(f.provider);

@@ -3,7 +3,13 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 
 export const WORKFLOW_ACCEPTANCE_RECEIPT_PREFIX = "PROOFSTACK_ACCEPTANCE_RECEIPT ";
-const fields = ["workflow1", "releaseCandidate", "releasePolicy", "canonicalPolicyInputs"];
+const fields = [
+  "workflow1",
+  "releaseCandidate",
+  "releasePolicy",
+  "canonicalPolicyInputs",
+  "policyEvaluation",
+];
 const keys = ["schemaVersion", ...fields].sort().join(",");
 const maxLineCharacters = 4096;
 
@@ -35,7 +41,7 @@ export function createWorkflowAcceptanceReceiptVerifier(expected) {
             typeof value !== "object" ||
             Array.isArray(value) ||
             Object.keys(value).sort().join(",") !== keys ||
-            value.schemaVersion !== "0.1" ||
+            value.schemaVersion !== "0.2" ||
             fields.some(
               (field) => typeof value[field] !== "boolean" || value[field] !== admitted[field],
             )

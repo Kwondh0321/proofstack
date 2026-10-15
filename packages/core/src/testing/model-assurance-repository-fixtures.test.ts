@@ -1,10 +1,60 @@
-import { ModelAssuranceAssessmentInputSchema } from "@proofstack/contracts";
+import {
+  ArtifactContentReferenceSchema,
+  ModelAssuranceAssessmentInputSchema,
+  PolicyEvaluationSourceReferenceSchema,
+  policyEvaluationSourceReferenceKey,
+} from "@proofstack/contracts";
 import { describe, expect, it } from "vitest";
 import { CreateModelAssuranceAssessment } from "../evaluation/create-model-assurance-assessment.js";
 import { FixedClock } from "./fixed-clock.js";
 import { createModelAssuranceRepositoryTestHarness } from "./model-assurance-repository-fixtures.js";
 
 describe("model-assurance repository fixtures", () => {
+  it("keeps each external source identity bound to one exact original reference", async () => {
+    const harness = await createModelAssuranceRepositoryTestHarness("assurance_references");
+    const sources = new Map<string, unknown>();
+    const kinds = PolicyEvaluationSourceReferenceSchema.options.map(
+      (option) => option.shape.kind.value,
+    );
+    const visit = (value: unknown): void => {
+      if (typeof value !== "object" || value === null) return;
+      if ("definitionSha256" in value)
+        for (const kind of kinds) {
+          const parsed = PolicyEvaluationSourceReferenceSchema.safeParse({
+            kind,
+            reference: value,
+          });
+          if (!parsed.success) continue;
+          const source = parsed.data;
+          const key = policyEvaluationSourceReferenceKey(source);
+          if (sources.has(key)) expect(source, key).toEqual(sources.get(key));
+          sources.set(key, source);
+        }
+      for (const child of Object.values(value)) visit(child);
+    };
+    for (const { record } of [...harness.evaluation.records, ...harness.records]) visit(record);
+    expect(sources.size).toBeGreaterThan(40);
+  });
+  it("retains one exact descriptor for each artifact across the complete joined graph", async () => {
+    const harness = await createModelAssuranceRepositoryTestHarness("assurance_artifacts");
+    const references = new Map<string, ReturnType<typeof ArtifactContentReferenceSchema.parse>>();
+    let occurrences = 0;
+    const visit = (value: unknown): void => {
+      if (typeof value !== "object" || value === null) return;
+      const parsed = ArtifactContentReferenceSchema.safeParse(value);
+      if (parsed.success) {
+        const reference = parsed.data;
+        const previous = references.get(reference.artifactId);
+        if (previous) expect(reference, reference.artifactId).toEqual(previous);
+        references.set(reference.artifactId, reference);
+        occurrences++;
+      }
+      for (const child of Object.values(value)) visit(child);
+    };
+    for (const { record } of [...harness.evaluation.records, ...harness.records]) visit(record);
+    expect(references.size).toBeGreaterThan(10);
+    expect(occurrences).toBeGreaterThan(references.size);
+  });
   it("builds a complete eligible graph in dependency order", async () => {
     const harness = await createModelAssuranceRepositoryTestHarness("assurance_fixture");
     expect(new Set(harness.records.map(({ kind }) => kind))).toEqual(

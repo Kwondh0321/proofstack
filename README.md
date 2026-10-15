@@ -374,12 +374,15 @@ bounded HTTP/OpenAPI and SDK operations, immutable withdrawal history, restart r
 and clean-checkout acceptance are implemented and tested as a definition-only Workflow 2 boundary.
 The [acceptance completion correction](docs/development/workflow-acceptance-completion.md)
 records the earlier mode-forwarding limitation and requires exact requested-mode evidence.
+The [authenticated policy contributor](docs/development/workflow-2-policy-evaluation-acceptance.md)
+connects the retained graph, scoped API-key SDK and separate worker; checkpoint 3 still requires
+its independent exit audit.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
 The reference flows record synthetic evidence and use a deterministic local model provider;
 ProofStack does not yet execute arbitrary evaluators in an OS sandbox, determine source authority
 automatically, validate real reviewer expertise, publish its workspace SDK to a package registry,
-select or evaluate a release policy for a candidate, or reinterpret a descriptive comparison as a
+automatically select a release policy for a candidate, or reinterpret a descriptive comparison as a
 release decision.
 Replay does not claim OS-enforced network, filesystem, process, or dependency isolation. The
 built-in content inspector rejects structured credential fields and supports configured scanners,

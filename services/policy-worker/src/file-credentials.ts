@@ -46,11 +46,15 @@ const Credential = z
     principalId: OpaqueIdSchema,
     tenantId: OpaqueIdSchema,
     capabilities: z
-      .array(z.enum(["policy:evaluation:execute", "artifact:read"]))
-      .length(2)
+      .array(z.enum(["policy:evaluation:execute", "artifact:read", "artifact:read:restricted"]))
+      .min(2)
+      .max(3)
       .refine(
-        (values) => new Set(values).size === 2,
-        "Explicit execution and artifact-read grants are required",
+        (values) =>
+          values.includes("policy:evaluation:execute") &&
+          values.includes("artifact:read") &&
+          new Set(values).size === values.length,
+        "Explicit execution and artifact-read grants are required without duplicates",
       ),
     resourceScope: ResourceScopeSchema.refine(
       (scope) =>

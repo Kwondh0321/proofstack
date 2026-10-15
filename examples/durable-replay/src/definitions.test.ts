@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDurableReplayDefinitions,
   bindDurableReplayProfiles,
+  bindMeasuredRecordedStubAccounting,
   recordedReplayTargetAdapter,
   resolveDurableReplayTarget,
 } from "./definitions.js";
@@ -45,6 +46,50 @@ function definitions() {
 }
 
 describe("new canonical contributor profile binding", () => {
+  it("declares only worker-measured recorded-stub accounting without supplying usage or changing limits", () => {
+    const original = definitions().replayPlanDefinition;
+    const retained = structuredClone(original);
+    const result = bindMeasuredRecordedStubAccounting(original);
+    expect(original).toEqual(retained);
+    expect(result.boundaries).toEqual(original.boundaries);
+    for (const dimension of [
+      "inputTokens",
+      "outputTokens",
+      "providerCostMicrounits",
+      "retrievedBytes",
+    ] as const) {
+      expect(result.budget[dimension]).toEqual({
+        ...original.budget[dimension],
+        measurement: "measured",
+      });
+    }
+    expect(digestReplayPlanDefinition(result)).not.toBe(digestReplayPlanDefinition(original));
+  });
+  it("rejects non-recorded modes and malformed plans instead of manufacturing provider measurements", () => {
+    const definition = definitions();
+    const original = definition.replayPlanDefinition;
+    const simulation = ReplayPlanDefinitionSchema.parse({
+      ...original,
+      boundaries: original.boundaries.map(({ boundaryId, kind }) => ({
+        boundaryId,
+        kind,
+        mode: "simulation",
+        configurationSha256: "a".repeat(64),
+        qualification: definition.provenanceReference,
+        seedHex: "b".repeat(64),
+        simulatorRelease: structuredClone(original.targetRelease),
+      })),
+    });
+    expect(() => bindMeasuredRecordedStubAccounting(simulation)).toThrow(/every boundary/);
+    for (const input of [
+      null,
+      {
+        ...original,
+        boundaries: original.boundaries.map((boundary) => ({ ...boundary, mode: "live_provider" })),
+      },
+    ])
+      expect(() => bindMeasuredRecordedStubAccounting(input)).toThrow();
+  });
   it("changes the new plan identity while retaining exact execution, budget, lineage and original definitions", () => {
     const original = definitions().replayPlanDefinition;
     const retained = structuredClone(original);

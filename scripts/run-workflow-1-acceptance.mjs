@@ -13,25 +13,34 @@ import { createWorkflowAcceptanceNetwork } from "./workflow-acceptance-network.m
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const composeFile = resolve(repositoryRoot, "compose.yaml");
 const arguments_ = process.argv.slice(2);
-const allowedArguments = new Set(["--release-candidate", "--release-policy"]);
+const allowedArguments = new Set([
+  "--release-candidate",
+  "--release-policy",
+  "--policy-evaluation",
+]);
 const unknownArguments = arguments_.filter((argument) => !allowedArguments.has(argument));
 if (unknownArguments.length > 0) {
   throw new TypeError(`Unknown acceptance argument: ${unknownArguments.join(", ")}`);
 }
+const policyEvaluationMode = arguments_.includes("--policy-evaluation");
 const canonicalPolicyInputMode =
-  process.env["PROOFSTACK_ACCEPT_CANONICAL_POLICY_INPUTS"] === "true";
-const releasePolicyMode = arguments_.includes("--release-policy");
+  policyEvaluationMode || process.env["PROOFSTACK_ACCEPT_CANONICAL_POLICY_INPUTS"] === "true";
+const releasePolicyMode = policyEvaluationMode || arguments_.includes("--release-policy");
 const releaseCandidateMode = releasePolicyMode || arguments_.includes("--release-candidate");
-const workflowLabel = releasePolicyMode
-  ? "Workflow 2 policy"
-  : releaseCandidateMode
-    ? "Workflow 2 candidate"
-    : "Workflow 1";
-const workflowSlug = releasePolicyMode
-  ? "workflow-2-policy"
-  : releaseCandidateMode
-    ? "workflow-2-candidate"
-    : "workflow-1";
+const workflowLabel = policyEvaluationMode
+  ? "Workflow 2 policy evaluation"
+  : releasePolicyMode
+    ? "Workflow 2 policy"
+    : releaseCandidateMode
+      ? "Workflow 2 candidate"
+      : "Workflow 1";
+const workflowSlug = policyEvaluationMode
+  ? "workflow-2-policy-evaluation"
+  : releasePolicyMode
+    ? "workflow-2-policy"
+    : releaseCandidateMode
+      ? "workflow-2-candidate"
+      : "workflow-1";
 const projectName = `proofstack-${workflowSlug}-${process.pid}-${randomBytes(4).toString("hex")}`;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 let activeChild;
@@ -151,6 +160,7 @@ try {
     PROOFSTACK_ACCEPT_RELEASE_CANDIDATE: releaseCandidateMode ? "true" : "false",
     PROOFSTACK_ACCEPT_RELEASE_POLICY: releasePolicyMode ? "true" : "false",
     PROOFSTACK_ACCEPT_CANONICAL_POLICY_INPUTS: canonicalPolicyInputMode ? "true" : "false",
+    PROOFSTACK_ACCEPT_POLICY_EVALUATION: policyEvaluationMode ? "true" : "false",
   };
 
   console.log(`Starting isolated ${workflowLabel} services as ${projectName}.`);
@@ -212,10 +222,24 @@ try {
         releaseCandidate: releaseCandidateMode,
         releasePolicy: releasePolicyMode,
         canonicalPolicyInputs: canonicalPolicyInputMode,
+        policyEvaluation: policyEvaluationMode,
       },
       receiptFile,
     },
   );
+  if (policyEvaluationMode)
+    await run(
+      pnpmCommand,
+      [
+        "exec",
+        "turbo",
+        "run",
+        "test:integration",
+        "--concurrency=1",
+        "--filter=@proofstack/policy-worker",
+      ],
+      { env: testEnvironment },
+    );
   console.log(`${workflowLabel} acceptance passed. Removing the isolated services and volumes.`);
 } catch (error) {
   primaryError = error;

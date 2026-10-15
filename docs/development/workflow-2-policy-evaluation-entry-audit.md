@@ -838,6 +838,10 @@ the existing candidate/policy flags and verifies an exclusively created bounded 
 Earlier named job success alone did not prove their filtered conditional branches; preserve that
 historical limitation and require fresh actual-mode verification. Optional canonical profile/protocol
 preparation retains original inputs without accepting the complete policy worker contributor flow.
+The [authenticated contributor](workflow-2-policy-evaluation-acceptance.md) connects actual
+API-key SDK reads, a separately authenticated executable and isolated PostgreSQL/S3, with explicit
+budget/cancellation and restart cases. Its implementation and CI gates precede the independent
+exit audit; this entry audit does not accept checkpoint 3 from contributor execution alone.
 
 The [native worker reference-authority composition](workflow-2-policy-worker-authorities.md)
 shares the API's exact scoped local-Git/model/adapter checks through a separate infrastructure

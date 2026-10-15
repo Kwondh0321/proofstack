@@ -405,6 +405,22 @@ export class EvaluationScenario {
     return EvaluatorSpecDefinitionSchema.parse(definition);
   }
 
+  private bindQualificationFixtures(criterion: MutableObject): void {
+    const cases = this.qualificationFixtureSet().cases;
+    for (const input of array(
+      criterion["qualificationFixtures"],
+      "criterion qualification fixtures",
+    )) {
+      const qualification = object(input, "criterion qualification fixture");
+      const sourceCase = cases.find((item) => item.caseId === qualification["fixtureCaseId"]);
+      if (!sourceCase)
+        throw new TypeError(
+          "Criterion qualification case is not declared by its owning fixture set",
+        );
+      qualification["fixture"] = structuredClone(sourceCase.fixture);
+    }
+  }
+
   criterionSet(input: {
     readonly conflictReview: SourceReviewRecord;
     readonly conflictSource: SourceSnapshot;
@@ -442,6 +458,7 @@ export class EvaluationScenario {
       },
     ];
     const criterion = object(array(definition["criteria"], "criteria")[0], "reference criterion");
+    this.bindQualificationFixtures(criterion);
     criterion["criterionId"] = this.criterionSelector().criterionId;
     criterion["counterevidence"] = [
       exactReference(input.conflictSource, {
@@ -495,6 +512,7 @@ export class EvaluationScenario {
       },
     ];
     const criterion = object(array(definition["criteria"], "criteria")[0], "criterion");
+    this.bindQualificationFixtures(criterion);
     criterion["criterionId"] = this.criterionSelector().criterionId;
     criterion["counterevidence"] = [];
     criterion["evaluator"] = {
@@ -569,6 +587,13 @@ export class EvaluationScenario {
     fixtureSet: QualificationFixtureSet,
   ): QualificationReportDefinition {
     const definition = template("qualification_report");
+    array(definition["environmentEvidence"], "qualification environment evidence").forEach(
+      (reference, index) => {
+        object(reference, "qualification environment artifact")["artifactId"] = this.id(
+          `art_qualification_environment_${index}`,
+        );
+      },
+    );
     const isOracle = "oracleVersionId" in subject;
     definition["qualificationReportId"] = this.id(isOracle ? "qlr_oracle" : "qlr_evaluator");
     definition["fixtureSet"] = {

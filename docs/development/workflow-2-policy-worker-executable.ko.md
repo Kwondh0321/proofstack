@@ -21,6 +21,10 @@ delivery에 넣지 않습니다. 운영자 측 발급에는 identity workspace�
 artifact-read capability·명시적인 project/environment 범위·active/revoked 상태·양의
 notBefore/expiresAt 구간을 가집니다. 중복·미래 형식·알 수 없는 필드·잘못된 hash·암묵적인 광역
 권한은 전체 파일을 거부합니다. 정확한 필드와 설정 목록은 [영문 가이드](workflow-2-policy-worker-executable.md)에 있습니다.
+필수 `policy:evaluation:execute`, `artifact:read`와 선택 `artifact:read:restricted`만 중복 없이
+허용합니다. 제한 등급 아티팩트를 포함한 그래프는 선택 권한을 명시해야 하며, 없으면 접근을
+거부합니다. 정책 작성·workload enqueue·명시된 범위 밖 접근 권한은 부여하지 않습니다.
+비밀값 검증 도중 이 권한이 바뀌어도 원래 권한 확인을 거부합니다.
 선택 `PROOFSTACK_POLICY_WORKER_AUTHORITIES_FILE`로 운영자 소유 후보 reference 포트를 구성하며
 인증 뒤에만 읽습니다. [후보 권한 가이드](workflow-2-policy-worker-authorities.ko.md)를 참고합니다.
 

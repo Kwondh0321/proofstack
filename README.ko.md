@@ -367,11 +367,14 @@ memory·PostgreSQL storage, 전용 policy-author role, 제한된 HTTP/OpenAPI·S
 withdrawal history, restart read-back, recovery, clean-checkout acceptance도 definition-only
 Workflow 2 경계로 구현되고 검증되었습니다.
 [승인 완료 검증 수정](docs/development/workflow-acceptance-completion.ko.md)은 이전 모드 전달의
-한계를 보존하고 요청한 분기의 정확한 완료 증거를 요구합니다. 기준 흐름은 synthetic
+한계를 보존하고 요청한 분기의 정확한 완료 증거를 요구합니다.
+[인증된 정책 기여자 흐름](docs/development/workflow-2-policy-evaluation-acceptance.ko.md)은
+보존 그래프·범위 제한 API 키 SDK·별도 워커를 연결하며 checkpoint 3의 독립 exit audit은 남아 있습니다.
+기준 흐름은 synthetic
 evidence와 결정적 local model provider를 사용할 뿐,
 OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer
 전문성을 검증하거나 workspace SDK를 package registry에 배포하거나 candidate를 위한 release
-policy를 선택·평가하거나 설명형 comparison을 release decision으로 재해석하지 않습니다.
+policy를 자동 선택하거나 설명형 comparison을 release decision으로 재해석하지 않습니다.
 Replay 결과는
 OS 수준 네트워크·filesystem·process·dependency 격리를 주장하지 않습니다. 기본 content
 inspector는 구조화된 자격증명 필드를 거부하고

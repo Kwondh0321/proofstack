@@ -408,9 +408,15 @@ importers:
       '@proofstack/example-workflow-2-release-policy':
         specifier: workspace:*
         version: link:../workflow-2-release-policy
+      '@proofstack/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@proofstack/model-evaluation-worker':
         specifier: workspace:*
         version: link:../../services/model-evaluation-worker
+      '@proofstack/policy-worker':
+        specifier: workspace:*
+        version: link:../../services/policy-worker
       '@proofstack/postgres':
         specifier: workspace:*
         version: link:../../packages/postgres

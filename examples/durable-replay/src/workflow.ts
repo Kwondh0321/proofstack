@@ -22,7 +22,11 @@ import {
   ProofStackReplayClient,
 } from "@proofstack/sdk";
 import { z } from "zod";
-import { bindDurableReplayProfiles, createDurableReplayDefinitions } from "./definitions.js";
+import {
+  bindDurableReplayProfiles,
+  bindMeasuredRecordedStubAccounting,
+  createDurableReplayDefinitions,
+} from "./definitions.js";
 import {
   DurableReplayReportPublicationAcknowledgementSchema,
   type DurableReplayReportPublicationRequest,
@@ -87,6 +91,8 @@ export interface RunDurableReplayExampleOptions {
   readonly tenantId: string;
   readonly workerDatabaseUrl: string;
   readonly workerEntryPointPath: string;
+  /** Contributor-only recorded accounting and a separate successful comparison replay. */
+  readonly preparePolicyEvaluationReplay?: boolean;
   /** Trusted contributor composition, called before publishing its new plan; never a public route. */
   readonly prepareRuntimeProfiles?: (input: {
     readonly scope: EvidenceScope;
@@ -129,6 +135,7 @@ export interface DurableReplayExampleSummary {
       readonly rejectedFencingToken: number;
     };
     readonly success: SuccessfulDurableReplayJobSummary;
+    readonly policyComparison?: SuccessfulDurableReplayJobSummary;
   };
   readonly predecessor: {
     readonly definitionSha256: string;
@@ -416,7 +423,7 @@ async function startWorker(options: {
 
 function claimIdentity(
   suffix: string,
-  scenario: "cancel" | "stale_old" | "stale_new" | "success",
+  scenario: "cancel" | "stale_old" | "stale_new" | "success" | "policy_success",
   workerBuildSha256: string,
 ) {
   return {
@@ -718,7 +725,7 @@ export async function runDurableReplayExample(
     definition: definitions.targetReleaseDefinition,
   });
   assert(releasePublication.created, "Target release publication must create an exact release");
-  const replayPlanDefinition = options.prepareRuntimeProfiles
+  const profiledReplayPlan = options.prepareRuntimeProfiles
     ? bindDurableReplayProfiles(
         definitions.replayPlanDefinition,
         await options.prepareRuntimeProfiles({
@@ -727,6 +734,9 @@ export async function runDurableReplayExample(
         }),
       )
     : definitions.replayPlanDefinition;
+  const replayPlanDefinition = options.preparePolicyEvaluationReplay
+    ? bindMeasuredRecordedStubAccounting(profiledReplayPlan)
+    : profiledReplayPlan;
   const planPublication = await replay.publishReplayPlan({ definition: replayPlanDefinition });
   assert(planPublication.created, "Replay plan publication must create an exact plan");
   const replayPlan = {
@@ -735,7 +745,10 @@ export async function runDurableReplayExample(
     planVersionId: planPublication.plan.planVersionId,
   } as const;
 
-  const baseRunCommand = (jobId: string, scenario: "cancel" | "stale_new" | "success") =>
+  const baseRunCommand = (
+    jobId: string,
+    scenario: "cancel" | "stale_new" | "success" | "policy_success",
+  ) =>
     DurableReplayWorkerCommandSchema.parse({
       claim: claimIdentity(suffix, scenario, workerBuildSha256),
       command: "run",
@@ -748,7 +761,7 @@ export async function runDurableReplayExample(
       schemaVersion: "0.1",
       scope,
       targetEntryPointPath,
-      targetHoldMilliseconds: scenario === "success" ? 0 : 1_000,
+      targetHoldMilliseconds: scenario === "success" || scenario === "policy_success" ? 0 : 1_000,
       terminationGraceMilliseconds: 100,
       workspaceParent,
     });
@@ -815,6 +828,16 @@ export async function runDurableReplayExample(
     await successfulWorker.completion;
     const successSnapshot = (await replay.readReplayJob({ jobId: successJobId })).snapshot;
     assertSuccessfulSnapshot(successSnapshot, 1);
+    let policyComparisonSnapshot: ReplayJobSnapshot | undefined;
+    if (options.preparePolicyEvaluationReplay) {
+      const jobId = `job_${suffix}_policy_success`;
+      await replay.createReplayJob({ jobId, request: jobRequest(jobId, replayPlan) });
+      const worker = await launch(baseRunCommand(jobId, "policy_success"));
+      await worker.waitForEvent("terminal");
+      await worker.completion;
+      policyComparisonSnapshot = (await replay.readReplayJob({ jobId })).snapshot;
+      assertSuccessfulSnapshot(policyComparisonSnapshot, 1);
+    }
 
     const cancellationJobId = `job_${suffix}_cancel`;
     await replay.createReplayJob({
@@ -904,6 +927,14 @@ export async function runDurableReplayExample(
         fixtureVersionId,
       },
       jobs: {
+        ...(policyComparisonSnapshot
+          ? {
+              policyComparison: {
+                ...summarize(policyComparisonSnapshot),
+                evidenceReference: successfulEvidenceReference(policyComparisonSnapshot),
+              },
+            }
+          : {}),
         cancellation: summarize(cancellationSnapshot),
         staleFenceRecovery: {
           ...summarize(recoverySnapshot),

@@ -261,6 +261,13 @@ export function createEvaluationRepositoryTestHarness(
   const reviewerQualificationBody = template("source_reviewer_qualification");
   reviewerQualificationBody.qualificationId = "srq_primary";
   reviewerQualificationBody.reviewerPrincipalId = "usr_repository_conformance";
+  array(
+    reviewerQualificationBody["credentialEvidence"],
+    "source reviewer credential evidence",
+  ).forEach((reference, index) => {
+    object(reference, "source reviewer credential artifact")["artifactId"] =
+      `art_source_reviewer_credential_${namespace}_${index}`;
+  });
   delete reviewerQualificationBody.predecessor;
   const reviewerQualification = add("source_reviewer_qualification", reviewerQualificationBody);
 
@@ -311,6 +318,23 @@ export function createEvaluationRepositoryTestHarness(
 
   for (const criterionInput of array(criterionBody.criteria, "criteria")) {
     const criterionDefinition = object(criterionInput, "criterion");
+    for (const input of array(
+      criterionDefinition["qualificationFixtures"],
+      "criterion qualification fixtures",
+    )) {
+      const qualification = object(input, "criterion qualification fixture");
+      const sourceCase = array(
+        object(fixtureSet, "qualification fixture set")["cases"],
+        "qualification cases",
+      )
+        .map((item) => object(item, "qualification case"))
+        .find((item) => item["caseId"] === qualification["fixtureCaseId"]);
+      if (!sourceCase)
+        throw new TypeError(
+          "Criterion qualification case is not declared by its owning fixture set",
+        );
+      qualification["fixture"] = structuredClone(sourceCase["fixture"]);
+    }
     criterionDefinition.evaluator = {
       evaluatorId: recordString(evaluator, "evaluatorId"),
       ...exactReference(evaluator, "evaluatorVersionId"),
@@ -346,6 +370,12 @@ export function createEvaluationRepositoryTestHarness(
   const policy = add("aggregation_policy", template("aggregation_policy"));
 
   const evaluatorReportBody = template("qualification_report");
+  array(evaluatorReportBody["environmentEvidence"], "qualification environment evidence").forEach(
+    (reference, index) => {
+      object(reference, "qualification environment artifact")["artifactId"] =
+        `art_qualification_environment_${namespace}_${index}`;
+    },
+  );
   evaluatorReportBody.qualificationReportId = "qlr_evaluator";
   evaluatorReportBody.fixtureSet = {
     fixtureSetId: recordString(fixtureSet, "fixtureSetId"),
@@ -361,6 +391,12 @@ export function createEvaluationRepositoryTestHarness(
   const evaluatorReport = add("qualification_report", evaluatorReportBody);
 
   const oracleReportBody = template("qualification_report");
+  array(oracleReportBody["environmentEvidence"], "qualification environment evidence").forEach(
+    (reference, index) => {
+      object(reference, "qualification environment artifact")["artifactId"] =
+        `art_qualification_environment_${namespace}_${index}`;
+    },
+  );
   oracleReportBody.qualificationReportId = "qlr_oracle";
   oracleReportBody.fixtureSet = {
     fixtureSetId: recordString(fixtureSet, "fixtureSetId"),
@@ -382,6 +418,7 @@ export function createEvaluationRepositoryTestHarness(
   function buildRun(evaluationRunId: string): EvaluationRecord {
     const body = template("evaluation_run");
     body.evaluationRunId = evaluationRunId;
+    body["dataset"] = structuredClone(object(policy, "aggregation policy")["dataset"]);
     body.aggregationPolicy = {
       policyId: recordString(policy, "policyId"),
       ...exactReference(policy, "policyVersionId"),

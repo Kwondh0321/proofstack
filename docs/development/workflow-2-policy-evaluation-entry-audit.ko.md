@@ -571,6 +571,9 @@ private 함수 권한, row-lock race, outbox rollback, pooled scope 재사용, t
 명시적으로 전달하고 독점 생성한 제한 크기 영수증을 검증한다. 이전 이름별 작업 성공만으로 필터된
 조건 분기를 입증하지 못했음을 보존하고 실제 모드를 재검증한다. 선택 canonical profile/protocol
 준비는 원래 입력의 보존이며 완전한 policy worker 기여자 흐름 승인이 아니다.
+[인증된 기여자 흐름](workflow-2-policy-evaluation-acceptance.ko.md)은 실제 API 키 SDK·별도 인증
+실행 파일·격리 PostgreSQL/S3와 예산·취소·재시작 검사를 연결합니다. 구현과 CI 검증 뒤에도
+독립 exit audit이 필요하며 이 entry audit은 실행 성공만으로 checkpoint 3을 승인하지 않습니다.
 
 [Native worker reference 권한 구성](workflow-2-policy-worker-authorities.ko.md)은 별도 infrastructure
 package와 선택 비공개 운영자 설정으로 API의 정확한 scoped Git/model/adapter 검사를 공유합니다.

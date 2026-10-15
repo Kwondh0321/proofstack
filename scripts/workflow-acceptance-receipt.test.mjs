@@ -14,8 +14,9 @@ const expected = {
   releaseCandidate: true,
   releasePolicy: true,
   canonicalPolicyInputs: false,
+  policyEvaluation: false,
 };
-const receipt = { schemaVersion: "0.1", ...expected };
+const receipt = { schemaVersion: "0.2", ...expected };
 const line = (value = receipt) => prefix + JSON.stringify(value) + "\n";
 
 test("accepts one exact receipt across arbitrary byte chunks and Unicode test output", () => {
@@ -30,6 +31,16 @@ test("copies admitted expectations and accepts a final receipt without LF", () =
   options.releasePolicy = false;
   verifier.write(line().trimEnd());
   assert.deepEqual(verifier.finish(), receipt);
+});
+test("requires the actual policy evaluation flow when every prerequisite was requested", () => {
+  const full = { ...expected, canonicalPolicyInputs: true, policyEvaluation: true };
+  const fullReceipt = { schemaVersion: "0.2", ...full };
+  const complete = createWorkflowAcceptanceReceiptVerifier(full);
+  complete.write(line(fullReceipt));
+  assert.deepEqual(complete.finish(), fullReceipt);
+  const skipped = createWorkflowAcceptanceReceiptVerifier(full);
+  skipped.write(line({ ...fullReceipt, policyEvaluation: false }));
+  assert.throws(() => skipped.finish(), /exact requested modes/);
 });
 test("bounds unrelated lines and preserves the next exact receipt", () => {
   const verifier = createWorkflowAcceptanceReceiptVerifier(expected);
@@ -62,11 +73,12 @@ test("rejects skipped, substituted, malformed and expanded mode receipts", () =>
     null,
     [],
     true,
-    { ...receipt, schemaVersion: "0.2" },
+    { ...receipt, schemaVersion: "0.1" },
     { ...receipt, worker: true },
     { ...receipt, releasePolicy: false },
     { ...receipt, releasePolicy: "true" },
     { ...receipt, canonicalPolicyInputs: true },
+    { ...receipt, policyEvaluation: true },
     { workflow1: true },
   ];
   for (const value of values) {

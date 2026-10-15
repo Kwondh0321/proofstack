@@ -10,7 +10,7 @@
 역사적 작업 상태는 보존하되, 생략된 분기를 독립적으로 입증한 것으로 사용하지 않습니다.
 이번 수정은 실제 candidate/policy 경로의 재검증을 요구합니다.
 
-이제 세 모드 플래그와 새 비공개 임시 영수증 경로를 명시적으로 전달합니다. 시험이 게시·동일
+이제 네 모드 플래그와 새 비공개 임시 영수증 경로를 명시적으로 전달합니다. 시험이 게시·동일
 재시도·철회·재시작 assertion을 마친 뒤 `0600`·exclusive create로 JSON을 기록합니다.
 `workflow1`, `releaseCandidate`,
 `releasePolicy`, `canonicalPolicyInputs`가 요청 모드와 정확히 같아야 합니다. 누락·중복·잘못된 JSON·
@@ -51,6 +51,10 @@ Bundle은 공개 source 정의이며 분류된 정규화 요청이나 생성된 
 역사적 임의 digest에 맞는 데이터를 조작하지 않습니다. 새 생성기를 기존 100% coverage 검사에
 포함합니다. 이 준비 모드는 정책 평가 실행·release 승인·checkpoint 3 완료가 아닙니다.
 실제 SDK·별도 worker의 모든 predicate/outcome 통합 증거와 독립 종료 감사가 남습니다.
+
+별도 [인증된 정책 평가 기여자 흐름](workflow-2-policy-evaluation-acceptance.ko.md)은
+`pnpm test:acceptance:workflow-2-policy-evaluation`로 실행합니다. 모든 준비 모드를 포함하며
+정책 평가의 각 검사를 마쳐야 `policyEvaluation:true` 완료 증거를 생성합니다.
 
 Docker 기본 주소 풀이 소진된 경우 적합한 미사용 RFC1918 IPv4 subnet(prefix 8–29)을 명시할 수 있습니다.
 

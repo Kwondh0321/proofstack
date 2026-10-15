@@ -12,12 +12,12 @@ The historical job statuses remain evidence of those executions; they cannot ind
 the skipped conditional branches. This correction preserves their records and requires fresh
 verification of the actual candidate/policy paths.
 
-The runner now explicitly forwards the three supported mode flags and checks exactly one bounded
+The runner now explicitly forwards the four supported mode flags and checks exactly one bounded
 completion receipt after a successful child. The test writes it after its
 requested publication, immutable retry, withdrawal and restart assertions:
 
 ```text
-{"schemaVersion":"0.1","workflow1":true,"releaseCandidate":true,"releasePolicy":true,"canonicalPolicyInputs":false}
+{"schemaVersion":"0.2","workflow1":true,"releaseCandidate":true,"releasePolicy":true,"canonicalPolicyInputs":false,"policyEvaluation":false}
 ```
 
 The runner creates a unique private temporary directory and forwards its receipt path explicitly
@@ -79,6 +79,10 @@ New definition-builder coverage is included under the unchanged 100% example thr
 This mode prepares original inputs. It does not enqueue or compute a policy evaluation, approve a
 release or complete checkpoint 3. The full authenticated SDK/separate worker contributor matrix,
 all predicate/outcome evidence and independent exit audit remain required.
+
+The separate [authenticated policy evaluation contributor](workflow-2-policy-evaluation-acceptance.md)
+uses `pnpm test:acceptance:workflow-2-policy-evaluation`, which implies all preparation modes and
+requires every policy evaluation case before its `policyEvaluation:true` completion receipt.
 
 ## An exhausted Docker address pool
 
