@@ -1,0 +1,124 @@
+{
+  "format": "proofstack.release-policy-selection-definition.v1",
+  "vectors": [
+    {
+      "name": "mandatory-staging-with-explicit-exception-protocol",
+      "input": {
+        "definition": {
+          "selectionId": "selection_checkout",
+          "selectionVersionId": "selection_checkout_v1",
+          "installationId": "installation_checkout",
+          "gateTargetId": "gate_checkout_staging",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "candidateTarget": {
+            "environmentId": "env_staging",
+            "jurisdiction": "us",
+            "locale": "en-us",
+            "maximumDataClassification": "confidential",
+            "populationTags": ["business", "checkout"],
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent"
+          },
+          "mode": "enforce",
+          "policies": [
+            {
+              "policy": {
+                "policyId": "policy_checkout",
+                "policyVersionId": "policy_checkout_v1",
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "mode": "mandatory",
+              "exceptionRequirement": {
+                "conflictRule": "reject_declared_conflict",
+                "excludeCandidateAuthor": true,
+                "excludePolicyAuthor": true,
+                "humanReviewerGroupIds": ["group_release_review"],
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "kind": "approval_required",
+                "quorum": 2,
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+              }
+            }
+          ],
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ],
+          "issuerPrincipalId": "user_installation_owner",
+          "authorityEvidence": {
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          },
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "expiresAt": "2026-10-16T00:00:00.000001Z"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "encodedByteLength": 1963,
+      "sha256": "87972818ae7ba175fc64d2f24122fbf4485b905c3181c44435619ee18e4e1124"
+    },
+    {
+      "name": "explicit-empty-observation-selection",
+      "input": {
+        "definition": {
+          "selectionId": "selection_observe",
+          "selectionVersionId": "selection_observe_v1",
+          "installationId": "installation_checkout",
+          "gateTargetId": "gate_checkout_staging",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "candidateTarget": {
+            "environmentId": "env_staging",
+            "jurisdiction": "us",
+            "locale": "en-us",
+            "maximumDataClassification": "confidential",
+            "populationTags": ["business", "checkout"],
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent"
+          },
+          "mode": "observation_only",
+          "policies": [],
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ],
+          "issuerPrincipalId": "user_installation_owner",
+          "authorityEvidence": {
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          },
+          "rationale": "An explicit observation-only target installs no mandatory release gate.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "expiresAt": "2026-10-16T00:00:00.000001Z"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "encodedByteLength": 1426,
+      "sha256": "ff4198ed95d5c6f66f78c99b3e41ed3e5e618b8c54ed30c0c5bbd4a13f7b81b4"
+    }
+  ]
+}

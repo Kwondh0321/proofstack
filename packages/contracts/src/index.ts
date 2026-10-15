@@ -73,6 +73,8 @@ export * from "./release-candidate-definition-encoding.js";
 export * from "./release-policy.js";
 export * from "./release-policy-api.js";
 export * from "./release-policy-definition-encoding.js";
+export * from "./release-policy-selection.js";
+export * from "./release-policy-selection-encoding.js";
 export * from "./replay.js";
 export * from "./replay-accounting.js";
 export * from "./replay-boundary-execution.js";

@@ -205,6 +205,10 @@ transactions/role readiness/recovery; authorization-first API and SDK; real-serv
 flows and adversarial exit audit. Existing authenticators and authorities remain owning boundaries.
 A pure computed report alone cannot publish a decision or claim this checkpoint complete.
 
+The [installation-owned selection contract prerequisite](workflow-2-policy-selection-contracts.md)
+freezes the first bounded selection/reference/lifecycle and canonical-vector slice. It does not
+close current authority, persistence, approval or decision publication requirements below.
+
 ## Adversarial acceptance matrix
 
 | Boundary | Required counterexamples |

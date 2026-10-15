@@ -103,6 +103,8 @@ service/workload/model/development 자격증명이나 요청의 역할·사람 �
 계약·바이트 한도·독립 decision/quorum oracle, memory/shared conformance, native 역할·guard·
 복구, 인증 우선 API/OpenAPI·SDK, 실제 서비스 contributor와 종료 감사 순으로 구현한다.
 기존 migration 0061 이후 새 번호를 확인해 전진 추가하며 병합된 ledger는 수정하지 않는다.
+[설치 소유 선택 계약 선행 작업](workflow-2-policy-selection-contracts.ko.md)은 첫 선택·참조·
+생명주기와 canonical vector를 고정한다. 현재 권한·저장·승인·결정 게시의 완료는 아니다.
 원본 멱등 영수증, normalized/projected 동일성, outbox 충돌 전체 rollback, 3 tenant 같은 ID,
 권한/session/선택 철회와 게시 경쟁, 만료·pool 정리·복원 검증이 필요하다.
 
