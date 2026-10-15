@@ -38,6 +38,8 @@
 반드시 새 격리 서비스의 `proofstack_test` DB와 테스트 S3를 사용해야 합니다. 테스트는 전용
 역할과 고유 버킷을 만들고 진단용 DB·객체를 남기며 서비스 소유자가 정리를 관리합니다.
 **Policy worker integration** CI가 기존 독립 작업 9개를 보존하면서 별도로 실행합니다.
+[PostgreSQL 빌드 전달](postgres-integration-ci.ko.md)도 필수 작업으로 분리하며 기존 테스트 시간
+제한을 유지하고 소스와 산출물의 정확한 동일성을 검증합니다.
 
 실제 credential provider·독립 실행 파일·프로세스 재시작/crash/취소·전체 상태 복구·공개 API/SDK·
 완전한 기여자 흐름·독립 종료 감사가 남습니다. 테스트의 로컬 키와 합성 credential 카탈로그는

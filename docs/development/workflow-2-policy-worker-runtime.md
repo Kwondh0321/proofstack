@@ -55,6 +55,8 @@ The fixture provisions isolated runtime roles, creates a unique test bucket and 
 and object data for diagnosis; the disposable service owner controls teardown. Never point it at
 operating data. The independent **Policy worker integration** CI job runs the same command with
 pinned PostgreSQL/SeaweedFS and preserves all nine existing independent CI jobs. CodeQL is separate.
+The required [PostgreSQL build handoff](postgres-integration-ci.md) keeps compilation outside the
+native PostgreSQL test job's unchanged time allowance and verifies exact source/output identity.
 
 This is concrete runtime composition, not a standalone executable or credential issuer/provider.
 The reference test uses local encryption keys and a synthetic credential catalogue; it establishes

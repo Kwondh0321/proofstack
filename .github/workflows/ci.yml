@@ -45,8 +45,67 @@ jobs:
       - name: Run repository checks
         run: pnpm check
 
+  postgres-build:
+    name: PostgreSQL integration build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: true
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build PostgreSQL integration targets
+        run: >-
+          pnpm exec turbo run build --concurrency=3
+          --filter=@proofstack/postgres^... --filter=@proofstack/api^... --filter=@proofstack/web^...
+          --filter=@proofstack/example-durable-replay^...
+          --filter=@proofstack/example-evaluation-control-flow^...
+          --filter=@proofstack/example-model-assurance-control-flow^...
+          --filter=@proofstack/example-workflow-1-acceptance^...
+
+      - name: Pack exact source build outputs
+        id: pack
+        run: |
+          printf '%s\n' "$GITHUB_SHA" > postgres-build-source-sha.txt
+          printf 'postgres-build-source-sha.txt\0' > postgres-build-paths.list
+          find packages sdks services examples apps \
+            -type d \( -name node_modules -o -name .next \) -prune -o \
+            -type d -name dist -print0 -prune >> postgres-build-paths.list
+          tar --create --gzip --file=postgres-integration-build.tar.gz \
+            --null --files-from=postgres-build-paths.list
+          sha256sum postgres-integration-build.tar.gz > postgres-integration-build.sha256
+          read -r digest _ < postgres-integration-build.sha256
+          printf 'sha256=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable integration build
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: postgres-build-${{ github.sha }}-${{ github.run_attempt }}
+          path: postgres-integration-build.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
   postgres:
     name: PostgreSQL integration
+    needs: postgres-build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -105,16 +164,30 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
-      # Prepare dependencies concurrently, then keep the suites sharing one database serial.
-      - name: Build PostgreSQL integration targets
-        run: >-
-          pnpm exec turbo run build --concurrency=3
-          --filter=@proofstack/postgres^... --filter=@proofstack/api^... --filter=@proofstack/web^...
-          --filter=@proofstack/example-durable-replay^...
-          --filter=@proofstack/example-evaluation-control-flow^...
-          --filter=@proofstack/example-model-assurance-control-flow^...
-          --filter=@proofstack/example-workflow-1-acceptance^...
+      - name: Require exact integration build outputs
+        env:
+          EXPECTED_ARTIFACT_ID: ${{ needs.postgres-build.outputs.artifact-id }}
+          EXPECTED_BUILD_SHA256: ${{ needs.postgres-build.outputs.sha256 }}
+        run: |
+          [[ "$EXPECTED_ARTIFACT_ID" =~ ^[1-9][0-9]{0,14}$ ]]
+          [[ "$EXPECTED_BUILD_SHA256" =~ ^[0-9a-f]{64}$ ]]
 
+      - name: Download exact integration build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.postgres-build.outputs.artifact-id }}
+
+      - name: Verify and restore exact source outputs
+        env:
+          EXPECTED_BUILD_SHA256: ${{ needs.postgres-build.outputs.sha256 }}
+        run: |
+          [[ "$EXPECTED_BUILD_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  postgres-integration-build.tar.gz\n' "$EXPECTED_BUILD_SHA256" | sha256sum --check --strict
+          tar --extract --gzip --file=postgres-integration-build.tar.gz
+          read -r source_sha < postgres-build-source-sha.txt
+          test "$source_sha" = "$GITHUB_SHA"
+
+      # Keep all suites sharing the isolated database serial, with the original time limits.
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration:postgres
 
