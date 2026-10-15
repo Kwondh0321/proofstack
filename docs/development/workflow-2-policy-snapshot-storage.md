@@ -4,6 +4,10 @@
 
 Status: implementation prerequisite; Workflow 2 checkpoint 3 remains open (2/7 accepted).
 
+The subsequent [exact reader and shared store conformance](workflow-2-policy-store-conformance.md)
+adds original snapshot/page reads and memory/native publication cases. The remaining boundaries
+listed below describe the original storage increment; the linked guide records that later work.
+
 `PostgresPolicySnapshotTransactions` implements the trusted held ports of
 `sealPolicyEvaluationSnapshot`; see [ADR-0032](../architecture/0032-persist-policy-snapshots-through-held-worker-ports.md).
 The workspace worker entry accepts server-owned identities/fence and repositories, never submitted

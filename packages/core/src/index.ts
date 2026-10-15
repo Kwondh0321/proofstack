@@ -93,6 +93,7 @@ export {
 } from "./policy/policy-evaluation-acquisition-allowance.js";
 export * from "./policy/policy-evaluation-result-record-validation.js";
 export * from "./policy/policy-evaluation-result-repository.js";
+export * from "./policy/policy-evaluation-snapshot-repository.js";
 export * from "./policy/policy-evaluation-snapshot-record-validation.js";
 export * from "./policy/compute-sealed-policy-evaluation.js";
 export * from "./policy/policy-evaluation-protocol-reader.js";

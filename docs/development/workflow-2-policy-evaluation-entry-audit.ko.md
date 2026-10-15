@@ -505,6 +505,10 @@ Decimal·rational 모두 정확한 unit을 보존한다. 계산 전에 임의 �
 
 ## 영속 job, 권한, 복구
 
+[정확한 snapshot 읽기와 공통 저장소 검사](workflow-2-policy-store-conformance.ko.md)는 메모리의
+원본 입력·결과 보존과 동일한 메모리/native 게시·취소·재시도를 검증합니다. 이 범위의 공통
+검증을 구현했으며 모든 상태의 복구·실제 worker·공개 경계·독립 exit audit는 남아 있습니다.
+
 [ADR-0018](../architecture/0018-separate-replay-control-worker-authority.ko.md)의 분리·fencing
 원칙을 사용하되 policy worker에 replay 실행이나 upstream evaluation 발행 권한을 주지 않는다.
 

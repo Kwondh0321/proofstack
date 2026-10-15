@@ -99,3 +99,9 @@ export {
   policyAcquisitionRepositoryConformanceCases,
   type PolicyAcquisitionConformanceHarness,
 } from "./policy-acquisition-repository-conformance.js";
+export { policySnapshotRepositoryFixture } from "./policy-snapshot-repository-fixture.js";
+export {
+  policySnapshotResultRepositoryConformanceCases,
+  type PolicySnapshotResultRepositoryHarness,
+} from "./policy-snapshot-result-repository-conformance.js";
+export { createMemoryPolicySnapshotResultHarness } from "./memory-policy-snapshot-result-harness.js";

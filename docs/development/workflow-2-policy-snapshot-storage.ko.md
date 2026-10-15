@@ -1,5 +1,8 @@
 # Native 정책 snapshot 저장
 
+후속 [정확 읽기와 저장소 공통 검증](workflow-2-policy-store-conformance.ko.md)은 원본 page 읽기와
+메모리/native 게시 검증을 추가합니다. 아래 원래 저장 증분의 경계와 이후 작업을 구별합니다.
+
 [English](workflow-2-policy-snapshot-storage.md) | [한국어](workflow-2-policy-snapshot-storage.ko.md)
 
 상태: 구현 선행 요소이며 Workflow 2 checkpoint 3은 미완료입니다(2/7 승인).

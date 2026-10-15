@@ -14,10 +14,20 @@ import {
   POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE,
   MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES,
   PolicyEvaluationUsageSchema,
+  PolicyEvaluationSnapshotSchema,
+  PolicyEvaluationSnapshotPageSetSchema,
+  PolicyEvaluationWorkerMutationFenceSchema,
+  PolicyEvaluationSchema,
+  type PolicyEvaluationSnapshot,
+  type PolicyEvaluationSnapshotPageSet,
+  type PolicyEvaluation,
+  type PolicyEvaluationWorkerMutationFence,
+  policyEvaluationTimestampOrderKey,
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationJobRepository,
   type PolicyEvaluationAcquisitionRepository,
+  type PolicyEvaluationJobComputationRepository,
   PolicyEvaluationJobNotFoundError,
   PolicyEvaluationRequestConflictError,
 } from "../policy/policy-evaluation-job-repository.js";
@@ -53,21 +63,59 @@ import {
 import { replayPolicyEvaluationJobHistoryEntry } from "../policy/policy-evaluation-job-history-replay.js";
 import { exhaustPolicyEvaluationJobHistory } from "../policy/policy-evaluation-history-limit.js";
 import { requirePolicyEvaluationLiveFence } from "../policy/policy-evaluation-live-fence.js";
+import {
+  sealPolicyEvaluationJob,
+  startPolicyEvaluationComputation,
+} from "../policy/policy-evaluation-scheduler-seal.js";
+import { completePolicyEvaluationJob } from "../policy/policy-evaluation-scheduler-complete.js";
+import { computeSealedPolicyEvaluation } from "../policy/compute-sealed-policy-evaluation.js";
+import { validatePolicyEvaluationSnapshotRecord } from "../policy/policy-evaluation-snapshot-record-validation.js";
+import {
+  validatePolicyEvaluationResultRecord,
+  digestPolicyEvaluationDefinition,
+} from "../policy/policy-evaluation-result-record-validation.js";
+import {
+  policyEvaluationSnapshotReadIdentity,
+  requirePolicyEvaluationSnapshotPageIndex,
+  validatePolicyEvaluationStoredSnapshotJob,
+  validatePolicyEvaluationStoredSnapshotPage,
+  type PolicyEvaluationSnapshotReader,
+  type PolicyEvaluationSnapshotPublisher,
+  type PolicyEvaluationSnapshotReadIdentity,
+} from "../policy/policy-evaluation-snapshot-repository.js";
+import type {
+  PolicyEvaluationResultPublisher,
+  PolicyEvaluationResultReader,
+} from "../policy/policy-evaluation-result-repository.js";
 
 interface StoredPolicyJob {
   readonly snapshot: PolicyEvaluationJobSnapshot;
   readonly latest: PolicyEvaluationJobHistoryEntry;
   readonly pages: Readonly<Record<number, readonly PolicyEvaluationJobHistoryEntry[]>>;
   readonly outbox: readonly PolicyEvaluationJobOutboxIntent[];
+  readonly sealedInput?: {
+    readonly record: PolicyEvaluationSnapshot;
+    readonly pageSet: PolicyEvaluationSnapshotPageSet;
+  };
+  readonly evaluation?: PolicyEvaluation;
 }
 
 /** Atomic synchronous map commit, inside async ports. No I/O/await occurs between read and swap. */
 export class MemoryPolicyEvaluationJobRepository
-  implements PolicyEvaluationJobRepository, PolicyEvaluationAcquisitionRepository
+  implements
+    PolicyEvaluationJobRepository,
+    PolicyEvaluationAcquisitionRepository,
+    PolicyEvaluationJobComputationRepository,
+    PolicyEvaluationSnapshotReader,
+    PolicyEvaluationSnapshotPublisher,
+    PolicyEvaluationResultPublisher,
+    PolicyEvaluationResultReader
 {
   private readonly records = new Map<string, StoredPolicyJob>();
   private readonly requests = new Map<string, string>();
   private readonly reservations = new Map<string, PolicyEvaluationJobHistoryEntry>();
+  private readonly snapshotOwners = new Map<string, string>();
+  private readonly resultOwners = new Map<string, string>();
   private recoveryEpoch = 0;
   constructor(private readonly clock: { now(): string }) {}
   private key(scope: EvidenceScope, id: string): string {
@@ -131,6 +179,20 @@ export class MemoryPolicyEvaluationJobRepository
       throw new PolicyEvaluationJobHistoryError(
         "Stored job is missing its canonical atomic outbox intent",
       );
+    if (stored.sealedInput) {
+      if (!snapshot.job.snapshot)
+        throw new PolicyEvaluationJobHistoryError("Stored seal has no owning job reference");
+      validatePolicyEvaluationStoredSnapshotJob(
+        {
+          scope,
+          job: { jobId: id, definitionSha256: snapshot.job.definitionSha256 },
+          request: snapshot.job.request,
+          snapshot: snapshot.job.snapshot,
+        },
+        stored.sealedInput.record,
+        snapshot,
+      );
+    }
     return snapshot;
   }
   async createJob(command: Parameters<PolicyEvaluationJobRepository["createJob"]>[0]) {
@@ -256,6 +318,314 @@ export class MemoryPolicyEvaluationJobRepository
     this.inspectStored(stored, scope, jobId);
     return structuredClone(stored.outbox);
   }
+  private storedSeal(input: PolicyEvaluationSnapshotReadIdentity) {
+    const expected = policyEvaluationSnapshotReadIdentity(input);
+    const owner = this.snapshotOwners.get(this.key(expected.scope, expected.snapshot.snapshotId));
+    if (owner === undefined) {
+      const known = this.records.get(this.key(expected.scope, expected.job.jobId));
+      if (known?.snapshot.job.snapshot?.snapshotId === expected.snapshot.snapshotId)
+        throw new PolicyEvaluationJobHistoryError("Owning snapshot material/index is missing");
+      return null;
+    }
+    const { snapshot: job, stored } = this.read(expected.scope, owner);
+    if (!stored.sealedInput)
+      throw new PolicyEvaluationJobHistoryError("Snapshot index has no retained material");
+    const { root } = validatePolicyEvaluationStoredSnapshotJob(
+      expected,
+      stored.sealedInput.record,
+      job,
+    );
+    return { expected, root, job, stored };
+  }
+  async findSnapshot(expected: PolicyEvaluationSnapshotReadIdentity) {
+    const retained = this.storedSeal(expected);
+    return retained === null ? null : structuredClone(retained.root);
+  }
+  async readSnapshotPage(expected: PolicyEvaluationSnapshotReadIdentity, indexInput: number) {
+    const index = requirePolicyEvaluationSnapshotPageIndex(indexInput);
+    const retained = this.storedSeal(expected);
+    if (retained === null) return null;
+    const page = retained.stored.sealedInput!.pageSet.pages[index];
+    return validatePolicyEvaluationStoredSnapshotPage(
+      retained.expected,
+      retained.root,
+      index,
+      page,
+    );
+  }
+  async publishSnapshot(
+    command: Parameters<PolicyEvaluationSnapshotPublisher["publishSnapshot"]>[0],
+  ) {
+    const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(command.fence);
+    if (OpaqueIdSchema.parse(command.principalId) !== fence.workerId)
+      throw new PolicyEvaluationRequestConflictError();
+    const prior = this.read(command.scope, fence.jobId).snapshot;
+    requirePolicyEvaluationLiveFence({
+      snapshot: prior,
+      now: PolicyEvaluationTimeSchema.parse(this.clock.now()),
+      recoveryEpoch: this.recoveryEpoch,
+      fence,
+    });
+    if (prior.job.status !== "acquiring" || prior.job.snapshot !== null)
+      throw new PolicyEvaluationJobHistoryError(
+        "Snapshot publication requires an unsealed acquiring attempt",
+      );
+    const pageSet = PolicyEvaluationSnapshotPageSetSchema.parse(command.pageSet);
+    const reference = {
+      snapshotId: pageSet.definition.snapshotId,
+      definitionSha256: pageSet.definitionSha256,
+    };
+    const ownerKey = this.key(command.scope, reference.snapshotId);
+    if (this.snapshotOwners.has(ownerKey)) throw new PolicyEvaluationRequestConflictError();
+    let published: PolicyEvaluationSnapshot | undefined;
+    const job = this.mutate(
+      command.scope,
+      fence.jobId,
+      (before, now) => {
+        requirePolicyEvaluationLiveFence({
+          snapshot: before,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+          fence,
+        });
+        if (
+          before.job.stateVersion >= MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES - 1 ||
+          before.acquisitionAllowance
+        )
+          throw new PolicyEvaluationJobHistoryError(
+            "Snapshot publication has no settled owning history capacity",
+          );
+        const record = PolicyEvaluationSnapshotSchema.parse({
+          ...pageSet.definition,
+          scope: before.job.scope,
+          schemaVersion: "0.1",
+          definitionSha256: pageSet.definitionSha256,
+          ...fence,
+          sealedAt: now,
+          recordedAt: now,
+          sealedByPrincipalId: command.principalId,
+        });
+        const { inputs } = validatePolicyEvaluationSnapshotRecord({
+          expected: {
+            scope: before.job.scope,
+            jobId: fence.jobId,
+            request: before.job.request,
+            snapshot: reference,
+          },
+          record,
+          pageSet,
+        });
+        if (
+          inputs.schemaVersion !== "0.2" ||
+          inputs.sources.logicalRoots.configuration !== "configured" ||
+          serializeEvaluationCanonicalJson(inputs.request) !==
+            serializeEvaluationCanonicalJson(before.request)
+        )
+          throw new PolicyEvaluationJobHistoryError(
+            "Memory snapshot publication requires complete owning configured input",
+          );
+        published = record;
+        return sealPolicyEvaluationJob({
+          snapshot: before,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+          fence,
+          sealedSnapshot: reference,
+        });
+      },
+      () => ({ kind: "seal", fence, snapshot: reference }),
+      () => ({ sealedInput: { record: published!, pageSet } }),
+      fence,
+    );
+    this.snapshotOwners.set(ownerKey, fence.jobId);
+    return { snapshot: structuredClone(published!), job };
+  }
+  async startComputation(
+    command: Parameters<PolicyEvaluationJobComputationRepository["startComputation"]>[0],
+  ) {
+    const { stored } = this.read(command.scope, command.fence.jobId);
+    if (!stored.sealedInput)
+      throw new PolicyEvaluationJobHistoryError("Computation has no retained original seal");
+    return this.mutate(
+      command.scope,
+      command.fence.jobId,
+      (snapshot, now) =>
+        startPolicyEvaluationComputation({
+          snapshot,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+          fence: command.fence,
+        }),
+      () => ({ kind: "start_computation", fence: command.fence }),
+    );
+  }
+  private checkedResult(stored: StoredPolicyJob, job: PolicyEvaluationJobSnapshot) {
+    const reference = job.job.result,
+      terminal = job.job.terminal;
+    const attempt = job.attempts.find(
+      (value) => value.mutationFence.attemptId === terminal?.attemptId,
+    );
+    if (
+      !reference ||
+      job.job.status !== "completed" ||
+      !terminal ||
+      !attempt ||
+      attempt.closure?.status !== "completed" ||
+      attempt.closure.committedAt !== terminal.committedAt ||
+      !stored.evaluation ||
+      !stored.sealedInput ||
+      !job.job.snapshot
+    )
+      throw new PolicyEvaluationJobHistoryError(
+        "Completed memory result lacks its original deciding evidence",
+      );
+    return validatePolicyEvaluationResultRecord({
+      expected: {
+        scope: job.job.scope,
+        jobId: job.job.jobId,
+        request: job.job.request,
+        snapshot: job.job.snapshot,
+        result: reference,
+        fence: attempt.mutationFence,
+        completedAt: terminal.committedAt,
+      },
+      record: stored.evaluation,
+      snapshotRecord: stored.sealedInput.record,
+      pageSet: stored.sealedInput.pageSet,
+    });
+  }
+  async publishResult(command: Parameters<PolicyEvaluationResultPublisher["publishResult"]>[0]) {
+    const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(command.fence),
+      evaluationId = OpaqueIdSchema.parse(command.evaluationId);
+    const { snapshot: before, stored } = this.read(command.scope, fence.jobId);
+    if (!stored.sealedInput || !before.job.snapshot)
+      throw new PolicyEvaluationJobHistoryError("Result has no original stored seal");
+    if (before.job.status !== "completed") {
+      requirePolicyEvaluationLiveFence({
+        snapshot: before,
+        now: PolicyEvaluationTimeSchema.parse(this.clock.now()),
+        recoveryEpoch: this.recoveryEpoch,
+        fence,
+      });
+      if (before.job.status !== "running")
+        throw new PolicyEvaluationJobHistoryError(
+          "Result publication requires its owning running attempt",
+        );
+    }
+    if (
+      serializeEvaluationCanonicalJson(command.pageSet) !==
+      serializeEvaluationCanonicalJson(stored.sealedInput.pageSet)
+    )
+      throw new PolicyEvaluationRequestConflictError();
+    if (before.job.status === "completed") {
+      const original = this.checkedResult(stored, before);
+      const originalFence = {
+        jobId: original.jobId,
+        attemptId: original.attemptId,
+        workerId: original.workerId,
+        leaseId: original.leaseId,
+        fencingToken: original.fencingToken,
+        recoveryEpoch: original.recoveryEpoch,
+      };
+      if (
+        original.evaluationId !== evaluationId ||
+        serializeEvaluationCanonicalJson(originalFence) !== serializeEvaluationCanonicalJson(fence)
+      )
+        throw new PolicyEvaluationRequestConflictError();
+      return { created: false, evaluation: original, snapshot: before };
+    }
+    const ownerKey = this.key(command.scope, evaluationId);
+    if (this.resultOwners.has(ownerKey)) throw new PolicyEvaluationRequestConflictError();
+    let evaluation: PolicyEvaluation | undefined;
+    const result = this.mutate(
+      command.scope,
+      fence.jobId,
+      (snapshot, now) => {
+        requirePolicyEvaluationLiveFence({
+          snapshot,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+          fence,
+        });
+        if (snapshot.job.stateVersion >= MAX_POLICY_EVALUATION_JOB_HISTORY_ENTRIES - 1)
+          throw new PolicyEvaluationJobHistoryError(
+            "Result publication has no operational history headroom",
+          );
+        const owning = {
+          scope: snapshot.job.scope,
+          jobId: fence.jobId,
+          request: snapshot.job.request,
+          snapshot: snapshot.job.snapshot!,
+        };
+        const { inputs } = validatePolicyEvaluationSnapshotRecord({
+          expected: owning,
+          record: stored.sealedInput!.record,
+          pageSet: stored.sealedInput!.pageSet,
+        });
+        const attempt = snapshot.attempts.at(-1);
+        if (
+          snapshot.job.status !== "running" ||
+          !attempt ||
+          snapshot.usage.ruleEvaluations - attempt.usageAtStart.ruleEvaluations <
+            inputs.rules.ruleCount
+        )
+          throw new PolicyEvaluationJobHistoryError(
+            "Result omitted its running attempt or prepaid whole rule work",
+          );
+        const definition = computeSealedPolicyEvaluation({
+          evaluationId,
+          expected: owning,
+          record: stored.sealedInput!.record,
+          pageSet: stored.sealedInput!.pageSet,
+        });
+        const digest = digestPolicyEvaluationDefinition(snapshot.job.scope, definition);
+        evaluation = PolicyEvaluationSchema.parse({
+          ...definition,
+          scope: snapshot.job.scope,
+          schemaVersion: "0.1",
+          definitionSha256: digest,
+          ...fence,
+          recordedAt: now,
+          recordedByPrincipalId: fence.workerId,
+        });
+        return completePolicyEvaluationJob({
+          snapshot,
+          now,
+          recoveryEpoch: this.recoveryEpoch,
+          fence,
+          result: { evaluationId, definitionSha256: digest },
+          ruleCount: definition.ruleCount,
+        });
+      },
+      (next) => ({
+        kind: "complete",
+        fence,
+        result: next.job.result!,
+        ruleCount: evaluation!.ruleCount,
+      }),
+      () => ({ evaluation: evaluation! }),
+      fence,
+    );
+    this.resultOwners.set(ownerKey, fence.jobId);
+    const checked = this.checkedResult(
+      this.records.get(this.key(command.scope, fence.jobId))!,
+      result,
+    );
+    return { created: true, evaluation: checked, snapshot: result };
+  }
+  async findResult(scope: EvidenceScope, jobId: string, pageSet: PolicyEvaluationSnapshotPageSet) {
+    const stored = this.records.get(this.key(scope, jobId));
+    if (!stored) return null;
+    const job = this.inspectStored(stored, scope, jobId);
+    if (!job.job.result) return null;
+    if (
+      !stored.sealedInput ||
+      serializeEvaluationCanonicalJson(pageSet) !==
+        serializeEvaluationCanonicalJson(stored.sealedInput.pageSet)
+    )
+      throw new PolicyEvaluationRequestConflictError();
+    return this.checkedResult(stored, job);
+  }
   private mutate(
     scope: EvidenceScope,
     id: string,
@@ -263,6 +633,11 @@ export class MemoryPolicyEvaluationJobRepository
     operation: (
       next: PolicyEvaluationJobSnapshot,
     ) => PolicyEvaluationJobHistoryEntryDefinition["operation"],
+    materialize?: (
+      next: PolicyEvaluationJobSnapshot,
+      now: string,
+    ) => Pick<StoredPolicyJob, "sealedInput" | "evaluation">,
+    commitFence?: PolicyEvaluationWorkerMutationFence,
   ) {
     const { key, snapshot, stored } = this.read(scope, id);
     const now = PolicyEvaluationTimeSchema.parse(this.clock.now());
@@ -288,12 +663,28 @@ export class MemoryPolicyEvaluationJobRepository
     replayPolicyEvaluationJobHistoryEntry(snapshot, entry);
     const page = Math.floor(entry.definition.sequence / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE);
     const nextStored: StoredPolicyJob = {
+      ...stored,
+      ...materialize?.(result, now),
       snapshot: result,
       latest: entry,
       pages: { ...stored.pages, [page]: [...(stored.pages[page] ?? []), entry] },
       outbox: [...stored.outbox, ...buildPolicyEvaluationJobOutboxIntents(snapshot, result)],
     };
     this.inspectStored(nextStored, scope, id);
+    if (nextStored.evaluation) this.checkedResult(nextStored, result);
+    if (commitFence) {
+      const commitNow = PolicyEvaluationTimeSchema.parse(this.clock.now());
+      if (policyEvaluationTimestampOrderKey(commitNow) < policyEvaluationTimestampOrderKey(now))
+        throw new PolicyEvaluationJobHistoryError(
+          "Memory commit clock precedes its contained publication receipt",
+        );
+      requirePolicyEvaluationLiveFence({
+        snapshot,
+        now: commitNow,
+        recoveryEpoch: this.recoveryEpoch,
+        fence: commitFence,
+      });
+    }
     this.records.set(key, nextStored);
     if (entry.definition.operation.kind === "reserve")
       this.reservations.set(

@@ -1,5 +1,9 @@
 # Native atomic policy result publication
 
+The later [exact reader and shared store conformance](workflow-2-policy-store-conformance.md)
+implements memory persistence and unchanged memory/native cases. Remaining checkpoint gates
+are recorded there; the historical prerequisite boundary below remains distinguishable.
+
 Workflow 2 checkpoint 3 remains open. Migration 0060 and
 `PostgresPolicyEvaluationResultRepository` publish one immutable result from an owning
 running job's original stored snapshot and complete retained pages. The internal port

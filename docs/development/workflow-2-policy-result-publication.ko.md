@@ -1,5 +1,8 @@
 # PostgreSQL 정책 결과의 원자적 게시
 
+후속 [정확 읽기와 저장소 공통 검증](workflow-2-policy-store-conformance.ko.md)은 메모리 저장과
+동일한 메모리/native 검증을 구현합니다. 이후 상태는 연결 문서에, 원래 증분의 경계는 아래에 보존합니다.
+
 Workflow 2 체크포인트 3은 아직 미완료입니다. 마이그레이션 0060과
 `PostgresPolicyEvaluationResultRepository`는 실행 중인 작업의 원래 저장된 스냅샷과
 전체 보존 페이지에서 불변 결과 하나를 계산하고 게시합니다. 내부 포트는 정확한 범위,

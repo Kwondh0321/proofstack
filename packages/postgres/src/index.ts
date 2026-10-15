@@ -125,6 +125,7 @@ export { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-
 export { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
 export { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
 export { PostgresPolicyAcquisitionRepository } from "./postgres-policy-acquisition-repository.js";
+export { PostgresPolicySnapshotRepository } from "./postgres-policy-snapshot-repository.js";
 export { PostgresPolicyEvaluationJobRecovery } from "./postgres-policy-evaluation-job-recovery.js";
 export { PostgresPolicyEvaluationJobContractError } from "./postgres-policy-evaluation-job-base.js";
 export { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";

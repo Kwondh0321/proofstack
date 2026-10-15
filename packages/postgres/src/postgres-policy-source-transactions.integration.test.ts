@@ -35,6 +35,8 @@ import {
   digestEvaluationImplementationRegistration,
   digestEvaluationRecordDefinition,
   digestPolicyEvaluationRequestDefinition,
+  digestPolicyEvaluationJobDefinition,
+  readCompletePolicyEvaluationSnapshot,
   digestProtocolDefinition,
   digestQualificationPolicy,
   digestReleaseCandidateDefinition,
@@ -68,6 +70,7 @@ import {
   releasePolicyFixtureScope,
   releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
+  policySnapshotResultRepositoryConformanceCases,
 } from "@proofstack/core/testing";
 import {
   digestRecordedInteractionFixtureVersionDefinition,
@@ -100,6 +103,7 @@ import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-
 import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
 import { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
 import { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
+import { PostgresPolicySnapshotRepository } from "./postgres-policy-snapshot-repository.js";
 import { PostgresPolicyAcquisitionRepository } from "./postgres-policy-acquisition-repository.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
@@ -855,7 +859,10 @@ async function fixture(
   };
 }
 
-async function nativeSealingHarness(leaseMilliseconds = 20000) {
+async function nativeSealingHarness(
+  leaseMilliseconds = 20000,
+  identities?: { jobId: string; snapshotId: string },
+) {
   const f = await fixture(true, true, true, true, false, false, true, true);
   // Separate least-privilege control/evaluator pools prove the actual native grants.
   const idleErrors: Error[] = [];
@@ -882,7 +889,7 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
   observedPools.push(pool, controlPool);
   const control = new PostgresPolicyEvaluationJobControlRepository(controlPool);
   const worker = new PostgresPolicyEvaluationJobWorkerRepository(pool);
-  const jobId = `job_${f.namespace}`;
+  const jobId = identities?.jobId ?? `job_${f.namespace}`;
   f.request.limits.leaseDurationMilliseconds = leaseMilliseconds;
   f.request.limits.heartbeatIntervalMilliseconds = Math.min(
     1000,
@@ -950,7 +957,7 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
       contentDependencies,
       {
         manifestId: `manifest_seal_${f.namespace}`,
-        snapshotId: `snapshot_seal_${f.namespace}`,
+        snapshotId: identities?.snapshotId ?? `snapshot_seal_${f.namespace}`,
         fence,
         transactions: sealTransactions,
         ...(artifactByteAdmission ? { artifactByteAdmission } : {}),
@@ -1043,6 +1050,172 @@ async function nativeResultHarness(paidRules = 7, leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("isolates identical job, snapshot and result IDs across three populated native tenants", async () => {
+    const identities = { jobId: "job_shared_collision", snapshotId: "snapshot_shared_collision" };
+    const published = await Promise.all(
+      Array.from({ length: 3 }, async () => {
+        const h = await nativeSealingHarness(20000, identities);
+        const sealed = await h.seal();
+        const expected = {
+          scope: h.f.scope,
+          job: { jobId: h.jobId, definitionSha256: sealed.job.job.definitionSha256 },
+          request: sealed.job.job.request,
+          snapshot: sealed.job.job.snapshot!,
+        };
+        const snapshots = new PostgresPolicySnapshotRepository(h.controlPool);
+        const original = await readCompletePolicyEvaluationSnapshot(snapshots, expected);
+        if (!original) throw new Error("Native collision fixture lost its exact original input");
+        const { inputs } = validatePolicyEvaluationSnapshotRecord({
+          expected: { ...expected, jobId: h.jobId },
+          record: original.snapshot,
+          pageSet: original.pageSet,
+        });
+        await h.worker.startComputation({ scope: h.f.scope, fence: h.fence });
+        await h.worker.reserveWork({
+          scope: h.f.scope,
+          fence: h.fence,
+          reservationId: "reservation_shared_collision",
+          delta: {
+            reads: 0,
+            records: 0,
+            references: 0,
+            recordBytes: 0,
+            referenceBytes: 0,
+            artifactReadBytes: 0,
+            ruleEvaluations: inputs.rules.ruleCount,
+          },
+        });
+        const results = new PostgresPolicyEvaluationResultRepository(h.pool);
+        const result = await results.publishResult({
+          scope: h.f.scope,
+          fence: h.fence,
+          evaluationId: "evaluation_shared_collision",
+          pageSet: original.pageSet,
+        });
+        return { h, expected, original, snapshots, results, result };
+      }),
+    );
+    expect(new Set(published.map(({ h }) => h.f.scope.tenantId)).size).toBe(3);
+    expect(new Set(published.map(({ expected }) => expected.snapshot.definitionSha256)).size).toBe(
+      3,
+    );
+    for (const { h, expected, original, snapshots, results, result } of published) {
+      expect(await readCompletePolicyEvaluationSnapshot(snapshots, expected)).toEqual(original);
+      expect(await results.findResult(h.f.scope, h.jobId, original.pageSet)).toEqual(
+        result.evaluation,
+      );
+      const foreign = published.find((value) => value.h.f.scope.tenantId !== h.f.scope.tenantId)!;
+      await expect(
+        snapshots.findSnapshot({ ...expected, scope: foreign.h.f.scope }),
+      ).rejects.toThrow();
+      await expect(
+        results.findResult(h.f.scope, h.jobId, foreign.original.pageSet),
+      ).rejects.toThrow();
+    }
+  });
+  for (const testcase of policySnapshotResultRepositoryConformanceCases)
+    it(`native shared snapshot/result: ${testcase.name}`, async () => {
+      const h = await nativeSealingHarness();
+      const snapshots = new PostgresPolicySnapshotRepository(h.controlPool);
+      let seeded = false;
+      await testcase.run({
+        control: h.control,
+        worker: h.worker,
+        snapshots,
+        results: new PostgresPolicyEvaluationResultRepository(h.pool),
+        async waitForRetry(retryAt) {
+          await admin.query(
+            "SELECT pg_sleep(LEAST(2,GREATEST(0,EXTRACT(EPOCH FROM ($1::timestamptz-clock_timestamp())))+0.01))",
+            [retryAt],
+          );
+        },
+        async seed() {
+          if (seeded) throw new Error("Shared cases seed one independent native graph");
+          seeded = true;
+          const sealed = await h.seal(undefined, undefined, {
+            repository: new PostgresPolicyAcquisitionRepository(h.pool),
+            allowanceId: `allowance_shared_${h.f.namespace}`,
+          });
+          const expected = {
+            scope: h.f.scope,
+            job: { jobId: h.jobId, definitionSha256: sealed.job.job.definitionSha256 },
+            request: sealed.job.job.request,
+            snapshot: sealed.job.job.snapshot!,
+          };
+          const original = await readCompletePolicyEvaluationSnapshot(snapshots, expected);
+          if (!original)
+            throw new Error("Native source publication has no retained original pages");
+          return {
+            scope: h.f.scope,
+            jobId: h.jobId,
+            fence: h.fence,
+            expected,
+            snapshot: sealed.snapshot,
+            pageSet: original.pageSet,
+            evaluationId: `evaluation_shared_${h.f.namespace}`,
+          };
+        },
+      });
+      expect(h.idleErrors).toEqual([]);
+    });
+  it("reads exact stored snapshot pages from the original seal after native result completion", async () => {
+    const h = await nativeResultHarness();
+    await h.results.publishResult(h.command);
+    const expected = {
+      scope: h.f.scope,
+      job: { jobId: h.jobId, definitionSha256: h.sealed.job.job.definitionSha256 },
+      request: h.sealed.job.job.request,
+      snapshot: h.sealed.job.job.snapshot!,
+    };
+    const original = await readCompletePolicyEvaluationSnapshot(
+      new PostgresPolicySnapshotRepository(h.controlPool),
+      expected,
+    );
+    expect(original).toEqual({ snapshot: h.sealed.snapshot, pageSet: h.pageSet });
+    expect(original?.snapshot.sealedAt).toBe(h.sealed.snapshot.sealedAt);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("never replaces a missing exact snapshot reference with its owning job's current seal", async () => {
+    const h = await nativeSealingHarness();
+    const sealed = await h.seal();
+    const expected = {
+      scope: h.f.scope,
+      job: { jobId: h.jobId, definitionSha256: sealed.job.job.definitionSha256 },
+      request: sealed.job.job.request,
+      snapshot: {
+        snapshotId: "snapshot_absent",
+        definitionSha256: sealed.snapshot.definitionSha256,
+      },
+    };
+    const reader = new PostgresPolicySnapshotRepository(h.controlPool);
+    expect(await reader.findSnapshot(expected)).toBeNull();
+    expect(await reader.readSnapshotPage(expected, 0)).toBeNull();
+    await expect(reader.readSnapshotPage(expected, -1)).rejects.toThrow();
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("keeps stored snapshot read identity isolated across tenant, project and environment", async () => {
+    const h = await nativeSealingHarness();
+    const sealed = await h.seal();
+    const reader = new PostgresPolicySnapshotRepository(h.controlPool);
+    for (const field of ["tenantId", "projectId", "environmentId"] as const) {
+      const scope = { ...h.f.scope, [field]: "scope_snapshot_other" };
+      const expected = {
+        scope,
+        job: {
+          jobId: h.jobId,
+          definitionSha256: digestPolicyEvaluationJobDefinition(scope, {
+            jobId: h.jobId,
+            request: sealed.job.job.request,
+          }),
+        },
+        request: sealed.job.job.request,
+        snapshot: sealed.job.job.snapshot!,
+      };
+      expect(await reader.findSnapshot(expected)).toBeNull();
+      expect(await reader.readSnapshotPage(expected, 0)).toBeNull();
+    }
+    expect(h.idleErrors).toEqual([]);
+  });
   it("unawaited held acquisition failure rolls back and cannot consume or close original credit", async () => {
     const h = await nativeSealingHarness();
     const acquisition = new PostgresPolicyAcquisitionRepository(h.pool);

@@ -738,6 +738,11 @@ resolution without modifying this immutable evidence.
 
 ## Durable jobs, authority, and recovery
 
+The [exact snapshot reader and shared store cases](workflow-2-policy-store-conformance.md)
+now retain complete original inputs and results in the memory store and exercise unchanged
+memory/native publication, cancellation and retry cases. This closes that bounded conformance
+slice; all-state recovery, actual worker/public boundaries and the independent exit remain open.
+
 The [native atomic result publication prerequisite](workflow-2-policy-result-publication.md)
 now computes from the original stored seal and complete pages, then commits the immutable result,
 closed deciding attempt, terminal job, complete history and canonical intent together. Its final
