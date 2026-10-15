@@ -58,9 +58,9 @@ pinned PostgreSQL/SeaweedFS and preserves all nine existing independent CI jobs.
 The required [PostgreSQL build handoff](postgres-integration-ci.md) keeps compilation outside the
 native PostgreSQL test job's unchanged time allowance and verifies exact source/output identity.
 
-This is concrete runtime composition, not a standalone executable or credential issuer/provider.
-The reference test uses local encryption keys and a synthetic credential catalogue; it establishes
-no production identity, key management, TLS deployment or OS isolation. The credential provider,
-finite executable, cross-process restart/crash/cancellation, all-state recovery, public API/SDK,
+The [reference executable and private credential provider](workflow-2-policy-worker-executable.md)
+now use this composition and have actual child-process evidence. Their local keys and synthetic
+credentials establish no production identity, key management, TLS deployment or OS isolation.
+Cross-process crash/reclaim/cancellation barriers, all-state recovery, public API/SDK,
 complete contributor flow and independent checkpoint exit audit remain required. It creates no
 queue, persistent goal or continuous scheduler and carries no release or deployment authority.

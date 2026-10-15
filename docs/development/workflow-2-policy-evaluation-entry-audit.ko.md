@@ -508,12 +508,14 @@ Decimal·rational 모두 정확한 unit을 보존한다. 계산 전에 임의 �
 [인증된 worker attempt library](workflow-2-policy-worker-attempt.ko.md)는 별도 service token 검증과
 실제 memory 저장소를 쓰는 단일 attempt 흐름을 추가합니다.
 [Native worker runtime](workflow-2-policy-worker-runtime.ko.md)은 필수 초기 소스·수집 비용·제한된
-S3·held 봉인·규칙 비용 포트를 연결하고 실제 PostgreSQL/S3로 검증합니다. 실행 파일·provider·
-process 간 검증은 남아 있으며 두 선행조건 모두 checkpoint 승인이나 상시 scheduler가 아닙니다.
+S3·held 봉인·규칙 비용 포트를 연결하고 실제 PostgreSQL/S3로 검증합니다.
+[Reference 실행 파일과 private provider](workflow-2-policy-worker-executable.ko.md)는 실제 child
+process 재시작/재조회와 인증 거부를 검증합니다. Crash/취소 barrier·전체 상태 복구·공개 경계·독립
+종료 감사는 남으며 이 선행조건들은 checkpoint 승인이나 상시 scheduler가 아닙니다.
 
 [초기 소스 읽기 어댑터](workflow-2-policy-initial-sources.ko.md)는 고정된 owning 읽기에 정확한
 열린 credit·native 만료·decoder 전 제한을 적용합니다. 위 runtime이 실제 연결을 설치하며 읽기별
-wire 한도와 job 전체 의미적 비용을 구별합니다. 전체 실행 파일과 기여자 검증은 남습니다.
+wire 한도와 job 전체 의미적 비용을 구별합니다. 전체 기여자 검증은 남습니다.
 
 [정확한 snapshot 읽기와 공통 저장소 검사](workflow-2-policy-store-conformance.ko.md)는 메모리의
 원본 입력·결과 보존과 동일한 메모리/native 게시·취소·재시도를 검증합니다. 이 범위의 공통

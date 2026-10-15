@@ -5,6 +5,9 @@
   "description": "Separately authenticated snapshot-bound policy worker",
   "license": "Apache-2.0",
   "type": "module",
+  "bin": {
+    "proofstack-policy-worker": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -16,6 +19,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli.js",
     "clean": "rm -rf coverage dist",
     "lint": "biome lint src",
     "test": "vitest run --coverage",

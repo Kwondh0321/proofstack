@@ -41,7 +41,8 @@
 [PostgreSQL 빌드 전달](postgres-integration-ci.ko.md)도 필수 작업으로 분리하며 기존 테스트 시간
 제한을 유지하고 소스와 산출물의 정확한 동일성을 검증합니다.
 
-실제 credential provider·독립 실행 파일·프로세스 재시작/crash/취소·전체 상태 복구·공개 API/SDK·
-완전한 기여자 흐름·독립 종료 감사가 남습니다. 테스트의 로컬 키와 합성 credential 카탈로그는
+[Reference 실행 파일과 private credential provider](workflow-2-policy-worker-executable.ko.md)가
+현재 조합을 사용하며 실제 child process 증거를 갖습니다. 프로세스 crash/reclaim/취소 barrier·
+전체 상태 복구·공개 API/SDK·완전한 기여자 흐름·독립 종료 감사는 남습니다. 로컬 키와 합성 credential은
 운영 신원·키 관리·TLS 배포·OS 격리를 입증하지 않습니다. 지속 목표·큐·연속 스케줄러를 만들지
 않으며 출시 결정이나 배포 권한도 제공하지 않습니다.

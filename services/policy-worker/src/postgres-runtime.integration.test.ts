@@ -1,4 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { CreateBucketCommand } from "@aws-sdk/client-s3";
 import {
   ArtifactCipher,
@@ -12,6 +17,7 @@ import { PrincipalContextSchema, type PolicyEvaluationRequest } from "@proofstac
 import {
   digestReleaseCandidateDefinition,
   digestPolicyEvaluationRequestDefinition,
+  readCompletePolicyEvaluationSnapshot,
 } from "@proofstack/core";
 import {
   releaseCandidateFixture,
@@ -32,6 +38,8 @@ import {
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
   PostgresPolicyEvaluationJobControlRepository,
+  PostgresPolicySnapshotRepository,
+  PostgresPolicyEvaluationResultRepository,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
 import { createS3ArtifactObjectStore, createS3Client } from "@proofstack/s3";
@@ -121,6 +129,8 @@ let request: PolicyEvaluationRequest;
 let encryptedBytes = 0;
 const objectReads: number[] = [];
 let resourcesClosed = 0;
+let credentialDirectory: string;
+let credentialFile: string;
 
 beforeAll(async () => {
   await migrateDatabase(admin);
@@ -239,11 +249,31 @@ beforeAll(async () => {
     confirmActiveServiceUse: async (expected) =>
       JSON.stringify(expected) === JSON.stringify(record),
   });
+  credentialDirectory = await mkdtemp(join(tmpdir(), "proofstack-native-worker-credentials-"));
+  await chmod(credentialDirectory, 0o700);
+  credentialFile = join(credentialDirectory, "credentials.json");
+  await writeFile(
+    credentialFile,
+    JSON.stringify({
+      schemaVersion: "0.1",
+      revision: "catalogue_native",
+      credentials: [
+        {
+          ...record,
+          status: "active",
+          notBefore: new Date(Date.now() - 60000).toISOString(),
+          expiresAt: new Date(Date.now() + 600000).toISOString(),
+        },
+      ],
+    }),
+    { mode: 0o600, flag: "wx" },
+  );
 });
 afterAll(async () => {
   objects.destroy();
   bucketClient.destroy();
   await Promise.all([api.end(), author.end(), controlPool.end(), admin.end()]);
+  if (credentialDirectory) await rm(credentialDirectory, { recursive: true, force: true });
   // The uniquely named disposable service fixture retains DB/object data for diagnostics.
   expect(idleErrors).toEqual([]);
 });
@@ -300,6 +330,79 @@ function execute(
     },
   );
 }
+async function queued(suffix: string) {
+  const jobId = `job_${suffix}_${tag}`;
+  const next = { ...request, evaluationRequestId: `request_${suffix}_${tag}` };
+  const {
+    definitionSha256: _sha,
+    scope: _scope,
+    schemaVersion: _version,
+    createdAt: _at,
+    createdByPrincipalId: _actor,
+    ...definition
+  } = next;
+  next.definitionSha256 = digestPolicyEvaluationRequestDefinition(scope, definition);
+  const created = await control.createJob({ request: next, jobId });
+  return { jobId, created: created.snapshot };
+}
+function child(jobId: string, serviceToken = token.value) {
+  const p = "PROOFSTACK_POLICY_WORKER_";
+  const environment: NodeJS.ProcessEnv = {
+    PROOFSTACK_ENV: "test",
+    AWS_EC2_METADATA_DISABLED: "true",
+    [p + "SERVICE_TOKEN"]: serviceToken,
+    [p + "CREDENTIALS_FILE"]: credentialFile,
+    [p + "DATABASE_URL"]: roleUrl(roles.policyEvaluator!),
+    [p + "DATABASE_ROLE"]: roles.policyEvaluator!.name,
+    [p + "S3_BUCKET"]: bucket,
+    [p + "S3_REGION"]: connection.region,
+    [p + "S3_ENDPOINT"]: connection.endpoint,
+    [p + "S3_FORCE_PATH_STYLE"]: "true",
+    [p + "S3_ACCESS_KEY_ID"]: connection.credentials.accessKeyId,
+    [p + "S3_SECRET_ACCESS_KEY"]: connection.credentials.secretAccessKey,
+    [p + "KEYRING_ACTIVE_KEY_ID"]: "key_policy_runtime",
+    [p + "KEYRING_KEYS"]: JSON.stringify({
+      key_policy_runtime: Buffer.alloc(32, 73).toString("base64url"),
+    }),
+  };
+  return new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [
+        fileURLToPath(new URL("../dist/cli.js", import.meta.url)),
+        "execute",
+        scope.projectId,
+        scope.environmentId,
+        jobId,
+      ],
+      {
+        cwd: fileURLToPath(new URL("../", import.meta.url)),
+        env: environment,
+        timeout: 20000,
+        maxBuffer: 65536,
+      },
+      (error, stdout, stderr) => {
+        if (error && typeof error.code !== "number") {
+          reject(new Error("Owned policy worker process failed to run"));
+          return;
+        }
+        const output = stdout + stderr;
+        const secrets = [
+          token.value,
+          serviceToken,
+          connection.credentials.secretAccessKey,
+          Buffer.alloc(32, 73).toString("base64url"),
+          environment[p + "KEYRING_KEYS"]!,
+        ];
+        if (secrets.some((secret) => output.includes(secret))) {
+          reject(new Error("Owned policy worker output exposed private fixture data"));
+          return;
+        }
+        resolve({ code: (error?.code as number) ?? 0, stdout, stderr });
+      },
+    );
+  });
+}
 describe("real native policy worker composition with encrypted S3", () => {
   it("captures actual bytes outside SQL, seals and completes atomically, then reobserves the immutable result", async () => {
     const jobId = `job_runtime_${tag}`;
@@ -343,5 +446,77 @@ describe("real native policy worker composition with encrypted S3", () => {
     ).rejects.toThrow();
     expect(await control.findJob(scope, jobId)).toEqual(created.snapshot);
     expect(objectReads).toHaveLength(reads);
+  });
+  it("runs the actual executable with private file authentication and retains original result on process restart", async () => {
+    const { jobId } = await queued("process");
+    const first = await child(jobId);
+    expect(first.code).toBe(0);
+    expect(first.stderr).toBe("");
+    const receipt = JSON.parse(first.stdout);
+    expect(receipt).toMatchObject({
+      schemaVersion: "0.1",
+      disposition: "completed",
+      scope,
+      job: { jobId, status: "completed" },
+    });
+    const original = (await control.findJob(scope, jobId))!;
+    expect(original.attempts).toHaveLength(1);
+    const material = await readCompletePolicyEvaluationSnapshot(
+      new PostgresPolicySnapshotRepository(controlPool),
+      {
+        scope,
+        job: { jobId, definitionSha256: original.job.definitionSha256 },
+        request: original.job.request,
+        snapshot: original.job.snapshot!,
+      },
+    );
+    expect(material).not.toBeNull();
+    const evaluation = await new PostgresPolicyEvaluationResultRepository(controlPool).findResult(
+      scope,
+      jobId,
+      material!.pageSet,
+    );
+    expect(evaluation).not.toBeNull();
+    expect(receipt.result).toEqual(original.job.result);
+    expect(receipt.snapshot).toEqual(original.job.snapshot);
+    expect(receipt.ruleOutcomes).toEqual(
+      Object.fromEntries(
+        ["satisfied", "violated", "indeterminate", "not_applicable"].map((outcome) => [
+          outcome,
+          evaluation!.rules.filter((rule) => rule.outcome === outcome).length,
+        ]),
+      ),
+    );
+    expect(receipt.ruleOutcomes.indeterminate).toBeGreaterThan(0);
+    expect(original.usage.artifactReadBytes).toBeGreaterThanOrEqual(encryptedBytes);
+    expect(original.usage.ruleEvaluations).toBe(evaluation!.rules.length);
+    const second = await child(jobId);
+    expect(second.code).toBe(0);
+    expect(JSON.parse(second.stdout)).toMatchObject({
+      disposition: "observed_terminal",
+      result: original.job.result,
+      snapshot: original.job.snapshot,
+    });
+    expect(await control.findJob(scope, jobId)).toEqual(original);
+  });
+  it("refuses a wrong process token without writing any job state or fees", async () => {
+    const { jobId, created } = await queued("bad_token");
+    const denied = await child(jobId, `pss_v1_${token.prefix}_${generateServiceToken().secret}`);
+    expect(denied.code).toBe(1);
+    expect(denied.stdout).toBe("");
+    expect(denied.stderr).toContain("Policy worker command failed");
+    expect(await control.findJob(scope, jobId)).toEqual(created);
+  });
+  it("refuses insecure credential file permissions in a separate process before job writes", async () => {
+    const { jobId, created } = await queued("bad_permissions");
+    await chmod(credentialFile, 0o644);
+    try {
+      const denied = await child(jobId);
+      expect(denied.code).toBe(1);
+      expect(denied.stdout).toBe("");
+      expect(await control.findJob(scope, jobId)).toEqual(created);
+    } finally {
+      await chmod(credentialFile, 0o600);
+    }
   });
 });

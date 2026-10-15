@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { generateApiKey } from "./api-key.js";
 import {
+  browserSessionDigest,
+  generateBrowserSessionCredentials,
+  OidcSecretFormatError,
+} from "./oidc-secrets.js";
+import {
   generateServiceToken,
   parseServiceToken,
   hashServiceTokenSecret,
@@ -30,6 +35,14 @@ describe("separate service token wire format and shared secret verification", ()
   );
   it("rejects API keys rather than relabeling their namespace", () => {
     expect(() => parseServiceToken(generateApiKey().value)).toThrow(ServiceTokenFormatError);
+  });
+  it("rejects an actual browser session despite its shared top-level prefix", () => {
+    expect(() => parseServiceToken(generateBrowserSessionCredentials().sessionToken)).toThrow(
+      ServiceTokenFormatError,
+    );
+  });
+  it("does not parse the two-component service wire format as a browser session", () => {
+    expect(() => browserSessionDigest(generateServiceToken().value)).toThrow(OidcSecretFormatError);
   });
   it.each(["prefix", "secret"] as const)("rejects noncanonical final bits in %s", (field) => {
     const token = generateServiceToken(() => new Uint8Array(48));

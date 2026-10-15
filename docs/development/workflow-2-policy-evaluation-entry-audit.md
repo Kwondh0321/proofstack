@@ -742,8 +742,10 @@ The [authenticated worker attempt library](workflow-2-policy-worker-attempt.md) 
 service-token verification and owning single-attempt orchestration with real memory cases.
 The [native worker runtime](workflow-2-policy-worker-runtime.md) installs the mandatory initial
 source, acquisition, bounded S3, held sealing and paid result ports with real PostgreSQL/S3 cases.
-The executable, provider and cross-process acceptance remain required; neither prerequisite
-accepts this checkpoint or creates a continuous scheduler.
+The [reference executable and private credential provider](workflow-2-policy-worker-executable.md)
+add actual child-process restart/readback and authentication denial cases. Deterministic crash/
+cancellation barriers, all-state recovery, public boundaries and independent exit remain required;
+these prerequisites do not accept the checkpoint or create a continuous scheduler.
 
 The [exact snapshot reader and shared store cases](workflow-2-policy-store-conformance.md)
 now retain complete original inputs and results in the memory store and exercise unchanged

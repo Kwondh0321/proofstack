@@ -4,7 +4,7 @@ export default defineConfig({
     exclude: ["src/**/*.integration.test.ts", "node_modules/**"],
     fileParallelism: false,
     coverage: {
-      exclude: ["src/**/*.test.ts", "src/index.ts", "src/test-support.ts"],
+      exclude: ["src/**/*.test.ts", "src/index.ts", "src/cli.ts", "src/test-support.ts"],
       include: ["src/**/*.ts"],
       provider: "v8",
       reporter: ["text", "json-summary"],

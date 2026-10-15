@@ -4,7 +4,7 @@
 
 구현 선행 조건입니다. Workflow 2 checkpoint 3은 아직 열려 있고 공식 승인은 2/7입니다.
 
-`@proofstack/identity`에 별도 `pss_v1` service token namespace를 추가했습니다. 공개 prefix는
+`@proofstack/identity`에 별도 `pss_v1` service token wire 형식을 추가했습니다. 공개 prefix는
 canonical 16byte, 비밀은 32byte이고 발급에는 암호학적 난수를 사용합니다. 기존의 제한된
 scrypt-v1 및 timing-safe 검증만 재사용하며 API credential parser·lookup·위임 grant는 분리합니다.
 원본 token을 소스·URL·로그·job delivery에 넣지 않습니다. Hash lookup은 서버 소유의 권한
@@ -15,6 +15,8 @@ provider이며 사용자가 제출한 principal JSON이 아닙니다.
 Provider는 비활성·철회·변경된 record를 거부해야 하며 조회/확인 오류로 인증을 통과할 수 없습니다.
 API 발급/위임 route를 추가하거나 `WorkloadCapabilitySchema`를 확대하지 않습니다. 이 library만으로
 실제 provider·provisioning·revocation 가용성이 입증되지는 않습니다.
+Browser session과 상위 prefix는 같지만 session은 고정 길이 성분 1개, service token은 성분
+2개입니다. 양쪽의 엄격한 parser가 다른 credential의 전체 형식을 거부합니다.
 
 별도 `@proofstack/policy-worker`의 `runPolicyWorkerAttempt`는 strict delivery를 읽거나 runtime을
 만들기 전에 service token과 실행 권한을 확인합니다. Delivery에는 schema version·project·environment·
@@ -41,7 +43,8 @@ Memory seal 포트는 composition 모델이며 native guard나 S3 transport 증�
 [rule 비용 확보](workflow-2-policy-rule-reservations.ko.md)의 증거는 별도로 유지합니다.
 
 이번 변경은 library 경계이며 [native runtime](workflow-2-policy-worker-runtime.ko.md)의
-PostgreSQL/S3 증거는 별도로 유지합니다. Credential provider·worker 실행 파일,
+PostgreSQL/S3 증거는 별도로 유지합니다. [Reference 실행 파일과 private provider](workflow-2-policy-worker-executable.ko.md)는
+실제 프로세스 증거를 가지며,
 process 간 crash/취소 검증·모든 상태의 복구·공개 API/SDK·실서비스 contributor 명령·독립 exit audit는
 남아 있습니다. 함수 호출은 지속 목표·queue·상시 scheduler를 만들지 않으며 배포·운영 identity·
 OS 격리·운영 준비 완료를 주장하지 않습니다.
