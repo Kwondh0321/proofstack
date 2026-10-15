@@ -105,6 +105,8 @@ service/workload/model/development 자격증명이나 요청의 역할·사람 �
 기존 migration 0061 이후 새 번호를 확인해 전진 추가하며 병합된 ledger는 수정하지 않는다.
 [설치 소유 선택 계약 선행 작업](workflow-2-policy-selection-contracts.ko.md)은 첫 선택·참조·
 생명주기와 canonical vector를 고정한다. 현재 권한·저장·승인·결정 게시의 완료는 아니다.
+[reviewer·승인 계약과 내부 배정 선행 작업](workflow-2-release-approval-contracts.ko.md)은 원래
+인증 영수증과 유한 그룹 증거를 보존한다. 실제 인증·현재 권한이나 체크포인트 4의 완료는 아니다.
 원본 멱등 영수증, normalized/projected 동일성, outbox 충돌 전체 rollback, 3 tenant 같은 ID,
 권한/session/선택 철회와 게시 경쟁, 만료·pool 정리·복원 검증이 필요하다.
 

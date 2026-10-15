@@ -1,0 +1,213 @@
+{
+  "format": "proofstack.release-approval-definition.v1",
+  "vectors": [
+    {
+      "name": "synthetic-independent-reviewer-authority",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "authorityId": "authority_release_reviewer",
+          "authorityVersionId": "authority_release_reviewer_v1",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "installationId": "installation_checkout",
+          "gateTargetId": "gate_checkout_staging",
+          "reviewerPrincipalId": "user_release_reviewer",
+          "issuerPrincipalId": "user_reviewer_administrator",
+          "roleIds": ["release_reviewer", "security_reviewer"],
+          "independenceGroupIds": ["group_release_review", "group_security_review"],
+          "reviewerKind": "human",
+          "assurance": "synthetic_reference",
+          "status": "verified",
+          "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+          "relationships": [],
+          "conflicts": [],
+          "statusReasons": [],
+          "reviewBasis": [
+            {
+              "artifactId": "artifact_synthetic_reviewer_basis",
+              "classification": "internal",
+              "mediaType": "application/json",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sizeBytes": 512
+            }
+          ],
+          "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "expiresAt": "2026-10-16T00:00:00.000001Z"
+        }
+      },
+      "encodedByteLength": 1374,
+      "sha256": "f201e357681a71012bc3179b2b67b4a28948a8fc7af6aa0b05fe8929b97a626c"
+    },
+    {
+      "name": "server-derived-original-normal-approval",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "approvalId": "approval_checkout_normal",
+          "kind": "normal_approval",
+          "action": "approve",
+          "subject": {
+            "scope": {
+              "environmentId": "env_staging",
+              "projectId": "project_checkout",
+              "tenantId": "tenant_example"
+            },
+            "selection": {
+              "selectionId": "selection_checkout",
+              "selectionVersionId": "selection_checkout_v1",
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "definitionSha256": "87972818ae7ba175fc64d2f24122fbf4485b905c3181c44435619ee18e4e1124"
+            },
+            "candidate": {
+              "candidateId": "candidate_checkout",
+              "candidateVersionId": "candidate_checkout_v1",
+              "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "policy": {
+              "policyId": "policy_checkout",
+              "policyVersionId": "policy_checkout_v1",
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "request": {
+              "evaluationRequestId": "request_checkout",
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "snapshot": {
+              "snapshotId": "snapshot_checkout",
+              "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "evaluation": {
+              "evaluationId": "evaluation_checkout",
+              "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            },
+            "jobId": "job_checkout",
+            "ruleId": "rule_approval"
+          },
+          "rationale": "Approve this exact synthetic reference subject; 운영 승인이 아닙니다.",
+          "conditions": [],
+          "compensatingControls": [],
+          "declaredConflicts": [],
+          "expiresAt": "2026-10-15T11:00:00.000001Z",
+          "reviewer": {
+            "principalId": "user_release_reviewer",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T10:00:00.000Z",
+            "credentialId": "session_release_reviewer",
+            "requestId": "request_release_approval"
+          },
+          "authority": {
+            "authorityId": "authority_release_reviewer",
+            "authorityVersionId": "authority_release_reviewer_v1",
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging",
+            "reviewerPrincipalId": "user_release_reviewer",
+            "definitionSha256": "f201e357681a71012bc3179b2b67b4a28948a8fc7af6aa0b05fe8929b97a626c"
+          },
+          "recordedAt": "2026-10-15T10:00:05.000001Z"
+        }
+      },
+      "encodedByteLength": 2307,
+      "sha256": "91ae92598f4241bd03d0c6b1e878d3814c47767f22f41a85a6bfef1894379386"
+    },
+    {
+      "name": "exact-known-rule-exception",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "approvalId": "approval_checkout_exception",
+          "kind": "rule_exception",
+          "action": "approve",
+          "subject": {
+            "scope": {
+              "environmentId": "env_staging",
+              "projectId": "project_checkout",
+              "tenantId": "tenant_example"
+            },
+            "selection": {
+              "selectionId": "selection_checkout",
+              "selectionVersionId": "selection_checkout_v1",
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "definitionSha256": "87972818ae7ba175fc64d2f24122fbf4485b905c3181c44435619ee18e4e1124"
+            },
+            "candidate": {
+              "candidateId": "candidate_checkout",
+              "candidateVersionId": "candidate_checkout_v1",
+              "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "policy": {
+              "policyId": "policy_checkout",
+              "policyVersionId": "policy_checkout_v1",
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "request": {
+              "evaluationRequestId": "request_checkout",
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "snapshot": {
+              "snapshotId": "snapshot_checkout",
+              "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "evaluation": {
+              "evaluationId": "evaluation_checkout",
+              "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            },
+            "jobId": "job_checkout",
+            "ruleId": "rule_known_waivable_violation"
+          },
+          "rationale": "A synthetic scoped exception claim with retained control evidence, not automatic control verification.",
+          "conditions": [],
+          "compensatingControls": [
+            {
+              "artifactId": "artifact_synthetic_control",
+              "classification": "internal",
+              "mediaType": "application/json",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sizeBytes": 512
+            }
+          ],
+          "declaredConflicts": [],
+          "expiresAt": "2026-10-15T11:00:00.000001Z",
+          "reviewer": {
+            "principalId": "user_release_reviewer",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T10:00:00.000Z",
+            "credentialId": "session_release_reviewer",
+            "requestId": "request_release_approval"
+          },
+          "authority": {
+            "authorityId": "authority_release_reviewer",
+            "authorityVersionId": "authority_release_reviewer_v1",
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging",
+            "reviewerPrincipalId": "user_release_reviewer",
+            "definitionSha256": "f201e357681a71012bc3179b2b67b4a28948a8fc7af6aa0b05fe8929b97a626c"
+          },
+          "recordedAt": "2026-10-15T10:00:05.000001Z"
+        }
+      },
+      "encodedByteLength": 2543,
+      "sha256": "903a74bd6b3e1d9619cbad4ff9012f3958a39bcc819ae89a5acae566328e7f23"
+    }
+  ]
+}

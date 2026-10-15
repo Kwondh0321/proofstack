@@ -208,6 +208,9 @@ A pure computed report alone cannot publish a decision or claim this checkpoint 
 The [installation-owned selection contract prerequisite](workflow-2-policy-selection-contracts.md)
 freezes the first bounded selection/reference/lifecycle and canonical-vector slice. It does not
 close current authority, persistence, approval or decision publication requirements below.
+The [reviewer/approval contracts and internal assignment prerequisite](workflow-2-release-approval-contracts.md)
+retain original authenticated receipts and bounded group witnesses. They do not authenticate an
+actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
