@@ -189,7 +189,7 @@ jobs:
 
       # Keep all suites sharing the isolated database serial, with the original time limits.
       - name: Run PostgreSQL integration tests
-        run: pnpm test:integration:postgres
+        run: pnpm test:integration:postgres --only
 
   workflow-1:
     name: Workflow 1 clean-checkout acceptance

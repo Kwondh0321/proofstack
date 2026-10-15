@@ -7,6 +7,11 @@ compilation does not consume the native test job's original 15-minute allowance.
 required. The exact seven preparation filters, bounded build concurrency, frozen installation,
 pinned services, seven serial integration targets, assertions and test timeouts are unchanged.
 The full quality job still builds and checks the complete workspace separately.
+After restoring verified outputs, CI passes Turbo's `--only` to the existing native command:
+all seven integration tasks still run serially while their 22 build prerequisites come from the
+required preparation job. Without that flag, a fresh test runner would compile them again because
+the transfer deliberately contains no Turbo task cache. The ordinary contributor command keeps
+its original build dependencies.
 
 Preparation packs only generated `dist` directories under the workspace package/application roots
 plus the source SHA. It excludes dependency trees and Next caches. An immutable, attempt-specific
