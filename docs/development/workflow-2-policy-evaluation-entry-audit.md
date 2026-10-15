@@ -3,18 +3,19 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
-- Status: accepted for implementation entry; checkpoint remains open
+- Status: frozen implementation entry requirements; completion is recorded in the linked audit
 - Reviewed: 2026-09-07
 - Dependency: policy-definition acceptance at `4f6372c48013c7136eb2b46585c99f926bc95729`
 - Architecture: [ADR-0021](../architecture/0021-separate-release-policy-authority.md) and
   [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md)
 - Approval, decisions, attestations, CI enforcement, deployment, and production readiness: excluded
 
-The prerequisite notes below preserve each slice's original scope and limitations. Current installed
-worker composition and [all-state native recovery](workflow-2-policy-job-recovery.md) have separate
-real-service evidence. Public API/OpenAPI/SDK, complete contributor acceptance and the independent
-exit audit remain open; historical prerequisite wording does not undo later implemented boundaries
-or accept checkpoint 3.
+The prerequisite notes below preserve each slice's original scope and limitations, including
+historical open-status and 2/7 counts. The later
+[completion audit](workflow-2-policy-evaluation-audit.md) records the bounded implementation,
+requirement-by-requirement evidence, corrected failures, exact-commit publication gate and remaining
+decision/approval limits. This entry and its historical notes do not replace that completion gate
+or the current roadmap.
 
 ## Entry decision and dependency evidence
 

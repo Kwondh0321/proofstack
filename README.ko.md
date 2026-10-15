@@ -31,9 +31,10 @@ ProofStack은 AI 에이전트를 관찰하고, 재현하고, 평가하고, 통�
 > 불변 release candidate와 versioned release policy definition도 엄격한 contract, authority
 > 해석, 전용 PostgreSQL role, append-only storage, HTTP/OpenAPI, SDK, recovery, clean-checkout
 > restart 경계를 통과합니다. 기준 흐름의 policy source·reviewer record와 installation registry는
-> synthetic이며, 발행은 candidate를 평가하거나 무엇을 승인·집행·release하지 않습니다. SDK는
-> package registry에 배포되지 않았습니다. 콘솔 로그인 연동, policy evaluation, approval,
-> decision, release gate도 완성된 기능으로 표시하지 않습니다.
+> synthetic이며, 정의 발행은 candidate를 평가하거나 무엇을 승인·집행·release하지 않습니다.
+> 명시적으로 요청한 정책 평가는 guarded sealed input·정확한 규칙 증거·별도 worker 권한·제한된
+> API/SDK·복구·인증된 기여자 검사를 보존합니다. SDK는 package registry에 배포되지 않았습니다.
+> 콘솔 로그인 연동, approval, decision, release gate도 완성된 기능으로 표시하지 않습니다.
 
 ## ProofStack이 필요한 이유
 
@@ -332,7 +333,7 @@ approval, decision, attestation, CI enforcement, deployment, production-readines
 않으면서 보존 source, reviewer, installation, 발행, 철회, restart 경로를 실행합니다.
 완료된 [정책 정의 감사](docs/development/workflow-2-policy-definition-audit.ko.md)는 Workflow 2
 두 번째 체크포인트의 승인, 해결한 교차검증 발견 사항, 정확한 커밋의 발행 gate, 유지하는
-한계를 기록합니다. 다음은 결정론적 정책 평가의 진입 검토이며, 정의 승인이 정책의 올바름,
+한계를 기록합니다. 정책 평가는 별도 완료 조건을 따르며, 정의 승인이 정책의 올바름,
 충족 여부, 출시 권한을 증명하지는 않습니다.
 [정책 평가 진입 감사](docs/development/workflow-2-policy-evaluation-entry-audit.ko.md)는 고정 입력
 선택, 정확한 연산, 누락 처리, 선언적 승인 전제조건, 별도 worker 권한, 영속 실행과 acceptance
@@ -369,7 +370,11 @@ Workflow 2 경계로 구현되고 검증되었습니다.
 [승인 완료 검증 수정](docs/development/workflow-acceptance-completion.ko.md)은 이전 모드 전달의
 한계를 보존하고 요청한 분기의 정확한 완료 증거를 요구합니다.
 [인증된 정책 기여자 흐름](docs/development/workflow-2-policy-evaluation-acceptance.ko.md)은
-보존 그래프·범위 제한 API 키 SDK·별도 워커를 연결하며 checkpoint 3의 독립 exit audit은 남아 있습니다.
+보존 그래프·범위 제한 API 키 SDK·별도 워커를 연결합니다.
+[정책 평가 완료 감사](docs/development/workflow-2-policy-evaluation-audit.ko.md)는 요구사항별
+증거·실패 수정·정확한 커밋의 게시 조건·한계를 기록하며 제한된 세 번째 checkpoint를 승인합니다.
+게시 조건을 통과한 뒤 책임 있는 결정과 범위가 제한된 승인 단계에 진입합니다. 과거
+선행조건 문서의 범위는 이 감사나 현재 로드맵을 대체하지 않습니다.
 기준 흐름은 synthetic
 evidence와 결정적 local model provider를 사용할 뿐,
 OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer

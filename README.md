@@ -34,8 +34,10 @@ evaluating, governing, and safely releasing AI agents.
 > append-only storage, HTTP/OpenAPI, SDK, recovery, and clean-checkout restart boundaries. Policy
 > source and reviewer records and the installation registry in the reference flow remain
 > synthetic; publication does not evaluate a candidate or approve, enforce, or release anything.
-> The SDK is not published to a package registry. Console sign-in integration, policy evaluation,
-> approval, decision, and release gates are intentionally not represented as complete.
+> Explicitly requested policy evaluation now retains guarded sealed inputs, exact rule evidence,
+> separate worker authority, bounded API/SDK, recovery and authenticated contributor checks.
+> The SDK is not published to a package registry. Console sign-in integration, approval, decision,
+> and release gates are intentionally not represented as complete.
 
 ## Why ProofStack
 
@@ -334,12 +336,15 @@ policy-evaluation, approval, decision, attestation, CI-enforcement, deployment, 
 production-readiness claims. The completed
 [policy-definition audit](docs/development/workflow-2-policy-definition-audit.md) records the second
 Workflow 2 checkpoint's acceptance, closed cross-check findings, exact-commit publication gate,
-and retained limits. Deterministic policy-evaluation entry review is next; definition acceptance
-does not establish that a policy is correct, satisfied, or authorized for a release.
+and retained limits. Definition acceptance does not establish that a policy is correct, satisfied,
+or authorized for a release; subsequent evaluation has its own completion gate.
 The [policy-evaluation entry audit](docs/development/workflow-2-policy-evaluation-entry-audit.md)
 fixes sealed input selection, exact arithmetic, missingness, declarative approval prerequisites,
 separate worker authority, durable execution, and acceptance gates. It approves implementation
-entry only, not an implemented evaluator or a release decision. The
+entry only. The later [policy-evaluation audit](docs/development/workflow-2-policy-evaluation-audit.md)
+accepts the bounded third checkpoint subject to its exact-commit publication gate; accountable
+decisions and approvals remain next. The historical prerequisite notes below retain their original
+scope and do not replace that audit or the current roadmap. The
 [comparison-selection building block](docs/development/workflow-2-policy-evaluation-comparison-selection.md)
 now accounts for the candidate's complete declared comparison set and preserves unique, missing,
 ambiguous, and unresolved mappings without claiming complete lineage validation or a sealed input.
@@ -375,8 +380,8 @@ and clean-checkout acceptance are implemented and tested as a definition-only Wo
 The [acceptance completion correction](docs/development/workflow-acceptance-completion.md)
 records the earlier mode-forwarding limitation and requires exact requested-mode evidence.
 The [authenticated policy contributor](docs/development/workflow-2-policy-evaluation-acceptance.md)
-connects the retained graph, scoped API-key SDK and separate worker; checkpoint 3 still requires
-its independent exit audit.
+connects the retained graph, scoped API-key SDK and separate worker. Its requirement-by-requirement
+exit evidence is recorded in the policy-evaluation audit above.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
 The reference flows record synthetic evidence and use a deterministic local model provider;

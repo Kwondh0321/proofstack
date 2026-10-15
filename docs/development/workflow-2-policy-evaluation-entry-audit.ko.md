@@ -3,10 +3,10 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
-아래 선행조건 기록은 각 변경 당시의 범위와 한계를 보존합니다. 현재 설치된 worker 조합과
-[전체 상태 네이티브 복구](workflow-2-policy-job-recovery.ko.md)는 별도 실제 서비스 증거가 있습니다.
-공개 API/OpenAPI/SDK·완전한 기여자 검증·독립 종료 감사는 남아 있습니다. 과거 선행조건의 미구현
-문구가 뒤에 구현된 경계를 취소하거나 checkpoint 3을 승인하는 것은 아닙니다.
+아래 선행조건 기록은 각 변경 당시의 범위·한계·미완료 상태와 2/7 수치를 보존합니다.
+이후 [완료 감사](workflow-2-policy-evaluation-audit.ko.md)는 제한된 구현, 요구사항별 증거,
+실패와 수정, 정확한 커밋의 게시 조건, 남은 결정·승인 경계를 기록합니다. 이 진입 문서와
+과거 선행조건 기록은 완료 감사의 게시 조건이나 현재 로드맵을 대체하지 않습니다.
 
 [원래 저장 관계 검사](workflow-2-policy-stored-relationships.ko.md)는 원래
 membership, fixture promotion, replay 의존성/이력, evaluation snapshot과 model/human assurance를 검사하고 실제 receipt와

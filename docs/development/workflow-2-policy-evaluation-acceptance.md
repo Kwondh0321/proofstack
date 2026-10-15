@@ -2,9 +2,10 @@
 
 [English](workflow-2-policy-evaluation-acceptance.md) | [한국어](workflow-2-policy-evaluation-acceptance.ko.md)
 
-Status: contributor implementation under verification. Workflow 2 checkpoint 3 remains open
-until its independent requirement-by-requirement exit audit; later decisions and approvals are
-separate checkpoints. A completed evaluation is not release approval or deployment authority.
+Status: contributor boundary accepted by the
+[checkpoint 3 completion audit](workflow-2-policy-evaluation-audit.md), subject to its exact-commit
+publication gate. Later decisions and approvals remain separate checkpoints. A completed
+evaluation is not release approval or deployment authority.
 
 ## Run the isolated command
 

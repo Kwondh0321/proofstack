@@ -160,7 +160,7 @@ Goal: make regression evidence enforceable in delivery pipelines.
 - [x] Immutable candidate release linking exact code, build artifacts, prompts, tools, models,
   datasets, evaluations, and comparisons.
 - [x] Versioned policy model with exact applicability plus advisory and mandatory modes.
-- [ ] Deterministic policy evaluation with explicit thresholds, units, statistical guardrails,
+- [x] Deterministic policy evaluation with explicit thresholds, units, statistical guardrails,
   missingness, and indeterminate outcomes.
 - [ ] Accountable release decisions and scoped human approval records for high-impact exceptions.
 - [ ] Verifiable signed decision attestations with exact subjects, trust roots, validity, and
@@ -190,15 +190,21 @@ the second checkpoint are fixed by the
 [versioned policy definition entry audit](../development/workflow-2-policy-definition-entry-audit.md).
 The completed [policy-definition audit](../development/workflow-2-policy-definition-audit.md)
 accepts the bounded definition, source and installation authority, immutable lifecycle, dedicated
-author role, exact API/SDK, isolation, recovery, and contributor flow. Its exact-commit publication
-gate must pass before deterministic policy-evaluation entry review begins. Policy evaluation,
-approval, decision, attestation, CI enforcement, deployment, and production readiness remain open.
+author role, exact API/SDK, isolation, recovery, and contributor flow. Its acceptance did not
+establish policy evaluation or release authority; those require their own subsequent gates.
 The exact input cut, definition-to-result binding, arithmetic, missingness, prerequisite handling,
 separate control/worker authority, durable jobs, race matrix, and exit gates for the third
 checkpoint are fixed by the
 [policy-evaluation entry audit](../development/workflow-2-policy-evaluation-entry-audit.md) and
-[ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md). This checkpoint remains open;
-entry approval does not claim implemented policy evaluation or release authority.
+[ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md). The completed
+[deterministic policy-evaluation audit](../development/workflow-2-policy-evaluation-audit.md)
+accepts the third bounded checkpoint, subject to its exact-commit publication gate: complete
+guarded sealed inputs, exact ordered rules, finite durable jobs, separate worker authority,
+atomic results, bounded API/SDK, all-state recovery and authenticated contributor acceptance.
+Workflow 2 is **3/7 accepted checkpoints** after that publication gate, a checkpoint count rather
+than an effort percentage. Only then may accountable-decision and scoped-approval entry work begin.
+Approval, decision, attestation, CI enforcement, rollback, deployment and production readiness
+remain separate open boundaries.
 
 ## Scale and ecosystem
 

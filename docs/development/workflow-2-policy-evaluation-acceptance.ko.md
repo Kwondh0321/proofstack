@@ -2,8 +2,9 @@
 
 [English](workflow-2-policy-evaluation-acceptance.md) | [한국어](workflow-2-policy-evaluation-acceptance.ko.md)
 
-상태: 기여자 구현 검증 중입니다. 요구사항별 독립 exit audit 전까지 Workflow 2 checkpoint 3은
-열려 있습니다. 평가 완료는 배포 승인이나 사람의 승인을 뜻하지 않습니다.
+상태: [checkpoint 3 완료 감사](workflow-2-policy-evaluation-audit.ko.md)가 기여자 경계를 승인하며
+해당 감사의 정확한 커밋 게시 조건을 적용합니다. 결정과 승인은 후속 checkpoint입니다.
+평가 완료는 배포 승인이나 사람의 승인을 뜻하지 않습니다.
 
 ## 격리 실행
 
