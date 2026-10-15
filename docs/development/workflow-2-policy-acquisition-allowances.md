@@ -1,7 +1,8 @@
 # Policy metadata acquisition allowances
 
 Workflow 2 checkpoint 3 remains open. This workspace-only prerequisite defines owning
-metadata credit and settlement; the existing capture/sealing entry does not yet use it.
+metadata credit and settlement; [optional internal capture wiring](workflow-2-policy-acquisition-capture.md)
+uses it without claiming worker, transport or checkpoint acceptance.
 It introduces no public route, worker executable, approval or production composition.
 
 `PolicyEvaluationAcquisitionRepository.reserveAcquisition` commits one allowance before
@@ -40,8 +41,9 @@ restore fixture retains an open allowance and independently reconstructs its con
 closure, original billing record, attempt, job and history after epoch advancement.
 Transport fault models test corrupted acknowledgements; they are not native SQL evidence.
 
-Next connect the allowance to one bounded, drained acquisition meter, enforce every remaining
-limit before I/O, and settle through the same held client before guarded snapshot publication.
+The optional composition connects one bounded, drained meter and settles through the same
+held client before guarded snapshot publication; its guide distinguishes response admission
+from still-required complete physical transport accounting.
 Failure/ambiguous costs must remain charged when publication rolls back. Complete shared
 snapshot/result conformance, executable worker, public API/SDK, contributor acceptance and
 the independent [entry-audit exit gates](workflow-2-policy-evaluation-entry-audit.md) before

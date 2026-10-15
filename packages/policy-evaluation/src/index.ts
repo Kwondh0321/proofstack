@@ -101,3 +101,7 @@ export {
   type PolicyArtifactByteAdmission,
   type PolicyArtifactBoundedReader,
 } from "./artifact-byte-admission.js";
+export {
+  PolicyAcquisitionAdmissionError,
+  type PolicyAcquisitionAdmission,
+} from "./acquisition-admission.js";

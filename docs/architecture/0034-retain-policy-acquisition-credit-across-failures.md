@@ -30,10 +30,11 @@ checks; deferred commit checks retain native expiry and recovery authority even 
 unknown settlement clears its lease. Owner recovery/cancellation may conservatively close
 expired credit without reviving execution. No runtime table DML or private helper grant is added.
 
-The next composition must apply remaining meter limits before I/O and settle on the same
-guarded client before snapshot publication. Publication rollback must retain the separately
+The [optional internal capture composition](../development/workflow-2-policy-acquisition-capture.md)
+applies remaining read/response limits and settles on the same guarded client before snapshot
+publication. Publication rollback must retain the separately
 committed credit; uncertain acknowledgements require authoritative reads, never automatic
-retries or refunded work. This prerequisite does not yet wire that capture path.
+retries or refunded work. Complete physical transport accounting remains a separate entry gate.
 
 ## Consequences
 

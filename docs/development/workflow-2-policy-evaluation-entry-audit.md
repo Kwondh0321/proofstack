@@ -749,7 +749,9 @@ and the independent exit audit remain required. Workflow 2 remains 2/7 accepted 
 
 The [acquisition allowance prerequisite](workflow-2-policy-acquisition-allowances.md) defines
 committed metadata credit, drained settlement and conservative uncertain-cost recovery.
-Its capture/sealing integration remains pending and does not accept this checkpoint.
+The [optional acquisition capture composition](workflow-2-policy-acquisition-capture.md)
+settles drained metadata on the held client before sealing and retains costs across rollback.
+Response admission does not establish complete wire/list accounting; this checkpoint remains open.
 
 The [per-invocation rule reservation composition](workflow-2-policy-rule-reservations.md)
 now commits a fresh whole-count reservation before native calculation/publication and refuses

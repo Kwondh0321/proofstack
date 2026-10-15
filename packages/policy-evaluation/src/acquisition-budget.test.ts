@@ -17,6 +17,89 @@ const limits = PolicyEvaluationExecutionLimitsSchema.parse({
 });
 
 describe("record acquisition budget", () => {
+  it("tracks a pre-I/O read-cap rejection and drains it without inventing uncertain work", async () => {
+    const budget = new AcquisitionBudget(limits, {
+      reads: 0,
+      records: 1,
+      references: 0,
+      recordAndReferenceBytes: 4,
+    });
+    const read = vi.fn(async () => null);
+    // Deliberately do not await this port before draining, as a failed sibling can return first.
+    const rejected = budget.wrap({ read }).read();
+    await budget.settle();
+    await expect(rejected).rejects.toMatchObject({ reason: "record_limit" });
+    expect(read).not.toHaveBeenCalled();
+    expect(budget.metadataUsage()).toEqual({
+      reads: 0,
+      records: 0,
+      references: 0,
+      recordBytes: 0,
+      referenceBytes: 0,
+    });
+  });
+  it("enforces remaining independent caps without replacing the frozen request", async () => {
+    const budget = new AcquisitionBudget(limits, {
+      reads: 1,
+      records: 3,
+      references: 1,
+      recordAndReferenceBytes: 9,
+    });
+    const read = vi.fn(async () => null);
+    await budget.wrap({ read }).read();
+    await expect(budget.wrap({ read }).read()).rejects.toMatchObject({ reason: "record_limit" });
+    budget.addReferences(1, 5);
+    expect(() => budget.addReferences(1, 0)).toThrow(PolicyRecordGraphError);
+    expect(() => budget.addReferences(0, 1)).toThrow(PolicyRecordGraphError);
+    await budget.settle();
+    expect(budget.metadataUsage()).toEqual({
+      reads: 1,
+      records: 1,
+      references: 1,
+      recordBytes: 4,
+      referenceBytes: 5,
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(limits.maxAcquisitionRecords).toBe(1000);
+  });
+  it("retains uncertainty after failed started metadata I/O and drains its sibling", async () => {
+    const budget = new AcquisitionBudget(limits);
+    let release!: () => void;
+    const sibling = new Promise<null>((resolve) => {
+      release = () => resolve(null);
+    });
+    const pending = budget.wrap({ read: () => sibling }).read();
+    await expect(
+      budget
+        .wrap({
+          read: async () => {
+            throw new Error("unavailable");
+          },
+        })
+        .read(),
+    ).rejects.toThrow("unavailable");
+    expect(() => budget.metadataUsage()).toThrow(PolicyRecordGraphError);
+    let drained = false;
+    const draining = budget.settle().then(() => {
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+    release();
+    await pending;
+    await draining;
+    expect(budget.metadataUsage()).toBeNull();
+  });
+  it("cannot enlarge remaining credit above its original owning limits", () => {
+    for (const field of ["reads", "records", "references", "recordAndReferenceBytes"] as const) {
+      const remaining = { reads: 1, records: 1, references: 1, recordAndReferenceBytes: 1 };
+      remaining[field] =
+        (field === "recordAndReferenceBytes"
+          ? limits.maxAcquisitionRecordBytes
+          : limits.maxAcquisitionRecords) + 1;
+      expect(() => new AcquisitionBudget(limits, remaining)).toThrow(PolicyRecordGraphError);
+    }
+  });
   it("reserves exact trace rows before I/O, including absent observations", async () => {
     const budget = new AcquisitionBudget({ ...limits, maxAcquisitionRecords: 4 });
     const resolveExactEvents = vi.fn(async (_scope, _trace, _ids) => null);

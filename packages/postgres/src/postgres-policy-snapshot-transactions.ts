@@ -6,6 +6,8 @@ import {
   encodePolicyEvaluationSnapshotPageDefinition,
   PolicyEvaluationTimeSchema,
   PolicyEvaluationWorkerMutationFenceSchema,
+  PolicyEvaluationAcquisitionUsageSchema,
+  OpaqueIdSchema,
   policyEvaluationTimestampOrderKey,
   serializeEvaluationCanonicalJson,
   type PolicyEvaluationJobSnapshot,
@@ -13,6 +15,7 @@ import {
 import {
   validatePolicyEvaluationSnapshot,
   validatePolicyEvaluationSnapshotRecord,
+  settlePolicyEvaluationAcquisition,
 } from "@proofstack/core";
 import type {
   PolicyEvaluationSnapshotSealingTransactions,
@@ -108,7 +111,7 @@ export class PostgresPolicySnapshotTransactions
       this.pool,
       async (client) => {
         await this.admitMigrations(client, migrations);
-        const previous = this.inspect(
+        let previous = this.inspect(
           await this.one(
             client,
             "SELECT public.proofstack_policy_snapshot_prepare($1::jsonb) AS value",
@@ -118,12 +121,14 @@ export class PostgresPolicySnapshotTransactions
           fence.jobId,
         );
         await this.admitSealBudget(client, previous);
-        const latest = await this.lastOnClient(client, scope, previous);
+        let latest = await this.lastOnClient(client, scope, previous);
         await this.verifyIntents(client, previous);
         let active = true,
           failed = false,
           failure: unknown,
-          publicationStarted = false;
+          publicationStarted = false,
+          settlementStarted = false,
+          settlementCompleted = false;
         const pending = new Set<Promise<unknown>>();
         const call = <Result>(work: () => Promise<Result>): Promise<Result> => {
           if (!active)
@@ -156,9 +161,59 @@ export class PostgresPolicySnapshotTransactions
           const ports: PolicyEvaluationSnapshotSealingPorts = {
             sources: sourcePorts.sources,
             ...sourcePorts.createMetadata(),
+            settleAcquisition: (id, observed) =>
+              call(async () => {
+                if (publicationStarted || settlementStarted || !previous.acquisitionAllowance)
+                  throw new PostgresPolicyEvaluationJobContractError(
+                    "Acquisition settlement has no unspent owning port",
+                  );
+                settlementStarted = true;
+                const allowanceId = OpaqueIdSchema.parse(id);
+                const usage = PolicyEvaluationAcquisitionUsageSchema.parse(observed);
+                await this.admitWorkerBudget(client, previous, fence);
+                const next = this.inspect(
+                  await this.one(
+                    client,
+                    "SELECT public.proofstack_settle_policy_acquisition($1::jsonb,$2,$3::jsonb) AS value",
+                    [JSON.stringify(fence), allowanceId, JSON.stringify(usage)],
+                  ),
+                  scope,
+                  fence.jobId,
+                );
+                const expected = settlePolicyEvaluationAcquisition({
+                  snapshot: previous,
+                  now: next.job.updatedAt,
+                  recoveryEpoch: fence.recoveryEpoch,
+                  fence,
+                  allowanceId,
+                  usage,
+                });
+                if (
+                  serializeEvaluationCanonicalJson(next) !==
+                  serializeEvaluationCanonicalJson(expected)
+                )
+                  throw new PostgresPolicyEvaluationJobContractError(
+                    "Held settlement changed its owning transition",
+                  );
+                latest = await this.append(client, previous, latest, next, {
+                  kind: "settle_acquisition",
+                  fence,
+                  allowanceId,
+                  usage,
+                });
+                previous = next;
+                await this.admitSealBudget(client, previous);
+                settlementCompleted = true;
+                return next;
+              }),
             publishSnapshot: (definition, principalId) =>
               call(async () => {
-                if (publicationStarted || principalId !== fence.workerId)
+                if (
+                  publicationStarted ||
+                  principalId !== fence.workerId ||
+                  previous.acquisitionAllowance ||
+                  (settlementStarted && !settlementCompleted)
+                )
                   throw new PostgresPolicyEvaluationJobContractError(
                     "Policy snapshot publication identity or lifetime is invalid",
                   );

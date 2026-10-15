@@ -72,6 +72,7 @@ import {
   PolicyArtifactByteAdmissionError,
   PolicyArtifactByteReservations,
 } from "./artifact-byte-admission.js";
+import type { PolicyAcquisitionAdmission } from "./acquisition-admission.js";
 import {
   capturePolicyArtifactEvidence,
   capturePolicySnapshotInputs,
@@ -4611,7 +4612,15 @@ async function sealingHarness(now: () => string = () => observedAt) {
     runSealing: async (command, operation) => {
       expect(command).toEqual({ scope, fence });
       return f.metadataTransactions.runMetadata(command.scope, (ports) =>
-        operation({ ...ports, publishSnapshot: publish }),
+        operation({
+          ...ports,
+          publishSnapshot: publish,
+          settleAcquisition: async (allowanceId, usage) => {
+            expect(f.state.phase).toBe("inside");
+            f.calls.push("settle_metadata");
+            return jobs.settleAcquisition({ scope, fence, allowanceId, usage });
+          },
+        }),
       );
     },
   };
@@ -4619,6 +4628,7 @@ async function sealingHarness(now: () => string = () => observedAt) {
     input: unknown = request,
     principal = actor,
     artifactByteAdmission?: PolicyArtifactByteAdmission,
+    acquisitionAdmission?: PolicyAcquisitionAdmission,
   ) =>
     sealPolicyEvaluationSnapshot(
       input,
@@ -4632,6 +4642,7 @@ async function sealingHarness(now: () => string = () => observedAt) {
         fence,
         transactions,
         ...(artifactByteAdmission ? { artifactByteAdmission } : {}),
+        ...(acquisitionAdmission ? { acquisitionAdmission } : {}),
       },
     );
   return { ...f, request, actor, claimed, fence, publish, transactions, run, jobs };
@@ -4652,6 +4663,162 @@ function admissionFor(f: Awaited<ReturnType<typeof sealingHarness>>) {
   };
   return { admission, reserveWork };
 }
+function acquisitionAdmissionFor(f: Awaited<ReturnType<typeof sealingHarness>>) {
+  const reserveAcquisition = vi.fn(
+    async (command: Parameters<MemoryPolicyEvaluationJobRepository["reserveAcquisition"]>[0]) => {
+      expect(f.state.phase).toBe("outside");
+      f.calls.push("reserve_metadata");
+      return f.jobs.reserveAcquisition(command);
+    },
+  );
+  const findJob = vi.fn(f.jobs.findJob.bind(f.jobs));
+  const settleAcquisition = vi.fn(f.jobs.settleAcquisition.bind(f.jobs));
+  const admission: PolicyAcquisitionAdmission = {
+    allowanceId: "allowance_capture",
+    repository: { findJob, reserveAcquisition, settleAcquisition },
+  };
+  return { admission, findJob, reserveAcquisition, settleAcquisition };
+}
+describe("owning metadata acquisition admission during sealing", () => {
+  it("requires artifact read authority before malformed input or committing acquisition credit", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    await expect(
+      f.run(
+        { malformed: true },
+        { ...f.actor, capabilities: ["policy:evaluation:execute"] },
+        undefined,
+        a.admission,
+      ),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect(a.findJob).not.toHaveBeenCalled();
+    expect(a.reserveAcquisition).not.toHaveBeenCalled();
+    expect(a.settleAcquisition).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+  it("waits for held publication before the outer acquisition drain finishes", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    let reached!: () => void, release!: () => void;
+    const publishing = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const publish = f.publish.getMockImplementation()!;
+    f.publish.mockImplementationOnce(async (...args) => {
+      reached();
+      await barrier;
+      return publish(...args);
+    });
+    const settle = AcquisitionBudget.prototype.settle;
+    const phases: string[] = [];
+    const spy = vi.spyOn(AcquisitionBudget.prototype, "settle").mockImplementation(async function (
+      this: AcquisitionBudget,
+    ) {
+      phases.push(f.state.phase);
+      await settle.call(this);
+    });
+    const running = f.run(f.request, f.actor, undefined, a.admission);
+    try {
+      await Promise.race([
+        publishing,
+        running.then(() => {
+          throw new Error("Publication barrier was not reached");
+        }),
+      ]);
+      expect(phases).not.toContain("committed");
+      release();
+      await running;
+      expect(phases.at(-1)).toBe("committed");
+    } finally {
+      release();
+      await Promise.allSettled([running]);
+      spy.mockRestore();
+    }
+  });
+  it("burns unknown started metadata costs after draining and preserves the original capture failure", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    f.h.root.mockRejectedValueOnce(new Error("metadata-read-failed"));
+    await expect(f.run(f.request, f.actor, undefined, a.admission)).rejects.toThrow();
+    expect(a.settleAcquisition).toHaveBeenCalledTimes(1);
+    expect(a.settleAcquisition.mock.calls[0]![0].usage).toBeNull();
+    const retained = await f.jobs.findJob(scope, f.fence.jobId);
+    expect(retained?.job.status).toBe("budget_exhausted");
+    expect(retained?.acquisitionAllowance).toBeNull();
+    expect(retained?.usage.reads).toBe(f.request.limits.maxAcquisitionRecords);
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+  it("validates the independent failure-settlement receipt and retains both errors when it is forged", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    f.h.root.mockResolvedValueOnce(null);
+    a.settleAcquisition.mockImplementation(async (command) => {
+      const actual = await f.jobs.settleAcquisition(command);
+      return { ...actual, usage: { ...actual.usage, reads: 0 } };
+    });
+    const error = await f
+      .run(f.request, f.actor, undefined, a.admission)
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toHaveLength(2);
+    expect((error as AggregateError).errors[1]).toMatchObject({
+      code: "policy_acquisition_admission_invalid",
+    });
+    expect((await f.jobs.findJob(scope, f.fence.jobId))?.usage.reads).toBeGreaterThan(0);
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+  it("commits credit outside guards then settles known costs on the held port before publication", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    const sealed = await f.run(f.request, f.actor, undefined, a.admission);
+    expect(sealed.job.job.status).toBe("sealed");
+    expect(sealed.job.acquisitionAllowance).toBeNull();
+    expect(sealed.job.usage.reads).toBeGreaterThan(0);
+    expect(sealed.job.usage.recordBytes + sealed.job.usage.referenceBytes).toBeGreaterThan(0);
+    expect(a.reserveAcquisition).toHaveBeenCalledTimes(1);
+    expect(a.settleAcquisition).not.toHaveBeenCalled();
+    expect(f.calls.indexOf("reserve_metadata")).toBeLessThan(f.calls.indexOf("settle_metadata"));
+    expect(f.calls.indexOf("settle_metadata")).toBeLessThan(f.calls.indexOf("publish_snapshot"));
+  });
+  it("retains separately prepaid artifact bytes alongside exact metadata costs", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    const artifacts = admissionFor(f);
+    const sealed = await f.run(f.request, f.actor, artifacts.admission, a.admission);
+    expect(sealed.job.usage.artifactReadBytes).toBeGreaterThan(0);
+    expect(sealed.job.usage.reads).toBeGreaterThan(0);
+    expect(a.settleAcquisition).not.toHaveBeenCalled();
+  });
+  it("authorizes before malformed input, owning credit or any source dependency", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    await expect(
+      f.run({ bad: true }, { ...f.actor, capabilities: ["artifact:read"] }, undefined, a.admission),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect(a.findJob).not.toHaveBeenCalled();
+    expect(a.reserveAcquisition).not.toHaveBeenCalled();
+    expect(a.settleAcquisition).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+  it("refuses pre-existing open credit before any new acquisition", async () => {
+    const f = await sealingHarness();
+    const a = acquisitionAdmissionFor(f);
+    await f.jobs.reserveAcquisition({
+      scope,
+      fence: f.fence,
+      allowanceId: a.admission.allowanceId,
+    });
+    for (const spy of [f.h.find, f.h.get, f.h.root, f.h.exact]) spy.mockClear();
+    await expect(f.run(f.request, f.actor, undefined, a.admission)).rejects.toMatchObject({
+      code: "policy_acquisition_admission_invalid",
+    });
+    for (const spy of [f.h.find, f.h.get, f.h.root, f.h.exact]) expect(spy).not.toHaveBeenCalled();
+    expect(a.reserveAcquisition).not.toHaveBeenCalled();
+  });
+});
 describe("worker artifact byte reservations before physical object attempts", () => {
   it("never rounds submillisecond native remaining time up into a physical read window", async () => {
     let nativeTime = observedAt;

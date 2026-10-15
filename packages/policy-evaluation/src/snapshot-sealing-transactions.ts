@@ -4,6 +4,7 @@ import type {
   PolicyEvaluationSnapshot,
   PolicyEvaluationSnapshotPageSet,
   PolicyEvaluationWorkerMutationFence,
+  PolicyEvaluationAcquisitionUsage,
 } from "@proofstack/contracts";
 import type { PolicyEvaluationMetadataPorts } from "./metadata-transactions.js";
 
@@ -13,6 +14,11 @@ export interface PolicyEvaluationSnapshotSealReceipt {
 }
 /** Trusted worker composition only. Page definitions are produced internally while guards are held. */
 export interface PolicyEvaluationSnapshotSealingPorts extends PolicyEvaluationMetadataPorts {
+  /** Fixed same-client settlement; no independent transaction while this port holds the job. */
+  settleAcquisition?(
+    allowanceId: string,
+    usage: PolicyEvaluationAcquisitionUsage,
+  ): Promise<PolicyEvaluationJobSnapshot>;
   publishSnapshot(
     definition: PolicyEvaluationSnapshotPageSet,
     principalId: string,

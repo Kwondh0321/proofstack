@@ -87,6 +87,7 @@ import {
   type PolicyEvaluationMetadataTransactions,
   type PolicyEvaluationSnapshotSealingTransactions,
   type PolicyArtifactByteAdmission,
+  type PolicyAcquisitionAdmission,
   PolicyArtifactByteAdmissionError,
   type PolicyEvaluationSourceRecheckPorts,
   type PolicyEvaluationSourceTransactions,
@@ -99,6 +100,7 @@ import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-
 import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
 import { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
 import { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
+import { PostgresPolicyAcquisitionRepository } from "./postgres-policy-acquisition-repository.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
@@ -938,6 +940,7 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
   const seal = (
     sealTransactions: PolicyEvaluationSnapshotSealingTransactions = transactions,
     artifactByteAdmission?: PolicyArtifactByteAdmission,
+    acquisitionAdmission?: PolicyAcquisitionAdmission,
   ) =>
     sealPolicyEvaluationSnapshot(
       created.snapshot.request,
@@ -951,6 +954,7 @@ async function nativeSealingHarness(leaseMilliseconds = 20000) {
         fence,
         transactions: sealTransactions,
         ...(artifactByteAdmission ? { artifactByteAdmission } : {}),
+        ...(acquisitionAdmission ? { acquisitionAdmission } : {}),
       },
     );
   return {
@@ -1039,6 +1043,153 @@ async function nativeResultHarness(paidRules = 7, leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("unawaited held acquisition failure rolls back and cannot consume or close original credit", async () => {
+    const h = await nativeSealingHarness();
+    const acquisition = new PostgresPolicyAcquisitionRepository(h.pool);
+    const before = (
+      await acquisition.reserveAcquisition({
+        scope: h.f.scope,
+        fence: h.fence,
+        allowanceId: `allowance_${h.f.namespace}`,
+      })
+    ).snapshot;
+    const head = await h.worker.findHistoryHead(h.f.scope, h.jobId);
+    await expect(
+      h.transactions.runSealing({ scope: h.f.scope, fence: h.fence }, async (ports) => {
+        if (!ports.settleAcquisition) throw new Error("Missing fixed port");
+        void ports.settleAcquisition("allowance_wrong", {
+          reads: 0,
+          records: 0,
+          references: 0,
+          recordBytes: 0,
+          referenceBytes: 0,
+        });
+        return "ignored-failure";
+      }),
+    ).rejects.toThrow();
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+    expect(await h.worker.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("expired held acquisition ports cannot settle retained credit after their transaction", async () => {
+    const h = await nativeSealingHarness();
+    const acquisition = new PostgresPolicyAcquisitionRepository(h.pool);
+    const before = (
+      await acquisition.reserveAcquisition({
+        scope: h.f.scope,
+        fence: h.fence,
+        allowanceId: `allowance_${h.f.namespace}`,
+      })
+    ).snapshot;
+    const ports = await h.transactions.runSealing(
+      { scope: h.f.scope, fence: h.fence },
+      async (ports) => ports,
+    );
+    if (!ports.settleAcquisition) throw new Error("Missing fixed port");
+    await expect(
+      ports.settleAcquisition(`allowance_${h.f.namespace}`, {
+        reads: 0,
+        records: 0,
+        references: 0,
+        recordBytes: 0,
+        referenceBytes: 0,
+      }),
+    ).rejects.toThrow("expired");
+    expect(await h.worker.findJob(h.f.scope, h.jobId)).toEqual(before);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("settles owning acquisition credit on the guarded sealing client before snapshot publication", async () => {
+    const h = await nativeSealingHarness();
+    const admission: PolicyAcquisitionAdmission = {
+      repository: new PostgresPolicyAcquisitionRepository(h.pool),
+      allowanceId: `allowance_${h.f.namespace}`,
+    };
+    const sealed = await h.seal(undefined, undefined, admission);
+    expect(sealed.job.job.status).toBe("sealed");
+    expect(sealed.job.acquisitionAllowance).toBeNull();
+    expect(sealed.job.usage.reads).toBeGreaterThan(0);
+    const retained = await admin.query(
+      "SELECT state,observed_usage FROM public.proofstack_policy_acquisition_allowances WHERE job_id=$1",
+      [h.jobId],
+    );
+    expect(retained.rows).toEqual([
+      {
+        state: "observed",
+        observed_usage: {
+          reads: sealed.job.usage.reads,
+          records: sealed.job.usage.records,
+          references: sealed.job.usage.references,
+          recordBytes: sealed.job.usage.recordBytes,
+          referenceBytes: sealed.job.usage.referenceBytes,
+        },
+      },
+    ]);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("retains exact drained acquisition charges after whole native snapshot publication rollback", async () => {
+    const h = await nativeSealingHarness();
+    const admission: PolicyAcquisitionAdmission = {
+      repository: new PostgresPolicyAcquisitionRepository(h.pool),
+      allowanceId: `allowance_${h.f.namespace}`,
+    };
+    const failing: PolicyEvaluationSnapshotSealingTransactions = {
+      runSealing: (command, operation) =>
+        h.transactions.runSealing(command, (ports) =>
+          operation({
+            ...ports,
+            publishSnapshot: async (definition, principal) => {
+              await ports.publishSnapshot(definition, principal);
+              throw new Error("after-native-seal");
+            },
+          }),
+        ),
+    };
+    await expect(h.seal(failing, undefined, admission)).rejects.toThrow("after-native-seal");
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current?.job.status).toBe("acquiring");
+    expect(current?.job.snapshot).toBeNull();
+    expect(current?.acquisitionAllowance).toBeNull();
+    expect(current?.usage.reads).toBeGreaterThan(0);
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*)::int AS count FROM public.proofstack_policy_evaluation_snapshots WHERE job_id=$1",
+          [h.jobId],
+        )
+      ).rows,
+    ).toEqual([{ count: 0 }]);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("caught held settlement failure taints the transaction and preserves independently settled costs", async () => {
+    const h = await nativeSealingHarness();
+    const admission: PolicyAcquisitionAdmission = {
+      repository: new PostgresPolicyAcquisitionRepository(h.pool),
+      allowanceId: `allowance_${h.f.namespace}`,
+    };
+    const failing: PolicyEvaluationSnapshotSealingTransactions = {
+      runSealing: (command, operation) =>
+        h.transactions.runSealing(command, (ports) =>
+          operation({
+            ...ports,
+            settleAcquisition: async (id, usage) => {
+              if (!ports.settleAcquisition) throw new Error("Missing fixed port");
+              try {
+                await ports.settleAcquisition("allowance_wrong", usage);
+              } catch {
+                /* Caught failures must still prohibit commit. */
+              }
+              return ports.settleAcquisition(id, usage);
+            },
+          }),
+        ),
+    };
+    await expect(h.seal(failing, undefined, admission)).rejects.toThrow();
+    const current = await h.worker.findJob(h.f.scope, h.jobId);
+    expect(current?.job.snapshot).toBeNull();
+    expect(current?.acquisitionAllowance).toBeNull();
+    expect(current?.usage.reads).toBeGreaterThan(0);
+    expect(h.idleErrors).toEqual([]);
+  });
   it("commits every policy rule invocation before native result publication", async () => {
     const h = await nativeResultHarness(0);
     const result = await publishPolicyEvaluationWithReservedRules(

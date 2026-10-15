@@ -1,4 +1,8 @@
-import type { PolicyEvaluationExecutionLimits } from "@proofstack/contracts";
+import {
+  PolicyEvaluationAcquisitionLimitsSchema,
+  type PolicyEvaluationAcquisitionLimits,
+  type PolicyEvaluationExecutionLimits,
+} from "@proofstack/contracts";
 
 export class PolicyRecordGraphError extends Error {
   readonly code = "policy_record_graph_failed";
@@ -31,7 +35,43 @@ export class AcquisitionBudget {
   private artifactReceivedBytes = 0;
   private artifactChargedBytes = 0;
   private readonly pending = new Set<Promise<unknown>>();
-  constructor(private readonly limits: PolicyEvaluationExecutionLimits) {}
+  private readonly metadataLimits: PolicyEvaluationAcquisitionLimits;
+  private uncertainMetadata = false;
+  constructor(
+    private readonly limits: PolicyEvaluationExecutionLimits,
+    remaining?: PolicyEvaluationAcquisitionLimits,
+    private readonly requireLive?: () => void,
+  ) {
+    this.metadataLimits = PolicyEvaluationAcquisitionLimitsSchema.parse(
+      remaining ?? {
+        reads: limits.maxAcquisitionRecords,
+        records: limits.maxAcquisitionRecords,
+        references: limits.maxAcquisitionRecords,
+        recordAndReferenceBytes: limits.maxAcquisitionRecordBytes,
+      },
+    );
+    if (
+      this.metadataLimits.reads > limits.maxAcquisitionRecords ||
+      this.metadataLimits.records > limits.maxAcquisitionRecords ||
+      this.metadataLimits.references > limits.maxAcquisitionRecords ||
+      this.metadataLimits.recordAndReferenceBytes > limits.maxAcquisitionRecordBytes
+    )
+      throw new PolicyRecordGraphError("record_limit");
+  }
+
+  /** A failed/unmeasurable started metadata response cannot establish refundable actual costs. */
+  metadataUsage() {
+    if (this.pending.size !== 0) throw new PolicyRecordGraphError("observation_conflict");
+    return this.uncertainMetadata
+      ? null
+      : {
+          reads: this.reads,
+          records: this.records,
+          references: this.references,
+          recordBytes: this.bytes,
+          referenceBytes: this.referenceBytes,
+        };
+  }
 
   async settle() {
     // A dual-format fixture read can start both ports before one rejects. Never return from graph
@@ -69,6 +109,7 @@ export class AcquisitionBudget {
   ): Promise<Uint8Array | null> {
     return this.track(
       (async () => {
+        this.requireLive?.();
         if (
           !Number.isSafeInteger(expectedBytes) ||
           expectedBytes < 1 ||
@@ -100,21 +141,21 @@ export class AcquisitionBudget {
   }
 
   private charge(bytes: number) {
-    if (bytes > this.limits.maxAcquisitionRecordBytes - this.bytes - this.referenceBytes)
+    if (bytes > this.metadataLimits.recordAndReferenceBytes - this.bytes - this.referenceBytes)
       throw new PolicyRecordGraphError("byte_limit");
     this.bytes += bytes;
   }
 
   private reserveRecords(count: number) {
-    if (count > this.limits.maxAcquisitionRecords - this.records)
+    if (count > this.metadataLimits.records - this.records)
       throw new PolicyRecordGraphError("record_limit");
     this.records += count;
   }
 
   addReferences(count: number, bytes: number) {
-    if (count > this.limits.maxAcquisitionRecords - this.references)
+    if (count > this.metadataLimits.references - this.references)
       throw new PolicyRecordGraphError("reference_limit");
-    if (bytes > this.limits.maxAcquisitionRecordBytes - this.bytes - this.referenceBytes)
+    if (bytes > this.metadataLimits.recordAndReferenceBytes - this.bytes - this.referenceBytes)
       throw new PolicyRecordGraphError("byte_limit");
     this.references += count;
     this.referenceBytes += bytes;
@@ -127,13 +168,18 @@ export class AcquisitionBudget {
         const method: unknown = Reflect.get(target, property);
         if (typeof method !== "function") return method;
         return (...args: unknown[]) => {
+          let ioStarted = false;
           const task = (async () => {
+            this.requireLive?.();
+            if (this.reads >= this.metadataLimits.reads)
+              throw new PolicyRecordGraphError("record_limit");
             const requestedEvents =
               property === "resolveExactEvents" && Array.isArray(args[2]) ? args[2].length : 0;
             // Exact trace selectors are bounded before I/O. Reserve every requested row even for
             // absent/invalid responses; a multi-event lookup is not a one-record budget shortcut.
             this.reserveRecords(1 + requestedEvents);
             this.reads++;
+            ioStarted = true;
             const value: unknown = await Reflect.apply(method, target, args);
             if (
               property === "resolveExactEvents" &&
@@ -169,7 +215,11 @@ export class AcquisitionBudget {
             }
             return structuredClone(value);
           })();
-          return this.track(task);
+          const observed = task.catch((error: unknown) => {
+            if (ioStarted) this.uncertainMetadata = true;
+            throw error;
+          });
+          return this.track(observed);
         };
       },
     });
@@ -181,7 +231,7 @@ export class AcquisitionBudget {
     const string = (text: string) => {
       if (
         text.length + 2 >
-        this.limits.maxAcquisitionRecordBytes - this.bytes - this.referenceBytes
+        this.metadataLimits.recordAndReferenceBytes - this.bytes - this.referenceBytes
       )
         throw new PolicyRecordGraphError("byte_limit");
       this.charge(Buffer.byteLength(JSON.stringify(text), "utf8"));

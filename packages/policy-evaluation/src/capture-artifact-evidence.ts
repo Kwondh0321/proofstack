@@ -36,6 +36,11 @@ import {
   validatePolicyEvaluationSnapshotRecord,
 } from "@proofstack/core";
 import { AcquisitionBudget, PolicyRecordGraphError } from "./acquisition-budget.js";
+import {
+  PolicyAcquisitionAdmissionError,
+  reservePolicyAcquisitionForSnapshot,
+  type PolicyAcquisitionAdmission,
+} from "./acquisition-admission.js";
 import type { PolicyArtifactRuleBindings } from "./capture-artifact-rules.js";
 import type { PolicyAssessmentRuleInputs } from "./capture-assessment-rules.js";
 import {
@@ -286,99 +291,155 @@ export async function sealPolicyEvaluationSnapshot(
     readonly fence: PolicyEvaluationWorkerMutationFence;
     readonly transactions: PolicyEvaluationSnapshotSealingTransactions;
     readonly artifactByteAdmission?: PolicyArtifactByteAdmission;
+    readonly acquisitionAdmission?: PolicyAcquisitionAdmission;
   },
 ): Promise<PolicyEvaluationSnapshotSealReceipt> {
   const principal = PrincipalContextSchema.parse(actor);
   requireCapability(principal, "policy:evaluation:execute");
   if (principal.principalType !== "service" || principal.authentication.method !== "service_token")
     throw new ForbiddenError("Policy execution requires a service-token worker principal");
+  requireCapability(principal, "artifact:read");
   const request = validatePolicyEvaluationRequestRecord(input);
   requirePolicyEvaluationExecution(principal, request.scope);
   const fence = PolicyEvaluationWorkerMutationFenceSchema.parse(options.fence);
   if (fence.workerId !== principal.principalId)
     throw new ForbiddenError("Policy fence belongs to another worker principal");
+  const acquisition = options.acquisitionAdmission
+    ? await reservePolicyAcquisitionForSnapshot(request, fence, options.acquisitionAdmission)
+    : undefined;
+  const budget = new AcquisitionBudget(
+    request.limits,
+    acquisition?.allowance.limits,
+    acquisition?.requireLive,
+  );
+  let settlementRequested = false,
+    settlementCommitted = false;
   const artifactReservations = options.artifactByteAdmission
     ? new PolicyArtifactByteReservations(request, fence, options.artifactByteAdmission)
     : undefined;
   let held: PolicyEvaluationSnapshotSealingPorts | undefined;
   const transactions: PolicyEvaluationMetadataTransactions = {
-    runMetadata: (scope, operation) =>
-      options.transactions.runSealing({ scope, fence }, async (ports) => {
+    runMetadata: async (scope, operation) => {
+      const result = await options.transactions.runSealing({ scope, fence }, async (ports) => {
         held = ports;
         try {
           return await operation(ports);
         } finally {
           held = undefined;
         }
-      }),
+      });
+      if (settlementRequested) settlementCommitted = true;
+      return result;
+    },
   };
-  const result = await acquirePolicyArtifactEvidence(
-    input,
-    principal,
-    repositories,
-    evidence,
-    dependencies,
-    {
-      manifestId: options.manifestId,
-      snapshotId: options.snapshotId,
-      whileHeld: {
-        transactions,
-        ...(artifactReservations ? { artifactReservations } : {}),
-        publish: async (definition) => {
-          if (!held) throw new TypeError("Snapshot publication port has expired");
-          const receipt = await held.publishSnapshot(definition, principal.principalId);
-          const reference = {
-            snapshotId: definition.definition.snapshotId,
-            definitionSha256: definition.definitionSha256,
-          };
-          const requestReference = policyEvaluationRequestReference(request);
-          const checked = validatePolicyEvaluationSnapshotRecord({
-            expected: {
-              scope: request.scope,
-              snapshot: reference,
-              request: requestReference,
-              jobId: fence.jobId,
-            },
-            record: receipt.snapshot,
-            pageSet: definition,
-          });
-          const job = validatePolicyEvaluationJobSnapshotRecord({
-            expected: {
-              scope: request.scope,
-              job: {
+  try {
+    const result = await acquirePolicyArtifactEvidence(
+      input,
+      principal,
+      repositories,
+      evidence,
+      dependencies,
+      {
+        manifestId: options.manifestId,
+        snapshotId: options.snapshotId,
+        budget,
+        whileHeld: {
+          transactions,
+          ...(artifactReservations ? { artifactReservations } : {}),
+          publish: async (definition) => {
+            if (!held) throw new TypeError("Snapshot publication port has expired");
+            if (acquisition) {
+              await budget.settle();
+              acquisition.requireLive();
+              const usage = budget.metadataUsage();
+              if (!usage || !held.settleAcquisition)
+                throw new PolicyAcquisitionAdmissionError(
+                  "Known drained metadata and same-client settlement are required",
+                );
+              acquisition.validateSettlement(
+                await held.settleAcquisition(acquisition.allowance.allowanceId, usage),
+                usage,
+              );
+              settlementRequested = true;
+              acquisition.requireLive();
+            }
+            const receipt = await held.publishSnapshot(definition, principal.principalId);
+            const reference = {
+              snapshotId: definition.definition.snapshotId,
+              definitionSha256: definition.definitionSha256,
+            };
+            const requestReference = policyEvaluationRequestReference(request);
+            const checked = validatePolicyEvaluationSnapshotRecord({
+              expected: {
+                scope: request.scope,
+                snapshot: reference,
+                request: requestReference,
                 jobId: fence.jobId,
-                definitionSha256: digestPolicyEvaluationJobDefinition(request.scope, {
-                  jobId: fence.jobId,
-                  request: requestReference,
-                }),
               },
-            },
-            snapshot: receipt.job,
-          });
-          artifactReservations?.requireRetainedUsage(job.usage.artifactReadBytes);
-          if (
-            job.job.status !== "sealed" ||
-            canonical(job.request) !== canonical(request) ||
-            canonical(job.job.snapshot) !== canonical(reference) ||
-            canonical(job.job.currentLease?.mutationFence) !== canonical(fence) ||
-            job.job.updatedAt !== checked.record.sealedAt ||
-            checked.record.attemptId !== fence.attemptId ||
-            checked.record.workerId !== fence.workerId ||
-            checked.record.leaseId !== fence.leaseId ||
-            checked.record.fencingToken !== fence.fencingToken ||
-            checked.record.recoveryEpoch !== fence.recoveryEpoch
-          )
-            throw new PolicyRecordGraphError("observation_conflict", "sealed_publication_receipt");
-          return { snapshot: checked.record, job };
+              record: receipt.snapshot,
+              pageSet: definition,
+            });
+            const job = validatePolicyEvaluationJobSnapshotRecord({
+              expected: {
+                scope: request.scope,
+                job: {
+                  jobId: fence.jobId,
+                  definitionSha256: digestPolicyEvaluationJobDefinition(request.scope, {
+                    jobId: fence.jobId,
+                    request: requestReference,
+                  }),
+                },
+              },
+              snapshot: receipt.job,
+            });
+            artifactReservations?.requireRetainedUsage(job.usage.artifactReadBytes);
+            if (
+              job.job.status !== "sealed" ||
+              canonical(job.request) !== canonical(request) ||
+              canonical(job.job.snapshot) !== canonical(reference) ||
+              canonical(job.job.currentLease?.mutationFence) !== canonical(fence) ||
+              job.job.updatedAt !== checked.record.sealedAt ||
+              checked.record.attemptId !== fence.attemptId ||
+              checked.record.workerId !== fence.workerId ||
+              checked.record.leaseId !== fence.leaseId ||
+              checked.record.fencingToken !== fence.fencingToken ||
+              checked.record.recoveryEpoch !== fence.recoveryEpoch
+            )
+              throw new PolicyRecordGraphError(
+                "observation_conflict",
+                "sealed_publication_receipt",
+              );
+            return { snapshot: checked.record, job };
+          },
         },
       },
-    },
-  );
-  if (!result.sealedSnapshot)
-    throw new InvalidPolicyEvaluationRequestRecordError(
-      "Policy roots cannot produce a sealed snapshot",
     );
-  return result.sealedSnapshot;
+    if (!result.sealedSnapshot)
+      throw new InvalidPolicyEvaluationRequestRecordError(
+        "Policy roots cannot produce a sealed snapshot",
+      );
+    return result.sealedSnapshot;
+  } catch (error) {
+    await budget.settle();
+    if (acquisition && options.acquisitionAdmission && !settlementCommitted) {
+      try {
+        const usage = budget.metadataUsage();
+        const settled = await options.acquisitionAdmission.repository.settleAcquisition({
+          scope: request.scope,
+          fence,
+          allowanceId: acquisition.allowance.allowanceId,
+          usage,
+        });
+        acquisition.validateSettlement(settled, usage);
+      } catch (settlementError) {
+        throw new AggregateError(
+          [error, settlementError],
+          "Policy capture failed; committed credit remains authoritative",
+        );
+      }
+    }
+    throw error;
+  }
 }
 
 type AcquisitionResult = {
@@ -395,6 +456,7 @@ async function acquirePolicyArtifactEvidence(
   evidence: Pick<ExactEvidenceRepository, "resolveExactEvents">,
   dependencies: PolicyArtifactEvidenceDependencies,
   snapshotOptions?: {
+    readonly budget?: AcquisitionBudget;
     readonly manifestId: string;
     readonly snapshotId?: string;
     readonly whileHeld?: {
@@ -452,7 +514,7 @@ async function acquirePolicyArtifactEvidence(
     )
   )
     throw new InvalidPolicyEvaluationRequestRecordError("Request time follows artifact capture");
-  const budget = new AcquisitionBudget(request.limits);
+  const budget = snapshotOptions?.budget ?? new AcquisitionBudget(request.limits);
   let sourceGuardUsage: PolicyEvaluationSourceGuardUsage = {
     resources: 0,
     origins: 0,
@@ -814,7 +876,7 @@ async function acquirePolicyArtifactEvidence(
       return { capture, ...(snapshotInputs ? { snapshotInputs } : {}) };
     };
     if (snapshotOptions?.whileHeld)
-      return withRecheckedCapturedPolicySources(
+      return await withRecheckedCapturedPolicySources(
         guardInput,
         budget,
         principal,
@@ -830,7 +892,7 @@ async function acquirePolicyArtifactEvidence(
       sourceTransactions,
       metadataTransactions ? { transactions: metadataTransactions, traceCapture } : undefined,
     );
-    return finish(sourceGuardPlan);
+    return await finish(sourceGuardPlan);
   } finally {
     await budget.settle();
   }
