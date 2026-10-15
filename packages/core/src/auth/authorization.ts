@@ -10,7 +10,10 @@ export function requireCapability(
   }
 }
 
-export function requireProjectAccess(principal: PrincipalContext, projectId: string): void {
+export function requireProjectAccess(
+  principal: Pick<PrincipalContext, "resourceScope">,
+  projectId: string,
+): void {
   if (
     principal.resourceScope.mode === "restricted" &&
     !principal.resourceScope.projects.some((project) => project.projectId === projectId)
@@ -20,7 +23,7 @@ export function requireProjectAccess(principal: PrincipalContext, projectId: str
 }
 
 export function requireEnvironmentAccess(
-  principal: PrincipalContext,
+  principal: Pick<PrincipalContext, "resourceScope">,
   projectId: string,
   environmentId: string,
 ): void {

@@ -218,6 +218,9 @@ freezes the first bounded selection/reference/lifecycle and canonical-vector sli
 close current authority, persistence, approval or decision publication requirements below.
 The [bounded authority snapshot contracts and historical transport](workflow-2-decision-authority-snapshot.md)
 retain original public observations; they do not establish current authority or guarded publication.
+The [owning source inspection prerequisite](workflow-2-decision-source-validation.md) validates
+original records, complete captured selection data and credential preimages. Actual owning ports,
+current reviewer quorums, private authentication and guarded publication remain open.
 The [reviewer/approval contracts and internal assignment prerequisite](workflow-2-release-approval-contracts.md)
 retain original authenticated receipts and bounded group witnesses. They do not authenticate an
 actor, close current authority or accept checkpoint 4.

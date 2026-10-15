@@ -96,13 +96,33 @@ export function prepareSealedPolicyEvaluation(input: SealedPolicyComputationInpu
   });
 }
 
-function computeCapturedPolicyEvaluation(
-  input: Pick<SealedPolicyComputationInput, "evaluationId" | "expected">,
+function same(left: unknown, right: unknown): boolean {
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right)
+  );
+}
+
+export interface ValidatedPolicyPrerequisites {
+  readonly originalPolicyState:
+    | "active"
+    | "not_effective"
+    | "expired"
+    | "withdrawn"
+    | "superseded"
+    | "authority_unavailable";
+  readonly candidateAuthority: "qualified" | "unavailable";
+  readonly applicability: "match" | "mismatch" | "unknown";
+}
+
+/** Historical facts only. Call after owning snapshot validation; this grants no fresh authority. */
+export function inspectValidatedPolicyPrerequisites(
   inputs: Extract<
     ReturnType<typeof validatePolicyEvaluationSnapshotRecord>["inputs"],
     { schemaVersion: "0.2" }
   >,
-): PolicyEvaluationDefinition {
+): ValidatedPolicyPrerequisites {
   const authorityMaterial = (authority: typeof inputs.candidateAuthority.afterArtifacts) => {
     if (authority.status !== "observed") return serializeEvaluationCanonicalJson(authority);
     const { startedAt: _start, completedAt: _end, ...material } = authority;
@@ -152,10 +172,6 @@ function computeCapturedPolicyEvaluation(
   const policyWitness = records.find(
     (record) => policyEvaluationSourceReferenceKey(record.entry.source) === policyKey,
   );
-  const same = (left: unknown, right: unknown) =>
-    left !== undefined &&
-    right !== undefined &&
-    serializeEvaluationCanonicalJson(left) === serializeEvaluationCanonicalJson(right);
   if (
     !same(candidateWitness?.entry.source, candidateSource) ||
     !same(policyWitness?.entry.source, policySource)
@@ -248,6 +264,47 @@ function computeCapturedPolicyEvaluation(
             serializeEvaluationCanonicalJson(subject),
       );
     });
+  const cut = policyEvaluationTimestampOrderKey(inputs.request.evaluationTime);
+  let originalPolicyState: ValidatedPolicyPrerequisites["originalPolicyState"] = "active";
+  if (cut < policyEvaluationTimestampOrderKey(inputs.roots.policy.effectiveAt))
+    originalPolicyState = "not_effective";
+  else if (cut >= policyEvaluationTimestampOrderKey(inputs.roots.policy.expiresAt))
+    originalPolicyState = "expired";
+  else if (inputs.policyLifecycle.afterArtifacts.state === "withdrawn_at_evaluation")
+    originalPolicyState = "withdrawn";
+  else if (inputs.policyLifecycle.afterArtifacts.state === "superseded_at_evaluation")
+    originalPolicyState = "superseded";
+  else if (inputs.policyAuthority.requirements.status !== "valid") {
+    const findings = inputs.policyAuthority.requirements.findings;
+    originalPolicyState = findings.some(
+      (finding) => finding.reason === "policy_expired_at_evaluation",
+    )
+      ? "expired"
+      : findings.some((finding) => finding.reason === "policy_not_effective_at_evaluation")
+        ? "not_effective"
+        : "authority_unavailable";
+  }
+  return Object.freeze({
+    originalPolicyState,
+    candidateAuthority: candidateQualified ? "qualified" : "unavailable",
+    applicability:
+      inputs.applicability.conjunction === "not_evaluated"
+        ? "unknown"
+        : inputs.applicability.conjunction,
+  });
+}
+
+function computeCapturedPolicyEvaluation(
+  input: Pick<SealedPolicyComputationInput, "evaluationId" | "expected">,
+  inputs: Extract<
+    ReturnType<typeof validatePolicyEvaluationSnapshotRecord>["inputs"],
+    { schemaVersion: "0.2" }
+  >,
+): PolicyEvaluationDefinition {
+  const prerequisites = inspectValidatedPolicyPrerequisites(inputs);
+  const candidateQualified = prerequisites.candidateAuthority === "qualified";
+  const records = inputs.sources.records.records;
+  const roots = inputs.closure.rootContext;
   const unavailable = (
     frame: (typeof inputs.rules.rules)[number],
     reason: Extract<PolicyEvaluationRuleResult["evidence"], { kind: "not_evaluated" }>["reason"],
@@ -265,26 +322,15 @@ function computeCapturedPolicyEvaluation(
       // This checkpoint always retains the approval prerequisite, including applicability mismatch.
       if (frame.rule.predicate.kind === "approval_required")
         return evaluatePolicyPredicateProjection(frame);
-      const cut = policyEvaluationTimestampOrderKey(inputs.request.evaluationTime);
-      if (cut < policyEvaluationTimestampOrderKey(inputs.roots.policy.effectiveAt))
-        return unavailable(frame, "policy_not_effective");
-      if (cut >= policyEvaluationTimestampOrderKey(inputs.roots.policy.expiresAt))
-        return unavailable(frame, "policy_expired");
-      const lifecycle = inputs.policyLifecycle.afterArtifacts;
-      if (lifecycle.state === "withdrawn_at_evaluation")
-        return unavailable(frame, "policy_withdrawn");
-      if (lifecycle.state === "superseded_at_evaluation")
-        return unavailable(frame, "policy_superseded");
-      if (inputs.policyAuthority.requirements.status !== "valid") {
-        const findings = inputs.policyAuthority.requirements.findings;
-        return unavailable(
-          frame,
-          findings.some((finding) => finding.reason === "policy_expired_at_evaluation")
-            ? "policy_expired"
-            : findings.some((finding) => finding.reason === "policy_not_effective_at_evaluation")
-              ? "policy_not_effective"
-              : "policy_authority_unverified",
-        );
+      if (prerequisites.originalPolicyState !== "active") {
+        const reasons = {
+          not_effective: "policy_not_effective",
+          expired: "policy_expired",
+          withdrawn: "policy_withdrawn",
+          superseded: "policy_superseded",
+          authority_unavailable: "policy_authority_unverified",
+        } as const;
+        return unavailable(frame, reasons[prerequisites.originalPolicyState]);
       }
       if (!candidateQualified) return unavailable(frame, "candidate_authority_unverified");
       if (inputs.applicability.conjunction === "mismatch")

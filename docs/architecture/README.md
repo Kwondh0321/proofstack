@@ -62,3 +62,4 @@ invalidate an ADR present in this directory.
 - [ADR-0037: Predeclare complete release decision inputs](0037-predeclare-complete-release-decision-inputs.md)
 - [ADR-0038: Retain original rule outcomes in accountable decisions](0038-retain-original-rule-outcomes-in-accountable-decisions.md)
 - [ADR-0039: Retain bounded decision authority material](0039-retain-bounded-decision-authority-material.md)
+- [ADR-0040: Inspect owning release authority preimages before composition](0040-inspect-owned-release-authority-preimages.md)

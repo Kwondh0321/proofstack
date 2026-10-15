@@ -59,6 +59,7 @@ identities. The migration introduces no role, table, grant or publication functi
 migration validation covers the full user/workload vocabularies and rejects delegation of each
 new name. Capability vocabulary is not a configured authorized production publisher.
 
+Build on the [owning source inspection prerequisite](workflow-2-decision-source-validation.md).
 Next implement owning complete/current authority and distinct reviewer quorum resolution, then
 shared memory/native conformance, guarded atomic graph+decision+outbox publication, reservations,
 recovery, bounded API/SDK, contributor flow and the separate exit audit. Historical decoding ends

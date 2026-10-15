@@ -15,6 +15,9 @@
 [권한 스냅샷 계약과 과거 복원](workflow-2-decision-authority-snapshot.ko.md)은 원래 공개 관측을
 보존한다. 현재 권한이나 guard를 유지하는 원자적 게시를 수용한 것은 아니다.
 
+[원본 소스 검사](workflow-2-decision-source-validation.ko.md)는 원래 레코드, 캡처된 선택 목록과
+자격 증명 상태를 검증한다. 실제 소유 포트, 현재 검토자 정족수, 비공개 인증과 원자적 게시는 열려 있다.
+
 [전체 결정 입력 사전 고정 계약](workflow-2-decision-input-contracts.ko.md)은 원래 요청 목록을
 보존한다. 네이티브 예약과 현재 게시 권한은 열려 있으며 불변 무결성은 단계 수용이 아니다.
 
