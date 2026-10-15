@@ -222,7 +222,12 @@ export async function runWorkflow2ReleaseCandidate(
   const candidateId = `candidate_${options.namespace}_workflow_1`;
   const candidateVersionId = `${candidateId}_v1`;
   const request = PublishReleaseCandidateRequestSchema.parse({
-    assessments: [structuredClone(options.workflow1.evaluation.assessment)],
+    assessments: [
+      {
+        assessmentId: options.workflow1.evaluation.assessment.assessmentId,
+        definitionSha256: options.workflow1.evaluation.assessment.definitionSha256,
+      },
+    ],
     buildArtifacts: [
       { artifact: structuredClone(targetRelease.build.provenance), role: "build_provenance" },
     ],

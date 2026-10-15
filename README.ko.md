@@ -365,7 +365,9 @@ policy와 독립적인 Workflow 2 subject로 구현되고 검증되었습니다.
 contract, 유한 non-executable rule, 정확한 installation·qualified source authority, append-only
 memory·PostgreSQL storage, 전용 policy-author role, 제한된 HTTP/OpenAPI·SDK operation, 불변
 withdrawal history, restart read-back, recovery, clean-checkout acceptance도 definition-only
-Workflow 2 경계로 구현되고 검증되었습니다. 기준 흐름은 synthetic
+Workflow 2 경계로 구현되고 검증되었습니다.
+[승인 완료 검증 수정](docs/development/workflow-acceptance-completion.ko.md)은 이전 모드 전달의
+한계를 보존하고 요청한 분기의 정확한 완료 증거를 요구합니다. 기준 흐름은 synthetic
 evidence와 결정적 local model provider를 사용할 뿐,
 OS sandbox에서 임의 evaluator를 실행하거나 source authority를 자동 판정하거나 실제 reviewer
 전문성을 검증하거나 workspace SDK를 package registry에 배포하거나 candidate를 위한 release

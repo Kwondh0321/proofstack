@@ -833,6 +833,12 @@ explicit exception. New migrations are forward-only and keep prior checksums int
 
 ## Public and contributor boundary
 
+The [requested-mode completion correction](workflow-acceptance-completion.md) explicitly forwards
+the existing candidate/policy flags and verifies an exclusively created bounded completion receipt.
+Earlier named job success alone did not prove their filtered conditional branches; preserve that
+historical limitation and require fresh actual-mode verification. Optional canonical profile/protocol
+preparation retains original inputs without accepting the complete policy worker contributor flow.
+
 The [native worker reference-authority composition](workflow-2-policy-worker-authorities.md)
 shares the API's exact scoped local-Git/model/adapter checks through a separate infrastructure
 package and optional private operator configuration. Missing configuration remains unavailable;

@@ -172,3 +172,13 @@ failure matrix를 고정해야 한다.
 decision이 무엇을 허가하는지 분리해야 한다. Deterministic policy evaluation, approval,
 attestation, CI adapter, deployment, rollback, break-glass는 순서상 체크포인트가 독립적으로
 승인될 때까지 닫혀 있다.
+
+## 승인 모드 검증 수정 — 2026-10-15
+
+후속 실제 실행에서 Turbo의 엄격한 환경에 candidate·policy 모드 플래그가 빠진 문제가 드러났다.
+이전 이름별 작업 성공이 해당 조건 분기를 독립적으로 입증하지 못했다. 위 역사적 증거는 보존하고
+현재 검증에는 [요청 모드 완료 영수증](workflow-acceptance-completion.ko.md)을 요구한다.
+
+부가 metadata가 있는 평가에서 원래 assessment ID/digest만 선택해 엄격한 게시 schema를
+유지한다. 실제 graph·정확 candidate 재시도·재시작 재조회도 유지한다. Candidate 권한을 넓히거나
+정책 평가·이후 release 체크포인트를 승인하는 수정이 아니다.

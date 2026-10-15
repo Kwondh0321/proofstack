@@ -2,9 +2,13 @@
 
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { collectWorkflowAcceptanceDiagnostics } from "./workflow-acceptance-diagnostics.mjs";
+import { verifyWorkflowAcceptanceReceiptFile } from "./workflow-acceptance-receipt.mjs";
+import { createWorkflowAcceptanceNetwork } from "./workflow-acceptance-network.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const composeFile = resolve(repositoryRoot, "compose.yaml");
@@ -14,6 +18,8 @@ const unknownArguments = arguments_.filter((argument) => !allowedArguments.has(a
 if (unknownArguments.length > 0) {
   throw new TypeError(`Unknown acceptance argument: ${unknownArguments.join(", ")}`);
 }
+const canonicalPolicyInputMode =
+  process.env["PROOFSTACK_ACCEPT_CANONICAL_POLICY_INPUTS"] === "true";
 const releasePolicyMode = arguments_.includes("--release-policy");
 const releaseCandidateMode = releasePolicyMode || arguments_.includes("--release-candidate");
 const workflowLabel = releasePolicyMode
@@ -65,10 +71,22 @@ function run(command, args, options = {}) {
       if (activeChild === child) activeChild = undefined;
       reject(error);
     });
-    child.once("exit", (code, signal) => {
+    child.once("close", async (code, signal) => {
       if (activeChild === child) activeChild = undefined;
-      if (code === 0) resolveRun();
-      else {
+      if (code === 0) {
+        try {
+          if (options.expectedAcceptance) {
+            const receipt = await verifyWorkflowAcceptanceReceiptFile(
+              options.receiptFile,
+              options.expectedAcceptance,
+            );
+            console.log(`Verified workflow completion: ${JSON.stringify(receipt)}`);
+          }
+          resolveRun();
+        } catch (error) {
+          reject(error);
+        }
+      } else {
         reject(
           new Error(
             `${command} ${args.join(" ")} ${signal ? `was stopped by ${signal}` : `exited with ${code}`}`,
@@ -89,9 +107,22 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 let composeEnvironment;
 let primaryError;
 let cleanupError;
+let networkDirectory;
+let networkFile;
+let receiptDirectory;
+let receiptFile;
 
 try {
   await run("docker", ["compose", "version"], { env: process.env });
+  receiptDirectory = await mkdtemp(join(tmpdir(), "proofstack-acceptance-receipt-"));
+  receiptFile = join(receiptDirectory, "completion.json");
+  const subnet = process.env["PROOFSTACK_ACCEPTANCE_SUBNET"];
+  if (subnet !== undefined) {
+    const network = createWorkflowAcceptanceNetwork(subnet);
+    networkDirectory = await mkdtemp(join(tmpdir(), "proofstack-acceptance-network-"));
+    networkFile = join(networkDirectory, "network.json");
+    await writeFile(networkFile, JSON.stringify(network), { mode: 0o600, flag: "wx" });
+  }
   const postgresPort = await availableLoopbackPort();
   let s3Port = await availableLoopbackPort();
   while (s3Port === postgresPort) s3Port = await availableLoopbackPort();
@@ -111,13 +142,15 @@ try {
     AWS_SECRET_ACCESS_KEY: "proofstack-local-secret",
     AWS_SESSION_TOKEN: "",
     CI: "true",
-    PROOFSTACK_TEST_DATABASE_URL: `postgresql://postgres:proofstack-local-admin@127.0.0.1:${postgresPort}/proofstack`,
+    PROOFSTACK_ACCEPTANCE_RECEIPT_FILE: receiptFile,
+    PROOFSTACK_TEST_DATABASE_URL: `postgresql://postgres:proofstack-local-admin@127.0.0.1:${postgresPort}/${canonicalPolicyInputMode ? "proofstack_test" : "proofstack"}`,
     PROOFSTACK_TEST_S3_ACCESS_KEY_ID: "proofstack-local",
     PROOFSTACK_TEST_S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
     PROOFSTACK_TEST_S3_REGION: "us-east-1",
     PROOFSTACK_TEST_S3_SECRET_ACCESS_KEY: "proofstack-local-secret",
     PROOFSTACK_ACCEPT_RELEASE_CANDIDATE: releaseCandidateMode ? "true" : "false",
     PROOFSTACK_ACCEPT_RELEASE_POLICY: releasePolicyMode ? "true" : "false",
+    PROOFSTACK_ACCEPT_CANONICAL_POLICY_INPUTS: canonicalPolicyInputMode ? "true" : "false",
   };
 
   console.log(`Starting isolated ${workflowLabel} services as ${projectName}.`);
@@ -128,6 +161,7 @@ try {
       "compose",
       "--file",
       composeFile,
+      ...(networkFile === undefined ? [] : ["--file", networkFile]),
       "--project-name",
       projectName,
       "--profile",
@@ -141,6 +175,26 @@ try {
     { env: composeEnvironment },
   );
 
+  if (canonicalPolicyInputMode) {
+    await run(
+      "docker",
+      [
+        "compose",
+        "--file",
+        composeFile,
+        "--project-name",
+        projectName,
+        "exec",
+        "-T",
+        "postgres",
+        "createdb",
+        "--username=postgres",
+        "proofstack_test",
+      ],
+      { env: composeEnvironment },
+    );
+  }
+
   await run(
     pnpmCommand,
     [
@@ -151,7 +205,16 @@ try {
       "--concurrency=1",
       "--filter=@proofstack/example-workflow-1-acceptance",
     ],
-    { env: testEnvironment },
+    {
+      env: testEnvironment,
+      expectedAcceptance: {
+        workflow1: true,
+        releaseCandidate: releaseCandidateMode,
+        releasePolicy: releasePolicyMode,
+        canonicalPolicyInputs: canonicalPolicyInputMode,
+      },
+      receiptFile,
+    },
   );
   console.log(`${workflowLabel} acceptance passed. Removing the isolated services and volumes.`);
 } catch (error) {
@@ -190,6 +253,16 @@ try {
       );
     } catch (error) {
       cleanupError = error;
+    }
+  }
+  for (const directory of [networkDirectory, receiptDirectory]) {
+    if (directory === undefined) continue;
+    try {
+      await rm(directory, { recursive: true, force: true });
+    } catch (error) {
+      cleanupError = cleanupError
+        ? new AggregateError([cleanupError, error], "Acceptance cleanup failed")
+        : error;
     }
   }
 }

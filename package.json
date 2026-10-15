@@ -46,7 +46,7 @@
     "recovery:database:backup": "pnpm --filter @proofstack/recovery-operations recovery:database:backup",
     "recovery:database:restore": "pnpm --filter @proofstack/recovery-operations recovery:database:restore",
     "test": "pnpm test:acceptance:runner && turbo run test --concurrency=1",
-    "test:acceptance:runner": "node --test --experimental-test-coverage --test-coverage-include=scripts/workflow-acceptance-diagnostics.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 scripts/workflow-acceptance-diagnostics.test.mjs",
+    "test:acceptance:runner": "node --test --experimental-test-coverage --test-coverage-include=scripts/workflow-acceptance-diagnostics.mjs --test-coverage-include=scripts/workflow-acceptance-receipt.mjs --test-coverage-include=scripts/workflow-acceptance-network.mjs --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 scripts/workflow-acceptance-diagnostics.test.mjs scripts/workflow-acceptance-receipt.test.mjs scripts/workflow-acceptance-network.test.mjs",
     "test:acceptance:workflow-1": "node scripts/run-workflow-1-acceptance.mjs",
     "test:acceptance:workflow-2-candidate": "node scripts/run-workflow-1-acceptance.mjs --release-candidate",
     "test:acceptance:workflow-2-policy": "node scripts/run-workflow-1-acceptance.mjs --release-policy",

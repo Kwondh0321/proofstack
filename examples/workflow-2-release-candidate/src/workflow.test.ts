@@ -203,6 +203,20 @@ function options(
 }
 
 describe("runWorkflow2ReleaseCandidate", () => {
+  it("projects only the exact assessment reference from metadata-rich retained evidence", async () => {
+    const retained = workflow1();
+    Object.assign(retained.evaluation.assessment, {
+      eligibility: "eligible",
+      supportStatus: "supported",
+    });
+    const summary = await runWorkflow2ReleaseCandidate(options({ workflow1: retained }));
+    expect(summary.candidate.assessments).toEqual([
+      {
+        assessmentId: retained.evaluation.assessment.assessmentId,
+        definitionSha256: retained.evaluation.assessment.definitionSha256,
+      },
+    ]);
+  });
   it("binds exact retained sources and proves idempotent immutable read-back", async () => {
     const harness = candidateHarness();
     const summary = await runWorkflow2ReleaseCandidate(

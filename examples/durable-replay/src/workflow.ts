@@ -7,6 +7,9 @@ import {
   type EvidenceScope,
   EvidenceScopeSchema,
   type ReplayArtifactContentReference,
+  type ReplayRuntimeProfileReference,
+  type ReplayIsolationProfileReference,
+  type TargetReleaseDefinition,
   type ReplayJobSnapshot,
   ReplayWorkerMutationFenceSchema,
 } from "@proofstack/contracts";
@@ -19,7 +22,7 @@ import {
   ProofStackReplayClient,
 } from "@proofstack/sdk";
 import { z } from "zod";
-import { createDurableReplayDefinitions } from "./definitions.js";
+import { bindDurableReplayProfiles, createDurableReplayDefinitions } from "./definitions.js";
 import {
   DurableReplayReportPublicationAcknowledgementSchema,
   type DurableReplayReportPublicationRequest,
@@ -84,6 +87,14 @@ export interface RunDurableReplayExampleOptions {
   readonly tenantId: string;
   readonly workerDatabaseUrl: string;
   readonly workerEntryPointPath: string;
+  /** Trusted contributor composition, called before publishing its new plan; never a public route. */
+  readonly prepareRuntimeProfiles?: (input: {
+    readonly scope: EvidenceScope;
+    readonly targetRelease: TargetReleaseDefinition;
+  }) => Promise<{
+    readonly runtimeProfile: ReplayRuntimeProfileReference;
+    readonly isolationProfile: ReplayIsolationProfileReference;
+  }>;
 }
 
 export interface DurableReplayJobSummary {
@@ -707,9 +718,16 @@ export async function runDurableReplayExample(
     definition: definitions.targetReleaseDefinition,
   });
   assert(releasePublication.created, "Target release publication must create an exact release");
-  const planPublication = await replay.publishReplayPlan({
-    definition: definitions.replayPlanDefinition,
-  });
+  const replayPlanDefinition = options.prepareRuntimeProfiles
+    ? bindDurableReplayProfiles(
+        definitions.replayPlanDefinition,
+        await options.prepareRuntimeProfiles({
+          scope: structuredClone(scope),
+          targetRelease: structuredClone(definitions.targetReleaseDefinition),
+        }),
+      )
+    : definitions.replayPlanDefinition;
+  const planPublication = await replay.publishReplayPlan({ definition: replayPlanDefinition });
   assert(planPublication.created, "Replay plan publication must create an exact plan");
   const replayPlan = {
     definitionSha256: planPublication.plan.definitionSha256,

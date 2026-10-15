@@ -176,3 +176,15 @@ evaluation. It must preserve the separation between what evidence claims, what a
 and what a later accountable decision authorizes. Deterministic policy evaluation, approvals,
 attestations, CI adapters, deployment, rollback, and break-glass remain closed until their ordered
 checkpoints are independently accepted.
+
+## Acceptance-mode verification correction — 2026-10-15
+
+Subsequent real execution found that Turbo's strict integration environment omitted the candidate
+and policy mode flags. Earlier named clean-checkout job success did not independently prove those
+conditional paths. Historical evidence above is retained; current verification requires the
+[exact requested-mode completion receipt](workflow-acceptance-completion.md).
+
+Candidate construction now selects only the original assessment ID/digest from metadata-rich
+retained evidence, preserving the strict publication schema. The actual retained graph, exact
+candidate retries and restart read-back remain required. This correction neither expands candidate
+authority nor accepts deterministic policy evaluation or later release checkpoints.

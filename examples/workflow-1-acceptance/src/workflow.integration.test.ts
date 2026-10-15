@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,6 +84,7 @@ import {
   prepareWorkflow1Acceptance,
   type Workflow1AcceptanceSummary,
 } from "./workflow.js";
+import { createPolicyContributorDefinitions } from "./policy-evaluation-definitions.js";
 
 type ArtifactContentReference = ReturnType<typeof ArtifactContentReferenceSchema.parse>;
 
@@ -105,6 +106,8 @@ const s3Endpoint = requiredEnvironment("PROOFSTACK_TEST_S3_ENDPOINT");
 const s3Region = requiredEnvironment("PROOFSTACK_TEST_S3_REGION");
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const repositoryUrl = "https://github.com/Kwondh0321/proofstack";
+const prepareCanonicalPolicyInputs =
+  process.env["PROOFSTACK_ACCEPT_CANONICAL_POLICY_INPUTS"] === "true";
 const acceptReleasePolicy = process.env["PROOFSTACK_ACCEPT_RELEASE_POLICY"] === "true";
 const acceptReleaseCandidate =
   acceptReleasePolicy || process.env["PROOFSTACK_ACCEPT_RELEASE_CANDIDATE"] === "true";
@@ -367,6 +370,12 @@ function releasePolicyRequest(fixture: PolicyAuthorityFixture): PublishReleasePo
 function buildReleasePolicyAcceptanceScenario(
   workflow1: Workflow1AcceptanceSummary,
 ): ReleasePolicyAcceptanceScenario {
+  const discoveries = workflow1.evaluation.readBack.records.filter(
+    (reference) => reference.kind === "discovery_record",
+  );
+  if (discoveries.length !== 1)
+    throw new TypeError("Policy source requires one exact retained discovery record");
+  const discovery = discoveries[0]!;
   const now = clock.now();
   const day = 24 * 60 * 60 * 1_000;
   const authorityFrom = offsetTimestamp(now, -2 * day);
@@ -425,6 +434,11 @@ function buildReleasePolicyAcceptanceScenario(
       definition.effectiveAt = authorityFrom;
       definition.expiresAt = authorityUntil;
       definition.sourceSnapshotId = `source_${runKey}_release_standard`;
+      definition.discovery = {
+        discoveryId: discovery.recordId,
+        definitionSha256: discovery.definitionSha256,
+        candidateRank: 1,
+      };
       if (definition.identityVerification.status !== "verified") {
         throw new TypeError("Policy acceptance source identity must be independently verified");
       }
@@ -467,6 +481,94 @@ let outputRoot: string | undefined;
 let bucketCreated = false;
 let rolesCreated = false;
 let releasePolicyScenario: ReleasePolicyAcceptanceScenario | undefined;
+let contributorDefinitions: ReturnType<typeof createPolicyContributorDefinitions> | undefined;
+
+type ProfilePreparation = NonNullable<
+  Parameters<typeof prepareWorkflow1Acceptance>[0]["durableReplay"]["prepareRuntimeProfiles"]
+>;
+async function prepareContributorProfiles(input: Parameters<ProfilePreparation>[0]) {
+  selectedPrincipal = controlPrincipal;
+  const upload = async (kind: string, bytes: Buffer): Promise<ArtifactContentReference> => {
+    const reference = ArtifactContentReferenceSchema.parse({
+      artifactId: `artifact_${runKey}_policy_${kind}`,
+      classification: "internal",
+      mediaType: "application/json",
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      sizeBytes: bytes.byteLength,
+    });
+    const client = regressionClient();
+    const reservation = await client.reserveArtifact({
+      request: {
+        ...reference,
+        redaction: { status: "not_required" },
+        retention: { mode: "retain" },
+      },
+    });
+    expect(reservation.created).toBe(true);
+    const uploaded = await client.uploadArtifactContent({
+      artifactId: reference.artifactId,
+      content: bytes,
+    });
+    expect(uploaded.metadata.contentReference).toEqual(reference);
+    return reference;
+  };
+  // Fixed original public source files, never classified normalized requests or caller-selected paths.
+  const implementationPaths = [
+    "examples/interaction-capture/src/capture.ts",
+    "examples/interaction-capture/src/reference-recorded-target.ts",
+    "examples/durable-replay/src/target-source.ts",
+    "examples/workflow-2-release-candidate/src/workflow.ts",
+  ];
+  const specificationPaths = [
+    "packages/contracts/src/interaction.ts",
+    "packages/contracts/src/replay-plan.ts",
+    "packages/contracts/src/runtime-definition.ts",
+    "packages/contracts/src/protocol-definition.ts",
+  ];
+  const bundle = async (paths: readonly string[]) =>
+    Buffer.from(
+      JSON.stringify({
+        sourceRevision: releaseCandidateSource().commit.value,
+        files: await Promise.all(
+          paths.map(async (path) => {
+            const bytes = await readFile(join(repositoryRoot, path));
+            return {
+              path,
+              sha256: createHash("sha256").update(bytes).digest("hex"),
+              source: bytes.toString("utf8"),
+            };
+          }),
+        ),
+      }),
+    );
+  const implementation = await upload("implementation", await bundle(implementationPaths));
+  const specification = await upload("specification", await bundle(specificationPaths));
+  const configuration = await upload(
+    "configuration",
+    Buffer.from(
+      JSON.stringify({
+        scope: input.scope,
+        runtime: input.targetRelease.runtime,
+        limitation:
+          "Reference source declarations only; no loaded-code or provider-identity attestation.",
+      }),
+    ),
+  );
+  contributorDefinitions = createPolicyContributorDefinitions({
+    namespace: `run_${runKey}`,
+    scope: input.scope,
+    registeredAt: clock.now().toISOString(),
+    registeredByPrincipalId: controlPrincipal.principalId,
+    runtime: input.targetRelease.runtime,
+    implementation,
+    configuration,
+    specification,
+  });
+  return {
+    runtimeProfile: contributorDefinitions.runtimeProfileReference,
+    isolationProfile: contributorDefinitions.isolationProfileReference,
+  };
+}
 
 function comparisonClient(): ProofStackComparisonClient {
   return new ProofStackComparisonClient({
@@ -571,7 +673,12 @@ async function startApi(): Promise<void> {
     }),
     releaseCandidateRuntimeAuthority: new StaticReleaseCandidateRuntimeAuthority({
       modelDeclarations: [{ declaration: WORKFLOW_2_REFERENCE_MODEL_DECLARATION, scope }],
-      runtimeAdapters: [{ adapter: WORKFLOW_2_REFERENCE_MODEL_ADAPTER, scope }],
+      runtimeAdapters: [
+        { adapter: WORKFLOW_2_REFERENCE_MODEL_ADAPTER, scope },
+        ...(contributorDefinitions
+          ? [{ adapter: contributorDefinitions.modelAdapterReference, scope }]
+          : []),
+      ],
     }),
   });
   apiUrl = await app.listen({ host: "127.0.0.1", port: 0 });
@@ -716,6 +823,22 @@ async function publishPolicyAuthorityInputs(
     scope: _sourceScope,
     ...sourceDefinition
   } = structuredClone(scenario.fixture.source);
+  selectedPrincipal = controlPrincipal;
+  if (!sourceDefinition.discovery) throw new Error("Expected exact source discovery binding");
+  const discovery = await evaluation.readRecord({
+    kind: "discovery_record",
+    recordId: sourceDefinition.discovery.discoveryId,
+  });
+  if (discovery.result.kind !== "discovery_record")
+    throw new Error("Source discovery changed record kind");
+  expect(discovery.result.record.definitionSha256).toBe(
+    sourceDefinition.discovery.definitionSha256,
+  );
+  const candidates = discovery.result.record.candidates.filter(
+    (candidate) => candidate.rank === sourceDefinition.discovery!.candidateRank,
+  );
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0]?.canonicalUri).toBe(sourceDefinition.canonicalUri);
   selectedPrincipal = scenario.principals.sourcePublisher;
   const source = await evaluation.publishDefinition({
     recordId: scenario.fixture.source.sourceSnapshotId,
@@ -879,6 +1002,9 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
       controlPrincipal,
       durableReplay: {
         apiUrl,
+        ...(prepareCanonicalPolicyInputs
+          ? { prepareRuntimeProfiles: prepareContributorProfiles }
+          : {}),
         environmentId: scope.environmentId,
         outputRoot,
         projectId: scope.projectId,
@@ -1062,5 +1188,18 @@ describe("Workflow 1 retained failure-to-comparison acceptance", () => {
         policyVersionId: restoredPolicy.policy.policyVersionId,
       });
     }
+    const receiptFile = process.env["PROOFSTACK_ACCEPTANCE_RECEIPT_FILE"];
+    if (receiptFile !== undefined)
+      await writeFile(
+        receiptFile,
+        JSON.stringify({
+          schemaVersion: "0.1",
+          workflow1: true,
+          releaseCandidate: releaseCandidate !== undefined,
+          releasePolicy: releasePolicy !== undefined,
+          canonicalPolicyInputs: contributorDefinitions !== undefined,
+        }),
+        { mode: 0o600, flag: "wx" },
+      );
   });
 });

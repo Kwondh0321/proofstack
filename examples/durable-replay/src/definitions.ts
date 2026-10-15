@@ -6,6 +6,8 @@ import {
   type ReplayArtifactContentReference,
   type ReplayPlanDefinition,
   ReplayPlanDefinitionSchema,
+  type ReplayRuntimeProfileReference,
+  type ReplayIsolationProfileReference,
   type ReplayTargetAdapterReference,
   type TargetRelease,
   type TargetReleaseDefinition,
@@ -298,6 +300,22 @@ export function createDurableReplayDefinitions(
     provenanceReference,
     replayPlanDefinition,
     targetReleaseDefinition,
+  });
+}
+
+/** Creates a new plan definition from admitted operator metadata; never rewrites a retained plan. */
+export function bindDurableReplayProfiles(
+  definition: ReplayPlanDefinition,
+  profiles: {
+    readonly runtimeProfile: ReplayRuntimeProfileReference;
+    readonly isolationProfile: ReplayIsolationProfileReference;
+  },
+): ReplayPlanDefinition {
+  const original = ReplayPlanDefinitionSchema.parse(definition);
+  return ReplayPlanDefinitionSchema.parse({
+    ...original,
+    runtimeProfile: profiles.runtimeProfile,
+    isolationProfile: profiles.isolationProfile,
   });
 }
 

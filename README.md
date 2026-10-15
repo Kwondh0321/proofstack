@@ -372,6 +372,8 @@ Versioned release-policy contracts, finite non-executable rules, exact installat
 source authority, append-only memory and PostgreSQL storage, a dedicated policy-author role,
 bounded HTTP/OpenAPI and SDK operations, immutable withdrawal history, restart read-back, recovery,
 and clean-checkout acceptance are implemented and tested as a definition-only Workflow 2 boundary.
+The [acceptance completion correction](docs/development/workflow-acceptance-completion.md)
+records the earlier mode-forwarding limitation and requires exact requested-mode evidence.
 See the
 [evaluation repository and use cases guide](docs/guides/evaluation-repository-and-use-cases.md).
 The reference flows record synthetic evidence and use a deterministic local model provider;

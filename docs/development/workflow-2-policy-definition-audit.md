@@ -195,3 +195,17 @@ result separate from installation-owned policy selection and an accountable rele
 No mutable source lookup, model vote, or inferred unit conversion may create an implicit verdict.
 Contracts, persistence, authorization, recovery, and a real contributor flow must receive their own
 entry and exit gates before that third checkpoint is accepted.
+
+## Acceptance-mode verification correction — 2026-10-15
+
+Subsequent real execution found that Turbo's strict environment did not forward the candidate and
+policy mode flags. Earlier named clean-checkout jobs returned success but did not independently
+prove those conditional branches. Their historical SHAs, counts and decisions above are preserved;
+the current executable gate must be reverified with the
+[requested-mode completion receipt](workflow-acceptance-completion.md).
+
+The corrected policy flow binds its source to the actual unique retained discovery and checks its
+digest, candidate rank and canonical URI before publication. It preserves the original policy
+withdrawal, exact retries and complete restart read-back. A missing/mismatched completion receipt
+fails even after a zero child exit. Canonical input preparation remains a separate prerequisite;
+this correction does not accept policy evaluation, release authority or production readiness.

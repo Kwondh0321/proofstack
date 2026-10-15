@@ -8,6 +8,7 @@ import { digestReplayPlanDefinition, digestTargetReleaseDefinition } from "@proo
 import { describe, expect, it } from "vitest";
 import {
   createDurableReplayDefinitions,
+  bindDurableReplayProfiles,
   recordedReplayTargetAdapter,
   resolveDurableReplayTarget,
 } from "./definitions.js";
@@ -42,6 +43,52 @@ function definitions() {
     targetSource,
   });
 }
+
+describe("new canonical contributor profile binding", () => {
+  it("changes the new plan identity while retaining exact execution, budget, lineage and original definitions", () => {
+    const original = definitions().replayPlanDefinition;
+    const retained = structuredClone(original);
+    const profiles = {
+      runtimeProfile: {
+        ...original.runtimeProfile,
+        id: "runtime_canonical",
+        definitionSha256: "a".repeat(64),
+      },
+      isolationProfile: {
+        ...original.isolationProfile,
+        id: "isolation_canonical",
+        definitionSha256: "b".repeat(64),
+      },
+    };
+    const result = bindDurableReplayProfiles(original, profiles);
+    expect(digestReplayPlanDefinition(result)).not.toBe(digestReplayPlanDefinition(original));
+    expect(original).toEqual(retained);
+    expect({
+      ...result,
+      runtimeProfile: original.runtimeProfile,
+      isolationProfile: original.isolationProfile,
+    }).toEqual(original);
+    profiles.runtimeProfile.definitionSha256 = "c".repeat(64);
+    expect(result.runtimeProfile.definitionSha256).toBe("a".repeat(64));
+    expect(result.isolationProfile.definitionSha256).toBe("b".repeat(64));
+  });
+  it.each(["runtime_digest", "isolation_digest", "unknown_reference_field", "invalid_parent"])(
+    "rejects malformed %s before publishing a plan",
+    (fault) => {
+      const original = definitions().replayPlanDefinition;
+      const profiles = {
+        runtimeProfile: { ...original.runtimeProfile },
+        isolationProfile: { ...original.isolationProfile },
+      };
+      if (fault === "runtime_digest") profiles.runtimeProfile.definitionSha256 = "invalid";
+      if (fault === "isolation_digest") profiles.isolationProfile.definitionSha256 = "invalid";
+      if (fault === "unknown_reference_field")
+        Object.assign(profiles.runtimeProfile, { executable: "caller-command" });
+      if (fault === "invalid_parent") original.scope.tenantId = "invalid tenant";
+      expect(() => bindDurableReplayProfiles(original, profiles)).toThrow();
+    },
+  );
+});
 
 describe("durable replay definitions", () => {
   it("projects the worker adapter into the strict recorded-replay reference", () => {

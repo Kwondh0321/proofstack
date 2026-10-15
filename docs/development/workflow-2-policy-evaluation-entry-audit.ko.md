@@ -567,6 +567,11 @@ private 함수 권한, row-lock race, outbox rollback, pooled scope 재사용, t
 
 ## 공개 경계와 기여자 흐름
 
+[요청 모드 완료 검증 수정](workflow-acceptance-completion.ko.md)은 기존 candidate·policy 플래그를
+명시적으로 전달하고 독점 생성한 제한 크기 영수증을 검증한다. 이전 이름별 작업 성공만으로 필터된
+조건 분기를 입증하지 못했음을 보존하고 실제 모드를 재검증한다. 선택 canonical profile/protocol
+준비는 원래 입력의 보존이며 완전한 policy worker 기여자 흐름 승인이 아니다.
+
 [Native worker reference 권한 구성](workflow-2-policy-worker-authorities.ko.md)은 별도 infrastructure
 package와 선택 비공개 운영자 설정으로 API의 정확한 scoped Git/model/adapter 검사를 공유합니다.
 설정 부재는 미확인을 유지하며 reference 가용성이 로드된 코드·실제 provider를 입증하지 않습니다.
