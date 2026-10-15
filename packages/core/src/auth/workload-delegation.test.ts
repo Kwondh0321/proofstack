@@ -82,6 +82,19 @@ describe("canDelegateResourceScope", () => {
 });
 
 describe("requireWorkloadDelegation", () => {
+  it.each([
+    "release:selection:manage",
+    "approval:authority:manage",
+    "release:decision:publish",
+  ] as const)(
+    "refuses delegation of %s even from an owner who explicitly holds it",
+    (capability) => {
+      const issuer = principal({ capabilities: ["identity:manage", capability], roles: ["owner"] });
+      expect(() =>
+        requireWorkloadDelegation(issuer, [capability as WorkloadCapability], { mode: "tenant" }),
+      ).toThrow(ForbiddenError);
+    },
+  );
   it("accepts a nonempty capability subset and narrower scope", () => {
     expect(() =>
       requireWorkloadDelegation(principal(), ["evidence:ingest"], restricted),

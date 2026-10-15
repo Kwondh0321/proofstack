@@ -3,10 +3,12 @@
 [English](workflow-2-decision-contracts.md) | [한국어](workflow-2-decision-contracts.ko.md)
 
 상태: 체크포인트 4의 계약·계산 선행 작업. Workflow 2는 계속 3/7 승인이다.
-실제 권한 snapshot 기록·port, 현재 권한·quorum, 저장소·네이티브 게시·API/SDK·기여자 검사와
+현재 권한 port·quorum, 저장소·네이티브 게시·API/SDK·기여자 검사와
 별도 종료 감사는 열려 있다. [진입 감사](workflow-2-decision-entry-audit.ko.md),
 [입력 계약](workflow-2-decision-input-contracts.ko.md),
 [ADR-0038](../architecture/0038-retain-original-rule-outcomes-in-accountable-decisions.md)을 따른다.
+제한된 자료·헤더·페이지 계약과 과거 전송 복원은 [권한 스냅샷](workflow-2-decision-authority-snapshot.ko.md)에
+설명하며 현재 게시 권한을 부여하지 않는다.
 
 ## 검증된 입력 의존성
 
@@ -58,8 +60,8 @@ ID·소수 30자리 시각·escape되는 인증 요청 ID·비 BMP 근거를 넣
 
 프로토콜 유효기간은 최대 1시간이고 owning 구성은 원래 입력·실제 권한 구간과 다시 교차해야
 한다. 새 영수증은 과거 증거를 새롭게 만들지 않는다. 권한 snapshot 참조는 원래 게시 cut의
-완전한 별도 그래프를 가리킨다. 실제 엄격한 기록·페이지·canonical 형식·현재 권한 port는
-저장 구현 전에 고정해야 한다. 과거 조회는 원래 그래프로 다시 계산하며 나중 철회가 과거
+완전한 별도 그래프를 가리킨다. 엄격한 기록·페이지·canonical 형식은 아직 열려 있는 현재
+권한 port·저장 구현과 별개다. 과거 조회는 원래 그래프로 다시 계산하며 나중 철회가 과거
 결정을 바꾸지 않는다. 새 게시는 현재 상태와 비공개 세션/grant/발행자 증명을 다시 검사하고
 guard를 유지한 채 그래프·결정·outbox를 원자적으로 기록해야 한다. 별도 보고서·snapshot은
 나중 게시 권한이 아니며 비밀 인증 증명은 출력에 넣지 않는다.

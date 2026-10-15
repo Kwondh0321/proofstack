@@ -317,6 +317,14 @@ describe("CombinedRequestAuthenticator", () => {
 });
 
 describe("createAuthenticator", () => {
+  it.each(["release:selection:manage", "approval:authority:manage", "release:decision:publish"])(
+    "does not grant new release authority %s to the default development identity",
+    async (capability) => {
+      const authenticator = createAuthenticator(loadConfig({ PROOFSTACK_ENV: "test" }));
+      const principal = await authenticator.authenticate(request());
+      expect(principal.capabilities).not.toContain(capability);
+    },
+  );
   it("creates the development adapter only for development mode", async () => {
     const authenticator = createAuthenticator(loadConfig({ PROOFSTACK_ENV: "test" }));
     await expect(authenticator.authenticate(request())).resolves.toMatchObject({

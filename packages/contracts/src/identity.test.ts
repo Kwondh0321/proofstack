@@ -171,4 +171,12 @@ describe("WorkloadCapabilitySchema", () => {
     expect(WorkloadCapabilitySchema.safeParse("policy:evaluate").success).toBe(true);
     expect(WorkloadCapabilitySchema.safeParse("policy:author").success).toBe(false);
   });
+
+  it.each(["release:selection:manage", "approval:authority:manage", "release:decision:publish"])(
+    "registers explicit accountable-release capability %s without workload delegation",
+    (capability) => {
+      expect(CapabilitySchema.safeParse(capability).success).toBe(true);
+      expect(WorkloadCapabilitySchema.safeParse(capability).success).toBe(false);
+    },
+  );
 });

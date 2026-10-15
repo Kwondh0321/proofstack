@@ -333,3 +333,6 @@ export type ReleaseDecisionDefinition = z.infer<typeof ReleaseDecisionDefinition
 export type ReleaseDecision = z.infer<typeof ReleaseDecisionSchema>;
 export type ReleaseDecisionReference = z.infer<typeof ReleaseDecisionReferenceSchema>;
 export type CreateReleaseDecisionRequest = z.infer<typeof CreateReleaseDecisionRequestSchema>;
+export type ReleaseDecisionAuthoritySnapshotReference = z.infer<
+  typeof ReleaseDecisionAuthoritySnapshotReferenceSchema
+>;

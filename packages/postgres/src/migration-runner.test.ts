@@ -147,6 +147,7 @@ describe("migration inspection", () => {
         "0059_policy_evaluation_computation_admission",
         "0060_policy_evaluation_result_storage",
         "0061_policy_acquisition_allowances",
+        "0062_release_authority_capabilities",
       ],
     });
   });

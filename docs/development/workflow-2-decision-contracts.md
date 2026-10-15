@@ -3,10 +3,12 @@
 [English](workflow-2-decision-contracts.md) | [한국어](workflow-2-decision-contracts.ko.md)
 
 Status: checkpoint 4 contract/computation prerequisite; Workflow 2 remains 3/7 accepted.
-Authority snapshot records/ports, real current authority/quorums, repositories, native publication,
+Current authority ports/quorums, repositories, native publication,
 API/SDK, contributor and separate exit audit remain open. See the [entry audit](workflow-2-decision-entry-audit.md),
 [input contract](workflow-2-decision-input-contracts.md) and
 [ADR-0038](../architecture/0038-retain-original-rule-outcomes-in-accountable-decisions.md).
+Bounded material/header/page contracts and historical transport are documented separately in
+[authority snapshots](workflow-2-decision-authority-snapshot.md); they confer no current authority.
 
 ## Accepted original-input dependency
 
@@ -61,8 +63,8 @@ only supporting ones, still consume original input record/byte limits; native me
 
 Maximum protocol validity is one hour. Owning composition must further intersect the original
 input and every relevant authority interval. A new receipt cannot refresh old evidence. The
-authority snapshot reference names a distinct complete publication-cut graph; its actual strict
-records/pages, canonical encoding and current-authority ports must be frozen before persistence.
+authority snapshot reference names a distinct complete publication-cut graph; its strict
+records/pages and canonical encoding are separate from still-open current-authority ports and persistence.
 Historical reads recompute from that original retained graph; later revocation does not rewrite
 an old decision. New publication must independently revalidate current actual state and private
 session/grant/publisher proof while holding guards through graph+decision+outbox commit. No

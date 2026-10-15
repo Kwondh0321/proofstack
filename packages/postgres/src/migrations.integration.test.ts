@@ -180,6 +180,7 @@ describe("PostgreSQL evidence schema", () => {
       "0059_policy_evaluation_computation_admission",
       "0060_policy_evaluation_result_storage",
       "0061_policy_acquisition_allowances",
+      "0062_release_authority_capabilities",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(
@@ -637,6 +638,33 @@ describe("PostgreSQL evidence schema", () => {
       policyReadWorkload: true,
       replayManagementWorkload: false,
     });
+
+    const releaseCapabilities = [
+      "approval:authority:manage",
+      "release:decision:publish",
+      "release:selection:manage",
+    ];
+    const releaseParity = await pool.query<{
+      capability: string;
+      user_allowed: boolean;
+      workload_allowed: boolean;
+    }>(
+      `
+      SELECT capability,
+        public.proofstack_valid_user_capabilities(ARRAY[capability]::text[]) AS user_allowed,
+        public.proofstack_valid_workload_capabilities(ARRAY[capability]::text[]) AS workload_allowed
+      FROM unnest($1::text[]) AS capabilities(capability)
+      ORDER BY capability COLLATE "C"
+    `,
+      [releaseCapabilities],
+    );
+    expect(releaseParity.rows).toEqual(
+      releaseCapabilities.map((capability) => ({
+        capability,
+        user_allowed: true,
+        workload_allowed: false,
+      })),
+    );
 
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${runtimeRole}`);
     await pool.query(`GRANT SELECT, INSERT ON public.proofstack_evidence_events TO ${runtimeRole}`);

@@ -12,6 +12,9 @@
 [결정 계약·보수적 계산](workflow-2-decision-contracts.ko.md)은 원래 outcome과 별도 판정을
 보존한다. 현재 권한·네이티브 수용은 열려 있고 계산 보고서는 게시 권한이 아니다.
 
+[권한 스냅샷 계약과 과거 복원](workflow-2-decision-authority-snapshot.ko.md)은 원래 공개 관측을
+보존한다. 현재 권한이나 guard를 유지하는 원자적 게시를 수용한 것은 아니다.
+
 [전체 결정 입력 사전 고정 계약](workflow-2-decision-input-contracts.ko.md)은 원래 요청 목록을
 보존한다. 네이티브 예약과 현재 게시 권한은 열려 있으며 불변 무결성은 단계 수용이 아니다.
 
