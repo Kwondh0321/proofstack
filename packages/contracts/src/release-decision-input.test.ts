@@ -25,6 +25,30 @@ function definition(index = 0) {
 }
 
 describe("predeclared complete decision inputs", () => {
+  it.each([0, 1])(
+    "rejects malformed scalar receipt strings without throwing for actor %i",
+    (index) => {
+      const value = definition(index);
+      for (const requestId of [String.fromCharCode(0xd800), String.fromCharCode(0xdfff)]) {
+        expect(
+          ReleaseDecisionInputDefinitionSchema.safeParse({
+            ...value,
+            publisher: { ...value.publisher, requestId },
+          }).success,
+        ).toBe(false);
+        expect(
+          ReleaseDecisionPublisherReceiptSchema.safeParse({ ...value.publisher, requestId })
+            .success,
+        ).toBe(false);
+      }
+      expect(
+        ReleaseDecisionPublisherReceiptSchema.safeParse({
+          ...value.publisher,
+          requestId: "😀".repeat(64),
+        }).success,
+      ).toBe(true);
+    },
+  );
   it.each([0, 1, 2])(
     "admits the explicit reference mode %i without claiming authority",
     (index) => {

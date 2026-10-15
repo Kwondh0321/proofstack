@@ -39,7 +39,10 @@ export const ReleaseDecisionPublisherReceiptSchema = z.discriminatedUnion("princ
       authenticationMethod: z.literal("service_token"),
       authenticatedAt: UtcMillisecondTimestampSchema,
       credentialId: OpaqueIdSchema,
-      requestId: RequestIdSchema,
+      requestId: RequestIdSchema.refine(
+        (value) => !/[\uD800-\uDFFF]/u.test(value),
+        "Canonical authentication receipts require Unicode scalar request IDs",
+      ),
     })
     .strict(),
 ]);

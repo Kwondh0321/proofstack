@@ -118,7 +118,10 @@ export const ReleaseApprovalReviewerReceiptSchema = z
     authenticationMethod: z.literal("oidc"),
     authenticatedAt: UtcMillisecondTimestampSchema,
     credentialId: OpaqueIdSchema,
-    requestId: RequestIdSchema,
+    requestId: RequestIdSchema.refine(
+      (value) => !/[\uD800-\uDFFF]/u.test(value),
+      "Canonical authentication receipts require Unicode scalar request IDs",
+    ),
   })
   .strict();
 

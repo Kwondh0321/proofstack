@@ -47,6 +47,17 @@ function atBytes(bytes: number) {
 }
 
 describe("public approval intent and original authenticated record", () => {
+  it.each([0xd800, 0xdfff])(
+    "rejects malformed scalar reviewer requestId %i without throwing",
+    (codePoint) => {
+      const value = definition();
+      const result = ReleaseApprovalDefinitionSchema.safeParse({
+        ...value,
+        reviewer: { ...value.reviewer, requestId: String.fromCharCode(codePoint) },
+      });
+      expect(result.success).toBe(false);
+    },
+  );
   it("admits separate normal approval and exact-rule exception declarations", () => {
     expect(intent().kind).toBe("normal_approval");
     expect(intent(2).kind).toBe("rule_exception");

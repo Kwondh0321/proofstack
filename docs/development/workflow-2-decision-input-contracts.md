@@ -26,6 +26,9 @@ exact candidate, exact installed selection and rationale. It cannot select resul
 actor, limits, authority or disposition. Server definitions retain the original OIDC user or
 service-token publisher receipt, scope, native cut, expiry, selection mode and all planned C3
 definitions/digests. A service receipt is not human approval. Neither receipt is a credential.
+Authentication request IDs must contain Unicode scalars. Malformed surrogate strings produce a
+validation rejection before canonical encoding; both user approval and decision receipts preserve
+valid paired non-BMP characters and existing request-ID length limits.
 
 All selected policies, including advisory members, have distinct ordered logical IDs and unique
 planned request IDs. Each retains the exact candidate and creation-cut text. Equal-instant alternate
