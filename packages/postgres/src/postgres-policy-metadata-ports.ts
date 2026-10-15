@@ -72,7 +72,7 @@ const modelKinds = {
   model_qualification_suite: true,
 } satisfies Record<ModelAssuranceRecordKind, true>;
 
-/** Internal adapter composition; the owning transaction has already acquired and verified guards. */
+/** Fixed owning readers. The transaction owner enforces lifetime and any required final guards. */
 export function createPostgresPolicyMetadataPorts(
   client: Pick<PoolClient, "query">,
   exact: EvidenceScope,

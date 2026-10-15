@@ -105,6 +105,7 @@ import { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-eval
 import { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
 import { PostgresPolicySnapshotRepository } from "./postgres-policy-snapshot-repository.js";
 import { PostgresPolicyAcquisitionRepository } from "./postgres-policy-acquisition-repository.js";
+import { createPostgresPolicyInitialSources } from "./postgres-policy-initial-sources.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
 import { PostgresArtifactCatalogRepository } from "./postgres-artifact-catalog-repository.js";
@@ -862,6 +863,7 @@ async function fixture(
 async function nativeSealingHarness(
   leaseMilliseconds = 20000,
   identities?: { jobId: string; snapshotId: string },
+  boundedInitialReads = false,
 ) {
   const f = await fixture(true, true, true, true, false, false, true, true);
   // Separate least-privilege control/evaluator pools prove the actual native grants.
@@ -926,7 +928,15 @@ async function nativeSealingHarness(
   const [_request, _actor, repositories, evidence, dependencies] = f.captureArguments();
   const contentDependencies = {
     catalog: dependencies.catalog,
-    objects: dependencies.objects,
+    objects: boundedInitialReads
+      ? {
+          async get(objectKey: string) {
+            expect(pool.idleCount).toBe(pool.totalCount);
+            expect(pool.waitingCount).toBe(0);
+            return dependencies.objects.get(objectKey);
+          },
+        }
+      : dependencies.objects,
     encryption: dependencies.encryption,
     clock: dependencies.clock,
   };
@@ -948,13 +958,30 @@ async function nativeSealingHarness(
     sealTransactions: PolicyEvaluationSnapshotSealingTransactions = transactions,
     artifactByteAdmission?: PolicyArtifactByteAdmission,
     acquisitionAdmission?: PolicyAcquisitionAdmission,
-  ) =>
-    sealPolicyEvaluationSnapshot(
+  ) => {
+    if (boundedInitialReads && !acquisitionAdmission)
+      throw new Error("Initial source fixture requires committed acquisition admission");
+    const initial =
+      boundedInitialReads && acquisitionAdmission
+        ? createPostgresPolicyInitialSources(
+            pool,
+            {
+              scope: f.scope,
+              fence,
+              allowanceId: acquisitionAdmission.allowanceId,
+            },
+            {
+              endpointProfiles: f.endpointProfile ? [f.endpointProfile] : [],
+              protocolDefinitions: f.protocolRecords,
+            },
+          )
+        : undefined;
+    return sealPolicyEvaluationSnapshot(
       created.snapshot.request,
       actor,
-      nativeRepositories,
-      evidence,
-      contentDependencies,
+      initial?.repositories ?? nativeRepositories,
+      initial?.evidence ?? evidence,
+      { ...contentDependencies, catalog: initial?.catalog ?? contentDependencies.catalog },
       {
         manifestId: `manifest_seal_${f.namespace}`,
         snapshotId: identities?.snapshotId ?? `snapshot_seal_${f.namespace}`,
@@ -964,6 +991,7 @@ async function nativeSealingHarness(
         ...(acquisitionAdmission ? { acquisitionAdmission } : {}),
       },
     );
+  };
   return {
     f,
     pool,
@@ -1050,6 +1078,81 @@ async function nativeResultHarness(paidRules = 7, leaseMilliseconds = 20000) {
 }
 
 describe("request-owned source recheck on actual PostgreSQL", () => {
+  it("requires exact live credit for bounded initial source reads without changing stored job history", async () => {
+    const h = await nativeSealingHarness();
+    const allowanceId = "allowance_initial_native_guard";
+    const repository = new PostgresPolicyAcquisitionRepository(h.pool);
+    const sources = createPostgresPolicyInitialSources(h.pool, {
+      scope: h.f.scope,
+      fence: h.fence,
+      allowanceId,
+    });
+    const read = () => sources.catalog.find(h.f.scope, "artifact_absent_initial");
+    const before = await h.control.findJob(h.f.scope, h.jobId);
+    await expect(read()).rejects.toThrow("exact open acquisition credit");
+    expect(await h.control.findJob(h.f.scope, h.jobId)).toEqual(before);
+    await repository.reserveAcquisition({ scope: h.f.scope, fence: h.fence, allowanceId });
+    await expect(read()).resolves.toBeNull();
+    for (const wrong of [
+      { scope: h.f.scope, fence: h.fence, allowanceId: "allowance_other" },
+      { scope: h.f.scope, fence: { ...h.fence, workerId: "worker_other" }, allowanceId },
+    ]) {
+      const invalid = createPostgresPolicyInitialSources(h.pool, wrong);
+      await expect(invalid.catalog.find(h.f.scope, "artifact_absent_initial")).rejects.toThrow();
+    }
+    const controlOnly = createPostgresPolicyInitialSources(h.controlPool, {
+      scope: h.f.scope,
+      fence: h.fence,
+      allowanceId,
+    });
+    await expect(
+      controlOnly.catalog.find(h.f.scope, "artifact_absent_initial"),
+    ).rejects.toMatchObject({ code: "42501" });
+    await repository.settleAcquisition({
+      scope: h.f.scope,
+      fence: h.fence,
+      allowanceId,
+      usage: { reads: 0, records: 0, references: 0, recordBytes: 0, referenceBytes: 0 },
+    });
+    await expect(read()).rejects.toThrow("exact open acquisition credit");
+    const nextId = "allowance_initial_native_next";
+    await repository.reserveAcquisition({ scope: h.f.scope, fence: h.fence, allowanceId: nextId });
+    await expect(read()).rejects.toThrow("exact open acquisition credit");
+    const current = createPostgresPolicyInitialSources(h.pool, {
+      scope: h.f.scope,
+      fence: h.fence,
+      allowanceId: nextId,
+    });
+    await expect(current.catalog.find(h.f.scope, "artifact_absent_initial")).resolves.toBeNull();
+    const cancelled = await h.control.cancelJob({
+      scope: h.f.scope,
+      jobId: h.jobId,
+      cancellationId: "cancel_initial_native",
+      principalId: "operator_initial_native",
+      reason: "operator_requested",
+    });
+    const head = await h.control.findHistoryHead(h.f.scope, h.jobId);
+    await expect(current.catalog.find(h.f.scope, "artifact_absent_initial")).rejects.toThrow();
+    expect(await h.control.findJob(h.f.scope, h.jobId)).toEqual(cancelled);
+    expect(await h.control.findHistoryHead(h.f.scope, h.jobId)).toEqual(head);
+    expect(h.pool.idleCount).toBe(h.pool.totalCount);
+    expect(h.pool.waitingCount).toBe(0);
+    expect(h.idleErrors).toEqual([]);
+  });
+  it("seals through bounded initial source reads on exact credit and returns every connection before content", async () => {
+    const h = await nativeSealingHarness(20000, undefined, true);
+    const sealed = await h.seal(undefined, undefined, {
+      repository: new PostgresPolicyAcquisitionRepository(h.pool),
+      allowanceId: "allowance_bounded_initial_sources",
+    });
+    expect(sealed.job.job.status).toBe("sealed");
+    expect(sealed.job.acquisitionAllowance).toBeNull();
+    expect(sealed.job.usage.reads).toBeGreaterThan(0);
+    expect(h.f.objectReads()).toBeGreaterThan(0);
+    expect(h.pool.idleCount).toBe(h.pool.totalCount);
+    expect(h.pool.waitingCount).toBe(0);
+    expect(h.idleErrors).toEqual([]);
+  });
   it("isolates identical job, snapshot and result IDs across three populated native tenants", async () => {
     const identities = { jobId: "job_shared_collision", snapshotId: "snapshot_shared_collision" };
     const published = await Promise.all(

@@ -1,5 +1,9 @@
 # 정책 수집 경로의 소유 예산 확보
 
+후속 [제한된 초기 소스 어댑터](workflow-2-policy-initial-sources.ko.md)는 정확한 열린 credit과
+decoder 전 한도를 owning metadata 읽기에 연결합니다. 실제 worker 실행 연결은 남아 있으며
+의미적 계량과 물리 transport 제한은 구별합니다.
+
 Workflow 2 체크포인트 3은 아직 열려 있습니다. 내부 `sealPolicyEvaluationSnapshot`의
 선택적 `acquisitionAdmission`으로 커밋된 예산 확보를 수집·봉인 경로에 연결합니다.
 공개 API, worker 실행 파일 또는 운영 조합은 추가하지 않습니다.

@@ -83,6 +83,8 @@ export async function withBoundedPolicyTransaction<T>(
     readonly scope?: EvidenceScope;
     readonly recovery?: boolean;
     readonly sealing?: boolean;
+    /** Server-owned initial source reads also require pre-decoder physical admission. */
+    readonly requireWire?: boolean;
   } = {},
 ): Promise<T> {
   if (options.recovery && options.sealing)
@@ -218,7 +220,8 @@ export async function withBoundedPolicyTransaction<T>(
         void destroy();
       },
     );
-    if (options.sealing && !finishWire) throw new PostgresPolicyIoError("wire_pool_required");
+    if ((options.sealing || options.requireWire) && !finishWire)
+      throw new PostgresPolicyIoError("wire_pool_required");
     // URI configuration may override pool options. Inspect the effective driver setting too.
     const effective = (
       physical as PoolClient & { connectionParameters?: { query_timeout?: unknown } }

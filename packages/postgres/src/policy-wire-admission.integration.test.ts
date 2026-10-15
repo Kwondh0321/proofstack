@@ -36,22 +36,31 @@ describe("real native policy driver protocol bounds", () => {
       await pool.end();
     }
   });
-  it.each(["frame", "rows"])(
-    "destroys an excess %s response before accepting decoded results, then admits a fresh backend",
-    async (kind) => {
+  it.each([
+    { kind: "frame", requireWire: false },
+    { kind: "rows", requireWire: false },
+    { kind: "frame", requireWire: true },
+    { kind: "rows", requireWire: true },
+  ])(
+    "destroys an excess $kind response (required wire: $requireWire) before accepting decoded results, then admits a fresh backend",
+    async ({ kind, requireWire }) => {
       const { pool } = fixture();
       try {
         const oldPid = (await pool.query("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
         await expect(
-          withBoundedPolicyTransaction(pool, async (client) => {
-            if (kind === "frame")
-              return client.query("SELECT repeat('x',$1::integer) AS value", [
-                POLICY_WIRE_FRAME_BYTES,
+          withBoundedPolicyTransaction(
+            pool,
+            async (client) => {
+              if (kind === "frame")
+                return client.query("SELECT repeat('x',$1::integer) AS value", [
+                  POLICY_WIRE_FRAME_BYTES,
+                ]);
+              return client.query("SELECT generate_series(1,$1::integer) AS value", [
+                POLICY_WIRE_TRANSACTION_ROWS + 1,
               ]);
-            return client.query("SELECT generate_series(1,$1::integer) AS value", [
-              POLICY_WIRE_TRANSACTION_ROWS + 1,
-            ]);
-          }),
+            },
+            { requireWire },
+          ),
         ).rejects.toMatchObject({ code: "wire_admission" });
         const result = await withBoundedPolicyTransaction(pool, (client) =>
           client.query("SELECT pg_backend_pid() AS pid,1 AS value"),

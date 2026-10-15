@@ -1,5 +1,9 @@
 # Owning acquisition credit during policy capture
 
+The later [bounded initial source facade](workflow-2-policy-initial-sources.md) binds owning
+metadata reads to exact live credit and pre-decoder limits. Actual executable worker wiring
+remains required; semantic counters and physical transport limits stay separate.
+
 Workflow 2 checkpoint 3 remains open. The workspace-only `sealPolicyEvaluationSnapshot`
 entry optionally accepts server-owned `acquisitionAdmission`. This connects committed
 [acquisition allowances](workflow-2-policy-acquisition-allowances.md) to the existing capture

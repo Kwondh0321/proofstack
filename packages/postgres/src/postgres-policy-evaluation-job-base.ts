@@ -72,6 +72,7 @@ export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluat
   protected async transact<T>(
     input: EvidenceScope,
     work: (client: PoolClient, scope: EvidenceScope) => Promise<T>,
+    options: { readonly requireWire?: boolean } = {},
   ): Promise<T> {
     const scope = EvidenceScopeSchema.parse(input);
     const migrations = await loadBundledMigrations();
@@ -82,7 +83,7 @@ export abstract class PostgresPolicyEvaluationJobReader implements PolicyEvaluat
           await this.admitMigrations(client, migrations);
           return work(client, scope);
         },
-        { scope },
+        { scope, ...(options.requireWire === true ? { requireWire: true } : {}) },
       );
     } catch (error) {
       return persistenceError(error);

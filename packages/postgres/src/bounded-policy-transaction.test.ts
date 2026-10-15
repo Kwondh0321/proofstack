@@ -43,18 +43,24 @@ function fixture() {
 }
 afterEach(() => vi.useRealTimers());
 describe("bounded policy transaction lifecycle", () => {
-  it("rejects sealing on an unbranded client before SQL and destroys/releases it once", async () => {
-    const f = fixture();
-    const operation = vi.fn();
-    await expect(
-      withBoundedPolicyTransaction(f.pool, operation, { scope, sealing: true }),
-    ).rejects.toMatchObject({ code: "wire_pool_required" });
-    expect(operation).not.toHaveBeenCalled();
-    expect(f.calls).toEqual([]);
-    expect(f.physical.connection.stream.destroy).toHaveBeenCalledTimes(1);
-    expect(f.physical.end).toHaveBeenCalledTimes(1);
-    expect(f.physical.release).toHaveBeenCalledExactlyOnceWith(true);
-  });
+  it.each(["sealing", "initial_sources"] as const)(
+    "rejects %s on an unbranded client before SQL and destroys/releases it once",
+    async (purpose) => {
+      const f = fixture();
+      const operation = vi.fn();
+      await expect(
+        withBoundedPolicyTransaction(f.pool, operation, {
+          scope,
+          ...(purpose === "sealing" ? { sealing: true } : { requireWire: true }),
+        }),
+      ).rejects.toMatchObject({ code: "wire_pool_required" });
+      expect(operation).not.toHaveBeenCalled();
+      expect(f.calls).toEqual([]);
+      expect(f.physical.connection.stream.destroy).toHaveBeenCalledTimes(1);
+      expect(f.physical.end).toHaveBeenCalledTimes(1);
+      expect(f.physical.release).toHaveBeenCalledExactlyOnceWith(true);
+    },
+  );
   it("rejects mixed sealing/owner recovery before checking out a client", async () => {
     const f = fixture();
     await expect(

@@ -758,6 +758,10 @@ The [optional acquisition capture composition](workflow-2-policy-acquisition-cap
 settles drained metadata on the held client before sealing and retains costs across rollback.
 Response admission does not establish complete wire/list accounting; this checkpoint remains open.
 
+The [bounded initial source facade](workflow-2-policy-initial-sources.md) now enforces exact
+open credit, native per-read expiry and pre-decoder limits on fixed owning readers. The actual
+worker must install it; per-read wire ceilings remain distinct from job-wide semantic charges.
+
 The [per-invocation rule reservation composition](workflow-2-policy-rule-reservations.md)
 now commits a fresh whole-count reservation before native calculation/publication and refuses
 duplicate, ambiguous or expired acknowledgements. Rollback and cancellation retain the fee.
