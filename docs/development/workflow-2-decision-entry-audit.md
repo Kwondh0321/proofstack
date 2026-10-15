@@ -97,6 +97,10 @@ inventories explicitly and prove serialized headroom before accepting those cont
 
 ## Required approval and exception authority
 
+The [predeclared complete input contracts](workflow-2-decision-input-contracts.md) retain the
+original request inventory. Native reservations and current publication authority remain open;
+immutable integrity is not checkpoint acceptance.
+
 Use separate exact normal-approval and known-rule-exception subjects. Both bind one immutable
 candidate/policy/evaluation/selection/target/environment, original rule identity, actual user
 authentication receipt, rationale, non-executable conditions, validity and supersession/revocation

@@ -1,0 +1,317 @@
+{
+  "format": "proofstack.release-decision-input-definition.v1",
+  "vectors": [
+    {
+      "name": "complete-mandatory-and-advisory-service",
+      "input": {
+        "definition": {
+          "decisionInputRequestId": "decision_input_checkout",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "selection": {
+            "selectionId": "selection_checkout",
+            "selectionVersionId": "selection_checkout_v1",
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging",
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "mode": "enforce",
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "service",
+            "authenticationMethod": "service_token",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "credential_decision",
+            "requestId": "request-decision-1"
+          },
+          "createdAt": "2026-10-15T12:00:00.000001Z",
+          "expiresAt": "2026-10-15T12:10:00.000001Z",
+          "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+          "verificationLimits": {
+            "maxAcquisitionRecords": 100000,
+            "maxAcquisitionRecordBytes": 67108864,
+            "maxApprovalRecords": 4096
+          },
+          "evaluations": [
+            {
+              "mode": "mandatory",
+              "request": {
+                "algorithm": {
+                  "id": "proofstack.deterministic-policy",
+                  "version": "1.0.0"
+                },
+                "candidate": {
+                  "candidateId": "candidate_reference",
+                  "candidateVersionId": "candidate_reference_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "evaluationRequestId": "evaluation_checkout_a",
+                "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                "limits": {
+                  "heartbeatIntervalMilliseconds": 5000,
+                  "leaseDurationMilliseconds": 30000,
+                  "maxAcquisitionRecordBytes": 16777216,
+                  "maxAcquisitionRecords": 10000,
+                  "maxArtifactReadBytes": 67108864,
+                  "maxAttempts": 3,
+                  "maxRuleEvaluations": 384,
+                  "perAttemptTimeoutMilliseconds": 120000,
+                  "retryBackoffMilliseconds": 1000,
+                  "retryableErrors": [
+                    "lease_expired",
+                    "source_revision_changed",
+                    "source_temporarily_unavailable",
+                    "worker_interrupted"
+                  ],
+                  "totalDeadlineMilliseconds": 600000
+                },
+                "policy": {
+                  "policyId": "policy_checkout_a",
+                  "policyVersionId": "policy_checkout_a_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "requestSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+            },
+            {
+              "mode": "advisory",
+              "request": {
+                "algorithm": {
+                  "id": "proofstack.deterministic-policy",
+                  "version": "1.0.0"
+                },
+                "candidate": {
+                  "candidateId": "candidate_reference",
+                  "candidateVersionId": "candidate_reference_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "evaluationRequestId": "evaluation_checkout_b",
+                "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                "limits": {
+                  "heartbeatIntervalMilliseconds": 5000,
+                  "leaseDurationMilliseconds": 30000,
+                  "maxAcquisitionRecordBytes": 16777216,
+                  "maxAcquisitionRecords": 10000,
+                  "maxArtifactReadBytes": 67108864,
+                  "maxAttempts": 3,
+                  "maxRuleEvaluations": 384,
+                  "perAttemptTimeoutMilliseconds": 120000,
+                  "retryBackoffMilliseconds": 1000,
+                  "retryableErrors": [
+                    "lease_expired",
+                    "source_revision_changed",
+                    "source_temporarily_unavailable",
+                    "worker_interrupted"
+                  ],
+                  "totalDeadlineMilliseconds": 600000
+                },
+                "policy": {
+                  "policyId": "policy_checkout_b",
+                  "policyVersionId": "policy_checkout_b_v1",
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              },
+              "requestSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+            }
+          ]
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "encodedByteLength": 3582,
+      "sha256": "8cfa1e5abda53acbb766d85f9342c01a0470800d9b7ace8ce2ab4d8f2b045b65"
+    },
+    {
+      "name": "complete-user-original-oidc-receipt",
+      "input": {
+        "definition": {
+          "decisionInputRequestId": "decision_input_checkout",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "selection": {
+            "selectionId": "selection_checkout",
+            "selectionVersionId": "selection_checkout_v1",
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging",
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "mode": "enforce",
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_decision",
+            "requestId": "request-decision-1"
+          },
+          "createdAt": "2026-10-15T12:00:00.000001Z",
+          "expiresAt": "2026-10-15T12:10:00.000001Z",
+          "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+          "verificationLimits": {
+            "maxAcquisitionRecords": 100000,
+            "maxAcquisitionRecordBytes": 67108864,
+            "maxApprovalRecords": 4096
+          },
+          "evaluations": [
+            {
+              "mode": "mandatory",
+              "request": {
+                "algorithm": {
+                  "id": "proofstack.deterministic-policy",
+                  "version": "1.0.0"
+                },
+                "candidate": {
+                  "candidateId": "candidate_reference",
+                  "candidateVersionId": "candidate_reference_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "evaluationRequestId": "evaluation_checkout_a",
+                "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                "limits": {
+                  "heartbeatIntervalMilliseconds": 5000,
+                  "leaseDurationMilliseconds": 30000,
+                  "maxAcquisitionRecordBytes": 16777216,
+                  "maxAcquisitionRecords": 10000,
+                  "maxArtifactReadBytes": 67108864,
+                  "maxAttempts": 3,
+                  "maxRuleEvaluations": 384,
+                  "perAttemptTimeoutMilliseconds": 120000,
+                  "retryBackoffMilliseconds": 1000,
+                  "retryableErrors": [
+                    "lease_expired",
+                    "source_revision_changed",
+                    "source_temporarily_unavailable",
+                    "worker_interrupted"
+                  ],
+                  "totalDeadlineMilliseconds": 600000
+                },
+                "policy": {
+                  "policyId": "policy_checkout_a",
+                  "policyVersionId": "policy_checkout_a_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "requestSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+            },
+            {
+              "mode": "advisory",
+              "request": {
+                "algorithm": {
+                  "id": "proofstack.deterministic-policy",
+                  "version": "1.0.0"
+                },
+                "candidate": {
+                  "candidateId": "candidate_reference",
+                  "candidateVersionId": "candidate_reference_v1",
+                  "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "evaluationRequestId": "evaluation_checkout_b",
+                "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                "limits": {
+                  "heartbeatIntervalMilliseconds": 5000,
+                  "leaseDurationMilliseconds": 30000,
+                  "maxAcquisitionRecordBytes": 16777216,
+                  "maxAcquisitionRecords": 10000,
+                  "maxArtifactReadBytes": 67108864,
+                  "maxAttempts": 3,
+                  "maxRuleEvaluations": 384,
+                  "perAttemptTimeoutMilliseconds": 120000,
+                  "retryBackoffMilliseconds": 1000,
+                  "retryableErrors": [
+                    "lease_expired",
+                    "source_revision_changed",
+                    "source_temporarily_unavailable",
+                    "worker_interrupted"
+                  ],
+                  "totalDeadlineMilliseconds": 600000
+                },
+                "policy": {
+                  "policyId": "policy_checkout_b",
+                  "policyVersionId": "policy_checkout_b_v1",
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              },
+              "requestSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+            }
+          ]
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "encodedByteLength": 3567,
+      "sha256": "503185d47c4fdc6e5205d31825c1ef3f66dd8c79168867e9bae29bb995d90564"
+    },
+    {
+      "name": "explicit-empty-observation",
+      "input": {
+        "definition": {
+          "decisionInputRequestId": "decision_input_observation",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "candidate": {
+            "candidateId": "candidate_reference",
+            "candidateVersionId": "candidate_reference_v1",
+            "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "selection": {
+            "selectionId": "selection_checkout",
+            "selectionVersionId": "selection_checkout_v1",
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging",
+            "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "mode": "observation_only",
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_decision",
+            "requestId": "request-decision-1"
+          },
+          "createdAt": "2026-10-15T12:00:00.000001Z",
+          "expiresAt": "2026-10-15T12:10:00.000001Z",
+          "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+          "verificationLimits": {
+            "maxAcquisitionRecords": 100000,
+            "maxAcquisitionRecordBytes": 67108864,
+            "maxApprovalRecords": 4096
+          },
+          "evaluations": []
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      "encodedByteLength": 1431,
+      "sha256": "770a819d4efd5767ffb1c6b9d74592bb7e9f019228a281af5dceddbf625583e4"
+    }
+  ]
+}

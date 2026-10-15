@@ -9,6 +9,9 @@
   [ADR-0036](../architecture/0036-bind-decisions-to-current-selection-and-reviewer-authority.md)
 - 체크포인트 4 구현과 종료 감사: 미완료. Workflow 2는 3/7 완료다.
 
+[전체 결정 입력 사전 고정 계약](workflow-2-decision-input-contracts.ko.md)은 원래 요청 목록을
+보존한다. 네이티브 예약과 현재 게시 권한은 열려 있으며 불변 무결성은 단계 수용이 아니다.
+
 ## 진입 결정과 의존성 증거
 
 [체크포인트 3 감사](workflow-2-policy-evaluation-audit.ko.md)의 게시 검증이 완료되었다.

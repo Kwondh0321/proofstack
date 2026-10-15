@@ -78,6 +78,8 @@ export * from "./release-policy-selection-encoding.js";
 export * from "./release-reviewer-authority.js";
 export * from "./release-approval.js";
 export * from "./release-approval-encoding.js";
+export * from "./release-decision-input.js";
+export * from "./release-decision-input-encoding.js";
 export * from "./replay.js";
 export * from "./replay-accounting.js";
 export * from "./replay-boundary-execution.js";
