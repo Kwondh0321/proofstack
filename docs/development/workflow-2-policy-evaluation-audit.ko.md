@@ -161,6 +161,23 @@ SHA-256은 `2b0883f7cf21a05ad3f17febb64f6d334159e5413ffca121fc35baa21e7f1c8a`입
 race, coverage와 Quality의 20분 기한도 유지합니다. 순서와 증거는 [저장소 검사](repository-checks.ko.md)를
 참고하세요.
 
+## 필수 CI 준비 작업의 후속 변경
+
+두 단계 게시 `a8e518442fa8dcae11b23aac3ab6bf85f40cb19f`는 전체 로컬 검사의 테스트 16,325개,
+빌드 31개와 두 단계(93 + 29)의 캐시 0을 통과했습니다. 로그 SHA-256은
+`7e9319cd457771a82b7fe945fb17f59a5bb4ff89f75d84d18688ba35e76aabe0`입니다. 원격 Quality는
+기존 20분 한도에서 취소돼 그 SHA로 게시 조건을 닫지 못했습니다.
+
+현재 게시 변경은 **Quality build and static checks**를 추가해 이전 12개 이름과 기한을
+유지한 채 필수 CI를 13개로 만듭니다. 준비 작업이 모든 정적·루트·runner 검사와 빌드를 수행하고,
+기존 Quality gates는 준비 성공과 현재 소스의 산출물을 확인한 뒤 모든 unit 패키지를 검사합니다.
+Production audit·frozen 설치와 두 작업의 20분 한도를 유지합니다. 같은 실행의 숫자 artifact ID,
+archive SHA-256·소스 SHA·Node/pnpm 버전을 묶고 준비 실패·출력 누락·불일치는 Quality를
+실패시킵니다. 실제 전달 스크립트는 생성 파일 복사본으로 정상·공격 사례 18개를 통과했습니다.
+[저장소 검사](repository-checks.ko.md)에 증거가 있습니다. 현재 정확한 커밋의 전체 로컬 검사,
+원격 13개와 CodeQL을 통과해야 checkpoint 4에 진입합니다. 이전 기준선의 12개 성공은
+역사적 증거이며 새 준비 조건을 대신하지 않습니다.
+
 ## 남은 한계와 다음 진입
 
 과거 seal은 새로운 릴리스 권한이 아닙니다. 조직이 모든 필수 정책을 선택했는지는 별도 문제입니다.

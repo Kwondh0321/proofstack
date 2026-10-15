@@ -6,7 +6,9 @@ The independent PostgreSQL CI uses a separate **PostgreSQL integration build** j
 compilation does not consume the native test job's original 15-minute allowance. Both jobs remain
 required. The exact seven preparation filters, bounded build concurrency, frozen installation,
 pinned services, seven serial integration targets, assertions and test timeouts are unchanged.
-The full quality job still builds and checks the complete workspace separately.
+The independent quality preparation builds and statically checks the complete workspace; its
+required Quality gates job restores its own verified outputs and runs all unit packages. See
+[repository checks](repository-checks.md). It does not consume this PostgreSQL build artifact.
 After restoring verified outputs, CI passes Turbo's `--only` to the existing native command:
 all seven integration tasks still run serially while their 22 build prerequisites come from the
 required preparation job. Without that flag, a fresh test runner would compile them again because

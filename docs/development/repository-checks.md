@@ -14,6 +14,10 @@ builds. `--only` avoids running builds again, including when `TURBO_FORCE=true`.
 other package test competes with a package's unit tests. Package test timeouts, file concurrency
 settings, explicit race tests, coverage thresholds and all existing CI jobs stay unchanged.
 
+The public command composes `pnpm check:static` and `pnpm check:test` in that order. The latter
+is an internal phase requiring completed source-matching builds; use `pnpm check` for the full
+local gate or ordinary `pnpm test` when build dependencies should run automatically.
+
 For an uncached source gate:
 
 ```bash
@@ -61,3 +65,26 @@ comparison was made at `cc6ea3c30d212c2cb4787fcae33d1f5a3930ce0e`; its receipt S
 `fafb744c3be6160d4e2a2814b2d5ecff80724db1d9b2fa4eaa32e2909f3d444d`. No fixture construction,
 three-tenant assertion, test timeout, coverage check or 20-minute Quality deadline is removed or
 moved outside its test. Current exact-commit local and all remote gates remain required.
+
+## Required quality preparation in CI
+
+The two-phase full local check at `a8e518442fa8dcae11b23aac3ab6bf85f40cb19f` passed all 16,325
+tests, 31 builds and both uncached phase reports (93 + 29 tasks), but remote Quality exceeded
+its existing 20-minute job allowance. That cancellation remains a failed acceptance gate.
+
+CI therefore has an additional **Quality build and static checks** job. It runs the complete
+static phase, including root checks and runner coverage, then transfers only generated workspace
+`dist` directories and source/Node/pnpm markers. Dependencies, Next caches, credentials and service
+data are excluded. The original **Quality gates** job requires successful preparation, frozen
+installation and the production dependency audit, restores the same-run attempt-specific artifact
+by numeric ID, checks its SHA-256, source SHA and runtime versions, and runs every unit package.
+Both jobs use the existing 20-minute allowance and forced uncached tasks. `Quality gates` runs
+its preparation-result assertion even if the upstream job failed, so missing static checks cannot
+produce a skipped successful gate. All prior twelve job names and deadlines remain required;
+the complete workflow now requires thirteen jobs, with CodeQL separate.
+
+A local exercise ran the actual workflow scripts against copies of 2,324 generated files in
+30 `dist` directories. Eighteen cases checked exact restoration, altered bytes, wrong digest,
+source/runtime mismatch, missing outputs and unsuccessful/skipped preparation. Its receipt SHA-256
+is `6fdfb520b69303be25dd684825d02b727ccf6844f4582161b06eca7720f98a57`. This is handoff validation;
+the changed workflow must still pass all exact-commit local and remote gates.

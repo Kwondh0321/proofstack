@@ -183,6 +183,25 @@ case constructs all its graphs and runs all its assertions within its original f
 deadline. File concurrency, race cases, coverage and the Quality job's 20-minute limit are
 unchanged. See [repository checks](repository-checks.md) for the ordered command and evidence.
 
+## Required CI preparation follow-up
+
+The two-phase publication `a8e518442fa8dcae11b23aac3ab6bf85f40cb19f` passed the complete local
+gate with 16,325 tests, 31 builds and zero cached tasks in both phases (93 + 29). Log SHA-256:
+`7e9319cd457771a82b7fe945fb17f59a5bb4ff89f75d84d18688ba35e76aabe0`. Its remote Quality job
+was cancelled at the existing 20-minute allowance, so that SHA did not close publication.
+
+The current publication additionally requires **Quality build and static checks**, bringing the
+independent CI inventory to thirteen while retaining all previous twelve names and deadlines.
+The producer performs every static/root/runner check and build. The original Quality gates job
+requires producer success and source-matching outputs before running every unit package, with
+the production audit and frozen install retained. Both jobs keep the 20-minute limit. Same-run
+numeric artifact ID, archive SHA-256, source SHA and Node/pnpm versions bind the transfer; a failed
+producer, missing output or mismatch fails Quality gates. The actual handoff scripts passed
+eighteen local valid/adversarial cases over copied generated files, as recorded in
+[repository checks](repository-checks.md). Current exact-commit full local, all thirteen remote
+jobs and CodeQL must pass before checkpoint 4 entry. The earlier twelve-job baseline evidence is
+historical evidence, not a substitute for this new preparation gate.
+
 ## Retained limits and next entry
 
 Historical sealed evidence can be recomputed and contested; it is never fresh release authority.

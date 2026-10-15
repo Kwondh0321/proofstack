@@ -13,6 +13,10 @@ PostgreSQL/S3/recovery와 clean-checkout acceptance는 별도의 gate다.
 실행하지 않는다. 컴파일러나 다른 패키지 테스트와 CPU를 경쟁하지 않으며 테스트 제한 시간,
 파일 동시 실행·명시한 race·coverage 기준·기존 CI 작업은 유지한다.
 
+전체 명령은 `pnpm check:static` 뒤에 `pnpm check:test`를 실행한다. 후자는 현재 소스와 같은
+빌드가 완료돼야 하는 내부 단계다. 로컬 전체 gate에는 `pnpm check`를, 빌드 의존성을 자동으로
+실행할 때는 일반 `pnpm test`를 사용한다.
+
 캐시 없는 검사는 다음 명령으로 실행한다.
 
 ```bash
@@ -59,3 +63,23 @@ Turbo 시간은 17m17.507s에서 15m39.785s로 약 9.4% 줄었다. 이 시간은
 `fafb744c3be6160d4e2a2814b2d5ecff80724db1d9b2fa4eaa32e2909f3d444d`다. fixture 구성이나
 세 tenant 검증을 테스트 밖으로 옮기거나 테스트 제한·coverage·Quality의 20분 기한을
 제거하지 않는다. 현재 정확한 커밋의 로컬 전체 검사와 모든 원격 검증이 계속 필요하다.
+
+## CI의 필수 품질 준비 작업
+
+`a8e518442fa8dcae11b23aac3ab6bf85f40cb19f`의 로컬 두 단계 전체 검사는 테스트 16,325개,
+빌드 31개와 캐시 없는 두 단계(93 + 29 작업)를 통과했지만 원격 Quality가 기존 20분 작업
+한도를 넘었다. 이 취소는 승인 실패로 보존한다.
+
+CI는 **Quality build and static checks** 작업을 추가한다. 루트 검사와 runner coverage를
+포함한 전체 정적 단계를 실행한 뒤 생성된 workspace `dist`와 소스·Node·pnpm 표식만 전달한다.
+의존성·Next cache·자격증명·서비스 데이터는 제외한다. 기존 **Quality gates**는 준비 성공,
+frozen 설치와 production 의존성 audit를 요구하고 같은 실행·시도의 정확한 숫자 artifact ID로
+산출물을 받아 SHA-256·소스 SHA·런타임 버전을 확인한 뒤 모든 unit 패키지를 검사한다.
+두 작업 모두 기존 20분 한도와 강제 캐시 없는 실행을 사용한다. 선행 작업이 실패해도 Quality는
+준비 결과 검증을 실행해 정적 검사 누락이 skipped 성공 gate가 되지 않게 한다. 기존 12개
+작업 이름과 기한을 보존하며 전체 필수 작업은 13개, CodeQL은 별도다.
+
+실제 workflow 스크립트로 `dist` 30개에 생성된 파일 2,324개의 복사본을 전달해 18개 사례를
+확인했다. 정상 복원, 변조, 잘못된 digest·소스·런타임, 누락 출력과 실패·건너뛴 선행 작업을
+검증했다. 증거 SHA-256은 `6fdfb520b69303be25dd684825d02b727ccf6844f4582161b06eca7720f98a57`이다.
+이는 전달 검증이며 변경한 workflow 자체의 정확한 커밋에서 전체 로컬·원격 검사도 통과해야 한다.
