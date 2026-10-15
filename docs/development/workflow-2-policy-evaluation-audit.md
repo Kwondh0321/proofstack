@@ -149,7 +149,7 @@ accounting declaration; the actual worker measures usage. The helper cannot acce
 boundaries or supply amounts. It does not forge provider costs, recover missing receipts, mutate
 the earlier candidate/comparison or reactivate the withdrawn policy.
 
-## Publication-gate input admission correction
+## Publication-gate admission and test isolation corrections
 
 The first audit publication `47e793d5ce6f0ec794c9cfae9cf52ede76a3bb80` did not pass its local
 full gate: the existing three-tenant memory snapshot/result test exceeded its unchanged 5-second
@@ -168,6 +168,20 @@ authoritative read revalidates its own retained material; no cross-read cache or
 authority is introduced. Ownership/rejection tests cover caller mutations, copied results,
 legacy inputs, substituted identity and incomplete pages. The three-tenant test and its deadline
 remain intact. A prepared historical calculation is never a fresh guard, approval or release seal.
+
+That follow-up, `cc6ea3c30d212c2cb4787fcae33d1f5a3930ce0e`, passed its complete uncached local
+check: 16,309 package tests plus 16 runner tests (16,325 total), 31 builds and all 122 tasks.
+Its log SHA-256 is `2b0883f7cf21a05ad3f17febb64f6d334159e5413ffca121fc35baa21e7f1c8a`.
+Its remote three-tenant case nevertheless exceeded five seconds. That failed remote gate remains
+open until the current publication's own exact-commit checks pass; local success does not replace it.
+
+The root check now completes all builds, lint and type checks before testing one package at a
+time. Dry plans retain exactly the original 122 executable tasks, split into 93 static/build
+tasks and 29 unit-test tasks, with no missing, extra or duplicate IDs. Tests use the completed
+builds through `--only`, so forced checks still build each package once. The original three-tenant
+case constructs all its graphs and runs all its assertions within its original five-second
+deadline. File concurrency, race cases, coverage and the Quality job's 20-minute limit are
+unchanged. See [repository checks](repository-checks.md) for the ordered command and evidence.
 
 ## Retained limits and next entry
 
