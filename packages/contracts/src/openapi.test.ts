@@ -47,7 +47,7 @@ describe("ProofStack OpenAPI document", () => {
         expect(operation.responses).toHaveProperty("503");
       }
     expect(
-      paths[`${job}/snapshot/pages/{pageIndex}`]!.get!.parameters.filter(
+      paths[`${job}/snapshot/pages/{pageIndex}`]!["get"]!.parameters.filter(
         (parameter) => parameter.required,
       ).map((parameter) => parameter.name),
     ).toEqual([
@@ -59,7 +59,7 @@ describe("ProofStack OpenAPI document", () => {
       "definitionSha256",
     ]);
     expect(
-      paths[`${job}/history/pages/{pageIndex}`]!.get!.parameters.filter(
+      paths[`${job}/history/pages/{pageIndex}`]!["get"]!.parameters.filter(
         (parameter) => parameter.required,
       ).map((parameter) => parameter.name),
     ).toEqual([
