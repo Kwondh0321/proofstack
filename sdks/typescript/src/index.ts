@@ -14,3 +14,10 @@ export * from "./release-policy-definition-digest.js";
 export * from "./replay-client.js";
 export * from "./replay-definition-digest.js";
 export * from "./transport.js";
+export {
+  ProofStackPolicyEvaluationClient,
+  MAX_POLICY_EVALUATION_REDIRECTS,
+  type ProofStackPolicyEvaluationClientOptions,
+  type ProofStackPolicyEvaluationAuthentication,
+  type PolicyEvaluationCompleteSnapshot,
+} from "./policy-evaluation-client.js";

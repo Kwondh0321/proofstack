@@ -62,9 +62,10 @@ store and loses all state on process restart. Memory tests establish neither nat
 provider truth.
 
 This boundary complements [all-state native recovery](workflow-2-policy-job-recovery.md) and the
-[process barriers](workflow-2-policy-worker-process-barriers.md). The bounded TypeScript SDK,
-complete contributor graph with all predicates/outcomes and the independent checkpoint exit audit
-remain required. Historical evaluation evidence grants no fresh source, approval, release or
+[process barriers](workflow-2-policy-worker-process-barriers.md) and the
+[bounded TypeScript SDK](workflow-2-policy-evaluation-sdk.md). The complete contributor graph with
+all predicates/outcomes and the independent checkpoint exit audit remain required. Historical
+evaluation evidence grants no fresh source, approval, release or
 deployment authority; production identity, key management, isolation and readiness remain separate.
 
 The native API integration suite exercises real workload-key verification, dedicated control

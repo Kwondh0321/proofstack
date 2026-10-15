@@ -570,8 +570,10 @@ private 함수 권한, row-lock race, outbox rollback, pooled scope 재사용, t
 [제한된 control/조회 HTTP API](workflow-2-policy-evaluation-api.ko.md)는 기존 불변 요청/job과
 owning snapshot/result/history reader를 연결합니다. 전용 native control-role 검사·workload 인증·
 정확한 재시도·취소·재시작 재조회에 실제 PostgreSQL/S3 통합 증거가 있습니다. 이 HTTP 선행조건의
-범위를 구현한 것이며 checkpoint 3 승인은 아닙니다. 인증된 제한 TypeScript SDK·완전한 기여자
-흐름·독립 종료 감사는 남아 있습니다.
+범위를 구현한 것이며 checkpoint 3 승인은 아닙니다. 완전한 기여자 흐름·독립 종료 감사는 남습니다.
+[인증된 제한 TypeScript SDK](workflow-2-policy-evaluation-sdk.ko.md)는 보존 job/snapshot/result/history
+검증·단일 연산 deadline·stream byte 상한·명시적 abort/정리를 추가합니다. 악의적 vector와 실제
+API/memory 시험으로 native 기여자 승인이나 독립 checkpoint 종료를 대체하지 않습니다.
 
 Enqueue, request·job 조회, 취소, 고정 입력·결과 조회, page 기반 attempt·취소 이력의 제한된
 exact-scope operation을 제공한다. Body·route parsing·의존성 전에 인증·권한을 검사한다. 계산한

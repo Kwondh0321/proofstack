@@ -52,8 +52,9 @@ URL을 API에 대입하지 않습니다. Memory는 실제 단일 atomic job/mate
 재시작하면 상태를 잃습니다. Memory 증거가 native guard·provider 진실성을 입증하지 않습니다.
 
 [전체 상태 복구](workflow-2-policy-job-recovery.ko.md)·[프로세스 barrier](workflow-2-policy-worker-process-barriers.ko.md)와
-별도 경계입니다. 제한된 TypeScript SDK·모든 predicate/outcome의 완전한 기여자 검증·독립 종료
-감사는 남습니다. 역사적 평가가 새로운 소스·승인·release·배포 권한을 부여하지 않습니다.
+[제한된 TypeScript SDK](workflow-2-policy-evaluation-sdk.ko.md)와 함께 사용하는 별도 경계입니다.
+모든 predicate/outcome의 완전한 기여자 검증·독립 종료 감사는 남습니다. 역사적 평가가 새로운
+소스·승인·release·배포 권한을 부여하지 않습니다.
 
 실제 API 통합 시험은 workload key 검증·전용 control 연결·불변 요청 충돌·취소·원래 이력과
 API/pool 재시작을 검증하며 worker·관리자 연결을 control로 사용하면 시작을 거부합니다.

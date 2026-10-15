@@ -83,7 +83,7 @@ evidence trace를 검사하고, 실패를 불변 회귀 fixture로 전환하고,
 | 정확 evidence comparison | Repository-backed 보존 source 해석, 엄격한 definition·snapshot, 정확 case pairing·산술, 불변 memory·PostgreSQL repository, HTTP/OpenAPI, workspace SDK, digest 검증 operator view |
 | Release candidate | 정확한 checkout commit·tree, runtime identity, 보존 Workflow 1 lineage, 불변 memory·PostgreSQL record, API·SDK, restart read-back, recovery |
 | Release policy definition | 유한 non-executable rule, 정확한 applicability·authority reference, 독립 source-review lineage, 전용 author storage authority, 불변 lifecycle, API·SDK, restart read-back, recovery |
-| TypeScript SDK | 식별자 생성, 제한된 telemetry 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 regression·replay·evaluation·model-assurance·comparison·release-candidate·release-policy client |
+| TypeScript SDK | 식별자 생성, 제한된 telemetry 전달, 명시적 인증 모드를 사용하는 fail-closed 정확 버전 regression·replay·evaluation·model-assurance·comparison·release-candidate·release-policy·[policy-evaluation control/조회 client](docs/development/workflow-2-policy-evaluation-sdk.ko.md) |
 | 콘솔 | 임시 telemetry, 분류된 평문, release control 없이 실제 API 상태, 정확 linked trace, digest·lineage 검증 comparison 조회 |
 | 예제 | 실제 trace, evidence-only 회귀, 캡처-기록 replay, 영속 성공·취소·stale-fence 복구, 논쟁 가능 evaluation·assurance, 정확 synthetic comparison, 일회성 보존 Workflow 1·release-candidate·policy-publication acceptance 경로 |
 | 엔지니어링 | 모노레포 경계, 엄격한 TypeScript, 커버리지, 프로덕션 빌드, 고정된 CI 액션 |

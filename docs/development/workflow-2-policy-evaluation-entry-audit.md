@@ -837,7 +837,11 @@ The [bounded control/read HTTP API](workflow-2-policy-evaluation-api.md) now com
 immutable requests/jobs and owning snapshot/result/history readers. Dedicated native control-role
 admission, workload authentication, exact retries, cancellation and restart/readback have real
 PostgreSQL/S3 integration evidence. This closes that bounded HTTP prerequisite, not checkpoint 3;
-the authenticated bounded TypeScript SDK, complete contributor flow and independent exit remain.
+the complete contributor flow and independent exit remain. The
+[authenticated bounded TypeScript SDK](workflow-2-policy-evaluation-sdk.md) adds exact retained
+job/snapshot/result/history verification, one operation deadline, streamed-byte limits and explicit
+abort/cleanup. Its hostile-vector and actual API/memory tests do not replace native contributor
+acceptance or independently close the checkpoint.
 
 Provide bounded exact-scope operations to enqueue, read request/job state, cancel, read sealed
 inputs and results, and inspect paginated attempt/cancellation history. They must authenticate and
