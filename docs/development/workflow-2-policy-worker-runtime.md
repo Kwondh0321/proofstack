@@ -62,6 +62,6 @@ The [reference executable and private credential provider](workflow-2-policy-wor
 now use this composition and have actual child-process evidence. Their local keys and synthetic
 credentials establish no production identity, key management, TLS deployment or OS isolation.
 The [process barriers](workflow-2-policy-worker-process-barriers.md) have separate real evidence.
-All-state recovery, public API/SDK,
+[All-state native recovery](workflow-2-policy-job-recovery.md) has separate restore evidence. Public API/SDK,
 complete contributor flow and independent checkpoint exit audit remain required. It creates no
 queue, persistent goal or continuous scheduler and carries no release or deployment authority.

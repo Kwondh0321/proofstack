@@ -10,6 +10,12 @@
   [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md)
 - Approval, decisions, attestations, CI enforcement, deployment, and production readiness: excluded
 
+The prerequisite notes below preserve each slice's original scope and limitations. Current installed
+worker composition and [all-state native recovery](workflow-2-policy-job-recovery.md) have separate
+real-service evidence. Public API/OpenAPI/SDK, complete contributor acceptance and the independent
+exit audit remain open; historical prerequisite wording does not undo later implemented boundaries
+or accept checkpoint 3.
+
 ## Entry decision and dependency evidence
 
 The [original stored relationship inspection](workflow-2-policy-stored-relationships.md)
@@ -745,23 +751,26 @@ source, acquisition, bounded S3, held sealing and paid result ports with real Po
 The [reference executable and private credential provider](workflow-2-policy-worker-executable.md)
 add actual child-process restart/readback and authentication denial cases. The
 [real process barriers](workflow-2-policy-worker-process-barriers.md) cover pre/post-seal death,
-native-expiry reclaim and cancellation during actual object I/O. All-state recovery, public
-boundaries and independent exit remain required;
+native-expiry reclaim and cancellation during actual object I/O. The
+[all-state recovery rehearsal](workflow-2-policy-job-recovery.md) restores every installed scheduler
+status, original pages/results/fees and fences old workers. Public boundaries, complete contributor
+acceptance and independent exit remain required;
 these prerequisites do not accept the checkpoint or create a continuous scheduler.
 
 The [exact snapshot reader and shared store cases](workflow-2-policy-store-conformance.md)
 now retain complete original inputs and results in the memory store and exercise unchanged
 memory/native publication, cancellation and retry cases. This closes that bounded conformance
-slice; all-state recovery, actual worker/public boundaries and the independent exit remain open.
+slice; the installed worker and all-state recovery have the separate evidence above. Public
+boundaries, complete contributor acceptance and the independent exit remain open.
 
 The [native atomic result publication prerequisite](workflow-2-policy-result-publication.md)
 now computes from the original stored seal and complete pages, then commits the immutable result,
 closed deciding attempt, terminal job, complete history and canonical intent together. Its final
 deferred check preserves the original native execution window after completion clears the lease.
 Historical exact retries and reads preserve original receipts and recompute sealed evidence.
-Complete acquisition/input cost enforcement, memory/shared conformance,
-all-state recovery acceptance, the separate executable worker, public API/SDK, contributor flow
-and the independent exit audit remain required. Workflow 2 remains 2/7 accepted checkpoints.
+The installed worker now composes mandatory acquisition/input costs and the shared store,
+executable and recovery prerequisites above. Public API/SDK, complete contributor flow and the
+independent exit audit remain required. Workflow 2 remains 2/7 accepted checkpoints.
 
 The [acquisition allowance prerequisite](workflow-2-policy-acquisition-allowances.md) defines
 committed metadata credit, drained settlement and conservative uncertain-cost recovery.
@@ -771,12 +780,13 @@ Response admission does not establish complete wire/list accounting; this checkp
 
 The [bounded initial source facade](workflow-2-policy-initial-sources.md) now enforces exact
 open credit, native per-read expiry and pre-decoder limits on fixed owning readers. The actual
-worker must install it; per-read wire ceilings remain distinct from job-wide semantic charges.
+worker installs it; per-read wire ceilings remain distinct from job-wide semantic charges.
 
 The [per-invocation rule reservation composition](workflow-2-policy-rule-reservations.md)
 now commits a fresh whole-count reservation before native calculation/publication and refuses
 duplicate, ambiguous or expired acknowledgements. Rollback and cancellation retain the fee.
-Complete acquisition/input charges and the other checkpoint gates above remain required.
+The installed acquisition composition supplies its separate cost evidence; the remaining public,
+contributor and independent checkpoint gates above remain required.
 
 Use the separation and fencing principles of
 [ADR-0018](../architecture/0018-separate-replay-control-worker-authority.md), without granting the

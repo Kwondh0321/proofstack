@@ -43,6 +43,7 @@
 
 [Reference 실행 파일과 private credential provider](workflow-2-policy-worker-executable.ko.md)가
 현재 조합을 사용하며 실제 child process 증거를 갖습니다. [프로세스 barrier](workflow-2-policy-worker-process-barriers.ko.md)의 증거는 별도로 유지하며,
-전체 상태 복구·공개 API/SDK·완전한 기여자 흐름·독립 종료 감사는 남습니다. 로컬 키와 합성 credential은
+[전체 상태 네이티브 복구](workflow-2-policy-job-recovery.ko.md)는 별도 복원 증거가 있습니다.
+공개 API/SDK·완전한 기여자 흐름·독립 종료 감사는 남습니다. 로컬 키와 합성 credential은
 운영 신원·키 관리·TLS 배포·OS 격리를 입증하지 않습니다. 지속 목표·큐·연속 스케줄러를 만들지
 않으며 출시 결정이나 배포 권한도 제공하지 않습니다.

@@ -33,6 +33,7 @@ import type {
   InteractionCaptureManifest,
   PolicyEvaluationJobHistoryEntry,
   PolicyEvaluationJobSnapshot,
+  PolicyEvaluationSnapshot,
   PolicyEvaluationSnapshotPageSet,
   PolicyEvaluation,
   PrincipalContext,
@@ -51,7 +52,9 @@ import {
   encodePolicyEvaluationJobHistoryEntry,
   InteractionCaptureManifestSchema,
   PolicyEvaluationJobSnapshotSchema,
-  PolicyEvaluationSnapshotPageSchema,
+  PolicyEvaluationJobStatusSchema,
+  MAX_POLICY_RULES,
+  POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE,
   RecordedInteractionFixtureVersionDefinitionSchema,
   ReplayJobSchema,
   ReplayPlanSchema,
@@ -76,6 +79,7 @@ import {
   StaticQualificationPolicyCatalogue,
   StaticRuntimeDefinitionCatalogue,
   recoverPolicyEvaluationJob,
+  readCompletePolicyEvaluationSnapshot,
   SystemClock,
 } from "@proofstack/core";
 import {
@@ -136,6 +140,7 @@ import {
   PostgresPolicyAcquisitionRepository,
   PostgresPolicyEvaluationResultRepository,
   PostgresPolicySnapshotTransactions,
+  PostgresPolicySnapshotRepository,
   createPolicyPostgresPool,
   PostgresProjectionCursorRepository,
   PostgresRegressionVersionRepository,
@@ -2228,6 +2233,10 @@ interface SequenceSnapshotRow {
 }
 
 let policyJobRecoveryFixtures: readonly PolicyEvaluationJobSnapshot[] = [];
+const policySnapshotRecoveryFixtures = new Map<
+  string,
+  { snapshot: PolicyEvaluationSnapshot; pageSet: PolicyEvaluationSnapshotPageSet }
+>();
 let policyResultRecoveryFixture:
   | { pageSet: PolicyEvaluationSnapshotPageSet; evaluation: PolicyEvaluation }
   | undefined;
@@ -2236,10 +2245,32 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
   const control = new PostgresPolicyEvaluationJobControlRepository(sourcePool);
   const worker = new PostgresPolicyEvaluationJobWorkerRepository(sourcePool);
   const graphs: PolicyEvaluationJobSnapshot[] = [];
-  for (const kind of ["queued", "active", "acquisition", "retry", "cancelled"] as const) {
+  for (const kind of [
+    "queued",
+    "active",
+    "acquisition",
+    "retry",
+    "cancelled",
+    "failed",
+    "timed_out",
+    "budget_exhausted",
+  ] as const) {
     const request = policyJobConformanceRequest(scope);
     request.evaluationRequestId = `policy_recovery_request_${kind}`;
     request.limits.leaseDurationMilliseconds = 60000;
+    if (kind === "failed") {
+      request.limits.maxAttempts = 1;
+      request.limits.maxRuleEvaluations = MAX_POLICY_RULES;
+      request.limits.retryableErrors = [];
+      request.limits.retryBackoffMilliseconds = 0;
+    }
+    if (kind === "timed_out") {
+      request.limits.heartbeatIntervalMilliseconds = 100;
+      request.limits.leaseDurationMilliseconds = 1000;
+      request.limits.perAttemptTimeoutMilliseconds = 2000;
+      request.limits.totalDeadlineMilliseconds = 2000;
+      request.limits.retryBackoffMilliseconds = 0;
+    }
     const {
       createdAt: _at,
       createdByPrincipalId: _by,
@@ -2268,20 +2299,52 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
         })
       ).snapshot;
     }
-    if (kind === "acquisition")
+    if (kind === "acquisition" || kind === "budget_exhausted")
       graph = (
         await new PostgresPolicyAcquisitionRepository(sourcePool).reserveAcquisition({
           scope,
           fence: graph.job.currentLease!.mutationFence,
-          allowanceId: "policy_recovery_acquisition_allowance",
+          allowanceId: `policy_recovery_acquisition_allowance_${kind}`,
         })
       ).snapshot;
-    if (kind === "retry")
+    if (kind === "retry" || kind === "failed" || kind === "budget_exhausted")
       graph = await worker.interruptJob({
         scope,
         fence: graph.job.currentLease!.mutationFence,
         reason: "worker_interrupted",
       });
+    if (kind === "timed_out") {
+      await expect
+        .poll(
+          async () => {
+            const cut = await sourcePool.query<{ elapsed: boolean }>(
+              "SELECT clock_timestamp() >= $1::timestamptz AS elapsed",
+              [graph.job.deadlineAt],
+            );
+            return cut.rows[0]!.elapsed;
+          },
+          { timeout: 3000, interval: 25 },
+        )
+        .toBe(true);
+      graph = await worker.reclaimJob({ scope, jobId });
+    }
+    if (kind === "failed" || kind === "timed_out" || kind === "budget_exhausted") {
+      expect(graph.job.status).toBe(kind);
+      expect(graph.job.terminal).toMatchObject({
+        status: kind,
+        code:
+          kind === "failed"
+            ? "retries_exhausted"
+            : kind === "timed_out"
+              ? "deadline_reached"
+              : "budget_limit_reached",
+      });
+      expect(graph.usage.reads).toBeGreaterThan(0);
+      expect(graph.usage.recordBytes).toBeGreaterThanOrEqual(128);
+      expect(graph.job.currentLease).toBeNull();
+      if (kind === "budget_exhausted") expect(graph.acquisitionAllowance).toBeNull();
+      else expect(graph.acquisitionAllowance).toBeUndefined();
+    }
     if (kind === "cancelled")
       graph = await control.cancelJob({
         scope,
@@ -2298,7 +2361,7 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
   await new PostgresReleasePolicyRepository(sourcePool).publishReleasePolicy(policy);
   // Keep the original sealed fixture and add a real completed result instead of excluding
   // empty new tables from the independent authoritative recovery inventory.
-  for (const kind of ["sealed", "completed"] as const) {
+  for (const kind of ["sealed", "running", "completed"] as const) {
     const request = policyJobConformanceRequest(scope);
     request.evaluationRequestId = `policy_recovery_request_${kind}`;
     request.candidate = releaseCandidateReference(releaseCandidateRecoveryState.candidate);
@@ -2397,21 +2460,22 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
           transactions: new PostgresPolicySnapshotTransactions(native),
         },
       );
-      if (kind === "completed") {
+      const material = await readCompletePolicyEvaluationSnapshot(
+        new PostgresPolicySnapshotRepository(native),
+        {
+          scope,
+          job: { jobId: sealed.job.job.jobId, definitionSha256: sealed.job.job.definitionSha256 },
+          request: sealed.job.job.request,
+          snapshot: sealed.job.job.snapshot!,
+        },
+      );
+      if (!material) throw new Error("Missing original native policy snapshot pages");
+      policySnapshotRecoveryFixtures.set(sealed.job.job.jobId, material);
+      if (kind !== "sealed") {
         const fence = claimed.job.currentLease!.mutationFence;
         const computing = new PostgresPolicyEvaluationJobWorkerRepository(native);
         const started = await computing.startComputation({ scope, fence });
-        const pages = await withExactScopeTransaction(sourcePool, scope, async (client) => {
-          const retained = [];
-          for (const page of sealed.snapshot.pages) {
-            const value = await client.query(
-              "SELECT public.proofstack_read_policy_snapshot_page($1,$2,$3) AS value",
-              [sealed.snapshot.snapshotId, sealed.snapshot.definitionSha256, page.pageIndex],
-            );
-            retained.push(PolicyEvaluationSnapshotPageSchema.parse(value.rows[0]?.value));
-          }
-          return retained;
-        });
+        const pages = material.pageSet.pages;
         const {
           scope: _scope,
           schemaVersion: _version,
@@ -2443,10 +2507,10 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
           record: sealed.snapshot,
           pageSet,
         });
-        await computing.reserveWork({
+        const reserved = await computing.reserveWork({
           scope,
           fence,
-          reservationId: "reservation_recovery_completed_rules",
+          reservationId: `reservation_recovery_${kind}_rules`,
           delta: {
             reads: 0,
             records: 0,
@@ -2457,20 +2521,32 @@ async function seedPolicyJobRecoveryFixtures(): Promise<void> {
             ruleEvaluations: inputs.rules.ruleCount,
           },
         });
-        const completed = await new PostgresPolicyEvaluationResultRepository(native).publishResult({
-          scope,
-          fence,
-          evaluationId: "evaluation_recovery_completed",
-          pageSet,
-        });
-        expect(completed.created).toBe(true);
-        policyJobRecoveryFixtures = [...policyJobRecoveryFixtures, completed.snapshot];
-        policyResultRecoveryFixture = { pageSet, evaluation: completed.evaluation };
+        if (kind === "completed") {
+          const completed = await new PostgresPolicyEvaluationResultRepository(
+            native,
+          ).publishResult({
+            scope,
+            fence,
+            evaluationId: "evaluation_recovery_completed",
+            pageSet,
+          });
+          expect(completed.created).toBe(true);
+          policyJobRecoveryFixtures = [...policyJobRecoveryFixtures, completed.snapshot];
+          policyResultRecoveryFixture = { pageSet, evaluation: completed.evaluation };
+        } else {
+          expect(reserved.snapshot.job.status).toBe("running");
+          expect(reserved.snapshot.usage.ruleEvaluations).toBe(inputs.rules.ruleCount);
+          expect(reserved.snapshot.job.result).toBeNull();
+          policyJobRecoveryFixtures = [...policyJobRecoveryFixtures, reserved.snapshot];
+        }
       } else policyJobRecoveryFixtures = [...policyJobRecoveryFixtures, sealed.job];
     } finally {
       await native.end();
     }
   }
+  expect([...new Set(policyJobRecoveryFixtures.map((graph) => graph.job.status))].sort()).toEqual(
+    [...PolicyEvaluationJobStatusSchema.options].sort(),
+  );
 }
 
 function recoveryRow(raw: unknown): Record<string, unknown> {
@@ -3075,12 +3151,65 @@ async function verifyRestoredOperationalPolicyJobs(
     const oldHead = (await new PostgresPolicyEvaluationJobControlRepository(
       sourcePool,
     ).findHistoryHead(scope, original.job.jobId))!;
-    const originalPage = await new PostgresPolicyEvaluationJobControlRepository(
-      sourcePool,
-    ).readHistoryPage(oldHead, 0);
-    expect(await control.readHistoryPage(oldHead, 0)).toEqual(originalPage);
+    for (
+      let pageIndex = 0;
+      pageIndex <= Math.floor(oldHead.sequence / POLICY_EVALUATION_JOB_HISTORY_PAGE_SIZE);
+      pageIndex++
+    ) {
+      const originalPage = await new PostgresPolicyEvaluationJobControlRepository(
+        sourcePool,
+      ).readHistoryPage(oldHead, pageIndex);
+      expect(await control.readHistoryPage(oldHead, pageIndex)).toEqual(originalPage);
+    }
+    if (original.job.snapshot) {
+      const material = policySnapshotRecoveryFixtures.get(original.job.jobId);
+      expect(material).toBeDefined();
+      expect(
+        await readCompletePolicyEvaluationSnapshot(
+          new PostgresPolicySnapshotRepository(controlPool),
+          {
+            scope,
+            job: { jobId: original.job.jobId, definitionSha256: original.job.definitionSha256 },
+            request: original.job.request,
+            snapshot: original.job.snapshot,
+          },
+        ),
+      ).toEqual(material);
+      if (original.job.status === "running") {
+        expect(restored.job.status).toBe("retry_ready");
+        expect(restored.job.result).toBeNull();
+        expect(restored.attempts.at(-1)!.closure).toMatchObject({
+          status: "interrupted",
+          reason: "worker_interrupted",
+        });
+        await expect(
+          new PostgresPolicyEvaluationResultRepository(workerPool).publishResult({
+            scope,
+            fence: original.job.currentLease!.mutationFence,
+            evaluationId: "evaluation_recovery_stale_running",
+            pageSet: material!.pageSet,
+          }),
+        ).rejects.toThrow();
+      }
+    }
     if (original.job.terminal !== null) expect(restored).toEqual(original);
-    else expect(restored.job.recoveryEpoch).toBe(original.job.recoveryEpoch + 1);
+    else {
+      expect(restored.job.recoveryEpoch).toBe(original.job.recoveryEpoch + 1);
+      expect(restored.job.currentLease).toBeNull();
+      if (original.job.currentLease) {
+        const fence = original.job.currentLease.mutationFence;
+        await expect(worker.heartbeatJob({ scope, fence })).rejects.toThrow();
+        await expect(worker.startComputation({ scope, fence })).rejects.toThrow();
+        await expect(
+          worker.reserveWork({
+            scope,
+            fence,
+            reservationId: `reservation_recovery_stale_${original.job.jobId}`,
+            delta: { ...original.usage, reads: 1 },
+          }),
+        ).rejects.toThrow();
+      }
+    }
   }
   if (!policyResultRecoveryFixture)
     throw new Error("Missing actual completed policy recovery fixture");

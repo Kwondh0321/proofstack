@@ -28,5 +28,6 @@ socket·proxy는 소유한 것만 추적하고 종료/정리합니다. DB/객체
 
 기존 완료·프로세스 재시작 재조회·control 역할 거부·잘못된 token·파일 권한 검사를 보존합니다.
 합성 upstream missingness는 indeterminate로 남습니다. Live identity/provider·운영 격리·상시 큐·
-스케줄러·전체 재해 복구·완전한 기여자 그래프를 입증하지 않습니다. 전체 상태 복구·공개 API/
+스케줄러·전체 재해 복구·완전한 기여자 그래프를 입증하지 않습니다. [전체 상태 복구](workflow-2-policy-job-recovery.ko.md)는
+별도 복원 증거를 유지합니다. 공개 API/
 OpenAPI/SDK·모든 predicate/outcome 기여자 검증·독립 종료 감사 뒤에만 체크포인트를 승인합니다.

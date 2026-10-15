@@ -3,6 +3,11 @@
 [English](workflow-2-policy-evaluation-entry-audit.md) |
 [한국어](workflow-2-policy-evaluation-entry-audit.ko.md)
 
+아래 선행조건 기록은 각 변경 당시의 범위와 한계를 보존합니다. 현재 설치된 worker 조합과
+[전체 상태 네이티브 복구](workflow-2-policy-job-recovery.ko.md)는 별도 실제 서비스 증거가 있습니다.
+공개 API/OpenAPI/SDK·완전한 기여자 검증·독립 종료 감사는 남아 있습니다. 과거 선행조건의 미구현
+문구가 뒤에 구현된 경계를 취소하거나 checkpoint 3을 승인하는 것은 아닙니다.
+
 [원래 저장 관계 검사](workflow-2-policy-stored-relationships.ko.md)는 원래
 membership, fixture promotion, replay 의존성/이력, evaluation snapshot과 model/human assurance를 검사하고 실제 receipt와
 semantic unavailable 상태를 보존합니다. 고정 composer는 원래 storage node/edge 출처를
@@ -511,8 +516,10 @@ Decimal·rational 모두 정확한 unit을 보존한다. 계산 전에 임의 �
 S3·held 봉인·규칙 비용 포트를 연결하고 실제 PostgreSQL/S3로 검증합니다.
 [Reference 실행 파일과 private provider](workflow-2-policy-worker-executable.ko.md)는 실제 child
 process 재시작/재조회와 인증 거부를 검증합니다. [실제 프로세스 barrier](workflow-2-policy-worker-process-barriers.ko.md)는
-봉인 전후 종료·DB 만료 reclaim·객체 I/O 중 취소를 검증합니다. 전체 상태 복구·공개 경계·독립
-종료 감사는 남으며 이 선행조건들은 checkpoint 승인이나 상시 scheduler가 아닙니다.
+봉인 전후 종료·DB 만료 reclaim·객체 I/O 중 취소를 검증합니다.
+[전체 상태 복구 시험](workflow-2-policy-job-recovery.ko.md)은 모든 scheduler 상태·원래 페이지/결과/비용
+보존과 옛 worker 거부를 검증합니다. 공개 경계·완전한 기여자 검증·독립 종료 감사는 남으며
+이 선행조건들은 checkpoint 승인이나 상시 scheduler가 아닙니다.
 
 [초기 소스 읽기 어댑터](workflow-2-policy-initial-sources.ko.md)는 고정된 owning 읽기에 정확한
 열린 credit·native 만료·decoder 전 제한을 적용합니다. 위 runtime이 실제 연결을 설치하며 읽기별
@@ -520,7 +527,8 @@ wire 한도와 job 전체 의미적 비용을 구별합니다. 전체 기여자 
 
 [정확한 snapshot 읽기와 공통 저장소 검사](workflow-2-policy-store-conformance.ko.md)는 메모리의
 원본 입력·결과 보존과 동일한 메모리/native 게시·취소·재시도를 검증합니다. 이 범위의 공통
-검증을 구현했으며 모든 상태의 복구·실제 worker·공개 경계·독립 exit audit는 남아 있습니다.
+검증을 구현했습니다. 설치된 worker와 전체 상태 복구는 위의 별도 증거를 유지하며 공개 경계·
+완전한 기여자 검증·독립 exit audit는 남아 있습니다.
 
 [ADR-0018](../architecture/0018-separate-replay-control-worker-authority.ko.md)의 분리·fencing
 원칙을 사용하되 policy worker에 replay 실행이나 upstream evaluation 발행 권한을 주지 않는다.

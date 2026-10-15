@@ -50,7 +50,8 @@ The existing [native initial reads](workflow-2-policy-initial-sources.md),
 The library's [native runtime](workflow-2-policy-worker-runtime.md),
 [reference executable/provider](workflow-2-policy-worker-executable.md) and
 [process crash/cancellation barriers](workflow-2-policy-worker-process-barriers.md) have separate
-real-service evidence. All-state recovery, public API/SDK, the complete contributor command and
+real-service evidence. [All-state native recovery](workflow-2-policy-job-recovery.md) has its own
+restore evidence. Public API/SDK, the complete contributor command and
 independent checkpoint exit audit remain required. Receiving
 or invoking this function creates no persistent goal, queue or continuous scheduler. No deployment,
 production identity, OS isolation or production readiness is claimed.

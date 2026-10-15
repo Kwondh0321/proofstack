@@ -36,5 +36,6 @@ The native worker integration suite retains its earlier completion, exact result
 control-role denial, wrong-token and insecure-file cases. Synthetic upstream missingness remains
 explicitly indeterminate. These process cases do not establish a live identity/provider, production
 isolation, a queue/scheduler, all-state disaster recovery or the complete contributor graph.
-All-state recovery, public API/OpenAPI/SDK, every predicate/outcome contributor acceptance and the
+[All-state native recovery](workflow-2-policy-job-recovery.md) has separate restore evidence.
+Public API/OpenAPI/SDK, every predicate/outcome contributor acceptance and the
 independent checkpoint exit audit still precede checkpoint 3 acceptance and later release authority.

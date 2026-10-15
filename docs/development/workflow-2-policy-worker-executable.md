@@ -90,7 +90,8 @@ not live identity/provider or production-key evidence.
 
 The [actual process-death and cancellation barriers](workflow-2-policy-worker-process-barriers.md)
 now exercise pre-seal death, post-seal restart and cancellation during real object I/O.
-All-state recovery, public API/OpenAPI/SDK, the complete retained contributor graph with every predicate/outcome and independent
+[All-state native recovery](workflow-2-policy-job-recovery.md) has separate restore evidence.
+Public API/OpenAPI/SDK, the complete retained contributor graph with every predicate/outcome and independent
 exit audit remain required before checkpoint 3 acceptance. Later release decisions/approvals,
 attestations, CI adapters and measured operations have their own entry/exit gates. This executable
 does not complete those gates or create an automatic development goal.
