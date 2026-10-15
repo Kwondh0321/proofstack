@@ -10,7 +10,10 @@ import {
   type PolicyEvaluationSnapshot,
 } from "@proofstack/contracts";
 import { assemblePolicyEvaluationSnapshot } from "./policy-evaluation-snapshot.js";
-import { computeSealedPolicyEvaluation as compute } from "./compute-sealed-policy-evaluation.js";
+import {
+  computeSealedPolicyEvaluation as compute,
+  prepareSealedPolicyEvaluation,
+} from "./compute-sealed-policy-evaluation.js";
 import { releaseCandidateSourceReferences } from "../release/release-candidate-source-references.js";
 import { digestReleaseCandidateDefinition } from "../release/release-candidate-record-validation.js";
 import { digestPolicyEvaluationRequestDefinition } from "./policy-evaluation-request-record-validation.js";
@@ -198,6 +201,30 @@ function fixture(version = "v2", configure?: (inputs: PolicyEvaluationSnapshotIn
 }
 
 describe("historical computation from authoritative job-bound sealed inputs", () => {
+  it("owns the admitted historical inputs and identities before exposing prepaid rule work", () => {
+    const value = fixture();
+    const expected = compute(value);
+    const prepared = prepareSealedPolicyEvaluation(value);
+    expect(prepared.ruleCount).toBe(expected.ruleCount);
+    value.evaluationId = "evaluation_replaced";
+    value.expected.request.evaluationRequestId = "request_replaced";
+    value.expected.snapshot.snapshotId = "snapshot_replaced";
+    value.pageSet.pages.splice(0);
+    value.record.sealedAt = "invalid";
+    const first = prepared.compute();
+    expect(first).toEqual(expected);
+    requiredAt(first.rules, 0).ruleId = "rule_replaced";
+    expect(prepared.compute()).toEqual(expected);
+  });
+  it.each(["legacy", "foreign_snapshot", "missing_pages"] as const)(
+    "rejects %s before exposing an admitted rule count",
+    (kind) => {
+      const value = fixture(kind === "legacy" ? "v1" : undefined);
+      if (kind === "foreign_snapshot") value.expected.snapshot.snapshotId = "snapshot_foreign";
+      if (kind === "missing_pages") value.pageSet.pages.splice(0);
+      expect(() => prepareSealedPolicyEvaluation(value)).toThrow();
+    },
+  );
   it("preserves the complete rule inventory while invalid sealed policy prerequisites remain unresolved", () => {
     const value = fixture(),
       before = structuredClone(value);

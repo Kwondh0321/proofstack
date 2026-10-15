@@ -59,19 +59,50 @@ function applicabilityCondition(
  * This validates sealed witnesses/projections, not absent original bodies or fresh authority.
  * Native result publication must independently retain its live worker fence and atomic state.
  */
-export function computeSealedPolicyEvaluation(input: {
+interface SealedPolicyComputationInput {
   readonly evaluationId: string;
   readonly expected: Parameters<typeof validatePolicyEvaluationSnapshotRecord>[0]["expected"];
   readonly record: unknown;
   readonly pageSet: PolicyEvaluationSnapshotPageSet;
-}): PolicyEvaluationDefinition {
+}
+
+export function computeSealedPolicyEvaluation(
+  input: SealedPolicyComputationInput,
+): PolicyEvaluationDefinition {
+  return prepareSealedPolicyEvaluation(input).compute();
+}
+
+/** Own one validated historical view so prepaid admission need not decode it a second time. */
+export function prepareSealedPolicyEvaluation(input: SealedPolicyComputationInput) {
+  const owned = {
+    evaluationId: input.evaluationId,
+    expected: {
+      ...input.expected,
+      scope: { ...input.expected.scope },
+      request: { ...input.expected.request },
+      snapshot: { ...input.expected.snapshot },
+    },
+  };
   const { inputs } = validatePolicyEvaluationSnapshotRecord({
-    expected: input.expected,
+    expected: owned.expected,
     record: input.record,
     pageSet: input.pageSet,
   });
   if (inputs.schemaVersion !== "0.2")
     throw new PolicyEvaluationSnapshotIntegrityError("invalid_inputs");
+  return Object.freeze({
+    ruleCount: inputs.rules.ruleCount,
+    compute: () => computeCapturedPolicyEvaluation(owned, inputs),
+  });
+}
+
+function computeCapturedPolicyEvaluation(
+  input: Pick<SealedPolicyComputationInput, "evaluationId" | "expected">,
+  inputs: Extract<
+    ReturnType<typeof validatePolicyEvaluationSnapshotRecord>["inputs"],
+    { schemaVersion: "0.2" }
+  >,
+): PolicyEvaluationDefinition {
   const authorityMaterial = (authority: typeof inputs.candidateAuthority.afterArtifacts) => {
     if (authority.status !== "observed") return serializeEvaluationCanonicalJson(authority);
     const { startedAt: _start, completedAt: _end, ...material } = authority;

@@ -68,7 +68,7 @@ import {
   startPolicyEvaluationComputation,
 } from "../policy/policy-evaluation-scheduler-seal.js";
 import { completePolicyEvaluationJob } from "../policy/policy-evaluation-scheduler-complete.js";
-import { computeSealedPolicyEvaluation } from "../policy/compute-sealed-policy-evaluation.js";
+import { prepareSealedPolicyEvaluation } from "../policy/compute-sealed-policy-evaluation.js";
 import { validatePolicyEvaluationSnapshotRecord } from "../policy/policy-evaluation-snapshot-record-validation.js";
 import {
   validatePolicyEvaluationResultRecord,
@@ -557,7 +557,8 @@ export class MemoryPolicyEvaluationJobRepository
           request: snapshot.job.request,
           snapshot: snapshot.job.snapshot!,
         };
-        const { inputs } = validatePolicyEvaluationSnapshotRecord({
+        const computation = prepareSealedPolicyEvaluation({
+          evaluationId,
           expected: owning,
           record: stored.sealedInput!.record,
           pageSet: stored.sealedInput!.pageSet,
@@ -567,17 +568,12 @@ export class MemoryPolicyEvaluationJobRepository
           snapshot.job.status !== "running" ||
           !attempt ||
           snapshot.usage.ruleEvaluations - attempt.usageAtStart.ruleEvaluations <
-            inputs.rules.ruleCount
+            computation.ruleCount
         )
           throw new PolicyEvaluationJobHistoryError(
             "Result omitted its running attempt or prepaid whole rule work",
           );
-        const definition = computeSealedPolicyEvaluation({
-          evaluationId,
-          expected: owning,
-          record: stored.sealedInput!.record,
-          pageSet: stored.sealedInput!.pageSet,
-        });
+        const definition = computation.compute();
         const digest = digestPolicyEvaluationDefinition(snapshot.job.scope, definition);
         evaluation = PolicyEvaluationSchema.parse({
           ...definition,

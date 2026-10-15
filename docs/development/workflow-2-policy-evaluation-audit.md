@@ -4,7 +4,7 @@
 
 - Status: third Workflow 2 checkpoint accepted, subject to the publication gate below
 - Reviewed: 2026-10-15
-- Audited implementation: `899c471cc869ad839512b8994482da3ee3a4cdb4`
+- Audited implementation baseline: `899c471cc869ad839512b8994482da3ee3a4cdb4`
 - Requirements: [entry audit](workflow-2-policy-evaluation-entry-audit.md)
 - Architecture: [ADR-0022](../architecture/0022-snapshot-bound-policy-evaluation.md)
 - Production readiness, release authority and human approval: not approved
@@ -16,6 +16,11 @@ local full check, all twelve independent CI jobs and CodeQL. This audit and its 
 must also pass local checks and every required remote job at their exact pushed commit before
 checkpoint 4 entry work begins. The implementation evidence is not substituted for that later
 publication commit; its attached GitHub checks are the authoritative final gate.
+
+The publication follow-up also contains the internal input-admission performance correction
+below. Its exact pushed commit must pass the complete local and remote gate; the baseline
+execution totals do not claim execution of that later source. No checkpoint 4 work opens from
+the failed initial publication attempt.
 
 The reviewed boundary is explicit, scoped, bounded deterministic evaluation of an exact release
 candidate against one explicitly selected policy version. It preserves the original semantic
@@ -51,7 +56,7 @@ source and execution cross-checks are not certification by a separate human or s
 
 ## Verified execution
 
-At the exact implementation SHA, `CI=true TURBO_FORCE=true pnpm check` passed: **16,305 package
+At the exact implementation baseline SHA, `CI=true TURBO_FORCE=true pnpm check` passed: **16,305 package
 tests across 29 test packages plus 16 runner tests (16,321 total)**, **31 builds** and all
 **122 Turbo tasks with zero cached tasks**. Turbo time was 16m4.766s. HEAD, staged tree and
 tracked diff stayed identical before and after the run. Full log SHA-256:
@@ -143,6 +148,26 @@ count-comparison fixture uses two independently successful recorded replays and 
 accounting declaration; the actual worker measures usage. The helper cannot accept simulated/live
 boundaries or supply amounts. It does not forge provider costs, recover missing receipts, mutate
 the earlier candidate/comparison or reactivate the withdrawn policy.
+
+## Publication-gate input admission correction
+
+The first audit publication `47e793d5ce6f0ec794c9cfae9cf52ede76a3bb80` did not pass its local
+full gate: the existing three-tenant memory snapshot/result test exceeded its unchanged 5-second
+deadline under combined package load. Its remote Quality job also timed out on this case and
+the original public header/page read case, both with their existing 5-second deadlines. This
+does not erase the successful baseline or authorize checkpoint 4; this follow-up requires a
+new complete exact-commit gate, with no timeout increase or assertion removal.
+
+Memory result publication previously decoded and validated the same complete sealed input once
+for prepaid rule-count admission and again immediately before calculation. The internal prepared
+computation now owns one validated historical view and copies its expected identities before
+admission. Prepaid whole-rule work is still required before computation. The existing computation
+entry point keeps its signature, and final result validation still independently reconstructs
+the original evidence before the final clock/fence check and atomic state swap. Every later
+authoritative read revalidates its own retained material; no cross-read cache or publication
+authority is introduced. Ownership/rejection tests cover caller mutations, copied results,
+legacy inputs, substituted identity and incomplete pages. The three-tenant test and its deadline
+remain intact. A prepared historical calculation is never a fresh guard, approval or release seal.
 
 ## Retained limits and next entry
 
