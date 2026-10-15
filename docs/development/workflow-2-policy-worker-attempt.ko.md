@@ -40,7 +40,8 @@ Memory seal 포트는 composition 모델이며 native guard나 S3 transport 증�
 [held 봉인](workflow-2-policy-snapshot-storage.ko.md),
 [rule 비용 확보](workflow-2-policy-rule-reservations.ko.md)의 증거는 별도로 유지합니다.
 
-이번 변경은 library 경계입니다. 실제 PostgreSQL/S3 runtime·credential provider·worker 실행 파일,
+이번 변경은 library 경계이며 [native runtime](workflow-2-policy-worker-runtime.ko.md)의
+PostgreSQL/S3 증거는 별도로 유지합니다. Credential provider·worker 실행 파일,
 process 간 crash/취소 검증·모든 상태의 복구·공개 API/SDK·실서비스 contributor 명령·독립 exit audit는
 남아 있습니다. 함수 호출은 지속 목표·queue·상시 scheduler를 만들지 않으며 배포·운영 identity·
 OS 격리·운영 준비 완료를 주장하지 않습니다.

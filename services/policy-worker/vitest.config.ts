@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
+    exclude: ["src/**/*.integration.test.ts", "node_modules/**"],
     fileParallelism: false,
     coverage: {
       exclude: ["src/**/*.test.ts", "src/index.ts", "src/test-support.ts"],
