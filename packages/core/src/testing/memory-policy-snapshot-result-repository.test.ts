@@ -312,10 +312,9 @@ describe("memory owning snapshot and result persistence", () => {
     expect(new Set(fixtures.map(({ f }) => f.scope.tenantId)).size).toBe(3);
     expect(new Set(fixtures.map(({ f }) => f.expected.snapshot.definitionSha256)).size).toBe(3);
     for (const { f, result } of fixtures) {
-      expect(await readCompletePolicyEvaluationSnapshot(jobs, f.expected)).toEqual({
-        snapshot: f.sealed.snapshot,
-        pageSet: f.pageSet,
-      });
+      expect(await jobs.findSnapshot(f.expected)).toEqual(f.sealed.snapshot);
+      for (const page of f.pageSet.pages)
+        expect(await jobs.readSnapshotPage(f.expected, page.pageIndex)).toEqual(page);
       expect(await jobs.findResult(f.scope, f.jobId, f.pageSet)).toEqual(result.evaluation);
     }
   });

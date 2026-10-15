@@ -607,11 +607,9 @@ export class MemoryPolicyEvaluationJobRepository
       fence,
     );
     this.resultOwners.set(ownerKey, fence.jobId);
-    const checked = this.checkedResult(
-      this.records.get(this.key(command.scope, fence.jobId))!,
-      result,
-    );
-    return { created: true, evaluation: checked, snapshot: result };
+    // mutate independently validated the complete stored result before its final clock check/swap.
+    // Return a copy of that same record; a second post-commit calculation cannot protect the swap.
+    return { created: true, evaluation: structuredClone(evaluation!), snapshot: result };
   }
   async findResult(scope: EvidenceScope, jobId: string, pageSet: PolicyEvaluationSnapshotPageSet) {
     const stored = this.records.get(this.key(scope, jobId));
