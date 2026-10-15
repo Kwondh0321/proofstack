@@ -510,7 +510,8 @@ Decimal·rational 모두 정확한 unit을 보존한다. 계산 전에 임의 �
 [Native worker runtime](workflow-2-policy-worker-runtime.ko.md)은 필수 초기 소스·수집 비용·제한된
 S3·held 봉인·규칙 비용 포트를 연결하고 실제 PostgreSQL/S3로 검증합니다.
 [Reference 실행 파일과 private provider](workflow-2-policy-worker-executable.ko.md)는 실제 child
-process 재시작/재조회와 인증 거부를 검증합니다. Crash/취소 barrier·전체 상태 복구·공개 경계·독립
+process 재시작/재조회와 인증 거부를 검증합니다. [실제 프로세스 barrier](workflow-2-policy-worker-process-barriers.ko.md)는
+봉인 전후 종료·DB 만료 reclaim·객체 I/O 중 취소를 검증합니다. 전체 상태 복구·공개 경계·독립
 종료 감사는 남으며 이 선행조건들은 checkpoint 승인이나 상시 scheduler가 아닙니다.
 
 [초기 소스 읽기 어댑터](workflow-2-policy-initial-sources.ko.md)는 고정된 owning 읽기에 정확한

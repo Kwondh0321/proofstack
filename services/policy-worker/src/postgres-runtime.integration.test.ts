@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
+import {
+  createServer,
+  request as httpRequest,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,6 +44,7 @@ import {
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
   PostgresPolicyEvaluationJobControlRepository,
+  PostgresPolicyEvaluationJobWorkerRepository,
   PostgresPolicySnapshotRepository,
   PostgresPolicyEvaluationResultRepository,
   type RuntimeRoleProvisioningOptions,
@@ -104,6 +111,12 @@ const api = pool(roleUrl(roles.api)),
     onIdleError: (error) => idleErrors.push(error),
   });
 const control = new PostgresPolicyEvaluationJobControlRepository(controlPool);
+const workerPool = createPolicyPostgresPool({
+  connectionString: roleUrl(roles.policyEvaluator!),
+  maxConnections: 2,
+  onIdleError: (error) => idleErrors.push(error),
+});
+const worker = new PostgresPolicyEvaluationJobWorkerRepository(workerPool);
 const connection = {
   allowInsecureLoopback: true,
   forcePathStyle: true,
@@ -272,7 +285,7 @@ beforeAll(async () => {
 afterAll(async () => {
   objects.destroy();
   bucketClient.destroy();
-  await Promise.all([api.end(), author.end(), controlPool.end(), admin.end()]);
+  await Promise.all([api.end(), author.end(), controlPool.end(), workerPool.end(), admin.end()]);
   if (credentialDirectory) await rm(credentialDirectory, { recursive: true, force: true });
   // The uniquely named disposable service fixture retains DB/object data for diagnostics.
   expect(idleErrors).toEqual([]);
@@ -330,9 +343,18 @@ function execute(
     },
   );
 }
-async function queued(suffix: string) {
+async function queued(suffix: string, shortLease = false) {
   const jobId = `job_${suffix}_${tag}`;
-  const next = { ...request, evaluationRequestId: `request_${suffix}_${tag}` };
+  const next = {
+    ...request,
+    limits: { ...request.limits },
+    evaluationRequestId: `request_${suffix}_${tag}`,
+  };
+  if (shortLease) {
+    next.limits.leaseDurationMilliseconds = 10000;
+    next.limits.heartbeatIntervalMilliseconds = 1000;
+    next.limits.retryBackoffMilliseconds = 0;
+  }
   const {
     definitionSha256: _sha,
     scope: _scope,
@@ -345,7 +367,7 @@ async function queued(suffix: string) {
   const created = await control.createJob({ request: next, jobId });
   return { jobId, created: created.snapshot };
 }
-function child(jobId: string, serviceToken = token.value) {
+function launch(jobId: string, serviceToken = token.value, endpoint = connection.endpoint) {
   const p = "PROOFSTACK_POLICY_WORKER_";
   const environment: NodeJS.ProcessEnv = {
     PROOFSTACK_ENV: "test",
@@ -356,7 +378,7 @@ function child(jobId: string, serviceToken = token.value) {
     [p + "DATABASE_ROLE"]: roles.policyEvaluator!.name,
     [p + "S3_BUCKET"]: bucket,
     [p + "S3_REGION"]: connection.region,
-    [p + "S3_ENDPOINT"]: connection.endpoint,
+    [p + "S3_ENDPOINT"]: endpoint,
     [p + "S3_FORCE_PATH_STYLE"]: "true",
     [p + "S3_ACCESS_KEY_ID"]: connection.credentials.accessKeyId,
     [p + "S3_SECRET_ACCESS_KEY"]: connection.credentials.secretAccessKey,
@@ -365,8 +387,14 @@ function child(jobId: string, serviceToken = token.value) {
       key_policy_runtime: Buffer.alloc(32, 73).toString("base64url"),
     }),
   };
-  return new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
-    execFile(
+  let commandProcess!: ReturnType<typeof execFile>;
+  const completion = new Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+    stdout: string;
+    stderr: string;
+  }>((resolve, reject) => {
+    commandProcess = execFile(
       process.execPath,
       [
         fileURLToPath(new URL("../dist/cli.js", import.meta.url)),
@@ -382,7 +410,7 @@ function child(jobId: string, serviceToken = token.value) {
         maxBuffer: 65536,
       },
       (error, stdout, stderr) => {
-        if (error && typeof error.code !== "number") {
+        if (error && typeof error.code !== "number" && !error.signal) {
           reject(new Error("Owned policy worker process failed to run"));
           return;
         }
@@ -398,10 +426,117 @@ function child(jobId: string, serviceToken = token.value) {
           reject(new Error("Owned policy worker output exposed private fixture data"));
           return;
         }
-        resolve({ code: (error?.code as number) ?? 0, stdout, stderr });
+        resolve({
+          code: typeof error?.code === "number" ? error.code : error ? null : 0,
+          signal: error?.signal ?? null,
+          stdout,
+          stderr,
+        });
       },
     );
   });
+  void completion.catch(() => {});
+  return { commandProcess, completion };
+}
+function child(jobId: string, serviceToken = token.value) {
+  return launch(jobId, serviceToken).completion;
+}
+async function stopOwned(running: ReturnType<typeof launch>) {
+  if (
+    running.commandProcess &&
+    running.commandProcess.exitCode === null &&
+    running.commandProcess.signalCode === null
+  )
+    running.commandProcess.kill("SIGKILL");
+  await running.completion.catch(() => {});
+}
+async function expiredAtDatabase(expiresAt: string) {
+  await expect
+    .poll(
+      async () => {
+        const result = await admin.query<{ elapsed: boolean }>(
+          "SELECT clock_timestamp() >= $1::timestamptz AS elapsed",
+          [expiresAt],
+        );
+        return result.rows[0]!.elapsed;
+      },
+      { timeout: 11000, interval: 25 },
+    )
+    .toBe(true);
+}
+async function objectBarrier() {
+  const target = new URL(connection.endpoint);
+  if (target.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(target.hostname))
+    throw new Error("Disposable object proxy requires loopback HTTP S3");
+  let startedResolve!: () => void, release!: () => void;
+  const started = new Promise<void>((resolve) => {
+      startedResolve = resolve;
+    }),
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  const upstreams = new Set<ReturnType<typeof httpRequest>>();
+  const forward = async (incoming: IncomingMessage, outgoing: ServerResponse) => {
+    startedResolve();
+    await gate;
+    if (incoming.destroyed || outgoing.destroyed) return;
+    const upstream = httpRequest(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        method: incoming.method,
+        path: incoming.url,
+        headers: incoming.headers,
+      },
+      (response) => {
+        outgoing.writeHead(response.statusCode ?? 502, response.headers);
+        response.pipe(outgoing);
+      },
+    );
+    upstreams.add(upstream);
+    upstream.on("close", () => upstreams.delete(upstream));
+    upstream.on("error", () => outgoing.destroy());
+    incoming.on("aborted", () => upstream.destroy());
+    outgoing.on("close", () => upstream.destroy());
+    incoming.pipe(upstream);
+  };
+  const server = createServer((incoming, outgoing) => {
+    void forward(incoming, outgoing).catch(() => outgoing.destroy());
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string")
+    throw new Error("Missing private proxy address");
+  return {
+    started,
+    release,
+    endpoint: `http://127.0.0.1:${address.port}`,
+    async close() {
+      release();
+      for (const upstream of upstreams) upstream.destroy();
+      const closing = new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+      server.closeAllConnections();
+      await closing;
+    },
+  };
+}
+async function originalMaterial(jobId: string) {
+  const graph = (await control.findJob(scope, jobId))!;
+  const material = await readCompletePolicyEvaluationSnapshot(
+    new PostgresPolicySnapshotRepository(controlPool),
+    {
+      scope,
+      job: { jobId, definitionSha256: graph.job.definitionSha256 },
+      request: graph.job.request,
+      snapshot: graph.job.snapshot!,
+    },
+  );
+  return { graph, material };
 }
 describe("real native policy worker composition with encrypted S3", () => {
   it("captures actual bytes outside SQL, seals and completes atomically, then reobserves the immutable result", async () => {
@@ -517,6 +652,176 @@ describe("real native policy worker composition with encrypted S3", () => {
       expect(await control.findJob(scope, jobId)).toEqual(created);
     } finally {
       await chmod(credentialFile, 0o600);
+    }
+  });
+  it("retains committed acquisition costs after process death before sealing and reclaims only at DB expiry", async () => {
+    const { jobId, created } = await queued("crash_content", true),
+      barrier = await objectBarrier();
+    const running = launch(jobId, token.value, barrier.endpoint);
+    try {
+      await Promise.race([
+        barrier.started,
+        running.completion.then(() => {
+          throw new Error("Worker exited before actual object barrier");
+        }),
+      ]);
+      const observed = (await control.findJob(scope, jobId))!;
+      expect(observed.job.status).toBe("acquiring");
+      expect(observed.job.snapshot).toBeNull();
+      expect(observed.acquisitionAllowance).not.toBeNull();
+      expect(observed.usage.artifactReadBytes).toBeGreaterThan(0);
+      running.commandProcess.kill("SIGKILL");
+      expect((await running.completion).signal).toBe("SIGKILL");
+      await expiredAtDatabase(observed.job.currentLease!.expiresAt);
+      const reclaimed = await worker.reclaimJob({ scope, jobId });
+      expect(reclaimed.job.status).toBe("budget_exhausted");
+      expect(reclaimed.job.snapshot).toBeNull();
+      expect(reclaimed.job.result).toBeNull();
+      expect(reclaimed.request).toEqual(created.request);
+      expect(reclaimed.acquisitionAllowance).toBeNull();
+      expect(reclaimed.usage.reads).toBe(request.limits.maxAcquisitionRecords);
+      expect(reclaimed.usage.artifactReadBytes).toBe(observed.usage.artifactReadBytes);
+      expect(reclaimed.attempts[0]!.closure).toMatchObject({
+        status: "interrupted",
+        reason: "lease_expired",
+      });
+      const restarted = await child(jobId);
+      expect(restarted.code).toBe(2);
+      expect(JSON.parse(restarted.stdout).job.status).toBe("budget_exhausted");
+      expect(await control.findJob(scope, jobId)).toEqual(reclaimed);
+    } finally {
+      await stopOwned(running);
+      await barrier.close();
+    }
+  });
+  it("cancels while an actual object read is blocked and prevents later snapshot/result publication", async () => {
+    const { jobId } = await queued("cancel_content"),
+      barrier = await objectBarrier();
+    const running = launch(jobId, token.value, barrier.endpoint);
+    try {
+      await Promise.race([
+        barrier.started,
+        running.completion.then(() => {
+          throw new Error("Worker exited before actual object barrier");
+        }),
+      ]);
+      const before = (await control.findJob(scope, jobId))!;
+      expect(before.job.status).toBe("acquiring");
+      const cancelled = await control.cancelJob({
+        scope,
+        jobId,
+        cancellationId: `cancel_content_${tag}`,
+        principalId: "controller_native",
+        reason: "operator_requested",
+      });
+      expect(cancelled.job.status).toBe("cancelled");
+      expect(cancelled.job.snapshot).toBeNull();
+      expect(cancelled.job.result).toBeNull();
+      barrier.release();
+      const outcome = await running.completion;
+      expect(outcome.code).toBe(1);
+      expect(outcome.stdout).toBe("");
+      expect(await control.findJob(scope, jobId)).toEqual(cancelled);
+      expect(cancelled.usage.artifactReadBytes).toBe(before.usage.artifactReadBytes);
+      expect(cancelled.usage.reads).toBe(request.limits.maxAcquisitionRecords);
+      const restarted = await child(jobId);
+      expect(restarted.code).toBe(2);
+      expect(JSON.parse(restarted.stdout)).toMatchObject({
+        job: { status: "cancelled" },
+        snapshot: null,
+        result: null,
+        ruleOutcomes: null,
+      });
+      expect(await control.findJob(scope, jobId)).toEqual(cancelled);
+    } finally {
+      await stopOwned(running);
+      await barrier.close();
+    }
+  });
+  it("restarts after a committed seal with the same original pages and a new deciding fence after process death", async () => {
+    const { jobId } = await queued("crash_sealed", true),
+      gateClient = await admin.connect();
+    const key = BigInt(`0x${tag}`).toString(),
+      functionName = `proofstack_test_seal_barrier_${tag}`,
+      triggerName = `proofstack_test_seal_barrier_${tag}`;
+    let started: ReturnType<typeof launch> | undefined;
+    try {
+      // Every interpolated identifier/value is a fixed prefix plus the fixture's canonical hex tag.
+      await admin.query(
+        `CREATE FUNCTION public.${functionName}() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $barrier$ BEGIN IF NEW.tenant_id='${scope.tenantId}' AND NEW.project_id='${scope.projectId}' AND NEW.environment_id='${scope.environmentId}' AND NEW.job_id='${jobId}' AND NEW.operation='start_computation' THEN PERFORM pg_catalog.pg_advisory_xact_lock(${key}::bigint); END IF; RETURN NEW; END; $barrier$`,
+      );
+      await admin.query(`REVOKE ALL ON FUNCTION public.${functionName}() FROM PUBLIC`);
+      await admin.query(
+        `CREATE TRIGGER ${triggerName} BEFORE INSERT ON public.proofstack_policy_evaluation_job_history FOR EACH ROW EXECUTE FUNCTION public.${functionName}()`,
+      );
+      const gatePid = (await gateClient.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
+        .rows[0]!.pid;
+      await gateClient.query("SELECT pg_advisory_lock($1::bigint)", [key]);
+      const running = launch(jobId);
+      started = running;
+      await Promise.race([
+        expect
+          .poll(
+            async () => {
+              const observed = await admin.query<{ waiting: boolean }>(
+                "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='proofstack-policy-worker' AND $1::int=ANY(pg_blocking_pids(pid)) AND wait_event='advisory') AS waiting",
+                [gatePid],
+              );
+              return observed.rows[0]!.waiting;
+            },
+            { timeout: 4000, interval: 5 },
+          )
+          .toBe(true),
+        running.completion.then(() => {
+          throw new Error("Worker exited before native post-seal barrier");
+        }),
+      ]);
+      // Kill immediately while the real bounded mutation is blocked; do not relax native timeouts.
+      running.commandProcess.kill("SIGKILL");
+      expect((await running.completion).signal).toBe("SIGKILL");
+      await gateClient.query("SELECT pg_advisory_unlock($1::bigint)", [key]);
+      const before = await originalMaterial(jobId);
+      expect(before.graph.job.status).toBe("sealed");
+      expect(before.material).not.toBeNull();
+      expect(before.graph.usage.ruleEvaluations).toBe(0);
+      const oldFence = before.graph.job.currentLease!.mutationFence;
+      await expiredAtDatabase(before.graph.job.currentLease!.expiresAt);
+      const restarted = await child(jobId);
+      expect(restarted.code).toBe(0);
+      const after = await originalMaterial(jobId);
+      expect(after.graph.job.status).toBe("completed");
+      expect(after.graph.attempts).toHaveLength(2);
+      expect(after.graph.job.snapshot).toEqual(before.graph.job.snapshot);
+      expect(after.material).toEqual(before.material);
+      expect(after.graph.request).toEqual(before.graph.request);
+      expect(after.graph.attempts[0]!.closure).toMatchObject({
+        status: "interrupted",
+        reason: "lease_expired",
+      });
+      expect(after.graph.attempts[1]!.mutationFence.fencingToken).toBeGreaterThan(
+        oldFence.fencingToken,
+      );
+      const receipt = JSON.parse(restarted.stdout);
+      const paidRules = Object.values(receipt.ruleOutcomes as Record<string, number>).reduce(
+        (sum, count) => sum + count,
+        0,
+      );
+      expect(after.graph.usage).toEqual({ ...before.graph.usage, ruleEvaluations: paidRules });
+      await expect(worker.startComputation({ scope, fence: oldFence })).rejects.toThrow();
+    } finally {
+      try {
+        if (started) await stopOwned(started);
+      } finally {
+        try {
+          await gateClient.query("SELECT pg_advisory_unlock_all()");
+        } finally {
+          gateClient.release();
+        }
+        await admin.query(
+          `DROP TRIGGER IF EXISTS ${triggerName} ON public.proofstack_policy_evaluation_job_history`,
+        );
+        await admin.query(`DROP FUNCTION IF EXISTS public.${functionName}()`);
+      }
     }
   });
 });

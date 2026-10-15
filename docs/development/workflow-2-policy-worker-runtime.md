@@ -61,6 +61,7 @@ native PostgreSQL test job's unchanged time allowance and verifies exact source/
 The [reference executable and private credential provider](workflow-2-policy-worker-executable.md)
 now use this composition and have actual child-process evidence. Their local keys and synthetic
 credentials establish no production identity, key management, TLS deployment or OS isolation.
-Cross-process crash/reclaim/cancellation barriers, all-state recovery, public API/SDK,
+The [process barriers](workflow-2-policy-worker-process-barriers.md) have separate real evidence.
+All-state recovery, public API/SDK,
 complete contributor flow and independent checkpoint exit audit remain required. It creates no
 queue, persistent goal or continuous scheduler and carries no release or deployment authority.

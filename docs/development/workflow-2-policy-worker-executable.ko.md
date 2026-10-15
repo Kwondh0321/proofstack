@@ -54,7 +54,8 @@ argv/exit만 연결하는 작은 진입점은 실제 프로세스 검사로 확�
 독립 재조회해 재시작 시 receipt/비용 보존과 잘못된 토큰/파일 권한의 무변경 거부를 확인합니다.
 합성 reference fixture이며 live identity/provider·운영 키 증거는 아닙니다.
 
-프로세스 간 crash/reclaim/취소의 결정적 barrier, 전체 상태 복구, 공개 API/OpenAPI/SDK, 모든
+[실제 프로세스 종료·취소 barrier](workflow-2-policy-worker-process-barriers.ko.md)는 봉인 전 종료·
+봉인 후 재시작·실제 객체 I/O 중 취소를 검증합니다. 전체 상태 복구, 공개 API/OpenAPI/SDK, 모든
 predicate/outcome의 기여자 흐름과 독립 종료 감사가 남습니다. 이후 결정/승인·attestation·CI adapter·
 측정 운영도 각자의 진입/종료 검증이 필요합니다. 이 실행 파일은 그 단계나 전체 개발 목표의
 완료 또는 자동 목표 생성을 뜻하지 않습니다.

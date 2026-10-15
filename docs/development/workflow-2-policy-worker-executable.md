@@ -88,8 +88,9 @@ independently read original pages/results and prove restart preserves receipts/f
 and insecure credential files do not mutate job state. These are synthetic reference fixtures,
 not live identity/provider or production-key evidence.
 
-Deterministic cross-process crash/reclaim/cancellation barriers, all-state recovery, public API/
-OpenAPI/SDK, the complete retained contributor graph with every predicate/outcome and independent
+The [actual process-death and cancellation barriers](workflow-2-policy-worker-process-barriers.md)
+now exercise pre-seal death, post-seal restart and cancellation during real object I/O.
+All-state recovery, public API/OpenAPI/SDK, the complete retained contributor graph with every predicate/outcome and independent
 exit audit remain required before checkpoint 3 acceptance. Later release decisions/approvals,
 attestations, CI adapters and measured operations have their own entry/exit gates. This executable
 does not complete those gates or create an automatic development goal.

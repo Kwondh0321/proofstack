@@ -47,10 +47,10 @@ The existing [native initial reads](workflow-2-policy-initial-sources.md),
 [held snapshot publication](workflow-2-policy-snapshot-storage.md) and
 [reserved rule computation](workflow-2-policy-rule-reservations.md) have their separate evidence.
 
-This increment is a library boundary; its [native runtime](workflow-2-policy-worker-runtime.md)
-has separate PostgreSQL/S3 evidence. Its [reference executable and private credential provider](workflow-2-policy-worker-executable.md)
-have actual process evidence. Complete
-cross-process crash/cancellation barriers, all-state recovery, public API/SDK,
-real-service contributor command and independent checkpoint exit audit remain required. Receiving
+The library's [native runtime](workflow-2-policy-worker-runtime.md),
+[reference executable/provider](workflow-2-policy-worker-executable.md) and
+[process crash/cancellation barriers](workflow-2-policy-worker-process-barriers.md) have separate
+real-service evidence. All-state recovery, public API/SDK, the complete contributor command and
+independent checkpoint exit audit remain required. Receiving
 or invoking this function creates no persistent goal, queue or continuous scheduler. No deployment,
 production identity, OS isolation or production readiness is claimed.
