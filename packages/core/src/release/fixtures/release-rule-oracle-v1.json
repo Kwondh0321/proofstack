@@ -1,0 +1,270 @@
+{
+  "format": "proofstack.release-rule-decision-table-oracle.v1",
+  "basis": "Independent Python boolean satisfaction/violation formula and ordered normative diagnostics; synthetic observations, not current authority",
+  "policyStates": [
+    "active",
+    "not_effective",
+    "expired",
+    "withdrawn",
+    "superseded",
+    "authority_unavailable"
+  ],
+  "reviewStates": [
+    "unavailable",
+    "insufficient",
+    "conditions_unresolved",
+    "conflicted",
+    "opposed",
+    "escalated",
+    "matched"
+  ],
+  "applicability": ["match", "mismatch", "unknown"],
+  "candidateAuthority": ["qualified", "unqualified", "unavailable"],
+  "nonWaivable": [false, true],
+  "vectors": [
+    {
+      "predicateKind": "comparison_threshold",
+      "originalOutcome": "satisfied",
+      "cases": 31752,
+      "classificationCounts": {
+        "satisfied": 98,
+        "unresolved": 31654
+      },
+      "sha256": "9adff132e2ac121174bdaae6ce5e0e9ba9300a76c45269ee2e083368be64ce75"
+    },
+    {
+      "predicateKind": "comparison_threshold",
+      "originalOutcome": "violated",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31696,
+        "non_waivable_violation": 49,
+        "satisfied": 7
+      },
+      "sha256": "669049d93e8b24f449ae20b9e11794001e946c3235ba688d1b523556d9c69a18"
+    },
+    {
+      "predicateKind": "comparison_threshold",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "35c2e94e13f3cc1cf2da729f3945e54fee5577386dba7d4afe87a2c48904c226"
+    },
+    {
+      "predicateKind": "comparison_threshold",
+      "originalOutcome": "not_applicable",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "ee2a57162b68c0249df4638d268d1b3366eca0451c99891f1864f93a9c19f982"
+    },
+    {
+      "predicateKind": "coverage_floor",
+      "originalOutcome": "satisfied",
+      "cases": 31752,
+      "classificationCounts": {
+        "satisfied": 98,
+        "unresolved": 31654
+      },
+      "sha256": "9adff132e2ac121174bdaae6ce5e0e9ba9300a76c45269ee2e083368be64ce75"
+    },
+    {
+      "predicateKind": "coverage_floor",
+      "originalOutcome": "violated",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31696,
+        "non_waivable_violation": 49,
+        "satisfied": 7
+      },
+      "sha256": "669049d93e8b24f449ae20b9e11794001e946c3235ba688d1b523556d9c69a18"
+    },
+    {
+      "predicateKind": "coverage_floor",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "35c2e94e13f3cc1cf2da729f3945e54fee5577386dba7d4afe87a2c48904c226"
+    },
+    {
+      "predicateKind": "coverage_floor",
+      "originalOutcome": "not_applicable",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "ee2a57162b68c0249df4638d268d1b3366eca0451c99891f1864f93a9c19f982"
+    },
+    {
+      "predicateKind": "uncertainty_bound",
+      "originalOutcome": "satisfied",
+      "cases": 31752,
+      "classificationCounts": {
+        "satisfied": 98,
+        "unresolved": 31654
+      },
+      "sha256": "9adff132e2ac121174bdaae6ce5e0e9ba9300a76c45269ee2e083368be64ce75"
+    },
+    {
+      "predicateKind": "uncertainty_bound",
+      "originalOutcome": "violated",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31696,
+        "non_waivable_violation": 49,
+        "satisfied": 7
+      },
+      "sha256": "669049d93e8b24f449ae20b9e11794001e946c3235ba688d1b523556d9c69a18"
+    },
+    {
+      "predicateKind": "uncertainty_bound",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "35c2e94e13f3cc1cf2da729f3945e54fee5577386dba7d4afe87a2c48904c226"
+    },
+    {
+      "predicateKind": "uncertainty_bound",
+      "originalOutcome": "not_applicable",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "ee2a57162b68c0249df4638d268d1b3366eca0451c99891f1864f93a9c19f982"
+    },
+    {
+      "predicateKind": "eligibility_required",
+      "originalOutcome": "satisfied",
+      "cases": 31752,
+      "classificationCounts": {
+        "satisfied": 98,
+        "unresolved": 31654
+      },
+      "sha256": "9adff132e2ac121174bdaae6ce5e0e9ba9300a76c45269ee2e083368be64ce75"
+    },
+    {
+      "predicateKind": "eligibility_required",
+      "originalOutcome": "violated",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31696,
+        "non_waivable_violation": 49,
+        "satisfied": 7
+      },
+      "sha256": "669049d93e8b24f449ae20b9e11794001e946c3235ba688d1b523556d9c69a18"
+    },
+    {
+      "predicateKind": "eligibility_required",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "35c2e94e13f3cc1cf2da729f3945e54fee5577386dba7d4afe87a2c48904c226"
+    },
+    {
+      "predicateKind": "eligibility_required",
+      "originalOutcome": "not_applicable",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "ee2a57162b68c0249df4638d268d1b3366eca0451c99891f1864f93a9c19f982"
+    },
+    {
+      "predicateKind": "artifact_required",
+      "originalOutcome": "satisfied",
+      "cases": 31752,
+      "classificationCounts": {
+        "satisfied": 98,
+        "unresolved": 31654
+      },
+      "sha256": "9adff132e2ac121174bdaae6ce5e0e9ba9300a76c45269ee2e083368be64ce75"
+    },
+    {
+      "predicateKind": "artifact_required",
+      "originalOutcome": "violated",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31696,
+        "non_waivable_violation": 49,
+        "satisfied": 7
+      },
+      "sha256": "669049d93e8b24f449ae20b9e11794001e946c3235ba688d1b523556d9c69a18"
+    },
+    {
+      "predicateKind": "artifact_required",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "35c2e94e13f3cc1cf2da729f3945e54fee5577386dba7d4afe87a2c48904c226"
+    },
+    {
+      "predicateKind": "artifact_required",
+      "originalOutcome": "not_applicable",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "ee2a57162b68c0249df4638d268d1b3366eca0451c99891f1864f93a9c19f982"
+    },
+    {
+      "predicateKind": "safety_event_ceiling",
+      "originalOutcome": "satisfied",
+      "cases": 31752,
+      "classificationCounts": {
+        "satisfied": 98,
+        "unresolved": 31654
+      },
+      "sha256": "9adff132e2ac121174bdaae6ce5e0e9ba9300a76c45269ee2e083368be64ce75"
+    },
+    {
+      "predicateKind": "safety_event_ceiling",
+      "originalOutcome": "violated",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31696,
+        "non_waivable_violation": 49,
+        "satisfied": 7
+      },
+      "sha256": "669049d93e8b24f449ae20b9e11794001e946c3235ba688d1b523556d9c69a18"
+    },
+    {
+      "predicateKind": "safety_event_ceiling",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "35c2e94e13f3cc1cf2da729f3945e54fee5577386dba7d4afe87a2c48904c226"
+    },
+    {
+      "predicateKind": "safety_event_ceiling",
+      "originalOutcome": "not_applicable",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31752
+      },
+      "sha256": "ee2a57162b68c0249df4638d268d1b3366eca0451c99891f1864f93a9c19f982"
+    },
+    {
+      "predicateKind": "approval_required",
+      "originalOutcome": "indeterminate",
+      "cases": 31752,
+      "classificationCounts": {
+        "unresolved": 31738,
+        "satisfied": 14
+      },
+      "sha256": "28a5ce500ff5dff491a883137a31874b7f148e7f3c841f17a4cad64ae0533cf9"
+    }
+  ]
+}

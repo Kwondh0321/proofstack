@@ -1,12 +1,13 @@
 # Foundation threat model
 
-Status: active foundation and durable replay baseline
-Last reviewed: 2026-09-01
+Status: active experimental Workflow 1 and Workflow 2 checkpoints 1–3 baseline; checkpoint 4 contracts remain partial
+Last reviewed: 2026-10-15
 
 ## Purpose
 
-This document records the security assumptions that shape ProofStack before production deployment,
-evaluation workers, and release controls are added. It is a living design input, not a
+This document records the security assumptions of implemented experimental evidence, replay,
+evaluation and policy-evaluation boundaries before production deployment and accountable release
+publication are accepted. It is a living design input, not a
 certification or production-readiness claim.
 
 ## Protected assets
@@ -40,7 +41,8 @@ System of record (trusted persistence boundary)
         +--> encrypted object storage (untrusted for plaintext confidentiality)
         +--> scoped artifact maintenance (privileged lifecycle worker)
         +--> bounded replay workers (least-privilege privileged consumers)
-        +--> evaluation workers (future privileged consumers)
+        +--> bounded evaluation workers (separate privileged consumers)
+        +--> fenced policy-evaluation workers (experimental, no release publication authority)
 ```
 
 The SDK runs inside an application that may be buggy or compromised. Event identifiers, tenant
@@ -69,6 +71,9 @@ tools, change policy, or approve a release.
 | Incomplete trace presented as a replay | Evidence-only snapshots are non-executable; durable recorded replay requires one complete available interaction fixture, exact immutable release and plan, and verifies every owned byte before target execution | Production worker isolation and target-release provenance qualification |
 | Recorded mismatch silently falls through to a live boundary | The ordered resolver has no provider, network, credential, search, or arbitrary-tool dependency and permanently closes on the first mismatch | OS-enforced worker egress isolation and adversarial deployment tests |
 | Poisoned, inapplicable, or stale evaluation criteria | Sources, applicability, assumptions, counterevidence, approvals, and versions remain separate evidence | Qualification corpus, independent review, freshness checks, and Workflow 2 policy |
+| Caller selects favorable policy results or omits unfinished operands | Accepted C3 keeps exact original requests, sealed inputs, immutable recomputed results and fenced worker publication; C4 input contracts retain complete planned policy membership | C4 native request reservations, current installation selection and complete owning graph publication |
+| Approval-only policy hides incompatible or unverified original evidence | C4 contract/table checks original/current policy state, candidate source authority and applicability separately; original approval evaluation remains indeterminate | Actual eligible reviewer/quorum resolution, private session/grant proof and held native authority through decision/outbox commit |
+| Old report, matched label or signature is treated as current release authority | Historical evidence, policy satisfaction, actual approval and publication remain distinct; C4 pure helpers cannot authenticate or publish | Complete immutable publication-cut graph, current authority guards, accountable decision acceptance, then separate attestation/CI entry gates |
 | Search or generated summaries treated as authority | Search records discovery provenance only; the underlying primary source must be snapshotted and verified | Source licensing, conflict, supersession, and applicability operations |
 | Model-judge bias, correlation, or prompt injection | Evaluators are untrusted, versioned, qualified, calibrated, grouped by lineage, and allowed to abstain | Blinded order swaps, injection corpus, slice metrics, disagreement, and non-model evidence |
 | Replay retry amplification or real-world side effects | Modes, finite budgets, retries, cancellation, and effect classes are fixed before execution; fenced reservation and usage reconciliation are durable | Sandboxed deployment profiles, real-provider reconciliation, and destination idempotency qualification |
@@ -136,8 +141,20 @@ tools, change policy, or approve a release.
   separate worker/target processes, and durable result artifacts are implemented and tested. The
   local process profile cannot enforce an OS read-only filesystem, process namespace, dependency
   sandbox, resource cgroup, syscall policy, or network egress control. A continuously scheduled
-  production worker deployment, production live-provider qualification, evaluator assurance,
-  assessments, and comparison surfaces are not yet implemented.
+  production worker deployment and production live-provider/OS-isolation qualification remain open.
+- Workflow 1 includes non-model evaluation, contestable model/human assurance and exact descriptive
+  comparison with accepted checkpoint audits. These do not establish truthful measurements,
+  reviewer expertise or real-provider isolation. Evidence review is not release approval.
+- Workflow 2 checkpoints 1–3 include immutable candidates, versioned policies and deterministic
+  snapshot-bound policy evaluation with durable fenced jobs, recovery, authorization-first API,
+  bounded workspace SDK and real-service contributor acceptance. Policy enqueue and execution
+  are distinct; original approval requirements remain indeterminate. See the
+  [acceptance audit](../development/workflow-2-policy-evaluation-audit.md).
+- Workflow 2 checkpoint 4 remains open. Selection/reviewer/approval/input/decision contracts and
+  private computation are prerequisites, not actual current installation/reviewer/session/grant
+  authority, native publication or accountable approval. Authority snapshot storage, repositories,
+  guarded roles/recovery, API/SDK and contributor/exit gates are still required. Attestations,
+  external CI adapters, rollback/break-glass and measured operational stage acceptance remain later.
 
 These limitations are visible product state. They must not be hidden behind configuration defaults
 or marketing language.

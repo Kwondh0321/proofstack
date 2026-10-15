@@ -133,6 +133,10 @@ indeterminate evidence into proceed. Preserve original rule outcomes and every c
 
 ## Required conservative decision table
 
+The [decision contract/computation prerequisite](workflow-2-decision-contracts.md) preserves
+original outcomes and separately derives bounded findings. Current authority and native acceptance
+remain open; a pure report cannot publish.
+
 | Exact situation | Disposition boundary |
 | --- | --- |
 | Explicit observation-only selection; advisory failures | advisory, non-blocking and attributable |

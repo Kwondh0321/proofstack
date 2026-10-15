@@ -60,3 +60,4 @@ invalidate an ADR present in this directory.
 - [ADR-0035: Share scoped candidate reference authorities](0035-share-scoped-candidate-reference-authorities.md)
 - [ADR-0036: Bind decisions to current selection and reviewer authority](0036-bind-decisions-to-current-selection-and-reviewer-authority.md)
 - [ADR-0037: Predeclare complete release decision inputs](0037-predeclare-complete-release-decision-inputs.md)
+- [ADR-0038: Retain original rule outcomes in accountable decisions](0038-retain-original-rule-outcomes-in-accountable-decisions.md)
