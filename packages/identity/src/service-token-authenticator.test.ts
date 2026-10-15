@@ -139,6 +139,17 @@ describe("server-owned service token authentication", () => {
     ).rejects.toBeInstanceOf(InvalidServiceTokenError);
     expect(provider.confirmActiveServiceUse).toHaveBeenCalledOnce();
   });
+  it.each(["false", 1, {}, null, undefined])(
+    "refuses a non-boolean active confirmation %#",
+    async (confirmation) => {
+      const provider = lookup();
+      provider.confirmActiveServiceUse.mockResolvedValue(confirmation as boolean);
+      await expect(
+        new ServiceTokenAuthenticator(provider).authenticate(token.value, "request_policy_worker"),
+      ).rejects.toBeInstanceOf(InvalidServiceTokenError);
+      expect(provider.confirmActiveServiceUse).toHaveBeenCalledOnce();
+    },
+  );
   it("binds a copy of original grants/hash even when the provider mutates its record at confirmation", async () => {
     const raw = {
         ...structuredClone(stored),

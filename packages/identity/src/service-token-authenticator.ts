@@ -82,7 +82,7 @@ export class ServiceTokenAuthenticator {
         cause: principal.error,
       });
     const { authenticatedAt: _at, ...expected } = credential;
-    if (!(await this.credentials.confirmActiveServiceUse(expected)))
+    if ((await this.credentials.confirmActiveServiceUse(expected)) !== true)
       throw new InvalidServiceTokenError();
     return principal.data;
   }
