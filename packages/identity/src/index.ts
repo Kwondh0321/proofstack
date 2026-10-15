@@ -5,3 +5,5 @@ export * from "./oidc-identity.js";
 export * from "./oidc-login.js";
 export * from "./oidc-secrets.js";
 export * from "./oidc-session.js";
+export * from "./service-token.js";
+export * from "./service-token-authenticator.js";

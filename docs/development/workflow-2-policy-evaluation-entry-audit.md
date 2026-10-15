@@ -738,6 +738,11 @@ resolution without modifying this immutable evidence.
 
 ## Durable jobs, authority, and recovery
 
+The [authenticated worker attempt library](workflow-2-policy-worker-attempt.md) adds separate
+service-token verification and owning single-attempt orchestration with real memory cases.
+Its actual native runtime, executable, provider and cross-process acceptance remain required;
+the library does not accept this checkpoint or create a continuous scheduler.
+
 The [exact snapshot reader and shared store cases](workflow-2-policy-store-conformance.md)
 now retain complete original inputs and results in the memory store and exercise unchanged
 memory/native publication, cancellation and retry cases. This closes that bounded conformance

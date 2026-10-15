@@ -505,6 +505,10 @@ Decimal·rational 모두 정확한 unit을 보존한다. 계산 전에 임의 �
 
 ## 영속 job, 권한, 복구
 
+[인증된 worker attempt library](workflow-2-policy-worker-attempt.ko.md)는 별도 service token 검증과
+실제 memory 저장소를 쓰는 단일 attempt 흐름을 추가합니다. Native runtime·실행 파일·provider·
+process 간 검증은 남아 있으며 checkpoint 승인이나 상시 scheduler를 뜻하지 않습니다.
+
 [초기 소스 읽기 어댑터](workflow-2-policy-initial-sources.ko.md)는 고정된 owning 읽기에 정확한
 열린 credit·native 만료·decoder 전 제한을 적용합니다. 실제 worker 연결은 남아 있고 읽기별
 wire 한도와 job 전체 의미적 비용을 구별합니다.

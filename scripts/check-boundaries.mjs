@@ -105,6 +105,19 @@ const modules = [
     allowed: new Set([
       "@proofstack/artifacts",
       "@proofstack/contracts",
+      "@proofstack/core",
+      "@proofstack/identity",
+      "@proofstack/policy-evaluation",
+      "@proofstack/postgres",
+      "@proofstack/s3",
+    ]),
+    directory: "services/policy-worker/src",
+    packageName: "@proofstack/policy-worker",
+  },
+  {
+    allowed: new Set([
+      "@proofstack/artifacts",
+      "@proofstack/contracts",
       "@proofstack/datasets",
       "@proofstack/postgres",
       "@proofstack/recovery",
