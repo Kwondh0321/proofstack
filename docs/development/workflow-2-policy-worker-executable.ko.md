@@ -21,6 +21,8 @@ delivery에 넣지 않습니다. 운영자 측 발급에는 identity workspace�
 artifact-read capability·명시적인 project/environment 범위·active/revoked 상태·양의
 notBefore/expiresAt 구간을 가집니다. 중복·미래 형식·알 수 없는 필드·잘못된 hash·암묵적인 광역
 권한은 전체 파일을 거부합니다. 정확한 필드와 설정 목록은 [영문 가이드](workflow-2-policy-worker-executable.md)에 있습니다.
+선택 `PROOFSTACK_POLICY_WORKER_AUTHORITIES_FILE`로 운영자 소유 후보 reference 포트를 구성하며
+인증 뒤에만 읽습니다. [후보 권한 가이드](workflow-2-policy-worker-authorities.ko.md)를 참고합니다.
 
 실제 파일을 읽어 비밀값을 검증한 뒤 다시 읽고 원래 identity·hash·grant·유효 구간을 대조합니다.
 not-before는 포함하고 만료 시각은 제외합니다. 원자적 파일 교체로 폐기/교체하며 검증 도중 변경·

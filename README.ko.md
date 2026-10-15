@@ -216,6 +216,7 @@ apps/api                 HTTP 컴포지션 루트와 개발용 수집 API
 apps/web                 서버 렌더링 운영자 콘솔
 packages/contracts       런타임 스키마, 공개 타입, 인증 컨텍스트, OpenAPI 생성
 packages/core            프레임워크 독립적인 인가 및 증거 유스케이스
+packages/source-authority  범위가 고정된 local Git·선언된 candidate reference 권한 adapter
 packages/datasets        불변 회귀 정의, 이진 인코딩, 공개 검증 벡터
 packages/replay          정규 bounded-replay 정의와 fail-closed 기록 실행
 packages/policy-evaluation  도메인 간 증거 기록 그래프 수집; 릴리스 결정 기능은 아님

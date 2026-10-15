@@ -4,6 +4,10 @@ import { ArtifactCipher, LocalArtifactKeyring } from "@proofstack/artifacts";
 import { OpaqueIdSchema, PolicyInstallationBindingSchema } from "@proofstack/contracts";
 import type { PostgresPolicyMetadataCatalogues } from "@proofstack/postgres";
 import type { CreateS3ArtifactObjectStoreOptions } from "@proofstack/s3";
+import {
+  createConfiguredCandidateReferenceAuthorities,
+  type ConfiguredCandidateReferenceAuthorities,
+} from "@proofstack/source-authority";
 import { readPolicyWorkerJsonFile } from "./private-json-file.js";
 
 const PREFIX = "PROOFSTACK_POLICY_WORKER_";
@@ -60,6 +64,7 @@ export interface PolicyWorkerRuntimeConfig {
   readonly catalogues: PostgresPolicyMetadataCatalogues;
   readonly objects: CreateS3ArtifactObjectStoreOptions;
   readonly encryption: ArtifactCipher;
+  readonly candidateAuthorities?: ConfiguredCandidateReferenceAuthorities;
 }
 /** Reference local-key composition only; call after actual execution authentication. */
 export async function loadPolicyWorkerRuntimeConfig(
@@ -142,11 +147,26 @@ export async function loadPolicyWorkerRuntimeConfig(
       throw new PolicyWorkerConfigurationError(PREFIX + "CATALOGUES_FILE", { cause: error });
     }
   }
+  const authorityFilename = optional(environment, PREFIX + "AUTHORITIES_FILE", 4096);
+  let candidateAuthorities: ConfiguredCandidateReferenceAuthorities | undefined;
+  if (authorityFilename !== undefined) {
+    try {
+      candidateAuthorities = createConfiguredCandidateReferenceAuthorities(
+        await readPolicyWorkerJsonFile(
+          filePath(authorityFilename, PREFIX + "AUTHORITIES_FILE"),
+          16 * 1024 * 1024,
+        ),
+      );
+    } catch (error) {
+      throw new PolicyWorkerConfigurationError(PREFIX + "AUTHORITIES_FILE", { cause: error });
+    }
+  }
   return {
     databaseUrl,
     ...(databaseRole === undefined ? {} : { databaseRole }),
     catalogues,
     objects,
     encryption,
+    ...(candidateAuthorities === undefined ? {} : { candidateAuthorities }),
   };
 }

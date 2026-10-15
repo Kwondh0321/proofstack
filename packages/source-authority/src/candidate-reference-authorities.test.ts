@@ -8,11 +8,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type {
   ReleaseCandidateRevisionReference,
   ReleaseCandidateRuntimeReference,
-} from "./repository-release-candidate-source-resolver.js";
+} from "@proofstack/core";
 import {
+  createConfiguredCandidateReferenceAuthorities,
   LocalGitReleaseCandidateRevisionAuthority,
   StaticReleaseCandidateRuntimeAuthority,
-} from "./release-candidate-authorities.js";
+} from "./candidate-reference-authorities.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryUrl = "https://github.com/example/proofstack-authority-fixture";
@@ -96,6 +97,106 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (checkoutPath) await rm(checkoutPath, { force: true, recursive: true });
+});
+
+describe("strict operator-owned reference configuration", () => {
+  function configuration() {
+    return {
+      repositories: [{ checkoutPath, repositoryUrl, scope: { ...scope } }],
+      modelDeclarations: [
+        {
+          scope: { ...scope },
+          declaration: {
+            providerId: "provider_candidate_authority",
+            providerModelId: "model-stable",
+            resolution: { ...resolution },
+          },
+        },
+      ],
+      runtimeAdapters: [{ adapter: { ...adapter }, scope: { ...scope } }],
+    };
+  }
+  it("uses actual allowlisted Git objects and copied exact model/adapter declarations", async () => {
+    const raw = configuration();
+    const authorities = createConfiguredCandidateReferenceAuthorities(raw);
+    raw.repositories[0]!.scope.tenantId = otherScope.tenantId;
+    raw.modelDeclarations[0]!.declaration.providerModelId = "changed-after-admission";
+    raw.runtimeAdapters[0]!.adapter.definitionSha256 = "f".repeat(64);
+    await expect(authorities.revision.isAvailable(scope, revisionReference())).resolves.toBe(true);
+    await expect(authorities.revision.isAvailable(otherScope, revisionReference())).resolves.toBe(
+      false,
+    );
+    await expect(
+      authorities.runtime.isAvailable(scope, {
+        kind: "model_declaration",
+        role: "primary_model",
+        providerId: "provider_candidate_authority",
+        providerModelId: "model-stable",
+        resolution,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      authorities.runtime.isAvailable(scope, {
+        kind: "runtime_adapter",
+        role: "primary_model",
+        adapter,
+      }),
+    ).resolves.toBe(true);
+  });
+  it("keeps explicitly empty operator catalogues unavailable", async () => {
+    const authorities = createConfiguredCandidateReferenceAuthorities({
+      repositories: [],
+      modelDeclarations: [],
+      runtimeAdapters: [],
+    });
+    await expect(authorities.revision.isAvailable(scope, revisionReference())).resolves.toBe(false);
+    await expect(
+      authorities.runtime.isAvailable(scope, {
+        kind: "runtime_adapter",
+        role: "primary_model",
+        adapter,
+      }),
+    ).resolves.toBe(false);
+  });
+  it.each([
+    "unknown",
+    "missing",
+    "relative",
+    "wrong_scope",
+    "duplicate_repository",
+    "duplicate_model",
+    "duplicate_adapter",
+    "repositories_over",
+    "models_over",
+    "adapters_over",
+  ])("rejects malformed/ambiguous/over-limit whole configuration: %s", (fault) => {
+    const raw: Record<string, unknown> = configuration();
+    if (fault === "unknown") raw["command"] = "git fetch";
+    if (fault === "missing") delete raw["repositories"];
+    if (fault === "relative")
+      raw["repositories"] = [{ checkoutPath: "relative", repositoryUrl, scope }];
+    if (fault === "wrong_scope")
+      raw["runtimeAdapters"] = [{ adapter, scope: { ...scope, tenantId: "invalid scope" } }];
+    if (fault === "duplicate_repository")
+      raw["repositories"] = [...configuration().repositories, ...configuration().repositories];
+    if (fault === "duplicate_model")
+      raw["modelDeclarations"] = [
+        ...configuration().modelDeclarations,
+        ...configuration().modelDeclarations,
+      ];
+    if (fault === "duplicate_adapter")
+      raw["runtimeAdapters"] = [
+        ...configuration().runtimeAdapters,
+        ...configuration().runtimeAdapters,
+      ];
+    if (fault === "repositories_over")
+      raw["repositories"] = Array(257).fill(configuration().repositories[0]);
+    if (fault === "models_over")
+      raw["modelDeclarations"] = Array(257).fill(configuration().modelDeclarations[0]);
+    if (fault === "adapters_over")
+      raw["runtimeAdapters"] = Array(257).fill(configuration().runtimeAdapters[0]);
+    expect(() => createConfiguredCandidateReferenceAuthorities(raw)).toThrow();
+  });
 });
 
 describe("LocalGitReleaseCandidateRevisionAuthority", () => {

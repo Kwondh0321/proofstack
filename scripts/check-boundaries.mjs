@@ -34,6 +34,12 @@ const modules = [
   },
   {
     allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
+    productionExternalAllowlist: new Set(["node:child_process", "node:path", "node:util", "zod"]),
+    directory: "packages/source-authority/src",
+    packageName: "@proofstack/source-authority",
+  },
+  {
+    allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
     directory: "packages/datasets/src",
     packageName: "@proofstack/datasets",
   },
@@ -110,6 +116,7 @@ const modules = [
       "@proofstack/policy-evaluation",
       "@proofstack/postgres",
       "@proofstack/s3",
+      "@proofstack/source-authority",
     ]),
     directory: "services/policy-worker/src",
     packageName: "@proofstack/policy-worker",
@@ -146,6 +153,7 @@ const modules = [
       "@proofstack/postgres",
       "@proofstack/replay",
       "@proofstack/s3",
+      "@proofstack/source-authority",
     ]),
     directory: "apps/api/src",
     packageName: "@proofstack/api",

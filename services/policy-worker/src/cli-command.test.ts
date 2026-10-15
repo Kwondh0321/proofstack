@@ -191,6 +191,7 @@ describe("finite separately authenticated policy worker command", () => {
     h.dependencies.environment[p + "SERVICE_TOKEN"] =
       `pss_v1_${token.prefix}_${generateServiceToken().secret}`;
     delete h.dependencies.environment[p + "DATABASE_URL"];
+    h.dependencies.environment[p + "AUTHORITIES_FILE"] = "not-an-absolute-file";
     h.args[1] = token.value;
     expect(await h.run()).toBe(1);
     expect(h.createRuntime).not.toHaveBeenCalled();
@@ -221,6 +222,23 @@ describe("finite separately authenticated policy worker command", () => {
       return h.ports;
     });
     expect(await h.run()).toBe(0);
+  });
+  it("forwards configured reference ports only after actual service authentication", async () => {
+    const h = await fixture();
+    const filename = join(root, "command-authorities.json");
+    await writeFile(
+      filename,
+      JSON.stringify({ repositories: [], modelDeclarations: [], runtimeAdapters: [] }),
+      { mode: 0o600, flag: "wx" },
+    );
+    h.dependencies.environment[p + "AUTHORITIES_FILE"] = filename;
+    h.createRuntime.mockImplementation(async (_input, options) => {
+      expect(options.candidateAuthorities?.revision).toBeDefined();
+      expect(options.candidateAuthorities?.runtime).toBeDefined();
+      return h.ports;
+    });
+    expect(await h.run()).toBe(0);
+    expect(h.createRuntime).toHaveBeenCalledOnce();
   });
   it("reports idle-pool errors without leaking causes or fabricating command success", async () => {
     const h = await fixture();

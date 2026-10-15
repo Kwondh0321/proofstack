@@ -74,6 +74,9 @@ export async function runPolicyWorkerCli(
               ...(config.databaseRole === undefined ? {} : { databaseRole: config.databaseRole }),
               allowPlaintextLoopback: true,
               catalogues: config.catalogues,
+              ...(config.candidateAuthorities === undefined
+                ? {}
+                : { candidateAuthorities: config.candidateAuthorities }),
               onIdleError: () => {
                 idleFailure = true;
               },

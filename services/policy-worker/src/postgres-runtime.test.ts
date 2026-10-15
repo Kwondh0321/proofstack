@@ -97,6 +97,24 @@ function setup() {
 }
 
 describe("actual native policy runtime composition", () => {
+  it("retains admitted authority ports for capture and held reinspection despite later option mutation", async () => {
+    const h = setup();
+    const revision = { isAvailable: vi.fn(async () => true) };
+    const referenceRuntime = { isAvailable: vi.fn(async () => false) };
+    const authorities = { revision, runtime: referenceRuntime };
+    Object.assign(h.options, { candidateAuthorities: authorities });
+    const runtime = await h.open();
+    authorities.revision = { isAvailable: vi.fn(async () => false) };
+    await runtime.seal(h.command);
+    const calls = h.seal.mock.calls as unknown as Parameters<
+      typeof import("@proofstack/policy-evaluation").sealPolicyEvaluationSnapshot
+    >[];
+    const dependency = calls[0]![4];
+    expect(dependency.candidateAuthorities).toEqual({ revision, runtime: referenceRuntime });
+    expect(dependency.candidateAuthorities).not.toBe(authorities);
+    expect(Object.isFrozen(dependency.candidateAuthorities)).toBe(true);
+    await runtime.close();
+  });
   it("uses only the dedicated native pool and owning repositories after readiness", async () => {
     const h = setup();
     const runtime = await h.open();

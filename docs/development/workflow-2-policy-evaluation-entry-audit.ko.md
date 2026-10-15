@@ -567,6 +567,11 @@ private 함수 권한, row-lock race, outbox rollback, pooled scope 재사용, t
 
 ## 공개 경계와 기여자 흐름
 
+[Native worker reference 권한 구성](workflow-2-policy-worker-authorities.ko.md)은 별도 infrastructure
+package와 선택 비공개 운영자 설정으로 API의 정확한 scoped Git/model/adapter 검사를 공유합니다.
+설정 부재는 미확인을 유지하며 reference 가용성이 로드된 코드·실제 provider를 입증하지 않습니다.
+Checkpoint 3 승인이나 완전한 기여자·종료 증거를 대신하지 않습니다.
+
 [제한된 control/조회 HTTP API](workflow-2-policy-evaluation-api.ko.md)는 기존 불변 요청/job과
 owning snapshot/result/history reader를 연결합니다. 전용 native control-role 검사·workload 인증·
 정확한 재시도·취소·재시작 재조회에 실제 PostgreSQL/S3 통합 증거가 있습니다. 이 HTTP 선행조건의

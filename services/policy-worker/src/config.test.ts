@@ -44,6 +44,39 @@ async function catalogue(value: unknown) {
   return path;
 }
 describe("bounded reference worker configuration", () => {
+  it("loads exact reference ports from a private operator file and leaves absent configuration absent", async () => {
+    const env = environment();
+    expect((await loadPolicyWorkerRuntimeConfig(env)).candidateAuthorities).toBeUndefined();
+    env[p + "AUTHORITIES_FILE"] = await catalogue({
+      repositories: [],
+      modelDeclarations: [],
+      runtimeAdapters: [],
+    });
+    const config = await loadPolicyWorkerRuntimeConfig(env);
+    expect(config.candidateAuthorities?.revision).toBeDefined();
+    expect(config.candidateAuthorities?.runtime).toBeDefined();
+  });
+  it.each(["unknown", "permissions", "relative", "missing_file"])(
+    "rejects invalid private reference authority configuration: %s",
+    async (fault) => {
+      const env = environment();
+      const path = await catalogue({
+        repositories: [],
+        modelDeclarations: [],
+        runtimeAdapters: [],
+      });
+      env[p + "AUTHORITIES_FILE"] = path;
+      if (fault === "unknown") await writeFile(path, JSON.stringify({ command: "fetch" }));
+      if (fault === "permissions") await chmod(path, 0o644);
+      if (fault === "relative") env[p + "AUTHORITIES_FILE"] = "relative.json";
+      if (fault === "missing_file")
+        env[p + "AUTHORITIES_FILE"] = join(root, "absent-authorities.json");
+      await expect(loadPolicyWorkerRuntimeConfig(env)).rejects.toMatchObject({
+        name: "PolicyWorkerConfigurationError",
+        setting: p + "AUTHORITIES_FILE",
+      });
+    },
+  );
   it("loads private authentication channels without accepting token or principal argv", () => {
     expect(loadPolicyWorkerAuthentication(environment())).toEqual({
       token: token.value,

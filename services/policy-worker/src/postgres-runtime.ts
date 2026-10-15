@@ -18,6 +18,7 @@ import type { ArtifactContentDecryptor } from "@proofstack/artifacts";
 import {
   sealPolicyEvaluationSnapshot,
   type PolicyEvaluationSnapshotSealingTransactions,
+  type PolicyCandidateAuthorities,
 } from "@proofstack/policy-evaluation";
 import {
   assertMigrationsCurrent,
@@ -63,6 +64,8 @@ export interface PostgresPolicyWorkerRuntimeOptions {
   readonly databaseRole?: string;
   readonly allowPlaintextLoopback?: boolean;
   readonly catalogues?: PostgresPolicyMetadataCatalogues;
+  /** Fixed operator-owned reference ports; absent configuration preserves missing authority. */
+  readonly candidateAuthorities?: PolicyCandidateAuthorities;
   readonly clock?: Clock;
   readonly onIdleError: (error: Error) => void;
   /** Operator-owned factory, called only after execution authorization and DB readiness. */
@@ -122,6 +125,10 @@ export async function createPostgresPolicyWorkerRuntime(
   const scope = EvidenceScopeSchema.parse(input.scope);
   const databaseUrl = databaseConnection(options);
   const catalogues = structuredClone(options.catalogues ?? {});
+  const candidateAuthorities =
+    options.candidateAuthorities === undefined
+      ? undefined
+      : Object.freeze({ ...options.candidateAuthorities });
   const dependencies = { ...defaults, ...overrides };
   const nextId =
     options.nextId ?? ((kind: string) => `policy_${kind}_${randomUUID().replaceAll("-", "")}`);
@@ -194,6 +201,7 @@ export async function createPostgresPolicyWorkerRuntime(
             catalog: initial.catalog,
             clock,
             encryption: ownedArtifacts.encryption,
+            ...(candidateAuthorities === undefined ? {} : { candidateAuthorities }),
             objects: {
               async get() {
                 throw new Error("Policy worker forbids unreserved object reads");

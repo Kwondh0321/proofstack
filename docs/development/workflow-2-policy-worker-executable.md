@@ -62,6 +62,7 @@ Runtime settings are read only after actual token/scope authorization:
 | `PROOFSTACK_POLICY_WORKER_S3_FORCE_PATH_STYLE` | Exactly `true` or `false`, default `false` |
 | `PROOFSTACK_POLICY_WORKER_S3_EXPECTED_BUCKET_OWNER` | Optional installed owner |
 | `PROOFSTACK_POLICY_WORKER_KEYRING_ACTIVE_KEY_ID`, `PROOFSTACK_POLICY_WORKER_KEYRING_KEYS` | Explicit local reference key ID and bounded JSON map of canonical 32-byte base64url keys |
+| `PROOFSTACK_POLICY_WORKER_AUTHORITIES_FILE` | Optional private scoped candidate reference configuration; see the [authority guide](workflow-2-policy-worker-authorities.md) |
 | `PROOFSTACK_POLICY_WORKER_CATALOGUES_FILE` | Optional owner-protected strict installed metadata catalogue, at most 16 MiB |
 
 The catalogue file permits only `installationBindings`, `runtimeDefinitions`,

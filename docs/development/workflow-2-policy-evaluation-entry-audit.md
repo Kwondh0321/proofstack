@@ -833,6 +833,12 @@ explicit exception. New migrations are forward-only and keep prior checksums int
 
 ## Public and contributor boundary
 
+The [native worker reference-authority composition](workflow-2-policy-worker-authorities.md)
+shares the API's exact scoped local-Git/model/adapter checks through a separate infrastructure
+package and optional private operator configuration. Missing configuration remains unavailable;
+configured reference availability does not attest loaded bytes or real provider identity. This
+prerequisite does not accept checkpoint 3 or replace complete contributor/exit evidence.
+
 The [bounded control/read HTTP API](workflow-2-policy-evaluation-api.md) now composes the existing
 immutable requests/jobs and owning snapshot/result/history readers. Dedicated native control-role
 admission, workload authentication, exact retries, cancellation and restart/readback have real

@@ -219,6 +219,7 @@ apps/api                 HTTP composition root and development ingestion API
 apps/web                 Server-rendered operator console
 packages/contracts       Runtime schemas, public types, identity, and OpenAPI generation
 packages/core            Framework-independent authorization and evidence use cases
+packages/source-authority  Scoped local Git and declared candidate reference authority adapters
 packages/datasets        Immutable regression definitions, binary encoding, and public vectors
 packages/replay          Canonical bounded-replay definitions and fail-closed recorded execution
 packages/policy-evaluation  Bounded cross-domain record graph acquisition; not a release decision

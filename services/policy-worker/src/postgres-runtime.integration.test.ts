@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import {
   createServer,
   request as httpRequest,
@@ -19,11 +19,16 @@ import {
   SecureArtifactIdentityGenerator,
   StrictArtifactContentInspector,
 } from "@proofstack/artifacts";
-import { PrincipalContextSchema, type PolicyEvaluationRequest } from "@proofstack/contracts";
+import {
+  PrincipalContextSchema,
+  ReleaseCandidateSourceSchema,
+  type PolicyEvaluationRequest,
+} from "@proofstack/contracts";
 import {
   digestReleaseCandidateDefinition,
   digestPolicyEvaluationRequestDefinition,
   readCompletePolicyEvaluationSnapshot,
+  validatePolicyEvaluationSnapshot,
 } from "@proofstack/core";
 import {
   releaseCandidateFixture,
@@ -144,6 +149,7 @@ const objectReads: number[] = [];
 let resourcesClosed = 0;
 let credentialDirectory: string;
 let credentialFile: string;
+let authorityFile: string;
 
 beforeAll(async () => {
   await migrateDatabase(admin);
@@ -206,6 +212,21 @@ beforeAll(async () => {
   if (!stored?.objectReceipt) throw new Error("Actual artifact upload missing");
   encryptedBytes = stored.objectReceipt.sizeBytes;
   const candidate = releaseCandidateFixture(`runtime_${tag}`, scope);
+  const checkoutPath = fileURLToPath(new URL("../../../", import.meta.url));
+  const git = (...arguments_: string[]) =>
+    execFileSync("git", ["--no-optional-locks", ...arguments_], {
+      cwd: checkoutPath,
+      encoding: "utf8",
+      timeout: 5000,
+      maxBuffer: 65536,
+    }).trim();
+  const algorithm = git("rev-parse", "--show-object-format");
+  const revision = git("rev-parse", "HEAD");
+  candidate.source = ReleaseCandidateSourceSchema.parse({
+    repositoryUrl: "https://github.com/Kwondh0321/proofstack",
+    commit: { algorithm, value: revision },
+    tree: { algorithm, value: git("show", "--no-patch", "--format=%T", revision) },
+  });
   candidate.buildArtifacts[0]!.artifact = stored.metadata.contentReference;
   const {
     definitionSha256: _sha,
@@ -265,6 +286,24 @@ beforeAll(async () => {
   credentialDirectory = await mkdtemp(join(tmpdir(), "proofstack-native-worker-credentials-"));
   await chmod(credentialDirectory, 0o700);
   credentialFile = join(credentialDirectory, "credentials.json");
+  authorityFile = join(credentialDirectory, "authorities.json");
+  const models = candidate.runtimeComponents.filter((component) => component.kind === "model");
+  await writeFile(
+    authorityFile,
+    JSON.stringify({
+      repositories: [{ checkoutPath, repositoryUrl: candidate.source.repositoryUrl, scope }],
+      modelDeclarations: models.map((component) => ({
+        scope,
+        declaration: {
+          providerId: component.providerId,
+          providerModelId: component.providerModelId,
+          resolution: component.resolution,
+        },
+      })),
+      runtimeAdapters: models.map((component) => ({ scope, adapter: component.adapter })),
+    }),
+    { mode: 0o600, flag: "wx" },
+  );
   await writeFile(
     credentialFile,
     JSON.stringify({
@@ -367,13 +406,19 @@ async function queued(suffix: string, shortLease = false) {
   const created = await control.createJob({ request: next, jobId });
   return { jobId, created: created.snapshot };
 }
-function launch(jobId: string, serviceToken = token.value, endpoint = connection.endpoint) {
+function launch(
+  jobId: string,
+  serviceToken = token.value,
+  endpoint = connection.endpoint,
+  authoritiesFilename?: string,
+) {
   const p = "PROOFSTACK_POLICY_WORKER_";
   const environment: NodeJS.ProcessEnv = {
     PROOFSTACK_ENV: "test",
     AWS_EC2_METADATA_DISABLED: "true",
     [p + "SERVICE_TOKEN"]: serviceToken,
     [p + "CREDENTIALS_FILE"]: credentialFile,
+    ...(authoritiesFilename === undefined ? {} : { [p + "AUTHORITIES_FILE"]: authoritiesFilename }),
     [p + "DATABASE_URL"]: roleUrl(roles.policyEvaluator!),
     [p + "DATABASE_ROLE"]: roles.policyEvaluator!.name,
     [p + "S3_BUCKET"]: bucket,
@@ -539,6 +584,45 @@ async function originalMaterial(jobId: string) {
   return { graph, material };
 }
 describe("real native policy worker composition with encrypted S3", () => {
+  it("loads operator-owned reference authority in the actual process and retains both original observations", async () => {
+    const { jobId } = await queued("configured_authority");
+    const first = await launch(jobId, token.value, connection.endpoint, authorityFile).completion;
+    expect(first.code).toBe(0);
+    expect(first.stderr).toBe("");
+    const { graph, material } = await originalMaterial(jobId);
+    expect(material).not.toBeNull();
+    const inputs = validatePolicyEvaluationSnapshot({
+      expected: { scope, request: graph.job.request, snapshot: graph.job.snapshot! },
+      pageSet: material!.pageSet,
+    });
+    for (const phase of ["beforeArtifacts", "afterArtifacts"] as const) {
+      const observation = inputs.candidateAuthority[phase];
+      expect(observation.status).toBe("observed");
+      if (observation.status !== "observed")
+        throw new Error("Expected retained configured reference authority");
+      expect(observation.unavailableParents).toEqual([]);
+      expect(observation.occurrences.map((occurrence) => occurrence.subject.kind).sort()).toEqual([
+        "model_declaration",
+        "runtime_adapter",
+        "source_revision",
+      ]);
+      expect(
+        observation.occurrences.every((occurrence) => occurrence.availability === "available"),
+      ).toBe(true);
+    }
+    const evaluation = await new PostgresPolicyEvaluationResultRepository(controlPool).findResult(
+      scope,
+      jobId,
+      material!.pageSet,
+    );
+    expect(evaluation?.outcomeCounts.indeterminate).toBeGreaterThan(0);
+    const restarted = await launch(jobId, token.value, connection.endpoint, authorityFile)
+      .completion;
+    expect(restarted.code).toBe(0);
+    expect(restarted.stderr).toBe("");
+    expect((await control.findJob(scope, jobId))?.job.snapshot).toEqual(graph.job.snapshot);
+    expect(JSON.parse(restarted.stdout).result).toEqual(graph.job.result);
+  });
   it("captures actual bytes outside SQL, seals and completes atomically, then reobserves the immutable result", async () => {
     const jobId = `job_runtime_${tag}`;
     await control.createJob({ request, jobId });
