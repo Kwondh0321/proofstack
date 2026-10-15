@@ -10,6 +10,14 @@ import { FixedClock } from "./fixed-clock.js";
 import { createModelAssuranceRepositoryTestHarness } from "./model-assurance-repository-fixtures.js";
 
 describe("model-assurance repository fixtures", () => {
+  it.each(["pg_nested_assessment_disagreement", "pg_assurance_corrupt_0123456789ab"])(
+    "retains valid artifact identities for the native namespace %s",
+    async (namespace) => {
+      const harness = await createModelAssuranceRepositoryTestHarness(namespace);
+      expect(harness.evaluation.scope.tenantId).toBe(`ten_${namespace}`);
+      expect(harness.records).toHaveLength(20);
+    },
+  );
   it("keeps each external source identity bound to one exact original reference", async () => {
     const harness = await createModelAssuranceRepositoryTestHarness("assurance_references");
     const sources = new Map<string, unknown>();

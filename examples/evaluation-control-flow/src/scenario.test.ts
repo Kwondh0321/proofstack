@@ -19,7 +19,7 @@ import {
   RecordQualificationReport,
   RecordRawObservation,
 } from "@proofstack/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EvaluationScenario, type ReferenceVerdict } from "./scenario.js";
 
 const scope: EvidenceScope = {
@@ -502,6 +502,17 @@ describe("contestable evaluation reference scenario", () => {
       },
     ]);
     expect(criterionSet.criteria[0]?.counterevidence).toEqual([]);
+    const fixtureSetLookup = vi.spyOn(scenario, "qualificationFixtureSet").mockReturnValue({
+      ...scenario.qualificationFixtureSet(),
+      cases: [],
+    });
+    try {
+      expect(() => scenario.qualifiedCriterionSet({ evaluator, oracle, review, source })).toThrow(
+        "Criterion qualification case is not declared by its owning fixture set",
+      );
+    } finally {
+      fixtureSetLookup.mockRestore();
+    }
   });
 
   it.each(["UPPERCASE", "contains-hyphen", "waytoolongnamespacevalue"])(

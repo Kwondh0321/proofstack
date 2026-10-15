@@ -266,7 +266,7 @@ export function createEvaluationRepositoryTestHarness(
     "source reviewer credential evidence",
   ).forEach((reference, index) => {
     object(reference, "source reviewer credential artifact")["artifactId"] =
-      `art_source_reviewer_credential_${namespace}_${index}`;
+      `art_sr_${namespace}_${index}`;
   });
   delete reviewerQualificationBody.predecessor;
   const reviewerQualification = add("source_reviewer_qualification", reviewerQualificationBody);
@@ -373,7 +373,7 @@ export function createEvaluationRepositoryTestHarness(
   array(evaluatorReportBody["environmentEvidence"], "qualification environment evidence").forEach(
     (reference, index) => {
       object(reference, "qualification environment artifact")["artifactId"] =
-        `art_qualification_environment_${namespace}_${index}`;
+        `art_qe_${namespace}_${index}`;
     },
   );
   evaluatorReportBody.qualificationReportId = "qlr_evaluator";
@@ -394,7 +394,7 @@ export function createEvaluationRepositoryTestHarness(
   array(oracleReportBody["environmentEvidence"], "qualification environment evidence").forEach(
     (reference, index) => {
       object(reference, "qualification environment artifact")["artifactId"] =
-        `art_qualification_environment_${namespace}_${index}`;
+        `art_qe_${namespace}_${index}`;
     },
   );
   oracleReportBody.qualificationReportId = "qlr_oracle";
