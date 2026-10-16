@@ -1,4 +1,9 @@
 export { PolicyRecordGraphError } from "./acquisition-budget.js";
+export { captureOriginalEvaluationActors } from "./capture-original-evaluation-actors.js";
+export {
+  inspectOriginalSourceActors,
+  InvalidOriginalSourceActorsError,
+} from "./inspect-original-source-actors.js";
 export {
   publishPolicyEvaluationWithReservedRules,
   PolicyRuleReservationError,

@@ -152,7 +152,7 @@ describe("distinct reviewer/group assignment", () => {
       matched: [],
     });
   });
-  it("bounds the full 512-person, 32-group graph", () => {
+  it("bounds the complete admitted reviewer count and 32 groups", () => {
     const groupIds = Array.from({ length: 32 }, (_, i) => `group_${i.toString().padStart(3, "0")}`);
     const graph = {
       groupIds,

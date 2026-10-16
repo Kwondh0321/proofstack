@@ -86,6 +86,7 @@ export * from "./release-decision-authority-material.js";
 export * from "./release-decision-authority-snapshot.js";
 export * from "./release-decision-authority-encoding.js";
 export * from "./release-decision-credential-state.js";
+export * from "./release-evaluation-actor-provenance.js";
 export * from "./replay.js";
 export * from "./replay-accounting.js";
 export * from "./replay-boundary-execution.js";

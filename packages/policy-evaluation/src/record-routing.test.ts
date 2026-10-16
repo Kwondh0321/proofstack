@@ -3,6 +3,7 @@ import {
   type EvaluationImplementationRegistrationDefinition,
   type EvidenceScope,
   PolicyEvaluationSourceReferenceSchema,
+  PolicyEvaluationRecordWitnessSchema,
   REPLAY_BUDGET_DIMENSIONS,
   type ReplayJobSnapshot,
   type ReplayPlan,
@@ -16,6 +17,7 @@ import {
   StaticProtocolDefinitionCatalogue,
   StaticQualificationPolicyCatalogue,
   StaticRuntimeDefinitionCatalogue,
+  ReleaseDecisionVerificationBudget,
 } from "@proofstack/core";
 import {
   createComparisonRepositoryTestHarness,
@@ -40,11 +42,32 @@ import {
   enumerateRetainedPolicyRecord,
   inspectRetainedPolicyRecord,
 } from "./retained-record-routing.js";
+import { inspectOriginalSourceActors } from "./inspect-original-source-actors.js";
 
 type Fields = Record<string, unknown>;
 const time = "2026-10-01T00:00:00.000Z";
 const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
 const replayLimits = { maximumRecords: 10000, maximumRecordBytes: 4000000 };
+
+// Independently specified remaining owning domains, complementing the thirty assurance cases.
+const authorFields: Readonly<Record<string, string>> = {
+  protocol_definition: "/registeredByPrincipalId",
+  endpoint_profile: "/registeredByPrincipalId",
+  qualification_policy: "/publishedByPrincipalId",
+  evaluation_implementation_registration: "/registeredByPrincipalId",
+  comparison_definition: "/createdByPrincipalId",
+  comparison_snapshot: "/createdByPrincipalId",
+  dataset_version: "/createdByPrincipalId",
+  regression_fixture_version: "/createdByPrincipalId",
+  release_candidate: "/createdByPrincipalId",
+  release_policy: "/publishedByPrincipalId",
+  policy_installation_binding: "/registeredByPrincipalId",
+  replay_runtime_profile: "/registeredByPrincipalId",
+  replay_isolation_profile: "/registeredByPrincipalId",
+  runtime_adapter: "/registeredByPrincipalId",
+  replay_plan: "/createdByPrincipalId",
+  target_release: "/createdByPrincipalId",
+};
 
 function absentRepositories(): PolicyRecordGraphRepositories {
   const absent = new Proxy({}, { get: () => async () => null });
@@ -109,6 +132,37 @@ async function verify(kind: string, record: object, repositories: PolicyRecordGr
   const retained = inspectRetainedPolicyRecord(input, record);
   if (!retained) throw new Error("Expected owning storage capture for every source kind");
   expect(expansion.storage).toEqual(retained.storage);
+  const actorField = kind === "comparison_result" ? "/createdByPrincipalId" : authorFields[kind];
+  if (actorField !== undefined) {
+    if (!retained.storage) throw new Error("Expected original actor body");
+    const inspected = inspectOriginalSourceActors({
+      ...input,
+      body: record,
+      witness: PolicyEvaluationRecordWitnessSchema.parse({
+        entry: { source: input.source, observation: retained.read.observation },
+        storage: {
+          recordSha256: retained.storage.recordSha256,
+          receiptTime: retained.storage.receiptTime,
+        },
+        origins: [{ kind: "semantic_node", nodeIndex: 0 }],
+      }),
+      budget: new ReleaseDecisionVerificationBudget({
+        maxAcquisitionRecords: 10000,
+        maxAcquisitionRecordBytes: 4000000,
+        maxApprovalRecords: 0,
+      }),
+    });
+    expect(inspected).toMatchObject({
+      state: "observed",
+      actors: [
+        {
+          field: actorField,
+          role: kind === "comparison_result" ? "evaluation_actor" : "source_author",
+          principalId: Reflect.get(record, actorField.slice(1)),
+        },
+      ],
+    });
+  }
   expect(enumerateRetainedPolicyRecord(input, retained, limits)?.references).toEqual(
     expansion.references,
   );
@@ -530,6 +584,67 @@ describe("positive fixed-domain routing", () => {
     const retained = inspectRetainedPolicyRecord(context, completed);
     expect(retained?.storage).toEqual(expansion.storage);
     if (!retained?.storage) throw new Error("Expected complete original replay history");
+    const actorWitness = PolicyEvaluationRecordWitnessSchema.parse({
+      entry: { source: reference, observation: retained.read.observation },
+      storage: {
+        recordSha256: retained.storage.recordSha256,
+        receiptTime: retained.storage.receiptTime,
+      },
+      origins: [{ kind: "stored_node", nodeIndex: 0 }],
+    });
+    const normalizedRows =
+      1 +
+      (completed.cancellationRequest === null ? 0 : 1) +
+      completed.attempts.length +
+      completed.budgetLedger.length +
+      completed.cancellationAcknowledgements.length +
+      completed.executionObservations.length +
+      completed.usageObservations.length;
+    const actorBudget = new ReleaseDecisionVerificationBudget({
+      maxAcquisitionRecords: normalizedRows,
+      maxAcquisitionRecordBytes: 4000000,
+      maxApprovalRecords: 0,
+    });
+    // The owning reader normalizes schema-admitted optional undefined fields before hashing.
+    const actorInput = {
+      ...context,
+      witness: actorWitness,
+      body: retained.storage.record,
+      budget: actorBudget,
+    };
+    expect(inspectOriginalSourceActors(actorInput)).toMatchObject({
+      state: "observed",
+      actors: [
+        {
+          field: "/job/createdByPrincipalId",
+          role: "workflow_requester",
+          principalId: "principal_routing",
+        },
+      ],
+    });
+    expect(actorBudget.snapshot().records).toBe(normalizedRows);
+    const shortBudget = new ReleaseDecisionVerificationBudget({
+      maxAcquisitionRecords: normalizedRows - 1,
+      maxAcquisitionRecordBytes: 4000000,
+      maxApprovalRecords: 0,
+    });
+    expect(() => inspectOriginalSourceActors({ ...actorInput, budget: shortBudget })).toThrow(
+      expect.objectContaining({ reason: "record_limit" }),
+    );
+    expect(() => shortBudget.snapshot()).toThrow();
+    const tamperedActor = structuredClone(retained.storage.record) as ReplayJobSnapshot;
+    tamperedActor.job.createdByPrincipalId = "principal_substituted";
+    expect(
+      inspectOriginalSourceActors({
+        ...actorInput,
+        body: tamperedActor,
+        budget: new ReleaseDecisionVerificationBudget({
+          maxAcquisitionRecords: 10000,
+          maxAcquisitionRecordBytes: 4000000,
+          maxApprovalRecords: 0,
+        }),
+      }),
+    ).toMatchObject({ state: "unavailable", reason: "original_body_mismatch" });
     expect(enumerateRetainedPolicyRecord(context, retained, limits)?.references).toEqual(
       expansion.references,
     );

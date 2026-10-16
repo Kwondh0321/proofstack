@@ -116,6 +116,14 @@ export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";
 export * from "./release/release-candidate-source-references.js";
+export {
+  inspectOwnedPolicyEvaluation,
+  InvalidOwnedPolicyEvaluationError,
+} from "./release/owned-policy-evaluation.js";
+export {
+  ReleaseDecisionVerificationBudget,
+  ReleaseDecisionVerificationBudgetError,
+} from "./release/release-decision-verification-budget.js";
 export * from "./runtime/endpoint-profile.js";
 export * from "./runtime/protocol-definition.js";
 export * from "./runtime/runtime-definition-catalogue.js";

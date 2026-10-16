@@ -10,6 +10,62 @@ const limits = {
   maxApprovalRecords: 1,
 };
 describe("one aggregate release decision verification admission", () => {
+  it("charges every normalized row in one retained history while counting its canonical bytes once", () => {
+    const meter = new ReleaseDecisionVerificationBudget(limits);
+    meter.observe({ rows: [{}, {}] }, "metadata", 3);
+    expect(meter.snapshot()).toEqual({ records: 3, recordBytes: 16, approvalRecords: 0 });
+    expect(() => meter.observe({})).toThrow(expect.objectContaining({ reason: "record_limit" }));
+    expect(() => meter.snapshot()).toThrow(ReleaseDecisionVerificationBudgetError);
+  });
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    "taints an invalid normalized count %s instead of accepting refundable history",
+    (count) => {
+      const meter = new ReleaseDecisionVerificationBudget(limits);
+      expect(() => meter.observe({}, "metadata", count)).toThrow(
+        expect.objectContaining({ reason: "invalid_observation" }),
+      );
+      expect(() => meter.snapshot()).toThrow(ReleaseDecisionVerificationBudgetError);
+    },
+  );
+  it("does not let a packed metadata count hide several approval records", () => {
+    const meter = new ReleaseDecisionVerificationBudget(limits);
+    expect(() => meter.observe({}, "approval", 2)).toThrow(
+      expect.objectContaining({ reason: "invalid_observation" }),
+    );
+  });
+  it("preserves the first owning source failure and cannot publish usage after a caught read error", () => {
+    const meter = new ReleaseDecisionVerificationBudget(limits);
+    const cause = new Error("The isolated owning source read failed");
+    meter.observe({ sourceReadAttempt: "source_original" });
+    let failure: unknown;
+    try {
+      meter.rejectSourceRead(cause);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({
+      code: "release_decision_verification_source_read_failed",
+      reason: "source_read_failed",
+      cause,
+    });
+    expect(() => meter.snapshot()).toThrow(failure as Error);
+    expect(() => meter.observe({})).toThrow(failure as Error);
+    expect(() => meter.rejectSourceRead(new Error("later failure"))).toThrow(failure as Error);
+  });
+  it("does not replace an already exhausted admission with a later source failure", () => {
+    const meter = new ReleaseDecisionVerificationBudget({
+      ...limits,
+      maxAcquisitionRecordBytes: 2,
+    });
+    let failure: unknown;
+    try {
+      meter.observe({ tooLarge: true });
+    } catch (error) {
+      failure = error;
+    }
+    expect(() => meter.rejectSourceRead(new Error("later source error"))).toThrow(failure as Error);
+    expect(() => meter.snapshot()).toThrow(failure as Error);
+  });
   it("counts every repeated and missing observation instead of deduplicating costs", () => {
     const meter = new ReleaseDecisionVerificationBudget(limits);
     const missing = { state: "missing" };

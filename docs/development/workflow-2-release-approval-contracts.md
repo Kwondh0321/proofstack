@@ -89,13 +89,16 @@ eligibility pass must first establish actual user/session, roles, current author
 authors/evaluator exclusions, conflicts and action/lifecycle state under held publication guards.
 The utility never reads time, authenticates a reviewer or establishes source completeness.
 
-The finite graph has at most 512 distinct principals and 32 groups; one person occupies at most one
+The finite graph now admits at most 4,096 distinct principals and 32 groups; one person occupies at most one
 group and each group at most one person. A required human-group witness must be met alongside
 the actual quorum. Unknown required groups, duplicated people/memberships, truthy human flags,
 malformed IDs and caller authority fields are rejected. Other non-eligible group memberships
 cannot create an edge. Output is an actual witness, not a complete reviewer census.
 Owning inventory admission must reject an over-budget graph wholly rather than select favorable
 people from a larger set. Current opposition and unavailable authority cannot disappear through sampling.
+
+The initial assignment slice admitted 512 people. The [complete captured review implementation](workflow-2-current-release-reviews.md)
+aligns that bound with the frozen 4,096-row approval admission and tests the complete larger graph.
 
 Rectangular minimum-cost assignment admits at most groups-minus-quorum unmatched rows. Human
 edges are preferred among feasible quorums; impossible edges cost more than all human bonuses and

@@ -50,6 +50,38 @@ it does not retroactively invent approval or rewrite original outcomes. New C4 r
 use these facts before applying any current review witness. None of these functions revives an
 old worker lease or establishes a new publication guard.
 
+## Original source actor provenance
+
+[The fixed historical actor composer](../../packages/policy-evaluation/src/capture-original-evaluation-actors.ts)
+reuses the original graph/result validator and all 48 installed owning record routes. It compares
+each original full storage hash, receipt, exact source and semantic observation before extracting
+fixed owning principal fields. Definition hashes alone do not bind receipt actors. Missing original
+bodies are retained as unavailable and are never replaced with newly created or latest records.
+The two exact immutable candidate/policy roots come from the validated original sealed inputs.
+
+The [versioned component](../../packages/contracts/src/release-evaluation-actor-provenance.ts)
+distinguishes source authors, evaluation requesters, replay workflow requesters, actual evaluation/
+assurance actors and declared profile subjects. Replay workers are opaque fence identities, not
+invented authenticated principals. Complete replay history charges every nested normalized row;
+the fixture reader reserves both original fixture-format lookups. Every repeated read consumes
+the same original decision admission. An owning read failure taints the complete meter even if
+caught, preserving the first cause and preventing a successful partial usage report.
+
+The component is historical evidence, not the complete current authority cut, private authentication,
+an exception quorum or publication permission. Its source and evaluator completeness states are
+distinct; an evaluator inventory alone cannot certify complete source authority. The original job
+graph must still come from a server-owned exact request-to-job selector. That actual selector,
+complete versioned current cut, native guards and atomic decision publication remain open. A caller
+cannot supply this component as authority. The tests use real memory owners and preserve unavailable
+upstream cases; they do not claim a complete live-service decision flow.
+
+The actor slice passed 6,367 contracts, 4,558 core and 1,604 policy-acquisition tests
+(12,529 total), all three package type checks and unchanged coverage thresholds. Its 167 new
+cases complement the existing real-owner routing assertions. Source/index stayed unchanged during
+that sequential package run; log SHA-256:
+`778a39306813eee41b6587ad0df8532e34ffc805f2d8174b10f2b066448891a2`.
+These package results do not substitute for final-commit whole-repository or remote gates.
+
 ## Complete selection and cumulative admission
 
 [Selection census inspection](../../packages/core/src/release/release-selection-census.ts)
