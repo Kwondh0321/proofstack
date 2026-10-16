@@ -10,7 +10,16 @@ import type {
   PolicyEvaluationJobHistoryEntry,
   PolicyEvaluationAcquisitionAllowance,
   PolicyEvaluationAcquisitionUsage,
+  PolicyEvaluationRequestReference,
 } from "@proofstack/contracts";
+
+/** Owning original request binding; no caller job ID, latest result or current publication proof. */
+export interface PolicyEvaluationRequestJobReader {
+  findJobForRequest(
+    scope: EvidenceScope,
+    request: PolicyEvaluationRequestReference,
+  ): Promise<PolicyEvaluationJobSnapshot | null>;
+}
 
 /** Internal store operations. Server clock/epoch and publication authority are never caller fields. */
 export interface PolicyEvaluationJobReader {

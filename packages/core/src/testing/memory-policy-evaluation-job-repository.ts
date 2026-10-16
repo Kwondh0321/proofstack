@@ -3,6 +3,7 @@ import {
   EvidenceScopeSchema,
   OpaqueIdSchema,
   PolicyEvaluationTimeSchema,
+  PolicyEvaluationRequestReferenceSchema,
   PolicyEvaluationJobSnapshotSchema,
   serializeEvaluationCanonicalJson,
   type EvidenceScope,
@@ -26,6 +27,7 @@ import {
 } from "@proofstack/contracts";
 import {
   type PolicyEvaluationJobRepository,
+  type PolicyEvaluationRequestJobReader,
   type PolicyEvaluationAcquisitionRepository,
   type PolicyEvaluationJobComputationRepository,
   PolicyEvaluationJobNotFoundError,
@@ -34,6 +36,7 @@ import {
 import { validatePolicyEvaluationRequestRecord } from "../policy/policy-evaluation-request-record-validation.js";
 import {
   digestPolicyEvaluationJobDefinition,
+  InvalidPolicyEvaluationJobGraphError,
   validatePolicyEvaluationJobSnapshotRecord,
 } from "../policy/policy-evaluation-job-record-validation.js";
 import { addPolicyEvaluationMilliseconds } from "../policy/policy-evaluation-scheduler-time.js";
@@ -104,6 +107,7 @@ interface StoredPolicyJob {
 export class MemoryPolicyEvaluationJobRepository
   implements
     PolicyEvaluationJobRepository,
+    PolicyEvaluationRequestJobReader,
     PolicyEvaluationAcquisitionRepository,
     PolicyEvaluationJobComputationRepository,
     PolicyEvaluationSnapshotReader,
@@ -277,6 +281,24 @@ export class MemoryPolicyEvaluationJobRepository
   async findJob(scope: EvidenceScope, jobId: string) {
     const record = this.records.get(this.key(scope, jobId));
     return record ? this.inspectStored(record, scope, jobId) : null;
+  }
+  async findJobForRequest(
+    input: EvidenceScope,
+    reference: Parameters<PolicyEvaluationRequestJobReader["findJobForRequest"]>[1],
+  ) {
+    const scope = EvidenceScopeSchema.parse(input);
+    const request = PolicyEvaluationRequestReferenceSchema.parse(reference);
+    const key = this.requests.get(this.key(scope, request.evaluationRequestId));
+    if (key === undefined) return null;
+    const stored = this.records.get(key);
+    if (!stored)
+      throw new InvalidPolicyEvaluationJobGraphError("Original request has no owning job");
+    const snapshot = this.inspectStored(stored, scope, stored.snapshot.job.jobId);
+    if (snapshot.request.evaluationRequestId !== request.evaluationRequestId)
+      throw new InvalidPolicyEvaluationJobGraphError("Original request binding was substituted");
+    if (snapshot.request.definitionSha256 !== request.definitionSha256)
+      throw new PolicyEvaluationRequestConflictError();
+    return snapshot;
   }
   async findHistoryHead(scope: EvidenceScope, jobId: string) {
     const stored = this.records.get(this.key(scope, jobId));

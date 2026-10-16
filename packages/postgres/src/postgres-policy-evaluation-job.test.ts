@@ -17,12 +17,13 @@ import {
   sealPolicyEvaluationJob,
   startPolicyEvaluationComputation,
 } from "@proofstack/core";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import { loadBundledMigrations } from "./migrations.js";
 import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
 import { PostgresPolicyEvaluationJobRecovery } from "./postgres-policy-evaluation-job-recovery.js";
 import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
+import { readPostgresPolicyEvaluationJobForRequestOnClient } from "./postgres-policy-evaluation-job-readers.js";
 
 const vectors = JSON.parse(
   readFileSync(
@@ -208,6 +209,82 @@ function fixture(index = 0) {
   };
 }
 describe("native policy job adapter contracts, exact reads and whole transaction cleanup", () => {
+  it("selects the original owning graph by exact request and validates history/outbox on the same transaction", async () => {
+    const f = fixture(2);
+    const result = await f.control.findJobForRequest(scope, f.graph().job.request);
+    expect(result).toEqual(f.graph());
+    expect(f.calls.filter(({ text }) => text.includes("job_for_request"))).toEqual([
+      {
+        text: "SELECT public.proofstack_read_policy_evaluation_job_for_request($1,$2) AS value",
+        values: [f.graph().request.evaluationRequestId, f.graph().request.definitionSha256],
+      },
+    ]);
+    expect(f.pool.connect).toHaveBeenCalledTimes(1);
+    expect(f.calls.at(-1)?.text).toBe("COMMIT");
+    expect(f.calls.some(({ text }) => text.includes("history_page"))).toBe(true);
+    expect(f.calls.some(({ text }) => text.includes("intent_status"))).toBe(true);
+  });
+  it("retains an absent request without inventing history or a favorable result", async () => {
+    const f = fixture();
+    f.setMissing();
+    expect(await f.control.findJobForRequest(scope, f.graph().job.request)).toBeNull();
+    expect(
+      f.calls.some(({ text }) => text.includes("history_head") || text.includes("intent_status")),
+    ).toBe(false);
+  });
+  it("uses a supplied client without beginning, committing, rolling back, releasing or obtaining another connection", async () => {
+    const f = fixture(2);
+    const client = { query: f.query } as unknown as Pick<PoolClient, "query">;
+    expect(
+      await readPostgresPolicyEvaluationJobForRequestOnClient(client, scope, f.graph().job.request),
+    ).toEqual(f.graph());
+    expect(f.pool.connect).not.toHaveBeenCalled();
+    expect(f.release).not.toHaveBeenCalled();
+    expect(f.calls.every(({ text }) => text.startsWith("SELECT public.proofstack_"))).toBe(true);
+  });
+  it("rejects an added job selector before obtaining a connection", async () => {
+    const f = fixture();
+    await expect(
+      f.control.findJobForRequest(scope, {
+        ...f.graph().job.request,
+        ...{ jobId: "job_favorable" },
+      }),
+    ).rejects.toThrow();
+    expect(f.pool.connect).not.toHaveBeenCalled();
+  });
+  it.each(["request", "digest", "scope", "intent"])(
+    "rejects substituted %s in an original request read and rolls back wholly",
+    async (kind) => {
+      const f = fixture(2);
+      f.override((text) => {
+        if (kind === "intent" && text.includes("intent_status"))
+          return { rows: [{ value: "absent" }] };
+        if (!text.includes("job_for_request")) return undefined;
+        const changed = structuredClone(f.graph());
+        if (kind === "request") changed.job.request.evaluationRequestId = "request_substituted";
+        if (kind === "digest") changed.job.request.definitionSha256 = "0".repeat(64);
+        if (kind === "scope") changed.job.scope.environmentId = "env_substituted";
+        return { rows: [{ value: changed }] };
+      });
+      await expect(f.control.findJobForRequest(scope, f.graph().job.request)).rejects.toThrow();
+      expect(f.calls.at(-1)?.text).toBe("ROLLBACK");
+      expect(f.release).toHaveBeenCalledExactlyOnceWith();
+    },
+  );
+  it.each(["23505", "unknown"])("preserves/maps owning request source failure %s", async (code) => {
+    const f = fixture();
+    f.override((text) => {
+      if (text.includes("job_for_request"))
+        throw Object.assign(new Error("owning read failed"), { code });
+      return undefined;
+    });
+    await expect(f.control.findJobForRequest(scope, f.graph().job.request)).rejects.toMatchObject({
+      ...(code === "23505"
+        ? { code: "policy_evaluation_request_conflict" }
+        : { message: "owning read failed" }),
+    });
+    expect(f.calls.at(-1)?.text).toBe("ROLLBACK");
+  });
   it("reads independent canonical vectors and exact history with explicit scoped READ COMMITTED", async () => {
     const f = fixture(2);
     expect(await f.control.findJob(scope, jobId)).toEqual(vectors[2]!.snapshot);

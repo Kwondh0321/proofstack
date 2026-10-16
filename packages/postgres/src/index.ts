@@ -134,6 +134,7 @@ export {
 } from "./postgres-policy-initial-sources.js";
 export { PostgresPolicyEvaluationJobRecovery } from "./postgres-policy-evaluation-job-recovery.js";
 export { PostgresPolicyEvaluationJobContractError } from "./postgres-policy-evaluation-job-base.js";
+export { readPostgresPolicyEvaluationJobForRequestOnClient } from "./postgres-policy-evaluation-job-readers.js";
 export { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
 export {
   DEFAULT_RUNTIME_ROLE_NAMES,

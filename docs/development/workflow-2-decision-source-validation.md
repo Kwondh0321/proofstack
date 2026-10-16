@@ -70,8 +70,10 @@ caught, preserving the first cause and preventing a successful partial usage rep
 The component is historical evidence, not the complete current authority cut, private authentication,
 an exception quorum or publication permission. Its source and evaluator completeness states are
 distinct; an evaluator inventory alone cannot certify complete source authority. The original job
-graph must still come from a server-owned exact request-to-job selector. That actual selector,
-complete versioned current cut, native guards and atomic decision publication remain open. A caller
+graph must still come from a server-owned exact request-to-job selector. The
+[owning request reader](workflow-2-policy-request-job-readers.md) now provides memory/native lookup;
+composition into the complete versioned current cut, native guards and atomic decision publication
+remain open. A caller
 cannot supply this component as authority. The tests use real memory owners and preserve unavailable
 upstream cases; they do not claim a complete live-service decision flow.
 

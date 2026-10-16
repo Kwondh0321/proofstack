@@ -3,6 +3,7 @@ import { digestPolicyEvaluationRequestDefinition } from "@proofstack/core";
 import {
   createPolicyJobRepositoryConformanceCases,
   policyJobConformanceRequest,
+  createPolicyRequestJobReaderConformanceCases,
 } from "@proofstack/core/testing";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -11,6 +12,7 @@ import { migrateDatabase } from "./migration-runner.js";
 import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
 import { PostgresPolicyEvaluationJobRecovery } from "./postgres-policy-evaluation-job-recovery.js";
 import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
+import { readPostgresPolicyEvaluationJobForRequestOnClient } from "./postgres-policy-evaluation-job-readers.js";
 import {
   DEFAULT_RUNTIME_ROLE_NAMES,
   provisionRuntimeRoles,
@@ -79,6 +81,81 @@ afterAll(async () => {
   await admin.end();
 });
 describe("native scoped policy job state/history and separate roles", () => {
+  it("reads original request ownership and the canonical history/outbox without ending the caller transaction", async () => {
+    const exact = scope("request_client");
+    const request = policyJobConformanceRequest(exact);
+    const created = await control.createJob({ request, jobId: "job_request_client" });
+    await withBoundedPolicyTransaction(
+      controlPool,
+      async (client) => {
+        await client.query("SELECT pg_advisory_xact_lock_shared(1347579483,1)");
+        const before = (
+          await client.query("SELECT txid_current()::text AS id, pg_backend_pid() AS pid")
+        ).rows[0];
+        const observed = await readPostgresPolicyEvaluationJobForRequestOnClient(
+          client,
+          exact,
+          created.snapshot.job.request,
+        );
+        expect(observed).toEqual(created.snapshot);
+        const after = (
+          await client.query("SELECT txid_current()::text AS id, pg_backend_pid() AS pid")
+        ).rows[0];
+        expect(after).toEqual(before);
+      },
+      { scope: exact },
+    );
+  });
+  it("denies API-role access to the original request selector before even an absent lookup", async () => {
+    const exact = scope("request_api_denied");
+    await expect(
+      withBoundedPolicyTransaction(
+        apiPool,
+        (client) =>
+          client.query("SELECT public.proofstack_read_policy_evaluation_job_for_request($1,$2)", [
+            "request_absent",
+            "a".repeat(64),
+          ]),
+        { scope: exact },
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+  it("retains a private stable fixed-search-path selector and rejects malformed SQL references", async () => {
+    const row = (
+      await admin.query(
+        "SELECT prosecdef, provolatile, proconfig FROM pg_proc WHERE oid='public.proofstack_read_policy_evaluation_job_for_request(text,text)'::regprocedure",
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      prosecdef: true,
+      provolatile: "s",
+      proconfig: ["search_path=pg_catalog"],
+    });
+    await expect(
+      withBoundedPolicyTransaction(
+        controlPool,
+        (client) =>
+          client.query("SELECT public.proofstack_read_policy_evaluation_job_for_request($1,$2)", [
+            "request_absent",
+            "invalid_sha",
+          ]),
+        { scope: scope("request_invalid") },
+      ),
+    ).rejects.toMatchObject({ code: "22023" });
+  });
+  for (
+    let caseIndex = 0;
+    caseIndex < createPolicyRequestJobReaderConformanceCases().length;
+    caseIndex++
+  ) {
+    const testCase = createPolicyRequestJobReaderConformanceCases(
+      (exact = scope(`request_owner_${caseIndex}`)) => policyJobConformanceRequest(exact),
+    )[caseIndex];
+    if (!testCase) throw new Error("Missing native request owner conformance case");
+    it(`original request ownership: ${testCase.name}`, async () => {
+      await testCase.run({ control, reader: control });
+    });
+  }
   for (let caseIndex = 0; caseIndex < 11; caseIndex++) {
     const cases = createPolicyJobRepositoryConformanceCases(
       (exact = scope(`shared_${caseIndex}`)) => policyJobConformanceRequest(exact),
