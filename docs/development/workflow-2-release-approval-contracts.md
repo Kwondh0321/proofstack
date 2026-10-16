@@ -111,6 +111,10 @@ invariance, unique witnesses and malformed/duplicate identities are covered sepa
 
 ## Remaining acceptance
 
+The [approval memory/shared repository](workflow-2-approval-repository.md) implements trusted
+original-receipt persistence and complete exact subject reads. Current authentication, upstream
+ownership and guarded native publication remain separate open requirements.
+
 Full uncached repository checks, unchanged coverage, exact-commit CI 13 jobs and CodeQL are required
 before dependent work. Complete deterministic decision contracts/oracle, memory/shared conformance,
 current guarded authority/session publication, distinct roles/capabilities/recovery, authorization-first

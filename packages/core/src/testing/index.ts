@@ -47,6 +47,17 @@ export { MemoryReleaseCandidateRepository } from "./memory-release-candidate-rep
 export { MemoryReleasePolicyRepository } from "./memory-release-policy-repository.js";
 export { MemoryReleasePolicySelectionRepository } from "./memory-release-policy-selection-repository.js";
 export { MemoryReleaseReviewerAuthorityRepository } from "./memory-release-reviewer-authority-repository.js";
+export { MemoryReleaseApprovalRepository } from "./memory-release-approval-repository.js";
+export { releaseApprovalRepositoryConformanceCases } from "./release-approval-repository-conformance.js";
+export type {
+  ReleaseApprovalRepositoryTestHarness,
+  ReleaseApprovalRepositoryTestFactory,
+} from "./release-approval-repository-conformance.js";
+export {
+  releaseApprovalRepositoryFixture,
+  approvalVersion,
+  approvalRevocation,
+} from "./release-approval-repository-fixtures.js";
 export { releaseReviewerAuthorityRepositoryConformanceCases } from "./release-reviewer-authority-repository-conformance.js";
 export type {
   ReleaseReviewerAuthorityRepositoryTestHarness,
