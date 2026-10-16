@@ -1484,6 +1484,12 @@ describe("runtime role provisioning", () => {
     await adminPool.query(
       `GRANT UPDATE(password_hash) ON public.proofstack_release_service_credentials TO "${roleNames.identity}"`,
     );
+    await adminPool.query(
+      `GRANT SELECT ON public.proofstack_release_decision_inputs TO "${roleNames.api}"`,
+    );
+    await adminPool.query(
+      `GRANT EXECUTE ON FUNCTION public.proofstack_store_release_decision_input(jsonb,text) TO PUBLIC,"${roleNames.identity}"`,
+    );
     expect(
       (
         await adminPool.query(
@@ -1514,6 +1520,7 @@ describe("runtime role provisioning", () => {
       reviewer_execute: boolean;
       approval_execute: boolean;
       service_execute: boolean;
+      input_execute: boolean;
       column_access: boolean;
     }>(
       `SELECT has_table_privilege(role_name,table_name,'SELECT,INSERT,UPDATE,DELETE') AS table_access,
@@ -1521,6 +1528,7 @@ describe("runtime role provisioning", () => {
         has_function_privilege(role_name,'public.proofstack_store_release_reviewer_authority(jsonb,text)','EXECUTE') AS reviewer_execute,
         has_function_privilege(role_name,'public.proofstack_store_release_approval(jsonb,text)','EXECUTE') AS approval_execute,
         has_function_privilege(role_name,'public.proofstack_find_active_release_service_credential(text)','EXECUTE') AS service_execute,
+        has_function_privilege(role_name,'public.proofstack_store_release_decision_input(jsonb,text)','EXECUTE') AS input_execute,
         has_any_column_privilege(role_name,table_name,'SELECT,INSERT,UPDATE,REFERENCES') AS column_access
       FROM unnest($1::text[]) AS role_name CROSS JOIN unnest($2::text[]) AS table_name`,
       [
@@ -1543,10 +1551,13 @@ describe("runtime role provisioning", () => {
           "public.proofstack_release_approval_controls",
           "public.proofstack_release_approval_revocations",
           "public.proofstack_release_service_credentials",
+          "public.proofstack_release_decision_inputs",
+          "public.proofstack_release_decision_input_sources",
+          "public.proofstack_release_decision_input_plans",
         ],
       ],
     );
-    expect(selectionPrivileges.rows).toHaveLength(170);
+    expect(selectionPrivileges.rows).toHaveLength(200);
     expect(
       selectionPrivileges.rows.every(
         (row) =>
@@ -1555,6 +1566,7 @@ describe("runtime role provisioning", () => {
           !row.reviewer_execute &&
           !row.approval_execute &&
           !row.service_execute &&
+          !row.input_execute &&
           !row.column_access,
       ),
     ).toBe(true);

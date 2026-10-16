@@ -187,6 +187,7 @@ describe("PostgreSQL evidence schema", () => {
       "0066_release_reviewer_authority_storage",
       "0067_release_approval_storage",
       "0068_release_service_credentials",
+      "0069_release_decision_input_storage",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

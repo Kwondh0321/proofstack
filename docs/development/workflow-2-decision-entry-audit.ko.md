@@ -26,6 +26,10 @@
 
 ## 진입 결정과 의존성 증거
 
+[원본 입력 저장소](workflow-2-decision-input-repository.ko.md)는 전체 후보·선택·정책 원본과
+계획·최초 영수증을 비공개 guard 저장소에 보존한다. 로컬 계획 소유권은 외부 job 예약이나
+현재 게시 권한이 아니다.
+
 [체크포인트 3 감사](workflow-2-policy-evaluation-audit.ko.md)의 게시 검증이 완료되었다.
 정확한 의존성 SHA에서 캐시 없는 전체 검사 16,309개 패키지 테스트와 runner 16개,
 총 16,325개, 빌드 31개가 통과했다. static 93개와 unit 29개 Turbo 작업 모두 캐시 0개다.

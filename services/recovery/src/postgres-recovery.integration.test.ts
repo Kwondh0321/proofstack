@@ -104,6 +104,8 @@ import {
   releaseApprovalRepositoryFixture,
   approvalVersion,
   approvalRevocation,
+  releaseDecisionInputRepositoryFixture,
+  decisionInputVersion,
 } from "@proofstack/core/testing";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -163,6 +165,7 @@ import {
   PostgresReleaseReviewerAuthorityRepository,
   PostgresReleaseApprovalRepository,
   PostgresReleaseServiceCredentialRepository,
+  PostgresReleaseDecisionInputRepository,
   readPostgresReleaseServiceCredentialOnClient,
   provisionRuntimeRoles,
   withExactScopeTransaction,
@@ -303,6 +306,9 @@ const EXPECTED_TABLES = [
   "proofstack_release_candidate_registry",
   "proofstack_release_candidate_resources",
   "proofstack_release_candidates",
+  "proofstack_release_decision_input_plans",
+  "proofstack_release_decision_input_sources",
+  "proofstack_release_decision_inputs",
   "proofstack_release_policies",
   "proofstack_release_policy_lifecycle_events",
   "proofstack_release_policy_lineage",
@@ -437,6 +443,7 @@ const approvalRecovery = (() => {
   });
   return { original, successor, exception, revocation };
 })();
+const decisionInputRecovery = releaseDecisionInputRepositoryFixture("recovery_native_input", scope);
 // Disposable fixture secrets remain in this process; backup state contains only native verifiers.
 const serviceRecoveryTokens = [generateServiceToken(), generateServiceToken()];
 const serviceRecoveryIds = [
@@ -2232,6 +2239,11 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
   await approvals.publishReleaseApproval(approvalRecovery.successor);
   await approvals.publishReleaseApproval(approvalRecovery.exception);
   await approvals.publishReleaseApprovalRevocation(approvalRecovery.revocation);
+  const inputs = new PostgresReleaseDecisionInputRepository(sourcePool);
+  expect(await inputs.publishReleaseDecisionInput(decisionInputRecovery)).toEqual({
+    created: true,
+    graph: decisionInputRecovery,
+  });
   for (const [index, token] of serviceRecoveryTokens.entries()) {
     const credentialId = serviceRecoveryIds[index];
     if (!credentialId) throw new Error("Missing service recovery fixture ID");
@@ -3967,6 +3979,30 @@ describe("coordinated recovery rehearsal", () => {
         occurredAt: "2026-10-15T10:25:00.000001Z",
       }),
     ).resolves.toEqual({ created: false, event: approvalRecovery.revocation });
+    const inputs = new PostgresReleaseDecisionInputRepository(restoredPool);
+    expect(
+      await inputs.findReleaseDecisionInput(
+        scope,
+        decisionInputRecovery.request.decisionInputRequestId,
+        new ReleaseDecisionVerificationBudget({
+          maxAcquisitionRecords: 100000,
+          maxAcquisitionRecordBytes: 64 * 1024 * 1024,
+          maxApprovalRecords: 0,
+        }),
+      ),
+    ).toEqual(decisionInputRecovery);
+    const inputRetry = decisionInputVersion(decisionInputRecovery.request, {
+      publisher: {
+        ...decisionInputRecovery.request.publisher,
+        credentialId: "session_recovery_input_retry",
+        requestId: "recovery_input_retry",
+      },
+      createdAt: "2026-10-15T12:15:00.000000000000000001Z",
+      expiresAt: "2026-10-15T12:25:00.000000000000000001Z",
+    });
+    await expect(
+      inputs.publishReleaseDecisionInput({ ...decisionInputRecovery, request: inputRetry }),
+    ).resolves.toEqual({ created: false, graph: decisionInputRecovery });
     const serviceProvider = new PostgresReleaseServiceCredentialRepository(restoredPool);
     for (const [index, credentialId] of serviceRecoveryIds.entries()) {
       const observed = await withExactScopeTransaction(restoredPool, scope, (client) =>

@@ -183,6 +183,9 @@ describe("provisionRuntimeRoles", () => {
       "proofstack_release_approval_controls",
       "proofstack_release_approval_revocations",
       "proofstack_release_service_credentials",
+      "proofstack_release_decision_inputs",
+      "proofstack_release_decision_input_sources",
+      "proofstack_release_decision_input_plans",
     ]) {
       expect(grants.some((statement) => statement.includes(`public.${table}`))).toBe(false);
     }
@@ -270,6 +273,11 @@ describe("provisionRuntimeRoles", () => {
       "public.proofstack_confirm_release_service_use(jsonb)",
       "public.proofstack_create_release_service_credential(jsonb,jsonb)",
       "public.proofstack_revoke_release_service_credential(jsonb,text,text)",
+      "public.proofstack_try_lock_release_decision_input(jsonb)",
+      "public.proofstack_lock_release_decision_input_write()",
+      "public.proofstack_verify_release_decision_input_graph()",
+      "public.proofstack_store_release_decision_input(jsonb,text)",
+      "public.proofstack_read_release_decision_input(jsonb,text)",
     ]) {
       for (const recipient of [
         "PUBLIC",

@@ -65,6 +65,9 @@ interface StatementRow extends QueryResultRow {
 }
 
 const PRIVATE_RELEASE_AUTHORITY_TABLES = [
+  "proofstack_release_decision_inputs",
+  "proofstack_release_decision_input_sources",
+  "proofstack_release_decision_input_plans",
   "proofstack_release_service_credentials",
   "proofstack_release_approvals",
   "proofstack_release_approval_sources",
@@ -192,6 +195,11 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_try_lock_release_decision_input(jsonb)",
+  "public.proofstack_lock_release_decision_input_write()",
+  "public.proofstack_verify_release_decision_input_graph()",
+  "public.proofstack_store_release_decision_input(jsonb,text)",
+  "public.proofstack_read_release_decision_input(jsonb,text)",
   "public.proofstack_validate_release_service_credential()",
   "public.proofstack_lock_release_service_credential_write()",
   "public.proofstack_try_lock_release_service_credential(jsonb,text)",

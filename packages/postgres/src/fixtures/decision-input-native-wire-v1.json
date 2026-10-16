@@ -1,0 +1,2243 @@
+{
+  "format": "proofstack.release-decision-input-native-wire.v1",
+  "graph": {
+    "request": {
+      "decisionInputRequestId": "input_native_wire_v1",
+      "candidate": {
+        "candidateId": "candidate_di_native_wire_v1",
+        "candidateVersionId": "candidate_di_native_wire_v1_v1",
+        "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf"
+      },
+      "selection": {
+        "selectionId": "selection_di_native_wire_v1",
+        "selectionVersionId": "version_di_native_wire_v1",
+        "definitionSha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+        "installationId": "installation_checkout",
+        "gateTargetId": "gate_checkout_staging"
+      },
+      "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_example"
+      },
+      "mode": "enforce",
+      "publisher": {
+        "principalId": "principal_decision_publisher",
+        "principalType": "service",
+        "authenticationMethod": "service_token",
+        "authenticatedAt": "2026-10-15T12:00:00.000Z",
+        "credentialId": "credential_decision",
+        "requestId": "request-decision-1"
+      },
+      "createdAt": "2026-10-15T12:00:00.000001Z",
+      "expiresAt": "2026-10-15T12:10:00.000001Z",
+      "verificationLimits": {
+        "maxAcquisitionRecords": 100000,
+        "maxAcquisitionRecordBytes": 67108864,
+        "maxApprovalRecords": 4096
+      },
+      "evaluations": [
+        {
+          "mode": "mandatory",
+          "request": {
+            "algorithm": {
+              "id": "proofstack.deterministic-policy",
+              "version": "1.0.0"
+            },
+            "candidate": {
+              "candidateId": "candidate_di_native_wire_v1",
+              "candidateVersionId": "candidate_di_native_wire_v1_v1",
+              "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf"
+            },
+            "evaluationRequestId": "request_di_native_wire_v1_0",
+            "evaluationTime": "2026-10-15T12:00:00.000001Z",
+            "limits": {
+              "heartbeatIntervalMilliseconds": 5000,
+              "leaseDurationMilliseconds": 30000,
+              "maxAcquisitionRecordBytes": 16777216,
+              "maxAcquisitionRecords": 10000,
+              "maxArtifactReadBytes": 67108864,
+              "maxAttempts": 3,
+              "maxRuleEvaluations": 384,
+              "perAttemptTimeoutMilliseconds": 120000,
+              "retryBackoffMilliseconds": 1000,
+              "retryableErrors": [
+                "lease_expired",
+                "source_revision_changed",
+                "source_temporarily_unavailable",
+                "worker_interrupted"
+              ],
+              "totalDeadlineMilliseconds": 600000
+            },
+            "policy": {
+              "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab",
+              "policyId": "policy_di_native_wire_v1_a",
+              "policyVersionId": "policy_di_native_wire_v1_a_v1"
+            }
+          },
+          "requestSha256": "6ca1a351ff294e37fd7b9d952c399386c289864840f7097ea055011f0fd3ee83"
+        },
+        {
+          "mode": "advisory",
+          "request": {
+            "algorithm": {
+              "id": "proofstack.deterministic-policy",
+              "version": "1.0.0"
+            },
+            "candidate": {
+              "candidateId": "candidate_di_native_wire_v1",
+              "candidateVersionId": "candidate_di_native_wire_v1_v1",
+              "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf"
+            },
+            "evaluationRequestId": "request_di_native_wire_v1_1",
+            "evaluationTime": "2026-10-15T12:00:00.000001Z",
+            "limits": {
+              "heartbeatIntervalMilliseconds": 5000,
+              "leaseDurationMilliseconds": 30000,
+              "maxAcquisitionRecordBytes": 16777216,
+              "maxAcquisitionRecords": 10000,
+              "maxArtifactReadBytes": 67108864,
+              "maxAttempts": 3,
+              "maxRuleEvaluations": 384,
+              "perAttemptTimeoutMilliseconds": 120000,
+              "retryBackoffMilliseconds": 1000,
+              "retryableErrors": [
+                "lease_expired",
+                "source_revision_changed",
+                "source_temporarily_unavailable",
+                "worker_interrupted"
+              ],
+              "totalDeadlineMilliseconds": 600000
+            },
+            "policy": {
+              "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87",
+              "policyId": "policy_di_native_wire_v1_b",
+              "policyVersionId": "policy_di_native_wire_v1_b_v1"
+            }
+          },
+          "requestSha256": "2f3b724aa01bf78e1945aa0a84c58ac813f1ea5aadc46896a01c9f22d7361149"
+        }
+      ],
+      "schemaVersion": "0.1",
+      "definitionSha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186"
+    },
+    "candidate": {
+      "assessments": [
+        {
+          "assessmentId": "assessment_candidate",
+          "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "buildArtifacts": [
+        {
+          "artifact": {
+            "artifactId": "artifact_agent_bundle",
+            "classification": "internal",
+            "mediaType": "application/vnd.proofstack.agent+tar",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "sizeBytes": 4096
+          },
+          "role": "agent_bundle"
+        },
+        {
+          "artifact": {
+            "artifactId": "artifact_sbom",
+            "classification": "metadata",
+            "mediaType": "application/spdx+json",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "sizeBytes": 2048
+          },
+          "role": "sbom"
+        }
+      ],
+      "candidateId": "candidate_di_native_wire_v1",
+      "candidateVersionId": "candidate_di_native_wire_v1_v1",
+      "comparisons": [
+        {
+          "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "resultId": "comparison_candidate"
+        }
+      ],
+      "contentProjection": "artifact_references_only",
+      "datasets": [
+        {
+          "datasetId": "dataset_checkout",
+          "datasetVersionId": "dataset_checkout_v1",
+          "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+        }
+      ],
+      "description": "Exact checkout-agent candidate for a staging release gate.",
+      "knownLimitations": ["Provider exposes the served model version but not model weights."],
+      "modelAssuranceAssessments": [
+        {
+          "assessmentExtensionId": "model_assessment_candidate",
+          "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+        }
+      ],
+      "name": "Checkout agent candidate",
+      "omissions": [
+        {
+          "kind": "tool_contract",
+          "rationale": "The candidate intentionally has no refund tool.",
+          "reason": "intentionally_not_used",
+          "role": "refund_tool"
+        }
+      ],
+      "runtimeComponents": [
+        {
+          "adapter": {
+            "adapterId": "adapter_model_provider",
+            "adapterVersionId": "adapter_model_provider_v1",
+            "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+          },
+          "kind": "model",
+          "providerId": "provider_example",
+          "providerModelId": "checkout-model",
+          "resolution": {
+            "resolutionEvidence": {
+              "artifactId": "artifact_model_resolution",
+              "classification": "confidential",
+              "mediaType": "application/json",
+              "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "sizeBytes": 256
+            },
+            "resolvedModelVersion": "checkout-model-2026-09-01",
+            "status": "exact"
+          },
+          "role": "primary_model"
+        },
+        {
+          "content": {
+            "artifactId": "artifact_system_prompt",
+            "classification": "confidential",
+            "mediaType": "text/plain",
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "sizeBytes": 512
+          },
+          "kind": "prompt",
+          "role": "system_prompt"
+        },
+        {
+          "content": {
+            "artifactId": "artifact_payment_tool",
+            "classification": "internal",
+            "mediaType": "application/schema+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 384
+          },
+          "kind": "tool_contract",
+          "role": "payment_tool"
+        }
+      ],
+      "source": {
+        "commit": {
+          "algorithm": "sha1",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "repositoryUrl": "https://github.com/example/checkout-agent.git",
+        "tree": {
+          "algorithm": "sha256",
+          "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      },
+      "target": {
+        "environmentId": "env_staging",
+        "jurisdiction": "us",
+        "locale": "en-us",
+        "maximumDataClassification": "confidential",
+        "populationTags": ["business", "checkout"],
+        "purpose": "Repository conformance release candidate.",
+        "riskTier": "high",
+        "taskKind": "checkout_agent"
+      },
+      "targetRelease": {
+        "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "targetAdapter": {
+          "name": "local_target",
+          "protocolVersion": "1.0.0",
+          "version": "1.0.0"
+        },
+        "targetId": "target_checkout_agent",
+        "targetReleaseId": "target_checkout_agent_v1",
+        "workerProtocol": {
+          "name": "json_line",
+          "version": "1.0.0"
+        }
+      },
+      "createdAt": "2026-09-06T15:00:00.000Z",
+      "createdByPrincipalId": "principal_di_native_wire_v1",
+      "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+      "schemaVersion": "0.1",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_example"
+      }
+    },
+    "selection": {
+      "selectionId": "selection_di_native_wire_v1",
+      "selectionVersionId": "version_di_native_wire_v1",
+      "installationId": "installation_checkout",
+      "gateTargetId": "gate_checkout_staging",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_example"
+      },
+      "candidateTarget": {
+        "environmentId": "env_staging",
+        "jurisdiction": "us",
+        "locale": "en-us",
+        "maximumDataClassification": "confidential",
+        "populationTags": ["business", "checkout"],
+        "purpose": "Repository conformance release candidate.",
+        "riskTier": "high",
+        "taskKind": "checkout_agent"
+      },
+      "mode": "enforce",
+      "policies": [
+        {
+          "policy": {
+            "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab",
+            "policyId": "policy_di_native_wire_v1_a",
+            "policyVersionId": "policy_di_native_wire_v1_a_v1"
+          },
+          "mode": "mandatory"
+        },
+        {
+          "policy": {
+            "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87",
+            "policyId": "policy_di_native_wire_v1_b",
+            "policyVersionId": "policy_di_native_wire_v1_b_v1"
+          },
+          "mode": "advisory"
+        }
+      ],
+      "authorizedPublisherPrincipalIds": ["principal_decision_publisher"],
+      "issuerPrincipalId": "user_installation_owner",
+      "authorityEvidence": {
+        "artifactId": "artifact_installation_authority",
+        "classification": "internal",
+        "mediaType": "application/vnd.proofstack.policy-authority+json",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 512
+      },
+      "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+      "effectiveAt": "2026-10-15T00:00:00.000001Z",
+      "expiresAt": "2026-10-16T00:00:00.000001Z",
+      "schemaVersion": "0.1",
+      "publishedAt": "2026-10-15T00:00:00.000001Z",
+      "publishedByPrincipalId": "user_installation_owner",
+      "definitionSha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792"
+    },
+    "policies": [
+      {
+        "applicability": {
+          "jurisdiction": {
+            "operator": "equals",
+            "value": "us"
+          },
+          "locale": {
+            "operator": "one_of",
+            "values": ["en-us", "ko-kr"]
+          },
+          "maximumDataClassification": {
+            "operator": "equals",
+            "value": "confidential"
+          },
+          "populationTags": {
+            "operator": "contains_all",
+            "values": ["business", "checkout"]
+          },
+          "purpose": {
+            "operator": "equals",
+            "value": "Evaluate an exact checkout-agent candidate before staging release."
+          },
+          "riskTier": {
+            "operator": "equals",
+            "value": "high"
+          },
+          "taskKind": {
+            "operator": "equals",
+            "value": "checkout_agent"
+          }
+        },
+        "assumptions": [
+          "The retained comparison population represents the intended staging population."
+        ],
+        "changeRationale": "Establish the repository conformance release policy.",
+        "contentProjection": "references_and_bounded_metadata_only",
+        "counterevidence": [],
+        "description": "Bounded declarative rules for one staging release class.",
+        "effectiveAt": "2026-09-07T00:00:00.000Z",
+        "exclusions": ["Production deployment is outside this policy version."],
+        "expiresAt": "2027-03-07T00:00:00.000Z",
+        "installationBinding": {
+          "bindingVersionId": "binding_checkout_v1",
+          "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523",
+          "installationId": "installation_checkout"
+        },
+        "issuerPrincipalId": "principal_di_native_wire_v1_a",
+        "knownLimitations": [
+          "Publication does not establish that the selected thresholds are sufficient."
+        ],
+        "mode": "mandatory",
+        "name": "Checkout staging release policy",
+        "policyId": "policy_di_native_wire_v1_a",
+        "policyVersionId": "policy_di_native_wire_v1_a_v1",
+        "rationale": "Require retained evidence and independent review before a later release decision.",
+        "rules": [
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "conflictRule": "reject_declared_conflict",
+              "excludeCandidateAuthor": true,
+              "excludePolicyAuthor": true,
+              "humanReviewerGroupIds": ["group_release_review"],
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "kind": "approval_required",
+              "quorum": 2,
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+            },
+            "rationale": "A later high-risk decision requires two independent reviewers.",
+            "ruleId": "approval_gate",
+            "severity": "critical",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+              "componentKind": "build_artifact",
+              "kind": "artifact_required",
+              "maximumDataClassification": "internal",
+              "requireDigest": true,
+              "role": "agent_bundle"
+            },
+            "rationale": "The evaluated bundle must be the exact retained build artifact.",
+            "ruleId": "artifact_bundle",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": false,
+            "predicate": {
+              "comparator": "less_than_or_equal",
+              "comparison": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              },
+              "kind": "comparison_threshold",
+              "metricId": "metric_regression_errors",
+              "metricKind": "trace_event_count",
+              "operand": "candidate",
+              "threshold": "0",
+              "unit": "events"
+            },
+            "rationale": "The retained candidate comparison must not contain regression errors.",
+            "ruleId": "comparison_regression",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": false,
+            "predicate": {
+              "comparison": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              },
+              "denominator": "paired_total",
+              "kind": "coverage_floor",
+              "metricId": "metric_regression_errors",
+              "minimumBasisPoints": 9500,
+              "numerator": "paired_observed",
+              "sourceKind": "comparison_metric_ratio",
+              "unit": "basis_points"
+            },
+            "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+            "ruleId": "coverage_floor",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "assessment": {
+                "assessmentId": "assessment_checkout_safety",
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              },
+              "assessmentClass": "evaluation",
+              "expected": "eligible",
+              "kind": "eligibility_required"
+            },
+            "rationale": "The exact policy-independent safety assessment must remain eligible.",
+            "ruleId": "eligibility_base",
+            "severity": "critical",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "comparison": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              },
+              "eventClass": "uncertain_side_effect",
+              "kind": "safety_event_ceiling",
+              "maximumCount": 0,
+              "metricId": "metric_uncertain_side_effects",
+              "unit": "events"
+            },
+            "rationale": "The retained replay must contain no uncertain side-effect event.",
+            "ruleId": "safety_ceiling",
+            "severity": "critical",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": false,
+            "predicate": {
+              "assessment": {
+                "assessmentId": "assessment_checkout_safety",
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              },
+              "bound": "lower",
+              "comparator": "at_least",
+              "confidenceLevelBasisPoints": 9500,
+              "intervalMethod": "wilson_score_interval",
+              "intervalMethodVersion": "1.0.0",
+              "kind": "uncertainty_bound",
+              "thresholdBasisPoints": 9000,
+              "unit": "basis_points"
+            },
+            "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+            "ruleId": "uncertainty_floor",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          }
+        ],
+        "semanticVersion": "1.0.0",
+        "sources": [
+          {
+            "review": {
+              "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+              "sourceReviewId": "review_release_standard"
+            },
+            "source": {
+              "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+              "sourceSnapshotId": "source_release_standard"
+            }
+          }
+        ],
+        "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab",
+        "publishedAt": "2026-09-07T01:00:00.000Z",
+        "publishedByPrincipalId": "principal_di_native_wire_v1_a",
+        "schemaVersion": "0.1",
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      },
+      {
+        "applicability": {
+          "jurisdiction": {
+            "operator": "equals",
+            "value": "us"
+          },
+          "locale": {
+            "operator": "one_of",
+            "values": ["en-us", "ko-kr"]
+          },
+          "maximumDataClassification": {
+            "operator": "equals",
+            "value": "confidential"
+          },
+          "populationTags": {
+            "operator": "contains_all",
+            "values": ["business", "checkout"]
+          },
+          "purpose": {
+            "operator": "equals",
+            "value": "Evaluate an exact checkout-agent candidate before staging release."
+          },
+          "riskTier": {
+            "operator": "equals",
+            "value": "high"
+          },
+          "taskKind": {
+            "operator": "equals",
+            "value": "checkout_agent"
+          }
+        },
+        "assumptions": [
+          "The retained comparison population represents the intended staging population."
+        ],
+        "changeRationale": "Establish the repository conformance release policy.",
+        "contentProjection": "references_and_bounded_metadata_only",
+        "counterevidence": [],
+        "description": "Bounded declarative rules for one staging release class.",
+        "effectiveAt": "2026-09-07T00:00:00.000Z",
+        "exclusions": ["Production deployment is outside this policy version."],
+        "expiresAt": "2027-03-07T00:00:00.000Z",
+        "installationBinding": {
+          "bindingVersionId": "binding_checkout_v1",
+          "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523",
+          "installationId": "installation_checkout"
+        },
+        "issuerPrincipalId": "principal_di_native_wire_v1_b",
+        "knownLimitations": [
+          "Publication does not establish that the selected thresholds are sufficient."
+        ],
+        "mode": "advisory",
+        "name": "Checkout staging release policy",
+        "policyId": "policy_di_native_wire_v1_b",
+        "policyVersionId": "policy_di_native_wire_v1_b_v1",
+        "rationale": "Require retained evidence and independent review before a later release decision.",
+        "rules": [
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "conflictRule": "reject_declared_conflict",
+              "excludeCandidateAuthor": true,
+              "excludePolicyAuthor": true,
+              "humanReviewerGroupIds": ["group_release_review"],
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "kind": "approval_required",
+              "quorum": 2,
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+            },
+            "rationale": "A later high-risk decision requires two independent reviewers.",
+            "ruleId": "approval_gate",
+            "severity": "critical",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+              "componentKind": "build_artifact",
+              "kind": "artifact_required",
+              "maximumDataClassification": "internal",
+              "requireDigest": true,
+              "role": "agent_bundle"
+            },
+            "rationale": "The evaluated bundle must be the exact retained build artifact.",
+            "ruleId": "artifact_bundle",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": false,
+            "predicate": {
+              "comparator": "less_than_or_equal",
+              "comparison": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              },
+              "kind": "comparison_threshold",
+              "metricId": "metric_regression_errors",
+              "metricKind": "trace_event_count",
+              "operand": "candidate",
+              "threshold": "0",
+              "unit": "events"
+            },
+            "rationale": "The retained candidate comparison must not contain regression errors.",
+            "ruleId": "comparison_regression",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": false,
+            "predicate": {
+              "comparison": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              },
+              "denominator": "paired_total",
+              "kind": "coverage_floor",
+              "metricId": "metric_regression_errors",
+              "minimumBasisPoints": 9500,
+              "numerator": "paired_observed",
+              "sourceKind": "comparison_metric_ratio",
+              "unit": "basis_points"
+            },
+            "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+            "ruleId": "coverage_floor",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "assessment": {
+                "assessmentId": "assessment_checkout_safety",
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              },
+              "assessmentClass": "evaluation",
+              "expected": "eligible",
+              "kind": "eligibility_required"
+            },
+            "rationale": "The exact policy-independent safety assessment must remain eligible.",
+            "ruleId": "eligibility_base",
+            "severity": "critical",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": true,
+            "predicate": {
+              "comparison": {
+                "comparisonId": "comparison_checkout",
+                "comparisonVersionId": "comparison_checkout_v1",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              },
+              "eventClass": "uncertain_side_effect",
+              "kind": "safety_event_ceiling",
+              "maximumCount": 0,
+              "metricId": "metric_uncertain_side_effects",
+              "unit": "events"
+            },
+            "rationale": "The retained replay must contain no uncertain side-effect event.",
+            "ruleId": "safety_ceiling",
+            "severity": "critical",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          },
+          {
+            "nonWaivable": false,
+            "predicate": {
+              "assessment": {
+                "assessmentId": "assessment_checkout_safety",
+                "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+              },
+              "bound": "lower",
+              "comparator": "at_least",
+              "confidenceLevelBasisPoints": 9500,
+              "intervalMethod": "wilson_score_interval",
+              "intervalMethodVersion": "1.0.0",
+              "kind": "uncertainty_bound",
+              "thresholdBasisPoints": 9000,
+              "unit": "basis_points"
+            },
+            "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+            "ruleId": "uncertainty_floor",
+            "severity": "high",
+            "sources": [
+              {
+                "review": {
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+                  "sourceReviewId": "review_release_standard"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ]
+          }
+        ],
+        "semanticVersion": "1.0.0",
+        "sources": [
+          {
+            "review": {
+              "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b",
+              "sourceReviewId": "review_release_standard"
+            },
+            "source": {
+              "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+              "sourceSnapshotId": "source_release_standard"
+            }
+          }
+        ],
+        "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87",
+        "publishedAt": "2026-09-07T01:00:00.000Z",
+        "publishedByPrincipalId": "principal_di_native_wire_v1_b",
+        "schemaVersion": "0.1",
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        }
+      }
+    ]
+  },
+  "queries": [
+    {
+      "sql": "SELECT public.proofstack_read_release_decision_input($1::jsonb,$2) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}",
+        "input_native_wire_v1"
+      ],
+      "rows": [
+        {
+          "value": {
+            "record": {
+              "mode": "enforce",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "candidate": {
+                "candidateId": "candidate_di_native_wire_v1",
+                "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                "candidateVersionId": "candidate_di_native_wire_v1_v1"
+              },
+              "createdAt": "2026-10-15T12:00:00.000001Z",
+              "expiresAt": "2026-10-15T12:10:00.000001Z",
+              "publisher": {
+                "requestId": "request-decision-1",
+                "principalId": "principal_decision_publisher",
+                "credentialId": "credential_decision",
+                "principalType": "service",
+                "authenticatedAt": "2026-10-15T12:00:00.000Z",
+                "authenticationMethod": "service_token"
+              },
+              "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+              "selection": {
+                "selectionId": "selection_di_native_wire_v1",
+                "gateTargetId": "gate_checkout_staging",
+                "installationId": "installation_checkout",
+                "definitionSha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+                "selectionVersionId": "version_di_native_wire_v1"
+              },
+              "evaluations": [
+                {
+                  "mode": "mandatory",
+                  "request": {
+                    "limits": {
+                      "maxAttempts": 3,
+                      "retryableErrors": [
+                        "lease_expired",
+                        "source_revision_changed",
+                        "source_temporarily_unavailable",
+                        "worker_interrupted"
+                      ],
+                      "maxRuleEvaluations": 384,
+                      "maxArtifactReadBytes": 67108864,
+                      "maxAcquisitionRecords": 10000,
+                      "retryBackoffMilliseconds": 1000,
+                      "leaseDurationMilliseconds": 30000,
+                      "maxAcquisitionRecordBytes": 16777216,
+                      "totalDeadlineMilliseconds": 600000,
+                      "heartbeatIntervalMilliseconds": 5000,
+                      "perAttemptTimeoutMilliseconds": 120000
+                    },
+                    "policy": {
+                      "policyId": "policy_di_native_wire_v1_a",
+                      "policyVersionId": "policy_di_native_wire_v1_a_v1",
+                      "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab"
+                    },
+                    "algorithm": {
+                      "id": "proofstack.deterministic-policy",
+                      "version": "1.0.0"
+                    },
+                    "candidate": {
+                      "candidateId": "candidate_di_native_wire_v1",
+                      "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                      "candidateVersionId": "candidate_di_native_wire_v1_v1"
+                    },
+                    "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                    "evaluationRequestId": "request_di_native_wire_v1_0"
+                  },
+                  "requestSha256": "6ca1a351ff294e37fd7b9d952c399386c289864840f7097ea055011f0fd3ee83"
+                },
+                {
+                  "mode": "advisory",
+                  "request": {
+                    "limits": {
+                      "maxAttempts": 3,
+                      "retryableErrors": [
+                        "lease_expired",
+                        "source_revision_changed",
+                        "source_temporarily_unavailable",
+                        "worker_interrupted"
+                      ],
+                      "maxRuleEvaluations": 384,
+                      "maxArtifactReadBytes": 67108864,
+                      "maxAcquisitionRecords": 10000,
+                      "retryBackoffMilliseconds": 1000,
+                      "leaseDurationMilliseconds": 30000,
+                      "maxAcquisitionRecordBytes": 16777216,
+                      "totalDeadlineMilliseconds": 600000,
+                      "heartbeatIntervalMilliseconds": 5000,
+                      "perAttemptTimeoutMilliseconds": 120000
+                    },
+                    "policy": {
+                      "policyId": "policy_di_native_wire_v1_b",
+                      "policyVersionId": "policy_di_native_wire_v1_b_v1",
+                      "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87"
+                    },
+                    "algorithm": {
+                      "id": "proofstack.deterministic-policy",
+                      "version": "1.0.0"
+                    },
+                    "candidate": {
+                      "candidateId": "candidate_di_native_wire_v1",
+                      "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                      "candidateVersionId": "candidate_di_native_wire_v1_v1"
+                    },
+                    "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                    "evaluationRequestId": "request_di_native_wire_v1_1"
+                  },
+                  "requestSha256": "2f3b724aa01bf78e1945aa0a84c58ac813f1ea5aadc46896a01c9f22d7361149"
+                }
+              ],
+              "schemaVersion": "0.1",
+              "definitionSha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+              "verificationLimits": {
+                "maxApprovalRecords": 4096,
+                "maxAcquisitionRecords": 100000,
+                "maxAcquisitionRecordBytes": 67108864
+              },
+              "decisionInputRequestId": "input_native_wire_v1"
+            },
+            "input_id": "input_native_wire_v1",
+            "publisher": {
+              "requestId": "request-decision-1",
+              "principalId": "principal_decision_publisher",
+              "credentialId": "credential_decision",
+              "principalType": "service",
+              "authenticatedAt": "2026-10-15T12:00:00.000Z",
+              "authenticationMethod": "service_token"
+            },
+            "tenant_id": "tenant_example",
+            "plan_count": 2,
+            "project_id": "project_checkout",
+            "canonical_utf8": "{\"definition\":{\"candidate\":{\"candidateId\":\"candidate_di_native_wire_v1\",\"candidateVersionId\":\"candidate_di_native_wire_v1_v1\",\"definitionSha256\":\"f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf\"},\"createdAt\":\"2026-10-15T12:00:00.000001Z\",\"decisionInputRequestId\":\"input_native_wire_v1\",\"evaluations\":[{\"mode\":\"mandatory\",\"request\":{\"algorithm\":{\"id\":\"proofstack.deterministic-policy\",\"version\":\"1.0.0\"},\"candidate\":{\"candidateId\":\"candidate_di_native_wire_v1\",\"candidateVersionId\":\"candidate_di_native_wire_v1_v1\",\"definitionSha256\":\"f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf\"},\"evaluationRequestId\":\"request_di_native_wire_v1_0\",\"evaluationTime\":\"2026-10-15T12:00:00.000001Z\",\"limits\":{\"heartbeatIntervalMilliseconds\":5000,\"leaseDurationMilliseconds\":30000,\"maxAcquisitionRecordBytes\":16777216,\"maxAcquisitionRecords\":10000,\"maxArtifactReadBytes\":67108864,\"maxAttempts\":3,\"maxRuleEvaluations\":384,\"perAttemptTimeoutMilliseconds\":120000,\"retryBackoffMilliseconds\":1000,\"retryableErrors\":[\"lease_expired\",\"source_revision_changed\",\"source_temporarily_unavailable\",\"worker_interrupted\"],\"totalDeadlineMilliseconds\":600000},\"policy\":{\"definitionSha256\":\"44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab\",\"policyId\":\"policy_di_native_wire_v1_a\",\"policyVersionId\":\"policy_di_native_wire_v1_a_v1\"}},\"requestSha256\":\"6ca1a351ff294e37fd7b9d952c399386c289864840f7097ea055011f0fd3ee83\"},{\"mode\":\"advisory\",\"request\":{\"algorithm\":{\"id\":\"proofstack.deterministic-policy\",\"version\":\"1.0.0\"},\"candidate\":{\"candidateId\":\"candidate_di_native_wire_v1\",\"candidateVersionId\":\"candidate_di_native_wire_v1_v1\",\"definitionSha256\":\"f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf\"},\"evaluationRequestId\":\"request_di_native_wire_v1_1\",\"evaluationTime\":\"2026-10-15T12:00:00.000001Z\",\"limits\":{\"heartbeatIntervalMilliseconds\":5000,\"leaseDurationMilliseconds\":30000,\"maxAcquisitionRecordBytes\":16777216,\"maxAcquisitionRecords\":10000,\"maxArtifactReadBytes\":67108864,\"maxAttempts\":3,\"maxRuleEvaluations\":384,\"perAttemptTimeoutMilliseconds\":120000,\"retryBackoffMilliseconds\":1000,\"retryableErrors\":[\"lease_expired\",\"source_revision_changed\",\"source_temporarily_unavailable\",\"worker_interrupted\"],\"totalDeadlineMilliseconds\":600000},\"policy\":{\"definitionSha256\":\"ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87\",\"policyId\":\"policy_di_native_wire_v1_b\",\"policyVersionId\":\"policy_di_native_wire_v1_b_v1\"}},\"requestSha256\":\"2f3b724aa01bf78e1945aa0a84c58ac813f1ea5aadc46896a01c9f22d7361149\"}],\"expiresAt\":\"2026-10-15T12:10:00.000001Z\",\"mode\":\"enforce\",\"publisher\":{\"authenticatedAt\":\"2026-10-15T12:00:00.000Z\",\"authenticationMethod\":\"service_token\",\"credentialId\":\"credential_decision\",\"principalId\":\"principal_decision_publisher\",\"principalType\":\"service\",\"requestId\":\"request-decision-1\"},\"rationale\":\"Predeclare every installed policy before any result; 원래 입력을 보존합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"selection\":{\"definitionSha256\":\"27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792\",\"gateTargetId\":\"gate_checkout_staging\",\"installationId\":\"installation_checkout\",\"selectionId\":\"selection_di_native_wire_v1\",\"selectionVersionId\":\"version_di_native_wire_v1\"},\"verificationLimits\":{\"maxAcquisitionRecordBytes\":67108864,\"maxAcquisitionRecords\":100000,\"maxApprovalRecords\":4096}},\"definitionDomain\":\"proofstack.release-decision-input.v1\",\"encodingVersion\":\"proofstack.release-decision-input-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+            "created_at_key": "1792065600000001000000000000000000000000",
+            "environment_id": "env_staging",
+            "expires_at_key": "1792066200000001000000000000000000000000",
+            "publisher_type": "service",
+            "candidate_sha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+            "publisher_method": "service_token",
+            "selection_sha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+            "definition_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+            "created_at_lexical": "2026-10-15T12:00:00.000001Z",
+            "expires_at_lexical": "2026-10-15T12:10:00.000001Z",
+            "authenticated_at_key": "1792065600000000000000000000000000000000",
+            "candidate_version_id": "candidate_di_native_wire_v1_v1",
+            "publisher_request_id": "request-decision-1",
+            "selection_version_id": "version_di_native_wire_v1",
+            "publisher_principal_id": "principal_decision_publisher",
+            "publisher_credential_id": "credential_decision",
+            "authenticated_at_lexical": "2026-10-15T12:00:00.000Z"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT tenant_id,project_id,environment_id,input_id,input_sha256,ordinal,request_id,request_sha256,policy_id,policy_version_id,policy_sha256,mode,planned FROM public.proofstack_release_decision_input_plans WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND input_id=$4 ORDER BY ordinal LIMIT 17",
+      "values": ["tenant_example", "project_checkout", "env_staging", "input_native_wire_v1"],
+      "rows": [
+        {
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "environment_id": "env_staging",
+          "input_id": "input_native_wire_v1",
+          "input_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+          "ordinal": 0,
+          "request_id": "request_di_native_wire_v1_0",
+          "request_sha256": "6ca1a351ff294e37fd7b9d952c399386c289864840f7097ea055011f0fd3ee83",
+          "policy_id": "policy_di_native_wire_v1_a",
+          "policy_version_id": "policy_di_native_wire_v1_a_v1",
+          "policy_sha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab",
+          "mode": "mandatory",
+          "planned": {
+            "mode": "mandatory",
+            "request": {
+              "limits": {
+                "maxAttempts": 3,
+                "retryableErrors": [
+                  "lease_expired",
+                  "source_revision_changed",
+                  "source_temporarily_unavailable",
+                  "worker_interrupted"
+                ],
+                "maxRuleEvaluations": 384,
+                "maxArtifactReadBytes": 67108864,
+                "maxAcquisitionRecords": 10000,
+                "retryBackoffMilliseconds": 1000,
+                "leaseDurationMilliseconds": 30000,
+                "maxAcquisitionRecordBytes": 16777216,
+                "totalDeadlineMilliseconds": 600000,
+                "heartbeatIntervalMilliseconds": 5000,
+                "perAttemptTimeoutMilliseconds": 120000
+              },
+              "policy": {
+                "policyId": "policy_di_native_wire_v1_a",
+                "policyVersionId": "policy_di_native_wire_v1_a_v1",
+                "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab"
+              },
+              "algorithm": {
+                "id": "proofstack.deterministic-policy",
+                "version": "1.0.0"
+              },
+              "candidate": {
+                "candidateId": "candidate_di_native_wire_v1",
+                "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                "candidateVersionId": "candidate_di_native_wire_v1_v1"
+              },
+              "evaluationTime": "2026-10-15T12:00:00.000001Z",
+              "evaluationRequestId": "request_di_native_wire_v1_0"
+            },
+            "requestSha256": "6ca1a351ff294e37fd7b9d952c399386c289864840f7097ea055011f0fd3ee83"
+          }
+        },
+        {
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "environment_id": "env_staging",
+          "input_id": "input_native_wire_v1",
+          "input_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+          "ordinal": 1,
+          "request_id": "request_di_native_wire_v1_1",
+          "request_sha256": "2f3b724aa01bf78e1945aa0a84c58ac813f1ea5aadc46896a01c9f22d7361149",
+          "policy_id": "policy_di_native_wire_v1_b",
+          "policy_version_id": "policy_di_native_wire_v1_b_v1",
+          "policy_sha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87",
+          "mode": "advisory",
+          "planned": {
+            "mode": "advisory",
+            "request": {
+              "limits": {
+                "maxAttempts": 3,
+                "retryableErrors": [
+                  "lease_expired",
+                  "source_revision_changed",
+                  "source_temporarily_unavailable",
+                  "worker_interrupted"
+                ],
+                "maxRuleEvaluations": 384,
+                "maxArtifactReadBytes": 67108864,
+                "maxAcquisitionRecords": 10000,
+                "retryBackoffMilliseconds": 1000,
+                "leaseDurationMilliseconds": 30000,
+                "maxAcquisitionRecordBytes": 16777216,
+                "totalDeadlineMilliseconds": 600000,
+                "heartbeatIntervalMilliseconds": 5000,
+                "perAttemptTimeoutMilliseconds": 120000
+              },
+              "policy": {
+                "policyId": "policy_di_native_wire_v1_b",
+                "policyVersionId": "policy_di_native_wire_v1_b_v1",
+                "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87"
+              },
+              "algorithm": {
+                "id": "proofstack.deterministic-policy",
+                "version": "1.0.0"
+              },
+              "candidate": {
+                "candidateId": "candidate_di_native_wire_v1",
+                "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                "candidateVersionId": "candidate_di_native_wire_v1_v1"
+              },
+              "evaluationTime": "2026-10-15T12:00:00.000001Z",
+              "evaluationRequestId": "request_di_native_wire_v1_1"
+            },
+            "requestSha256": "2f3b724aa01bf78e1945aa0a84c58ac813f1ea5aadc46896a01c9f22d7361149"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT tenant_id,project_id,environment_id,input_id,input_sha256,kind,ordinal,source_id,source_sha256,reference FROM public.proofstack_release_decision_input_sources WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND input_id=$4 ORDER BY kind COLLATE \"C\",ordinal LIMIT 19",
+      "values": ["tenant_example", "project_checkout", "env_staging", "input_native_wire_v1"],
+      "rows": [
+        {
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "environment_id": "env_staging",
+          "input_id": "input_native_wire_v1",
+          "input_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+          "kind": "candidate",
+          "ordinal": 0,
+          "source_id": "candidate_di_native_wire_v1_v1",
+          "source_sha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+          "reference": {
+            "candidateId": "candidate_di_native_wire_v1",
+            "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+            "candidateVersionId": "candidate_di_native_wire_v1_v1"
+          }
+        },
+        {
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "environment_id": "env_staging",
+          "input_id": "input_native_wire_v1",
+          "input_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+          "kind": "policy",
+          "ordinal": 0,
+          "source_id": "policy_di_native_wire_v1_a_v1",
+          "source_sha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab",
+          "reference": {
+            "policyId": "policy_di_native_wire_v1_a",
+            "policyVersionId": "policy_di_native_wire_v1_a_v1",
+            "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab"
+          }
+        },
+        {
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "environment_id": "env_staging",
+          "input_id": "input_native_wire_v1",
+          "input_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+          "kind": "policy",
+          "ordinal": 1,
+          "source_id": "policy_di_native_wire_v1_b_v1",
+          "source_sha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87",
+          "reference": {
+            "policyId": "policy_di_native_wire_v1_b",
+            "policyVersionId": "policy_di_native_wire_v1_b_v1",
+            "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87"
+          }
+        },
+        {
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "environment_id": "env_staging",
+          "input_id": "input_native_wire_v1",
+          "input_sha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+          "kind": "selection",
+          "ordinal": 0,
+          "source_id": "version_di_native_wire_v1",
+          "source_sha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+          "reference": {
+            "selectionId": "selection_di_native_wire_v1",
+            "gateTargetId": "gate_checkout_staging",
+            "installationId": "installation_checkout",
+            "definitionSha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+            "selectionVersionId": "version_di_native_wire_v1"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT record FROM public.proofstack_release_decision_input_sources WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND input_id=$4 AND kind=$5 AND ordinal=$6",
+      "values": [
+        "tenant_example",
+        "project_checkout",
+        "env_staging",
+        "input_native_wire_v1",
+        "candidate",
+        0
+      ],
+      "rows": [
+        {
+          "record": {
+            "name": "Checkout agent candidate",
+            "scope": {
+              "tenantId": "tenant_example",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "source": {
+              "tree": {
+                "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "algorithm": "sha256"
+              },
+              "commit": {
+                "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "algorithm": "sha1"
+              },
+              "repositoryUrl": "https://github.com/example/checkout-agent.git"
+            },
+            "target": {
+              "locale": "en-us",
+              "purpose": "Repository conformance release candidate.",
+              "riskTier": "high",
+              "taskKind": "checkout_agent",
+              "jurisdiction": "us",
+              "environmentId": "env_staging",
+              "populationTags": ["business", "checkout"],
+              "maximumDataClassification": "confidential"
+            },
+            "datasets": [
+              {
+                "datasetId": "dataset_checkout",
+                "datasetVersionId": "dataset_checkout_v1",
+                "definitionSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-06T15:00:00.000Z",
+            "omissions": [
+              {
+                "kind": "tool_contract",
+                "role": "refund_tool",
+                "reason": "intentionally_not_used",
+                "rationale": "The candidate intentionally has no refund tool."
+              }
+            ],
+            "assessments": [
+              {
+                "assessmentId": "assessment_candidate",
+                "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+              }
+            ],
+            "candidateId": "candidate_di_native_wire_v1",
+            "comparisons": [
+              {
+                "resultId": "comparison_candidate",
+                "definitionSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+              }
+            ],
+            "description": "Exact checkout-agent candidate for a staging release gate.",
+            "schemaVersion": "0.1",
+            "targetRelease": {
+              "targetId": "target_checkout_agent",
+              "targetAdapter": {
+                "name": "local_target",
+                "version": "1.0.0",
+                "protocolVersion": "1.0.0"
+              },
+              "workerProtocol": {
+                "name": "json_line",
+                "version": "1.0.0"
+              },
+              "targetReleaseId": "target_checkout_agent_v1",
+              "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            },
+            "buildArtifacts": [
+              {
+                "role": "agent_bundle",
+                "artifact": {
+                  "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "mediaType": "application/vnd.proofstack.agent+tar",
+                  "sizeBytes": 4096,
+                  "artifactId": "artifact_agent_bundle",
+                  "classification": "internal"
+                }
+              },
+              {
+                "role": "sbom",
+                "artifact": {
+                  "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "mediaType": "application/spdx+json",
+                  "sizeBytes": 2048,
+                  "artifactId": "artifact_sbom",
+                  "classification": "metadata"
+                }
+              }
+            ],
+            "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+            "knownLimitations": [
+              "Provider exposes the served model version but not model weights."
+            ],
+            "contentProjection": "artifact_references_only",
+            "runtimeComponents": [
+              {
+                "kind": "model",
+                "role": "primary_model",
+                "adapter": {
+                  "adapterId": "adapter_model_provider",
+                  "adapterVersionId": "adapter_model_provider_v1",
+                  "definitionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+                },
+                "providerId": "provider_example",
+                "resolution": {
+                  "status": "exact",
+                  "resolutionEvidence": {
+                    "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                    "mediaType": "application/json",
+                    "sizeBytes": 256,
+                    "artifactId": "artifact_model_resolution",
+                    "classification": "confidential"
+                  },
+                  "resolvedModelVersion": "checkout-model-2026-09-01"
+                },
+                "providerModelId": "checkout-model"
+              },
+              {
+                "kind": "prompt",
+                "role": "system_prompt",
+                "content": {
+                  "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                  "mediaType": "text/plain",
+                  "sizeBytes": 512,
+                  "artifactId": "artifact_system_prompt",
+                  "classification": "confidential"
+                }
+              },
+              {
+                "kind": "tool_contract",
+                "role": "payment_tool",
+                "content": {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "mediaType": "application/schema+json",
+                  "sizeBytes": 384,
+                  "artifactId": "artifact_payment_tool",
+                  "classification": "internal"
+                }
+              }
+            ],
+            "candidateVersionId": "candidate_di_native_wire_v1_v1",
+            "createdByPrincipalId": "principal_di_native_wire_v1",
+            "modelAssuranceAssessments": [
+              {
+                "definitionSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "assessmentExtensionId": "model_assessment_candidate"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT record FROM public.proofstack_release_decision_input_sources WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND input_id=$4 AND kind=$5 AND ordinal=$6",
+      "values": [
+        "tenant_example",
+        "project_checkout",
+        "env_staging",
+        "input_native_wire_v1",
+        "policy",
+        0
+      ],
+      "rows": [
+        {
+          "record": {
+            "mode": "mandatory",
+            "name": "Checkout staging release policy",
+            "rules": [
+              {
+                "ruleId": "approval_gate",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "critical",
+                "predicate": {
+                  "kind": "approval_required",
+                  "quorum": 2,
+                  "conflictRule": "reject_declared_conflict",
+                  "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                  "excludePolicyAuthor": true,
+                  "independenceGroupIds": ["group_release_review", "group_security_review"],
+                  "humanReviewerGroupIds": ["group_release_review"],
+                  "excludeCandidateAuthor": true
+                },
+                "rationale": "A later high-risk decision requires two independent reviewers.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "artifact_bundle",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "artifact_required",
+                  "role": "agent_bundle",
+                  "componentKind": "build_artifact",
+                  "requireDigest": true,
+                  "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+                  "maximumDataClassification": "internal"
+                },
+                "rationale": "The evaluated bundle must be the exact retained build artifact.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "comparison_regression",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "comparison_threshold",
+                  "unit": "events",
+                  "operand": "candidate",
+                  "metricId": "metric_regression_errors",
+                  "threshold": "0",
+                  "comparator": "less_than_or_equal",
+                  "comparison": {
+                    "comparisonId": "comparison_checkout",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                    "comparisonVersionId": "comparison_checkout_v1"
+                  },
+                  "metricKind": "trace_event_count"
+                },
+                "rationale": "The retained candidate comparison must not contain regression errors.",
+                "nonWaivable": false
+              },
+              {
+                "ruleId": "coverage_floor",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "coverage_floor",
+                  "unit": "basis_points",
+                  "metricId": "metric_regression_errors",
+                  "numerator": "paired_observed",
+                  "comparison": {
+                    "comparisonId": "comparison_checkout",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                    "comparisonVersionId": "comparison_checkout_v1"
+                  },
+                  "sourceKind": "comparison_metric_ratio",
+                  "denominator": "paired_total",
+                  "minimumBasisPoints": 9500
+                },
+                "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+                "nonWaivable": false
+              },
+              {
+                "ruleId": "eligibility_base",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "critical",
+                "predicate": {
+                  "kind": "eligibility_required",
+                  "expected": "eligible",
+                  "assessment": {
+                    "assessmentId": "assessment_checkout_safety",
+                    "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                  },
+                  "assessmentClass": "evaluation"
+                },
+                "rationale": "The exact policy-independent safety assessment must remain eligible.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "safety_ceiling",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "critical",
+                "predicate": {
+                  "kind": "safety_event_ceiling",
+                  "unit": "events",
+                  "metricId": "metric_uncertain_side_effects",
+                  "comparison": {
+                    "comparisonId": "comparison_checkout",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                    "comparisonVersionId": "comparison_checkout_v1"
+                  },
+                  "eventClass": "uncertain_side_effect",
+                  "maximumCount": 0
+                },
+                "rationale": "The retained replay must contain no uncertain side-effect event.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "uncertainty_floor",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "uncertainty_bound",
+                  "unit": "basis_points",
+                  "bound": "lower",
+                  "assessment": {
+                    "assessmentId": "assessment_checkout_safety",
+                    "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                  },
+                  "comparator": "at_least",
+                  "intervalMethod": "wilson_score_interval",
+                  "thresholdBasisPoints": 9000,
+                  "intervalMethodVersion": "1.0.0",
+                  "confidenceLevelBasisPoints": 9500
+                },
+                "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+                "nonWaivable": false
+              }
+            ],
+            "scope": {
+              "tenantId": "tenant_example",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "sources": [
+              {
+                "review": {
+                  "sourceReviewId": "review_release_standard",
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ],
+            "policyId": "policy_di_native_wire_v1_a",
+            "expiresAt": "2027-03-07T00:00:00.000Z",
+            "rationale": "Require retained evidence and independent review before a later release decision.",
+            "exclusions": ["Production deployment is outside this policy version."],
+            "assumptions": [
+              "The retained comparison population represents the intended staging population."
+            ],
+            "description": "Bounded declarative rules for one staging release class.",
+            "effectiveAt": "2026-09-07T00:00:00.000Z",
+            "publishedAt": "2026-09-07T01:00:00.000Z",
+            "applicability": {
+              "locale": {
+                "values": ["en-us", "ko-kr"],
+                "operator": "one_of"
+              },
+              "purpose": {
+                "value": "Evaluate an exact checkout-agent candidate before staging release.",
+                "operator": "equals"
+              },
+              "riskTier": {
+                "value": "high",
+                "operator": "equals"
+              },
+              "taskKind": {
+                "value": "checkout_agent",
+                "operator": "equals"
+              },
+              "jurisdiction": {
+                "value": "us",
+                "operator": "equals"
+              },
+              "populationTags": {
+                "values": ["business", "checkout"],
+                "operator": "contains_all"
+              },
+              "maximumDataClassification": {
+                "value": "confidential",
+                "operator": "equals"
+              }
+            },
+            "schemaVersion": "0.1",
+            "changeRationale": "Establish the repository conformance release policy.",
+            "counterevidence": [],
+            "policyVersionId": "policy_di_native_wire_v1_a_v1",
+            "semanticVersion": "1.0.0",
+            "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab",
+            "knownLimitations": [
+              "Publication does not establish that the selected thresholds are sufficient."
+            ],
+            "contentProjection": "references_and_bounded_metadata_only",
+            "issuerPrincipalId": "principal_di_native_wire_v1_a",
+            "installationBinding": {
+              "installationId": "installation_checkout",
+              "bindingVersionId": "binding_checkout_v1",
+              "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523"
+            },
+            "publishedByPrincipalId": "principal_di_native_wire_v1_a"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT record FROM public.proofstack_release_decision_input_sources WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND input_id=$4 AND kind=$5 AND ordinal=$6",
+      "values": [
+        "tenant_example",
+        "project_checkout",
+        "env_staging",
+        "input_native_wire_v1",
+        "policy",
+        1
+      ],
+      "rows": [
+        {
+          "record": {
+            "mode": "advisory",
+            "name": "Checkout staging release policy",
+            "rules": [
+              {
+                "ruleId": "approval_gate",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "critical",
+                "predicate": {
+                  "kind": "approval_required",
+                  "quorum": 2,
+                  "conflictRule": "reject_declared_conflict",
+                  "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                  "excludePolicyAuthor": true,
+                  "independenceGroupIds": ["group_release_review", "group_security_review"],
+                  "humanReviewerGroupIds": ["group_release_review"],
+                  "excludeCandidateAuthor": true
+                },
+                "rationale": "A later high-risk decision requires two independent reviewers.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "artifact_bundle",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "artifact_required",
+                  "role": "agent_bundle",
+                  "componentKind": "build_artifact",
+                  "requireDigest": true,
+                  "allowedMediaTypes": ["application/vnd.proofstack.agent+tar"],
+                  "maximumDataClassification": "internal"
+                },
+                "rationale": "The evaluated bundle must be the exact retained build artifact.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "comparison_regression",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "comparison_threshold",
+                  "unit": "events",
+                  "operand": "candidate",
+                  "metricId": "metric_regression_errors",
+                  "threshold": "0",
+                  "comparator": "less_than_or_equal",
+                  "comparison": {
+                    "comparisonId": "comparison_checkout",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                    "comparisonVersionId": "comparison_checkout_v1"
+                  },
+                  "metricKind": "trace_event_count"
+                },
+                "rationale": "The retained candidate comparison must not contain regression errors.",
+                "nonWaivable": false
+              },
+              {
+                "ruleId": "coverage_floor",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "coverage_floor",
+                  "unit": "basis_points",
+                  "metricId": "metric_regression_errors",
+                  "numerator": "paired_observed",
+                  "comparison": {
+                    "comparisonId": "comparison_checkout",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                    "comparisonVersionId": "comparison_checkout_v1"
+                  },
+                  "sourceKind": "comparison_metric_ratio",
+                  "denominator": "paired_total",
+                  "minimumBasisPoints": 9500
+                },
+                "rationale": "The comparison must preserve at least ninety-five percent paired coverage.",
+                "nonWaivable": false
+              },
+              {
+                "ruleId": "eligibility_base",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "critical",
+                "predicate": {
+                  "kind": "eligibility_required",
+                  "expected": "eligible",
+                  "assessment": {
+                    "assessmentId": "assessment_checkout_safety",
+                    "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                  },
+                  "assessmentClass": "evaluation"
+                },
+                "rationale": "The exact policy-independent safety assessment must remain eligible.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "safety_ceiling",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "critical",
+                "predicate": {
+                  "kind": "safety_event_ceiling",
+                  "unit": "events",
+                  "metricId": "metric_uncertain_side_effects",
+                  "comparison": {
+                    "comparisonId": "comparison_checkout",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                    "comparisonVersionId": "comparison_checkout_v1"
+                  },
+                  "eventClass": "uncertain_side_effect",
+                  "maximumCount": 0
+                },
+                "rationale": "The retained replay must contain no uncertain side-effect event.",
+                "nonWaivable": true
+              },
+              {
+                "ruleId": "uncertainty_floor",
+                "sources": [
+                  {
+                    "review": {
+                      "sourceReviewId": "review_release_standard",
+                      "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                    },
+                    "source": {
+                      "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                      "sourceSnapshotId": "source_release_standard"
+                    }
+                  }
+                ],
+                "severity": "high",
+                "predicate": {
+                  "kind": "uncertainty_bound",
+                  "unit": "basis_points",
+                  "bound": "lower",
+                  "assessment": {
+                    "assessmentId": "assessment_checkout_safety",
+                    "definitionSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+                  },
+                  "comparator": "at_least",
+                  "intervalMethod": "wilson_score_interval",
+                  "thresholdBasisPoints": 9000,
+                  "intervalMethodVersion": "1.0.0",
+                  "confidenceLevelBasisPoints": 9500
+                },
+                "rationale": "The retained Wilson lower bound must be at least ninety percent.",
+                "nonWaivable": false
+              }
+            ],
+            "scope": {
+              "tenantId": "tenant_example",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "sources": [
+              {
+                "review": {
+                  "sourceReviewId": "review_release_standard",
+                  "definitionSha256": "bc94ada8430b92e590a39d0ccc65ffcd6712af68ce93e5cdf94abba885f4283b"
+                },
+                "source": {
+                  "definitionSha256": "f496f9af755ff25433c8b44646924adb354d84deb1784abc6ebc6a39ab6baa52",
+                  "sourceSnapshotId": "source_release_standard"
+                }
+              }
+            ],
+            "policyId": "policy_di_native_wire_v1_b",
+            "expiresAt": "2027-03-07T00:00:00.000Z",
+            "rationale": "Require retained evidence and independent review before a later release decision.",
+            "exclusions": ["Production deployment is outside this policy version."],
+            "assumptions": [
+              "The retained comparison population represents the intended staging population."
+            ],
+            "description": "Bounded declarative rules for one staging release class.",
+            "effectiveAt": "2026-09-07T00:00:00.000Z",
+            "publishedAt": "2026-09-07T01:00:00.000Z",
+            "applicability": {
+              "locale": {
+                "values": ["en-us", "ko-kr"],
+                "operator": "one_of"
+              },
+              "purpose": {
+                "value": "Evaluate an exact checkout-agent candidate before staging release.",
+                "operator": "equals"
+              },
+              "riskTier": {
+                "value": "high",
+                "operator": "equals"
+              },
+              "taskKind": {
+                "value": "checkout_agent",
+                "operator": "equals"
+              },
+              "jurisdiction": {
+                "value": "us",
+                "operator": "equals"
+              },
+              "populationTags": {
+                "values": ["business", "checkout"],
+                "operator": "contains_all"
+              },
+              "maximumDataClassification": {
+                "value": "confidential",
+                "operator": "equals"
+              }
+            },
+            "schemaVersion": "0.1",
+            "changeRationale": "Establish the repository conformance release policy.",
+            "counterevidence": [],
+            "policyVersionId": "policy_di_native_wire_v1_b_v1",
+            "semanticVersion": "1.0.0",
+            "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87",
+            "knownLimitations": [
+              "Publication does not establish that the selected thresholds are sufficient."
+            ],
+            "contentProjection": "references_and_bounded_metadata_only",
+            "issuerPrincipalId": "principal_di_native_wire_v1_b",
+            "installationBinding": {
+              "installationId": "installation_checkout",
+              "bindingVersionId": "binding_checkout_v1",
+              "definitionSha256": "ddacf85a3027cf381fbbf7b90ce5169e560d7d035a4bd5c151ec8aa3929ea523"
+            },
+            "publishedByPrincipalId": "principal_di_native_wire_v1_b"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT record FROM public.proofstack_release_decision_input_sources WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND input_id=$4 AND kind=$5 AND ordinal=$6",
+      "values": [
+        "tenant_example",
+        "project_checkout",
+        "env_staging",
+        "input_native_wire_v1",
+        "selection",
+        0
+      ],
+      "rows": [
+        {
+          "record": {
+            "mode": "enforce",
+            "scope": {
+              "tenantId": "tenant_example",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "policies": [
+              {
+                "mode": "mandatory",
+                "policy": {
+                  "policyId": "policy_di_native_wire_v1_a",
+                  "policyVersionId": "policy_di_native_wire_v1_a_v1",
+                  "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab"
+                }
+              },
+              {
+                "mode": "advisory",
+                "policy": {
+                  "policyId": "policy_di_native_wire_v1_b",
+                  "policyVersionId": "policy_di_native_wire_v1_b_v1",
+                  "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87"
+                }
+              }
+            ],
+            "expiresAt": "2026-10-16T00:00:00.000001Z",
+            "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+            "effectiveAt": "2026-10-15T00:00:00.000001Z",
+            "publishedAt": "2026-10-15T00:00:00.000001Z",
+            "selectionId": "selection_di_native_wire_v1",
+            "gateTargetId": "gate_checkout_staging",
+            "schemaVersion": "0.1",
+            "installationId": "installation_checkout",
+            "candidateTarget": {
+              "locale": "en-us",
+              "purpose": "Repository conformance release candidate.",
+              "riskTier": "high",
+              "taskKind": "checkout_agent",
+              "jurisdiction": "us",
+              "environmentId": "env_staging",
+              "populationTags": ["business", "checkout"],
+              "maximumDataClassification": "confidential"
+            },
+            "definitionSha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+            "authorityEvidence": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "application/vnd.proofstack.policy-authority+json",
+              "sizeBytes": 512,
+              "artifactId": "artifact_installation_authority",
+              "classification": "internal"
+            },
+            "issuerPrincipalId": "user_installation_owner",
+            "selectionVersionId": "version_di_native_wire_v1",
+            "publishedByPrincipalId": "user_installation_owner",
+            "authorizedPublisherPrincipalIds": ["principal_decision_publisher"]
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT event_type AS \"eventType\",schema_version AS \"schemaVersion\",payload,\n      created_at=$3::timestamptz AS \"timeMatches\" FROM public.proofstack_outbox\n      WHERE tenant_id=$1 AND aggregate_type='release_decision_input' AND aggregate_id=$2",
+      "values": ["tenant_example", "input_native_wire_v1", "2026-10-15T12:00:00.000001Z"],
+      "rows": [
+        {
+          "eventType": "release.decision.input.recorded",
+          "schemaVersion": "0.1",
+          "payload": {
+            "record": {
+              "mode": "enforce",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "candidate": {
+                "candidateId": "candidate_di_native_wire_v1",
+                "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                "candidateVersionId": "candidate_di_native_wire_v1_v1"
+              },
+              "createdAt": "2026-10-15T12:00:00.000001Z",
+              "expiresAt": "2026-10-15T12:10:00.000001Z",
+              "publisher": {
+                "requestId": "request-decision-1",
+                "principalId": "principal_decision_publisher",
+                "credentialId": "credential_decision",
+                "principalType": "service",
+                "authenticatedAt": "2026-10-15T12:00:00.000Z",
+                "authenticationMethod": "service_token"
+              },
+              "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+              "selection": {
+                "selectionId": "selection_di_native_wire_v1",
+                "gateTargetId": "gate_checkout_staging",
+                "installationId": "installation_checkout",
+                "definitionSha256": "27ffa043f61d709ae3b4fff3abb98ff894465506e28c6af145fd48384f1b7792",
+                "selectionVersionId": "version_di_native_wire_v1"
+              },
+              "evaluations": [
+                {
+                  "mode": "mandatory",
+                  "request": {
+                    "limits": {
+                      "maxAttempts": 3,
+                      "retryableErrors": [
+                        "lease_expired",
+                        "source_revision_changed",
+                        "source_temporarily_unavailable",
+                        "worker_interrupted"
+                      ],
+                      "maxRuleEvaluations": 384,
+                      "maxArtifactReadBytes": 67108864,
+                      "maxAcquisitionRecords": 10000,
+                      "retryBackoffMilliseconds": 1000,
+                      "leaseDurationMilliseconds": 30000,
+                      "maxAcquisitionRecordBytes": 16777216,
+                      "totalDeadlineMilliseconds": 600000,
+                      "heartbeatIntervalMilliseconds": 5000,
+                      "perAttemptTimeoutMilliseconds": 120000
+                    },
+                    "policy": {
+                      "policyId": "policy_di_native_wire_v1_a",
+                      "policyVersionId": "policy_di_native_wire_v1_a_v1",
+                      "definitionSha256": "44f52fefabffe639127ed13255aaf5c0aca0f108e2aec8ab0fe4fe276ace02ab"
+                    },
+                    "algorithm": {
+                      "id": "proofstack.deterministic-policy",
+                      "version": "1.0.0"
+                    },
+                    "candidate": {
+                      "candidateId": "candidate_di_native_wire_v1",
+                      "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                      "candidateVersionId": "candidate_di_native_wire_v1_v1"
+                    },
+                    "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                    "evaluationRequestId": "request_di_native_wire_v1_0"
+                  },
+                  "requestSha256": "6ca1a351ff294e37fd7b9d952c399386c289864840f7097ea055011f0fd3ee83"
+                },
+                {
+                  "mode": "advisory",
+                  "request": {
+                    "limits": {
+                      "maxAttempts": 3,
+                      "retryableErrors": [
+                        "lease_expired",
+                        "source_revision_changed",
+                        "source_temporarily_unavailable",
+                        "worker_interrupted"
+                      ],
+                      "maxRuleEvaluations": 384,
+                      "maxArtifactReadBytes": 67108864,
+                      "maxAcquisitionRecords": 10000,
+                      "retryBackoffMilliseconds": 1000,
+                      "leaseDurationMilliseconds": 30000,
+                      "maxAcquisitionRecordBytes": 16777216,
+                      "totalDeadlineMilliseconds": 600000,
+                      "heartbeatIntervalMilliseconds": 5000,
+                      "perAttemptTimeoutMilliseconds": 120000
+                    },
+                    "policy": {
+                      "policyId": "policy_di_native_wire_v1_b",
+                      "policyVersionId": "policy_di_native_wire_v1_b_v1",
+                      "definitionSha256": "ad81cdc6238397906563fb2ac8005f385a6a44ea2339acda6097854315b5da87"
+                    },
+                    "algorithm": {
+                      "id": "proofstack.deterministic-policy",
+                      "version": "1.0.0"
+                    },
+                    "candidate": {
+                      "candidateId": "candidate_di_native_wire_v1",
+                      "definitionSha256": "f99c9793614cb2e95a743db47a1fdde2a9458d4dd40ee09d9040873186c986bf",
+                      "candidateVersionId": "candidate_di_native_wire_v1_v1"
+                    },
+                    "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                    "evaluationRequestId": "request_di_native_wire_v1_1"
+                  },
+                  "requestSha256": "2f3b724aa01bf78e1945aa0a84c58ac813f1ea5aadc46896a01c9f22d7361149"
+                }
+              ],
+              "schemaVersion": "0.1",
+              "definitionSha256": "b76754359e8bcb7e280f4b62ad9bd5f532120a3def00bf1822bbe769e2dfd186",
+              "verificationLimits": {
+                "maxApprovalRecords": 4096,
+                "maxAcquisitionRecords": 100000,
+                "maxAcquisitionRecordBytes": 67108864
+              },
+              "decisionInputRequestId": "input_native_wire_v1"
+            },
+            "recordKind": "release_decision_input"
+          },
+          "timeMatches": true
+        }
+      ]
+    }
+  ]
+}

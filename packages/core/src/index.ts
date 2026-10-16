@@ -126,6 +126,8 @@ export {
 } from "./release/release-authority-record-validation.js";
 export * from "./release/release-reviewer-authority-repository.js";
 export * from "./release/release-approval-repository.js";
+export * from "./release/release-decision-input-repository.js";
+export * from "./release/release-decision-input-graph-validation.js";
 export {
   type CapturedReleaseIdentityOperation,
   type CapturedReleaseIdentityState,

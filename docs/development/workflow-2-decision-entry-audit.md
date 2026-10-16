@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [original input repository](workflow-2-decision-input-repository.md) retains complete original
+candidate/selection/policy witnesses, plans and first receipts through private guarded storage.
+Its local plan ownership does not reserve external jobs or establish current publication authority.
+
 The [native private service identity](workflow-2-native-service-publisher.md) verifies actual
 service secrets and holds current credential/expiry/revocation observations on the same client.
 It supplies no human approval, installation binding or complete atomic decision authority.

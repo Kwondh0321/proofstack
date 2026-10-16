@@ -137,3 +137,13 @@ export {
   type PolicySnapshotResultRepositoryHarness,
 } from "./policy-snapshot-result-repository-conformance.js";
 export { createMemoryPolicySnapshotResultHarness } from "./memory-policy-snapshot-result-harness.js";
+export { MemoryReleaseDecisionInputRepository } from "./memory-release-decision-input-repository.js";
+export {
+  releaseDecisionInputRepositoryConformanceCases,
+  type ReleaseDecisionInputRepositoryTestFactory,
+  type ReleaseDecisionInputRepositoryTestHarness,
+} from "./release-decision-input-repository-conformance.js";
+export {
+  releaseDecisionInputRepositoryFixture,
+  decisionInputVersion,
+} from "./release-decision-input-repository-fixtures.js";
