@@ -77,6 +77,7 @@ Recovery seeds both active and revoked credentials, compares full restored origi
 and sanitized state, then authenticates the original active secret and rejects the revoked one.
 Only the existing identity workspace is added to the recovery test dependencies. No raw service token
 is transferred in the backup, repository fixture or authority report.
+The boundary checker permits this import only in recovery tests, retaining the production restriction.
 
 Next close complete installation/reviewer/source/control/absence authority, original evaluation
 lineage, publisher independence, migration/recovery epoch and bounded DB validity under dedicated

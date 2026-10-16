@@ -135,6 +135,7 @@ const modules = [
     testAllowed: new Set([
       "@proofstack/api",
       "@proofstack/core",
+      "@proofstack/identity",
       "@proofstack/evaluation-worker",
       "@proofstack/example-workflow-1-acceptance",
       "@proofstack/model-evaluation-worker",

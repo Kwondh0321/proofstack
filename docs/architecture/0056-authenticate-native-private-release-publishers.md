@@ -54,6 +54,7 @@ access cannot survive a role-only reset. Administrative fixture access is not ru
 authority. Recovery tests retain active/revoked credentials and compare original state, then verify the active original
 secret and reject the revoked one after restore. The recovery test adds only a workspace identity
 dependency, with no external package resolution change.
+That dependency is permitted only for recovery tests; production recovery imports remain unchanged.
 
 The future fixed publisher still needs dedicated restricted roles, current installation binding,
 complete original/current source and absence closure, publisher independence, migration/recovery
