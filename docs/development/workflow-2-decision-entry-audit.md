@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [captured exception-control inspector](workflow-2-captured-exception-controls.md) preserves
+all original evidence occurrences and their later unavailable/changed/expired observations.
+It grants no control-effectiveness proof, exception quorum or native publication authority.
+
 The [original policy supplied-client readers](workflow-2-policy-original-client-readers.md) retain
 header/job/history/outbox/page and deterministic-result checks on one caller-owned connection.
 They add no authentication, current-source completeness or decision publication authority.

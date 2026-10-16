@@ -71,3 +71,4 @@ invalidate an ADR present in this directory.
 - [ADR-0046: Preserve original approval receipts on intent retries](0046-preserve-original-approval-receipts-on-intent-retries.md)
 - [ADR-0047: Guard native OIDC source observations](0047-guard-native-oidc-source-observations.md)
 - [ADR-0048: Reuse owning policy reads on supplied clients](0048-reuse-owning-policy-reads-on-supplied-clients.md)
+- [ADR-0049: Inspect every captured exception control](0049-inspect-every-captured-exception-control.md)
