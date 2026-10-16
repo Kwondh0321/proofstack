@@ -31,6 +31,11 @@ authenticate an object, principal or a current publication transaction by themse
 
 ## Admission and authority
 
+The [fixed rule-exception census](workflow-2-captured-rule-exceptions.md) admits its original approval
+and whole control observations before deep parsing/grouping, then uses a fixed internal pass that
+revalidates the canonical record and admits retained content/catalog projections. The standalone
+inspector retains its original row admission. There is no public skip flag or caller callback.
+
 The function requires a `ReleaseDecisionVerificationBudget` instance and strict outer fields.
 The fixed owning server must supply the original request-owned meter; the instance check does not
 authenticate a caller or prove job/request binding. It charges the approval plus every complete

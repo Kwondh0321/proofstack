@@ -48,12 +48,33 @@ const same = (a: unknown, b: unknown) =>
  * Captured byte/catalog consistency only. No authentication, held guard, control effectiveness,
  * rule waiver, quorum or decision authority is established by a retained observation.
  */
-export function inspectCapturedExceptionControls(input: {
+interface CapturedExceptionControlInput {
   readonly approval: ReleaseApproval;
   readonly observations: readonly unknown[];
   readonly capturedAt: string;
   readonly budget: ReleaseDecisionVerificationBudget;
-}): CapturedExceptionControls {
+}
+
+export function inspectCapturedExceptionControls(
+  input: CapturedExceptionControlInput,
+): CapturedExceptionControls {
+  return inspectControls(input, true);
+}
+
+/** Internal fixed census admits its approval and whole control rows before this projection pass.
+ * This still validates the canonical approval and admits retained content/catalog projections.
+ * Neither entry point authenticates an actor or proves job/meter ownership. No public skip flag.
+ */
+export function inspectCapturedExceptionControlObservations(
+  input: CapturedExceptionControlInput,
+): CapturedExceptionControls {
+  return inspectControls(input, false);
+}
+
+function inspectControls(
+  input: CapturedExceptionControlInput,
+  admitOriginalRows: boolean,
+): CapturedExceptionControls {
   try {
     if (
       !input ||
@@ -84,11 +105,11 @@ export function inspectCapturedExceptionControls(input: {
       throw new InvalidCapturedExceptionControlsError();
     // This is retained-observation admission. Owning ports must additionally charge every actual
     // failed, discarded, repeated and relationship read to this same original server-owned meter.
-    input.budget.observe(approval, "approval");
+    if (admitOriginalRows) input.budget.observe(approval, "approval");
     const observed = new Map<number, ReleaseDecisionControlObservation>();
     const currentCatalogs = new Map<string, string>();
     for (const raw of input.observations) {
-      input.budget.observe(raw);
+      if (admitOriginalRows) input.budget.observe(raw);
       const source = ReleaseDecisionControlObservationSchema.parse(raw);
       input.budget.observe(source.content);
       input.budget.observe(source.underGuards);

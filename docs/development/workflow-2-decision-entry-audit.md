@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [captured rule-exception quorum composition](workflow-2-captured-rule-exceptions.md) retains
+complete actions/current reviewer observations and every compensating-control occurrence.
+It grants no default exception authority, actual authentication or native publication authority.
+
 The [captured exception-control inspector](workflow-2-captured-exception-controls.md) preserves
 all original evidence occurrences and their later unavailable/changed/expired observations.
 It grants no control-effectiveness proof, exception quorum or native publication authority.

@@ -5,37 +5,43 @@ import {
   PolicyApprovalRequirementSchema,
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
+  type ReleaseApproval,
+  type ReleaseApprovalReference,
   ReleaseApprovalReferenceSchema,
   ReleaseApprovalRevocationSchema,
   ReleaseApprovalSchema,
-  ReleaseApprovalSubjectSchema,
-  ReleaseDecisionIdentityReferenceSchema,
-  ReleaseReviewerAuthoritySchema,
-  ReleaseReviewerAuthorityLifecycleEventSchema,
-  serializeEvaluationCanonicalJson,
-  type ReleaseApproval,
-  type ReleaseApprovalReference,
   type ReleaseApprovalSubject,
+  ReleaseApprovalSubjectSchema,
+  type ReleaseDecisionControlObservation,
+  ReleaseDecisionControlObservationSchema,
   type ReleaseDecisionCredentialObservation,
   type ReleaseDecisionIdentityObservation,
   type ReleaseDecisionIdentityReference,
+  ReleaseDecisionIdentityReferenceSchema,
+  ReleaseReviewerAuthorityLifecycleEventSchema,
+  ReleaseReviewerAuthoritySchema,
+  serializeEvaluationCanonicalJson,
 } from "@proofstack/contracts";
+import {
+  type CapturedExceptionControls,
+  inspectCapturedExceptionControlObservations,
+} from "./captured-exception-controls.js";
+import {
+  type CapturedReleaseReviewContext,
+  type CapturedReleaseReviewerEligibility,
+  inspectCapturedReleaseReviewerEligibility,
+  validateCapturedReleaseReviewContext,
+} from "./captured-release-reviewer-eligibility.js";
+import { matchDistinctReviewerGroups } from "./match-reviewer-groups.js";
 import {
   releaseApprovalReference,
   validateReleaseApprovalRecord,
 } from "./release-authority-record-validation.js";
 import {
-  inspectCapturedReleaseReviewerEligibility,
-  validateCapturedReleaseReviewContext,
-  type CapturedReleaseReviewContext,
-  type CapturedReleaseReviewerEligibility,
-} from "./captured-release-reviewer-eligibility.js";
-import { matchDistinctReviewerGroups } from "./match-reviewer-groups.js";
-import type { ReleaseReviewerCensus } from "./release-reviewer-census.js";
-import {
   type ReleaseDecisionVerificationBudget,
   ReleaseDecisionVerificationBudgetError,
 } from "./release-decision-verification-budget.js";
+import type { ReleaseReviewerCensus } from "./release-reviewer-census.js";
 
 export interface CapturedNormalApprovalActor {
   readonly approval: ReleaseApprovalReference;
@@ -102,11 +108,10 @@ function exactKeys(value: unknown, keys: readonly string[]): void {
 }
 
 /**
- * Pure complete captured-data resolution. The fixed owning composition must supply the original
- * subject/context, complete guarded exact normal-subject census and original actor bindings. This is not authentication,
- * native publication authority, a rule exception, or proof that declared conditions were verified.
+ * Server-owned captured review sources. The fixed owning composition derives the original full
+ * subject and installed requirement. These public preimages do not authenticate or retain guards.
  */
-export function resolveCapturedNormalApprovalQuorum(input: {
+export interface CapturedReleaseReviewQuorumInput {
   readonly subject: ReleaseApprovalSubject;
   readonly context: CapturedReleaseReviewContext;
   readonly census: {
@@ -117,7 +122,32 @@ export function resolveCapturedNormalApprovalQuorum(input: {
   readonly actors: readonly CapturedNormalApprovalActor[];
   readonly capturedAt: string;
   readonly budget: ReleaseDecisionVerificationBudget;
-}): CapturedNormalApprovalQuorum {
+}
+
+export interface CapturedReleaseReviewQuorum extends CapturedNormalApprovalQuorum {
+  readonly controls: readonly {
+    readonly approval: ReleaseApprovalReference;
+    readonly inspection: CapturedExceptionControls;
+  }[];
+}
+
+export function resolveCapturedNormalApprovalQuorum(
+  input: CapturedReleaseReviewQuorumInput,
+): CapturedNormalApprovalQuorum {
+  const { controls: _controls, ...quorum } = resolveCapturedReleaseReviewQuorum(
+    input,
+    "normal_approval",
+    [],
+  );
+  return quorum;
+}
+
+/** Internal fixed engine. Public application input cannot select the operation or validators. */
+export function resolveCapturedReleaseReviewQuorum(
+  input: CapturedReleaseReviewQuorumInput,
+  kind: "normal_approval" | "rule_exception",
+  controlInput: readonly unknown[],
+): CapturedReleaseReviewQuorum {
   try {
     const subject = ReleaseApprovalSubjectSchema.parse(input.subject);
     const scope = EvidenceScopeSchema.parse(subject.scope);
@@ -125,7 +155,14 @@ export function resolveCapturedNormalApprovalQuorum(input: {
     const cut = policyEvaluationTimestampOrderKey(at);
     const context = validateCapturedReleaseReviewContext(input.context);
     const requirement = PolicyApprovalRequirementSchema.parse(context.requirement);
-    if (context.purpose !== "normal_approval") throw new InvalidCapturedNormalApprovalError();
+    if (context.purpose !== kind || !["normal_approval", "rule_exception"].includes(kind))
+      throw new InvalidCapturedNormalApprovalError();
+    if (
+      !Array.isArray(controlInput) ||
+      controlInput.length > MAX_RELEASE_DECISION_APPROVAL_READS * 16 ||
+      (kind === "normal_approval" && controlInput.length !== 0)
+    )
+      throw new InvalidCapturedNormalApprovalError();
     exactKeys(input.census, ["state", "records", "revocations"]);
     const census = structuredClone(input.census);
     if (
@@ -148,7 +185,7 @@ export function resolveCapturedNormalApprovalQuorum(input: {
       });
       if (
         policyEvaluationTimestampOrderKey(record.recordedAt) > cut ||
-        record.kind !== "normal_approval" ||
+        record.kind !== kind ||
         !same(record.subject, subject)
       )
         throw new InvalidCapturedNormalApprovalError();
@@ -216,6 +253,50 @@ export function resolveCapturedNormalApprovalQuorum(input: {
         current = current.supersedes ? byId.get(current.supersedes.approvalId) : undefined;
       }
       for (const id of visiting) completed.add(id);
+    }
+    const controls: CapturedReleaseReviewQuorum["controls"][number][] = [];
+    const controlByApproval = new Map<string, CapturedExceptionControls>();
+    if (kind === "rule_exception") {
+      const grouped = new Map<string, ReleaseDecisionControlObservation[]>();
+      const catalogs = new Map<string, string>();
+      for (const raw of controlInput) {
+        input.budget.observe(raw);
+        const source = ReleaseDecisionControlObservationSchema.parse(raw);
+        const record = byId.get(source.approval.approvalId);
+        if (!record) throw new InvalidCapturedNormalApprovalError();
+        if (source.content.state === "not_inspected") {
+          if (source.content.reason === "action_not_approval" && record.action === "approve")
+            throw new InvalidCapturedNormalApprovalError();
+          if (
+            source.content.reason === "approval_inactive" &&
+            !revoked.has(record.approvalId) &&
+            !superseded.has(record.approvalId) &&
+            policyEvaluationTimestampOrderKey(record.expiresAt) > cut
+          )
+            throw new InvalidCapturedNormalApprovalError();
+        }
+        const rows = grouped.get(record.approvalId) ?? [];
+        rows.push(source);
+        grouped.set(record.approvalId, rows);
+        const hash = serializeEvaluationCanonicalJson(source.underGuards);
+        const prior = catalogs.get(source.reference.artifactId);
+        if (prior !== undefined && prior !== hash) unavailable = true;
+        catalogs.set(source.reference.artifactId, hash);
+      }
+      for (const record of records) {
+        // The census admitted the exact approval and whole control rows before grouping. The fixed
+        // pass retains canonical validation and admits content/catalog projections on that meter.
+        const inspection = inspectCapturedExceptionControlObservations({
+          approval: record,
+          observations: grouped.get(record.approvalId) ?? [],
+          capturedAt: at,
+          budget: input.budget,
+        });
+        if (inspection.observations.some((source) => source.state === "missing"))
+          unavailable = true;
+        controls.push({ approval: releaseApprovalReference(record), inspection });
+        controlByApproval.set(record.approvalId, inspection);
+      }
     }
     const actors = new Map<string, CapturedReleaseReviewerEligibility>();
     const preimages = new Map<string, string>();
@@ -323,6 +404,12 @@ export function resolveCapturedNormalApprovalQuorum(input: {
         else if (record.conditions.length > 0) {
           state = "conditions_unresolved";
           conditional = true;
+        } else if (
+          kind === "rule_exception" &&
+          controlByApproval.get(record.approvalId)?.state !== "retained"
+        ) {
+          state = "unavailable";
+          unavailable = true;
         } else {
           state = "approve";
           active.set(reviewer.principalId, { record, reviewer });
@@ -330,12 +417,13 @@ export function resolveCapturedNormalApprovalQuorum(input: {
       }
       observations.push({ approval: reference, state });
     }
-    const empty = (state: CapturedNormalApprovalState): CapturedNormalApprovalQuorum => ({
+    const empty = (state: CapturedNormalApprovalState): CapturedReleaseReviewQuorum => ({
       state,
       supportingApprovals: [],
       witnesses: [],
       observations,
       expiresAt: null,
+      controls,
     });
     if (conflict) return empty("conflicted");
     if (unavailable) return empty("unavailable");
@@ -357,7 +445,12 @@ export function resolveCapturedNormalApprovalQuorum(input: {
     const witnesses = assignment.matched.map((match) => {
       const source = active.get(match.principalId);
       if (!source) throw new InvalidCapturedNormalApprovalError();
-      for (const limit of [source.record.expiresAt, source.reviewer.authorityExpiresAt])
+      const controlExpiry = controlByApproval.get(source.record.approvalId)?.expiresAt;
+      for (const limit of [
+        source.record.expiresAt,
+        source.reviewer.authorityExpiresAt,
+        ...(controlExpiry ? [controlExpiry] : []),
+      ])
         if (
           expiresAt === null ||
           policyEvaluationTimestampOrderKey(limit) < policyEvaluationTimestampOrderKey(expiresAt)
@@ -374,7 +467,7 @@ export function resolveCapturedNormalApprovalQuorum(input: {
     const supportingApprovals = witnesses
       .map(({ approval }) => approval)
       .sort((a, b) => (a.approvalId < b.approvalId ? -1 : a.approvalId > b.approvalId ? 1 : 0));
-    return { state: "matched", witnesses, supportingApprovals, observations, expiresAt };
+    return { state: "matched", witnesses, supportingApprovals, observations, expiresAt, controls };
   } catch (cause) {
     if (
       cause instanceof InvalidCapturedNormalApprovalError ||
