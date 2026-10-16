@@ -69,6 +69,9 @@ integrity evidence, not live acquisition, authentication or a valid release deci
 
 ## Publication boundary and next work
 
+The [target-owned selection memory/shared repository](workflow-2-selection-repository.md) starts
+the owning persistence boundary. It does not supply native or actual current decision authority.
+
 `complete`, `observed` and `underGuards` are retained data fields, not proof of actual source
 enumeration, private authentication or held locks. Decoding ends without permission to publish.
 An expired original session can remain historical evidence; current authority resolution must

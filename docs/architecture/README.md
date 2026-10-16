@@ -66,3 +66,4 @@ invalidate an ADR present in this directory.
 - [ADR-0041: Resolve complete captured normal-review quorums](0041-resolve-complete-captured-normal-review-quorums.md)
 - [ADR-0042: Read policy jobs through original request ownership](0042-read-policy-jobs-through-original-request-ownership.md)
 - [ADR-0043: Version complete captured decision authority](0043-version-complete-captured-decision-authority.md)
+- [ADR-0044: Own complete selection inventories in repositories](0044-own-complete-selection-inventories-in-repositories.md)

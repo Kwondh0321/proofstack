@@ -115,6 +115,7 @@ export * from "./release/release-candidate-authority.js";
 export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";
+export * from "./release/release-policy-selection-repository.js";
 export * from "./release/release-candidate-source-references.js";
 export {
   inspectOwnedPolicyEvaluation,
