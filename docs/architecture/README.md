@@ -73,3 +73,4 @@ invalidate an ADR present in this directory.
 - [ADR-0048: Reuse owning policy reads on supplied clients](0048-reuse-owning-policy-reads-on-supplied-clients.md)
 - [ADR-0049: Inspect every captured exception control](0049-inspect-every-captured-exception-control.md)
 - [ADR-0050: Resolve complete captured rule-exception quorums](0050-resolve-complete-captured-rule-exception-quorums.md)
+- [ADR-0051: Bind release mutations to owning authentication](0051-bind-release-mutations-to-owning-authentication.md)

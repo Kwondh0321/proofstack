@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [owning mutation authentication composition](workflow-2-release-mutation-authentication.md)
+requires actual OIDC/CSRF or a separate private service publisher and exact capability/scope.
+Its process-local proof is completed authentication, not current native installation/reviewer authority.
+
 The [captured rule-exception quorum composition](workflow-2-captured-rule-exceptions.md) retains
 complete actions/current reviewer observations and every compensating-control occurrence.
 It grants no default exception authority, actual authentication or native publication authority.
