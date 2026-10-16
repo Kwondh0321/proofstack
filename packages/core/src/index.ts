@@ -118,6 +118,12 @@ export * from "./release/release-candidate-repository.js";
 export * from "./release/release-policy-selection-repository.js";
 export * from "./release/release-reviewer-authority-repository.js";
 export * from "./release/release-approval-repository.js";
+export {
+  type CapturedReleaseIdentityOperation,
+  type CapturedReleaseIdentityState,
+  InvalidCapturedReleaseIdentityError,
+  inspectCapturedReleaseIdentityState,
+} from "./release/captured-release-identity-state.js";
 export * from "./release/release-candidate-source-references.js";
 export {
   inspectOwnedPolicyEvaluation,

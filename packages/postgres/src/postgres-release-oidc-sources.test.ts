@@ -1,4 +1,8 @@
 import type { EvidenceScope } from "@proofstack/contracts";
+import {
+  ReleaseDecisionVerificationBudget,
+  ReleaseDecisionVerificationBudgetError,
+} from "@proofstack/core";
 import type { PoolClient } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import { PostgresIdentityDataIntegrityError } from "./postgres-api-key-credential-repository.js";
@@ -45,6 +49,74 @@ function client(rows: Record<string, unknown>[]) {
 }
 
 describe("provided-client release OIDC sources", () => {
+  it.each(["binding", "session"] as const)(
+    "admits actual raw %s and absent observations on the original meter",
+    async (kind) => {
+      const meter = new ReleaseDecisionVerificationBudget({
+        maxAcquisitionRecords: 2,
+        maxAcquisitionRecordBytes: 65536,
+        maxApprovalRecords: 0,
+      });
+      const raw = kind === "binding" ? binding : session;
+      const read =
+        kind === "binding"
+          ? readPostgresReleaseOidcBindingOnClient
+          : readPostgresReleaseOidcSessionOnClient;
+      const id = kind === "binding" ? binding.binding_id : session.session_id;
+      await read(client([raw]).view, scope, id, meter);
+      expect(meter.snapshot().records).toBe(1);
+      await expect(read(client([]).view, scope, id, meter)).resolves.toBeNull();
+      expect(meter.snapshot().records).toBe(2);
+      await expect(read(client([raw]).view, scope, id, meter)).rejects.toMatchObject({
+        reason: "record_limit",
+      });
+      expect(() => meter.snapshot()).toThrow(ReleaseDecisionVerificationBudgetError);
+    },
+  );
+  it.each(["binding", "session"] as const)(
+    "taints a caught malformed %s source before another source can be used",
+    async (kind) => {
+      const meter = new ReleaseDecisionVerificationBudget({
+        maxAcquisitionRecords: 10,
+        maxAcquisitionRecordBytes: 65536,
+        maxApprovalRecords: 0,
+      });
+      const raw = { ...(kind === "binding" ? binding : session), principal_id: "INVALID" };
+      const read =
+        kind === "binding"
+          ? readPostgresReleaseOidcBindingOnClient
+          : readPostgresReleaseOidcSessionOnClient;
+      const id = kind === "binding" ? binding.binding_id : session.session_id;
+      await expect(read(client([raw]).view, scope, id, meter)).rejects.toMatchObject({
+        reason: "source_read_failed",
+        cause: expect.any(PostgresIdentityDataIntegrityError),
+      });
+      expect(() => meter.snapshot()).toThrow(ReleaseDecisionVerificationBudgetError);
+    },
+  );
+  it.each(["binding", "session"] as const)(
+    "admits oversized raw %s bytes before schema interpretation",
+    async (kind) => {
+      const meter = new ReleaseDecisionVerificationBudget({
+        maxAcquisitionRecords: 10,
+        maxAcquisitionRecordBytes: 8192,
+        maxApprovalRecords: 0,
+      });
+      const raw = {
+        ...(kind === "binding" ? binding : session),
+        unknown_large_field: "x".repeat(1024 * 1024),
+      };
+      const read =
+        kind === "binding"
+          ? readPostgresReleaseOidcBindingOnClient
+          : readPostgresReleaseOidcSessionOnClient;
+      const id = kind === "binding" ? binding.binding_id : session.session_id;
+      await expect(read(client([raw]).view, scope, id, meter)).rejects.toMatchObject({
+        reason: "byte_limit",
+      });
+      expect(() => meter.snapshot()).toThrow(ReleaseDecisionVerificationBudgetError);
+    },
+  );
   it("returns the exact sanitized binding with sorted grants and full native precision", async () => {
     const fixture = client([binding]);
     const result = await readPostgresReleaseOidcBindingOnClient(

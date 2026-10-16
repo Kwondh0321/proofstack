@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [same-client guarded OIDC component](workflow-2-guarded-release-oidc.md) joins actual private
+authentication to current owning session/grant reads and retained OIDC guards. Complete installation,
+reviewer/source closure, roles, recovery and atomic decision/outbox publication remain open.
+
 The [owning mutation authentication composition](workflow-2-release-mutation-authentication.md)
 requires actual OIDC/CSRF or a separate private service publisher and exact capability/scope.
 Its process-local proof is completed authentication, not current native installation/reviewer authority.

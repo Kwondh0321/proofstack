@@ -77,6 +77,10 @@ export {
 } from "./postgres-model-assurance-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
+  PostgresReleaseOidcMutationError,
+  recheckPostgresReleaseOidcMutationOnClient,
+} from "./postgres-release-oidc-mutation.js";
+export {
   type ReleaseOidcSourceKind,
   readPostgresReleaseOidcBindingOnClient,
   readPostgresReleaseOidcSessionOnClient,
