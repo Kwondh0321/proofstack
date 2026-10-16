@@ -6,6 +6,8 @@ Status: checkpoint 4 contract prerequisite; Workflow 2 remains 3/7 accepted. Cur
 publisher authority, guarded persistence, API/SDK and the independent exit audit remain open.
 See [ADR-0039](../architecture/0039-retain-bounded-decision-authority-material.md),
 [decision contracts](workflow-2-decision-contracts.md) and the [entry audit](workflow-2-decision-entry-audit.md).
+The separate [0.2 current authority material](workflow-2-decision-current-authority-material.md)
+adds complete original sources without reinterpreting this historical 0.1 format.
 
 ## Retained original view
 

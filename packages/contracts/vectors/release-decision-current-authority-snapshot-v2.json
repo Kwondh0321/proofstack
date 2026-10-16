@@ -1,0 +1,1720 @@
+{
+  "format": "proofstack.release-decision-authority-snapshot.v2",
+  "basis": "Independent Python compact UTF-8/hashlib/base64; synthetic unavailable original/credential/root views, no actual authentication or publication",
+  "vectors": [
+    {
+      "name": "complete-empty-approval-census-with-explicit-missing-originals",
+      "material": {
+        "schemaVersion": "0.2",
+        "base": {
+          "schemaVersion": "0.1",
+          "authoritySnapshotId": "authority_snapshot_reference",
+          "decisionId": "decision_reference",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "input": {
+            "decisionInputRequestId": "decision_input_checkout",
+            "scope": {
+              "environmentId": "env_staging",
+              "projectId": "project_checkout",
+              "tenantId": "tenant_example"
+            },
+            "candidate": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "selection": {
+              "selectionId": "selection_checkout",
+              "selectionVersionId": "selection_checkout_v1",
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626"
+            },
+            "mode": "enforce",
+            "publisher": {
+              "principalId": "principal_decision_publisher",
+              "principalType": "service",
+              "authenticationMethod": "service_token",
+              "authenticatedAt": "2026-10-15T12:00:00.000Z",
+              "credentialId": "credential_decision",
+              "requestId": "request-decision-1"
+            },
+            "createdAt": "2026-10-15T12:00:00.000001Z",
+            "expiresAt": "2026-10-15T12:10:00.000001Z",
+            "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+            "verificationLimits": {
+              "maxAcquisitionRecords": 100000,
+              "maxAcquisitionRecordBytes": 67108864,
+              "maxApprovalRecords": 4096
+            },
+            "evaluations": [
+              {
+                "mode": "mandatory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_a",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_a",
+                    "policyVersionId": "policy_checkout_a_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                "requestSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              {
+                "mode": "advisory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_b",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_b",
+                    "policyVersionId": "policy_checkout_b_v1",
+                    "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  }
+                },
+                "requestSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              }
+            ],
+            "schemaVersion": "0.1",
+            "definitionSha256": "873c4dc316a43e1e3a4aa999b60b15cb8ec91114fa8e9b7f270f9ca74c9252ad"
+          },
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "service",
+            "authenticationMethod": "service_token",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "credential_decision",
+            "requestId": "request-decision-1"
+          },
+          "publisherIdentity": {
+            "kind": "service_credential",
+            "principalId": "principal_decision_publisher",
+            "credentialId": "credential_decision"
+          },
+          "capturedAt": "2026-10-15T12:03:00.000001Z",
+          "recoveryEpoch": 1,
+          "candidate": {
+            "state": "missing",
+            "reference": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          },
+          "selections": {
+            "state": "complete",
+            "records": [
+              {
+                "selectionId": "selection_checkout",
+                "selectionVersionId": "selection_checkout_v1",
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "scope": {
+                  "environmentId": "env_staging",
+                  "projectId": "project_checkout",
+                  "tenantId": "tenant_example"
+                },
+                "candidateTarget": {
+                  "environmentId": "env_staging",
+                  "jurisdiction": "us",
+                  "locale": "en-us",
+                  "maximumDataClassification": "confidential",
+                  "populationTags": ["business", "checkout"],
+                  "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                  "riskTier": "high",
+                  "taskKind": "checkout_agent"
+                },
+                "mode": "enforce",
+                "policies": [
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_a",
+                      "policyVersionId": "policy_checkout_a_v1",
+                      "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "mode": "mandatory"
+                  },
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_b",
+                      "policyVersionId": "policy_checkout_b_v1",
+                      "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    },
+                    "mode": "advisory"
+                  }
+                ],
+                "authorizedPublisherPrincipalIds": [
+                  "service_decision_publisher",
+                  "user_decision_publisher"
+                ],
+                "issuerPrincipalId": "user_installation_owner",
+                "authorityEvidence": {
+                  "artifactId": "artifact_installation_authority",
+                  "classification": "internal",
+                  "mediaType": "application/vnd.proofstack.policy-authority+json",
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "sizeBytes": 512
+                },
+                "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+                "effectiveAt": "2026-10-15T00:00:00.000001Z",
+                "expiresAt": "2026-10-16T00:00:00.000001Z",
+                "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626",
+                "schemaVersion": "0.1",
+                "publishedAt": "2026-10-15T00:00:00.000001Z",
+                "publishedByPrincipalId": "user_installation_owner"
+              }
+            ],
+            "lifecycle": []
+          },
+          "policies": [
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_a",
+                  "policyVersionId": "policy_checkout_a_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_a",
+                "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            },
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_b",
+                  "policyVersionId": "policy_checkout_b_v1",
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_b",
+                "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            }
+          ],
+          "approvals": {
+            "state": "complete",
+            "records": [],
+            "revocations": [],
+            "actors": []
+          },
+          "authorities": {
+            "records": [],
+            "lifecycle": []
+          },
+          "identities": [
+            {
+              "state": "observed",
+              "reference": {
+                "kind": "service_credential",
+                "principalId": "principal_decision_publisher",
+                "credentialId": "credential_decision"
+              },
+              "record": {
+                "identity": {
+                  "kind": "service_credential",
+                  "principalId": "principal_decision_publisher",
+                  "credentialId": "credential_decision"
+                },
+                "tenantId": "tenant_example",
+                "state": "active",
+                "capabilities": ["release:decision:publish"],
+                "roles": ["member"],
+                "resourceScope": {
+                  "mode": "restricted",
+                  "projects": [
+                    {
+                      "projectId": "project_checkout",
+                      "environmentIds": ["env_staging"]
+                    }
+                  ]
+                },
+                "revision": 1,
+                "updatedAt": "2026-10-15T12:00:00.000001Z"
+              }
+            }
+          ],
+          "usage": {
+            "records": 12,
+            "recordBytes": 7354,
+            "approvalRecords": 0
+          }
+        },
+        "selectionRoot": {
+          "state": "unavailable",
+          "reference": {
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging"
+          }
+        },
+        "reviewerCensuses": [],
+        "credentials": [
+          {
+            "state": "missing",
+            "reference": {
+              "kind": "service_credential",
+              "principalId": "principal_decision_publisher",
+              "credentialId": "credential_decision"
+            }
+          }
+        ],
+        "originals": [
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_a",
+              "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+            },
+            "reason": "original_unresolved"
+          },
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_b",
+              "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+            },
+            "reason": "original_unresolved"
+          }
+        ],
+        "controls": []
+      },
+      "expected": {
+        "materialByteLength": 8763,
+        "materialSha256": "1bea297286965c24970c8ccef362c58dd43b419b458c4c828b642c8c50ab77c2",
+        "frameCount": 5,
+        "pageSha256": ["47fe26d2f9a8f3e33ce8dec5e8b6b61ebaa25c23ce2512bb79b1f95e1d32fe81"],
+        "headerSha256": "41986841db49e310941ad6ff893ecf07f7592400c6788e5b7258d1cdfa1e269a",
+        "reviewAuthorityAssurances": [],
+        "hasUnavailableReviewerAuthority": false
+      }
+    },
+    {
+      "name": "synthetic-authority-remains-explicit-in-header",
+      "material": {
+        "schemaVersion": "0.2",
+        "base": {
+          "schemaVersion": "0.1",
+          "authoritySnapshotId": "authority_snapshot_reference",
+          "decisionId": "decision_reference",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "input": {
+            "decisionInputRequestId": "decision_input_checkout",
+            "scope": {
+              "environmentId": "env_staging",
+              "projectId": "project_checkout",
+              "tenantId": "tenant_example"
+            },
+            "candidate": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "selection": {
+              "selectionId": "selection_checkout",
+              "selectionVersionId": "selection_checkout_v1",
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626"
+            },
+            "mode": "enforce",
+            "publisher": {
+              "principalId": "principal_decision_publisher",
+              "principalType": "service",
+              "authenticationMethod": "service_token",
+              "authenticatedAt": "2026-10-15T12:00:00.000Z",
+              "credentialId": "credential_decision",
+              "requestId": "request-decision-1"
+            },
+            "createdAt": "2026-10-15T12:00:00.000001Z",
+            "expiresAt": "2026-10-15T12:10:00.000001Z",
+            "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+            "verificationLimits": {
+              "maxAcquisitionRecords": 100000,
+              "maxAcquisitionRecordBytes": 67108864,
+              "maxApprovalRecords": 4096
+            },
+            "evaluations": [
+              {
+                "mode": "mandatory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_a",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_a",
+                    "policyVersionId": "policy_checkout_a_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                "requestSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              {
+                "mode": "advisory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_b",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_b",
+                    "policyVersionId": "policy_checkout_b_v1",
+                    "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  }
+                },
+                "requestSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              }
+            ],
+            "schemaVersion": "0.1",
+            "definitionSha256": "873c4dc316a43e1e3a4aa999b60b15cb8ec91114fa8e9b7f270f9ca74c9252ad"
+          },
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "service",
+            "authenticationMethod": "service_token",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "credential_decision",
+            "requestId": "request-decision-1"
+          },
+          "publisherIdentity": {
+            "kind": "service_credential",
+            "principalId": "principal_decision_publisher",
+            "credentialId": "credential_decision"
+          },
+          "capturedAt": "2026-10-15T12:03:00.000001Z",
+          "recoveryEpoch": 1,
+          "candidate": {
+            "state": "missing",
+            "reference": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          },
+          "selections": {
+            "state": "complete",
+            "records": [
+              {
+                "selectionId": "selection_checkout",
+                "selectionVersionId": "selection_checkout_v1",
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "scope": {
+                  "environmentId": "env_staging",
+                  "projectId": "project_checkout",
+                  "tenantId": "tenant_example"
+                },
+                "candidateTarget": {
+                  "environmentId": "env_staging",
+                  "jurisdiction": "us",
+                  "locale": "en-us",
+                  "maximumDataClassification": "confidential",
+                  "populationTags": ["business", "checkout"],
+                  "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                  "riskTier": "high",
+                  "taskKind": "checkout_agent"
+                },
+                "mode": "enforce",
+                "policies": [
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_a",
+                      "policyVersionId": "policy_checkout_a_v1",
+                      "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "mode": "mandatory"
+                  },
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_b",
+                      "policyVersionId": "policy_checkout_b_v1",
+                      "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    },
+                    "mode": "advisory"
+                  }
+                ],
+                "authorizedPublisherPrincipalIds": [
+                  "service_decision_publisher",
+                  "user_decision_publisher"
+                ],
+                "issuerPrincipalId": "user_installation_owner",
+                "authorityEvidence": {
+                  "artifactId": "artifact_installation_authority",
+                  "classification": "internal",
+                  "mediaType": "application/vnd.proofstack.policy-authority+json",
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "sizeBytes": 512
+                },
+                "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+                "effectiveAt": "2026-10-15T00:00:00.000001Z",
+                "expiresAt": "2026-10-16T00:00:00.000001Z",
+                "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626",
+                "schemaVersion": "0.1",
+                "publishedAt": "2026-10-15T00:00:00.000001Z",
+                "publishedByPrincipalId": "user_installation_owner"
+              }
+            ],
+            "lifecycle": []
+          },
+          "policies": [
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_a",
+                  "policyVersionId": "policy_checkout_a_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_a",
+                "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            },
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_b",
+                  "policyVersionId": "policy_checkout_b_v1",
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_b",
+                "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            }
+          ],
+          "approvals": {
+            "state": "complete",
+            "records": [],
+            "revocations": [],
+            "actors": []
+          },
+          "authorities": {
+            "records": [
+              {
+                "state": "observed",
+                "reference": {
+                  "authorityId": "authority_release_reviewer",
+                  "authorityVersionId": "authority_release_reviewer_v1",
+                  "definitionSha256": "226cd73839802205a0e678426b79ed47eb1552ab6ccb6fd6041b5cdba83c9dd1",
+                  "installationId": "installation_checkout",
+                  "gateTargetId": "gate_checkout_staging",
+                  "reviewerPrincipalId": "user_release_reviewer"
+                },
+                "record": {
+                  "authorityId": "authority_release_reviewer",
+                  "authorityVersionId": "authority_release_reviewer_v1",
+                  "scope": {
+                    "environmentId": "env_staging",
+                    "projectId": "project_checkout",
+                    "tenantId": "tenant_example"
+                  },
+                  "installationId": "installation_checkout",
+                  "gateTargetId": "gate_checkout_staging",
+                  "reviewerPrincipalId": "user_release_reviewer",
+                  "issuerPrincipalId": "user_reviewer_administrator",
+                  "roleIds": ["release_reviewer", "security_reviewer"],
+                  "independenceGroupIds": ["group_release_review", "group_security_review"],
+                  "reviewerKind": "human",
+                  "assurance": "synthetic_reference",
+                  "status": "verified",
+                  "affiliations": [
+                    "Synthetic reference reviewer; no real expertise certification."
+                  ],
+                  "relationships": [],
+                  "conflicts": [],
+                  "statusReasons": [],
+                  "reviewBasis": [
+                    {
+                      "artifactId": "artifact_synthetic_reviewer_basis",
+                      "classification": "internal",
+                      "mediaType": "application/json",
+                      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "sizeBytes": 512
+                    }
+                  ],
+                  "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+                  "effectiveAt": "2026-10-15T12:00:00.000001Z",
+                  "expiresAt": "2026-10-15T13:00:00.000001Z",
+                  "definitionSha256": "226cd73839802205a0e678426b79ed47eb1552ab6ccb6fd6041b5cdba83c9dd1",
+                  "schemaVersion": "0.1",
+                  "publishedAt": "2026-10-15T12:00:00.000001Z",
+                  "publishedByPrincipalId": "user_reviewer_administrator"
+                }
+              }
+            ],
+            "lifecycle": []
+          },
+          "identities": [
+            {
+              "state": "observed",
+              "reference": {
+                "kind": "service_credential",
+                "principalId": "principal_decision_publisher",
+                "credentialId": "credential_decision"
+              },
+              "record": {
+                "identity": {
+                  "kind": "service_credential",
+                  "principalId": "principal_decision_publisher",
+                  "credentialId": "credential_decision"
+                },
+                "tenantId": "tenant_example",
+                "state": "active",
+                "capabilities": ["release:decision:publish"],
+                "roles": ["member"],
+                "resourceScope": {
+                  "mode": "restricted",
+                  "projects": [
+                    {
+                      "projectId": "project_checkout",
+                      "environmentIds": ["env_staging"]
+                    }
+                  ]
+                },
+                "revision": 1,
+                "updatedAt": "2026-10-15T12:00:00.000001Z"
+              }
+            }
+          ],
+          "usage": {
+            "records": 15,
+            "recordBytes": 9382,
+            "approvalRecords": 0
+          }
+        },
+        "selectionRoot": {
+          "state": "unavailable",
+          "reference": {
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging"
+          }
+        },
+        "reviewerCensuses": [
+          {
+            "reference": {
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "reviewerPrincipalId": "user_release_reviewer",
+              "authorityId": "authority_release_reviewer"
+            },
+            "state": "unavailable",
+            "binding": {
+              "state": "unavailable",
+              "reference": {
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "reviewerPrincipalId": "user_release_reviewer"
+              }
+            }
+          }
+        ],
+        "credentials": [
+          {
+            "state": "missing",
+            "reference": {
+              "kind": "service_credential",
+              "principalId": "principal_decision_publisher",
+              "credentialId": "credential_decision"
+            }
+          }
+        ],
+        "originals": [
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_a",
+              "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+            },
+            "reason": "original_unresolved"
+          },
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_b",
+              "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+            },
+            "reason": "original_unresolved"
+          }
+        ],
+        "controls": []
+      },
+      "expected": {
+        "materialByteLength": 10802,
+        "materialSha256": "a059cb443588f31e952c650edf373c853523d3953ca312eecd7b0a704560c88b",
+        "frameCount": 6,
+        "pageSha256": ["c62191c5ead1bce0a82a43cc150dfccfe4f9c40f04bfc0286f7e8f53ae815674"],
+        "headerSha256": "b5837ca63ac8360462e0c3e1bad4b3db70128d63b91ccc575eefa7c8ef72dbd7",
+        "reviewAuthorityAssurances": ["synthetic_reference"],
+        "hasUnavailableReviewerAuthority": true
+      }
+    },
+    {
+      "name": "unavailable-authority-is-not-an-empty-authority-set",
+      "material": {
+        "schemaVersion": "0.2",
+        "base": {
+          "schemaVersion": "0.1",
+          "authoritySnapshotId": "authority_snapshot_reference",
+          "decisionId": "decision_reference",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "input": {
+            "decisionInputRequestId": "decision_input_checkout",
+            "scope": {
+              "environmentId": "env_staging",
+              "projectId": "project_checkout",
+              "tenantId": "tenant_example"
+            },
+            "candidate": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "selection": {
+              "selectionId": "selection_checkout",
+              "selectionVersionId": "selection_checkout_v1",
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626"
+            },
+            "mode": "enforce",
+            "publisher": {
+              "principalId": "principal_decision_publisher",
+              "principalType": "service",
+              "authenticationMethod": "service_token",
+              "authenticatedAt": "2026-10-15T12:00:00.000Z",
+              "credentialId": "credential_decision",
+              "requestId": "request-decision-1"
+            },
+            "createdAt": "2026-10-15T12:00:00.000001Z",
+            "expiresAt": "2026-10-15T12:10:00.000001Z",
+            "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+            "verificationLimits": {
+              "maxAcquisitionRecords": 100000,
+              "maxAcquisitionRecordBytes": 67108864,
+              "maxApprovalRecords": 4096
+            },
+            "evaluations": [
+              {
+                "mode": "mandatory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_a",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_a",
+                    "policyVersionId": "policy_checkout_a_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                "requestSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              {
+                "mode": "advisory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_b",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_b",
+                    "policyVersionId": "policy_checkout_b_v1",
+                    "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  }
+                },
+                "requestSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              }
+            ],
+            "schemaVersion": "0.1",
+            "definitionSha256": "873c4dc316a43e1e3a4aa999b60b15cb8ec91114fa8e9b7f270f9ca74c9252ad"
+          },
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "service",
+            "authenticationMethod": "service_token",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "credential_decision",
+            "requestId": "request-decision-1"
+          },
+          "publisherIdentity": {
+            "kind": "service_credential",
+            "principalId": "principal_decision_publisher",
+            "credentialId": "credential_decision"
+          },
+          "capturedAt": "2026-10-15T12:03:00.000001Z",
+          "recoveryEpoch": 1,
+          "candidate": {
+            "state": "missing",
+            "reference": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          },
+          "selections": {
+            "state": "complete",
+            "records": [
+              {
+                "selectionId": "selection_checkout",
+                "selectionVersionId": "selection_checkout_v1",
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "scope": {
+                  "environmentId": "env_staging",
+                  "projectId": "project_checkout",
+                  "tenantId": "tenant_example"
+                },
+                "candidateTarget": {
+                  "environmentId": "env_staging",
+                  "jurisdiction": "us",
+                  "locale": "en-us",
+                  "maximumDataClassification": "confidential",
+                  "populationTags": ["business", "checkout"],
+                  "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                  "riskTier": "high",
+                  "taskKind": "checkout_agent"
+                },
+                "mode": "enforce",
+                "policies": [
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_a",
+                      "policyVersionId": "policy_checkout_a_v1",
+                      "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "mode": "mandatory"
+                  },
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_b",
+                      "policyVersionId": "policy_checkout_b_v1",
+                      "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    },
+                    "mode": "advisory"
+                  }
+                ],
+                "authorizedPublisherPrincipalIds": [
+                  "service_decision_publisher",
+                  "user_decision_publisher"
+                ],
+                "issuerPrincipalId": "user_installation_owner",
+                "authorityEvidence": {
+                  "artifactId": "artifact_installation_authority",
+                  "classification": "internal",
+                  "mediaType": "application/vnd.proofstack.policy-authority+json",
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "sizeBytes": 512
+                },
+                "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+                "effectiveAt": "2026-10-15T00:00:00.000001Z",
+                "expiresAt": "2026-10-16T00:00:00.000001Z",
+                "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626",
+                "schemaVersion": "0.1",
+                "publishedAt": "2026-10-15T00:00:00.000001Z",
+                "publishedByPrincipalId": "user_installation_owner"
+              }
+            ],
+            "lifecycle": []
+          },
+          "policies": [
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_a",
+                  "policyVersionId": "policy_checkout_a_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_a",
+                "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            },
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_b",
+                  "policyVersionId": "policy_checkout_b_v1",
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_b",
+                "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            }
+          ],
+          "approvals": {
+            "state": "complete",
+            "records": [],
+            "revocations": [],
+            "actors": []
+          },
+          "authorities": {
+            "records": [
+              {
+                "state": "unavailable",
+                "reference": {
+                  "authorityId": "authority_release_reviewer",
+                  "authorityVersionId": "authority_release_reviewer_v1",
+                  "definitionSha256": "226cd73839802205a0e678426b79ed47eb1552ab6ccb6fd6041b5cdba83c9dd1",
+                  "installationId": "installation_checkout",
+                  "gateTargetId": "gate_checkout_staging",
+                  "reviewerPrincipalId": "user_release_reviewer"
+                }
+              }
+            ],
+            "lifecycle": []
+          },
+          "identities": [
+            {
+              "state": "observed",
+              "reference": {
+                "kind": "service_credential",
+                "principalId": "principal_decision_publisher",
+                "credentialId": "credential_decision"
+              },
+              "record": {
+                "identity": {
+                  "kind": "service_credential",
+                  "principalId": "principal_decision_publisher",
+                  "credentialId": "credential_decision"
+                },
+                "tenantId": "tenant_example",
+                "state": "active",
+                "capabilities": ["release:decision:publish"],
+                "roles": ["member"],
+                "resourceScope": {
+                  "mode": "restricted",
+                  "projects": [
+                    {
+                      "projectId": "project_checkout",
+                      "environmentIds": ["env_staging"]
+                    }
+                  ]
+                },
+                "revision": 1,
+                "updatedAt": "2026-10-15T12:00:00.000001Z"
+              }
+            }
+          ],
+          "usage": {
+            "records": 15,
+            "recordBytes": 8068,
+            "approvalRecords": 0
+          }
+        },
+        "selectionRoot": {
+          "state": "unavailable",
+          "reference": {
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging"
+          }
+        },
+        "reviewerCensuses": [
+          {
+            "reference": {
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "reviewerPrincipalId": "user_release_reviewer",
+              "authorityId": "authority_release_reviewer"
+            },
+            "state": "unavailable",
+            "binding": {
+              "state": "unavailable",
+              "reference": {
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "reviewerPrincipalId": "user_release_reviewer"
+              }
+            }
+          }
+        ],
+        "credentials": [
+          {
+            "state": "missing",
+            "reference": {
+              "kind": "service_credential",
+              "principalId": "principal_decision_publisher",
+              "credentialId": "credential_decision"
+            }
+          }
+        ],
+        "originals": [
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_a",
+              "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+            },
+            "reason": "original_unresolved"
+          },
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_b",
+              "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+            },
+            "reason": "original_unresolved"
+          }
+        ],
+        "controls": []
+      },
+      "expected": {
+        "materialByteLength": 9488,
+        "materialSha256": "bae547b187a612f8921f19e00f7fecc227d735db1229e0b67b6a9bb2c098e96b",
+        "frameCount": 5,
+        "pageSha256": ["57c03d86fee714dc241c3b0410434d19c66cde40f33156335ad53bcf7fcb4349"],
+        "headerSha256": "117cbd303948f527eacabf5f38f478bf8b0a86c572a7fbb26f1eb5a973ab6040",
+        "reviewAuthorityAssurances": [],
+        "hasUnavailableReviewerAuthority": true
+      }
+    },
+    {
+      "name": "retained-original-reviewer-binding-and-synthetic-review",
+      "material": {
+        "schemaVersion": "0.2",
+        "base": {
+          "schemaVersion": "0.1",
+          "authoritySnapshotId": "authority_snapshot_reference",
+          "decisionId": "decision_reference",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "input": {
+            "decisionInputRequestId": "decision_input_checkout",
+            "scope": {
+              "environmentId": "env_staging",
+              "projectId": "project_checkout",
+              "tenantId": "tenant_example"
+            },
+            "candidate": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "selection": {
+              "selectionId": "selection_checkout",
+              "selectionVersionId": "selection_checkout_v1",
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626"
+            },
+            "mode": "enforce",
+            "publisher": {
+              "principalId": "principal_decision_publisher",
+              "principalType": "service",
+              "authenticationMethod": "service_token",
+              "authenticatedAt": "2026-10-15T12:00:00.000Z",
+              "credentialId": "credential_decision",
+              "requestId": "request-decision-1"
+            },
+            "createdAt": "2026-10-15T12:00:00.000001Z",
+            "expiresAt": "2026-10-15T12:10:00.000001Z",
+            "rationale": "Predeclare every installed policy before any result; 원래 입력을 보존합니다.",
+            "verificationLimits": {
+              "maxAcquisitionRecords": 100000,
+              "maxAcquisitionRecordBytes": 67108864,
+              "maxApprovalRecords": 4096
+            },
+            "evaluations": [
+              {
+                "mode": "mandatory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_a",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_a",
+                    "policyVersionId": "policy_checkout_a_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }
+                },
+                "requestSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              {
+                "mode": "advisory",
+                "request": {
+                  "algorithm": {
+                    "id": "proofstack.deterministic-policy",
+                    "version": "1.0.0"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "evaluationRequestId": "evaluation_checkout_b",
+                  "evaluationTime": "2026-10-15T12:00:00.000001Z",
+                  "limits": {
+                    "heartbeatIntervalMilliseconds": 5000,
+                    "leaseDurationMilliseconds": 30000,
+                    "maxAcquisitionRecordBytes": 16777216,
+                    "maxAcquisitionRecords": 10000,
+                    "maxArtifactReadBytes": 67108864,
+                    "maxAttempts": 3,
+                    "maxRuleEvaluations": 384,
+                    "perAttemptTimeoutMilliseconds": 120000,
+                    "retryBackoffMilliseconds": 1000,
+                    "retryableErrors": [
+                      "lease_expired",
+                      "source_revision_changed",
+                      "source_temporarily_unavailable",
+                      "worker_interrupted"
+                    ],
+                    "totalDeadlineMilliseconds": 600000
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_b",
+                    "policyVersionId": "policy_checkout_b_v1",
+                    "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  }
+                },
+                "requestSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              }
+            ],
+            "schemaVersion": "0.1",
+            "definitionSha256": "873c4dc316a43e1e3a4aa999b60b15cb8ec91114fa8e9b7f270f9ca74c9252ad"
+          },
+          "publisher": {
+            "principalId": "principal_decision_publisher",
+            "principalType": "service",
+            "authenticationMethod": "service_token",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "credential_decision",
+            "requestId": "request-decision-1"
+          },
+          "publisherIdentity": {
+            "kind": "service_credential",
+            "principalId": "principal_decision_publisher",
+            "credentialId": "credential_decision"
+          },
+          "capturedAt": "2026-10-15T12:03:00.000001Z",
+          "recoveryEpoch": 1,
+          "candidate": {
+            "state": "missing",
+            "reference": {
+              "candidateId": "candidate_reference",
+              "candidateVersionId": "candidate_reference_v1",
+              "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          },
+          "selections": {
+            "state": "complete",
+            "records": [
+              {
+                "selectionId": "selection_checkout",
+                "selectionVersionId": "selection_checkout_v1",
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "scope": {
+                  "environmentId": "env_staging",
+                  "projectId": "project_checkout",
+                  "tenantId": "tenant_example"
+                },
+                "candidateTarget": {
+                  "environmentId": "env_staging",
+                  "jurisdiction": "us",
+                  "locale": "en-us",
+                  "maximumDataClassification": "confidential",
+                  "populationTags": ["business", "checkout"],
+                  "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                  "riskTier": "high",
+                  "taskKind": "checkout_agent"
+                },
+                "mode": "enforce",
+                "policies": [
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_a",
+                      "policyVersionId": "policy_checkout_a_v1",
+                      "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    "mode": "mandatory"
+                  },
+                  {
+                    "policy": {
+                      "policyId": "policy_checkout_b",
+                      "policyVersionId": "policy_checkout_b_v1",
+                      "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    },
+                    "mode": "advisory"
+                  }
+                ],
+                "authorizedPublisherPrincipalIds": [
+                  "service_decision_publisher",
+                  "user_decision_publisher"
+                ],
+                "issuerPrincipalId": "user_installation_owner",
+                "authorityEvidence": {
+                  "artifactId": "artifact_installation_authority",
+                  "classification": "internal",
+                  "mediaType": "application/vnd.proofstack.policy-authority+json",
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "sizeBytes": 512
+                },
+                "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+                "effectiveAt": "2026-10-15T00:00:00.000001Z",
+                "expiresAt": "2026-10-16T00:00:00.000001Z",
+                "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626",
+                "schemaVersion": "0.1",
+                "publishedAt": "2026-10-15T00:00:00.000001Z",
+                "publishedByPrincipalId": "user_installation_owner"
+              }
+            ],
+            "lifecycle": []
+          },
+          "policies": [
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_a",
+                  "policyVersionId": "policy_checkout_a_v1",
+                  "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_a",
+                "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            },
+            {
+              "policy": {
+                "state": "missing",
+                "reference": {
+                  "policyId": "policy_checkout_b",
+                  "policyVersionId": "policy_checkout_b_v1",
+                  "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              },
+              "request": {
+                "evaluationRequestId": "evaluation_checkout_b",
+                "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+              },
+              "original": {
+                "state": "unresolved",
+                "reason": "request_missing"
+              },
+              "lifecycle": []
+            }
+          ],
+          "approvals": {
+            "state": "complete",
+            "records": [
+              {
+                "approvalId": "approval_checkout_normal",
+                "kind": "normal_approval",
+                "action": "approve",
+                "subject": {
+                  "scope": {
+                    "environmentId": "env_staging",
+                    "projectId": "project_checkout",
+                    "tenantId": "tenant_example"
+                  },
+                  "selection": {
+                    "selectionId": "selection_checkout",
+                    "selectionVersionId": "selection_checkout_v1",
+                    "installationId": "installation_checkout",
+                    "gateTargetId": "gate_checkout_staging",
+                    "definitionSha256": "27a51abd956e93749308f78cbd4c6b1ab540809f5eefb3c1f461749610399626"
+                  },
+                  "candidate": {
+                    "candidateId": "candidate_reference",
+                    "candidateVersionId": "candidate_reference_v1",
+                    "definitionSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+                  },
+                  "policy": {
+                    "policyId": "policy_checkout_a",
+                    "policyVersionId": "policy_checkout_a_v1",
+                    "definitionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  },
+                  "request": {
+                    "evaluationRequestId": "evaluation_checkout_a",
+                    "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+                  },
+                  "snapshot": {
+                    "snapshotId": "snapshot_checkout",
+                    "definitionSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                  },
+                  "evaluation": {
+                    "evaluationId": "evaluation_checkout",
+                    "definitionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                  },
+                  "jobId": "job_checkout",
+                  "ruleId": "rule_approval"
+                },
+                "rationale": "Approve this exact synthetic reference subject; 운영 승인이 아닙니다.",
+                "conditions": [],
+                "compensatingControls": [],
+                "declaredConflicts": [],
+                "expiresAt": "2026-10-15T12:08:00.000001Z",
+                "reviewer": {
+                  "principalId": "user_release_reviewer",
+                  "principalType": "user",
+                  "authenticationMethod": "oidc",
+                  "authenticatedAt": "2026-10-15T12:00:00.000Z",
+                  "credentialId": "session_release_reviewer",
+                  "requestId": "request_release_approval"
+                },
+                "authority": {
+                  "authorityId": "authority_release_reviewer",
+                  "authorityVersionId": "authority_release_reviewer_v1",
+                  "definitionSha256": "226cd73839802205a0e678426b79ed47eb1552ab6ccb6fd6041b5cdba83c9dd1",
+                  "installationId": "installation_checkout",
+                  "gateTargetId": "gate_checkout_staging",
+                  "reviewerPrincipalId": "user_release_reviewer"
+                },
+                "recordedAt": "2026-10-15T12:01:00.000001Z",
+                "schemaVersion": "0.1",
+                "definitionSha256": "3e4a12d84d23c32dac20662e3c57a33d522ded3a9db23161aaf07578450bc680"
+              }
+            ],
+            "revocations": [],
+            "actors": [
+              {
+                "approval": {
+                  "approvalId": "approval_checkout_normal",
+                  "definitionSha256": "3e4a12d84d23c32dac20662e3c57a33d522ded3a9db23161aaf07578450bc680"
+                },
+                "identity": {
+                  "kind": "oidc_binding",
+                  "bindingId": "binding_reference_reviewer",
+                  "principalId": "user_release_reviewer"
+                }
+              }
+            ]
+          },
+          "authorities": {
+            "records": [
+              {
+                "state": "observed",
+                "reference": {
+                  "authorityId": "authority_release_reviewer",
+                  "authorityVersionId": "authority_release_reviewer_v1",
+                  "definitionSha256": "226cd73839802205a0e678426b79ed47eb1552ab6ccb6fd6041b5cdba83c9dd1",
+                  "installationId": "installation_checkout",
+                  "gateTargetId": "gate_checkout_staging",
+                  "reviewerPrincipalId": "user_release_reviewer"
+                },
+                "record": {
+                  "authorityId": "authority_release_reviewer",
+                  "authorityVersionId": "authority_release_reviewer_v1",
+                  "scope": {
+                    "environmentId": "env_staging",
+                    "projectId": "project_checkout",
+                    "tenantId": "tenant_example"
+                  },
+                  "installationId": "installation_checkout",
+                  "gateTargetId": "gate_checkout_staging",
+                  "reviewerPrincipalId": "user_release_reviewer",
+                  "issuerPrincipalId": "user_reviewer_administrator",
+                  "roleIds": ["release_reviewer", "security_reviewer"],
+                  "independenceGroupIds": ["group_release_review", "group_security_review"],
+                  "reviewerKind": "human",
+                  "assurance": "synthetic_reference",
+                  "status": "verified",
+                  "affiliations": [
+                    "Synthetic reference reviewer; no real expertise certification."
+                  ],
+                  "relationships": [],
+                  "conflicts": [],
+                  "statusReasons": [],
+                  "reviewBasis": [
+                    {
+                      "artifactId": "artifact_synthetic_reviewer_basis",
+                      "classification": "internal",
+                      "mediaType": "application/json",
+                      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "sizeBytes": 512
+                    }
+                  ],
+                  "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+                  "effectiveAt": "2026-10-15T12:00:00.000001Z",
+                  "expiresAt": "2026-10-15T13:00:00.000001Z",
+                  "definitionSha256": "226cd73839802205a0e678426b79ed47eb1552ab6ccb6fd6041b5cdba83c9dd1",
+                  "schemaVersion": "0.1",
+                  "publishedAt": "2026-10-15T12:00:00.000001Z",
+                  "publishedByPrincipalId": "user_reviewer_administrator"
+                }
+              }
+            ],
+            "lifecycle": []
+          },
+          "identities": [
+            {
+              "state": "observed",
+              "reference": {
+                "kind": "service_credential",
+                "principalId": "principal_decision_publisher",
+                "credentialId": "credential_decision"
+              },
+              "record": {
+                "identity": {
+                  "kind": "service_credential",
+                  "principalId": "principal_decision_publisher",
+                  "credentialId": "credential_decision"
+                },
+                "tenantId": "tenant_example",
+                "state": "active",
+                "capabilities": ["release:decision:publish"],
+                "roles": ["member"],
+                "resourceScope": {
+                  "mode": "restricted",
+                  "projects": [
+                    {
+                      "projectId": "project_checkout",
+                      "environmentIds": ["env_staging"]
+                    }
+                  ]
+                },
+                "revision": 1,
+                "updatedAt": "2026-10-15T12:00:00.000001Z"
+              }
+            },
+            {
+              "state": "observed",
+              "reference": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_reference_reviewer",
+                "principalId": "user_release_reviewer"
+              },
+              "record": {
+                "identity": {
+                  "kind": "oidc_binding",
+                  "bindingId": "binding_reference_reviewer",
+                  "principalId": "user_release_reviewer"
+                },
+                "tenantId": "tenant_example",
+                "state": "active",
+                "capabilities": ["approval:decide"],
+                "roles": ["member"],
+                "resourceScope": {
+                  "mode": "tenant"
+                },
+                "revision": 1,
+                "updatedAt": "2026-10-15T12:00:00.000001Z"
+              }
+            }
+          ],
+          "usage": {
+            "records": 19,
+            "recordBytes": 12391,
+            "approvalRecords": 1
+          }
+        },
+        "selectionRoot": {
+          "state": "unavailable",
+          "reference": {
+            "installationId": "installation_checkout",
+            "gateTargetId": "gate_checkout_staging"
+          }
+        },
+        "reviewerCensuses": [
+          {
+            "reference": {
+              "installationId": "installation_checkout",
+              "gateTargetId": "gate_checkout_staging",
+              "reviewerPrincipalId": "user_release_reviewer",
+              "authorityId": "authority_release_reviewer"
+            },
+            "state": "unavailable",
+            "binding": {
+              "state": "unavailable",
+              "reference": {
+                "installationId": "installation_checkout",
+                "gateTargetId": "gate_checkout_staging",
+                "reviewerPrincipalId": "user_release_reviewer"
+              }
+            }
+          }
+        ],
+        "credentials": [
+          {
+            "state": "missing",
+            "reference": {
+              "kind": "service_credential",
+              "principalId": "principal_decision_publisher",
+              "credentialId": "credential_decision"
+            }
+          },
+          {
+            "state": "missing",
+            "reference": {
+              "kind": "oidc_session",
+              "principalId": "user_release_reviewer",
+              "credentialId": "session_release_reviewer"
+            }
+          }
+        ],
+        "originals": [
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_a",
+              "definitionSha256": "c0869313069b59d19eccda445f72a0268352e2e35affada41c731cdadd091cb6"
+            },
+            "reason": "original_unresolved"
+          },
+          {
+            "state": "unavailable",
+            "request": {
+              "evaluationRequestId": "evaluation_checkout_b",
+              "definitionSha256": "86e631e606de3c248fb59482b58c7c73b7b0308d0bcee4d100aa43685bde9259"
+            },
+            "reason": "original_unresolved"
+          }
+        ],
+        "controls": []
+      },
+      "expected": {
+        "materialByteLength": 13814,
+        "materialSha256": "a2664482b6e70b6bdfcf916e2a295aaa577ee050a21922935bdc2d98e869d216",
+        "frameCount": 7,
+        "pageSha256": ["d5620e8de52e7619cccbb0daf4fc0da2bf04f3768f1f0e2a90546cf753893ae7"],
+        "headerSha256": "b1cd5ecfdc6f20e786559d19594b46b34d0c610f5821294521527d18d3f730a3",
+        "reviewAuthorityAssurances": ["synthetic_reference"],
+        "hasUnavailableReviewerAuthority": true
+      }
+    }
+  ]
+}

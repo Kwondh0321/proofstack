@@ -6,6 +6,8 @@
 권한, 저장소, 네이티브 원자적 게시, API/SDK와 독립 종료 감사는 남아 있습니다.
 [ADR-0039](../architecture/0039-retain-bounded-decision-authority-material.md)와
 [진입 감사](workflow-2-decision-entry-audit.ko.md)를 함께 읽습니다.
+별도의 [0.2 현재 권한 자료](workflow-2-decision-current-authority-material.ko.md)는 기존 0.1 형식을
+재해석하지 않고 완전한 원본 관측을 추가합니다.
 
 ## 원래 관측과 신원 경계
 
