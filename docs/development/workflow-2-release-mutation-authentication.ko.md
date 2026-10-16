@@ -2,6 +2,9 @@
 
 [English](workflow-2-release-mutation-authentication.md) | [한국어](workflow-2-release-mutation-authentication.ko.md)
 
+[네이티브 비공개 서비스 프로필](workflow-2-native-service-publisher.ko.md)은 실제 PostgreSQL 조회·최종
+확인과 유지 중인 현재 신원 요소를 제공합니다. 전체 결정 게시는 남아 있습니다.
+
 [ADR-0051](../architecture/0051-bind-release-mutations-to-owning-authentication.md)과
 [진입 감사](workflow-2-decision-entry-audit.ko.md)에 따른 인증 합성입니다. Workflow 2는 3/7개
 체크포인트 승인 상태이며 실제 현재 권한과 네이티브 결정 게시는 미완료입니다.

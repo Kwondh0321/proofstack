@@ -153,6 +153,7 @@ describe("migration inspection", () => {
         "0065_release_policy_selection_storage",
         "0066_release_reviewer_authority_storage",
         "0067_release_approval_storage",
+        "0068_release_service_credentials",
       ],
     });
   });

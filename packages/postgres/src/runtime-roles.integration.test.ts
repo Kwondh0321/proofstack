@@ -1475,6 +1475,23 @@ describe("runtime role provisioning", () => {
     await adminPool.query(
       `GRANT EXECUTE ON FUNCTION public.proofstack_store_release_approval(jsonb,text) TO PUBLIC,"${roleNames.identity}"`,
     );
+    await adminPool.query(
+      `GRANT EXECUTE ON FUNCTION public.proofstack_find_active_release_service_credential(text) TO PUBLIC,"${roleNames.identity}"`,
+    );
+    await adminPool.query(
+      `GRANT SELECT(password_hash) ON public.proofstack_release_service_credentials TO PUBLIC`,
+    );
+    await adminPool.query(
+      `GRANT UPDATE(password_hash) ON public.proofstack_release_service_credentials TO "${roleNames.identity}"`,
+    );
+    expect(
+      (
+        await adminPool.query(
+          `SELECT has_column_privilege($1,'public.proofstack_release_service_credentials','password_hash','SELECT') AS exposed,has_column_privilege($2,'public.proofstack_release_service_credentials','password_hash','UPDATE') AS mutable`,
+          [roleNames.api, roleNames.identity],
+        )
+      ).rows,
+    ).toEqual([{ exposed: true, mutable: true }]);
     await expect(provisionRuntimeRoles(adminPool, rotated)).resolves.toEqual({
       createdRoles: [],
       updatedRoles: [
@@ -1496,11 +1513,15 @@ describe("runtime role provisioning", () => {
       execute: boolean;
       reviewer_execute: boolean;
       approval_execute: boolean;
+      service_execute: boolean;
+      column_access: boolean;
     }>(
       `SELECT has_table_privilege(role_name,table_name,'SELECT,INSERT,UPDATE,DELETE') AS table_access,
         has_function_privilege(role_name,'public.proofstack_store_release_policy_selection(jsonb,text)','EXECUTE') AS execute,
         has_function_privilege(role_name,'public.proofstack_store_release_reviewer_authority(jsonb,text)','EXECUTE') AS reviewer_execute,
-        has_function_privilege(role_name,'public.proofstack_store_release_approval(jsonb,text)','EXECUTE') AS approval_execute
+        has_function_privilege(role_name,'public.proofstack_store_release_approval(jsonb,text)','EXECUTE') AS approval_execute,
+        has_function_privilege(role_name,'public.proofstack_find_active_release_service_credential(text)','EXECUTE') AS service_execute,
+        has_any_column_privilege(role_name,table_name,'SELECT,INSERT,UPDATE,REFERENCES') AS column_access
       FROM unnest($1::text[]) AS role_name CROSS JOIN unnest($2::text[]) AS table_name`,
       [
         Object.values(roleNames),
@@ -1521,14 +1542,20 @@ describe("runtime role provisioning", () => {
           "public.proofstack_release_approval_declarations",
           "public.proofstack_release_approval_controls",
           "public.proofstack_release_approval_revocations",
+          "public.proofstack_release_service_credentials",
         ],
       ],
     );
-    expect(selectionPrivileges.rows).toHaveLength(160);
+    expect(selectionPrivileges.rows).toHaveLength(170);
     expect(
       selectionPrivileges.rows.every(
         (row) =>
-          !row.table_access && !row.execute && !row.reviewer_execute && !row.approval_execute,
+          !row.table_access &&
+          !row.execute &&
+          !row.reviewer_execute &&
+          !row.approval_execute &&
+          !row.service_execute &&
+          !row.column_access,
       ),
     ).toBe(true);
     await expect(rotatedApiPool.query("SELECT current_user AS role")).resolves.toMatchObject({

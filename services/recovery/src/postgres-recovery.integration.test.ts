@@ -162,11 +162,19 @@ import {
   PostgresReleasePolicySelectionRepository,
   PostgresReleaseReviewerAuthorityRepository,
   PostgresReleaseApprovalRepository,
+  PostgresReleaseServiceCredentialRepository,
+  readPostgresReleaseServiceCredentialOnClient,
   provisionRuntimeRoles,
   withExactScopeTransaction,
   type RuntimeRoleProvisioningOptions,
 } from "@proofstack/postgres";
 import { sealPolicyEvaluationSnapshot } from "@proofstack/policy-evaluation";
+import {
+  generateServiceToken,
+  hashServiceTokenSecret,
+  ServiceTokenAuthenticator,
+  InvalidServiceTokenError,
+} from "@proofstack/identity";
 import { encodeRecoveryObjectInventory, verifyRecoverySet } from "@proofstack/recovery";
 import { createS3ArtifactObjectStore, createS3Client } from "@proofstack/s3";
 import {
@@ -314,6 +322,7 @@ const EXPECTED_TABLES = [
   "proofstack_release_selection_policies",
   "proofstack_release_selection_publishers",
   "proofstack_release_selection_roots",
+  "proofstack_release_service_credentials",
   "proofstack_replay_attempt_events",
   "proofstack_replay_attempts",
   "proofstack_replay_budget_entries",
@@ -428,6 +437,15 @@ const approvalRecovery = (() => {
   });
   return { original, successor, exception, revocation };
 })();
+// Disposable fixture secrets remain in this process; backup state contains only native verifiers.
+const serviceRecoveryTokens = [generateServiceToken(), generateServiceToken()];
+const serviceRecoveryIds = [
+  "credential_recovery_service_active",
+  "credential_recovery_service_revoked",
+];
+const serviceRecoveryStates: Awaited<
+  ReturnType<typeof readPostgresReleaseServiceCredentialOnClient>
+>[] = [];
 const workflowNamespace = `rec${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 const workflowScope: EvidenceScope = {
   environmentId: `env_${workflowNamespace}_primary`,
@@ -2214,6 +2232,64 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
   await approvals.publishReleaseApproval(approvalRecovery.successor);
   await approvals.publishReleaseApproval(approvalRecovery.exception);
   await approvals.publishReleaseApprovalRevocation(approvalRecovery.revocation);
+  for (const [index, token] of serviceRecoveryTokens.entries()) {
+    const credentialId = serviceRecoveryIds[index];
+    if (!credentialId) throw new Error("Missing service recovery fixture ID");
+    const body = {
+      credentialId,
+      principalId: "principal_recovery_service_publisher",
+      prefix: token.prefix,
+      passwordHash: await hashServiceTokenSecret(token.secret),
+      expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      resourceScope: {
+        mode: "restricted",
+        projects: [{ projectId: scope.projectId, environmentIds: [scope.environmentId] }],
+      },
+    };
+    await withExactScopeTransaction(sourcePool, scope, async (client) => {
+      expect(
+        (
+          await client.query(
+            "SELECT public.proofstack_create_release_service_credential($1::jsonb,$2::jsonb) AS created",
+            [JSON.stringify(scope), JSON.stringify(body)],
+          )
+        ).rows,
+      ).toEqual([{ created: true }]);
+      if (index === 1)
+        expect(
+          (
+            await client.query(
+              "SELECT public.proofstack_revoke_release_service_credential($1::jsonb,$2,'administrative') AS created",
+              [JSON.stringify(scope), credentialId],
+            )
+          ).rows,
+        ).toEqual([{ created: true }]);
+      const retained = await readPostgresReleaseServiceCredentialOnClient(
+        client,
+        scope,
+        credentialId,
+        new ReleaseDecisionVerificationBudget({
+          maxAcquisitionRecords: 1000,
+          maxAcquisitionRecordBytes: 1024 * 1024,
+          maxApprovalRecords: 0,
+        }),
+      );
+      expect(retained).not.toBeNull();
+      expect(retained?.grant.state).toBe(index === 0 ? "active" : "inactive");
+      serviceRecoveryStates.push(retained);
+    });
+  }
+  const activeToken = serviceRecoveryTokens[0];
+  if (!activeToken) throw new Error("Missing active service recovery fixture");
+  expect(
+    await new ServiceTokenAuthenticator(
+      new PostgresReleaseServiceCredentialRepository(sourcePool),
+    ).authenticate(activeToken.value, "service_recovery_before_backup"),
+  ).toMatchObject({
+    principalType: "service",
+    principalId: "principal_recovery_service_publisher",
+    capabilities: ["release:decision:publish"],
+  });
 }
 
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
@@ -3891,6 +3967,35 @@ describe("coordinated recovery rehearsal", () => {
         occurredAt: "2026-10-15T10:25:00.000001Z",
       }),
     ).resolves.toEqual({ created: false, event: approvalRecovery.revocation });
+    const serviceProvider = new PostgresReleaseServiceCredentialRepository(restoredPool);
+    for (const [index, credentialId] of serviceRecoveryIds.entries()) {
+      const observed = await withExactScopeTransaction(restoredPool, scope, (client) =>
+        readPostgresReleaseServiceCredentialOnClient(
+          client,
+          scope,
+          credentialId,
+          new ReleaseDecisionVerificationBudget({
+            maxAcquisitionRecords: 1000,
+            maxAcquisitionRecordBytes: 1024 * 1024,
+            maxApprovalRecords: 0,
+          }),
+        ),
+      );
+      expect(observed).toEqual(serviceRecoveryStates[index]);
+      const token = serviceRecoveryTokens[index];
+      if (!token) throw new Error("Missing restored service fixture");
+      const result = new ServiceTokenAuthenticator(serviceProvider).authenticate(
+        token.value,
+        "service_recovery_after_restore",
+      );
+      if (index === 0)
+        await expect(result).resolves.toMatchObject({
+          principalType: "service",
+          principalId: "principal_recovery_service_publisher",
+          capabilities: ["release:decision:publish"],
+        });
+      else await expect(result).rejects.toBeInstanceOf(InvalidServiceTokenError);
+    }
     const replayRecovery = requiredReplayRecoveryState();
     const restoredRecoveryEpoch = await restoredPool.query<{
       readonly advanced_at_lexical: string;

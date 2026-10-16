@@ -241,6 +241,7 @@ describe("complete policy metadata publication barrier", () => {
       "proofstack_release_approval_declarations",
       "proofstack_release_approval_controls",
       "proofstack_release_approval_revocations",
+      "proofstack_release_service_credentials",
     ];
     const tables = await admin.query<{ name: string; partition: boolean }>(
       `SELECT c.relname AS name, c.relispartition AS partition
@@ -305,6 +306,14 @@ describe("complete policy metadata publication barrier", () => {
         "proofstack_release_approvals",
       ].map((name) => ({ name, enabled: "O", type: 5 })),
     );
+    const serviceGuards = await admin.query(
+      `SELECT c.relname AS name,t.tgenabled AS enabled,t.tgtype::int AS type
+       FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+       WHERE t.tgfoid='public.proofstack_lock_release_service_credential_write()'::regprocedure`,
+    );
+    expect(serviceGuards.rows).toEqual([
+      { name: "proofstack_release_service_credentials", enabled: "O", type: 21 },
+    ]);
     const recovery = await admin.query(
       `SELECT tgtype::int AS type, tgenabled AS enabled FROM pg_trigger
        WHERE tgname='proofstack_policy_evaluation_recovery_write_lock'`,
@@ -704,7 +713,7 @@ describe("complete policy metadata publication barrier", () => {
               "SELECT count(*)::int AS count FROM public.proofstack_schema_migrations",
             )
           ).rows[0]?.count,
-        ).toBe(67);
+        ).toBe(68);
       },
     );
   });

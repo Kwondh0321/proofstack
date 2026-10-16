@@ -34,6 +34,7 @@
     "@proofstack/evaluation-worker": "workspace:*",
     "@proofstack/example-durable-replay": "workspace:*",
     "@proofstack/example-workflow-1-acceptance": "workspace:*",
+    "@proofstack/identity": "workspace:*",
     "@proofstack/model-evaluation-worker": "workspace:*",
     "@proofstack/policy-evaluation": "workspace:*",
     "@proofstack/recovery": "workspace:*",

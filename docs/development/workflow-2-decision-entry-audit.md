@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [native private service identity](workflow-2-native-service-publisher.md) verifies actual
+service secrets and holds current credential/expiry/revocation observations on the same client.
+It supplies no human approval, installation binding or complete atomic decision authority.
+
 The [native original approval store](workflow-2-native-approval-repository.md) preserves complete
 kind/subject inventories, first authentication/authority receipts and revocation through guarded
 normalized storage. Trusted storage alone supplies no current authentication or decision authority.

@@ -27,6 +27,9 @@ The future API handler must retain this order and its existing bounded request/c
 
 The credential request ID comes from the owning server's request context, not a mutation body.
 
+The [native private service profile](workflow-2-native-service-publisher.md) supplies the actual
+PostgreSQL lookup/confirmation and held current identity component; complete publication remains open.
+
 `authenticateServiceDecisionPublisher` is a separate private path using actual service-secret
 verification and the owning authenticator's active-use confirmation. A policy worker capability
 does not grant decision publication. This service path cannot record human approval or administer

@@ -965,6 +965,9 @@ importers:
       '@proofstack/example-workflow-1-acceptance':
         specifier: workspace:*
         version: link:../../examples/workflow-1-acceptance
+      '@proofstack/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@proofstack/model-evaluation-worker':
         specifier: workspace:*
         version: link:../model-evaluation-worker

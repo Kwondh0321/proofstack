@@ -65,6 +65,7 @@ interface StatementRow extends QueryResultRow {
 }
 
 const PRIVATE_RELEASE_AUTHORITY_TABLES = [
+  "proofstack_release_service_credentials",
   "proofstack_release_approvals",
   "proofstack_release_approval_sources",
   "proofstack_release_approval_declarations",
@@ -191,6 +192,13 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_validate_release_service_credential()",
+  "public.proofstack_lock_release_service_credential_write()",
+  "public.proofstack_try_lock_release_service_credential(jsonb,text)",
+  "public.proofstack_find_active_release_service_credential(text)",
+  "public.proofstack_confirm_release_service_use(jsonb)",
+  "public.proofstack_create_release_service_credential(jsonb,jsonb)",
+  "public.proofstack_revoke_release_service_credential(jsonb,text,text)",
   "public.proofstack_try_lock_release_approval(jsonb)",
   "public.proofstack_lock_release_approval_write()",
   "public.proofstack_verify_release_approval_graph()",
@@ -841,6 +849,9 @@ export async function provisionRuntimeRoles(
       ]);
       await assertSchemaCurrent(client);
       await client.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+      await client.query(
+        `REVOKE ALL PRIVILEGES ON TABLE ${PRIVATE_RELEASE_AUTHORITY_TABLES.map((table) => `public.${table}`).join(", ")} FROM PUBLIC`,
+      );
       await client.query(
         `REVOKE ALL PRIVILEGES ON FUNCTION ${PLATFORM_FUNCTIONS.join(", ")} FROM PUBLIC`,
       );

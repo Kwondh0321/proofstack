@@ -182,9 +182,16 @@ describe("provisionRuntimeRoles", () => {
       "proofstack_release_approval_declarations",
       "proofstack_release_approval_controls",
       "proofstack_release_approval_revocations",
+      "proofstack_release_service_credentials",
     ]) {
       expect(grants.some((statement) => statement.includes(`public.${table}`))).toBe(false);
     }
+    const publicTables = client.queries
+      .map((q) => q.text)
+      .filter((q) => q.startsWith("REVOKE ALL PRIVILEGES ON TABLE") && q.endsWith("FROM PUBLIC"));
+    expect(publicTables).toHaveLength(1);
+    expect(publicTables[0]).toContain("public.proofstack_release_service_credentials");
+    expect(publicTables[0]).toContain("public.proofstack_release_approvals");
     for (const role of ["proofstack_policy_evaluation_control", "proofstack_policy_evaluator"]) {
       const own = grants.filter((value) => value.endsWith(`TO "${role}"`));
       expect(
@@ -256,6 +263,13 @@ describe("provisionRuntimeRoles", () => {
       "public.proofstack_store_release_approval(jsonb,text)",
       "public.proofstack_store_release_approval_revocation(jsonb)",
       "public.proofstack_read_release_approval_subject(jsonb,text,jsonb)",
+      "public.proofstack_validate_release_service_credential()",
+      "public.proofstack_lock_release_service_credential_write()",
+      "public.proofstack_try_lock_release_service_credential(jsonb,text)",
+      "public.proofstack_find_active_release_service_credential(text)",
+      "public.proofstack_confirm_release_service_use(jsonb)",
+      "public.proofstack_create_release_service_credential(jsonb,jsonb)",
+      "public.proofstack_revoke_release_service_credential(jsonb,text,text)",
     ]) {
       for (const recipient of [
         "PUBLIC",
