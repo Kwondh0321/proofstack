@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [native original approval store](workflow-2-native-approval-repository.md) preserves complete
+kind/subject inventories, first authentication/authority receipts and revocation through guarded
+normalized storage. Trusted storage alone supplies no current authentication or decision authority.
+
 The [native reviewer declaration store](workflow-2-native-reviewer-repository.md) retains complete
 original reviewer inventories, normalized roles/groups/basis/conflicts and terminal history.
 Storage alone supplies no actual issuer authentication, expertise or current approval authority.

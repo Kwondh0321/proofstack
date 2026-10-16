@@ -77,6 +77,12 @@ export {
 } from "./postgres-model-assurance-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
+  PostgresReleaseApprovalRepository,
+  readPostgresReleaseApprovalOnClient,
+  readPostgresReleaseApprovalRevocationOnClient,
+  readPostgresReleaseApprovalSubjectOnClient,
+} from "./postgres-release-approval-repository.js";
+export {
   PostgresReleaseReviewerAuthorityRepository,
   readPostgresReleaseReviewerAuthorityOnClient,
   readPostgresReleaseReviewerLifecycleOnClient,

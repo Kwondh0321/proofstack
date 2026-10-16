@@ -65,6 +65,11 @@ interface StatementRow extends QueryResultRow {
 }
 
 const PRIVATE_RELEASE_AUTHORITY_TABLES = [
+  "proofstack_release_approvals",
+  "proofstack_release_approval_sources",
+  "proofstack_release_approval_declarations",
+  "proofstack_release_approval_controls",
+  "proofstack_release_approval_revocations",
   "proofstack_release_reviewer_roots",
   "proofstack_release_reviewer_authorities",
   "proofstack_release_reviewer_memberships",
@@ -186,6 +191,13 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_try_lock_release_approval(jsonb)",
+  "public.proofstack_lock_release_approval_write()",
+  "public.proofstack_verify_release_approval_graph()",
+  "public.proofstack_verify_release_approval_revocation()",
+  "public.proofstack_store_release_approval(jsonb,text)",
+  "public.proofstack_store_release_approval_revocation(jsonb)",
+  "public.proofstack_read_release_approval_subject(jsonb,text,jsonb)",
   "public.proofstack_try_lock_release_reviewer(jsonb)",
   "public.proofstack_lock_release_reviewer_write()",
   "public.proofstack_verify_release_reviewer_graph()",

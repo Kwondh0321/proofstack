@@ -2,6 +2,9 @@
 
 [English](workflow-2-approval-repository.md) | [한국어](workflow-2-approval-repository.ko.md)
 
+The [native approval adapter](workflow-2-native-approval-repository.md) implements these shared
+semantics with guarded complete reads and normalized original receipt storage.
+
 Status: checkpoint 4 memory/shared approval persistence prerequisite. Workflow 2 remains 3/7
 accepted checkpoints. Actual current OIDC authorization, native guarded publication, decisions,
 API/SDK and the independent exit audit remain open. See

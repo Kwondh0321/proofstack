@@ -210,7 +210,7 @@ afterAll(async () => {
 describe("complete policy metadata publication barrier", () => {
   it("covers every source relation and inherited partition with enabled mandatory writer triggers", async () => {
     // A new tenant table requires a deliberate inventory decision. Six tables are identity or
-    // delivery progress. Five C4 selection and six reviewer tables use their own mandatory
+    // delivery progress. C4 selection, reviewer and approval tables use their own mandatory
     // guard domains below; they are not inputs to the unchanged C3 evaluation snapshot.
     const selectionTables = [
       "proofstack_release_selection_roots",
@@ -236,6 +236,11 @@ describe("complete policy metadata publication barrier", () => {
       "proofstack_projection_cursors",
       ...selectionTables,
       ...reviewerTables,
+      "proofstack_release_approvals",
+      "proofstack_release_approval_sources",
+      "proofstack_release_approval_declarations",
+      "proofstack_release_approval_controls",
+      "proofstack_release_approval_revocations",
     ];
     const tables = await admin.query<{ name: string; partition: boolean }>(
       `SELECT c.relname AS name, c.relispartition AS partition
@@ -284,6 +289,21 @@ describe("complete policy metadata publication barrier", () => {
     );
     expect(reviewerGuards.rows).toEqual(
       [...reviewerTables].sort().map((name) => ({ name, enabled: "O", type: 5 })),
+    );
+    const approvalGuards = await admin.query(
+      `SELECT c.relname AS name,t.tgenabled AS enabled,t.tgtype::int AS type
+       FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+       WHERE t.tgfoid='public.proofstack_lock_release_approval_write()'::regprocedure
+       ORDER BY c.relname`,
+    );
+    expect(approvalGuards.rows).toEqual(
+      [
+        "proofstack_release_approval_controls",
+        "proofstack_release_approval_declarations",
+        "proofstack_release_approval_revocations",
+        "proofstack_release_approval_sources",
+        "proofstack_release_approvals",
+      ].map((name) => ({ name, enabled: "O", type: 5 })),
     );
     const recovery = await admin.query(
       `SELECT tgtype::int AS type, tgenabled AS enabled FROM pg_trigger
@@ -684,7 +704,7 @@ describe("complete policy metadata publication barrier", () => {
               "SELECT count(*)::int AS count FROM public.proofstack_schema_migrations",
             )
           ).rows[0]?.count,
-        ).toBe(66);
+        ).toBe(67);
       },
     );
   });

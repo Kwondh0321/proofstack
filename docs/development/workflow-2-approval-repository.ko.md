@@ -2,6 +2,9 @@
 
 [English](workflow-2-approval-repository.md) | [한국어](workflow-2-approval-repository.ko.md)
 
+[네이티브 승인 어댑터](workflow-2-native-approval-repository.ko.md)는 전체 보호 읽기와 정규화된 원래 영수증
+저장을 통해 이 공통 의미를 구현합니다.
+
 상태: 체크포인트 4의 메모리/공통 승인 기록 저장소 선행 구현입니다. Workflow 2는 7개 중 3개 인수 완료입니다.
 실제 현재 OIDC 인가, 네이티브 보호 게시, 결정, API/SDK와 독립 종료 감사는 남아 있습니다.
 [ADR-0046](../architecture/0046-preserve-original-approval-receipts-on-intent-retries.md),

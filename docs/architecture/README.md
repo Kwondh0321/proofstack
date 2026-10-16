@@ -77,3 +77,4 @@ invalidate an ADR present in this directory.
 - [ADR-0052: Recheck authenticated release OIDC on held clients](0052-recheck-authenticated-release-oidc-on-held-clients.md)
 - [ADR-0053: Persist complete target-owned policy selections](0053-persist-complete-target-owned-policy-selections.md)
 - [ADR-0054: Persist complete reviewer authority declarations](0054-persist-complete-reviewer-authority-declarations.md)
+- [ADR-0055: Persist complete original approval receipts](0055-persist-complete-original-approval-receipts.md)

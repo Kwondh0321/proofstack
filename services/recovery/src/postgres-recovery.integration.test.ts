@@ -74,6 +74,7 @@ import {
   releasePolicyReference,
   releasePolicySelectionReference,
   releaseReviewerAuthorityReference,
+  releaseApprovalReference,
   ReleaseDecisionVerificationBudget,
   StaticEndpointProfileCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
@@ -100,6 +101,9 @@ import {
   selectionVersion,
   releaseReviewerAuthorityRepositoryFixture,
   authorityVersion,
+  releaseApprovalRepositoryFixture,
+  approvalVersion,
+  approvalRevocation,
 } from "@proofstack/core/testing";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -157,6 +161,7 @@ import {
   PostgresReleasePolicyRepository,
   PostgresReleasePolicySelectionRepository,
   PostgresReleaseReviewerAuthorityRepository,
+  PostgresReleaseApprovalRepository,
   provisionRuntimeRoles,
   withExactScopeTransaction,
   type RuntimeRoleProvisioningOptions,
@@ -282,6 +287,11 @@ const EXPECTED_TABLES = [
   "proofstack_regression_fixture_versions",
   "proofstack_regression_fixtures",
   "proofstack_release_candidate_lineage",
+  "proofstack_release_approval_controls",
+  "proofstack_release_approval_declarations",
+  "proofstack_release_approval_revocations",
+  "proofstack_release_approval_sources",
+  "proofstack_release_approvals",
   "proofstack_release_candidate_registry",
   "proofstack_release_candidate_resources",
   "proofstack_release_candidates",
@@ -388,6 +398,35 @@ const reviewerRecovery = (() => {
       successor: releaseReviewerAuthorityReference(successor),
     },
   };
+})();
+const approvalRecovery = (() => {
+  const fixture = releaseApprovalRepositoryFixture("recovery_native_approval");
+  const original = approvalVersion(fixture.original, { subject: { ...fixture.subject, scope } });
+  const successor = approvalVersion(fixture.successor, {
+    subject: original.subject,
+    supersedes: releaseApprovalReference(original),
+  });
+  const exception = approvalVersion(original, {
+    approvalId: "approval_recovery_native_exception",
+    kind: "rule_exception",
+    action: "approve",
+    conditions: ["Synthetic recovery condition."],
+    declaredConflicts: ["Synthetic recovery conflict."],
+    compensatingControls: [
+      {
+        artifactId: "artifact_recovery_declared_control",
+        sha256: "a".repeat(64),
+        classification: "internal",
+        mediaType: "application/json",
+        sizeBytes: 1,
+      },
+    ],
+  });
+  const revocation = approvalRevocation(fixture.revocation, {
+    scope,
+    approval: releaseApprovalReference(exception),
+  });
+  return { original, successor, exception, revocation };
 })();
 const workflowNamespace = `rec${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 const workflowScope: EvidenceScope = {
@@ -2170,6 +2209,11 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
   await reviewers.publishReleaseReviewerAuthority(reviewerRecovery.original);
   await reviewers.publishReleaseReviewerAuthority(reviewerRecovery.successor);
   await reviewers.publishReleaseReviewerAuthorityLifecycleEvent(reviewerRecovery.event);
+  const approvals = new PostgresReleaseApprovalRepository(sourcePool);
+  await approvals.publishReleaseApproval(approvalRecovery.original);
+  await approvals.publishReleaseApproval(approvalRecovery.successor);
+  await approvals.publishReleaseApproval(approvalRecovery.exception);
+  await approvals.publishReleaseApprovalRevocation(approvalRecovery.revocation);
 }
 
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
@@ -3800,6 +3844,53 @@ describe("coordinated recovery rehearsal", () => {
         structuredClone(reviewerRecovery.event),
       ),
     ).resolves.toEqual({ created: false, event: reviewerRecovery.event });
+    const approvals = new PostgresReleaseApprovalRepository(restoredPool);
+    const approvalMeter = () =>
+      new ReleaseDecisionVerificationBudget({
+        maxAcquisitionRecords: 100000,
+        maxAcquisitionRecordBytes: 64 * 1024 * 1024,
+        maxApprovalRecords: 4096,
+      });
+    expect(
+      await approvals.readReleaseApprovalSubject(
+        scope,
+        "normal_approval",
+        approvalRecovery.original.subject,
+        approvalMeter(),
+      ),
+    ).toEqual({
+      records: [approvalRecovery.original, approvalRecovery.successor],
+      revocations: [],
+    });
+    expect(
+      await approvals.readReleaseApprovalSubject(
+        scope,
+        "rule_exception",
+        approvalRecovery.exception.subject,
+        approvalMeter(),
+      ),
+    ).toEqual({
+      records: [approvalRecovery.exception],
+      revocations: [approvalRecovery.revocation],
+    });
+    const reloginRetry = approvalVersion(approvalRecovery.exception, {
+      reviewer: {
+        ...approvalRecovery.exception.reviewer,
+        credentialId: "session_recovery_relogin",
+        requestId: "recovery_retry",
+      },
+      recordedAt: "2026-10-15T10:15:00.000001Z",
+    });
+    await expect(approvals.publishReleaseApproval(reloginRetry)).resolves.toEqual({
+      created: false,
+      approval: approvalRecovery.exception,
+    });
+    await expect(
+      approvals.publishReleaseApprovalRevocation({
+        ...approvalRecovery.revocation,
+        occurredAt: "2026-10-15T10:25:00.000001Z",
+      }),
+    ).resolves.toEqual({ created: false, event: approvalRecovery.revocation });
     const replayRecovery = requiredReplayRecoveryState();
     const restoredRecoveryEpoch = await restoredPool.query<{
       readonly advanced_at_lexical: string;
