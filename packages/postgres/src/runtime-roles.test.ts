@@ -199,7 +199,7 @@ describe("provisionRuntimeRoles", () => {
       expect(connections.count).toBe(0);
     },
   );
-  it("revokes private artifact and policy source guards from PUBLIC and every managed role without regranting", async () => {
+  it("revokes private artifact, policy and OIDC source guards from PUBLIC and every managed role without regranting", async () => {
     const client = new FakeClient();
     const configuration = options();
     await provisionRuntimeRoles(poolWith(client), configuration);
@@ -210,6 +210,8 @@ describe("provisionRuntimeRoles", () => {
       "public.proofstack_try_lock_policy_evaluation_metadata()",
       "public.proofstack_lock_policy_evaluation_metadata_write()",
       "public.proofstack_lock_policy_evaluation_recovery_write()",
+      "public.proofstack_try_lock_release_oidc_source(text, text)",
+      "public.proofstack_lock_release_oidc_source_write()",
       "public.proofstack_guard_artifact_timestamp_integrity()",
     ]) {
       for (const recipient of [

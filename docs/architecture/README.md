@@ -69,3 +69,4 @@ invalidate an ADR present in this directory.
 - [ADR-0044: Own complete selection inventories in repositories](0044-own-complete-selection-inventories-in-repositories.md)
 - [ADR-0045: Own reviewer authority inventories by principal](0045-own-reviewer-authority-inventories-by-principal.md)
 - [ADR-0046: Preserve original approval receipts on intent retries](0046-preserve-original-approval-receipts-on-intent-retries.md)
+- [ADR-0047: Guard native OIDC source observations](0047-guard-native-oidc-source-observations.md)

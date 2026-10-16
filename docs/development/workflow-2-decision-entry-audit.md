@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [native OIDC source observations](workflow-2-release-oidc-sources.md) add non-mutating
+provided-client reads and mandatory binding/session row-write guards. They grant no runtime access
+or authentication/publication authority; complete native decision acceptance remains open.
+
 | Boundary | Required counterexamples |
 | --- | --- |
 | Selection and applicability | omitted mandatory policy; duplicate/ambiguous target; absence-to-creation; withdrawal; expired or superseded selection; advisory-only and explicit no-policy selection |

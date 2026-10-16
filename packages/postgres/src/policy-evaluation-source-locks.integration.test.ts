@@ -259,6 +259,8 @@ describe("policy evaluation database source serialization", () => {
       "public.proofstack_try_lock_policy_evaluation_metadata()",
       "public.proofstack_lock_policy_evaluation_metadata_write()",
       "public.proofstack_lock_policy_evaluation_recovery_write()",
+      "public.proofstack_try_lock_release_oidc_source(text,text)",
+      "public.proofstack_lock_release_oidc_source_write()",
     ];
     try {
       await migrateDatabase(restored);

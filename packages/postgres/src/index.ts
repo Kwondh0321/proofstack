@@ -77,6 +77,12 @@ export {
 } from "./postgres-model-assurance-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
+  type ReleaseOidcSourceKind,
+  readPostgresReleaseOidcBindingOnClient,
+  readPostgresReleaseOidcSessionOnClient,
+  tryPostgresReleaseOidcSourceGuardOnClient,
+} from "./postgres-release-oidc-sources.js";
+export {
   MAX_OUTBOX_CLAIM_SIZE,
   MAX_OUTBOX_ERROR_LENGTH,
   MAX_OUTBOX_FAILURE_LIST_SIZE,
