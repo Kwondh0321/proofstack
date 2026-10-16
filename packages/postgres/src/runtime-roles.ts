@@ -64,7 +64,13 @@ interface StatementRow extends QueryResultRow {
   readonly statement: string;
 }
 
-const PRIVATE_RELEASE_SELECTION_TABLES = [
+const PRIVATE_RELEASE_AUTHORITY_TABLES = [
+  "proofstack_release_reviewer_roots",
+  "proofstack_release_reviewer_authorities",
+  "proofstack_release_reviewer_memberships",
+  "proofstack_release_reviewer_declarations",
+  "proofstack_release_reviewer_basis",
+  "proofstack_release_reviewer_lifecycle",
   "proofstack_release_selection_roots",
   "proofstack_release_policy_selections",
   "proofstack_release_selection_policies",
@@ -72,7 +78,7 @@ const PRIVATE_RELEASE_SELECTION_TABLES = [
   "proofstack_release_selection_lifecycle",
 ] as const;
 const PLATFORM_TABLES = [
-  ...PRIVATE_RELEASE_SELECTION_TABLES,
+  ...PRIVATE_RELEASE_AUTHORITY_TABLES,
   "proofstack_policy_evaluation_requests",
   "proofstack_policy_evaluation_jobs",
   "proofstack_policy_evaluation_attempts",
@@ -180,6 +186,13 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_try_lock_release_reviewer(jsonb)",
+  "public.proofstack_lock_release_reviewer_write()",
+  "public.proofstack_verify_release_reviewer_graph()",
+  "public.proofstack_verify_release_reviewer_lifecycle()",
+  "public.proofstack_store_release_reviewer_authority(jsonb,text)",
+  "public.proofstack_store_release_reviewer_lifecycle(jsonb)",
+  "public.proofstack_read_release_reviewer_root(jsonb,text,text,text)",
   "public.proofstack_release_selection_scope()",
   "public.proofstack_release_authority_time_key(text)",
   "public.proofstack_try_lock_release_selection(jsonb)",
@@ -394,7 +407,7 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_replay_publication_intent_status(text,text,text,text,text,jsonb,timestamp with time zone) TO %ROLE%",
     `GRANT SELECT ON TABLE ${PLATFORM_TABLES.filter(
       (table) =>
-        !(PRIVATE_RELEASE_SELECTION_TABLES as readonly string[]).includes(table) &&
+        !(PRIVATE_RELEASE_AUTHORITY_TABLES as readonly string[]).includes(table) &&
         /^(proofstack_(artifact_|comparison_|evaluation_|model_assurance_|interaction_fixture_|regression_|recorded_interaction_fixture_|release_candidate_|release_candidates$|release_policy_|release_policies$|replay_|target_releases$|evidence_events$))/.test(
           table,
         ),

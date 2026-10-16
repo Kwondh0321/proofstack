@@ -151,6 +151,7 @@ describe("migration inspection", () => {
         "0063_policy_evaluation_request_job_reader",
         "0064_release_oidc_source_locks",
         "0065_release_policy_selection_storage",
+        "0066_release_reviewer_authority_storage",
       ],
     });
   });

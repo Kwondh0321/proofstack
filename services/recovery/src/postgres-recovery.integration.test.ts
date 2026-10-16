@@ -73,6 +73,7 @@ import {
   releaseCandidateReference,
   releasePolicyReference,
   releasePolicySelectionReference,
+  releaseReviewerAuthorityReference,
   ReleaseDecisionVerificationBudget,
   StaticEndpointProfileCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
@@ -97,6 +98,8 @@ import {
   releasePolicyRepositoryFixture,
   releasePolicySelectionRepositoryFixture,
   selectionVersion,
+  releaseReviewerAuthorityRepositoryFixture,
+  authorityVersion,
 } from "@proofstack/core/testing";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -153,6 +156,7 @@ import {
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
   PostgresReleasePolicySelectionRepository,
+  PostgresReleaseReviewerAuthorityRepository,
   provisionRuntimeRoles,
   withExactScopeTransaction,
   type RuntimeRoleProvisioningOptions,
@@ -290,6 +294,12 @@ const EXPECTED_TABLES = [
   "proofstack_release_policy_rules",
   "proofstack_release_policy_selections",
   "proofstack_release_policy_sources",
+  "proofstack_release_reviewer_authorities",
+  "proofstack_release_reviewer_basis",
+  "proofstack_release_reviewer_declarations",
+  "proofstack_release_reviewer_lifecycle",
+  "proofstack_release_reviewer_memberships",
+  "proofstack_release_reviewer_roots",
   "proofstack_release_selection_lifecycle",
   "proofstack_release_selection_policies",
   "proofstack_release_selection_publishers",
@@ -353,6 +363,29 @@ const selectionRecovery = (() => {
       scope,
       selection: releasePolicySelectionReference(original),
       successor: releasePolicySelectionReference(successor),
+    },
+  };
+})();
+const reviewerRecovery = (() => {
+  const fixture = releaseReviewerAuthorityRepositoryFixture("recovery_native_reviewer");
+  const original = authorityVersion(fixture.original, { scope }, fixture.original.publishedAt);
+  const successor = authorityVersion(
+    original,
+    {
+      authorityVersionId: fixture.successor.authorityVersionId,
+      predecessor: releaseReviewerAuthorityReference(original),
+      effectiveAt: fixture.successor.effectiveAt,
+    },
+    fixture.successor.publishedAt,
+  );
+  return {
+    original,
+    successor,
+    event: {
+      ...fixture.supersession,
+      scope,
+      authority: releaseReviewerAuthorityReference(original),
+      successor: releaseReviewerAuthorityReference(successor),
     },
   };
 })();
@@ -2133,6 +2166,10 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
   await selections.publishReleasePolicySelection(selectionRecovery.original);
   await selections.publishReleasePolicySelection(selectionRecovery.successor);
   await selections.publishReleasePolicySelectionLifecycleEvent(selectionRecovery.event);
+  const reviewers = new PostgresReleaseReviewerAuthorityRepository(sourcePool);
+  await reviewers.publishReleaseReviewerAuthority(reviewerRecovery.original);
+  await reviewers.publishReleaseReviewerAuthority(reviewerRecovery.successor);
+  await reviewers.publishReleaseReviewerAuthorityLifecycleEvent(reviewerRecovery.event);
 }
 
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
@@ -3735,6 +3772,34 @@ describe("coordinated recovery rehearsal", () => {
         structuredClone(selectionRecovery.event),
       ),
     ).resolves.toEqual({ created: false, event: selectionRecovery.event });
+    const reviewers = new PostgresReleaseReviewerAuthorityRepository(restoredPool);
+    expect(
+      await reviewers.readReleaseReviewerAuthorityTarget(
+        scope,
+        {
+          installationId: reviewerRecovery.original.installationId,
+          gateTargetId: reviewerRecovery.original.gateTargetId,
+          reviewerPrincipalId: reviewerRecovery.original.reviewerPrincipalId,
+        },
+        new ReleaseDecisionVerificationBudget({
+          maxAcquisitionRecords: 100000,
+          maxAcquisitionRecordBytes: 64 * 1024 * 1024,
+          maxApprovalRecords: 4096,
+        }),
+      ),
+    ).toEqual({
+      root: reviewerRecovery.original,
+      records: [reviewerRecovery.original, reviewerRecovery.successor],
+      lifecycle: [reviewerRecovery.event],
+    });
+    await expect(
+      reviewers.publishReleaseReviewerAuthority(structuredClone(reviewerRecovery.successor)),
+    ).resolves.toEqual({ created: false, authority: reviewerRecovery.successor });
+    await expect(
+      reviewers.publishReleaseReviewerAuthorityLifecycleEvent(
+        structuredClone(reviewerRecovery.event),
+      ),
+    ).resolves.toEqual({ created: false, event: reviewerRecovery.event });
     const replayRecovery = requiredReplayRecoveryState();
     const restoredRecoveryEpoch = await restoredPool.query<{
       readonly advanced_at_lexical: string;

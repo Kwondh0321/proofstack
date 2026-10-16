@@ -118,7 +118,9 @@ export * from "./release/release-candidate-repository.js";
 export * from "./release/release-policy-selection-repository.js";
 export {
   releasePolicySelectionReference,
+  releaseReviewerAuthorityReference,
   validateReleasePolicySelectionRecord,
+  validateReleaseReviewerAuthorityRecord,
 } from "./release/release-authority-record-validation.js";
 export * from "./release/release-reviewer-authority-repository.js";
 export * from "./release/release-approval-repository.js";

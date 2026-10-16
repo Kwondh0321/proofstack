@@ -1463,6 +1463,12 @@ describe("runtime role provisioning", () => {
     await adminPool.query(
       `GRANT EXECUTE ON FUNCTION public.proofstack_store_release_policy_selection(jsonb,text) TO PUBLIC,"${roleNames.identity}"`,
     );
+    await adminPool.query(
+      `GRANT SELECT ON public.proofstack_release_reviewer_authorities TO "${roleNames.api}"`,
+    );
+    await adminPool.query(
+      `GRANT EXECUTE ON FUNCTION public.proofstack_store_release_reviewer_authority(jsonb,text) TO PUBLIC,"${roleNames.identity}"`,
+    );
     await expect(provisionRuntimeRoles(adminPool, rotated)).resolves.toEqual({
       createdRoles: [],
       updatedRoles: [
@@ -1479,9 +1485,14 @@ describe("runtime role provisioning", () => {
       ],
     });
     const rotatedApiPool = poolFor(rotated.api);
-    const selectionPrivileges = await adminPool.query<{ table_access: boolean; execute: boolean }>(
+    const selectionPrivileges = await adminPool.query<{
+      table_access: boolean;
+      execute: boolean;
+      reviewer_execute: boolean;
+    }>(
       `SELECT has_table_privilege(role_name,table_name,'SELECT,INSERT,UPDATE,DELETE') AS table_access,
-        has_function_privilege(role_name,'public.proofstack_store_release_policy_selection(jsonb,text)','EXECUTE') AS execute
+        has_function_privilege(role_name,'public.proofstack_store_release_policy_selection(jsonb,text)','EXECUTE') AS execute,
+        has_function_privilege(role_name,'public.proofstack_store_release_reviewer_authority(jsonb,text)','EXECUTE') AS reviewer_execute
       FROM unnest($1::text[]) AS role_name CROSS JOIN unnest($2::text[]) AS table_name`,
       [
         Object.values(roleNames),
@@ -1491,11 +1502,21 @@ describe("runtime role provisioning", () => {
           "public.proofstack_release_selection_policies",
           "public.proofstack_release_selection_publishers",
           "public.proofstack_release_selection_lifecycle",
+          "public.proofstack_release_reviewer_roots",
+          "public.proofstack_release_reviewer_authorities",
+          "public.proofstack_release_reviewer_memberships",
+          "public.proofstack_release_reviewer_declarations",
+          "public.proofstack_release_reviewer_basis",
+          "public.proofstack_release_reviewer_lifecycle",
         ],
       ],
     );
-    expect(selectionPrivileges.rows).toHaveLength(50);
-    expect(selectionPrivileges.rows.every((row) => !row.table_access && !row.execute)).toBe(true);
+    expect(selectionPrivileges.rows).toHaveLength(110);
+    expect(
+      selectionPrivileges.rows.every(
+        (row) => !row.table_access && !row.execute && !row.reviewer_execute,
+      ),
+    ).toBe(true);
     await expect(rotatedApiPool.query("SELECT current_user AS role")).resolves.toMatchObject({
       rows: [{ role: roleNames.api }],
     });

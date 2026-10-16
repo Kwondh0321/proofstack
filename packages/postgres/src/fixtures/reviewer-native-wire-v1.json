@@ -1,0 +1,968 @@
+{
+  "format": "proofstack.release-reviewer-native-wire.v1",
+  "postgres": "16.15",
+  "scope": {
+    "environmentId": "env_staging",
+    "projectId": "project_checkout",
+    "tenantId": "tenant_example"
+  },
+  "target": {
+    "installationId": "installation_wire_reviewer_native_v1",
+    "gateTargetId": "gate_wire_reviewer_native_v1",
+    "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+  },
+  "rootObservation": {
+    "root": {
+      "tenant_id": "tenant_example",
+      "project_id": "project_checkout",
+      "authority_id": "authority_wire_reviewer_native_v1",
+      "environment_id": "env_staging",
+      "gate_target_id": "gate_wire_reviewer_native_v1",
+      "installation_id": "installation_wire_reviewer_native_v1",
+      "root_version_id": "version_wire_reviewer_native_v1_a",
+      "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+      "root_definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+    },
+    "orphan": false
+  },
+  "versions": [
+    {
+      "version": {
+        "record": {
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "status": "verified",
+          "roleIds": ["release_reviewer", "security_reviewer"],
+          "assurance": "synthetic_reference",
+          "conflicts": [],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "reviewBasis": [
+            {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "application/json",
+              "sizeBytes": 512,
+              "artifactId": "artifact_synthetic_reviewer_basis",
+              "classification": "internal"
+            }
+          ],
+          "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerKind": "human",
+          "relationships": [],
+          "schemaVersion": "0.1",
+          "statusReasons": [],
+          "installationId": "installation_wire_reviewer_native_v1",
+          "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+          "issuerPrincipalId": "user_reviewer_administrator",
+          "authorityVersionId": "version_wire_reviewer_native_v1_a",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+          "independenceGroupIds": ["group_release_review", "group_security_review"],
+          "publishedByPrincipalId": "user_reviewer_administrator"
+        },
+        "status": "verified",
+        "assurance": "synthetic_reference",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "role_count": 2,
+        "version_id": "version_wire_reviewer_native_v1_a",
+        "basis_count": 1,
+        "group_count": 2,
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "reviewer_kind": "human",
+        "canonical_utf8": "{\"definition\":{\"affiliations\":[\"Synthetic reference reviewer; no real expertise certification.\"],\"assurance\":\"synthetic_reference\",\"authorityId\":\"authority_wire_reviewer_native_v1\",\"authorityVersionId\":\"version_wire_reviewer_native_v1_a\",\"conflicts\":[],\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_reviewer_native_v1\",\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"installationId\":\"installation_wire_reviewer_native_v1\",\"issuerPrincipalId\":\"user_reviewer_administrator\",\"rationale\":\"Synthetic reference authority for exact contract and authentication tests.\",\"relationships\":[],\"reviewBasis\":[{\"artifactId\":\"artifact_synthetic_reviewer_basis\",\"classification\":\"internal\",\"mediaType\":\"application/json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512}],\"reviewerKind\":\"human\",\"reviewerPrincipalId\":\"reviewer_wire_reviewer_native_v1\",\"roleIds\":[\"release_reviewer\",\"security_reviewer\"],\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"status\":\"verified\",\"statusReasons\":[]},\"definitionDomain\":\"proofstack.release-reviewer-authority.v1\",\"encodingVersion\":\"proofstack.release-reviewer-authority-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_reviewer_administrator"
+      },
+      "root": {
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "environment_id": "env_staging",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "root_version_id": "version_wire_reviewer_native_v1_a",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "root_definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+      },
+      "root_version": {
+        "record": {
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "status": "verified",
+          "roleIds": ["release_reviewer", "security_reviewer"],
+          "assurance": "synthetic_reference",
+          "conflicts": [],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "reviewBasis": [
+            {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "application/json",
+              "sizeBytes": 512,
+              "artifactId": "artifact_synthetic_reviewer_basis",
+              "classification": "internal"
+            }
+          ],
+          "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerKind": "human",
+          "relationships": [],
+          "schemaVersion": "0.1",
+          "statusReasons": [],
+          "installationId": "installation_wire_reviewer_native_v1",
+          "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+          "issuerPrincipalId": "user_reviewer_administrator",
+          "authorityVersionId": "version_wire_reviewer_native_v1_a",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+          "independenceGroupIds": ["group_release_review", "group_security_review"],
+          "publishedByPrincipalId": "user_reviewer_administrator"
+        },
+        "status": "verified",
+        "assurance": "synthetic_reference",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "role_count": 2,
+        "version_id": "version_wire_reviewer_native_v1_a",
+        "basis_count": 1,
+        "group_count": 2,
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "reviewer_kind": "human",
+        "canonical_utf8": "{\"definition\":{\"affiliations\":[\"Synthetic reference reviewer; no real expertise certification.\"],\"assurance\":\"synthetic_reference\",\"authorityId\":\"authority_wire_reviewer_native_v1\",\"authorityVersionId\":\"version_wire_reviewer_native_v1_a\",\"conflicts\":[],\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_reviewer_native_v1\",\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"installationId\":\"installation_wire_reviewer_native_v1\",\"issuerPrincipalId\":\"user_reviewer_administrator\",\"rationale\":\"Synthetic reference authority for exact contract and authentication tests.\",\"relationships\":[],\"reviewBasis\":[{\"artifactId\":\"artifact_synthetic_reviewer_basis\",\"classification\":\"internal\",\"mediaType\":\"application/json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512}],\"reviewerKind\":\"human\",\"reviewerPrincipalId\":\"reviewer_wire_reviewer_native_v1\",\"roleIds\":[\"release_reviewer\",\"security_reviewer\"],\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"status\":\"verified\",\"statusReasons\":[]},\"definitionDomain\":\"proofstack.release-reviewer-authority.v1\",\"encodingVersion\":\"proofstack.release-reviewer-authority-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_reviewer_administrator"
+      },
+      "predecessor": null,
+      "memberships": [
+        {
+          "kind": "independence_group",
+          "ordinal": 0,
+          "member_id": "group_release_review",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_a",
+          "environment_id": "env_staging",
+          "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+        },
+        {
+          "kind": "independence_group",
+          "ordinal": 1,
+          "member_id": "group_security_review",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_a",
+          "environment_id": "env_staging",
+          "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+        },
+        {
+          "kind": "role",
+          "ordinal": 0,
+          "member_id": "release_reviewer",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_a",
+          "environment_id": "env_staging",
+          "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+        },
+        {
+          "kind": "role",
+          "ordinal": 1,
+          "member_id": "security_reviewer",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_a",
+          "environment_id": "env_staging",
+          "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "affiliation",
+          "ordinal": 0,
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_a",
+          "declaration": "Synthetic reference reviewer; no real expertise certification.",
+          "environment_id": "env_staging",
+          "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+        }
+      ],
+      "basis": [
+        {
+          "ordinal": 0,
+          "reference": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_synthetic_reviewer_basis",
+            "classification": "internal"
+          },
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_a",
+          "artifact_id": "artifact_synthetic_reviewer_basis",
+          "environment_id": "env_staging",
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+        }
+      ],
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "status": "verified",
+              "roleIds": ["release_reviewer", "security_reviewer"],
+              "assurance": "synthetic_reference",
+              "conflicts": [],
+              "expiresAt": "2026-10-16T00:00:00.000001Z",
+              "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+              "authorityId": "authority_wire_reviewer_native_v1",
+              "effectiveAt": "2026-10-15T00:00:00.000001Z",
+              "publishedAt": "2026-10-15T00:00:00.000001Z",
+              "reviewBasis": [
+                {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "mediaType": "application/json",
+                  "sizeBytes": 512,
+                  "artifactId": "artifact_synthetic_reviewer_basis",
+                  "classification": "internal"
+                }
+              ],
+              "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+              "gateTargetId": "gate_wire_reviewer_native_v1",
+              "reviewerKind": "human",
+              "relationships": [],
+              "schemaVersion": "0.1",
+              "statusReasons": [],
+              "installationId": "installation_wire_reviewer_native_v1",
+              "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+              "issuerPrincipalId": "user_reviewer_administrator",
+              "authorityVersionId": "version_wire_reviewer_native_v1_a",
+              "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "publishedByPrincipalId": "user_reviewer_administrator"
+            },
+            "recordKind": "release_reviewer_authority"
+          },
+          "eventType": "release.reviewer-authority.published",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    },
+    {
+      "version": {
+        "record": {
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "status": "verified",
+          "roleIds": ["release_reviewer", "security_reviewer"],
+          "assurance": "synthetic_reference",
+          "conflicts": [],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "effectiveAt": "2026-10-15T11:00:00.000001Z",
+          "predecessor": {
+            "authorityId": "authority_wire_reviewer_native_v1",
+            "gateTargetId": "gate_wire_reviewer_native_v1",
+            "installationId": "installation_wire_reviewer_native_v1",
+            "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+            "authorityVersionId": "version_wire_reviewer_native_v1_a",
+            "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+          },
+          "publishedAt": "2026-10-15T11:00:00.000001Z",
+          "reviewBasis": [
+            {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "application/json",
+              "sizeBytes": 512,
+              "artifactId": "artifact_synthetic_reviewer_basis",
+              "classification": "internal"
+            }
+          ],
+          "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerKind": "human",
+          "relationships": [],
+          "schemaVersion": "0.1",
+          "statusReasons": [],
+          "installationId": "installation_wire_reviewer_native_v1",
+          "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+          "issuerPrincipalId": "user_reviewer_administrator",
+          "authorityVersionId": "version_wire_reviewer_native_v1_b",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+          "independenceGroupIds": ["group_release_review", "group_security_review"],
+          "publishedByPrincipalId": "user_reviewer_administrator"
+        },
+        "status": "verified",
+        "assurance": "synthetic_reference",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "role_count": 2,
+        "version_id": "version_wire_reviewer_native_v1_b",
+        "basis_count": 1,
+        "group_count": 2,
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "reviewer_kind": "human",
+        "canonical_utf8": "{\"definition\":{\"affiliations\":[\"Synthetic reference reviewer; no real expertise certification.\"],\"assurance\":\"synthetic_reference\",\"authorityId\":\"authority_wire_reviewer_native_v1\",\"authorityVersionId\":\"version_wire_reviewer_native_v1_b\",\"conflicts\":[],\"effectiveAt\":\"2026-10-15T11:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_reviewer_native_v1\",\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"installationId\":\"installation_wire_reviewer_native_v1\",\"issuerPrincipalId\":\"user_reviewer_administrator\",\"predecessor\":{\"authorityId\":\"authority_wire_reviewer_native_v1\",\"authorityVersionId\":\"version_wire_reviewer_native_v1_a\",\"definitionSha256\":\"4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1\",\"gateTargetId\":\"gate_wire_reviewer_native_v1\",\"installationId\":\"installation_wire_reviewer_native_v1\",\"reviewerPrincipalId\":\"reviewer_wire_reviewer_native_v1\"},\"rationale\":\"Synthetic reference authority for exact contract and authentication tests.\",\"relationships\":[],\"reviewBasis\":[{\"artifactId\":\"artifact_synthetic_reviewer_basis\",\"classification\":\"internal\",\"mediaType\":\"application/json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512}],\"reviewerKind\":\"human\",\"reviewerPrincipalId\":\"reviewer_wire_reviewer_native_v1\",\"roleIds\":[\"release_reviewer\",\"security_reviewer\"],\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"status\":\"verified\",\"statusReasons\":[]},\"definitionDomain\":\"proofstack.release-reviewer-authority.v1\",\"encodingVersion\":\"proofstack.release-reviewer-authority-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "effective_at_key": "1792062000000001000000000000000000000000",
+        "published_at_key": "1792062000000001000000000000000000000000",
+        "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+        "parent_version_id": "version_wire_reviewer_native_v1_a",
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "parent_definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "published_by_principal_id": "user_reviewer_administrator"
+      },
+      "root": {
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "environment_id": "env_staging",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "root_version_id": "version_wire_reviewer_native_v1_a",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "root_definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1"
+      },
+      "root_version": {
+        "record": {
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "status": "verified",
+          "roleIds": ["release_reviewer", "security_reviewer"],
+          "assurance": "synthetic_reference",
+          "conflicts": [],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "reviewBasis": [
+            {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "application/json",
+              "sizeBytes": 512,
+              "artifactId": "artifact_synthetic_reviewer_basis",
+              "classification": "internal"
+            }
+          ],
+          "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerKind": "human",
+          "relationships": [],
+          "schemaVersion": "0.1",
+          "statusReasons": [],
+          "installationId": "installation_wire_reviewer_native_v1",
+          "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+          "issuerPrincipalId": "user_reviewer_administrator",
+          "authorityVersionId": "version_wire_reviewer_native_v1_a",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+          "independenceGroupIds": ["group_release_review", "group_security_review"],
+          "publishedByPrincipalId": "user_reviewer_administrator"
+        },
+        "status": "verified",
+        "assurance": "synthetic_reference",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "role_count": 2,
+        "version_id": "version_wire_reviewer_native_v1_a",
+        "basis_count": 1,
+        "group_count": 2,
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "reviewer_kind": "human",
+        "canonical_utf8": "{\"definition\":{\"affiliations\":[\"Synthetic reference reviewer; no real expertise certification.\"],\"assurance\":\"synthetic_reference\",\"authorityId\":\"authority_wire_reviewer_native_v1\",\"authorityVersionId\":\"version_wire_reviewer_native_v1_a\",\"conflicts\":[],\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_reviewer_native_v1\",\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"installationId\":\"installation_wire_reviewer_native_v1\",\"issuerPrincipalId\":\"user_reviewer_administrator\",\"rationale\":\"Synthetic reference authority for exact contract and authentication tests.\",\"relationships\":[],\"reviewBasis\":[{\"artifactId\":\"artifact_synthetic_reviewer_basis\",\"classification\":\"internal\",\"mediaType\":\"application/json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512}],\"reviewerKind\":\"human\",\"reviewerPrincipalId\":\"reviewer_wire_reviewer_native_v1\",\"roleIds\":[\"release_reviewer\",\"security_reviewer\"],\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"status\":\"verified\",\"statusReasons\":[]},\"definitionDomain\":\"proofstack.release-reviewer-authority.v1\",\"encodingVersion\":\"proofstack.release-reviewer-authority-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_reviewer_administrator"
+      },
+      "predecessor": {
+        "record": {
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "status": "verified",
+          "roleIds": ["release_reviewer", "security_reviewer"],
+          "assurance": "synthetic_reference",
+          "conflicts": [],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "reviewBasis": [
+            {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "mediaType": "application/json",
+              "sizeBytes": 512,
+              "artifactId": "artifact_synthetic_reviewer_basis",
+              "classification": "internal"
+            }
+          ],
+          "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerKind": "human",
+          "relationships": [],
+          "schemaVersion": "0.1",
+          "statusReasons": [],
+          "installationId": "installation_wire_reviewer_native_v1",
+          "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+          "issuerPrincipalId": "user_reviewer_administrator",
+          "authorityVersionId": "version_wire_reviewer_native_v1_a",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+          "independenceGroupIds": ["group_release_review", "group_security_review"],
+          "publishedByPrincipalId": "user_reviewer_administrator"
+        },
+        "status": "verified",
+        "assurance": "synthetic_reference",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "role_count": 2,
+        "version_id": "version_wire_reviewer_native_v1_a",
+        "basis_count": 1,
+        "group_count": 2,
+        "authority_id": "authority_wire_reviewer_native_v1",
+        "reviewer_kind": "human",
+        "canonical_utf8": "{\"definition\":{\"affiliations\":[\"Synthetic reference reviewer; no real expertise certification.\"],\"assurance\":\"synthetic_reference\",\"authorityId\":\"authority_wire_reviewer_native_v1\",\"authorityVersionId\":\"version_wire_reviewer_native_v1_a\",\"conflicts\":[],\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_reviewer_native_v1\",\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"installationId\":\"installation_wire_reviewer_native_v1\",\"issuerPrincipalId\":\"user_reviewer_administrator\",\"rationale\":\"Synthetic reference authority for exact contract and authentication tests.\",\"relationships\":[],\"reviewBasis\":[{\"artifactId\":\"artifact_synthetic_reviewer_basis\",\"classification\":\"internal\",\"mediaType\":\"application/json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512}],\"reviewerKind\":\"human\",\"reviewerPrincipalId\":\"reviewer_wire_reviewer_native_v1\",\"roleIds\":[\"release_reviewer\",\"security_reviewer\"],\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"status\":\"verified\",\"statusReasons\":[]},\"definitionDomain\":\"proofstack.release-reviewer-authority.v1\",\"encodingVersion\":\"proofstack.release-reviewer-authority-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_reviewer_native_v1",
+        "installation_id": "installation_wire_reviewer_native_v1",
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "reviewer_principal_id": "reviewer_wire_reviewer_native_v1",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_reviewer_administrator"
+      },
+      "memberships": [
+        {
+          "kind": "independence_group",
+          "ordinal": 0,
+          "member_id": "group_release_review",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_b",
+          "environment_id": "env_staging",
+          "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+        },
+        {
+          "kind": "independence_group",
+          "ordinal": 1,
+          "member_id": "group_security_review",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_b",
+          "environment_id": "env_staging",
+          "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+        },
+        {
+          "kind": "role",
+          "ordinal": 0,
+          "member_id": "release_reviewer",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_b",
+          "environment_id": "env_staging",
+          "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+        },
+        {
+          "kind": "role",
+          "ordinal": 1,
+          "member_id": "security_reviewer",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_b",
+          "environment_id": "env_staging",
+          "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "affiliation",
+          "ordinal": 0,
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_b",
+          "declaration": "Synthetic reference reviewer; no real expertise certification.",
+          "environment_id": "env_staging",
+          "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+        }
+      ],
+      "basis": [
+        {
+          "ordinal": 0,
+          "reference": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_synthetic_reviewer_basis",
+            "classification": "internal"
+          },
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_reviewer_native_v1_b",
+          "artifact_id": "artifact_synthetic_reviewer_basis",
+          "environment_id": "env_staging",
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+        }
+      ],
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "status": "verified",
+              "roleIds": ["release_reviewer", "security_reviewer"],
+              "assurance": "synthetic_reference",
+              "conflicts": [],
+              "expiresAt": "2026-10-16T00:00:00.000001Z",
+              "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+              "authorityId": "authority_wire_reviewer_native_v1",
+              "effectiveAt": "2026-10-15T11:00:00.000001Z",
+              "predecessor": {
+                "authorityId": "authority_wire_reviewer_native_v1",
+                "gateTargetId": "gate_wire_reviewer_native_v1",
+                "installationId": "installation_wire_reviewer_native_v1",
+                "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+                "authorityVersionId": "version_wire_reviewer_native_v1_a",
+                "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+              },
+              "publishedAt": "2026-10-15T11:00:00.000001Z",
+              "reviewBasis": [
+                {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "mediaType": "application/json",
+                  "sizeBytes": 512,
+                  "artifactId": "artifact_synthetic_reviewer_basis",
+                  "classification": "internal"
+                }
+              ],
+              "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+              "gateTargetId": "gate_wire_reviewer_native_v1",
+              "reviewerKind": "human",
+              "relationships": [],
+              "schemaVersion": "0.1",
+              "statusReasons": [],
+              "installationId": "installation_wire_reviewer_native_v1",
+              "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+              "issuerPrincipalId": "user_reviewer_administrator",
+              "authorityVersionId": "version_wire_reviewer_native_v1_b",
+              "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "publishedByPrincipalId": "user_reviewer_administrator"
+            },
+            "recordKind": "release_reviewer_authority"
+          },
+          "eventType": "release.reviewer-authority.published",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event": {
+        "record": {
+          "kind": "superseded",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "reason": "Revoke this exact reviewer authority declaration.",
+          "eventId": "event_wire_reviewer_native_v1_superseded",
+          "authority": {
+            "authorityId": "authority_wire_reviewer_native_v1",
+            "gateTargetId": "gate_wire_reviewer_native_v1",
+            "installationId": "installation_wire_reviewer_native_v1",
+            "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+            "authorityVersionId": "version_wire_reviewer_native_v1_a",
+            "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+          },
+          "successor": {
+            "authorityId": "authority_wire_reviewer_native_v1",
+            "gateTargetId": "gate_wire_reviewer_native_v1",
+            "installationId": "installation_wire_reviewer_native_v1",
+            "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+            "authorityVersionId": "version_wire_reviewer_native_v1_b",
+            "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+          },
+          "occurredAt": "2026-10-15T11:00:00.000001Z",
+          "schemaVersion": "0.1",
+          "actorPrincipalId": "principal_installer"
+        },
+        "event_id": "event_wire_reviewer_native_v1_superseded",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_reviewer_native_v1_a",
+        "environment_id": "env_staging",
+        "occurred_at_key": "1792062000000001000000000000000000000000",
+        "definition_sha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "occurred_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "successor_version_id": "version_wire_reviewer_native_v1_b",
+        "successor_definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2"
+      },
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "kind": "superseded",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "reason": "Revoke this exact reviewer authority declaration.",
+              "eventId": "event_wire_reviewer_native_v1_superseded",
+              "authority": {
+                "authorityId": "authority_wire_reviewer_native_v1",
+                "gateTargetId": "gate_wire_reviewer_native_v1",
+                "installationId": "installation_wire_reviewer_native_v1",
+                "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+                "authorityVersionId": "version_wire_reviewer_native_v1_a",
+                "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+              },
+              "successor": {
+                "authorityId": "authority_wire_reviewer_native_v1",
+                "gateTargetId": "gate_wire_reviewer_native_v1",
+                "installationId": "installation_wire_reviewer_native_v1",
+                "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+                "authorityVersionId": "version_wire_reviewer_native_v1_b",
+                "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+              },
+              "occurredAt": "2026-10-15T11:00:00.000001Z",
+              "schemaVersion": "0.1",
+              "actorPrincipalId": "principal_installer"
+            },
+            "recordKind": "release_reviewer_authority_lifecycle"
+          },
+          "eventType": "release.reviewer-authority.lifecycle_recorded",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    },
+    {
+      "event": {
+        "record": {
+          "kind": "revoked",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "reason": "Revoke this exact reviewer authority declaration.",
+          "eventId": "event_wire_reviewer_successor_revoked",
+          "authority": {
+            "authorityId": "authority_wire_reviewer_native_v1",
+            "gateTargetId": "gate_wire_reviewer_native_v1",
+            "installationId": "installation_wire_reviewer_native_v1",
+            "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+            "authorityVersionId": "version_wire_reviewer_native_v1_b",
+            "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+          },
+          "occurredAt": "2026-10-15T11:00:00.000001Z",
+          "schemaVersion": "0.1",
+          "actorPrincipalId": "principal_installer"
+        },
+        "event_id": "event_wire_reviewer_successor_revoked",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_reviewer_native_v1_b",
+        "environment_id": "env_staging",
+        "occurred_at_key": "1792062000000001000000000000000000000000",
+        "definition_sha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+        "occurred_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "successor_version_id": null,
+        "successor_definition_sha256": null
+      },
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "kind": "revoked",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "reason": "Revoke this exact reviewer authority declaration.",
+              "eventId": "event_wire_reviewer_successor_revoked",
+              "authority": {
+                "authorityId": "authority_wire_reviewer_native_v1",
+                "gateTargetId": "gate_wire_reviewer_native_v1",
+                "installationId": "installation_wire_reviewer_native_v1",
+                "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+                "authorityVersionId": "version_wire_reviewer_native_v1_b",
+                "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+              },
+              "occurredAt": "2026-10-15T11:00:00.000001Z",
+              "schemaVersion": "0.1",
+              "actorPrincipalId": "principal_installer"
+            },
+            "recordKind": "release_reviewer_authority_lifecycle"
+          },
+          "eventType": "release.reviewer-authority.lifecycle_recorded",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    }
+  ],
+  "census": {
+    "root": {
+      "authorityId": "authority_wire_reviewer_native_v1",
+      "authorityVersionId": "version_wire_reviewer_native_v1_a",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_example"
+      },
+      "installationId": "installation_wire_reviewer_native_v1",
+      "gateTargetId": "gate_wire_reviewer_native_v1",
+      "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+      "issuerPrincipalId": "user_reviewer_administrator",
+      "roleIds": ["release_reviewer", "security_reviewer"],
+      "independenceGroupIds": ["group_release_review", "group_security_review"],
+      "reviewerKind": "human",
+      "assurance": "synthetic_reference",
+      "status": "verified",
+      "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+      "relationships": [],
+      "conflicts": [],
+      "statusReasons": [],
+      "reviewBasis": [
+        {
+          "artifactId": "artifact_synthetic_reviewer_basis",
+          "classification": "internal",
+          "mediaType": "application/json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 512
+        }
+      ],
+      "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+      "effectiveAt": "2026-10-15T00:00:00.000001Z",
+      "expiresAt": "2026-10-16T00:00:00.000001Z",
+      "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+      "schemaVersion": "0.1",
+      "publishedAt": "2026-10-15T00:00:00.000001Z",
+      "publishedByPrincipalId": "user_reviewer_administrator"
+    },
+    "records": [
+      {
+        "authorityId": "authority_wire_reviewer_native_v1",
+        "authorityVersionId": "version_wire_reviewer_native_v1_a",
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "installationId": "installation_wire_reviewer_native_v1",
+        "gateTargetId": "gate_wire_reviewer_native_v1",
+        "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+        "issuerPrincipalId": "user_reviewer_administrator",
+        "roleIds": ["release_reviewer", "security_reviewer"],
+        "independenceGroupIds": ["group_release_review", "group_security_review"],
+        "reviewerKind": "human",
+        "assurance": "synthetic_reference",
+        "status": "verified",
+        "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+        "relationships": [],
+        "conflicts": [],
+        "statusReasons": [],
+        "reviewBasis": [
+          {
+            "artifactId": "artifact_synthetic_reviewer_basis",
+            "classification": "internal",
+            "mediaType": "application/json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          }
+        ],
+        "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+        "effectiveAt": "2026-10-15T00:00:00.000001Z",
+        "expiresAt": "2026-10-16T00:00:00.000001Z",
+        "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+        "schemaVersion": "0.1",
+        "publishedAt": "2026-10-15T00:00:00.000001Z",
+        "publishedByPrincipalId": "user_reviewer_administrator"
+      },
+      {
+        "authorityId": "authority_wire_reviewer_native_v1",
+        "authorityVersionId": "version_wire_reviewer_native_v1_b",
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "installationId": "installation_wire_reviewer_native_v1",
+        "gateTargetId": "gate_wire_reviewer_native_v1",
+        "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1",
+        "issuerPrincipalId": "user_reviewer_administrator",
+        "roleIds": ["release_reviewer", "security_reviewer"],
+        "independenceGroupIds": ["group_release_review", "group_security_review"],
+        "reviewerKind": "human",
+        "assurance": "synthetic_reference",
+        "status": "verified",
+        "affiliations": ["Synthetic reference reviewer; no real expertise certification."],
+        "relationships": [],
+        "conflicts": [],
+        "statusReasons": [],
+        "reviewBasis": [
+          {
+            "artifactId": "artifact_synthetic_reviewer_basis",
+            "classification": "internal",
+            "mediaType": "application/json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          }
+        ],
+        "rationale": "Synthetic reference authority for exact contract and authentication tests.",
+        "effectiveAt": "2026-10-15T11:00:00.000001Z",
+        "expiresAt": "2026-10-16T00:00:00.000001Z",
+        "predecessor": {
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "authorityVersionId": "version_wire_reviewer_native_v1_a",
+          "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+          "installationId": "installation_wire_reviewer_native_v1",
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+        },
+        "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+        "schemaVersion": "0.1",
+        "publishedAt": "2026-10-15T11:00:00.000001Z",
+        "publishedByPrincipalId": "user_reviewer_administrator"
+      }
+    ],
+    "lifecycle": [
+      {
+        "eventId": "event_wire_reviewer_native_v1_superseded",
+        "authority": {
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "authorityVersionId": "version_wire_reviewer_native_v1_a",
+          "definitionSha256": "4c36ba8aec84077eaa12e9568cfaefadcdae10b44de2730a09b7215d3de2dfd1",
+          "installationId": "installation_wire_reviewer_native_v1",
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "actorPrincipalId": "principal_installer",
+        "occurredAt": "2026-10-15T11:00:00.000001Z",
+        "reason": "Revoke this exact reviewer authority declaration.",
+        "schemaVersion": "0.1",
+        "kind": "superseded",
+        "successor": {
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "authorityVersionId": "version_wire_reviewer_native_v1_b",
+          "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+          "installationId": "installation_wire_reviewer_native_v1",
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+        }
+      },
+      {
+        "eventId": "event_wire_reviewer_successor_revoked",
+        "authority": {
+          "authorityId": "authority_wire_reviewer_native_v1",
+          "authorityVersionId": "version_wire_reviewer_native_v1_b",
+          "definitionSha256": "7c66fe78ed6d50609151ef33b7c43750dad7fbe924472079113f5fa23825f6a2",
+          "installationId": "installation_wire_reviewer_native_v1",
+          "gateTargetId": "gate_wire_reviewer_native_v1",
+          "reviewerPrincipalId": "reviewer_wire_reviewer_native_v1"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "actorPrincipalId": "principal_installer",
+        "occurredAt": "2026-10-15T11:00:00.000001Z",
+        "reason": "Revoke this exact reviewer authority declaration.",
+        "schemaVersion": "0.1",
+        "kind": "revoked"
+      }
+    ]
+  }
+}

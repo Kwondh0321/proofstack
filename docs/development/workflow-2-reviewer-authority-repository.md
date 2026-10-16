@@ -52,6 +52,11 @@ copies, lineage, concurrent terminals, native precision and exact/one-below aggr
 checks corrupt physical indexes and substituted version/event slots. These reference fixtures
 are synthetic and do not prove real private authentication or a PostgreSQL implementation.
 
+The subsequent [native reviewer store](workflow-2-native-reviewer-repository.md) implements this
+unchanged port with normalized originals and guarded complete reads. Its native evidence is
+separate from the memory reference described here; actual issuer/approval/decision authority
+and the remaining checkpoint entry gates stay open.
+
 The [selection shared cases](../../packages/core/src/testing/release-policy-selection-repository-conformance.ts)
 also now store and read an explicit observation-only/no-policy target after observing absence.
 An absent target cannot be relabelled as a configured observation-only selection.

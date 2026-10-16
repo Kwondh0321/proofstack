@@ -171,6 +171,12 @@ describe("provisionRuntimeRoles", () => {
       "proofstack_release_selection_policies",
       "proofstack_release_selection_publishers",
       "proofstack_release_selection_lifecycle",
+      "proofstack_release_reviewer_roots",
+      "proofstack_release_reviewer_authorities",
+      "proofstack_release_reviewer_memberships",
+      "proofstack_release_reviewer_declarations",
+      "proofstack_release_reviewer_basis",
+      "proofstack_release_reviewer_lifecycle",
     ]) {
       expect(grants.some((statement) => statement.includes(`public.${table}`))).toBe(false);
     }
@@ -231,6 +237,13 @@ describe("provisionRuntimeRoles", () => {
       "public.proofstack_store_release_policy_selection(jsonb,text)",
       "public.proofstack_store_release_selection_lifecycle(jsonb)",
       "public.proofstack_read_release_selection_root(jsonb,text,text)",
+      "public.proofstack_try_lock_release_reviewer(jsonb)",
+      "public.proofstack_lock_release_reviewer_write()",
+      "public.proofstack_verify_release_reviewer_graph()",
+      "public.proofstack_verify_release_reviewer_lifecycle()",
+      "public.proofstack_store_release_reviewer_authority(jsonb,text)",
+      "public.proofstack_store_release_reviewer_lifecycle(jsonb)",
+      "public.proofstack_read_release_reviewer_root(jsonb,text,text,text)",
     ]) {
       for (const recipient of [
         "PUBLIC",

@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [native reviewer declaration store](workflow-2-native-reviewer-repository.md) retains complete
+original reviewer inventories, normalized roles/groups/basis/conflicts and terminal history.
+Storage alone supplies no actual issuer authentication, expertise or current approval authority.
+
 The [native target-owned selection store](workflow-2-native-selection-repository.md) preserves
 the original owner, complete guarded history, normalized integrity and atomic canonical outbox
 through the unchanged shared port. Actual installer authority, separate roles and complete

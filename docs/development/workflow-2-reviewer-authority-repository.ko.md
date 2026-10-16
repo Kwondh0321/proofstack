@@ -44,6 +44,10 @@
 [메모리 손상 사례](../../packages/core/src/testing/memory-release-reviewer-authority-repository.test.ts)도
 추가했습니다. 합성 참조 검사는 실제 비공개 인증이나 PostgreSQL 구현의 증거가 아닙니다.
 
+후속 [네이티브 검토자 저장소](workflow-2-native-reviewer-repository.ko.md)는 같은 포트에 정규화 원본
+저장과 guard를 유지하는 완전한 읽기를 구현합니다. 해당 네이티브 근거는 이 메모리 참조와 구분하며,
+실제 발급자·승인·결정 권한과 나머지 체크포인트 조건은 계속 남아 있습니다.
+
 선택 저장소의 공통 사례에도 부재 확인 후 관측 전용/정책 없는 대상을 실제 저장·조회하는 양성 검사를
 보강했습니다. 부재를 구성된 관측 전용 선택으로 바꿔 해석할 수 없습니다.
 

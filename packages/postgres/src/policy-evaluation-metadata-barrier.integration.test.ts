@@ -210,14 +210,22 @@ afterAll(async () => {
 describe("complete policy metadata publication barrier", () => {
   it("covers every source relation and inherited partition with enabled mandatory writer triggers", async () => {
     // A new tenant table requires a deliberate inventory decision. Six tables are identity or
-    // delivery progress. Five C4 selection tables use their own mandatory guard domain below;
-    // they are not inputs to the unchanged C3 evaluation snapshot.
+    // delivery progress. Five C4 selection and six reviewer tables use their own mandatory
+    // guard domains below; they are not inputs to the unchanged C3 evaluation snapshot.
     const selectionTables = [
       "proofstack_release_selection_roots",
       "proofstack_release_policy_selections",
       "proofstack_release_selection_policies",
       "proofstack_release_selection_publishers",
       "proofstack_release_selection_lifecycle",
+    ];
+    const reviewerTables = [
+      "proofstack_release_reviewer_roots",
+      "proofstack_release_reviewer_authorities",
+      "proofstack_release_reviewer_memberships",
+      "proofstack_release_reviewer_declarations",
+      "proofstack_release_reviewer_basis",
+      "proofstack_release_reviewer_lifecycle",
     ];
     const excluded = [
       "proofstack_api_key_credentials",
@@ -227,6 +235,7 @@ describe("complete policy metadata publication barrier", () => {
       "proofstack_oidc_bindings",
       "proofstack_projection_cursors",
       ...selectionTables,
+      ...reviewerTables,
     ];
     const tables = await admin.query<{ name: string; partition: boolean }>(
       `SELECT c.relname AS name, c.relispartition AS partition
@@ -266,6 +275,15 @@ describe("complete policy metadata publication barrier", () => {
     );
     expect(selectionGuards.rows).toEqual(
       [...selectionTables].sort().map((name) => ({ name, enabled: "O", type: 5 })),
+    );
+    const reviewerGuards = await admin.query(
+      `SELECT c.relname AS name,t.tgenabled AS enabled,t.tgtype::int AS type
+       FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+       WHERE t.tgfoid='public.proofstack_lock_release_reviewer_write()'::regprocedure
+       ORDER BY c.relname`,
+    );
+    expect(reviewerGuards.rows).toEqual(
+      [...reviewerTables].sort().map((name) => ({ name, enabled: "O", type: 5 })),
     );
     const recovery = await admin.query(
       `SELECT tgtype::int AS type, tgenabled AS enabled FROM pg_trigger
@@ -666,7 +684,7 @@ describe("complete policy metadata publication barrier", () => {
               "SELECT count(*)::int AS count FROM public.proofstack_schema_migrations",
             )
           ).rows[0]?.count,
-        ).toBe(65);
+        ).toBe(66);
       },
     );
   });
