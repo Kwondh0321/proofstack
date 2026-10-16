@@ -65,6 +65,11 @@ fixture contains actual synthetic PostgreSQL 16.15 wire records; it tests malfor
 receipt/canonical/lineage/intent substitutions, original budgets and rollback cleanup. It is not
 an independent SQL oracle or a substitute for the required native suite.
 
+The coordinated recovery fixture seeds original/successor selection versions and supersession
+with every normalized table nonempty. It compares the full restored graph and canonical outbox,
+then exercises owning complete reads and original-receipt retries after restore. This extends
+the existing database/ciphertext/key rehearsal; complete decision authority recovery remains open.
+
 Use only a disposable `proofstack_test` PostgreSQL instance. Keep all existing assertions,
 coverage thresholds, migration checksum verification and required CI jobs. Native fixture
 privileges are test-only; never give an API, reviewer or evaluator the migration connection.

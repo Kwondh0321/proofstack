@@ -72,6 +72,8 @@ import {
   validatePolicyEvaluationSnapshotRecord,
   releaseCandidateReference,
   releasePolicyReference,
+  releasePolicySelectionReference,
+  ReleaseDecisionVerificationBudget,
   StaticEndpointProfileCatalogue,
   StaticEvaluationImplementationRegistrationCatalogue,
   StaticPolicyInstallationBindingResolver,
@@ -93,6 +95,8 @@ import {
   releaseCandidateFixture,
   releasePolicyLifecycleFixture,
   releasePolicyRepositoryFixture,
+  releasePolicySelectionRepositoryFixture,
+  selectionVersion,
 } from "@proofstack/core/testing";
 import {
   buildRecordedInteractionFixtureVersionPublishedOutboxIntent,
@@ -148,6 +152,7 @@ import {
   PostgresReplayJobControlRepository,
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
+  PostgresReleasePolicySelectionRepository,
   provisionRuntimeRoles,
   withExactScopeTransaction,
   type RuntimeRoleProvisioningOptions,
@@ -283,7 +288,12 @@ const EXPECTED_TABLES = [
   "proofstack_release_policy_resources",
   "proofstack_release_policy_rule_sources",
   "proofstack_release_policy_rules",
+  "proofstack_release_policy_selections",
   "proofstack_release_policy_sources",
+  "proofstack_release_selection_lifecycle",
+  "proofstack_release_selection_policies",
+  "proofstack_release_selection_publishers",
+  "proofstack_release_selection_roots",
   "proofstack_replay_attempt_events",
   "proofstack_replay_attempts",
   "proofstack_replay_budget_entries",
@@ -316,6 +326,29 @@ const scope: EvidenceScope = {
   projectId: "prj_recovery",
   tenantId: "ten_recovery",
 };
+const selectionRecovery = (() => {
+  const fixture = releasePolicySelectionRepositoryFixture("recovery_native_selection");
+  const original = selectionVersion(fixture.original, { scope }, fixture.original.publishedAt);
+  const successor = selectionVersion(
+    original,
+    {
+      selectionVersionId: fixture.successor.selectionVersionId,
+      predecessor: releasePolicySelectionReference(original),
+      effectiveAt: fixture.successor.effectiveAt,
+    },
+    fixture.successor.publishedAt,
+  );
+  return {
+    original,
+    successor,
+    event: {
+      ...fixture.supersession,
+      scope,
+      selection: releasePolicySelectionReference(original),
+      successor: releasePolicySelectionReference(successor),
+    },
+  };
+})();
 const workflowNamespace = `rec${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 const workflowScope: EvidenceScope = {
   environmentId: `env_${workflowNamespace}_primary`,
@@ -2089,6 +2122,10 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
   await publishReleasePolicyRecord(successor);
   await publishReleasePolicyLifecycleRecord(supersession);
   releasePolicyRecoveryState = { policy, successor, supersession };
+  const selections = new PostgresReleasePolicySelectionRepository(sourcePool);
+  await selections.publishReleasePolicySelection(selectionRecovery.original);
+  await selections.publishReleasePolicySelection(selectionRecovery.successor);
+  await selections.publishReleasePolicySelectionLifecycleEvent(selectionRecovery.event);
 }
 
 async function seedRecoverableWorkflow1Graph(): Promise<void> {
@@ -3652,6 +3689,45 @@ describe("coordinated recovery rehearsal", () => {
       ],
     );
     expect(policyRowsAfterRetry.rows).toEqual(policyRowsBeforeRetry.rows);
+    const selections = new PostgresReleasePolicySelectionRepository(restoredPool);
+    expect(
+      await selections.findReleasePolicySelection(
+        scope,
+        selectionRecovery.original.selectionVersionId,
+      ),
+    ).toEqual(selectionRecovery.original);
+    expect(
+      await selections.findReleasePolicySelectionLifecycleEvent(
+        scope,
+        selectionRecovery.event.eventId,
+      ),
+    ).toEqual(selectionRecovery.event);
+    expect(
+      await selections.readReleasePolicySelectionTarget(
+        scope,
+        {
+          installationId: selectionRecovery.original.installationId,
+          gateTargetId: selectionRecovery.original.gateTargetId,
+        },
+        new ReleaseDecisionVerificationBudget({
+          maxAcquisitionRecords: 100000,
+          maxAcquisitionRecordBytes: 64 * 1024 * 1024,
+          maxApprovalRecords: 4096,
+        }),
+      ),
+    ).toEqual({
+      root: selectionRecovery.original,
+      records: [selectionRecovery.original, selectionRecovery.successor],
+      lifecycle: [selectionRecovery.event],
+    });
+    await expect(
+      selections.publishReleasePolicySelection(structuredClone(selectionRecovery.successor)),
+    ).resolves.toEqual({ created: false, selection: selectionRecovery.successor });
+    await expect(
+      selections.publishReleasePolicySelectionLifecycleEvent(
+        structuredClone(selectionRecovery.event),
+      ),
+    ).resolves.toEqual({ created: false, event: selectionRecovery.event });
     const replayRecovery = requiredReplayRecoveryState();
     const restoredRecoveryEpoch = await restoredPool.query<{
       readonly advanced_at_lexical: string;

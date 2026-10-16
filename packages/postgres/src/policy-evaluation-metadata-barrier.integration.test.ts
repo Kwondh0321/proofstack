@@ -265,7 +265,7 @@ describe("complete policy metadata publication barrier", () => {
        ORDER BY c.relname`,
     );
     expect(selectionGuards.rows).toEqual(
-      selectionTables.toSorted().map((name) => ({ name, enabled: "O", type: 5 })),
+      [...selectionTables].sort().map((name) => ({ name, enabled: "O", type: 5 })),
     );
     const recovery = await admin.query(
       `SELECT tgtype::int AS type, tgenabled AS enabled FROM pg_trigger
