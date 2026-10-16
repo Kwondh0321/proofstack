@@ -112,6 +112,17 @@ export const releasePolicySelectionRepositoryConformanceCases: readonly Case[] =
         ),
         null,
       );
+      const observationOnly = selectionVersion(
+        h.fixture.original,
+        { mode: "observation_only", policies: [] },
+        h.fixture.original.publishedAt,
+      );
+      await h.repository.publishReleasePolicySelection(observationOnly);
+      const stored = await read(h);
+      assert.deepEqual(stored.root, observationOnly);
+      assert.deepEqual(stored.records, [observationOnly]);
+      assert.equal(stored.root?.mode, "observation_only");
+      assert.deepEqual(stored.root?.policies, []);
     },
   ),
   test(

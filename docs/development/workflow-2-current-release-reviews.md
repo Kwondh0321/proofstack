@@ -65,6 +65,10 @@ earliest selected approval/authority expiry; it does not extend the old login or
 
 ## Remaining publication gates
 
+The [reviewer authority memory/shared repository](workflow-2-reviewer-authority-repository.md)
+adds owning declaration persistence and complete target reads. Actual private authentication and
+native publication authority remain open.
+
 A matched result is a captured-data calculation, not actual authentication, complete current
 source authority or permission to publish later. The read-only helpers hold no transaction.
 Do not accept a caller's census/context/matched report as authorization. They expose no public route.
