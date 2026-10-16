@@ -328,7 +328,14 @@ const scope: EvidenceScope = {
 };
 const selectionRecovery = (() => {
   const fixture = releasePolicySelectionRepositoryFixture("recovery_native_selection");
-  const original = selectionVersion(fixture.original, { scope }, fixture.original.publishedAt);
+  const original = selectionVersion(
+    fixture.original,
+    {
+      scope,
+      candidateTarget: { ...fixture.original.candidateTarget, environmentId: scope.environmentId },
+    },
+    fixture.original.publishedAt,
+  );
   const successor = selectionVersion(
     original,
     {
