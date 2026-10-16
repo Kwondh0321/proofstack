@@ -4,47 +4,64 @@ import { createMemoryPolicySnapshotResultHarness } from "@proofstack/core/testin
 import type { PoolClient } from "pg";
 import type { PolicyTransactionPool } from "./bounded-policy-transaction.js";
 import { PostgresPolicySnapshotRepository } from "./postgres-policy-snapshot-repository.js";
+import {
+  readPostgresPolicySnapshotOnClient,
+  readPostgresPolicySnapshotPageOnClient,
+} from "./postgres-policy-snapshot-readers.js";
 
 /** Read transport fault model only; actual SQL/RLS/roles are exercised in native integration. */
 async function fixture() {
   const memory = createMemoryPolicySnapshotResultHarness();
   const seed = await memory.seed();
   const job = await memory.control.findJob(seed.scope, seed.jobId);
-  const head = (await memory.control.findHistoryHead(seed.scope, seed.jobId))!;
-  const entry = (await memory.control.readHistoryPage(head, 0)).entries.at(-1)!;
+  const head = await memory.control.findHistoryHead(seed.scope, seed.jobId);
+  if (!job || !head) throw new Error("Missing original snapshot job/history fixture");
+  const historyPage = await memory.control.readHistoryPage(head, 0);
   let root: unknown = seed.snapshot,
     page: unknown,
     graph: unknown = job;
   let failHistory = false,
     failIntents = false;
   const calls: string[] = [];
+  let rowCount = 1;
+  const readValue = async (sql: string, values: readonly unknown[]) => {
+    calls.push(sql);
+    expect(sql).toMatch(/^SELECT\b/);
+    if (sql.includes("read_policy_snapshot_page"))
+      return page === undefined ? seed.pageSet.pages[Number(values[2])] : page;
+    if (sql.includes("read_policy_snapshot(")) return root;
+    if (sql.includes("read_policy_evaluation_job")) return graph;
+    if (sql.includes("read_policy_evaluation_history_head")) {
+      if (failHistory) throw new Error("missing_history");
+      return head;
+    }
+    if (sql.includes("read_policy_evaluation_history_page")) return historyPage;
+    if (sql.includes("policy_evaluation_intent_status"))
+      return failIntents ? "conflicting" : "canonical";
+    throw new Error("Unexpected fixed read query");
+  };
+  const client = {
+    query: async (sql: string, values: readonly unknown[]) => ({
+      rows: Array.from({ length: rowCount }, () => ({ value: undefined })),
+      ...(rowCount === 1 ? { rows: [{ value: await readValue(sql, values) }] } : {}),
+    }),
+  } as unknown as PoolClient;
   class Transport extends PostgresPolicySnapshotRepository {
     protected override async transact<T>(
       scope: EvidenceScope,
       operation: (client: PoolClient, scope: EvidenceScope) => Promise<T>,
     ) {
-      return operation({} as PoolClient, EvidenceScopeSchema.parse(scope));
-    }
-    protected override async lastOnClient() {
-      if (failHistory) throw new Error("missing_history");
-      return entry;
-    }
-    protected override async verifyIntents() {
-      if (failIntents) throw new Error("missing_intent");
-    }
-    protected override async one(_client: PoolClient, sql: string, values: readonly unknown[]) {
-      calls.push(sql);
-      if (sql.includes("read_policy_snapshot_page"))
-        return page === undefined ? seed.pageSet.pages[Number(values[2])] : page;
-      if (sql.includes("read_policy_snapshot(")) return root;
-      if (sql.includes("read_policy_evaluation_job")) return graph;
-      throw new Error("Unexpected fixed read query");
+      return operation(client, EvidenceScopeSchema.parse(scope));
     }
   }
   return {
     seed,
     job,
     calls,
+    client,
+    rowCount: (value: number) => {
+      rowCount = value;
+    },
     reader: new Transport({} as PolicyTransactionPool),
     root: (value: unknown) => {
       root = value;
@@ -64,6 +81,30 @@ async function fixture() {
   };
 }
 describe("stored policy snapshot reader response integrity", () => {
+  it("runs the same complete header/history/outbox checks on a query-only supplied client", async () => {
+    const f = await fixture();
+    const view = { query: f.client.query.bind(f.client) } as Pick<PoolClient, "query">;
+    expect(await readPostgresPolicySnapshotOnClient(view, f.seed.expected)).toEqual(
+      f.seed.snapshot,
+    );
+    expect(await readPostgresPolicySnapshotPageOnClient(view, f.seed.expected, 0)).toEqual(
+      f.seed.pageSet.pages[0],
+    );
+    for (const selector of [
+      "read_policy_evaluation_history_head",
+      "read_policy_evaluation_history_page",
+      "policy_evaluation_intent_status",
+    ])
+      expect(f.calls.some((sql) => sql.includes(selector))).toBe(true);
+    expect(f.calls.every((sql) => /^SELECT\b/.test(sql))).toBe(true);
+  });
+  it.each([0, 2])("rejects a scalar reader response containing %s rows", async (rowCount) => {
+    const f = await fixture();
+    f.rowCount(rowCount);
+    await expect(readPostgresPolicySnapshotOnClient(f.client, f.seed.expected)).rejects.toThrow(
+      "unexpected row count",
+    );
+  });
   it("reads the original exact header and individual retained pages", async () => {
     const f = await fixture();
     expect(await f.reader.findSnapshot(f.seed.expected)).toEqual(f.seed.snapshot);
@@ -111,7 +152,7 @@ describe("stored policy snapshot reader response integrity", () => {
     for (const kind of ["job", "history", "intent"] as const) {
       const f = await fixture();
       if (kind === "job")
-        f.graph({ ...f.job, job: { ...f.job!.job, definitionSha256: "0".repeat(64) } });
+        f.graph({ ...f.job, job: { ...f.job.job, definitionSha256: "0".repeat(64) } });
       if (kind === "history") f.failHistory();
       if (kind === "intent") f.failIntents();
       await expect(f.reader.findSnapshot(f.seed.expected)).rejects.toThrow();

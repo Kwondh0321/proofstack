@@ -14,7 +14,6 @@ import {
   completePolicyEvaluationJob,
   digestPolicyEvaluationDefinition,
   validatePolicyEvaluationSnapshotRecord,
-  validatePolicyEvaluationResultRecord,
   type PolicyEvaluationResultPublisher,
   type PolicyEvaluationResultReader,
 } from "@proofstack/core";
@@ -23,6 +22,10 @@ import {
   PostgresPolicyEvaluationJobReader,
   PostgresPolicyEvaluationJobContractError,
 } from "./postgres-policy-evaluation-job-base.js";
+import {
+  readPostgresPolicyEvaluationResultOnClient,
+  validatePostgresStoredPolicyResult,
+} from "./postgres-policy-result-readers.js";
 
 export class PostgresPolicyEvaluationResultRepository
   extends PostgresPolicyEvaluationJobReader
@@ -45,40 +48,7 @@ export class PostgresPolicyEvaluationResultRepository
     original: ReturnType<typeof PolicyEvaluationSnapshotSchema.parse>,
     pageSet: PolicyEvaluationSnapshotPageSet,
   ) {
-    const result = job.job.result;
-    const terminal = job.job.terminal;
-    const attempt = job.attempts.find(
-      (entry) => entry.mutationFence.attemptId === terminal?.attemptId,
-    );
-    const snapshot = job.job.snapshot;
-    if (
-      job.job.status !== "completed" ||
-      !result ||
-      !terminal ||
-      !attempt ||
-      attempt.closure?.status !== "completed" ||
-      attempt.closure.committedAt !== terminal.committedAt ||
-      serializeEvaluationCanonicalJson(attempt.snapshot) !==
-        serializeEvaluationCanonicalJson(snapshot) ||
-      !snapshot
-    )
-      throw new PostgresPolicyEvaluationJobContractError(
-        "Policy result omitted its deciding closed attempt",
-      );
-    return validatePolicyEvaluationResultRecord({
-      expected: {
-        scope: job.job.scope,
-        jobId: job.job.jobId,
-        request: job.job.request,
-        snapshot,
-        result,
-        fence: attempt.mutationFence,
-        completedAt: terminal.committedAt,
-      },
-      record,
-      snapshotRecord: original,
-      pageSet,
-    });
+    return validatePostgresStoredPolicyResult(job, record, original, pageSet);
   }
   async publishResult(command: Parameters<PolicyEvaluationResultPublisher["publishResult"]>[0]) {
     const evaluationId = OpaqueIdSchema.parse(command.evaluationId);
@@ -185,25 +155,8 @@ export class PostgresPolicyEvaluationResultRepository
   }
   async findResult(scope: EvidenceScope, id: string, pageSet: PolicyEvaluationSnapshotPageSet) {
     const jobId = OpaqueIdSchema.parse(id);
-    return this.transact(scope, async (client, exact) => {
-      const raw = await this.one(
-        client,
-        "SELECT public.proofstack_read_policy_evaluation_job($1) AS value",
-        [jobId],
-      );
-      if (raw === null) return null;
-      const job = this.inspect(raw, exact, jobId);
-      await this.lastOnClient(client, exact, job);
-      await this.verifyIntents(client, job);
-      const reference = job.job.result;
-      if (!reference) return null;
-      const record = await this.one(
-        client,
-        "SELECT public.proofstack_read_policy_evaluation_result($1,$2) AS value",
-        [reference.evaluationId, reference.definitionSha256],
-      );
-      const original = await this.originalSnapshot(client, job);
-      return this.checkedResult(job, record, original, pageSet);
-    });
+    return this.transact(scope, (client, exact) =>
+      readPostgresPolicyEvaluationResultOnClient(client, exact, jobId, pageSet),
+    );
   }
 }

@@ -132,6 +132,11 @@ export { PostgresReplayJobWorkerRepository } from "./postgres-replay-job-worker-
 export { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
 export { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-evaluation-job-worker-repository.js";
 export { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
+export { readPostgresPolicyEvaluationResultOnClient } from "./postgres-policy-result-readers.js";
+export {
+  readPostgresPolicySnapshotOnClient,
+  readPostgresPolicySnapshotPageOnClient,
+} from "./postgres-policy-snapshot-readers.js";
 export { PostgresPolicyAcquisitionRepository } from "./postgres-policy-acquisition-repository.js";
 export { PostgresPolicySnapshotRepository } from "./postgres-policy-snapshot-repository.js";
 export {

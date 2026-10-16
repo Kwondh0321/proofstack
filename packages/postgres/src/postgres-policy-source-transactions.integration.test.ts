@@ -104,6 +104,11 @@ import { PostgresPolicyEvaluationJobWorkerRepository } from "./postgres-policy-e
 import { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
 import { PostgresPolicySnapshotTransactions } from "./postgres-policy-snapshot-transactions.js";
 import { PostgresPolicySnapshotRepository } from "./postgres-policy-snapshot-repository.js";
+import {
+  readPostgresPolicySnapshotOnClient,
+  readPostgresPolicySnapshotPageOnClient,
+} from "./postgres-policy-snapshot-readers.js";
+import { readPostgresPolicyEvaluationResultOnClient } from "./postgres-policy-result-readers.js";
 import { PostgresPolicyAcquisitionRepository } from "./postgres-policy-acquisition-repository.js";
 import { createPostgresPolicyInitialSources } from "./postgres-policy-initial-sources.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -1203,6 +1208,42 @@ describe("request-owned source recheck on actual PostgreSQL", () => {
       3,
     );
     for (const { h, expected, original, snapshots, results, result } of published) {
+      await withBoundedPolicyTransaction(
+        h.controlPool,
+        async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock_shared(1347579483,1)");
+          const before = (
+            await client.query("SELECT txid_current()::text AS id, pg_backend_pid() AS pid")
+          ).rows;
+          await client.query("SAVEPOINT original_read_client");
+          const view = {
+            query: (sql: string, values?: unknown[]) => {
+              expect(sql).toMatch(/^SELECT\b/);
+              return client.query(sql, values);
+            },
+          } as Pick<typeof client, "query">;
+          expect(await readPostgresPolicySnapshotOnClient(view, expected)).toEqual(
+            original.snapshot,
+          );
+          for (let index = 0; index < original.pageSet.pages.length; index++)
+            expect(await readPostgresPolicySnapshotPageOnClient(view, expected, index)).toEqual(
+              original.pageSet.pages[index],
+            );
+          expect(
+            await readPostgresPolicyEvaluationResultOnClient(
+              view,
+              h.f.scope,
+              h.jobId,
+              original.pageSet,
+            ),
+          ).toEqual(result.evaluation);
+          expect(
+            (await client.query("SELECT txid_current()::text AS id, pg_backend_pid() AS pid")).rows,
+          ).toEqual(before);
+          await client.query("ROLLBACK TO SAVEPOINT original_read_client");
+        },
+        { scope: h.f.scope },
+      );
       expect(await readCompletePolicyEvaluationSnapshot(snapshots, expected)).toEqual(original);
       expect(await results.findResult(h.f.scope, h.jobId, original.pageSet)).toEqual(
         result.evaluation,

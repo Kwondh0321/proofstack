@@ -230,6 +230,10 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [original policy supplied-client readers](workflow-2-policy-original-client-readers.md) retain
+header/job/history/outbox/page and deterministic-result checks on one caller-owned connection.
+They add no authentication, current-source completeness or decision publication authority.
+
 The [native OIDC source observations](workflow-2-release-oidc-sources.md) add non-mutating
 provided-client reads and mandatory binding/session row-write guards. They grant no runtime access
 or authentication/publication authority; complete native decision acceptance remains open.

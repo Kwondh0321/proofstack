@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
   EvidenceScopeSchema,
+  PolicyEvaluationSnapshotSchema,
   type EvidenceScope,
   type PolicyEvaluationJobSnapshot,
   type PolicyEvaluationJobHistoryEntry,
@@ -16,12 +17,17 @@ import {
   completePolicyEvaluationJob,
   createPolicyEvaluationJobHistoryEntry,
   replayPolicyEvaluationJobHistoryEntry,
+  policyEvaluationJobHistoryHead,
 } from "@proofstack/core";
 import { MemoryPolicyEvaluationJobRepository } from "@proofstack/core/testing";
 import type { PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import type { PolicyTransactionPool } from "./bounded-policy-transaction.js";
 import { PostgresPolicyEvaluationResultRepository } from "./postgres-policy-evaluation-result-repository.js";
+import {
+  readPostgresPolicyEvaluationResultOnClient,
+  validatePostgresStoredPolicyResult,
+} from "./postgres-policy-result-readers.js";
 
 /** Fault-injecting transport model. Actual SQL, commit, grants and RLS have separate native tests. */
 async function fixture(paidRules = 7) {
@@ -49,6 +55,7 @@ async function fixture(paidRules = 7) {
     next: queued,
     operation: { kind: "created" },
   });
+  let history = [entry];
   const transition = (
     next: PolicyEvaluationJobSnapshot,
     operation: PolicyEvaluationJobHistoryEntry["definition"]["operation"],
@@ -59,6 +66,7 @@ async function fixture(paidRules = 7) {
       next,
       operation,
     });
+    history.push(entry);
     graph = next;
   };
   const claimed = claimPolicyEvaluationJob({
@@ -69,7 +77,9 @@ async function fixture(paidRules = 7) {
     workerId: "worker_adapter",
     leaseId: "lease_adapter",
   });
-  const fence = claimed.job.currentLease!.mutationFence;
+  const lease = claimed.job.currentLease;
+  if (!lease) throw new Error("Missing actual claimed fixture lease");
+  const fence = lease.mutationFence;
   transition(claimed, { kind: "claim", fence });
   const reference = {
     snapshotId: pageSet.definition.snapshotId,
@@ -132,17 +142,23 @@ async function fixture(paidRules = 7) {
     | undefined;
   const calls: string[] = [];
   let admissions = 0;
+  let failHistory = false,
+    failIntents = false;
   const fakeClient = {} as PoolClient;
   class FaultTransport extends PostgresPolicyEvaluationResultRepository {
+    async queryForFixture(sql: string, values: readonly unknown[]) {
+      expect(sql).toMatch(/^SELECT\b/);
+      return this.one(fakeClient, sql, values);
+    }
     protected override async transact<T>(
       input: EvidenceScope,
       work: (client: PoolClient, exact: EvidenceScope) => Promise<T>,
     ) {
-      const previous = { graph, entry, stored };
+      const previous = { graph, entry, stored, history: [...history] };
       try {
         return await work(fakeClient, EvidenceScopeSchema.parse(input));
       } catch (error) {
-        ({ graph, entry, stored } = previous);
+        ({ graph, entry, stored, history } = previous);
         throw error;
       }
     }
@@ -165,6 +181,7 @@ async function fixture(paidRules = 7) {
       });
       if (previous) replayPolicyEvaluationJobHistoryEntry(previous, appended);
       entry = appended;
+      history.push(appended);
       return appended;
     }
     protected override async one(_client: PoolClient, sql: string, values: readonly unknown[]) {
@@ -206,17 +223,38 @@ async function fixture(paidRules = 7) {
         const receipt = { created: true, evaluation: stored, job: graph };
         return mutateReceipt ? mutateReceipt(receipt) : receipt;
       }
+      if (sql.includes("read_policy_evaluation_history_head")) {
+        if (failHistory) throw new Error("missing_history");
+        return policyEvaluationJobHistoryHead(entry);
+      }
+      if (sql.includes("read_policy_evaluation_history_page"))
+        return { head: policyEvaluationJobHistoryHead(entry), pageIndex: 0, entries: history };
+      if (sql.includes("policy_evaluation_intent_status"))
+        return failIntents ? "conflicting" : "canonical";
       throw new Error("Unexpected test transport query");
     }
   }
   const repository = new FaultTransport({} as PolicyTransactionPool);
+  Object.assign(fakeClient, {
+    query: async (sql: string, values: readonly unknown[]) => ({
+      rows: [{ value: await repository.queryForFixture(sql, values) }],
+    }),
+  });
   return {
     repository,
     scope,
     pageSet,
     command: { scope, fence, evaluationId: "evaluation_adapter", pageSet },
     calls,
+    client: fakeClient,
+    failHistory: () => {
+      failHistory = true;
+    },
+    failIntents: () => {
+      failIntents = true;
+    },
     graph: () => graph,
+    original: () => original,
     entry: () => entry,
     admissions: () => admissions,
     setOriginal: (value: unknown) => {
@@ -241,6 +279,47 @@ async function fixture(paidRules = 7) {
 }
 
 describe("policy result adapter response integrity", () => {
+  it("recomputes the exact original result through a query-only provided client", async () => {
+    const f = await fixture();
+    const published = await f.repository.publishResult(f.command);
+    const view = { query: f.client.query.bind(f.client) } as Pick<PoolClient, "query">;
+    const before = f.calls.length;
+    expect(
+      await readPostgresPolicyEvaluationResultOnClient(
+        view,
+        f.scope,
+        f.command.fence.jobId,
+        f.pageSet,
+      ),
+    ).toEqual(published.evaluation);
+    const queries = f.calls.slice(before);
+    expect(queries.every((sql) => /^SELECT\b/.test(sql))).toBe(true);
+    for (const selector of [
+      "read_policy_evaluation_history_head",
+      "read_policy_evaluation_history_page",
+      "policy_evaluation_intent_status",
+      "read_policy_snapshot",
+      "read_policy_evaluation_result",
+    ])
+      expect(queries.some((sql) => sql.includes(selector))).toBe(true);
+  });
+  it.each(["history", "intent"] as const)(
+    "rejects missing canonical %s on provided-client reads",
+    async (kind) => {
+      const f = await fixture();
+      await f.repository.publishResult(f.command);
+      if (kind === "history") f.failHistory();
+      else f.failIntents();
+      await expect(
+        readPostgresPolicyEvaluationResultOnClient(
+          f.client,
+          f.scope,
+          f.command.fence.jobId,
+          f.pageSet,
+        ),
+      ).rejects.toThrow();
+    },
+  );
   it("derives the result from original sealed pages, closes one attempt and preserves exact retry receipts", async () => {
     const f = await fixture();
     const first = await f.repository.publishResult(f.command);
@@ -333,16 +412,27 @@ describe("policy result adapter response integrity", () => {
   });
   it("rejects a completed graph with a substituted original attempt closure receipt", async () => {
     const f = await fixture();
-    await f.repository.publishResult(f.command);
-    f.graphReceipt((value) => {
+    const published = await f.repository.publishResult(f.command);
+    const change = (value: PolicyEvaluationJobSnapshot) => {
       const attempt = value.attempts.at(-1);
       if (!attempt?.closure) throw new Error("Missing closed deciding attempt");
       attempt.closure.committedAt = "2026-10-01T02:00:00.005677Z";
       return value;
-    });
+    };
+    f.graphReceipt(change);
     await expect(
       f.repository.findResult(f.scope, f.command.fence.jobId, f.pageSet),
-    ).rejects.toThrow("deciding closed attempt");
+    ).rejects.toThrow("Policy history head does not bind its current graph");
+    // The former transport bypassed history checks. Keep the deciding-attempt assertion too,
+    // exercising its owning validator directly after the stronger reader rejects the graph.
+    expect(() =>
+      validatePostgresStoredPolicyResult(
+        change(structuredClone(f.graph())),
+        published.evaluation,
+        PolicyEvaluationSnapshotSchema.parse(f.original()),
+        f.pageSet,
+      ),
+    ).toThrow("deciding closed attempt");
   });
   it("rejects substituted pages before performing the publication query", async () => {
     const f = await fixture();
