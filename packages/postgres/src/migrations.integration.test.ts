@@ -183,6 +183,7 @@ describe("PostgreSQL evidence schema", () => {
       "0062_release_authority_capabilities",
       "0063_policy_evaluation_request_job_reader",
       "0064_release_oidc_source_locks",
+      "0065_release_policy_selection_storage",
     ];
     expect(firstMigration.appliedIds).toEqual(expectedMigrations);
     expect(firstMigration.newlyAppliedIds).toEqual(

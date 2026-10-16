@@ -1,0 +1,1117 @@
+{
+  "format": "proofstack.release-selection-native-wire.v1",
+  "postgresVersion": "16.15",
+  "scope": {
+    "environmentId": "env_staging",
+    "projectId": "project_checkout",
+    "tenantId": "tenant_example"
+  },
+  "target": {
+    "installationId": "installation_wire_native_v1",
+    "gateTargetId": "gate_wire_native_v1"
+  },
+  "rootObservation": {
+    "root": {
+      "tenant_id": "tenant_example",
+      "project_id": "project_checkout",
+      "selection_id": "selection_wire_native_v1",
+      "environment_id": "env_staging",
+      "gate_target_id": "gate_wire_native_v1",
+      "installation_id": "installation_wire_native_v1",
+      "root_version_id": "version_wire_native_v1_a",
+      "root_definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9"
+    },
+    "orphan": false
+  },
+  "versions": [
+    {
+      "version": {
+        "mode": "enforce",
+        "record": {
+          "mode": "enforce",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "policies": [
+            {
+              "mode": "mandatory",
+              "policy": {
+                "policyId": "policy_checkout",
+                "policyVersionId": "policy_checkout_v1",
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "exceptionRequirement": {
+                "kind": "approval_required",
+                "quorum": 2,
+                "conflictRule": "reject_declared_conflict",
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                "excludePolicyAuthor": true,
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "humanReviewerGroupIds": ["group_release_review"],
+                "excludeCandidateAuthor": true
+              }
+            }
+          ],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "selectionId": "selection_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1",
+          "schemaVersion": "0.1",
+          "installationId": "installation_wire_native_v1",
+          "candidateTarget": {
+            "locale": "en-us",
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent",
+            "jurisdiction": "us",
+            "environmentId": "env_staging",
+            "populationTags": ["business", "checkout"],
+            "maximumDataClassification": "confidential"
+          },
+          "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "authorityEvidence": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal"
+          },
+          "issuerPrincipalId": "user_installation_owner",
+          "selectionVersionId": "version_wire_native_v1_a",
+          "publishedByPrincipalId": "user_installation_owner",
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ]
+        },
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_a",
+        "policy_count": 1,
+        "selection_id": "selection_wire_native_v1",
+        "canonical_utf8": "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_native_v1\",\"installationId\":\"installation_wire_native_v1\",\"issuerPrincipalId\":\"user_installation_owner\",\"mode\":\"enforce\",\"policies\":[{\"exceptionRequirement\":{\"conflictRule\":\"reject_declared_conflict\",\"excludeCandidateAuthor\":true,\"excludePolicyAuthor\":true,\"humanReviewerGroupIds\":[\"group_release_review\"],\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"kind\":\"approval_required\",\"quorum\":2,\"reviewerRoleIds\":[\"release_reviewer\",\"security_reviewer\"]},\"mode\":\"mandatory\",\"policy\":{\"definitionSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"policyId\":\"policy_checkout\",\"policyVersionId\":\"policy_checkout_v1\"}}],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"selectionId\":\"selection_wire_native_v1\",\"selectionVersionId\":\"version_wire_native_v1_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "publisher_count": 2,
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_installation_owner"
+      },
+      "root": {
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "selection_id": "selection_wire_native_v1",
+        "environment_id": "env_staging",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "root_version_id": "version_wire_native_v1_a",
+        "root_definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9"
+      },
+      "root_version": {
+        "mode": "enforce",
+        "record": {
+          "mode": "enforce",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "policies": [
+            {
+              "mode": "mandatory",
+              "policy": {
+                "policyId": "policy_checkout",
+                "policyVersionId": "policy_checkout_v1",
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "exceptionRequirement": {
+                "kind": "approval_required",
+                "quorum": 2,
+                "conflictRule": "reject_declared_conflict",
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                "excludePolicyAuthor": true,
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "humanReviewerGroupIds": ["group_release_review"],
+                "excludeCandidateAuthor": true
+              }
+            }
+          ],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "selectionId": "selection_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1",
+          "schemaVersion": "0.1",
+          "installationId": "installation_wire_native_v1",
+          "candidateTarget": {
+            "locale": "en-us",
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent",
+            "jurisdiction": "us",
+            "environmentId": "env_staging",
+            "populationTags": ["business", "checkout"],
+            "maximumDataClassification": "confidential"
+          },
+          "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "authorityEvidence": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal"
+          },
+          "issuerPrincipalId": "user_installation_owner",
+          "selectionVersionId": "version_wire_native_v1_a",
+          "publishedByPrincipalId": "user_installation_owner",
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ]
+        },
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_a",
+        "policy_count": 1,
+        "selection_id": "selection_wire_native_v1",
+        "canonical_utf8": "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_native_v1\",\"installationId\":\"installation_wire_native_v1\",\"issuerPrincipalId\":\"user_installation_owner\",\"mode\":\"enforce\",\"policies\":[{\"exceptionRequirement\":{\"conflictRule\":\"reject_declared_conflict\",\"excludeCandidateAuthor\":true,\"excludePolicyAuthor\":true,\"humanReviewerGroupIds\":[\"group_release_review\"],\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"kind\":\"approval_required\",\"quorum\":2,\"reviewerRoleIds\":[\"release_reviewer\",\"security_reviewer\"]},\"mode\":\"mandatory\",\"policy\":{\"definitionSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"policyId\":\"policy_checkout\",\"policyVersionId\":\"policy_checkout_v1\"}}],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"selectionId\":\"selection_wire_native_v1\",\"selectionVersionId\":\"version_wire_native_v1_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "publisher_count": 2,
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_installation_owner"
+      },
+      "predecessor": null,
+      "policies": [
+        {
+          "mode": "mandatory",
+          "ordinal": 0,
+          "policy_id": "policy_checkout",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "projection": {
+            "mode": "mandatory",
+            "policy": {
+              "policyId": "policy_checkout",
+              "policyVersionId": "policy_checkout_v1",
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "exceptionRequirement": {
+              "kind": "approval_required",
+              "quorum": 2,
+              "conflictRule": "reject_declared_conflict",
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+              "excludePolicyAuthor": true,
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "humanReviewerGroupIds": ["group_release_review"],
+              "excludeCandidateAuthor": true
+            }
+          },
+          "version_id": "version_wire_native_v1_a",
+          "environment_id": "env_staging",
+          "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "policy_version_id": "policy_checkout_v1",
+          "policy_definition_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "publishers": [
+        {
+          "ordinal": 0,
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_native_v1_a",
+          "principal_id": "service_decision_publisher",
+          "environment_id": "env_staging",
+          "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9"
+        },
+        {
+          "ordinal": 1,
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_native_v1_a",
+          "principal_id": "user_decision_publisher",
+          "environment_id": "env_staging",
+          "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9"
+        }
+      ],
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "mode": "enforce",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "policies": [
+                {
+                  "mode": "mandatory",
+                  "policy": {
+                    "policyId": "policy_checkout",
+                    "policyVersionId": "policy_checkout_v1",
+                    "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  },
+                  "exceptionRequirement": {
+                    "kind": "approval_required",
+                    "quorum": 2,
+                    "conflictRule": "reject_declared_conflict",
+                    "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                    "excludePolicyAuthor": true,
+                    "independenceGroupIds": ["group_release_review", "group_security_review"],
+                    "humanReviewerGroupIds": ["group_release_review"],
+                    "excludeCandidateAuthor": true
+                  }
+                }
+              ],
+              "expiresAt": "2026-10-16T00:00:00.000001Z",
+              "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+              "effectiveAt": "2026-10-15T00:00:00.000001Z",
+              "publishedAt": "2026-10-15T00:00:00.000001Z",
+              "selectionId": "selection_wire_native_v1",
+              "gateTargetId": "gate_wire_native_v1",
+              "schemaVersion": "0.1",
+              "installationId": "installation_wire_native_v1",
+              "candidateTarget": {
+                "locale": "en-us",
+                "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                "riskTier": "high",
+                "taskKind": "checkout_agent",
+                "jurisdiction": "us",
+                "environmentId": "env_staging",
+                "populationTags": ["business", "checkout"],
+                "maximumDataClassification": "confidential"
+              },
+              "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+              "authorityEvidence": {
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/vnd.proofstack.policy-authority+json",
+                "sizeBytes": 512,
+                "artifactId": "artifact_installation_authority",
+                "classification": "internal"
+              },
+              "issuerPrincipalId": "user_installation_owner",
+              "selectionVersionId": "version_wire_native_v1_a",
+              "publishedByPrincipalId": "user_installation_owner",
+              "authorizedPublisherPrincipalIds": [
+                "service_decision_publisher",
+                "user_decision_publisher"
+              ]
+            },
+            "recordKind": "release_policy_selection"
+          },
+          "eventType": "release.selection.published",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    },
+    {
+      "version": {
+        "mode": "enforce",
+        "record": {
+          "mode": "enforce",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "policies": [
+            {
+              "mode": "mandatory",
+              "policy": {
+                "policyId": "policy_checkout",
+                "policyVersionId": "policy_checkout_v1",
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "exceptionRequirement": {
+                "kind": "approval_required",
+                "quorum": 2,
+                "conflictRule": "reject_declared_conflict",
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                "excludePolicyAuthor": true,
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "humanReviewerGroupIds": ["group_release_review"],
+                "excludeCandidateAuthor": true
+              }
+            }
+          ],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-10-15T11:00:00.000001Z",
+          "predecessor": {
+            "selectionId": "selection_wire_native_v1",
+            "gateTargetId": "gate_wire_native_v1",
+            "installationId": "installation_wire_native_v1",
+            "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+            "selectionVersionId": "version_wire_native_v1_a"
+          },
+          "publishedAt": "2026-10-15T11:00:00.000001Z",
+          "selectionId": "selection_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1",
+          "schemaVersion": "0.1",
+          "installationId": "installation_wire_native_v1",
+          "candidateTarget": {
+            "locale": "en-us",
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent",
+            "jurisdiction": "us",
+            "environmentId": "env_staging",
+            "populationTags": ["business", "checkout"],
+            "maximumDataClassification": "confidential"
+          },
+          "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+          "authorityEvidence": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal"
+          },
+          "issuerPrincipalId": "user_installation_owner",
+          "selectionVersionId": "version_wire_native_v1_b",
+          "publishedByPrincipalId": "user_installation_owner",
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ]
+        },
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_b",
+        "policy_count": 1,
+        "selection_id": "selection_wire_native_v1",
+        "canonical_utf8": "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-10-15T11:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_native_v1\",\"installationId\":\"installation_wire_native_v1\",\"issuerPrincipalId\":\"user_installation_owner\",\"mode\":\"enforce\",\"policies\":[{\"exceptionRequirement\":{\"conflictRule\":\"reject_declared_conflict\",\"excludeCandidateAuthor\":true,\"excludePolicyAuthor\":true,\"humanReviewerGroupIds\":[\"group_release_review\"],\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"kind\":\"approval_required\",\"quorum\":2,\"reviewerRoleIds\":[\"release_reviewer\",\"security_reviewer\"]},\"mode\":\"mandatory\",\"policy\":{\"definitionSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"policyId\":\"policy_checkout\",\"policyVersionId\":\"policy_checkout_v1\"}}],\"predecessor\":{\"definitionSha256\":\"4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9\",\"gateTargetId\":\"gate_wire_native_v1\",\"installationId\":\"installation_wire_native_v1\",\"selectionId\":\"selection_wire_native_v1\",\"selectionVersionId\":\"version_wire_native_v1_a\"},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"selectionId\":\"selection_wire_native_v1\",\"selectionVersionId\":\"version_wire_native_v1_b\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "publisher_count": 2,
+        "effective_at_key": "1792062000000001000000000000000000000000",
+        "published_at_key": "1792062000000001000000000000000000000000",
+        "definition_sha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+        "parent_version_id": "version_wire_native_v1_a",
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "parent_definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "published_by_principal_id": "user_installation_owner"
+      },
+      "root": {
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "selection_id": "selection_wire_native_v1",
+        "environment_id": "env_staging",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "root_version_id": "version_wire_native_v1_a",
+        "root_definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9"
+      },
+      "root_version": {
+        "mode": "enforce",
+        "record": {
+          "mode": "enforce",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "policies": [
+            {
+              "mode": "mandatory",
+              "policy": {
+                "policyId": "policy_checkout",
+                "policyVersionId": "policy_checkout_v1",
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "exceptionRequirement": {
+                "kind": "approval_required",
+                "quorum": 2,
+                "conflictRule": "reject_declared_conflict",
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                "excludePolicyAuthor": true,
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "humanReviewerGroupIds": ["group_release_review"],
+                "excludeCandidateAuthor": true
+              }
+            }
+          ],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "selectionId": "selection_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1",
+          "schemaVersion": "0.1",
+          "installationId": "installation_wire_native_v1",
+          "candidateTarget": {
+            "locale": "en-us",
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent",
+            "jurisdiction": "us",
+            "environmentId": "env_staging",
+            "populationTags": ["business", "checkout"],
+            "maximumDataClassification": "confidential"
+          },
+          "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "authorityEvidence": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal"
+          },
+          "issuerPrincipalId": "user_installation_owner",
+          "selectionVersionId": "version_wire_native_v1_a",
+          "publishedByPrincipalId": "user_installation_owner",
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ]
+        },
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_a",
+        "policy_count": 1,
+        "selection_id": "selection_wire_native_v1",
+        "canonical_utf8": "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_native_v1\",\"installationId\":\"installation_wire_native_v1\",\"issuerPrincipalId\":\"user_installation_owner\",\"mode\":\"enforce\",\"policies\":[{\"exceptionRequirement\":{\"conflictRule\":\"reject_declared_conflict\",\"excludeCandidateAuthor\":true,\"excludePolicyAuthor\":true,\"humanReviewerGroupIds\":[\"group_release_review\"],\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"kind\":\"approval_required\",\"quorum\":2,\"reviewerRoleIds\":[\"release_reviewer\",\"security_reviewer\"]},\"mode\":\"mandatory\",\"policy\":{\"definitionSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"policyId\":\"policy_checkout\",\"policyVersionId\":\"policy_checkout_v1\"}}],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"selectionId\":\"selection_wire_native_v1\",\"selectionVersionId\":\"version_wire_native_v1_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "publisher_count": 2,
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_installation_owner"
+      },
+      "predecessor": {
+        "mode": "enforce",
+        "record": {
+          "mode": "enforce",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "policies": [
+            {
+              "mode": "mandatory",
+              "policy": {
+                "policyId": "policy_checkout",
+                "policyVersionId": "policy_checkout_v1",
+                "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              "exceptionRequirement": {
+                "kind": "approval_required",
+                "quorum": 2,
+                "conflictRule": "reject_declared_conflict",
+                "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                "excludePolicyAuthor": true,
+                "independenceGroupIds": ["group_release_review", "group_security_review"],
+                "humanReviewerGroupIds": ["group_release_review"],
+                "excludeCandidateAuthor": true
+              }
+            }
+          ],
+          "expiresAt": "2026-10-16T00:00:00.000001Z",
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-10-15T00:00:00.000001Z",
+          "publishedAt": "2026-10-15T00:00:00.000001Z",
+          "selectionId": "selection_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1",
+          "schemaVersion": "0.1",
+          "installationId": "installation_wire_native_v1",
+          "candidateTarget": {
+            "locale": "en-us",
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent",
+            "jurisdiction": "us",
+            "environmentId": "env_staging",
+            "populationTags": ["business", "checkout"],
+            "maximumDataClassification": "confidential"
+          },
+          "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "authorityEvidence": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sizeBytes": 512,
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal"
+          },
+          "issuerPrincipalId": "user_installation_owner",
+          "selectionVersionId": "version_wire_native_v1_a",
+          "publishedByPrincipalId": "user_installation_owner",
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ]
+        },
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_a",
+        "policy_count": 1,
+        "selection_id": "selection_wire_native_v1",
+        "canonical_utf8": "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-10-15T00:00:00.000001Z\",\"expiresAt\":\"2026-10-16T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_native_v1\",\"installationId\":\"installation_wire_native_v1\",\"issuerPrincipalId\":\"user_installation_owner\",\"mode\":\"enforce\",\"policies\":[{\"exceptionRequirement\":{\"conflictRule\":\"reject_declared_conflict\",\"excludeCandidateAuthor\":true,\"excludePolicyAuthor\":true,\"humanReviewerGroupIds\":[\"group_release_review\"],\"independenceGroupIds\":[\"group_release_review\",\"group_security_review\"],\"kind\":\"approval_required\",\"quorum\":2,\"reviewerRoleIds\":[\"release_reviewer\",\"security_reviewer\"]},\"mode\":\"mandatory\",\"policy\":{\"definitionSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"policyId\":\"policy_checkout\",\"policyVersionId\":\"policy_checkout_v1\"}}],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"},\"selectionId\":\"selection_wire_native_v1\",\"selectionVersionId\":\"version_wire_native_v1_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_example\"}}",
+        "environment_id": "env_staging",
+        "expires_at_key": "1792108800000001000000000000000000000000",
+        "gate_target_id": "gate_wire_native_v1",
+        "installation_id": "installation_wire_native_v1",
+        "publisher_count": 2,
+        "effective_at_key": "1792022400000001000000000000000000000000",
+        "published_at_key": "1792022400000001000000000000000000000000",
+        "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "parent_version_id": null,
+        "expires_at_lexical": "2026-10-16T00:00:00.000001Z",
+        "effective_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "published_at_lexical": "2026-10-15T00:00:00.000001Z",
+        "parent_definition_sha256": null,
+        "published_by_principal_id": "user_installation_owner"
+      },
+      "policies": [
+        {
+          "mode": "mandatory",
+          "ordinal": 0,
+          "policy_id": "policy_checkout",
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "projection": {
+            "mode": "mandatory",
+            "policy": {
+              "policyId": "policy_checkout",
+              "policyVersionId": "policy_checkout_v1",
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "exceptionRequirement": {
+              "kind": "approval_required",
+              "quorum": 2,
+              "conflictRule": "reject_declared_conflict",
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+              "excludePolicyAuthor": true,
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "humanReviewerGroupIds": ["group_release_review"],
+              "excludeCandidateAuthor": true
+            }
+          },
+          "version_id": "version_wire_native_v1_b",
+          "environment_id": "env_staging",
+          "definition_sha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+          "policy_version_id": "policy_checkout_v1",
+          "policy_definition_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "publishers": [
+        {
+          "ordinal": 0,
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_native_v1_b",
+          "principal_id": "service_decision_publisher",
+          "environment_id": "env_staging",
+          "definition_sha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9"
+        },
+        {
+          "ordinal": 1,
+          "tenant_id": "tenant_example",
+          "project_id": "project_checkout",
+          "version_id": "version_wire_native_v1_b",
+          "principal_id": "user_decision_publisher",
+          "environment_id": "env_staging",
+          "definition_sha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9"
+        }
+      ],
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "mode": "enforce",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "policies": [
+                {
+                  "mode": "mandatory",
+                  "policy": {
+                    "policyId": "policy_checkout",
+                    "policyVersionId": "policy_checkout_v1",
+                    "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  },
+                  "exceptionRequirement": {
+                    "kind": "approval_required",
+                    "quorum": 2,
+                    "conflictRule": "reject_declared_conflict",
+                    "reviewerRoleIds": ["release_reviewer", "security_reviewer"],
+                    "excludePolicyAuthor": true,
+                    "independenceGroupIds": ["group_release_review", "group_security_review"],
+                    "humanReviewerGroupIds": ["group_release_review"],
+                    "excludeCandidateAuthor": true
+                  }
+                }
+              ],
+              "expiresAt": "2026-10-16T00:00:00.000001Z",
+              "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+              "effectiveAt": "2026-10-15T11:00:00.000001Z",
+              "predecessor": {
+                "selectionId": "selection_wire_native_v1",
+                "gateTargetId": "gate_wire_native_v1",
+                "installationId": "installation_wire_native_v1",
+                "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+                "selectionVersionId": "version_wire_native_v1_a"
+              },
+              "publishedAt": "2026-10-15T11:00:00.000001Z",
+              "selectionId": "selection_wire_native_v1",
+              "gateTargetId": "gate_wire_native_v1",
+              "schemaVersion": "0.1",
+              "installationId": "installation_wire_native_v1",
+              "candidateTarget": {
+                "locale": "en-us",
+                "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                "riskTier": "high",
+                "taskKind": "checkout_agent",
+                "jurisdiction": "us",
+                "environmentId": "env_staging",
+                "populationTags": ["business", "checkout"],
+                "maximumDataClassification": "confidential"
+              },
+              "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+              "authorityEvidence": {
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/vnd.proofstack.policy-authority+json",
+                "sizeBytes": 512,
+                "artifactId": "artifact_installation_authority",
+                "classification": "internal"
+              },
+              "issuerPrincipalId": "user_installation_owner",
+              "selectionVersionId": "version_wire_native_v1_b",
+              "publishedByPrincipalId": "user_installation_owner",
+              "authorizedPublisherPrincipalIds": [
+                "service_decision_publisher",
+                "user_decision_publisher"
+              ]
+            },
+            "recordKind": "release_policy_selection"
+          },
+          "eventType": "release.selection.published",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event": {
+        "record": {
+          "kind": "superseded",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "reason": "Withdraw this exact installed target selection.",
+          "eventId": "event_wire_native_v1_superseded",
+          "selection": {
+            "selectionId": "selection_wire_native_v1",
+            "gateTargetId": "gate_wire_native_v1",
+            "installationId": "installation_wire_native_v1",
+            "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+            "selectionVersionId": "version_wire_native_v1_a"
+          },
+          "successor": {
+            "selectionId": "selection_wire_native_v1",
+            "gateTargetId": "gate_wire_native_v1",
+            "installationId": "installation_wire_native_v1",
+            "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+            "selectionVersionId": "version_wire_native_v1_b"
+          },
+          "occurredAt": "2026-10-15T11:00:00.000001Z",
+          "schemaVersion": "0.1",
+          "actorPrincipalId": "principal_installer"
+        },
+        "event_id": "event_wire_native_v1_superseded",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_a",
+        "environment_id": "env_staging",
+        "occurred_at_key": "1792062000000001000000000000000000000000",
+        "definition_sha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "occurred_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "successor_version_id": "version_wire_native_v1_b",
+        "successor_definition_sha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9"
+      },
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "kind": "superseded",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "reason": "Withdraw this exact installed target selection.",
+              "eventId": "event_wire_native_v1_superseded",
+              "selection": {
+                "selectionId": "selection_wire_native_v1",
+                "gateTargetId": "gate_wire_native_v1",
+                "installationId": "installation_wire_native_v1",
+                "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+                "selectionVersionId": "version_wire_native_v1_a"
+              },
+              "successor": {
+                "selectionId": "selection_wire_native_v1",
+                "gateTargetId": "gate_wire_native_v1",
+                "installationId": "installation_wire_native_v1",
+                "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+                "selectionVersionId": "version_wire_native_v1_b"
+              },
+              "occurredAt": "2026-10-15T11:00:00.000001Z",
+              "schemaVersion": "0.1",
+              "actorPrincipalId": "principal_installer"
+            },
+            "recordKind": "release_policy_selection_lifecycle"
+          },
+          "eventType": "release.selection.lifecycle_recorded",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    },
+    {
+      "event": {
+        "record": {
+          "kind": "withdrawn",
+          "scope": {
+            "tenantId": "tenant_example",
+            "projectId": "project_checkout",
+            "environmentId": "env_staging"
+          },
+          "reason": "Withdraw this exact installed target selection.",
+          "eventId": "event_wire_successor_withdrawn",
+          "selection": {
+            "selectionId": "selection_wire_native_v1",
+            "gateTargetId": "gate_wire_native_v1",
+            "installationId": "installation_wire_native_v1",
+            "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+            "selectionVersionId": "version_wire_native_v1_b"
+          },
+          "occurredAt": "2026-10-15T11:00:00.000001Z",
+          "schemaVersion": "0.1",
+          "actorPrincipalId": "principal_installer"
+        },
+        "event_id": "event_wire_successor_withdrawn",
+        "tenant_id": "tenant_example",
+        "project_id": "project_checkout",
+        "version_id": "version_wire_native_v1_b",
+        "environment_id": "env_staging",
+        "occurred_at_key": "1792062000000001000000000000000000000000",
+        "definition_sha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+        "occurred_at_lexical": "2026-10-15T11:00:00.000001Z",
+        "successor_version_id": null,
+        "successor_definition_sha256": null
+      },
+      "intents": [
+        {
+          "payload": {
+            "record": {
+              "kind": "withdrawn",
+              "scope": {
+                "tenantId": "tenant_example",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "reason": "Withdraw this exact installed target selection.",
+              "eventId": "event_wire_successor_withdrawn",
+              "selection": {
+                "selectionId": "selection_wire_native_v1",
+                "gateTargetId": "gate_wire_native_v1",
+                "installationId": "installation_wire_native_v1",
+                "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+                "selectionVersionId": "version_wire_native_v1_b"
+              },
+              "occurredAt": "2026-10-15T11:00:00.000001Z",
+              "schemaVersion": "0.1",
+              "actorPrincipalId": "principal_installer"
+            },
+            "recordKind": "release_policy_selection_lifecycle"
+          },
+          "eventType": "release.selection.lifecycle_recorded",
+          "timeMatches": true,
+          "schemaVersion": "0.1"
+        }
+      ]
+    }
+  ],
+  "census": {
+    "root": {
+      "selectionId": "selection_wire_native_v1",
+      "selectionVersionId": "version_wire_native_v1_a",
+      "installationId": "installation_wire_native_v1",
+      "gateTargetId": "gate_wire_native_v1",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_example"
+      },
+      "candidateTarget": {
+        "environmentId": "env_staging",
+        "jurisdiction": "us",
+        "locale": "en-us",
+        "maximumDataClassification": "confidential",
+        "populationTags": ["business", "checkout"],
+        "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+        "riskTier": "high",
+        "taskKind": "checkout_agent"
+      },
+      "mode": "enforce",
+      "policies": [
+        {
+          "policy": {
+            "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "policyId": "policy_checkout",
+            "policyVersionId": "policy_checkout_v1"
+          },
+          "mode": "mandatory",
+          "exceptionRequirement": {
+            "conflictRule": "reject_declared_conflict",
+            "excludeCandidateAuthor": true,
+            "excludePolicyAuthor": true,
+            "humanReviewerGroupIds": ["group_release_review"],
+            "independenceGroupIds": ["group_release_review", "group_security_review"],
+            "kind": "approval_required",
+            "quorum": 2,
+            "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+          }
+        }
+      ],
+      "authorizedPublisherPrincipalIds": ["service_decision_publisher", "user_decision_publisher"],
+      "issuerPrincipalId": "user_installation_owner",
+      "authorityEvidence": {
+        "artifactId": "artifact_installation_authority",
+        "classification": "internal",
+        "mediaType": "application/vnd.proofstack.policy-authority+json",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 512
+      },
+      "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+      "effectiveAt": "2026-10-15T00:00:00.000001Z",
+      "expiresAt": "2026-10-16T00:00:00.000001Z",
+      "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+      "schemaVersion": "0.1",
+      "publishedAt": "2026-10-15T00:00:00.000001Z",
+      "publishedByPrincipalId": "user_installation_owner"
+    },
+    "records": [
+      {
+        "selectionId": "selection_wire_native_v1",
+        "selectionVersionId": "version_wire_native_v1_a",
+        "installationId": "installation_wire_native_v1",
+        "gateTargetId": "gate_wire_native_v1",
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "candidateTarget": {
+          "environmentId": "env_staging",
+          "jurisdiction": "us",
+          "locale": "en-us",
+          "maximumDataClassification": "confidential",
+          "populationTags": ["business", "checkout"],
+          "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+          "riskTier": "high",
+          "taskKind": "checkout_agent"
+        },
+        "mode": "enforce",
+        "policies": [
+          {
+            "policy": {
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "policyId": "policy_checkout",
+              "policyVersionId": "policy_checkout_v1"
+            },
+            "mode": "mandatory",
+            "exceptionRequirement": {
+              "conflictRule": "reject_declared_conflict",
+              "excludeCandidateAuthor": true,
+              "excludePolicyAuthor": true,
+              "humanReviewerGroupIds": ["group_release_review"],
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "kind": "approval_required",
+              "quorum": 2,
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+            }
+          }
+        ],
+        "authorizedPublisherPrincipalIds": [
+          "service_decision_publisher",
+          "user_decision_publisher"
+        ],
+        "issuerPrincipalId": "user_installation_owner",
+        "authorityEvidence": {
+          "artifactId": "artifact_installation_authority",
+          "classification": "internal",
+          "mediaType": "application/vnd.proofstack.policy-authority+json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 512
+        },
+        "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+        "effectiveAt": "2026-10-15T00:00:00.000001Z",
+        "expiresAt": "2026-10-16T00:00:00.000001Z",
+        "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+        "schemaVersion": "0.1",
+        "publishedAt": "2026-10-15T00:00:00.000001Z",
+        "publishedByPrincipalId": "user_installation_owner"
+      },
+      {
+        "selectionId": "selection_wire_native_v1",
+        "selectionVersionId": "version_wire_native_v1_b",
+        "installationId": "installation_wire_native_v1",
+        "gateTargetId": "gate_wire_native_v1",
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "candidateTarget": {
+          "environmentId": "env_staging",
+          "jurisdiction": "us",
+          "locale": "en-us",
+          "maximumDataClassification": "confidential",
+          "populationTags": ["business", "checkout"],
+          "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+          "riskTier": "high",
+          "taskKind": "checkout_agent"
+        },
+        "mode": "enforce",
+        "policies": [
+          {
+            "policy": {
+              "definitionSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "policyId": "policy_checkout",
+              "policyVersionId": "policy_checkout_v1"
+            },
+            "mode": "mandatory",
+            "exceptionRequirement": {
+              "conflictRule": "reject_declared_conflict",
+              "excludeCandidateAuthor": true,
+              "excludePolicyAuthor": true,
+              "humanReviewerGroupIds": ["group_release_review"],
+              "independenceGroupIds": ["group_release_review", "group_security_review"],
+              "kind": "approval_required",
+              "quorum": 2,
+              "reviewerRoleIds": ["release_reviewer", "security_reviewer"]
+            }
+          }
+        ],
+        "authorizedPublisherPrincipalIds": [
+          "service_decision_publisher",
+          "user_decision_publisher"
+        ],
+        "issuerPrincipalId": "user_installation_owner",
+        "authorityEvidence": {
+          "artifactId": "artifact_installation_authority",
+          "classification": "internal",
+          "mediaType": "application/vnd.proofstack.policy-authority+json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 512
+        },
+        "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+        "effectiveAt": "2026-10-15T11:00:00.000001Z",
+        "expiresAt": "2026-10-16T00:00:00.000001Z",
+        "predecessor": {
+          "selectionId": "selection_wire_native_v1",
+          "selectionVersionId": "version_wire_native_v1_a",
+          "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "installationId": "installation_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1"
+        },
+        "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+        "schemaVersion": "0.1",
+        "publishedAt": "2026-10-15T11:00:00.000001Z",
+        "publishedByPrincipalId": "user_installation_owner"
+      }
+    ],
+    "lifecycle": [
+      {
+        "eventId": "event_wire_native_v1_superseded",
+        "selection": {
+          "selectionId": "selection_wire_native_v1",
+          "selectionVersionId": "version_wire_native_v1_a",
+          "definitionSha256": "4172057a7c57c3f76d6afd4d3f4a3ca042164c51ad908e98b88994345b96ebd9",
+          "installationId": "installation_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "reason": "Withdraw this exact installed target selection.",
+        "actorPrincipalId": "principal_installer",
+        "occurredAt": "2026-10-15T11:00:00.000001Z",
+        "schemaVersion": "0.1",
+        "kind": "superseded",
+        "successor": {
+          "selectionId": "selection_wire_native_v1",
+          "selectionVersionId": "version_wire_native_v1_b",
+          "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+          "installationId": "installation_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1"
+        }
+      },
+      {
+        "eventId": "event_wire_successor_withdrawn",
+        "selection": {
+          "selectionId": "selection_wire_native_v1",
+          "selectionVersionId": "version_wire_native_v1_b",
+          "definitionSha256": "288710d71dcbd3b854ca8b59b42cd825ff81ebed745522a4785887d94493a0c9",
+          "installationId": "installation_wire_native_v1",
+          "gateTargetId": "gate_wire_native_v1"
+        },
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "reason": "Withdraw this exact installed target selection.",
+        "actorPrincipalId": "principal_installer",
+        "occurredAt": "2026-10-15T11:00:00.000001Z",
+        "schemaVersion": "0.1",
+        "kind": "withdrawn"
+      }
+    ]
+  }
+}

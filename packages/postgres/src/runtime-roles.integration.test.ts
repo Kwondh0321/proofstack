@@ -1456,6 +1456,13 @@ describe("runtime role provisioning", () => {
         text, text, text, text, text, text, text, timestamptz
       ) TO "${roleNames.identity}"
     `);
+    // Simulate restored obsolete grants. Reprovisioning must remove private C4 access too.
+    await adminPool.query(
+      `GRANT SELECT ON public.proofstack_release_policy_selections TO "${roleNames.api}"`,
+    );
+    await adminPool.query(
+      `GRANT EXECUTE ON FUNCTION public.proofstack_store_release_policy_selection(jsonb,text) TO PUBLIC,"${roleNames.identity}"`,
+    );
     await expect(provisionRuntimeRoles(adminPool, rotated)).resolves.toEqual({
       createdRoles: [],
       updatedRoles: [
@@ -1472,6 +1479,23 @@ describe("runtime role provisioning", () => {
       ],
     });
     const rotatedApiPool = poolFor(rotated.api);
+    const selectionPrivileges = await adminPool.query<{ table_access: boolean; execute: boolean }>(
+      `SELECT has_table_privilege(role_name,table_name,'SELECT,INSERT,UPDATE,DELETE') AS table_access,
+        has_function_privilege(role_name,'public.proofstack_store_release_policy_selection(jsonb,text)','EXECUTE') AS execute
+      FROM unnest($1::text[]) AS role_name CROSS JOIN unnest($2::text[]) AS table_name`,
+      [
+        Object.values(roleNames),
+        [
+          "public.proofstack_release_selection_roots",
+          "public.proofstack_release_policy_selections",
+          "public.proofstack_release_selection_policies",
+          "public.proofstack_release_selection_publishers",
+          "public.proofstack_release_selection_lifecycle",
+        ],
+      ],
+    );
+    expect(selectionPrivileges.rows).toHaveLength(50);
+    expect(selectionPrivileges.rows.every((row) => !row.table_access && !row.execute)).toBe(true);
     await expect(rotatedApiPool.query("SELECT current_user AS role")).resolves.toMatchObject({
       rows: [{ role: roleNames.api }],
     });

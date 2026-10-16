@@ -165,6 +165,15 @@ describe("provisionRuntimeRoles", () => {
     expect(grants).toContain(
       'GRANT EXECUTE ON FUNCTION public.proofstack_claim_policy_evaluation_job(text,text,text,text) TO "proofstack_policy_evaluator"',
     );
+    for (const table of [
+      "proofstack_release_selection_roots",
+      "proofstack_release_policy_selections",
+      "proofstack_release_selection_policies",
+      "proofstack_release_selection_publishers",
+      "proofstack_release_selection_lifecycle",
+    ]) {
+      expect(grants.some((statement) => statement.includes(`public.${table}`))).toBe(false);
+    }
     for (const role of ["proofstack_policy_evaluation_control", "proofstack_policy_evaluator"]) {
       const own = grants.filter((value) => value.endsWith(`TO "${role}"`));
       expect(
@@ -213,6 +222,15 @@ describe("provisionRuntimeRoles", () => {
       "public.proofstack_try_lock_release_oidc_source(text, text)",
       "public.proofstack_lock_release_oidc_source_write()",
       "public.proofstack_guard_artifact_timestamp_integrity()",
+      "public.proofstack_release_selection_scope()",
+      "public.proofstack_release_authority_time_key(text)",
+      "public.proofstack_try_lock_release_selection(jsonb)",
+      "public.proofstack_lock_release_selection_write()",
+      "public.proofstack_verify_release_selection_graph()",
+      "public.proofstack_verify_release_selection_lifecycle()",
+      "public.proofstack_store_release_policy_selection(jsonb,text)",
+      "public.proofstack_store_release_selection_lifecycle(jsonb)",
+      "public.proofstack_read_release_selection_root(jsonb,text,text)",
     ]) {
       for (const recipient of [
         "PUBLIC",

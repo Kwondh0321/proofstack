@@ -230,6 +230,11 @@ actor, close current authority or accept checkpoint 4.
 
 ## Adversarial acceptance matrix
 
+The [native target-owned selection store](workflow-2-native-selection-repository.md) preserves
+the original owner, complete guarded history, normalized integrity and atomic canonical outbox
+through the unchanged shared port. Actual installer authority, separate roles and complete
+decision publication remain open.
+
 The [same-client guarded OIDC component](workflow-2-guarded-release-oidc.md) joins actual private
 authentication to current owning session/grant reads and retained OIDC guards. Complete installation,
 reviewer/source closure, roles, recovery and atomic decision/outbox publication remain open.

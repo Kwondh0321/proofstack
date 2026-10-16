@@ -46,6 +46,11 @@ conflicts, simultaneous publications, native precision and repeated aggregate bu
 remove physical indexes or substitute valid records into wrong slots and require a tainted cut.
 Prepared shared cases are not a claim that a PostgreSQL adapter passed them.
 
+The subsequent [native selection store](workflow-2-native-selection-repository.md) implements
+this unchanged port with normalized storage and guarded complete reads. Its native evidence is
+separate from the memory acceptance described here; actual installation authority and complete
+decision publication still require the remaining entry gates.
+
 Memory uses synchronous copy-on-write mutations before promises resolve. This establishes a
 single-process reference, not durable storage or private authentication. The port accepts trusted
 server-owned records, not public raw-record POST bodies. Reviewer/approval repositories, actual

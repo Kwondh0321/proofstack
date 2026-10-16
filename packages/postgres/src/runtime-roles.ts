@@ -64,7 +64,15 @@ interface StatementRow extends QueryResultRow {
   readonly statement: string;
 }
 
+const PRIVATE_RELEASE_SELECTION_TABLES = [
+  "proofstack_release_selection_roots",
+  "proofstack_release_policy_selections",
+  "proofstack_release_selection_policies",
+  "proofstack_release_selection_publishers",
+  "proofstack_release_selection_lifecycle",
+] as const;
 const PLATFORM_TABLES = [
+  ...PRIVATE_RELEASE_SELECTION_TABLES,
   "proofstack_policy_evaluation_requests",
   "proofstack_policy_evaluation_jobs",
   "proofstack_policy_evaluation_attempts",
@@ -172,6 +180,15 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_release_selection_scope()",
+  "public.proofstack_release_authority_time_key(text)",
+  "public.proofstack_try_lock_release_selection(jsonb)",
+  "public.proofstack_lock_release_selection_write()",
+  "public.proofstack_verify_release_selection_graph()",
+  "public.proofstack_verify_release_selection_lifecycle()",
+  "public.proofstack_store_release_policy_selection(jsonb,text)",
+  "public.proofstack_store_release_selection_lifecycle(jsonb)",
+  "public.proofstack_read_release_selection_root(jsonb,text,text)",
   "public.proofstack_policy_snapshot_prepare(jsonb)",
   "public.proofstack_policy_snapshot_io_budget(jsonb)",
   "public.proofstack_try_lock_policy_snapshot_metadata(jsonb)",
@@ -375,10 +392,12 @@ const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
     "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_lifecycle_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_regression_publication_intent_status(text,text,text,text,text,jsonb,timestamp with time zone) TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_replay_publication_intent_status(text,text,text,text,text,jsonb,timestamp with time zone) TO %ROLE%",
-    `GRANT SELECT ON TABLE ${PLATFORM_TABLES.filter((table) =>
-      /^(proofstack_(artifact_|comparison_|evaluation_|model_assurance_|interaction_fixture_|regression_|recorded_interaction_fixture_|release_candidate_|release_candidates$|release_policy_|release_policies$|replay_|target_releases$|evidence_events$))/.test(
-        table,
-      ),
+    `GRANT SELECT ON TABLE ${PLATFORM_TABLES.filter(
+      (table) =>
+        !(PRIVATE_RELEASE_SELECTION_TABLES as readonly string[]).includes(table) &&
+        /^(proofstack_(artifact_|comparison_|evaluation_|model_assurance_|interaction_fixture_|regression_|recorded_interaction_fixture_|release_candidate_|release_candidates$|release_policy_|release_policies$|replay_|target_releases$|evidence_events$))/.test(
+          table,
+        ),
     )
       .map((table) => `public.${table}`)
       .join(", ")} TO %ROLE%`,
