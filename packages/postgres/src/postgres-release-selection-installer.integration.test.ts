@@ -342,6 +342,17 @@ describe("actual authenticated native selection publication", () => {
     "schema_create",
     "sequence_usage",
     "public_read",
+    "credential_column_read",
+    "origin_column_insert",
+    "origin_column_update",
+    "origin_column_reference",
+    "public_column_read",
+    "ledger_grant_option",
+    "function_grant_option",
+    "database_create",
+    "database_connect_grant_option",
+    "database_temp_grant_option",
+    "schema_usage_grant_option",
   ])("rejects effective %s privilege drift before source publication", async (kind) => {
     const f = await fixture(),
       role = `"${roles.releaseAuthority.name}"`;
@@ -374,6 +385,50 @@ describe("actual authenticated native selection publication", () => {
         "GRANT SELECT ON public.proofstack_browser_sessions TO PUBLIC",
         "REVOKE SELECT ON public.proofstack_browser_sessions FROM PUBLIC",
       ],
+      credential_column_read: [
+        `GRANT SELECT(session_digest) ON public.proofstack_browser_sessions TO ${role}`,
+        `REVOKE SELECT(session_digest) ON public.proofstack_browser_sessions FROM ${role}`,
+      ],
+      origin_column_insert: [
+        `GRANT INSERT(publication) ON public.proofstack_release_selection_publications TO ${role}`,
+        `REVOKE INSERT(publication) ON public.proofstack_release_selection_publications FROM ${role}`,
+      ],
+      origin_column_update: [
+        `GRANT UPDATE(publication) ON public.proofstack_release_selection_publications TO ${role}`,
+        `REVOKE UPDATE(publication) ON public.proofstack_release_selection_publications FROM ${role}`,
+      ],
+      origin_column_reference: [
+        `GRANT REFERENCES(source_id) ON public.proofstack_release_selection_publications TO ${role}`,
+        `REVOKE REFERENCES(source_id) ON public.proofstack_release_selection_publications FROM ${role}`,
+      ],
+      public_column_read: [
+        "GRANT SELECT(session_digest) ON public.proofstack_browser_sessions TO PUBLIC",
+        "REVOKE SELECT(session_digest) ON public.proofstack_browser_sessions FROM PUBLIC",
+      ],
+      ledger_grant_option: [
+        `GRANT SELECT ON public.proofstack_schema_migrations TO ${role} WITH GRANT OPTION`,
+        `REVOKE GRANT OPTION FOR SELECT ON public.proofstack_schema_migrations FROM ${role}`,
+      ],
+      function_grant_option: [
+        `GRANT EXECUTE ON FUNCTION public.proofstack_recheck_release_installer(jsonb,jsonb) TO ${role} WITH GRANT OPTION`,
+        `REVOKE GRANT OPTION FOR EXECUTE ON FUNCTION public.proofstack_recheck_release_installer(jsonb,jsonb) FROM ${role}`,
+      ],
+      database_create: [
+        `GRANT CREATE ON DATABASE proofstack_test TO ${role}`,
+        `REVOKE CREATE ON DATABASE proofstack_test FROM ${role}`,
+      ],
+      database_connect_grant_option: [
+        `GRANT CONNECT ON DATABASE proofstack_test TO ${role} WITH GRANT OPTION`,
+        `REVOKE GRANT OPTION FOR CONNECT ON DATABASE proofstack_test FROM ${role}`,
+      ],
+      database_temp_grant_option: [
+        `GRANT TEMP ON DATABASE proofstack_test TO ${role} WITH GRANT OPTION`,
+        `REVOKE GRANT OPTION FOR TEMP ON DATABASE proofstack_test FROM ${role}`,
+      ],
+      schema_usage_grant_option: [
+        `GRANT USAGE ON SCHEMA public TO ${role} WITH GRANT OPTION`,
+        `REVOKE GRANT OPTION FOR USAGE ON SCHEMA public FROM ${role}`,
+      ],
     } as const;
     const pair = permissions[kind as keyof typeof permissions];
     try {
@@ -386,6 +441,37 @@ describe("actual authenticated native selection publication", () => {
     // Restoring only the offending grant recovers readiness without rewriting the role/profile.
     expect((await service.publishSelection(f.credentials, f.intent)).created).toBe(true);
   });
+  it.each(["table", "function"])(
+    "rejects %s ownership after ordinary privileges are revoked",
+    async (kind) => {
+      const f = await fixture(),
+        role = `"${roles.releaseAuthority.name}"`,
+        name = `fixture_owned_${key}`;
+      try {
+        await admin.query(`GRANT CREATE ON SCHEMA public TO ${role}`);
+        if (kind === "table") {
+          await admin.query(`CREATE TABLE public."${name}"(value integer)`);
+          await admin.query(`ALTER TABLE public."${name}" OWNER TO ${role}`);
+          await admin.query(`REVOKE ALL ON public."${name}" FROM ${role}`);
+        } else {
+          await admin.query(
+            `CREATE FUNCTION public."${name}"() RETURNS integer LANGUAGE sql AS 'SELECT 1'`,
+          );
+          await admin.query(`REVOKE ALL ON FUNCTION public."${name}"() FROM PUBLIC`);
+          await admin.query(`ALTER FUNCTION public."${name}"() OWNER TO ${role}`);
+          await admin.query(`REVOKE ALL ON FUNCTION public."${name}"() FROM ${role}`);
+        }
+        await admin.query(`REVOKE CREATE ON SCHEMA public FROM ${role}`);
+        await expect(service.publishSelection(f.credentials, f.intent)).rejects.toBeDefined();
+      } finally {
+        await admin.query(`REVOKE CREATE ON SCHEMA public FROM ${role}`);
+        if (kind === "table") await admin.query(`DROP TABLE IF EXISTS public."${name}"`);
+        else await admin.query(`DROP FUNCTION IF EXISTS public."${name}"()`);
+      }
+      expect(await counts(f.scope)).toEqual({ sources: 0, origins: 0, intents: 0 });
+      expect((await service.publishSelection(f.credentials, f.intent)).created).toBe(true);
+    },
+  );
   it.each(["events", "condition", "columns", "function_schema"])(
     "rejects changed trigger %s with unchanged name/enabled/deferred flags",
     async (kind) => {

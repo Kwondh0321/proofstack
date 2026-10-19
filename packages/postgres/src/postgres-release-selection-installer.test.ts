@@ -60,6 +60,21 @@ if (
   wire.serverVersion !== "16.15"
 )
   throw new Error("Invalid actual native fixture");
+// Original immutable source/authentication observations remain byte-identical. Only the
+// independently recorded current readiness query is overlaid; native integration tests cover
+// the complete current transaction. This unit composition is not a live authority transcript.
+const currentReadiness = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/installer-role-readiness-native-v1.json", import.meta.url),
+    "utf8",
+  ),
+) as { format: string; serverVersion: string; observation: Observation };
+if (
+  currentReadiness.format !== "proofstack.release-installer-role-readiness-native.v1" ||
+  currentReadiness.serverVersion !== "16.15" ||
+  currentReadiness.observation.rows.length !== 0
+)
+  throw new Error("Invalid native readiness fixture");
 function fixture(name = "selection_new") {
   const captured = wire.cases.find((value) => value.name === name);
   if (!captured) throw new Error("Missing native case");
@@ -67,6 +82,8 @@ function fixture(name = "selection_new") {
     observations = example.queries.map((index) => {
       const observation = wire.observations[index];
       if (!observation) throw new Error("Missing native observation index");
+      if (observation.sql.startsWith("SELECT 'table' AS kind"))
+        return structuredClone(currentReadiness.observation);
       return structuredClone(observation);
     });
   const secret = generateBrowserSessionCredentials(),
@@ -140,7 +157,7 @@ describe("installer owning composition against actual native observations", () =
     }
   });
   it.each(wire.cases)(
-    "preserves actual $name original receipts and complete read sequence",
+    "retains $name original receipts with current recorded readiness",
     (example) => {
       const f = fixture(example.name);
       return f.run().then((result) => {
@@ -241,7 +258,7 @@ describe("installer owning composition against actual native observations", () =
       ),
     ).toBe(false);
   });
-  it.each(["table", "sequence", "schema", "function", "identity"])(
+  it.each(["table", "column", "sequence", "schema", "database", "function", "identity"])(
     "rejects effective %s power before any source is created",
     async (kind) => {
       const f = fixture();

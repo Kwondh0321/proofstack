@@ -40,7 +40,9 @@ mandatory profile triggers and forced RLS, then rechecks safe current OIDC sessi
 under their guards. Readiness compares the complete unconditional trigger event/column/argument
 and function-namespace structure and effective direct/PUBLIC privileges. Only the migration ledger
 SELECT and nine fixed installer/read-intent functions are allowed; extra table/sequence/schema or
-foreign function privileges reject the connection before publication. It grants or revokes nothing.
+foreign function privileges reject the connection before publication. Column-only access, database
+creation and grant options (including implicit ownership) are also rejected; the allowed ledger read
+and fixed functions cannot delegate their privileges. It grants or revokes nothing.
 Owning normalized source readers validate complete retained policy/root,
 selection and terminal projections and canonical outbox intents on this connection. Source SQL
 is selected by a closed opcode set; no SQL text, client or callback is accepted from a caller.

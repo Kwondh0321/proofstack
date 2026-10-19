@@ -18,8 +18,10 @@ with a separate unshared login. Compose its dedicated `createPolicyPostgresPool`
 `OidcSessionAuthenticator`. The identity authenticator uses its separately authorized identity
 repository/pool. Do not use an owner, API, policy author or evaluation-worker pool for installation.
 No new role is provisioned unless this option is present. Credentials belong in secret configuration.
-Every transaction checks effective direct and PUBLIC grants: extra table/sequence/schema power or
-foreign function execution rejects readiness. Trigger checks include exact events, unconditional
+Every transaction checks effective direct and PUBLIC grants: extra table/column/sequence/schema
+power, database creation, privilege delegation (including implicit owner grant options), or foreign
+function execution rejects readiness. The allowed ledger read and fixed functions carry no grant
+option. Trigger checks include exact events, unconditional
 execution, columns/arguments and owning function namespace, as well as enabled/deferred flags.
 Restoring the original privilege/trigger restores readiness; no migration or profile is rewritten.
 
