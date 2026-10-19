@@ -236,7 +236,9 @@ Its local plan ownership does not reserve external jobs or establish current pub
 
 The [native request reservations](workflow-2-decision-request-reservations.md) coordinate new plans
 with every C3 request INSERT, preserving explicit unreserved legacy records. Actual authoritative
-planning, bounded held-client reservation observation and final atomic decision publication remain open.
+planning and final atomic decision publication remain open. The supplied-client observation verifies
+complete original graphs/reservations under the original aggregate meter and retains caller guards;
+its detached report is no current authority or publication seal.
 
 The [native private service identity](workflow-2-native-service-publisher.md) verifies actual
 service secrets and holds current credential/expiry/revocation observations on the same client.

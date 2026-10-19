@@ -42,6 +42,14 @@ They are not policy semantic time or a public authentication receipt. Recovery p
 exact original values. New trigger functions have fixed search paths and no PUBLIC/runtime
 execution grant; existing role provisioning removes stale grants.
 
+The supplied-client observation first validates the complete original graph and exact input
+digest, then every ordered native reservation under the same input guard and original aggregate
+meter. Before/after backend/XID observations reject autocommit or transaction replacement,
+including root absence. Legacy, incomplete, changed and mixed inventories cannot become proven
+new reservations. Native UTC text follows the owning formatter's trimmed fractions and zero
+fallback; exact stored order keys remain text. The reader opens/commits no transaction and a
+caught source/admission failure permanently taints its meter. Its result is no publication seal.
+
 ## Consequences and remaining gates
 
 Native tests exercise existing requests, complete-body substitution with a copied hash, both
@@ -50,8 +58,8 @@ legacy upgrade and immutable migration history. Existing shared trusted-storage 
 unchanged: that memory port does not own a separate native job ledger.
 
 This component establishes native request reservation, not authoritative planning. Actual actor
-and installation authority, complete current sources, bounded held-client reservation observation,
-dedicated roles, public API/SDK and atomic final decision publication remain required. A trusted
+and installation authority, complete current sources, dedicated roles, public API/SDK and atomic
+final decision publication remain required. A trusted
 storage call can still contain synthetic source witnesses. No detached graph or reservation
 receipt is a publication seal. Checkpoints 5–7 and measured stage 5 remain later requirements.
 

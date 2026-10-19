@@ -77,6 +77,11 @@ export {
 } from "./postgres-model-assurance-repository.js";
 export { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 export {
+  readPostgresReleaseDecisionReservationsOnClient,
+  type PostgresDecisionInputReservationObservation,
+  type PostgresDecisionRequestReservation,
+} from "./postgres-release-decision-reservations.js";
+export {
   PostgresReleaseDecisionInputRepository,
   readPostgresReleaseDecisionInputOnClient,
 } from "./postgres-release-decision-input-repository.js";

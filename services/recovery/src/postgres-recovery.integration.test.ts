@@ -166,6 +166,7 @@ import {
   PostgresReleaseApprovalRepository,
   PostgresReleaseServiceCredentialRepository,
   PostgresReleaseDecisionInputRepository,
+  readPostgresReleaseDecisionReservationsOnClient,
   readPostgresReleaseServiceCredentialOnClient,
   provisionRuntimeRoles,
   withExactScopeTransaction,
@@ -4005,6 +4006,34 @@ describe("coordinated recovery rehearsal", () => {
     expect(await readDecisionInputReservationReceipts(restoredPool)).toEqual(
       decisionInputReservationReceipts,
     );
+    const reservationClient = await restoredPool.connect();
+    try {
+      await reservationClient.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+      await reservationClient.query(
+        "SELECT set_config('proofstack.tenant_id',$1,true),set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)",
+        [scope.tenantId, scope.projectId, scope.environmentId],
+      );
+      const observed = await readPostgresReleaseDecisionReservationsOnClient(
+        reservationClient,
+        scope,
+        {
+          decisionInputRequestId: decisionInputRecovery.request.decisionInputRequestId,
+          definitionSha256: decisionInputRecovery.request.definitionSha256,
+        },
+        new ReleaseDecisionVerificationBudget(decisionInputRecovery.request.verificationLimits),
+      );
+      expect(observed?.state).toBe("reservations_observed");
+      expect(observed?.graph).toEqual(decisionInputRecovery);
+      expect(observed?.reservations.map((r) => [r.reservedAt, r.reservedAtKey])).toEqual(
+        (decisionInputReservationReceipts as Record<string, unknown>[]).map((r) => [
+          r["reserved_at_lexical"],
+          r["reserved_at_key"],
+        ]),
+      );
+    } finally {
+      await reservationClient.query("ROLLBACK");
+      reservationClient.release();
+    }
     expect(
       await inputs.findReleaseDecisionInput(
         scope,

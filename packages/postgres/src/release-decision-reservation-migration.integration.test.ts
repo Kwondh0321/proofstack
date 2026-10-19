@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { PolicyEvaluationRequestSchema } from "@proofstack/contracts";
-import { digestPolicyEvaluationRequestDefinition } from "@proofstack/core";
+import {
+  digestPolicyEvaluationRequestDefinition,
+  ReleaseDecisionVerificationBudget,
+} from "@proofstack/core";
 import { releaseDecisionInputRepositoryFixture } from "@proofstack/core/testing";
 import { Pool } from "pg";
 import { expect, it } from "vitest";
@@ -8,6 +11,7 @@ import { assertMigrationsCurrent, migrateDatabase } from "./migration-runner.js"
 import { loadBundledMigrations } from "./migrations.js";
 import { PostgresPolicyEvaluationJobControlRepository } from "./postgres-policy-evaluation-job-control-repository.js";
 import { PostgresReleaseDecisionInputRepository } from "./postgres-release-decision-input-repository.js";
+import { readPostgresReleaseDecisionReservationsOnClient } from "./postgres-release-decision-reservations.js";
 
 const databaseUrl = process.env["PROOFSTACK_TEST_DATABASE_URL"];
 if (!databaseUrl) throw new Error("PROOFSTACK_TEST_DATABASE_URL is required");
@@ -76,6 +80,36 @@ it("preserves original legacy plans and ledger without inventing pre-outcome res
       ),
     ).toEqual(graph);
     expect(await inputs.publishReleaseDecisionInput(graph)).toEqual({ created: false, graph });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+      await client.query(
+        "SELECT set_config('proofstack.tenant_id',$1,true),set_config('proofstack.project_id',$2,true),set_config('proofstack.environment_id',$3,true)",
+        [
+          graph.request.scope.tenantId,
+          graph.request.scope.projectId,
+          graph.request.scope.environmentId,
+        ],
+      );
+      const observed = await readPostgresReleaseDecisionReservationsOnClient(
+        client,
+        graph.request.scope,
+        {
+          decisionInputRequestId: graph.request.decisionInputRequestId,
+          definitionSha256: graph.request.definitionSha256,
+        },
+        new ReleaseDecisionVerificationBudget(graph.request.verificationLimits),
+      );
+      expect(observed?.state).toBe("legacy_unreserved");
+      expect(observed?.graph).toEqual(graph);
+      expect(observed?.reservations.map((r) => [r.reservedAt, r.reservedAtKey])).toEqual([
+        [null, null],
+        [null, null],
+      ]);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
     const planned = graph.request.evaluations[0];
     if (!planned) throw new Error("Missing legacy plan");
     const definition = { ...planned.request, evaluationTime: "2026-10-15T12:00:01.000001Z" };
