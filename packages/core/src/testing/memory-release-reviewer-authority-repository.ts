@@ -109,6 +109,13 @@ export class MemoryReleaseReviewerAuthorityRepository
 {
   private readonly tenants = new Map<string, State>();
 
+  /** Independent tentative state; only its owning composition may atomically publish a fork. */
+  fork(): MemoryReleaseReviewerAuthorityRepository {
+    const next = new MemoryReleaseReviewerAuthorityRepository();
+    for (const [tenant, state] of this.tenants) next.tenants.set(tenant, structuredClone(state));
+    return next;
+  }
+
   async findReleaseReviewerAuthority(scope: EvidenceScope, versionId: string) {
     EvidenceScopeSchema.parse(scope);
     OpaqueIdSchema.parse(versionId);

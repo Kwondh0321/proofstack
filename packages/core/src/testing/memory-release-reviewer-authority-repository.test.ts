@@ -37,6 +37,27 @@ async function fixture() {
   return { f, repository, state };
 }
 describe("owning reviewer authority memory storage integrity", () => {
+  it("keeps tentative versions, root indexes and terminal history isolated in both directions", async () => {
+    const f = releaseReviewerAuthorityRepositoryFixture("fork");
+    const repository = new MemoryReleaseReviewerAuthorityRepository();
+    await repository.publishReleaseReviewerAuthority(f.original);
+    const fork = repository.fork();
+    await fork.publishReleaseReviewerAuthority(f.successor);
+    await fork.publishReleaseReviewerAuthorityLifecycleEvent(f.supersession);
+    expect(await repository.readReleaseReviewerAuthorityTarget(f.scope, f.target, meter())).toEqual(
+      { root: f.original, records: [f.original], lifecycle: [] },
+    );
+    await repository.publishReleaseReviewerAuthorityLifecycleEvent(f.revocation);
+    expect(
+      (await fork.readReleaseReviewerAuthorityTarget(f.scope, f.target, meter())).lifecycle,
+    ).toEqual([f.supersession]);
+    expect(
+      await fork.findReleaseReviewerAuthority(f.scope, f.successor.authorityVersionId),
+    ).toEqual(f.successor);
+    expect(
+      await repository.findReleaseReviewerAuthority(f.scope, f.successor.authorityVersionId),
+    ).toBeNull();
+  });
   it.each([
     "target_index",
     "logical_root",

@@ -7,5 +7,6 @@ export * from "./oidc-secrets.js";
 export * from "./oidc-session.js";
 export * from "./release-mutation-authentication.js";
 export * from "./release-selection-installer.js";
+export * from "./release-reviewer-administrator.js";
 export * from "./service-token.js";
 export * from "./service-token-authenticator.js";

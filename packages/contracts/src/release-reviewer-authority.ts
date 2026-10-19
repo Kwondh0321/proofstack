@@ -14,6 +14,9 @@ export const RELEASE_REVIEWER_AUTHORITY_SCHEMA_VERSION = "0.1" as const;
 export const MAX_RELEASE_REVIEWER_AUTHORITY_DEFINITION_BYTES = 64 * 1024;
 export const MAX_RELEASE_REVIEWER_AUTHORITY_RESPONSE_BYTES =
   MAX_RELEASE_REVIEWER_AUTHORITY_DEFINITION_BYTES + 4 * 1024;
+// Reserve server-owned exact scope and issuer without narrowing retained 0.1 definitions.
+export const MAX_RELEASE_REVIEWER_AUTHORITY_REQUEST_BYTES =
+  MAX_RELEASE_REVIEWER_AUTHORITY_DEFINITION_BYTES - 1024;
 
 function ordered(values: readonly string[]): boolean {
   return values.every((value, index) => index === 0 || (values[index - 1] ?? "") < value);
@@ -73,12 +76,11 @@ const DefinitionShape = {
   predecessor: ReleaseReviewerAuthorityReferenceSchema.optional(),
 };
 type Definition = z.infer<z.ZodObject<typeof DefinitionShape>>;
+const { scope: _scopeField, issuerPrincipalId: _issuerField, ...IntentShape } = DefinitionShape;
+type Intent = z.infer<z.ZodObject<typeof IntentShape>>;
 
-function check(value: Definition, context: z.RefinementCtx): void {
-  if (context.issues.length > 0) return;
+function checkIntent(value: Intent, context: z.RefinementCtx): void {
   const issue = (message: string) => context.addIssue({ code: "custom", message });
-  if (value.reviewerPrincipalId === value.issuerPrincipalId)
-    issue("A reviewer cannot issue their own reviewer authority");
   if (
     policyEvaluationTimestampOrderKey(value.effectiveAt) >=
     policyEvaluationTimestampOrderKey(value.expiresAt)
@@ -98,6 +100,13 @@ function check(value: Definition, context: z.RefinementCtx): void {
       previous.authorityVersionId === value.authorityVersionId)
   )
     issue("Reviewer authority predecessor must retain its exact logical reviewer target");
+}
+function check(value: Definition, context: z.RefinementCtx): void {
+  if (context.issues.length > 0) return;
+  const issue = (message: string) => context.addIssue({ code: "custom", message });
+  if (value.reviewerPrincipalId === value.issuerPrincipalId)
+    issue("A reviewer cannot issue their own reviewer authority");
+  checkIntent(value, context);
   const definition = Object.fromEntries(
     Object.keys(DefinitionShape)
       .filter((key) => value[key as keyof Definition] !== undefined)
@@ -109,6 +118,23 @@ function check(value: Definition, context: z.RefinementCtx): void {
   )
     issue("Reviewer authority definition exceeds its canonical UTF-8 byte ceiling");
 }
+
+/** Actual issuer and scope come from fixed authentication, not this public intent. */
+export const PublishReleaseReviewerAuthorityRequestSchema = z
+  .object(IntentShape)
+  .strict()
+  .superRefine((value, context) => {
+    if (context.issues.length > 0) return;
+    checkIntent(value, context);
+    if (
+      encodeEvaluationCanonicalJson(JSON.parse(JSON.stringify(value))).byteLength >
+      MAX_RELEASE_REVIEWER_AUTHORITY_REQUEST_BYTES
+    )
+      context.addIssue({
+        code: "custom",
+        message: "Reviewer authority intent exceeds its canonical UTF-8 ceiling",
+      });
+  });
 
 /** A bounded attributable declaration, not proof of expertise or authenticated human action. */
 export const ReleaseReviewerAuthorityDefinitionSchema = z
@@ -151,6 +177,27 @@ const LifecycleShape = {
   reason: AssuranceRationaleSchema,
   schemaVersion: z.literal(RELEASE_REVIEWER_AUTHORITY_SCHEMA_VERSION),
 };
+type LifecycleSubject =
+  | { readonly kind: "revoked"; readonly authority: ReleaseReviewerAuthorityReference }
+  | {
+      readonly kind: "superseded";
+      readonly authority: ReleaseReviewerAuthorityReference;
+      readonly successor: ReleaseReviewerAuthorityReference;
+    };
+function checkLifecycle(value: LifecycleSubject, context: z.RefinementCtx): void {
+  if (value.kind !== "superseded") return;
+  if (
+    value.successor.authorityId !== value.authority.authorityId ||
+    value.successor.authorityVersionId === value.authority.authorityVersionId ||
+    value.successor.installationId !== value.authority.installationId ||
+    value.successor.gateTargetId !== value.authority.gateTargetId ||
+    value.successor.reviewerPrincipalId !== value.authority.reviewerPrincipalId
+  )
+    context.addIssue({
+      code: "custom",
+      message: "Supersession must retain the exact reviewer authority target and change version",
+    });
+}
 export const ReleaseReviewerAuthorityLifecycleEventSchema = z
   .discriminatedUnion("kind", [
     z.object({ ...LifecycleShape, kind: z.literal("revoked") }).strict(),
@@ -162,20 +209,26 @@ export const ReleaseReviewerAuthorityLifecycleEventSchema = z
       })
       .strict(),
   ])
-  .superRefine((value, context) => {
-    if (value.kind !== "superseded") return;
-    if (
-      value.successor.authorityId !== value.authority.authorityId ||
-      value.successor.authorityVersionId === value.authority.authorityVersionId ||
-      value.successor.installationId !== value.authority.installationId ||
-      value.successor.gateTargetId !== value.authority.gateTargetId ||
-      value.successor.reviewerPrincipalId !== value.authority.reviewerPrincipalId
-    )
-      context.addIssue({
-        code: "custom",
-        message: "Supersession must retain the exact reviewer authority target and change version",
-      });
-  });
+  .superRefine(checkLifecycle);
+
+const LifecycleIntentShape = {
+  eventId: LifecycleShape.eventId,
+  authority: LifecycleShape.authority,
+  reason: LifecycleShape.reason,
+};
+/** No caller actor, scope, native clock or retained publication profile. */
+export const PublishReleaseReviewerAuthorityLifecycleRequestSchema = z
+  .discriminatedUnion("kind", [
+    z.object({ ...LifecycleIntentShape, kind: z.literal("revoked") }).strict(),
+    z
+      .object({
+        ...LifecycleIntentShape,
+        kind: z.literal("superseded"),
+        successor: ReleaseReviewerAuthorityReferenceSchema,
+      })
+      .strict(),
+  ])
+  .superRefine(checkLifecycle);
 
 export type ReleaseReviewerAuthorityDefinition = z.infer<
   typeof ReleaseReviewerAuthorityDefinitionSchema
@@ -186,4 +239,10 @@ export type ReleaseReviewerAuthorityReference = z.infer<
 >;
 export type ReleaseReviewerAuthorityLifecycleEvent = z.infer<
   typeof ReleaseReviewerAuthorityLifecycleEventSchema
+>;
+export type PublishReleaseReviewerAuthorityRequest = z.infer<
+  typeof PublishReleaseReviewerAuthorityRequestSchema
+>;
+export type PublishReleaseReviewerAuthorityLifecycleRequest = z.infer<
+  typeof PublishReleaseReviewerAuthorityLifecycleRequestSchema
 >;

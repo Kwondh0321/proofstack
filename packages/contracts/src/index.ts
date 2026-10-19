@@ -78,6 +78,8 @@ export * from "./release-policy-selection-encoding.js";
 export * from "./release-selection-publication.js";
 export * from "./release-selection-publication-encoding.js";
 export * from "./release-reviewer-authority.js";
+export * from "./release-reviewer-publication.js";
+export * from "./release-reviewer-publication-encoding.js";
 export * from "./release-approval.js";
 export * from "./release-approval-encoding.js";
 export * from "./release-decision-input.js";

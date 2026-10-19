@@ -1,0 +1,151 @@
+{
+  "format": "proofstack.release-reviewer-publication.v1",
+  "generator": "Independent Python sorted-key compact UTF-8 JSON and hashlib; synthetic safe metadata only.",
+  "vectors": [
+    {
+      "name": "original-declaration-native-cut",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_reviewer_authority",
+            "authority": {
+              "authorityId": "authority_reviewer_publication",
+              "authorityVersionId": "version_reviewer_publication_a",
+              "installationId": "installation_reviewer_publication",
+              "gateTargetId": "gate_reviewer_publication",
+              "reviewerPrincipalId": "reviewer_reviewer_publication",
+              "definitionSha256": "508c9f0091f953206799d9ad365c5bdf046684ba766e86ad1a00333e15ef2704"
+            },
+            "recordSha256": "6dc8a1f2479341e65956ad03a1d54ed43336f8e7e119f3eff654f50b5e1600b6"
+          },
+          "operation": "manage_reviewer_authority",
+          "actor": {
+            "principalId": "user_reviewer_administrator",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_reviewer_administrator",
+            "requestId": "request_검토_😀"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_reviewer_administrator",
+            "bindingId": "binding_reviewer_administrator"
+          },
+          "grantSha256": "cfc7984ed827dca9ac8a480a4584f1c0fa35091836a40f07cc2c9d9048546778",
+          "credentialSha256": "6eeb70e8d3364016a3c1419b846fd0b2f3cf7c6a4391cddc921c34df16c86eb9",
+          "issuedAt": "2026-10-15T12:10:00.000001Z"
+        }
+      },
+      "encodedByteLength": 1454,
+      "sha256": "afa7db6320cefc7186111855e2be58da70ea107b4c60d14452ce03ba175795a7"
+    },
+    {
+      "name": "original-revocation-native-cut",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_reviewer_authority_lifecycle",
+            "authority": {
+              "authorityId": "authority_reviewer_publication",
+              "authorityVersionId": "version_reviewer_publication_a",
+              "installationId": "installation_reviewer_publication",
+              "gateTargetId": "gate_reviewer_publication",
+              "reviewerPrincipalId": "reviewer_reviewer_publication",
+              "definitionSha256": "508c9f0091f953206799d9ad365c5bdf046684ba766e86ad1a00333e15ef2704"
+            },
+            "recordSha256": "fb278eb16967391058510dedb6459d357cd614e441acd60af6214ccfbba42230",
+            "eventId": "event_reviewer_publication_revoked"
+          },
+          "operation": "manage_reviewer_authority",
+          "actor": {
+            "principalId": "user_reviewer_administrator",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_reviewer_administrator",
+            "requestId": "request_검토_😀"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_reviewer_administrator",
+            "bindingId": "binding_reviewer_administrator"
+          },
+          "grantSha256": "cfc7984ed827dca9ac8a480a4584f1c0fa35091836a40f07cc2c9d9048546778",
+          "credentialSha256": "6eeb70e8d3364016a3c1419b846fd0b2f3cf7c6a4391cddc921c34df16c86eb9",
+          "issuedAt": "2026-10-15T12:11:00.000002Z"
+        }
+      },
+      "encodedByteLength": 1511,
+      "sha256": "8559dcf49ade1f1f6fea1fcc981da15909472f5668259ffc000517cc584d1b10"
+    },
+    {
+      "name": "unicode-full-precision-cut",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_reviewer_authority",
+            "authority": {
+              "authorityId": "authority_reviewer_publication",
+              "authorityVersionId": "version_reviewer_publication_a",
+              "installationId": "installation_reviewer_publication",
+              "gateTargetId": "gate_reviewer_publication",
+              "reviewerPrincipalId": "reviewer_reviewer_publication",
+              "definitionSha256": "508c9f0091f953206799d9ad365c5bdf046684ba766e86ad1a00333e15ef2704"
+            },
+            "recordSha256": "c3e038a278343adef150b51d7236ac01f45fe032920e96b53cc333178a17f072"
+          },
+          "operation": "manage_reviewer_authority",
+          "actor": {
+            "principalId": "user_reviewer_administrator",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_reviewer_administrator",
+            "requestId": "request_검토_😀"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_reviewer_administrator",
+            "bindingId": "binding_reviewer_administrator"
+          },
+          "grantSha256": "cfc7984ed827dca9ac8a480a4584f1c0fa35091836a40f07cc2c9d9048546778",
+          "credentialSha256": "6eeb70e8d3364016a3c1419b846fd0b2f3cf7c6a4391cddc921c34df16c86eb9",
+          "issuedAt": "2026-10-15T12:10:00.000001000000000000000000000001Z"
+        }
+      },
+      "encodedByteLength": 1478,
+      "sha256": "55e26c447ff387f46923aea11cf495ce0d47accbc66e7202d9ebb5acebe6e6cd"
+    }
+  ]
+}

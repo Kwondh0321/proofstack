@@ -102,6 +102,10 @@ inventories explicitly and prove serialized headroom before accepting those cont
 
 ## Required approval and exception authority
 
+The [authenticated reviewer reference](workflow-2-authenticated-reviewer-reference.md) preserves
+original administrator provenance and atomic synthetic publication. Native administration, complete
+current reviewer/basis authority and checkpoint acceptance remain open.
+
 The [predeclared complete input contracts](workflow-2-decision-input-contracts.md) retain the
 original request inventory. Native reservations and current publication authority remain open;
 immutable integrity is not checkpoint acceptance.

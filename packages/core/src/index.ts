@@ -95,6 +95,13 @@ export {
   prepareReleaseSelectionPublicationMaterial,
 } from "./release/release-selection-publication.js";
 export {
+  InvalidReleaseReviewerPublicationError,
+  digestReleaseReviewerPublicationRecord,
+  digestReleaseReviewerPublicationDefinition,
+  validateReleaseReviewerPublicationMaterial,
+  prepareReleaseReviewerPublicationMaterial,
+} from "./release/release-reviewer-publication.js";
+export {
   reservePolicyEvaluationAcquisition,
   settlePolicyEvaluationAcquisition,
   policyEvaluationMetadataUsage,

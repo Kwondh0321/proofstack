@@ -3,11 +3,17 @@ import { createHash } from "node:crypto";
 import {
   EvidenceScopeSchema,
   encodeReleasePolicySelectionDefinition,
+  encodeReleaseReviewerAuthorityDefinition,
   OpaqueIdSchema,
   PolicyEvaluationTimeSchema,
   policyEvaluationTimestampOrderKey,
   PublishReleasePolicySelectionLifecycleRequestSchema,
   PublishReleasePolicySelectionRequestSchema,
+  PublishReleaseReviewerAuthorityRequestSchema,
+  PublishReleaseReviewerAuthorityLifecycleRequestSchema,
+  ReleaseReviewerAuthorityDefinitionSchema,
+  ReleaseReviewerAuthoritySchema,
+  ReleaseReviewerAuthorityLifecycleEventSchema,
   ReleaseApprovalReviewerReceiptSchema,
   ReleaseDecisionIdentityGrantSchema,
   ReleaseDecisionSessionStateSchema,
@@ -22,19 +28,24 @@ import {
   type ReleasePolicyLifecycleEvent,
   type ReleasePolicySelection,
   type ReleaseSelectionPublicationMaterial,
+  type ReleaseReviewerAuthority,
+  type ReleaseReviewerPublicationMaterial,
 } from "@proofstack/contracts";
 import {
   inspectCapturedReleaseIdentityState,
   prepareReleaseSelectionPublicationMaterial,
+  prepareReleaseReviewerPublicationMaterial,
   releasePolicyReference,
   ReleaseDecisionVerificationBudget,
   validateReleasePolicyRecord,
   validateReleaseSelectionPublicationMaterial,
+  validateReleaseReviewerPublicationMaterial,
   type Clock,
 } from "@proofstack/core";
 import {
   MemoryReleasePolicyRepository,
   MemoryReleasePolicySelectionRepository,
+  MemoryReleaseReviewerAuthorityRepository,
 } from "@proofstack/core/testing";
 import { generateBrowserSessionCredentials } from "../oidc-secrets.js";
 import { OidcSessionAuthenticator, type AuthenticatableBrowserSession } from "../oidc-session.js";
@@ -47,6 +58,10 @@ import type {
   ReleaseSelectionInstaller,
   ReleaseSelectionInstallerResult,
 } from "../release-selection-installer.js";
+import type {
+  ReleaseReviewerAdministrator,
+  ReleaseReviewerAdministratorResult,
+} from "../release-reviewer-administrator.js";
 
 type Material = ReleaseSelectionPublicationMaterial;
 type Kind = Material["source"]["kind"];
@@ -58,25 +73,31 @@ type StoredSession = {
 interface State {
   readonly policies: MemoryReleasePolicyRepository;
   readonly selections: MemoryReleasePolicySelectionRepository;
+  readonly reviewers: MemoryReleaseReviewerAuthorityRepository;
   readonly grants: Map<string, ReleaseDecisionIdentityGrant>;
   readonly sessions: Map<string, StoredSession>;
   readonly publications: Map<string, Material>;
+  readonly reviewerPublications: Map<string, ReleaseReviewerPublicationMaterial>;
   readonly intents: Map<string, unknown>;
 }
 const empty = (): State => ({
   policies: new MemoryReleasePolicyRepository(),
   selections: new MemoryReleasePolicySelectionRepository(),
+  reviewers: new MemoryReleaseReviewerAuthorityRepository(),
   grants: new Map(),
   sessions: new Map(),
   publications: new Map(),
+  reviewerPublications: new Map(),
   intents: new Map(),
 });
 const fork = (state: State): State => ({
   policies: state.policies.fork(),
   selections: state.selections.fork(),
+  reviewers: state.reviewers.fork(),
   grants: structuredClone(state.grants),
   sessions: structuredClone(state.sessions),
   publications: structuredClone(state.publications),
+  reviewerPublications: structuredClone(state.reviewerPublications),
   intents: structuredClone(state.intents),
 });
 const key = (kind: string, id: string) => `${kind}:${id}`;
@@ -123,6 +144,32 @@ const profileIntent = (material: Material) => ({
   payload: { recordKind: "release_selection_publication", record: material.publication },
   createdAt: material.publication.issuedAt,
 });
+type ReviewerMaterial = ReleaseReviewerPublicationMaterial;
+type ReviewerKind = ReviewerMaterial["source"]["kind"];
+const reviewerSourceId = (source: ReviewerMaterial["source"]) =>
+  source.kind === "release_reviewer_authority"
+    ? source.record.authorityVersionId
+    : source.record.eventId;
+const reviewerSourceIntent = (source: ReviewerMaterial["source"]) => ({
+  eventType:
+    source.kind === "release_reviewer_authority"
+      ? "release.reviewer-authority.published"
+      : "release.reviewer-authority.lifecycle_recorded",
+  schemaVersion: "0.1",
+  payload: { recordKind: source.kind, record: source.record },
+  createdAt:
+    source.kind === "release_reviewer_authority"
+      ? source.record.publishedAt
+      : source.record.occurredAt,
+});
+const reviewerProfileKey = (material: ReviewerMaterial) =>
+  key("release_reviewer_publication", `rrp_${material.publication.definitionSha256.slice(0, 60)}`);
+const reviewerProfileIntent = (material: ReviewerMaterial) => ({
+  eventType: "release.reviewer-authority.authentication_recorded",
+  schemaVersion: "0.1",
+  payload: { recordKind: "release_reviewer_publication", record: material.publication },
+  createdAt: material.publication.issuedAt,
+});
 
 /** Explicit synthetic workspace reference, not a production OIDC store or durable transaction.
  * Actual cookie/CSRF verification uses the owning authenticators over this same private state.
@@ -130,7 +177,9 @@ const profileIntent = (material: Material) => ({
  * handle, principal, authority callback or generic transaction interface escapes.
  * Synthetic seed/session methods are fixture-owner operations, never public HTTP capabilities.
  */
-export class MemoryReleaseSelectionInstallerReference implements ReleaseSelectionInstaller {
+export class MemoryReleaseSelectionInstallerReference
+  implements ReleaseSelectionInstaller, ReleaseReviewerAdministrator
+{
   readonly mode = "synthetic_reference" as const;
   private readonly tenants = new Map<string, State>();
   private readonly sessionIndex = new Map<string, { tenantId: string; sessionId: string }>();
@@ -301,6 +350,7 @@ export class MemoryReleaseSelectionInstallerReference implements ReleaseSelectio
     actor: ReleaseApprovalReviewerReceipt,
     at: string,
     budget: ReleaseDecisionVerificationBudget,
+    operation: "manage_selection" | "manage_reviewer_authority" = "manage_selection",
   ) {
     const stored = state.sessions.get(actor.credentialId);
     if (!stored) fail();
@@ -321,7 +371,7 @@ export class MemoryReleaseSelectionInstallerReference implements ReleaseSelectio
         record: credential,
       },
       capturedAt: at,
-      operation: "manage_selection",
+      operation,
       budget,
     });
     if (eligible.state !== "eligible") fail();
@@ -600,6 +650,277 @@ export class MemoryReleaseSelectionInstallerReference implements ReleaseSelectio
       value = this.tenants.get(scope.tenantId)?.publications.get(key(kind, sourceId));
     return value && isDeepStrictEqual(value.publication.scope, scope)
       ? structuredClone(value)
+      : null;
+  }
+  async seedSyntheticReviewerAuthority(record: ReleaseReviewerAuthority): Promise<void> {
+    const scope = EvidenceScopeSchema.parse(record.scope),
+      original = this.tenants.get(scope.tenantId),
+      next = fork(original ?? empty());
+    const result = await next.reviewers.publishReleaseReviewerAuthority(record);
+    if (result.created)
+      next.intents.set(
+        key("release_reviewer_authority", record.authorityVersionId),
+        reviewerSourceIntent({ kind: "release_reviewer_authority", record }),
+      );
+    this.commit(scope.tenantId, original, next);
+  }
+  private async readReviewerMaterial(
+    state: State,
+    scope: EvidenceScope,
+    kind: ReviewerKind,
+    id: string,
+    budget: ReleaseDecisionVerificationBudget,
+  ): Promise<ReviewerMaterial | null> {
+    const raw = state.reviewerPublications.get(key(kind, id));
+    budget.observe(raw ?? { scope, kind, id, state: "missing" });
+    if (!raw) return null;
+    const material = validateReleaseReviewerPublicationMaterial(raw, budget);
+    const source =
+      kind === "release_reviewer_authority"
+        ? await state.reviewers.findReleaseReviewerAuthority(scope, id)
+        : await state.reviewers.findReleaseReviewerAuthorityLifecycleEvent(scope, id);
+    budget.observe(source);
+    const intents = [
+      state.intents.get(key(kind, id)),
+      state.intents.get(reviewerProfileKey(material)),
+    ];
+    for (const intent of intents) budget.observe(intent ?? null);
+    if (
+      !isDeepStrictEqual(material.publication.scope, scope) ||
+      material.source.kind !== kind ||
+      reviewerSourceId(material.source) !== id ||
+      !isDeepStrictEqual(source, material.source.record) ||
+      !isDeepStrictEqual(intents, [
+        reviewerSourceIntent(material.source),
+        reviewerProfileIntent(material),
+      ])
+    )
+      fail();
+    return material;
+  }
+  private async requireReviewerMaterial(
+    state: State,
+    scope: EvidenceScope,
+    kind: ReviewerKind,
+    id: string,
+    budget: ReleaseDecisionVerificationBudget,
+  ): Promise<ReviewerMaterial> {
+    const material = await this.readReviewerMaterial(state, scope, kind, id, budget);
+    if (!material) fail();
+    return material;
+  }
+  publishReviewerAuthority(
+    credentials: ReleaseBrowserMutationCredentials,
+    intent: unknown,
+  ): Promise<ReleaseReviewerAdministratorResult> {
+    return this.publishReviewer(credentials, intent, "release_reviewer_authority");
+  }
+  publishReviewerAuthorityLifecycle(
+    credentials: ReleaseBrowserMutationCredentials,
+    intent: unknown,
+  ): Promise<ReleaseReviewerAdministratorResult> {
+    return this.publishReviewer(credentials, intent, "release_reviewer_authority_lifecycle");
+  }
+  private async publishReviewer(
+    credentials: ReleaseBrowserMutationCredentials,
+    raw: unknown,
+    kind: ReviewerKind,
+  ): Promise<ReleaseReviewerAdministratorResult> {
+    const proof = await this.authentication.authenticateReviewerAuthorityAdministrator(credentials);
+    const authenticated = readReleaseMutationAuthentication(proof, {
+      operation: "manage_reviewer_authority",
+      scope: credentials.scope,
+      requestId: credentials.requestId,
+    });
+    const actor = ReleaseApprovalReviewerReceiptSchema.parse(authenticated.receipt),
+      scope = authenticated.scope;
+    const mutation =
+      kind === "release_reviewer_authority"
+        ? {
+            kind: "release_reviewer_authority" as const,
+            definition: ReleaseReviewerAuthorityDefinitionSchema.parse({
+              ...PublishReleaseReviewerAuthorityRequestSchema.parse(raw),
+              scope,
+              issuerPrincipalId: actor.principalId,
+            }),
+          }
+        : {
+            kind: "release_reviewer_authority_lifecycle" as const,
+            intent: PublishReleaseReviewerAuthorityLifecycleRequestSchema.parse(raw),
+          };
+    const id =
+      mutation.kind === "release_reviewer_authority"
+        ? mutation.definition.authorityVersionId
+        : mutation.intent.eventId;
+    const original = this.tenants.get(scope.tenantId),
+      next = fork(original as State),
+      budget = new ReleaseDecisionVerificationBudget(limits);
+    try {
+      this.identity(next, scope, actor, this.now(), budget, "manage_reviewer_authority");
+      const existing = await this.readReviewerMaterial(next, scope, kind, id, budget);
+      if (existing) {
+        if (mutation.kind === "release_reviewer_authority") {
+          const {
+            schemaVersion: _v,
+            definitionSha256: _h,
+            publishedAt: _at,
+            publishedByPrincipalId: _by,
+            ...definition
+          } = ReleaseReviewerAuthoritySchema.parse(existing.source.record);
+          if (!isDeepStrictEqual(definition, mutation.definition)) fail();
+        } else {
+          const {
+            schemaVersion: _v,
+            scope: _s,
+            occurredAt: _at,
+            actorPrincipalId,
+            ...intent
+          } = ReleaseReviewerAuthorityLifecycleEventSchema.parse(existing.source.record);
+          if (actorPrincipalId !== actor.principalId || !isDeepStrictEqual(intent, mutation.intent))
+            fail();
+        }
+        this.identity(next, scope, actor, this.now(), budget, "manage_reviewer_authority");
+        const usage = budget.snapshot();
+        this.commit(scope.tenantId, original, next);
+        return {
+          created: false,
+          record: existing.source.record,
+          publication: existing.publication,
+          usage,
+        };
+      }
+      if (mutation.kind === "release_reviewer_authority") {
+        const declaration = mutation.definition;
+        const prior = await next.reviewers.findReleaseReviewerAuthority(scope, id);
+        budget.observe(prior);
+        if (prior) fail();
+        const target = await next.reviewers.readReleaseReviewerAuthorityTarget(
+          scope,
+          {
+            installationId: declaration.installationId,
+            gateTargetId: declaration.gateTargetId,
+            reviewerPrincipalId: declaration.reviewerPrincipalId,
+          },
+          budget,
+        );
+        if (target.root)
+          await this.requireReviewerMaterial(
+            next,
+            scope,
+            "release_reviewer_authority",
+            target.root.authorityVersionId,
+            budget,
+          );
+        if (declaration.predecessor)
+          await this.requireReviewerMaterial(
+            next,
+            scope,
+            "release_reviewer_authority",
+            declaration.predecessor.authorityVersionId,
+            budget,
+          );
+      } else {
+        const prior = await next.reviewers.findReleaseReviewerAuthorityLifecycleEvent(scope, id);
+        budget.observe(prior);
+        if (prior) fail();
+        for (const reference of [
+          mutation.intent.authority,
+          ...(mutation.intent.kind === "superseded" ? [mutation.intent.successor] : []),
+        ]) {
+          const retained = await this.requireReviewerMaterial(
+            next,
+            scope,
+            "release_reviewer_authority",
+            reference.authorityVersionId,
+            budget,
+          );
+          if (!isDeepStrictEqual(retained.publication.subject.authority, reference)) fail();
+        }
+      }
+      const issuedAt = this.now(),
+        identity = this.identity(next, scope, actor, issuedAt, budget, "manage_reviewer_authority");
+      let source: ReviewerMaterial["source"];
+      if (mutation.kind === "release_reviewer_authority") {
+        const result = await next.reviewers.publishReleaseReviewerAuthority(
+          ReleaseReviewerAuthoritySchema.parse({
+            ...mutation.definition,
+            schemaVersion: "0.1",
+            definitionSha256: createHash("sha256")
+              .update(
+                encodeReleaseReviewerAuthorityDefinition({
+                  scope,
+                  definition: mutation.definition,
+                }),
+              )
+              .digest("hex"),
+            publishedAt: issuedAt,
+            publishedByPrincipalId: actor.principalId,
+          }),
+        );
+        if (!result.created) fail();
+        source = { kind: "release_reviewer_authority", record: result.authority };
+      } else {
+        const result = await next.reviewers.publishReleaseReviewerAuthorityLifecycleEvent({
+          ...mutation.intent,
+          scope,
+          schemaVersion: "0.1",
+          actorPrincipalId: actor.principalId,
+          occurredAt: issuedAt,
+        });
+        if (!result.created) fail();
+        source = { kind: "release_reviewer_authority_lifecycle", record: result.event };
+      }
+      const material = prepareReleaseReviewerPublicationMaterial({
+        scope,
+        source,
+        actor,
+        identity: identity.grant.identity as ReviewerMaterial["publication"]["identity"],
+        grant: identity.grant,
+        credential: identity.credential,
+        issuedAt,
+        budget,
+      });
+      for (const [intentKey, intent] of [
+        [key(kind, id), reviewerSourceIntent(source)],
+        [reviewerProfileKey(material), reviewerProfileIntent(material)],
+      ] as const) {
+        budget.observe(next.intents.get(intentKey) ?? { intentKey, state: "missing" });
+        if (next.intents.has(intentKey)) fail();
+        next.intents.set(intentKey, intent);
+      }
+      next.reviewerPublications.set(key(kind, id), material);
+      const retained = await this.requireReviewerMaterial(next, scope, kind, id, budget),
+        usage = budget.snapshot();
+      this.commit(scope.tenantId, original, next);
+      return {
+        created: true,
+        record: retained.source.record,
+        publication: retained.publication,
+        usage,
+      };
+    } catch (cause) {
+      return budget.rejectSourceRead(cause);
+    }
+  }
+  async readSyntheticReviewerAuthority(scopeInput: EvidenceScope, id: string) {
+    const scope = EvidenceScopeSchema.parse(scopeInput),
+      versionId = OpaqueIdSchema.parse(id);
+    return (
+      (await this.tenants
+        .get(scope.tenantId)
+        ?.reviewers.findReleaseReviewerAuthority(scope, versionId)) ?? null
+    );
+  }
+  readSyntheticReviewerPublication(
+    scopeInput: EvidenceScope,
+    kind: ReviewerKind,
+    id: string,
+  ): ReviewerMaterial | null {
+    const scope = EvidenceScopeSchema.parse(scopeInput),
+      sourceId = OpaqueIdSchema.parse(id),
+      material = this.tenants.get(scope.tenantId)?.reviewerPublications.get(key(kind, sourceId));
+    return material && isDeepStrictEqual(material.publication.scope, scope)
+      ? structuredClone(material)
       : null;
   }
 }

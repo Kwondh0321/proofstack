@@ -83,3 +83,4 @@ invalidate an ADR present in this directory.
 - [ADR-0058: Reserve decision requests across native writers](0058-reserve-decision-requests-across-native-writers.md)
 - [ADR-0059: Preserve authenticated selection publications](0059-preserve-authenticated-selection-publications.md)
 - [ADR-0060: Own authenticated memory reference state](0060-own-authenticated-memory-reference-state.md)
+- [ADR-0061: Retain original reviewer administration provenance](0061-retain-original-reviewer-administration-provenance.md)
