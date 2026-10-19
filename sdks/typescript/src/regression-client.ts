@@ -255,6 +255,20 @@ function hasJsonMediaType(response: Response): boolean {
   return response.headers.get("content-type")?.split(";", 1)[0]?.trim() === "application/json";
 }
 
+async function rejectRedirectResponse(response: Response): Promise<void> {
+  if (
+    response.redirected ||
+    response.type === "opaqueredirect" ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    await response.body?.cancel();
+    throw new ProofStackApiError(
+      "ProofStack regression and artifact requests do not permit redirects",
+      response.status || undefined,
+    );
+  }
+}
+
 async function readBoundedResponseBody(
   response: Response,
   maxBytes = MAX_CONTROL_PLANE_RESPONSE_BYTES,
@@ -883,6 +897,7 @@ export class ProofStackRegressionClient {
     try {
       const response = await this.fetchImplementation(url, {
         credentials: this.authentication.mode === "browser" ? "include" : "omit",
+        redirect: "manual",
         headers: {
           accept: "*/*",
           ...(this.authentication.mode === "workload"
@@ -892,6 +907,7 @@ export class ProofStackRegressionClient {
         method: "GET",
         signal: controller.signal,
       });
+      await rejectRedirectResponse(response);
       if (!response.ok) {
         const responseText = await readBoundedResponseBody(response);
         this.throwRejectedResponse(response, responseText);
@@ -994,6 +1010,7 @@ export class ProofStackRegressionClient {
           ? {}
           : { body: binaryBody ? Uint8Array.from(body) : JSON.stringify(body) }),
         credentials: this.authentication.mode === "browser" ? "include" : "omit",
+        redirect: "manual",
         headers: {
           accept: "application/json",
           ...(this.authentication.mode === "workload"
@@ -1009,6 +1026,7 @@ export class ProofStackRegressionClient {
         method,
         signal: controller.signal,
       });
+      await rejectRedirectResponse(response);
       const responseText = await readBoundedResponseBody(response, maxResponseBytes);
       if (!response.ok) {
         this.throwRejectedResponse(response, responseText);

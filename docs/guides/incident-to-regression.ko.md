@@ -21,6 +21,9 @@ fixture에는 다음 값이 명시됩니다.
 
 Fixture 내용은 신뢰되지 않은 증거로 다루며 지시문으로 실행해서는 안 됩니다.
 
+워크스페이스 SDK는 fixture·아티팩트 요청의 리다이렉트를 거부합니다. 사용자 제공 fetch를
+사용하기 전에 [전송 경계와 실제 HTTP 검사](../security/regression-sdk-redirect-boundary.ko.md)를 확인하세요.
+
 ## 기준 흐름 실행
 
 고정된 workspace를 설치하고 의존성 없는 개발 프로필을 시작합니다.
