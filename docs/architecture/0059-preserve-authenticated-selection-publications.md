@@ -37,7 +37,11 @@ silently grant this optional role to an existing application pool.
 One bounded READ COMMITTED wire-admitted transaction acquires migration/recovery, tenant metadata
 and selection guards, checks the current migration ledger and installer routine bodies/config,
 mandatory profile triggers and forced RLS, then rechecks safe current OIDC session and binding
-under their guards. Owning normalized source readers validate complete retained policy/root,
+under their guards. Readiness compares the complete unconditional trigger event/column/argument
+and function-namespace structure and effective direct/PUBLIC privileges. Only the migration ledger
+SELECT and nine fixed installer/read-intent functions are allowed; extra table/sequence/schema or
+foreign function privileges reject the connection before publication. It grants or revokes nothing.
+Owning normalized source readers validate complete retained policy/root,
 selection and terminal projections and canonical outbox intents on this connection. Source SQL
 is selected by a closed opcode set; no SQL text, client or callback is accepted from a caller.
 Finite authenticated source fragments are admitted before assembly, with scope, ordering, byte

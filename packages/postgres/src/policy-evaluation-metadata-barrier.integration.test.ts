@@ -7,6 +7,7 @@ import {
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
+import { loadBundledMigrations } from "./migrations.js";
 import { PostgresEvaluationRepository } from "./postgres-evaluation-repository.js";
 import { PostgresEvidenceRepository } from "./postgres-evidence-repository.js";
 import { provisionRuntimeRoles, type RuntimeRoleProvisioningOptions } from "./runtime-roles.js";
@@ -235,6 +236,8 @@ describe("complete policy metadata publication barrier", () => {
       "proofstack_oidc_bindings",
       "proofstack_projection_cursors",
       ...selectionTables,
+      // Its mandatory original-publication guards belong to C4, outside the unchanged C3 cut.
+      "proofstack_release_selection_publications",
       ...reviewerTables,
       "proofstack_release_approvals",
       "proofstack_release_approval_sources",
@@ -719,6 +722,7 @@ describe("complete policy metadata publication barrier", () => {
   );
 
   it("holds the migration runner's real session lock until the metadata transaction ends", async () => {
+    const expectedMigrationCount = (await loadBundledMigrations()).length;
     await blocksWriter(
       scope(),
       () => migrateDatabase(admin),
@@ -729,7 +733,7 @@ describe("complete policy metadata publication barrier", () => {
               "SELECT count(*)::int AS count FROM public.proofstack_schema_migrations",
             )
           ).rows[0]?.count,
-        ).toBe(70);
+        ).toBe(expectedMigrationCount);
       },
     );
   });

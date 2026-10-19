@@ -34,6 +34,7 @@ import {
 } from "./bounded-policy-transaction.js";
 import { assertMigrationsCurrentOnClient } from "./migration-runner.js";
 import { loadBundledMigrations } from "./migrations.js";
+import { assertReleaseInstallerRoleOnClient } from "./release-installer-role.js";
 import {
   assertReleaseInstallerSchemaOnClient,
   prepareReleaseInstallerSchema,
@@ -279,6 +280,7 @@ export class PostgresReleaseSelectionInstaller {
           if (typeof epoch !== "string" || !/^[0-9]+$/.test(epoch)) fail();
           await assertMigrationsCurrentOnClient(client, migrations);
           await assertReleaseInstallerSchemaOnClient(client, expectedSchema, budget);
+          await assertReleaseInstallerRoleOnClient(client, budget);
           const currentIdentity = await one(
             client,
             budget,

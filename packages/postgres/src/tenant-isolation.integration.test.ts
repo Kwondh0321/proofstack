@@ -172,6 +172,7 @@ const TENANT_TABLES = [
   "proofstack_release_reviewer_roots",
   "proofstack_release_selection_lifecycle",
   "proofstack_release_selection_policies",
+  "proofstack_release_selection_publications",
   "proofstack_release_selection_publishers",
   "proofstack_release_selection_roots",
   "proofstack_release_service_credentials",

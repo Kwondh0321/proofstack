@@ -198,6 +198,11 @@ describe("installer owning composition against actual native observations", () =
     "duplicate",
     "rls",
     "trigger",
+    "trigger_events",
+    "trigger_condition",
+    "trigger_columns",
+    "trigger_arguments",
+    "trigger_schema",
   ])("rejects %s schema damage before original source creation", async (change) => {
     const f = fixture(),
       routine = f.observations.find((q) => q.sql.includes("FROM pg_proc p"));
@@ -220,11 +225,37 @@ describe("installer owning composition against actual native observations", () =
       if (!q?.rows[0]) throw new Error("Fixture missing");
       q.rows[0]["enabled"] = "D";
     }
+    if (change.startsWith("trigger_")) {
+      const q = f.observations.find((q) => q.sql.includes("FROM pg_trigger t"));
+      if (!q?.rows[0]) throw new Error("Fixture missing");
+      if (change === "trigger_events") q.rows[0]["type"] = 9;
+      if (change === "trigger_condition") q.rows[0]["unconditional"] = false;
+      if (change === "trigger_columns") q.rows[0]["columns"] = "12";
+      if (change === "trigger_arguments") q.rows[0]["arguments"] = 1;
+      if (change === "trigger_schema") q.rows[0]["function_schema"] = "untrusted";
+    }
     await expect(f.run()).rejects.toBeDefined();
-    expect(f.calls.some((q) => q.sql.includes("proofstack_begin_authenticated_selection"))).toBe(
-      false,
-    );
+    expect(
+      f.calls.some((q) =>
+        q.sql.startsWith("SELECT public.proofstack_begin_authenticated_selection"),
+      ),
+    ).toBe(false);
   });
+  it.each(["table", "sequence", "schema", "function", "identity"])(
+    "rejects effective %s power before any source is created",
+    async (kind) => {
+      const f = fixture();
+      const q = f.observations.find((q) => q.sql.includes("has_table_privilege(session_user"));
+      if (!q) throw new Error("Missing actual native effective-grant observation");
+      q.rows = [{ kind, name: "unexpected_power", privilege: "unexpected" }];
+      await expect(f.run()).rejects.toBeDefined();
+      expect(
+        f.calls.some((q) =>
+          q.sql.startsWith("SELECT public.proofstack_begin_authenticated_selection"),
+        ),
+      ).toBe(false);
+    },
+  );
   it.each([
     "context",
     "identity",
@@ -237,7 +268,7 @@ describe("installer owning composition against actual native observations", () =
   ])("rejects damaged native %s without exposing a successful receipt", async (damage) => {
     const f = fixture();
     const first = (text: string) => {
-      const q = f.observations.find((q) => q.sql.includes(text));
+      const q = f.observations.find((q) => q.sql.startsWith(`SELECT public.${text}`));
       if (!q) throw new Error("Fixture missing");
       return q;
     };

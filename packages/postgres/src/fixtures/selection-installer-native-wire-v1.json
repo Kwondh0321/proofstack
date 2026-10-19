@@ -2,11 +2,11 @@
   "format": "proofstack.release-selection-installer-native-wire.v1",
   "serverVersion": "16.15",
   "actor": {
-    "principalId": "user_wire_22e9abd18d",
+    "principalId": "user_wire_57a3135f59",
     "principalType": "user",
     "authenticationMethod": "oidc",
-    "authenticatedAt": "2026-10-19T16:28:07.951Z",
-    "credentialId": "session_wire_22e9abd18d",
+    "authenticatedAt": "2026-10-19T17:10:02.708Z",
+    "credentialId": "session_wire_57a3135f59",
     "requestId": "request_native_wire"
   },
   "cases": [
@@ -16,14 +16,14 @@
       "scope": {
         "environmentId": "env_staging",
         "projectId": "project_checkout",
-        "tenantId": "tenant_wire_22e9abd18d"
+        "tenantId": "tenant_wire_57a3135f59"
       },
       "requestId": "request_native_wire",
       "intent": {
-        "selectionId": "selection_wire_22e9abd18d",
-        "selectionVersionId": "version_wire_22e9abd18d_a",
-        "installationId": "installation_wire_22e9abd18d",
-        "gateTargetId": "gate_wire_22e9abd18d",
+        "selectionId": "selection_wire_57a3135f59",
+        "selectionVersionId": "version_wire_57a3135f59_a",
+        "installationId": "installation_wire_57a3135f59",
+        "gateTargetId": "gate_wire_57a3135f59",
         "candidateTarget": {
           "environmentId": "env_staging",
           "jurisdiction": "us",
@@ -52,15 +52,15 @@
         "expiresAt": "2099-01-01T00:00:00.000001Z"
       },
       "queries": [
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 10, 11, 12, 13, 16, 17, 18, 19
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 11, 12, 13, 14, 17, 18, 19, 20
       ],
       "result": {
         "created": true,
         "record": {
-          "selectionId": "selection_wire_22e9abd18d",
-          "selectionVersionId": "version_wire_22e9abd18d_a",
-          "installationId": "installation_wire_22e9abd18d",
-          "gateTargetId": "gate_wire_22e9abd18d",
+          "selectionId": "selection_wire_57a3135f59",
+          "selectionVersionId": "version_wire_57a3135f59_a",
+          "installationId": "installation_wire_57a3135f59",
+          "gateTargetId": "gate_wire_57a3135f59",
           "candidateTarget": {
             "environmentId": "env_staging",
             "jurisdiction": "us",
@@ -90,54 +90,54 @@
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
-          "issuerPrincipalId": "user_wire_22e9abd18d",
-          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+          "issuerPrincipalId": "user_wire_57a3135f59",
+          "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
           "schemaVersion": "0.1",
-          "publishedAt": "2026-10-19T16:28:08.041417Z",
-          "publishedByPrincipalId": "user_wire_22e9abd18d"
+          "publishedAt": "2026-10-19T17:10:02.846970Z",
+          "publishedByPrincipalId": "user_wire_57a3135f59"
         },
         "publication": {
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
           "subject": {
             "kind": "release_policy_selection",
             "selection": {
-              "selectionId": "selection_wire_22e9abd18d",
-              "selectionVersionId": "version_wire_22e9abd18d_a",
-              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-              "installationId": "installation_wire_22e9abd18d",
-              "gateTargetId": "gate_wire_22e9abd18d"
+              "selectionId": "selection_wire_57a3135f59",
+              "selectionVersionId": "version_wire_57a3135f59_a",
+              "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+              "installationId": "installation_wire_57a3135f59",
+              "gateTargetId": "gate_wire_57a3135f59"
             },
-            "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+            "recordSha256": "d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5"
           },
           "operation": "manage_selection",
           "actor": {
-            "principalId": "user_wire_22e9abd18d",
+            "principalId": "user_wire_57a3135f59",
             "principalType": "user",
             "authenticationMethod": "oidc",
-            "authenticatedAt": "2026-10-19T16:28:07.951Z",
-            "credentialId": "session_wire_22e9abd18d",
+            "authenticatedAt": "2026-10-19T17:10:02.708Z",
+            "credentialId": "session_wire_57a3135f59",
             "requestId": "request_native_wire"
           },
           "identity": {
             "kind": "oidc_binding",
-            "principalId": "user_wire_22e9abd18d",
-            "bindingId": "binding_wire_22e9abd18d"
+            "principalId": "user_wire_57a3135f59",
+            "bindingId": "binding_wire_57a3135f59"
           },
-          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
-          "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
-          "issuedAt": "2026-10-19T16:28:08.041417Z",
+          "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
+          "credentialSha256": "08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4",
+          "issuedAt": "2026-10-19T17:10:02.846970Z",
           "schemaVersion": "0.1",
-          "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+          "definitionSha256": "1017107f1ffb0de4de5269a49e7b39315b4095dd77d409e7c3db39b6ea50bfe6"
         },
         "usage": {
-          "records": 89,
-          "recordBytes": 101031,
+          "records": 90,
+          "recordBytes": 101236,
           "approvalRecords": 0
         }
       }
@@ -148,14 +148,14 @@
       "scope": {
         "environmentId": "env_staging",
         "projectId": "project_checkout",
-        "tenantId": "tenant_wire_22e9abd18d"
+        "tenantId": "tenant_wire_57a3135f59"
       },
       "requestId": "request_native_wire",
       "intent": {
-        "selectionId": "selection_wire_22e9abd18d",
-        "selectionVersionId": "version_wire_22e9abd18d_a",
-        "installationId": "installation_wire_22e9abd18d",
-        "gateTargetId": "gate_wire_22e9abd18d",
+        "selectionId": "selection_wire_57a3135f59",
+        "selectionVersionId": "version_wire_57a3135f59_a",
+        "installationId": "installation_wire_57a3135f59",
+        "gateTargetId": "gate_wire_57a3135f59",
         "candidateTarget": {
           "environmentId": "env_staging",
           "jurisdiction": "us",
@@ -183,14 +183,14 @@
         "effectiveAt": "2026-01-01T00:00:00.000001Z",
         "expiresAt": "2099-01-01T00:00:00.000001Z"
       },
-      "queries": [0, 1, 2, 3, 4, 5, 20, 15, 21, 15, 10, 11, 12, 13, 16, 17, 18, 19],
+      "queries": [0, 1, 2, 3, 4, 5, 6, 21, 16, 22, 16, 11, 12, 13, 14, 17, 18, 19, 20],
       "result": {
         "created": false,
         "record": {
-          "selectionId": "selection_wire_22e9abd18d",
-          "selectionVersionId": "version_wire_22e9abd18d_a",
-          "installationId": "installation_wire_22e9abd18d",
-          "gateTargetId": "gate_wire_22e9abd18d",
+          "selectionId": "selection_wire_57a3135f59",
+          "selectionVersionId": "version_wire_57a3135f59_a",
+          "installationId": "installation_wire_57a3135f59",
+          "gateTargetId": "gate_wire_57a3135f59",
           "candidateTarget": {
             "environmentId": "env_staging",
             "jurisdiction": "us",
@@ -220,54 +220,54 @@
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
-          "issuerPrincipalId": "user_wire_22e9abd18d",
-          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+          "issuerPrincipalId": "user_wire_57a3135f59",
+          "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
           "schemaVersion": "0.1",
-          "publishedAt": "2026-10-19T16:28:08.041417Z",
-          "publishedByPrincipalId": "user_wire_22e9abd18d"
+          "publishedAt": "2026-10-19T17:10:02.846970Z",
+          "publishedByPrincipalId": "user_wire_57a3135f59"
         },
         "publication": {
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
           "subject": {
             "kind": "release_policy_selection",
             "selection": {
-              "selectionId": "selection_wire_22e9abd18d",
-              "selectionVersionId": "version_wire_22e9abd18d_a",
-              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-              "installationId": "installation_wire_22e9abd18d",
-              "gateTargetId": "gate_wire_22e9abd18d"
+              "selectionId": "selection_wire_57a3135f59",
+              "selectionVersionId": "version_wire_57a3135f59_a",
+              "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+              "installationId": "installation_wire_57a3135f59",
+              "gateTargetId": "gate_wire_57a3135f59"
             },
-            "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+            "recordSha256": "d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5"
           },
           "operation": "manage_selection",
           "actor": {
-            "principalId": "user_wire_22e9abd18d",
+            "principalId": "user_wire_57a3135f59",
             "principalType": "user",
             "authenticationMethod": "oidc",
-            "authenticatedAt": "2026-10-19T16:28:07.951Z",
-            "credentialId": "session_wire_22e9abd18d",
+            "authenticatedAt": "2026-10-19T17:10:02.708Z",
+            "credentialId": "session_wire_57a3135f59",
             "requestId": "request_native_wire"
           },
           "identity": {
             "kind": "oidc_binding",
-            "principalId": "user_wire_22e9abd18d",
-            "bindingId": "binding_wire_22e9abd18d"
+            "principalId": "user_wire_57a3135f59",
+            "bindingId": "binding_wire_57a3135f59"
           },
-          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
-          "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
-          "issuedAt": "2026-10-19T16:28:08.041417Z",
+          "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
+          "credentialSha256": "08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4",
+          "issuedAt": "2026-10-19T17:10:02.846970Z",
           "schemaVersion": "0.1",
-          "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+          "definitionSha256": "1017107f1ffb0de4de5269a49e7b39315b4095dd77d409e7c3db39b6ea50bfe6"
         },
         "usage": {
-          "records": 54,
-          "recordBytes": 76870,
+          "records": 55,
+          "recordBytes": 77075,
           "approvalRecords": 0
         }
       }
@@ -278,44 +278,44 @@
       "scope": {
         "environmentId": "env_staging",
         "projectId": "project_checkout",
-        "tenantId": "tenant_wire_22e9abd18d"
+        "tenantId": "tenant_wire_57a3135f59"
       },
       "requestId": "request_native_wire",
       "intent": {
-        "eventId": "event_wire_22e9abd18d",
+        "eventId": "event_wire_57a3135f59",
         "kind": "withdrawn",
         "selection": {
-          "selectionId": "selection_wire_22e9abd18d",
-          "selectionVersionId": "version_wire_22e9abd18d_a",
-          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-          "installationId": "installation_wire_22e9abd18d",
-          "gateTargetId": "gate_wire_22e9abd18d"
+          "selectionId": "selection_wire_57a3135f59",
+          "selectionVersionId": "version_wire_57a3135f59_a",
+          "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+          "installationId": "installation_wire_57a3135f59",
+          "gateTargetId": "gate_wire_57a3135f59"
         },
         "reason": "Withdraw the exact native wire fixture."
       },
       "queries": [
-        0, 1, 2, 3, 4, 5, 22, 23, 15, 10, 11, 12, 13, 16, 17, 18, 19, 24, 25, 26, 27, 28, 29, 13,
-        30, 31, 26, 27, 28, 29, 13, 32, 33, 34, 35
+        0, 1, 2, 3, 4, 5, 6, 23, 24, 16, 11, 12, 13, 14, 17, 18, 19, 20, 25, 26, 27, 28, 29, 30, 14,
+        31, 32, 27, 28, 29, 30, 14, 33, 34, 35, 36
       ],
       "result": {
         "created": true,
         "record": {
-          "eventId": "event_wire_22e9abd18d",
+          "eventId": "event_wire_57a3135f59",
           "selection": {
-            "selectionId": "selection_wire_22e9abd18d",
-            "selectionVersionId": "version_wire_22e9abd18d_a",
-            "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-            "installationId": "installation_wire_22e9abd18d",
-            "gateTargetId": "gate_wire_22e9abd18d"
+            "selectionId": "selection_wire_57a3135f59",
+            "selectionVersionId": "version_wire_57a3135f59_a",
+            "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+            "installationId": "installation_wire_57a3135f59",
+            "gateTargetId": "gate_wire_57a3135f59"
           },
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
           "reason": "Withdraw the exact native wire fixture.",
-          "actorPrincipalId": "user_wire_22e9abd18d",
-          "occurredAt": "2026-10-19T16:28:08.210192Z",
+          "actorPrincipalId": "user_wire_57a3135f59",
+          "occurredAt": "2026-10-19T17:10:03.029118Z",
           "schemaVersion": "0.1",
           "kind": "withdrawn"
         },
@@ -323,43 +323,43 @@
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
           "subject": {
             "kind": "release_policy_selection_lifecycle",
-            "eventId": "event_wire_22e9abd18d",
+            "eventId": "event_wire_57a3135f59",
             "selection": {
-              "selectionId": "selection_wire_22e9abd18d",
-              "selectionVersionId": "version_wire_22e9abd18d_a",
-              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-              "installationId": "installation_wire_22e9abd18d",
-              "gateTargetId": "gate_wire_22e9abd18d"
+              "selectionId": "selection_wire_57a3135f59",
+              "selectionVersionId": "version_wire_57a3135f59_a",
+              "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+              "installationId": "installation_wire_57a3135f59",
+              "gateTargetId": "gate_wire_57a3135f59"
             },
-            "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+            "recordSha256": "d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0"
           },
           "operation": "manage_selection",
           "actor": {
-            "principalId": "user_wire_22e9abd18d",
+            "principalId": "user_wire_57a3135f59",
             "principalType": "user",
             "authenticationMethod": "oidc",
-            "authenticatedAt": "2026-10-19T16:28:07.951Z",
-            "credentialId": "session_wire_22e9abd18d",
+            "authenticatedAt": "2026-10-19T17:10:02.708Z",
+            "credentialId": "session_wire_57a3135f59",
             "requestId": "request_native_wire"
           },
           "identity": {
             "kind": "oidc_binding",
-            "principalId": "user_wire_22e9abd18d",
-            "bindingId": "binding_wire_22e9abd18d"
+            "principalId": "user_wire_57a3135f59",
+            "bindingId": "binding_wire_57a3135f59"
           },
-          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
-          "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
-          "issuedAt": "2026-10-19T16:28:08.210192Z",
+          "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
+          "credentialSha256": "4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1",
+          "issuedAt": "2026-10-19T17:10:03.029118Z",
           "schemaVersion": "0.1",
-          "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+          "definitionSha256": "48a7fbaec9bad4233bff15034682a14c2f50f7e3088e9ae6532c4b7cbb23c22d"
         },
         "usage": {
-          "records": 143,
-          "recordBytes": 129126,
+          "records": 144,
+          "recordBytes": 129331,
           "approvalRecords": 0
         }
       }
@@ -370,41 +370,41 @@
       "scope": {
         "environmentId": "env_staging",
         "projectId": "project_checkout",
-        "tenantId": "tenant_wire_22e9abd18d"
+        "tenantId": "tenant_wire_57a3135f59"
       },
       "requestId": "request_native_wire",
       "intent": {
-        "eventId": "event_wire_22e9abd18d",
+        "eventId": "event_wire_57a3135f59",
         "kind": "withdrawn",
         "selection": {
-          "selectionId": "selection_wire_22e9abd18d",
-          "selectionVersionId": "version_wire_22e9abd18d_a",
-          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-          "installationId": "installation_wire_22e9abd18d",
-          "gateTargetId": "gate_wire_22e9abd18d"
+          "selectionId": "selection_wire_57a3135f59",
+          "selectionVersionId": "version_wire_57a3135f59_a",
+          "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+          "installationId": "installation_wire_57a3135f59",
+          "gateTargetId": "gate_wire_57a3135f59"
         },
         "reason": "Withdraw the exact native wire fixture."
       },
-      "queries": [0, 1, 2, 3, 4, 5, 36, 31, 37, 31, 26, 27, 28, 29, 13, 32, 33, 34, 35],
+      "queries": [0, 1, 2, 3, 4, 5, 6, 37, 32, 38, 32, 27, 28, 29, 30, 14, 33, 34, 35, 36],
       "result": {
         "created": false,
         "record": {
-          "eventId": "event_wire_22e9abd18d",
+          "eventId": "event_wire_57a3135f59",
           "selection": {
-            "selectionId": "selection_wire_22e9abd18d",
-            "selectionVersionId": "version_wire_22e9abd18d_a",
-            "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-            "installationId": "installation_wire_22e9abd18d",
-            "gateTargetId": "gate_wire_22e9abd18d"
+            "selectionId": "selection_wire_57a3135f59",
+            "selectionVersionId": "version_wire_57a3135f59_a",
+            "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+            "installationId": "installation_wire_57a3135f59",
+            "gateTargetId": "gate_wire_57a3135f59"
           },
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
           "reason": "Withdraw the exact native wire fixture.",
-          "actorPrincipalId": "user_wire_22e9abd18d",
-          "occurredAt": "2026-10-19T16:28:08.210192Z",
+          "actorPrincipalId": "user_wire_57a3135f59",
+          "occurredAt": "2026-10-19T17:10:03.029118Z",
           "schemaVersion": "0.1",
           "kind": "withdrawn"
         },
@@ -412,43 +412,43 @@
           "scope": {
             "environmentId": "env_staging",
             "projectId": "project_checkout",
-            "tenantId": "tenant_wire_22e9abd18d"
+            "tenantId": "tenant_wire_57a3135f59"
           },
           "subject": {
             "kind": "release_policy_selection_lifecycle",
-            "eventId": "event_wire_22e9abd18d",
+            "eventId": "event_wire_57a3135f59",
             "selection": {
-              "selectionId": "selection_wire_22e9abd18d",
-              "selectionVersionId": "version_wire_22e9abd18d_a",
-              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-              "installationId": "installation_wire_22e9abd18d",
-              "gateTargetId": "gate_wire_22e9abd18d"
+              "selectionId": "selection_wire_57a3135f59",
+              "selectionVersionId": "version_wire_57a3135f59_a",
+              "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+              "installationId": "installation_wire_57a3135f59",
+              "gateTargetId": "gate_wire_57a3135f59"
             },
-            "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+            "recordSha256": "d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0"
           },
           "operation": "manage_selection",
           "actor": {
-            "principalId": "user_wire_22e9abd18d",
+            "principalId": "user_wire_57a3135f59",
             "principalType": "user",
             "authenticationMethod": "oidc",
-            "authenticatedAt": "2026-10-19T16:28:07.951Z",
-            "credentialId": "session_wire_22e9abd18d",
+            "authenticatedAt": "2026-10-19T17:10:02.708Z",
+            "credentialId": "session_wire_57a3135f59",
             "requestId": "request_native_wire"
           },
           "identity": {
             "kind": "oidc_binding",
-            "principalId": "user_wire_22e9abd18d",
-            "bindingId": "binding_wire_22e9abd18d"
+            "principalId": "user_wire_57a3135f59",
+            "bindingId": "binding_wire_57a3135f59"
           },
-          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
-          "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
-          "issuedAt": "2026-10-19T16:28:08.210192Z",
+          "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
+          "credentialSha256": "4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1",
+          "issuedAt": "2026-10-19T17:10:03.029118Z",
           "schemaVersion": "0.1",
-          "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+          "definitionSha256": "48a7fbaec9bad4233bff15034682a14c2f50f7e3088e9ae6532c4b7cbb23c22d"
         },
         "usage": {
-          "records": 64,
-          "recordBytes": 77460,
+          "records": 65,
+          "recordBytes": 77665,
           "approvalRecords": 0
         }
       }
@@ -458,7 +458,7 @@
     {
       "sql": "SELECT public.proofstack_release_installer_context($1::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}"
       ],
       "rows": [
         {
@@ -863,39 +863,53 @@
       ]
     },
     {
-      "sql": "SELECT t.tgname AS name,t.tgenabled AS enabled,t.tginitdeferred AS deferred,t.tgdeferrable AS deferrable,p.proname AS function\n       FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid\n       WHERE t.tgrelid='public.proofstack_release_selection_publications'::regclass AND NOT t.tgisinternal ORDER BY t.tgname COLLATE \"C\"",
+      "sql": "SELECT t.tgname AS name,t.tgenabled AS enabled,t.tginitdeferred AS deferred,t.tgdeferrable AS deferrable,p.proname AS function,\n         n.nspname AS function_schema,t.tgtype::int AS type,t.tgnargs::int AS arguments,\n         t.tgattr::text AS columns,t.tgqual IS NULL AS unconditional\n       FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_namespace n ON n.oid=p.pronamespace\n       WHERE t.tgrelid='public.proofstack_release_selection_publications'::regclass AND NOT t.tgisinternal ORDER BY t.tgname COLLATE \"C\"",
       "rows": [
         {
           "name": "proofstack_release_selection_publication_complete",
           "enabled": "O",
           "deferred": true,
           "deferrable": true,
-          "function": "proofstack_verify_selection_publication"
+          "function": "proofstack_verify_selection_publication",
+          "function_schema": "public",
+          "type": 21,
+          "arguments": 0,
+          "columns": "",
+          "unconditional": true
         },
         {
           "name": "proofstack_release_selection_publication_guard",
           "enabled": "O",
           "deferred": false,
           "deferrable": false,
-          "function": "proofstack_guard_selection_publication"
+          "function": "proofstack_guard_selection_publication",
+          "function_schema": "public",
+          "type": 31,
+          "arguments": 0,
+          "columns": "",
+          "unconditional": true
         }
       ]
     },
     {
+      "sql": "SELECT 'table' AS kind,c.relname::text AS name,v.privilege\n       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace\n       CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) AS v(privilege)\n       WHERE n.nspname='public' AND c.relkind IN('r','p','v','m','f')\n         AND has_table_privilege(session_user,c.oid,v.privilege)\n         AND NOT(c.relname='proofstack_schema_migrations' AND v.privilege='SELECT')\n       UNION ALL\n       SELECT 'sequence',c.relname::text,v.privilege\n       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace\n       CROSS JOIN unnest(ARRAY['USAGE','SELECT','UPDATE']) AS v(privilege)\n       WHERE n.nspname='public' AND c.relkind='S' AND has_sequence_privilege(session_user,c.oid,v.privilege)\n       UNION ALL\n       SELECT 'function',p.proname::text,'EXECUTE'\n       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace\n       WHERE n.nspname='public' AND has_function_privilege(session_user,p.oid,'EXECUTE')\n         AND p.oid<>ALL(ARRAY[\n           'public.proofstack_release_installer_context(jsonb)'::regprocedure,\n           'public.proofstack_recheck_release_installer(jsonb,jsonb)'::regprocedure,\n           'public.proofstack_begin_authenticated_selection(jsonb,jsonb,text,jsonb)'::regprocedure,\n           'public.proofstack_begin_authenticated_selection_lifecycle(jsonb,jsonb,jsonb)'::regprocedure,\n           'public.proofstack_read_selection_publication_part(jsonb,text,text,text)'::regprocedure,\n           'public.proofstack_finish_selection_publication(jsonb,text,text,jsonb,text,text,text,text)'::regprocedure,\n           'public.proofstack_read_installer_projection(jsonb,text,text)'::regprocedure,\n           'public.proofstack_release_policy_intent_status(text,text,jsonb,timestamptz)'::regprocedure,\n           'public.proofstack_release_policy_lifecycle_intent_status(text,text,jsonb,timestamptz)'::regprocedure\n         ]::oid[])\n       UNION ALL\n       SELECT 'schema','public','CREATE' WHERE has_schema_privilege(session_user,'public','CREATE')\n       UNION ALL\n       SELECT 'identity','connection','SET ROLE' WHERE current_user<>session_user\n       ORDER BY kind,name,privilege",
+      "rows": []
+    },
+    {
       "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "grant": {
@@ -903,12 +917,12 @@
               "state": "active",
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
               "revision": 1,
-              "tenantId": "tenant_wire_22e9abd18d",
-              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "tenantId": "tenant_wire_57a3135f59",
+              "updatedAt": "2026-10-19T17:10:02.699319Z",
               "capabilities": ["release:selection:manage"],
               "resourceScope": {
                 "mode": "tenant"
@@ -916,41 +930,41 @@
             },
             "guards": [
               {
-                "id": "session_wire_22e9abd18d",
+                "id": "session_wire_57a3135f59",
                 "kind": "oidc_session",
                 "acquired": true
               },
               {
-                "id": "binding_wire_22e9abd18d",
+                "id": "binding_wire_57a3135f59",
                 "kind": "oidc_binding",
                 "acquired": true
               }
             ],
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "capturedAt": "2026-10-19T16:28:08.025391Z",
+            "capturedAt": "2026-10-19T17:10:02.832524Z",
             "credential": {
               "kind": "oidc_session",
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "useCount": 1,
-              "bindingId": "binding_wire_22e9abd18d",
-              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "bindingId": "binding_wire_57a3135f59",
+              "createdAt": "2026-10-19T17:10:02.708821Z",
               "revokedAt": null,
-              "lastUsedAt": "2026-10-19T16:28:07.958183Z",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
-              "idleExpiresAt": "2026-10-19T16:58:07.958183Z",
+              "lastUsedAt": "2026-10-19T17:10:02.715334Z",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
+              "idleExpiresAt": "2026-10-19T17:40:02.715334Z",
               "schemaVersion": "0.1",
               "revocationReason": null,
-              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
               "idleLifetimeSeconds": 1800
             },
             "bindingObservation": {
-              "bindingId": "binding_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59"
             }
           }
         }
@@ -959,9 +973,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "header"
       ],
       "rows": [
@@ -973,25 +987,25 @@
     {
       "sql": "SELECT public.proofstack_begin_authenticated_selection($1::jsonb,$2::jsonb,$3,$4::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"mode\":\"observation_only\",\"policies\":[],\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"issuerPrincipalId\":\"user_wire_22e9abd18d\"}",
-        "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\",\"installationId\":\"installation_wire_57a3135f59\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"mode\":\"observation_only\",\"policies\":[],\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"issuerPrincipalId\":\"user_wire_57a3135f59\"}",
+        "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"issuerPrincipalId\":\"user_wire_57a3135f59\",\"mode\":\"observation_only\",\"policies\":[],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "created": true,
-            "sourceId": "version_wire_22e9abd18d_a",
+            "sourceId": "version_wire_57a3135f59_a",
             "sourceKind": "release_policy_selection",
             "policyObservations": [],
             "identityObservation": {
               "actor": {
                 "requestId": "request_native_wire",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
                 "principalType": "user",
-                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticatedAt": "2026-10-19T17:10:02.708Z",
                 "authenticationMethod": "oidc"
               },
               "grant": {
@@ -999,12 +1013,12 @@
                 "state": "active",
                 "identity": {
                   "kind": "oidc_binding",
-                  "bindingId": "binding_wire_22e9abd18d",
-                  "principalId": "user_wire_22e9abd18d"
+                  "bindingId": "binding_wire_57a3135f59",
+                  "principalId": "user_wire_57a3135f59"
                 },
                 "revision": 1,
-                "tenantId": "tenant_wire_22e9abd18d",
-                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "tenantId": "tenant_wire_57a3135f59",
+                "updatedAt": "2026-10-19T17:10:02.699319Z",
                 "capabilities": ["release:selection:manage"],
                 "resourceScope": {
                   "mode": "tenant"
@@ -1012,41 +1026,41 @@
               },
               "guards": [
                 {
-                  "id": "session_wire_22e9abd18d",
+                  "id": "session_wire_57a3135f59",
                   "kind": "oidc_session",
                   "acquired": true
                 },
                 {
-                  "id": "binding_wire_22e9abd18d",
+                  "id": "binding_wire_57a3135f59",
                   "kind": "oidc_binding",
                   "acquired": true
                 }
               ],
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
-              "capturedAt": "2026-10-19T16:28:08.041417Z",
+              "capturedAt": "2026-10-19T17:10:02.846970Z",
               "credential": {
                 "kind": "oidc_session",
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "useCount": 1,
-                "bindingId": "binding_wire_22e9abd18d",
-                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "bindingId": "binding_wire_57a3135f59",
+                "createdAt": "2026-10-19T17:10:02.708821Z",
                 "revokedAt": null,
-                "lastUsedAt": "2026-10-19T16:28:07.958183Z",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
-                "idleExpiresAt": "2026-10-19T16:58:07.958183Z",
+                "lastUsedAt": "2026-10-19T17:10:02.715334Z",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
+                "idleExpiresAt": "2026-10-19T17:40:02.715334Z",
                 "schemaVersion": "0.1",
                 "revocationReason": null,
-                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
                 "idleLifetimeSeconds": 1800
               },
               "bindingObservation": {
-                "bindingId": "binding_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59"
               }
             }
           }
@@ -1056,9 +1070,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "header"
       ],
       "rows": [
@@ -1066,18 +1080,18 @@
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "issuedAt": "2026-10-19T16:28:08.041417Z",
+            "issuedAt": "2026-10-19T17:10:02.846970Z",
             "completed": false,
             "originEpoch": "0",
             "publication": null,
@@ -1089,9 +1103,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "source"
       ],
       "rows": [
@@ -1101,7 +1115,7 @@
             "record": {
               "mode": "observation_only",
               "scope": {
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "projectId": "project_checkout",
                 "environmentId": "env_staging"
               },
@@ -1109,11 +1123,11 @@
               "expiresAt": "2099-01-01T00:00:00.000001Z",
               "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
               "effectiveAt": "2026-01-01T00:00:00.000001Z",
-              "publishedAt": "2026-10-19T16:28:08.041417Z",
-              "selectionId": "selection_wire_22e9abd18d",
-              "gateTargetId": "gate_wire_22e9abd18d",
+              "publishedAt": "2026-10-19T17:10:02.846970Z",
+              "selectionId": "selection_wire_57a3135f59",
+              "gateTargetId": "gate_wire_57a3135f59",
               "schemaVersion": "0.1",
-              "installationId": "installation_wire_22e9abd18d",
+              "installationId": "installation_wire_57a3135f59",
               "candidateTarget": {
                 "locale": "en-us",
                 "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
@@ -1124,7 +1138,7 @@
                 "populationTags": ["business", "checkout"],
                 "maximumDataClassification": "confidential"
               },
-              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+              "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
               "authorityEvidence": {
                 "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "mediaType": "application/vnd.proofstack.policy-authority+json",
@@ -1132,9 +1146,9 @@
                 "artifactId": "artifact_installation_authority",
                 "classification": "internal"
               },
-              "issuerPrincipalId": "user_wire_22e9abd18d",
-              "selectionVersionId": "version_wire_22e9abd18d_a",
-              "publishedByPrincipalId": "user_wire_22e9abd18d",
+              "issuerPrincipalId": "user_wire_57a3135f59",
+              "selectionVersionId": "version_wire_57a3135f59_a",
+              "publishedByPrincipalId": "user_wire_57a3135f59",
               "authorizedPublisherPrincipalIds": [
                 "service_decision_publisher",
                 "user_decision_publisher"
@@ -1147,9 +1161,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "grant"
       ],
       "rows": [
@@ -1159,12 +1173,12 @@
             "state": "active",
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
             "revision": 1,
-            "tenantId": "tenant_wire_22e9abd18d",
-            "updatedAt": "2026-10-19T16:28:07.941312Z",
+            "tenantId": "tenant_wire_57a3135f59",
+            "updatedAt": "2026-10-19T17:10:02.699319Z",
             "capabilities": ["release:selection:manage"],
             "resourceScope": {
               "mode": "tenant"
@@ -1176,27 +1190,27 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "credential"
       ],
       "rows": [
         {
           "value": {
             "kind": "oidc_session",
-            "tenantId": "tenant_wire_22e9abd18d",
+            "tenantId": "tenant_wire_57a3135f59",
             "useCount": 1,
-            "bindingId": "binding_wire_22e9abd18d",
-            "createdAt": "2026-10-19T16:28:07.951041Z",
+            "bindingId": "binding_wire_57a3135f59",
+            "createdAt": "2026-10-19T17:10:02.708821Z",
             "revokedAt": null,
-            "lastUsedAt": "2026-10-19T16:28:07.958183Z",
-            "principalId": "user_wire_22e9abd18d",
-            "credentialId": "session_wire_22e9abd18d",
-            "idleExpiresAt": "2026-10-19T16:58:07.958183Z",
+            "lastUsedAt": "2026-10-19T17:10:02.715334Z",
+            "principalId": "user_wire_57a3135f59",
+            "credentialId": "session_wire_57a3135f59",
+            "idleExpiresAt": "2026-10-19T17:40:02.715334Z",
             "schemaVersion": "0.1",
             "revocationReason": null,
-            "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+            "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
             "idleLifetimeSeconds": 1800
           }
         }
@@ -1205,24 +1219,24 @@
     {
       "sql": "SELECT public.proofstack_read_installer_projection($1::jsonb,$2,$3) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "selection_view",
-        "version_wire_22e9abd18d_a"
+        "version_wire_57a3135f59_a"
       ],
       "rows": [
         {
           "value": {
             "scope": {
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "projectId": "project_checkout",
               "environmentId": "env_staging"
             },
             "offset": 0,
-            "sha256": "d26c61963b9999f7679752f747fddc5bd6c9f46db93c596d68d899bf97855137",
+            "sha256": "15c491dda1f4d0f435a9699b9b64f4c896fbfc282b785d54ea75c2013c554817",
             "records": 20,
             "projection": "selection_view",
             "totalBytes": 10765,
-            "chunkBase64": "W3sicm9vdCI6IHsidGVuYW50X2lkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdF9pZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgInNlbGVjdGlvbl9pZCI6ICJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImdhdGVfdGFyZ2V0X2lkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbl9pZCI6ICJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkIiwgInJvb3RfdmVyc2lvbl9pZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIiwgInJvb3RfZGVmaW5pdGlvbl9zaGEyNTYiOiAiNDc5MGVkYzlmODJjMzVjMjcyMmQzMTg3ZGNmNjliYjMwMmMwZjllZTE0YjEwNDBmY2YwMzU0OWFmYTc3NTIwYSJ9LCAiaW50ZW50cyI6IFt7InBheWxvYWQiOiB7InJlY29yZCI6IHsibW9kZSI6ICJvYnNlcnZhdGlvbl9vbmx5IiwgInNjb3BlIjogeyJ0ZW5hbnRJZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RJZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgImVudmlyb25tZW50SWQiOiAiZW52X3N0YWdpbmcifSwgInBvbGljaWVzIjogW10sICJleHBpcmVzQXQiOiAiMjA5OS0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInJhdGlvbmFsZSI6ICJCaW5kIHRoZSBmdWxsIHN0YWdpbmcgZ2F0ZSBwb2xpY3kgaW52ZW50b3J5OyDsmIjsmbjripQg64+F66a9IOyKueyduOydtCDtlYTsmpTtlanri4jri6QuIiwgImVmZmVjdGl2ZUF0IjogIjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJwdWJsaXNoZWRBdCI6ICIyMDI2LTEwLTE5VDE2OjI4OjA4LjA0MTQxN1oiLCAic2VsZWN0aW9uSWQiOiAic2VsZWN0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJnYXRlVGFyZ2V0SWQiOiAiZ2F0ZV93aXJlXzIyZTlhYmQxOGQiLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEiLCAiaW5zdGFsbGF0aW9uSWQiOiAiaW5zdGFsbGF0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJjYW5kaWRhdGVUYXJnZXQiOiB7ImxvY2FsZSI6ICJlbi11cyIsICJwdXJwb3NlIjogIkV2YWx1YXRlIG9uZSBleGFjdCBjaGVja291dC1hZ2VudCBjYW5kaWRhdGUgYmVmb3JlIHN0YWdpbmcgcmVsZWFzZS4iLCAicmlza1RpZXIiOiAiaGlnaCIsICJ0YXNrS2luZCI6ICJjaGVja291dF9hZ2VudCIsICJqdXJpc2RpY3Rpb24iOiAidXMiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyIsICJwb3B1bGF0aW9uVGFncyI6IFsiYnVzaW5lc3MiLCAiY2hlY2tvdXQiXSwgIm1heGltdW1EYXRhQ2xhc3NpZmljYXRpb24iOiAiY29uZmlkZW50aWFsIn0sICJkZWZpbml0aW9uU2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEiLCAiYXV0aG9yaXR5RXZpZGVuY2UiOiB7InNoYTI1NiI6ICJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwgIm1lZGlhVHlwZSI6ICJhcHBsaWNhdGlvbi92bmQucHJvb2ZzdGFjay5wb2xpY3ktYXV0aG9yaXR5K2pzb24iLCAic2l6ZUJ5dGVzIjogNTEyLCAiYXJ0aWZhY3RJZCI6ICJhcnRpZmFjdF9pbnN0YWxsYXRpb25fYXV0aG9yaXR5IiwgImNsYXNzaWZpY2F0aW9uIjogImludGVybmFsIn0sICJpc3N1ZXJQcmluY2lwYWxJZCI6ICJ1c2VyX3dpcmVfMjJlOWFiZDE4ZCIsICJzZWxlY3Rpb25WZXJzaW9uSWQiOiAidmVyc2lvbl93aXJlXzIyZTlhYmQxOGRfYSIsICJwdWJsaXNoZWRCeVByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIiwgImF1dGhvcml6ZWRQdWJsaXNoZXJQcmluY2lwYWxJZHMiOiBbInNlcnZpY2VfZGVjaXNpb25fcHVibGlzaGVyIiwgInVzZXJfZGVjaXNpb25fcHVibGlzaGVyIl19LCAicmVjb3JkS2luZCI6ICJyZWxlYXNlX3BvbGljeV9zZWxlY3Rpb24ifSwgImV2ZW50VHlwZSI6ICJyZWxlYXNlLnNlbGVjdGlvbi5wdWJsaXNoZWQiLCAidGltZU1hdGNoZXMiOiB0cnVlLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEifV0sICJ2ZXJzaW9uIjogeyJtb2RlIjogIm9ic2VydmF0aW9uX29ubHkiLCAicmVjb3JkIjogeyJtb2RlIjogIm9ic2VydmF0aW9uX29ubHkiLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicG9saWNpZXMiOiBbXSwgImV4cGlyZXNBdCI6ICIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicmF0aW9uYWxlIjogIkJpbmQgdGhlIGZ1bGwgc3RhZ2luZyBnYXRlIHBvbGljeSBpbnZlbnRvcnk7IOyYiOyZuOuKlCDrj4Xrpr0g7Iq57J247J20IO2VhOyalO2VqeuLiOuLpC4iLCAiZWZmZWN0aXZlQXQiOiAiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInB1Ymxpc2hlZEF0IjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMDQxNDE3WiIsICJzZWxlY3Rpb25JZCI6ICJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkIiwgImdhdGVUYXJnZXRJZCI6ICJnYXRlX3dpcmVfMjJlOWFiZDE4ZCIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJpbnN0YWxsYXRpb25JZCI6ICJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkIiwgImNhbmRpZGF0ZVRhcmdldCI6IHsibG9jYWxlIjogImVuLXVzIiwgInB1cnBvc2UiOiAiRXZhbHVhdGUgb25lIGV4YWN0IGNoZWNrb3V0LWFnZW50IGNhbmRpZGF0ZSBiZWZvcmUgc3RhZ2luZyByZWxlYXNlLiIsICJyaXNrVGllciI6ICJoaWdoIiwgInRhc2tLaW5kIjogImNoZWNrb3V0X2FnZW50IiwgImp1cmlzZGljdGlvbiI6ICJ1cyIsICJlbnZpcm9ubWVudElkIjogImVudl9zdGFnaW5nIiwgInBvcHVsYXRpb25UYWdzIjogWyJidXNpbmVzcyIsICJjaGVja291dCJdLCAibWF4aW11bURhdGFDbGFzc2lmaWNhdGlvbiI6ICJjb25maWRlbnRpYWwifSwgImRlZmluaXRpb25TaGEyNTYiOiAiNDc5MGVkYzlmODJjMzVjMjcyMmQzMTg3ZGNmNjliYjMwMmMwZjllZTE0YjEwNDBmY2YwMzU0OWFmYTc3NTIwYSIsICJhdXRob3JpdHlFdmlkZW5jZSI6IHsic2hhMjU2IjogImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCAibWVkaWFUeXBlIjogImFwcGxpY2F0aW9uL3ZuZC5wcm9vZnN0YWNrLnBvbGljeS1hdXRob3JpdHkranNvbiIsICJzaXplQnl0ZXMiOiA1MTIsICJhcnRpZmFjdElkIjogImFydGlmYWN0X2luc3RhbGxhdGlvbl9hdXRob3JpdHkiLCAiY2xhc3NpZmljYXRpb24iOiAiaW50ZXJuYWwifSwgImlzc3VlclByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIiwgInB1Ymxpc2hlZEJ5UHJpbmNpcGFsSWQiOiAidXNlcl93aXJlXzIyZTlhYmQxOGQiLCAiYXV0aG9yaXplZFB1Ymxpc2hlclByaW5jaXBhbElkcyI6IFsic2VydmljZV9kZWNpc2lvbl9wdWJsaXNoZXIiLCAidXNlcl9kZWNpc2lvbl9wdWJsaXNoZXIiXX0sICJ0ZW5hbnRfaWQiOiAidGVuYW50X3dpcmVfMjJlOWFiZDE4ZCIsICJwcm9qZWN0X2lkIjogInByb2plY3RfY2hlY2tvdXQiLCAidmVyc2lvbl9pZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIiwgInBvbGljeV9jb3VudCI6IDAsICJzZWxlY3Rpb25faWQiOiAic2VsZWN0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJjYW5vbmljYWxfdXRmOCI6ICJ7XCJkZWZpbml0aW9uXCI6e1wiYXV0aG9yaXR5RXZpZGVuY2VcIjp7XCJhcnRpZmFjdElkXCI6XCJhcnRpZmFjdF9pbnN0YWxsYXRpb25fYXV0aG9yaXR5XCIsXCJjbGFzc2lmaWNhdGlvblwiOlwiaW50ZXJuYWxcIixcIm1lZGlhVHlwZVwiOlwiYXBwbGljYXRpb24vdm5kLnByb29mc3RhY2sucG9saWN5LWF1dGhvcml0eStqc29uXCIsXCJzaGEyNTZcIjpcImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFcIixcInNpemVCeXRlc1wiOjUxMn0sXCJhdXRob3JpemVkUHVibGlzaGVyUHJpbmNpcGFsSWRzXCI6W1wic2VydmljZV9kZWNpc2lvbl9wdWJsaXNoZXJcIixcInVzZXJfZGVjaXNpb25fcHVibGlzaGVyXCJdLFwiY2FuZGlkYXRlVGFyZ2V0XCI6e1wiZW52aXJvbm1lbnRJZFwiOlwiZW52X3N0YWdpbmdcIixcImp1cmlzZGljdGlvblwiOlwidXNcIixcImxvY2FsZVwiOlwiZW4tdXNcIixcIm1heGltdW1EYXRhQ2xhc3NpZmljYXRpb25cIjpcImNvbmZpZGVudGlhbFwiLFwicG9wdWxhdGlvblRhZ3NcIjpbXCJidXNpbmVzc1wiLFwiY2hlY2tvdXRcIl0sXCJwdXJwb3NlXCI6XCJFdmFsdWF0ZSBvbmUgZXhhY3QgY2hlY2tvdXQtYWdlbnQgY2FuZGlkYXRlIGJlZm9yZSBzdGFnaW5nIHJlbGVhc2UuXCIsXCJyaXNrVGllclwiOlwiaGlnaFwiLFwidGFza0tpbmRcIjpcImNoZWNrb3V0X2FnZW50XCJ9LFwiZWZmZWN0aXZlQXRcIjpcIjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwMDAxWlwiLFwiZXhwaXJlc0F0XCI6XCIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVpcIixcImdhdGVUYXJnZXRJZFwiOlwiZ2F0ZV93aXJlXzIyZTlhYmQxOGRcIixcImluc3RhbGxhdGlvbklkXCI6XCJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkXCIsXCJpc3N1ZXJQcmluY2lwYWxJZFwiOlwidXNlcl93aXJlXzIyZTlhYmQxOGRcIixcIm1vZGVcIjpcIm9ic2VydmF0aW9uX29ubHlcIixcInBvbGljaWVzXCI6W10sXCJyYXRpb25hbGVcIjpcIkJpbmQgdGhlIGZ1bGwgc3RhZ2luZyBnYXRlIHBvbGljeSBpbnZlbnRvcnk7IOyYiOyZuOuKlCDrj4Xrpr0g7Iq57J247J20IO2VhOyalO2VqeuLiOuLpC5cIixcInNjb3BlXCI6e1wiZW52aXJvbm1lbnRJZFwiOlwiZW52X3N0YWdpbmdcIixcInByb2plY3RJZFwiOlwicHJvamVjdF9jaGVja291dFwiLFwidGVuYW50SWRcIjpcInRlbmFudF93aXJlXzIyZTlhYmQxOGRcIn0sXCJzZWxlY3Rpb25JZFwiOlwic2VsZWN0aW9uX3dpcmVfMjJlOWFiZDE4ZFwiLFwic2VsZWN0aW9uVmVyc2lvbklkXCI6XCJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hXCJ9LFwiZGVmaW5pdGlvbkRvbWFpblwiOlwicHJvb2ZzdGFjay5yZWxlYXNlLXBvbGljeS1zZWxlY3Rpb24udjFcIixcImVuY29kaW5nVmVyc2lvblwiOlwicHJvb2ZzdGFjay5yZWxlYXNlLXBvbGljeS1zZWxlY3Rpb24tZGVmaW5pdGlvbi1qY3MudjFcIixcInNjaGVtYVZlcnNpb25cIjpcIjAuMVwiLFwic2NvcGVcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwicHJvamVjdElkXCI6XCJwcm9qZWN0X2NoZWNrb3V0XCIsXCJ0ZW5hbnRJZFwiOlwidGVuYW50X3dpcmVfMjJlOWFiZDE4ZFwifX0iLCAiZW52aXJvbm1lbnRfaWQiOiAiZW52X3N0YWdpbmciLCAiZXhwaXJlc19hdF9rZXkiOiAiNDA3MDkwODgwMDAwMDAwMTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJnYXRlX3RhcmdldF9pZCI6ICJnYXRlX3dpcmVfMjJlOWFiZDE4ZCIsICJpbnN0YWxsYXRpb25faWQiOiAiaW5zdGFsbGF0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJwdWJsaXNoZXJfY291bnQiOiAyLCAiZWZmZWN0aXZlX2F0X2tleSI6ICIxNzY3MjI1NjAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgInB1Ymxpc2hlZF9hdF9rZXkiOiAiMTc5MjQyNzI4ODA0MTQxNzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJkZWZpbml0aW9uX3NoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgInBhcmVudF92ZXJzaW9uX2lkIjogbnVsbCwgImV4cGlyZXNfYXRfbGV4aWNhbCI6ICIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAiZWZmZWN0aXZlX2F0X2xleGljYWwiOiAiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInB1Ymxpc2hlZF9hdF9sZXhpY2FsIjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMDQxNDE3WiIsICJwYXJlbnRfZGVmaW5pdGlvbl9zaGEyNTYiOiBudWxsLCAicHVibGlzaGVkX2J5X3ByaW5jaXBhbF9pZCI6ICJ1c2VyX3dpcmVfMjJlOWFiZDE4ZCJ9LCAicG9saWNpZXMiOiBbXSwgInB1Ymxpc2hlcnMiOiBbeyJvcmRpbmFsIjogMCwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicHJpbmNpcGFsX2lkIjogInNlcnZpY2VfZGVjaXNpb25fcHVibGlzaGVyIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEifSwgeyJvcmRpbmFsIjogMSwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicHJpbmNpcGFsX2lkIjogInVzZXJfZGVjaXNpb25fcHVibGlzaGVyIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEifV0sICJwcmVkZWNlc3NvciI6IG51bGwsICJyb290X3ZlcnNpb24iOiB7Im1vZGUiOiAib2JzZXJ2YXRpb25fb25seSIsICJyZWNvcmQiOiB7Im1vZGUiOiAib2JzZXJ2YXRpb25fb25seSIsICJzY29wZSI6IHsidGVuYW50SWQiOiAidGVuYW50X3dpcmVfMjJlOWFiZDE4ZCIsICJwcm9qZWN0SWQiOiAicHJvamVjdF9jaGVja291dCIsICJlbnZpcm9ubWVudElkIjogImVudl9zdGFnaW5nIn0sICJwb2xpY2llcyI6IFtdLCAiZXhwaXJlc0F0IjogIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJyYXRpb25hbGUiOiAiQmluZCB0aGUgZnVsbCBzdGFnaW5nIGdhdGUgcG9saWN5IGludmVudG9yeTsg7JiI7Jm464qUIOuPheumvSDsirnsnbjsnbQg7ZWE7JqU7ZWp64uI64ukLiIsICJlZmZlY3RpdmVBdCI6ICIyMDI2LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicHVibGlzaGVkQXQiOiAiMjAyNi0xMC0xOVQxNjoyODowOC4wNDE0MTdaIiwgInNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgInNjaGVtYVZlcnNpb24iOiAiMC4xIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiY2FuZGlkYXRlVGFyZ2V0IjogeyJsb2NhbGUiOiAiZW4tdXMiLCAicHVycG9zZSI6ICJFdmFsdWF0ZSBvbmUgZXhhY3QgY2hlY2tvdXQtYWdlbnQgY2FuZGlkYXRlIGJlZm9yZSBzdGFnaW5nIHJlbGVhc2UuIiwgInJpc2tUaWVyIjogImhpZ2giLCAidGFza0tpbmQiOiAiY2hlY2tvdXRfYWdlbnQiLCAianVyaXNkaWN0aW9uIjogInVzIiwgImVudmlyb25tZW50SWQiOiAiZW52X3N0YWdpbmciLCAicG9wdWxhdGlvblRhZ3MiOiBbImJ1c2luZXNzIiwgImNoZWNrb3V0Il0sICJtYXhpbXVtRGF0YUNsYXNzaWZpY2F0aW9uIjogImNvbmZpZGVudGlhbCJ9LCAiZGVmaW5pdGlvblNoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgImF1dGhvcml0eUV2aWRlbmNlIjogeyJzaGEyNTYiOiAiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsICJtZWRpYVR5cGUiOiAiYXBwbGljYXRpb24vdm5kLnByb29mc3RhY2sucG9saWN5LWF1dGhvcml0eStqc29uIiwgInNpemVCeXRlcyI6IDUxMiwgImFydGlmYWN0SWQiOiAiYXJ0aWZhY3RfaW5zdGFsbGF0aW9uX2F1dGhvcml0eSIsICJjbGFzc2lmaWNhdGlvbiI6ICJpbnRlcm5hbCJ9LCAiaXNzdWVyUHJpbmNpcGFsSWQiOiAidXNlcl93aXJlXzIyZTlhYmQxOGQiLCAic2VsZWN0aW9uVmVyc2lvbklkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicHVibGlzaGVkQnlQcmluY2lwYWxJZCI6ICJ1c2VyX3dpcmVfMjJlOWFiZDE4ZCIsICJhdXRob3JpemVkUHVibGlzaGVyUHJpbmNpcGFsSWRzIjogWyJzZXJ2aWNlX2RlY2lzaW9uX3B1Ymxpc2hlciIsICJ1c2VyX2RlY2lzaW9uX3B1Ymxpc2hlciJdfSwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicG9saWN5X2NvdW50IjogMCwgInNlbGVjdGlvbl9pZCI6ICJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkIiwgImNhbm9uaWNhbF91dGY4IjogIntcImRlZmluaXRpb25cIjp7XCJhdXRob3JpdHlFdmlkZW5jZVwiOntcImFydGlmYWN0SWRcIjpcImFydGlmYWN0X2luc3RhbGxhdGlvbl9hdXRob3JpdHlcIixcImNsYXNzaWZpY2F0aW9uXCI6XCJpbnRlcm5hbFwiLFwibWVkaWFUeXBlXCI6XCJhcHBsaWNhdGlvbi92bmQucHJvb2ZzdGFjay5wb2xpY3ktYXV0aG9yaXR5K2pzb25cIixcInNoYTI1NlwiOlwiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYVwiLFwic2l6ZUJ5dGVzXCI6NTEyfSxcImF1dGhvcml6ZWRQdWJsaXNoZXJQcmluY2lwYWxJZHNcIjpbXCJzZXJ2aWNlX2RlY2lzaW9uX3B1Ymxpc2hlclwiLFwidXNlcl9kZWNpc2lvbl9wdWJsaXNoZXJcIl0sXCJjYW5kaWRhdGVUYXJnZXRcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwianVyaXNkaWN0aW9uXCI6XCJ1c1wiLFwibG9jYWxlXCI6XCJlbi11c1wiLFwibWF4aW11bURhdGFDbGFzc2lmaWNhdGlvblwiOlwiY29uZmlkZW50aWFsXCIsXCJwb3B1bGF0aW9uVGFnc1wiOltcImJ1c2luZXNzXCIsXCJjaGVja291dFwiXSxcInB1cnBvc2VcIjpcIkV2YWx1YXRlIG9uZSBleGFjdCBjaGVja291dC1hZ2VudCBjYW5kaWRhdGUgYmVmb3JlIHN0YWdpbmcgcmVsZWFzZS5cIixcInJpc2tUaWVyXCI6XCJoaWdoXCIsXCJ0YXNrS2luZFwiOlwiY2hlY2tvdXRfYWdlbnRcIn0sXCJlZmZlY3RpdmVBdFwiOlwiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaXCIsXCJleHBpcmVzQXRcIjpcIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWlwiLFwiZ2F0ZVRhcmdldElkXCI6XCJnYXRlX3dpcmVfMjJlOWFiZDE4ZFwiLFwiaW5zdGFsbGF0aW9uSWRcIjpcImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGRcIixcImlzc3VlclByaW5jaXBhbElkXCI6XCJ1c2VyX3dpcmVfMjJlOWFiZDE4ZFwiLFwibW9kZVwiOlwib2JzZXJ2YXRpb25fb25seVwiLFwicG9saWNpZXNcIjpbXSxcInJhdGlvbmFsZVwiOlwiQmluZCB0aGUgZnVsbCBzdGFnaW5nIGdhdGUgcG9saWN5IGludmVudG9yeTsg7JiI7Jm464qUIOuPheumvSDsirnsnbjsnbQg7ZWE7JqU7ZWp64uI64ukLlwiLFwic2NvcGVcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwicHJvamVjdElkXCI6XCJwcm9qZWN0X2NoZWNrb3V0XCIsXCJ0ZW5hbnRJZFwiOlwidGVuYW50X3dpcmVfMjJlOWFiZDE4ZFwifSxcInNlbGVjdGlvbklkXCI6XCJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkXCIsXCJzZWxlY3Rpb25WZXJzaW9uSWRcIjpcInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2FcIn0sXCJkZWZpbml0aW9uRG9tYWluXCI6XCJwcm9vZnN0YWNrLnJlbGVhc2UtcG9saWN5LXNlbGVjdGlvbi52MVwiLFwiZW5jb2RpbmdWZXJzaW9uXCI6XCJwcm9vZnN0YWNrLnJlbGVhc2UtcG9saWN5LXNlbGVjdGlvbi1kZWZpbml0aW9uLWpjcy52MVwiLFwic2NoZW1hVmVyc2lvblwiOlwiMC4xXCIsXCJzY29wZVwiOntcImVudmlyb25tZW50SWRcIjpcImVudl9zdGFnaW5nXCIsXCJwcm9qZWN0SWRcIjpcInByb2plY3RfY2hlY2tvdXRcIixcInRlbmFudElkXCI6XCJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkXCJ9fSIsICJlbnZpcm9ubWVudF9pZCI6ICJlbnZfc3RhZ2luZyIsICJleHBpcmVzX2F0X2tleSI6ICI0MDcwOTA4ODAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgImdhdGVfdGFyZ2V0X2lkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbl9pZCI6ICJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkIiwgInB1Ymxpc2hlcl9jb3VudCI6IDIsICJlZmZlY3RpdmVfYXRfa2V5IjogIjE3NjcyMjU2MDAwMDAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCAicHVibGlzaGVkX2F0X2tleSI6ICIxNzkyNDI3Mjg4MDQxNDE3MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEiLCAicGFyZW50X3ZlcnNpb25faWQiOiBudWxsLCAiZXhwaXJlc19hdF9sZXhpY2FsIjogIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJlZmZlY3RpdmVfYXRfbGV4aWNhbCI6ICIyMDI2LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicHVibGlzaGVkX2F0X2xleGljYWwiOiAiMjAyNi0xMC0xOVQxNjoyODowOC4wNDE0MTdaIiwgInBhcmVudF9kZWZpbml0aW9uX3NoYTI1NiI6IG51bGwsICJwdWJsaXNoZWRfYnlfcHJpbmNpcGFsX2lkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIn19XQ=="
+            "chunkBase64": "W3sicm9vdCI6IHsidGVuYW50X2lkIjogInRlbmFudF93aXJlXzU3YTMxMzVmNTkiLCAicHJvamVjdF9pZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgInNlbGVjdGlvbl9pZCI6ICJzZWxlY3Rpb25fd2lyZV81N2EzMTM1ZjU5IiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImdhdGVfdGFyZ2V0X2lkIjogImdhdGVfd2lyZV81N2EzMTM1ZjU5IiwgImluc3RhbGxhdGlvbl9pZCI6ICJpbnN0YWxsYXRpb25fd2lyZV81N2EzMTM1ZjU5IiwgInJvb3RfdmVyc2lvbl9pZCI6ICJ2ZXJzaW9uX3dpcmVfNTdhMzEzNWY1OV9hIiwgInJvb3RfZGVmaW5pdGlvbl9zaGEyNTYiOiAiMmYwNDVlMmEyNWEzMTM5NzFmMjA4NzE2NjM2NDUzOGU5ZWMyY2ZlMjc5NTQ5ODNjZDg5ZDNjMTZiOGFkZDgwZiJ9LCAiaW50ZW50cyI6IFt7InBheWxvYWQiOiB7InJlY29yZCI6IHsibW9kZSI6ICJvYnNlcnZhdGlvbl9vbmx5IiwgInNjb3BlIjogeyJ0ZW5hbnRJZCI6ICJ0ZW5hbnRfd2lyZV81N2EzMTM1ZjU5IiwgInByb2plY3RJZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgImVudmlyb25tZW50SWQiOiAiZW52X3N0YWdpbmcifSwgInBvbGljaWVzIjogW10sICJleHBpcmVzQXQiOiAiMjA5OS0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInJhdGlvbmFsZSI6ICJCaW5kIHRoZSBmdWxsIHN0YWdpbmcgZ2F0ZSBwb2xpY3kgaW52ZW50b3J5OyDsmIjsmbjripQg64+F66a9IOyKueyduOydtCDtlYTsmpTtlanri4jri6QuIiwgImVmZmVjdGl2ZUF0IjogIjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJwdWJsaXNoZWRBdCI6ICIyMDI2LTEwLTE5VDE3OjEwOjAyLjg0Njk3MFoiLCAic2VsZWN0aW9uSWQiOiAic2VsZWN0aW9uX3dpcmVfNTdhMzEzNWY1OSIsICJnYXRlVGFyZ2V0SWQiOiAiZ2F0ZV93aXJlXzU3YTMxMzVmNTkiLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEiLCAiaW5zdGFsbGF0aW9uSWQiOiAiaW5zdGFsbGF0aW9uX3dpcmVfNTdhMzEzNWY1OSIsICJjYW5kaWRhdGVUYXJnZXQiOiB7ImxvY2FsZSI6ICJlbi11cyIsICJwdXJwb3NlIjogIkV2YWx1YXRlIG9uZSBleGFjdCBjaGVja291dC1hZ2VudCBjYW5kaWRhdGUgYmVmb3JlIHN0YWdpbmcgcmVsZWFzZS4iLCAicmlza1RpZXIiOiAiaGlnaCIsICJ0YXNrS2luZCI6ICJjaGVja291dF9hZ2VudCIsICJqdXJpc2RpY3Rpb24iOiAidXMiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyIsICJwb3B1bGF0aW9uVGFncyI6IFsiYnVzaW5lc3MiLCAiY2hlY2tvdXQiXSwgIm1heGltdW1EYXRhQ2xhc3NpZmljYXRpb24iOiAiY29uZmlkZW50aWFsIn0sICJkZWZpbml0aW9uU2hhMjU2IjogIjJmMDQ1ZTJhMjVhMzEzOTcxZjIwODcxNjYzNjQ1MzhlOWVjMmNmZTI3OTU0OTgzY2Q4OWQzYzE2YjhhZGQ4MGYiLCAiYXV0aG9yaXR5RXZpZGVuY2UiOiB7InNoYTI1NiI6ICJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwgIm1lZGlhVHlwZSI6ICJhcHBsaWNhdGlvbi92bmQucHJvb2ZzdGFjay5wb2xpY3ktYXV0aG9yaXR5K2pzb24iLCAic2l6ZUJ5dGVzIjogNTEyLCAiYXJ0aWZhY3RJZCI6ICJhcnRpZmFjdF9pbnN0YWxsYXRpb25fYXV0aG9yaXR5IiwgImNsYXNzaWZpY2F0aW9uIjogImludGVybmFsIn0sICJpc3N1ZXJQcmluY2lwYWxJZCI6ICJ1c2VyX3dpcmVfNTdhMzEzNWY1OSIsICJzZWxlY3Rpb25WZXJzaW9uSWQiOiAidmVyc2lvbl93aXJlXzU3YTMxMzVmNTlfYSIsICJwdWJsaXNoZWRCeVByaW5jaXBhbElkIjogInVzZXJfd2lyZV81N2EzMTM1ZjU5IiwgImF1dGhvcml6ZWRQdWJsaXNoZXJQcmluY2lwYWxJZHMiOiBbInNlcnZpY2VfZGVjaXNpb25fcHVibGlzaGVyIiwgInVzZXJfZGVjaXNpb25fcHVibGlzaGVyIl19LCAicmVjb3JkS2luZCI6ICJyZWxlYXNlX3BvbGljeV9zZWxlY3Rpb24ifSwgImV2ZW50VHlwZSI6ICJyZWxlYXNlLnNlbGVjdGlvbi5wdWJsaXNoZWQiLCAidGltZU1hdGNoZXMiOiB0cnVlLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEifV0sICJ2ZXJzaW9uIjogeyJtb2RlIjogIm9ic2VydmF0aW9uX29ubHkiLCAicmVjb3JkIjogeyJtb2RlIjogIm9ic2VydmF0aW9uX29ubHkiLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzU3YTMxMzVmNTkiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicG9saWNpZXMiOiBbXSwgImV4cGlyZXNBdCI6ICIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicmF0aW9uYWxlIjogIkJpbmQgdGhlIGZ1bGwgc3RhZ2luZyBnYXRlIHBvbGljeSBpbnZlbnRvcnk7IOyYiOyZuOuKlCDrj4Xrpr0g7Iq57J247J20IO2VhOyalO2VqeuLiOuLpC4iLCAiZWZmZWN0aXZlQXQiOiAiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInB1Ymxpc2hlZEF0IjogIjIwMjYtMTAtMTlUMTc6MTA6MDIuODQ2OTcwWiIsICJzZWxlY3Rpb25JZCI6ICJzZWxlY3Rpb25fd2lyZV81N2EzMTM1ZjU5IiwgImdhdGVUYXJnZXRJZCI6ICJnYXRlX3dpcmVfNTdhMzEzNWY1OSIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJpbnN0YWxsYXRpb25JZCI6ICJpbnN0YWxsYXRpb25fd2lyZV81N2EzMTM1ZjU5IiwgImNhbmRpZGF0ZVRhcmdldCI6IHsibG9jYWxlIjogImVuLXVzIiwgInB1cnBvc2UiOiAiRXZhbHVhdGUgb25lIGV4YWN0IGNoZWNrb3V0LWFnZW50IGNhbmRpZGF0ZSBiZWZvcmUgc3RhZ2luZyByZWxlYXNlLiIsICJyaXNrVGllciI6ICJoaWdoIiwgInRhc2tLaW5kIjogImNoZWNrb3V0X2FnZW50IiwgImp1cmlzZGljdGlvbiI6ICJ1cyIsICJlbnZpcm9ubWVudElkIjogImVudl9zdGFnaW5nIiwgInBvcHVsYXRpb25UYWdzIjogWyJidXNpbmVzcyIsICJjaGVja291dCJdLCAibWF4aW11bURhdGFDbGFzc2lmaWNhdGlvbiI6ICJjb25maWRlbnRpYWwifSwgImRlZmluaXRpb25TaGEyNTYiOiAiMmYwNDVlMmEyNWEzMTM5NzFmMjA4NzE2NjM2NDUzOGU5ZWMyY2ZlMjc5NTQ5ODNjZDg5ZDNjMTZiOGFkZDgwZiIsICJhdXRob3JpdHlFdmlkZW5jZSI6IHsic2hhMjU2IjogImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCAibWVkaWFUeXBlIjogImFwcGxpY2F0aW9uL3ZuZC5wcm9vZnN0YWNrLnBvbGljeS1hdXRob3JpdHkranNvbiIsICJzaXplQnl0ZXMiOiA1MTIsICJhcnRpZmFjdElkIjogImFydGlmYWN0X2luc3RhbGxhdGlvbl9hdXRob3JpdHkiLCAiY2xhc3NpZmljYXRpb24iOiAiaW50ZXJuYWwifSwgImlzc3VlclByaW5jaXBhbElkIjogInVzZXJfd2lyZV81N2EzMTM1ZjU5IiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfNTdhMzEzNWY1OV9hIiwgInB1Ymxpc2hlZEJ5UHJpbmNpcGFsSWQiOiAidXNlcl93aXJlXzU3YTMxMzVmNTkiLCAiYXV0aG9yaXplZFB1Ymxpc2hlclByaW5jaXBhbElkcyI6IFsic2VydmljZV9kZWNpc2lvbl9wdWJsaXNoZXIiLCAidXNlcl9kZWNpc2lvbl9wdWJsaXNoZXIiXX0sICJ0ZW5hbnRfaWQiOiAidGVuYW50X3dpcmVfNTdhMzEzNWY1OSIsICJwcm9qZWN0X2lkIjogInByb2plY3RfY2hlY2tvdXQiLCAidmVyc2lvbl9pZCI6ICJ2ZXJzaW9uX3dpcmVfNTdhMzEzNWY1OV9hIiwgInBvbGljeV9jb3VudCI6IDAsICJzZWxlY3Rpb25faWQiOiAic2VsZWN0aW9uX3dpcmVfNTdhMzEzNWY1OSIsICJjYW5vbmljYWxfdXRmOCI6ICJ7XCJkZWZpbml0aW9uXCI6e1wiYXV0aG9yaXR5RXZpZGVuY2VcIjp7XCJhcnRpZmFjdElkXCI6XCJhcnRpZmFjdF9pbnN0YWxsYXRpb25fYXV0aG9yaXR5XCIsXCJjbGFzc2lmaWNhdGlvblwiOlwiaW50ZXJuYWxcIixcIm1lZGlhVHlwZVwiOlwiYXBwbGljYXRpb24vdm5kLnByb29mc3RhY2sucG9saWN5LWF1dGhvcml0eStqc29uXCIsXCJzaGEyNTZcIjpcImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFcIixcInNpemVCeXRlc1wiOjUxMn0sXCJhdXRob3JpemVkUHVibGlzaGVyUHJpbmNpcGFsSWRzXCI6W1wic2VydmljZV9kZWNpc2lvbl9wdWJsaXNoZXJcIixcInVzZXJfZGVjaXNpb25fcHVibGlzaGVyXCJdLFwiY2FuZGlkYXRlVGFyZ2V0XCI6e1wiZW52aXJvbm1lbnRJZFwiOlwiZW52X3N0YWdpbmdcIixcImp1cmlzZGljdGlvblwiOlwidXNcIixcImxvY2FsZVwiOlwiZW4tdXNcIixcIm1heGltdW1EYXRhQ2xhc3NpZmljYXRpb25cIjpcImNvbmZpZGVudGlhbFwiLFwicG9wdWxhdGlvblRhZ3NcIjpbXCJidXNpbmVzc1wiLFwiY2hlY2tvdXRcIl0sXCJwdXJwb3NlXCI6XCJFdmFsdWF0ZSBvbmUgZXhhY3QgY2hlY2tvdXQtYWdlbnQgY2FuZGlkYXRlIGJlZm9yZSBzdGFnaW5nIHJlbGVhc2UuXCIsXCJyaXNrVGllclwiOlwiaGlnaFwiLFwidGFza0tpbmRcIjpcImNoZWNrb3V0X2FnZW50XCJ9LFwiZWZmZWN0aXZlQXRcIjpcIjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwMDAxWlwiLFwiZXhwaXJlc0F0XCI6XCIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVpcIixcImdhdGVUYXJnZXRJZFwiOlwiZ2F0ZV93aXJlXzU3YTMxMzVmNTlcIixcImluc3RhbGxhdGlvbklkXCI6XCJpbnN0YWxsYXRpb25fd2lyZV81N2EzMTM1ZjU5XCIsXCJpc3N1ZXJQcmluY2lwYWxJZFwiOlwidXNlcl93aXJlXzU3YTMxMzVmNTlcIixcIm1vZGVcIjpcIm9ic2VydmF0aW9uX29ubHlcIixcInBvbGljaWVzXCI6W10sXCJyYXRpb25hbGVcIjpcIkJpbmQgdGhlIGZ1bGwgc3RhZ2luZyBnYXRlIHBvbGljeSBpbnZlbnRvcnk7IOyYiOyZuOuKlCDrj4Xrpr0g7Iq57J247J20IO2VhOyalO2VqeuLiOuLpC5cIixcInNjb3BlXCI6e1wiZW52aXJvbm1lbnRJZFwiOlwiZW52X3N0YWdpbmdcIixcInByb2plY3RJZFwiOlwicHJvamVjdF9jaGVja291dFwiLFwidGVuYW50SWRcIjpcInRlbmFudF93aXJlXzU3YTMxMzVmNTlcIn0sXCJzZWxlY3Rpb25JZFwiOlwic2VsZWN0aW9uX3dpcmVfNTdhMzEzNWY1OVwiLFwic2VsZWN0aW9uVmVyc2lvbklkXCI6XCJ2ZXJzaW9uX3dpcmVfNTdhMzEzNWY1OV9hXCJ9LFwiZGVmaW5pdGlvbkRvbWFpblwiOlwicHJvb2ZzdGFjay5yZWxlYXNlLXBvbGljeS1zZWxlY3Rpb24udjFcIixcImVuY29kaW5nVmVyc2lvblwiOlwicHJvb2ZzdGFjay5yZWxlYXNlLXBvbGljeS1zZWxlY3Rpb24tZGVmaW5pdGlvbi1qY3MudjFcIixcInNjaGVtYVZlcnNpb25cIjpcIjAuMVwiLFwic2NvcGVcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwicHJvamVjdElkXCI6XCJwcm9qZWN0X2NoZWNrb3V0XCIsXCJ0ZW5hbnRJZFwiOlwidGVuYW50X3dpcmVfNTdhMzEzNWY1OVwifX0iLCAiZW52aXJvbm1lbnRfaWQiOiAiZW52X3N0YWdpbmciLCAiZXhwaXJlc19hdF9rZXkiOiAiNDA3MDkwODgwMDAwMDAwMTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJnYXRlX3RhcmdldF9pZCI6ICJnYXRlX3dpcmVfNTdhMzEzNWY1OSIsICJpbnN0YWxsYXRpb25faWQiOiAiaW5zdGFsbGF0aW9uX3dpcmVfNTdhMzEzNWY1OSIsICJwdWJsaXNoZXJfY291bnQiOiAyLCAiZWZmZWN0aXZlX2F0X2tleSI6ICIxNzY3MjI1NjAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgInB1Ymxpc2hlZF9hdF9rZXkiOiAiMTc5MjQyOTgwMjg0Njk3MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJkZWZpbml0aW9uX3NoYTI1NiI6ICIyZjA0NWUyYTI1YTMxMzk3MWYyMDg3MTY2MzY0NTM4ZTllYzJjZmUyNzk1NDk4M2NkODlkM2MxNmI4YWRkODBmIiwgInBhcmVudF92ZXJzaW9uX2lkIjogbnVsbCwgImV4cGlyZXNfYXRfbGV4aWNhbCI6ICIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAiZWZmZWN0aXZlX2F0X2xleGljYWwiOiAiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInB1Ymxpc2hlZF9hdF9sZXhpY2FsIjogIjIwMjYtMTAtMTlUMTc6MTA6MDIuODQ2OTcwWiIsICJwYXJlbnRfZGVmaW5pdGlvbl9zaGEyNTYiOiBudWxsLCAicHVibGlzaGVkX2J5X3ByaW5jaXBhbF9pZCI6ICJ1c2VyX3dpcmVfNTdhMzEzNWY1OSJ9LCAicG9saWNpZXMiOiBbXSwgInB1Ymxpc2hlcnMiOiBbeyJvcmRpbmFsIjogMCwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV81N2EzMTM1ZjU5IiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV81N2EzMTM1ZjU5X2EiLCAicHJpbmNpcGFsX2lkIjogInNlcnZpY2VfZGVjaXNpb25fcHVibGlzaGVyIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjJmMDQ1ZTJhMjVhMzEzOTcxZjIwODcxNjYzNjQ1MzhlOWVjMmNmZTI3OTU0OTgzY2Q4OWQzYzE2YjhhZGQ4MGYifSwgeyJvcmRpbmFsIjogMSwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV81N2EzMTM1ZjU5IiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV81N2EzMTM1ZjU5X2EiLCAicHJpbmNpcGFsX2lkIjogInVzZXJfZGVjaXNpb25fcHVibGlzaGVyIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjJmMDQ1ZTJhMjVhMzEzOTcxZjIwODcxNjYzNjQ1MzhlOWVjMmNmZTI3OTU0OTgzY2Q4OWQzYzE2YjhhZGQ4MGYifV0sICJwcmVkZWNlc3NvciI6IG51bGwsICJyb290X3ZlcnNpb24iOiB7Im1vZGUiOiAib2JzZXJ2YXRpb25fb25seSIsICJyZWNvcmQiOiB7Im1vZGUiOiAib2JzZXJ2YXRpb25fb25seSIsICJzY29wZSI6IHsidGVuYW50SWQiOiAidGVuYW50X3dpcmVfNTdhMzEzNWY1OSIsICJwcm9qZWN0SWQiOiAicHJvamVjdF9jaGVja291dCIsICJlbnZpcm9ubWVudElkIjogImVudl9zdGFnaW5nIn0sICJwb2xpY2llcyI6IFtdLCAiZXhwaXJlc0F0IjogIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJyYXRpb25hbGUiOiAiQmluZCB0aGUgZnVsbCBzdGFnaW5nIGdhdGUgcG9saWN5IGludmVudG9yeTsg7JiI7Jm464qUIOuPheumvSDsirnsnbjsnbQg7ZWE7JqU7ZWp64uI64ukLiIsICJlZmZlY3RpdmVBdCI6ICIyMDI2LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicHVibGlzaGVkQXQiOiAiMjAyNi0xMC0xOVQxNzoxMDowMi44NDY5NzBaIiwgInNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzU3YTMxMzVmNTkiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV81N2EzMTM1ZjU5IiwgInNjaGVtYVZlcnNpb24iOiAiMC4xIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzU3YTMxMzVmNTkiLCAiY2FuZGlkYXRlVGFyZ2V0IjogeyJsb2NhbGUiOiAiZW4tdXMiLCAicHVycG9zZSI6ICJFdmFsdWF0ZSBvbmUgZXhhY3QgY2hlY2tvdXQtYWdlbnQgY2FuZGlkYXRlIGJlZm9yZSBzdGFnaW5nIHJlbGVhc2UuIiwgInJpc2tUaWVyIjogImhpZ2giLCAidGFza0tpbmQiOiAiY2hlY2tvdXRfYWdlbnQiLCAianVyaXNkaWN0aW9uIjogInVzIiwgImVudmlyb25tZW50SWQiOiAiZW52X3N0YWdpbmciLCAicG9wdWxhdGlvblRhZ3MiOiBbImJ1c2luZXNzIiwgImNoZWNrb3V0Il0sICJtYXhpbXVtRGF0YUNsYXNzaWZpY2F0aW9uIjogImNvbmZpZGVudGlhbCJ9LCAiZGVmaW5pdGlvblNoYTI1NiI6ICIyZjA0NWUyYTI1YTMxMzk3MWYyMDg3MTY2MzY0NTM4ZTllYzJjZmUyNzk1NDk4M2NkODlkM2MxNmI4YWRkODBmIiwgImF1dGhvcml0eUV2aWRlbmNlIjogeyJzaGEyNTYiOiAiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsICJtZWRpYVR5cGUiOiAiYXBwbGljYXRpb24vdm5kLnByb29mc3RhY2sucG9saWN5LWF1dGhvcml0eStqc29uIiwgInNpemVCeXRlcyI6IDUxMiwgImFydGlmYWN0SWQiOiAiYXJ0aWZhY3RfaW5zdGFsbGF0aW9uX2F1dGhvcml0eSIsICJjbGFzc2lmaWNhdGlvbiI6ICJpbnRlcm5hbCJ9LCAiaXNzdWVyUHJpbmNpcGFsSWQiOiAidXNlcl93aXJlXzU3YTMxMzVmNTkiLCAic2VsZWN0aW9uVmVyc2lvbklkIjogInZlcnNpb25fd2lyZV81N2EzMTM1ZjU5X2EiLCAicHVibGlzaGVkQnlQcmluY2lwYWxJZCI6ICJ1c2VyX3dpcmVfNTdhMzEzNWY1OSIsICJhdXRob3JpemVkUHVibGlzaGVyUHJpbmNpcGFsSWRzIjogWyJzZXJ2aWNlX2RlY2lzaW9uX3B1Ymxpc2hlciIsICJ1c2VyX2RlY2lzaW9uX3B1Ymxpc2hlciJdfSwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV81N2EzMTM1ZjU5IiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV81N2EzMTM1ZjU5X2EiLCAicG9saWN5X2NvdW50IjogMCwgInNlbGVjdGlvbl9pZCI6ICJzZWxlY3Rpb25fd2lyZV81N2EzMTM1ZjU5IiwgImNhbm9uaWNhbF91dGY4IjogIntcImRlZmluaXRpb25cIjp7XCJhdXRob3JpdHlFdmlkZW5jZVwiOntcImFydGlmYWN0SWRcIjpcImFydGlmYWN0X2luc3RhbGxhdGlvbl9hdXRob3JpdHlcIixcImNsYXNzaWZpY2F0aW9uXCI6XCJpbnRlcm5hbFwiLFwibWVkaWFUeXBlXCI6XCJhcHBsaWNhdGlvbi92bmQucHJvb2ZzdGFjay5wb2xpY3ktYXV0aG9yaXR5K2pzb25cIixcInNoYTI1NlwiOlwiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYVwiLFwic2l6ZUJ5dGVzXCI6NTEyfSxcImF1dGhvcml6ZWRQdWJsaXNoZXJQcmluY2lwYWxJZHNcIjpbXCJzZXJ2aWNlX2RlY2lzaW9uX3B1Ymxpc2hlclwiLFwidXNlcl9kZWNpc2lvbl9wdWJsaXNoZXJcIl0sXCJjYW5kaWRhdGVUYXJnZXRcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwianVyaXNkaWN0aW9uXCI6XCJ1c1wiLFwibG9jYWxlXCI6XCJlbi11c1wiLFwibWF4aW11bURhdGFDbGFzc2lmaWNhdGlvblwiOlwiY29uZmlkZW50aWFsXCIsXCJwb3B1bGF0aW9uVGFnc1wiOltcImJ1c2luZXNzXCIsXCJjaGVja291dFwiXSxcInB1cnBvc2VcIjpcIkV2YWx1YXRlIG9uZSBleGFjdCBjaGVja291dC1hZ2VudCBjYW5kaWRhdGUgYmVmb3JlIHN0YWdpbmcgcmVsZWFzZS5cIixcInJpc2tUaWVyXCI6XCJoaWdoXCIsXCJ0YXNrS2luZFwiOlwiY2hlY2tvdXRfYWdlbnRcIn0sXCJlZmZlY3RpdmVBdFwiOlwiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaXCIsXCJleHBpcmVzQXRcIjpcIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWlwiLFwiZ2F0ZVRhcmdldElkXCI6XCJnYXRlX3dpcmVfNTdhMzEzNWY1OVwiLFwiaW5zdGFsbGF0aW9uSWRcIjpcImluc3RhbGxhdGlvbl93aXJlXzU3YTMxMzVmNTlcIixcImlzc3VlclByaW5jaXBhbElkXCI6XCJ1c2VyX3dpcmVfNTdhMzEzNWY1OVwiLFwibW9kZVwiOlwib2JzZXJ2YXRpb25fb25seVwiLFwicG9saWNpZXNcIjpbXSxcInJhdGlvbmFsZVwiOlwiQmluZCB0aGUgZnVsbCBzdGFnaW5nIGdhdGUgcG9saWN5IGludmVudG9yeTsg7JiI7Jm464qUIOuPheumvSDsirnsnbjsnbQg7ZWE7JqU7ZWp64uI64ukLlwiLFwic2NvcGVcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwicHJvamVjdElkXCI6XCJwcm9qZWN0X2NoZWNrb3V0XCIsXCJ0ZW5hbnRJZFwiOlwidGVuYW50X3dpcmVfNTdhMzEzNWY1OVwifSxcInNlbGVjdGlvbklkXCI6XCJzZWxlY3Rpb25fd2lyZV81N2EzMTM1ZjU5XCIsXCJzZWxlY3Rpb25WZXJzaW9uSWRcIjpcInZlcnNpb25fd2lyZV81N2EzMTM1ZjU5X2FcIn0sXCJkZWZpbml0aW9uRG9tYWluXCI6XCJwcm9vZnN0YWNrLnJlbGVhc2UtcG9saWN5LXNlbGVjdGlvbi52MVwiLFwiZW5jb2RpbmdWZXJzaW9uXCI6XCJwcm9vZnN0YWNrLnJlbGVhc2UtcG9saWN5LXNlbGVjdGlvbi1kZWZpbml0aW9uLWpjcy52MVwiLFwic2NoZW1hVmVyc2lvblwiOlwiMC4xXCIsXCJzY29wZVwiOntcImVudmlyb25tZW50SWRcIjpcImVudl9zdGFnaW5nXCIsXCJwcm9qZWN0SWRcIjpcInByb2plY3RfY2hlY2tvdXRcIixcInRlbmFudElkXCI6XCJ0ZW5hbnRfd2lyZV81N2EzMTM1ZjU5XCJ9fSIsICJlbnZpcm9ubWVudF9pZCI6ICJlbnZfc3RhZ2luZyIsICJleHBpcmVzX2F0X2tleSI6ICI0MDcwOTA4ODAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgImdhdGVfdGFyZ2V0X2lkIjogImdhdGVfd2lyZV81N2EzMTM1ZjU5IiwgImluc3RhbGxhdGlvbl9pZCI6ICJpbnN0YWxsYXRpb25fd2lyZV81N2EzMTM1ZjU5IiwgInB1Ymxpc2hlcl9jb3VudCI6IDIsICJlZmZlY3RpdmVfYXRfa2V5IjogIjE3NjcyMjU2MDAwMDAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCAicHVibGlzaGVkX2F0X2tleSI6ICIxNzkyNDI5ODAyODQ2OTcwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjJmMDQ1ZTJhMjVhMzEzOTcxZjIwODcxNjYzNjQ1MzhlOWVjMmNmZTI3OTU0OTgzY2Q4OWQzYzE2YjhhZGQ4MGYiLCAicGFyZW50X3ZlcnNpb25faWQiOiBudWxsLCAiZXhwaXJlc19hdF9sZXhpY2FsIjogIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJlZmZlY3RpdmVfYXRfbGV4aWNhbCI6ICIyMDI2LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicHVibGlzaGVkX2F0X2xleGljYWwiOiAiMjAyNi0xMC0xOVQxNzoxMDowMi44NDY5NzBaIiwgInBhcmVudF9kZWZpbml0aW9uX3NoYTI1NiI6IG51bGwsICJwdWJsaXNoZWRfYnlfcHJpbmNpcGFsX2lkIjogInVzZXJfd2lyZV81N2EzMTM1ZjU5In19XQ=="
           }
         }
       ]
@@ -1230,53 +1244,53 @@
     {
       "sql": "SELECT public.proofstack_finish_selection_publication($1::jsonb,$2,$3,$4::jsonb,$5,$6,$7,$8) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
-        "{\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"recordSha256\":\"06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e\"},\"operation\":\"manage_selection\",\"actor\":{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"},\"identity\":{\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\",\"bindingId\":\"binding_wire_22e9abd18d\"},\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"credentialSha256\":\"41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2\",\"issuedAt\":\"2026-10-19T16:28:08.041417Z\",\"schemaVersion\":\"0.1\",\"definitionSha256\":\"1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a\"}",
-        "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.041417Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection\",\"recordSha256\":\"06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
-        "{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"publishedAt\":\"2026-10-19T16:28:08.041417Z\",\"publishedByPrincipalId\":\"user_wire_22e9abd18d\",\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}",
-        "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}",
-        "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:07.958183Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:07.958183Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":1}"
+        "version_wire_57a3135f59_a",
+        "{\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"subject\":{\"kind\":\"release_policy_selection\",\"selection\":{\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\",\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"installationId\":\"installation_wire_57a3135f59\",\"gateTargetId\":\"gate_wire_57a3135f59\"},\"recordSha256\":\"d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5\"},\"operation\":\"manage_selection\",\"actor\":{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"},\"identity\":{\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\",\"bindingId\":\"binding_wire_57a3135f59\"},\"grantSha256\":\"1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79\",\"credentialSha256\":\"08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4\",\"issuedAt\":\"2026-10-19T17:10:02.846970Z\",\"schemaVersion\":\"0.1\",\"definitionSha256\":\"1017107f1ffb0de4de5269a49e7b39315b4095dd77d409e7c3db39b6ea50bfe6\"}",
+        "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_57a3135f59\",\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4\",\"grantSha256\":\"1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79\",\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"issuedAt\":\"2026-10-19T17:10:02.846970Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"subject\":{\"kind\":\"release_policy_selection\",\"recordSha256\":\"d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5\",\"selection\":{\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}}",
+        "{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"issuerPrincipalId\":\"user_wire_57a3135f59\",\"mode\":\"observation_only\",\"policies\":[],\"publishedAt\":\"2026-10-19T17:10:02.846970Z\",\"publishedByPrincipalId\":\"user_wire_57a3135f59\",\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}",
+        "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_57a3135f59\",\"updatedAt\":\"2026-10-19T17:10:02.699319Z\"}",
+        "{\"absoluteExpiresAt\":\"2026-10-19T18:10:02.708821Z\",\"bindingId\":\"binding_wire_57a3135f59\",\"createdAt\":\"2026-10-19T17:10:02.708821Z\",\"credentialId\":\"session_wire_57a3135f59\",\"idleExpiresAt\":\"2026-10-19T17:40:02.715334Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T17:10:02.715334Z\",\"principalId\":\"user_wire_57a3135f59\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_57a3135f59\",\"useCount\":1}"
       ],
       "rows": [
         {
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "scope": {
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "projectId": "project_checkout",
               "environmentId": "env_staging"
             },
             "subject": {
               "kind": "release_policy_selection",
               "selection": {
-                "selectionId": "selection_wire_22e9abd18d",
-                "gateTargetId": "gate_wire_22e9abd18d",
-                "installationId": "installation_wire_22e9abd18d",
-                "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-                "selectionVersionId": "version_wire_22e9abd18d_a"
+                "selectionId": "selection_wire_57a3135f59",
+                "gateTargetId": "gate_wire_57a3135f59",
+                "installationId": "installation_wire_57a3135f59",
+                "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+                "selectionVersionId": "version_wire_57a3135f59_a"
               },
-              "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+              "recordSha256": "d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5"
             },
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "issuedAt": "2026-10-19T16:28:08.041417Z",
+            "issuedAt": "2026-10-19T17:10:02.846970Z",
             "operation": "manage_selection",
-            "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+            "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
             "schemaVersion": "0.1",
-            "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
-            "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+            "credentialSha256": "08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4",
+            "definitionSha256": "1017107f1ffb0de4de5269a49e7b39315b4095dd77d409e7c3db39b6ea50bfe6"
           }
         }
       ]
@@ -1284,9 +1298,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "header"
       ],
       "rows": [
@@ -1294,56 +1308,56 @@
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "issuedAt": "2026-10-19T16:28:08.041417Z",
+            "issuedAt": "2026-10-19T17:10:02.846970Z",
             "completed": true,
             "originEpoch": "0",
             "publication": {
               "actor": {
                 "requestId": "request_native_wire",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
                 "principalType": "user",
-                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticatedAt": "2026-10-19T17:10:02.708Z",
                 "authenticationMethod": "oidc"
               },
               "scope": {
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "projectId": "project_checkout",
                 "environmentId": "env_staging"
               },
               "subject": {
                 "kind": "release_policy_selection",
                 "selection": {
-                  "selectionId": "selection_wire_22e9abd18d",
-                  "gateTargetId": "gate_wire_22e9abd18d",
-                  "installationId": "installation_wire_22e9abd18d",
-                  "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-                  "selectionVersionId": "version_wire_22e9abd18d_a"
+                  "selectionId": "selection_wire_57a3135f59",
+                  "gateTargetId": "gate_wire_57a3135f59",
+                  "installationId": "installation_wire_57a3135f59",
+                  "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+                  "selectionVersionId": "version_wire_57a3135f59_a"
                 },
-                "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+                "recordSha256": "d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5"
               },
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
-              "issuedAt": "2026-10-19T16:28:08.041417Z",
+              "issuedAt": "2026-10-19T17:10:02.846970Z",
               "operation": "manage_selection",
-              "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+              "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
               "schemaVersion": "0.1",
-              "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
-              "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+              "credentialSha256": "08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4",
+              "definitionSha256": "1017107f1ffb0de4de5269a49e7b39315b4095dd77d409e7c3db39b6ea50bfe6"
             },
             "canonicalIntent": true
           }
@@ -1353,74 +1367,74 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "source_encoding"
       ],
       "rows": [
         {
-          "value": "{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"publishedAt\":\"2026-10-19T16:28:08.041417Z\",\"publishedByPrincipalId\":\"user_wire_22e9abd18d\",\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}"
+          "value": "{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"issuerPrincipalId\":\"user_wire_57a3135f59\",\"mode\":\"observation_only\",\"policies\":[],\"publishedAt\":\"2026-10-19T17:10:02.846970Z\",\"publishedByPrincipalId\":\"user_wire_57a3135f59\",\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "grant_encoding"
       ],
       "rows": [
         {
-          "value": "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}"
+          "value": "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_57a3135f59\",\"updatedAt\":\"2026-10-19T17:10:02.699319Z\"}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "credential_encoding"
       ],
       "rows": [
         {
-          "value": "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:07.958183Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:07.958183Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":1}"
+          "value": "{\"absoluteExpiresAt\":\"2026-10-19T18:10:02.708821Z\",\"bindingId\":\"binding_wire_57a3135f59\",\"createdAt\":\"2026-10-19T17:10:02.708821Z\",\"credentialId\":\"session_wire_57a3135f59\",\"idleExpiresAt\":\"2026-10-19T17:40:02.715334Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T17:10:02.715334Z\",\"principalId\":\"user_wire_57a3135f59\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_57a3135f59\",\"useCount\":1}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection",
-        "version_wire_22e9abd18d_a",
+        "version_wire_57a3135f59_a",
         "publication_encoding"
       ],
       "rows": [
         {
-          "value": "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.041417Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection\",\"recordSha256\":\"06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}"
+          "value": "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_57a3135f59\",\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"08a7a6315a1ddc9f31311d16c24a4d8e9f6ef66b6dfa783f9a8c77dc19a8f2c4\",\"grantSha256\":\"1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79\",\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"issuedAt\":\"2026-10-19T17:10:02.846970Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"subject\":{\"kind\":\"release_policy_selection\",\"recordSha256\":\"d276f6a0678fd17f172a9273aa364a9068fac42b541298e56dcbdd6223f3b4a5\",\"selection\":{\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "grant": {
@@ -1428,12 +1442,12 @@
               "state": "active",
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
               "revision": 1,
-              "tenantId": "tenant_wire_22e9abd18d",
-              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "tenantId": "tenant_wire_57a3135f59",
+              "updatedAt": "2026-10-19T17:10:02.699319Z",
               "capabilities": ["release:selection:manage"],
               "resourceScope": {
                 "mode": "tenant"
@@ -1441,41 +1455,41 @@
             },
             "guards": [
               {
-                "id": "session_wire_22e9abd18d",
+                "id": "session_wire_57a3135f59",
                 "kind": "oidc_session",
                 "acquired": true
               },
               {
-                "id": "binding_wire_22e9abd18d",
+                "id": "binding_wire_57a3135f59",
                 "kind": "oidc_binding",
                 "acquired": true
               }
             ],
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "capturedAt": "2026-10-19T16:28:08.139919Z",
+            "capturedAt": "2026-10-19T17:10:02.940739Z",
             "credential": {
               "kind": "oidc_session",
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "useCount": 2,
-              "bindingId": "binding_wire_22e9abd18d",
-              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "bindingId": "binding_wire_57a3135f59",
+              "createdAt": "2026-10-19T17:10:02.708821Z",
               "revokedAt": null,
-              "lastUsedAt": "2026-10-19T16:28:08.111402Z",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
-              "idleExpiresAt": "2026-10-19T16:58:08.111402Z",
+              "lastUsedAt": "2026-10-19T17:10:02.911331Z",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
+              "idleExpiresAt": "2026-10-19T17:40:02.911331Z",
               "schemaVersion": "0.1",
               "revocationReason": null,
-              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
               "idleLifetimeSeconds": 1800
             },
             "bindingObservation": {
-              "bindingId": "binding_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59"
             }
           }
         }
@@ -1484,25 +1498,25 @@
     {
       "sql": "SELECT public.proofstack_begin_authenticated_selection($1::jsonb,$2::jsonb,$3,$4::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"mode\":\"observation_only\",\"policies\":[],\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"issuerPrincipalId\":\"user_wire_22e9abd18d\"}",
-        "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\",\"installationId\":\"installation_wire_57a3135f59\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"mode\":\"observation_only\",\"policies\":[],\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"issuerPrincipalId\":\"user_wire_57a3135f59\"}",
+        "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"issuerPrincipalId\":\"user_wire_57a3135f59\",\"mode\":\"observation_only\",\"policies\":[],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "created": false,
-            "sourceId": "version_wire_22e9abd18d_a",
+            "sourceId": "version_wire_57a3135f59_a",
             "sourceKind": "release_policy_selection",
             "policyObservations": [],
             "identityObservation": {
               "actor": {
                 "requestId": "request_native_wire",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
                 "principalType": "user",
-                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticatedAt": "2026-10-19T17:10:02.708Z",
                 "authenticationMethod": "oidc"
               },
               "grant": {
@@ -1510,12 +1524,12 @@
                 "state": "active",
                 "identity": {
                   "kind": "oidc_binding",
-                  "bindingId": "binding_wire_22e9abd18d",
-                  "principalId": "user_wire_22e9abd18d"
+                  "bindingId": "binding_wire_57a3135f59",
+                  "principalId": "user_wire_57a3135f59"
                 },
                 "revision": 1,
-                "tenantId": "tenant_wire_22e9abd18d",
-                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "tenantId": "tenant_wire_57a3135f59",
+                "updatedAt": "2026-10-19T17:10:02.699319Z",
                 "capabilities": ["release:selection:manage"],
                 "resourceScope": {
                   "mode": "tenant"
@@ -1523,41 +1537,41 @@
               },
               "guards": [
                 {
-                  "id": "session_wire_22e9abd18d",
+                  "id": "session_wire_57a3135f59",
                   "kind": "oidc_session",
                   "acquired": true
                 },
                 {
-                  "id": "binding_wire_22e9abd18d",
+                  "id": "binding_wire_57a3135f59",
                   "kind": "oidc_binding",
                   "acquired": true
                 }
               ],
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
-              "capturedAt": "2026-10-19T16:28:08.144584Z",
+              "capturedAt": "2026-10-19T17:10:02.944757Z",
               "credential": {
                 "kind": "oidc_session",
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "useCount": 2,
-                "bindingId": "binding_wire_22e9abd18d",
-                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "bindingId": "binding_wire_57a3135f59",
+                "createdAt": "2026-10-19T17:10:02.708821Z",
                 "revokedAt": null,
-                "lastUsedAt": "2026-10-19T16:28:08.111402Z",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
-                "idleExpiresAt": "2026-10-19T16:58:08.111402Z",
+                "lastUsedAt": "2026-10-19T17:10:02.911331Z",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
+                "idleExpiresAt": "2026-10-19T17:40:02.911331Z",
                 "schemaVersion": "0.1",
                 "revocationReason": null,
-                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
                 "idleLifetimeSeconds": 1800
               },
               "bindingObservation": {
-                "bindingId": "binding_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59"
               }
             }
           }
@@ -1567,18 +1581,18 @@
     {
       "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "grant": {
@@ -1586,12 +1600,12 @@
               "state": "active",
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
               "revision": 1,
-              "tenantId": "tenant_wire_22e9abd18d",
-              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "tenantId": "tenant_wire_57a3135f59",
+              "updatedAt": "2026-10-19T17:10:02.699319Z",
               "capabilities": ["release:selection:manage"],
               "resourceScope": {
                 "mode": "tenant"
@@ -1599,41 +1613,41 @@
             },
             "guards": [
               {
-                "id": "session_wire_22e9abd18d",
+                "id": "session_wire_57a3135f59",
                 "kind": "oidc_session",
                 "acquired": true
               },
               {
-                "id": "binding_wire_22e9abd18d",
+                "id": "binding_wire_57a3135f59",
                 "kind": "oidc_binding",
                 "acquired": true
               }
             ],
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "capturedAt": "2026-10-19T16:28:08.191151Z",
+            "capturedAt": "2026-10-19T17:10:03.007155Z",
             "credential": {
               "kind": "oidc_session",
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "useCount": 3,
-              "bindingId": "binding_wire_22e9abd18d",
-              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "bindingId": "binding_wire_57a3135f59",
+              "createdAt": "2026-10-19T17:10:02.708821Z",
               "revokedAt": null,
-              "lastUsedAt": "2026-10-19T16:28:08.162778Z",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
-              "idleExpiresAt": "2026-10-19T16:58:08.162778Z",
+              "lastUsedAt": "2026-10-19T17:10:02.961136Z",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
+              "idleExpiresAt": "2026-10-19T17:40:02.961136Z",
               "schemaVersion": "0.1",
               "revocationReason": null,
-              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
               "idleLifetimeSeconds": 1800
             },
             "bindingObservation": {
-              "bindingId": "binding_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59"
             }
           }
         }
@@ -1642,9 +1656,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "header"
       ],
       "rows": [
@@ -1656,24 +1670,24 @@
     {
       "sql": "SELECT public.proofstack_begin_authenticated_selection_lifecycle($1::jsonb,$2::jsonb,$3::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"eventId\":\"event_wire_22e9abd18d\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"reason\":\"Withdraw the exact native wire fixture.\",\"kind\":\"withdrawn\"}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"eventId\":\"event_wire_57a3135f59\",\"selection\":{\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\",\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"installationId\":\"installation_wire_57a3135f59\",\"gateTargetId\":\"gate_wire_57a3135f59\"},\"reason\":\"Withdraw the exact native wire fixture.\",\"kind\":\"withdrawn\"}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "created": true,
-            "sourceId": "event_wire_22e9abd18d",
+            "sourceId": "event_wire_57a3135f59",
             "sourceKind": "release_policy_selection_lifecycle",
             "policyObservations": [],
             "identityObservation": {
               "actor": {
                 "requestId": "request_native_wire",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
                 "principalType": "user",
-                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticatedAt": "2026-10-19T17:10:02.708Z",
                 "authenticationMethod": "oidc"
               },
               "grant": {
@@ -1681,12 +1695,12 @@
                 "state": "active",
                 "identity": {
                   "kind": "oidc_binding",
-                  "bindingId": "binding_wire_22e9abd18d",
-                  "principalId": "user_wire_22e9abd18d"
+                  "bindingId": "binding_wire_57a3135f59",
+                  "principalId": "user_wire_57a3135f59"
                 },
                 "revision": 1,
-                "tenantId": "tenant_wire_22e9abd18d",
-                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "tenantId": "tenant_wire_57a3135f59",
+                "updatedAt": "2026-10-19T17:10:02.699319Z",
                 "capabilities": ["release:selection:manage"],
                 "resourceScope": {
                   "mode": "tenant"
@@ -1694,41 +1708,41 @@
               },
               "guards": [
                 {
-                  "id": "session_wire_22e9abd18d",
+                  "id": "session_wire_57a3135f59",
                   "kind": "oidc_session",
                   "acquired": true
                 },
                 {
-                  "id": "binding_wire_22e9abd18d",
+                  "id": "binding_wire_57a3135f59",
                   "kind": "oidc_binding",
                   "acquired": true
                 }
               ],
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
-              "capturedAt": "2026-10-19T16:28:08.210192Z",
+              "capturedAt": "2026-10-19T17:10:03.029118Z",
               "credential": {
                 "kind": "oidc_session",
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "useCount": 3,
-                "bindingId": "binding_wire_22e9abd18d",
-                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "bindingId": "binding_wire_57a3135f59",
+                "createdAt": "2026-10-19T17:10:02.708821Z",
                 "revokedAt": null,
-                "lastUsedAt": "2026-10-19T16:28:08.162778Z",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
-                "idleExpiresAt": "2026-10-19T16:58:08.162778Z",
+                "lastUsedAt": "2026-10-19T17:10:02.961136Z",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
+                "idleExpiresAt": "2026-10-19T17:40:02.961136Z",
                 "schemaVersion": "0.1",
                 "revocationReason": null,
-                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
                 "idleLifetimeSeconds": 1800
               },
               "bindingObservation": {
-                "bindingId": "binding_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59"
               }
             }
           }
@@ -1738,9 +1752,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "header"
       ],
       "rows": [
@@ -1748,18 +1762,18 @@
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "issuedAt": "2026-10-19T16:28:08.210192Z",
+            "issuedAt": "2026-10-19T17:10:03.029118Z",
             "completed": false,
             "originEpoch": "0",
             "publication": null,
@@ -1771,9 +1785,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "source"
       ],
       "rows": [
@@ -1783,22 +1797,22 @@
             "record": {
               "kind": "withdrawn",
               "scope": {
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "projectId": "project_checkout",
                 "environmentId": "env_staging"
               },
               "reason": "Withdraw the exact native wire fixture.",
-              "eventId": "event_wire_22e9abd18d",
+              "eventId": "event_wire_57a3135f59",
               "selection": {
-                "selectionId": "selection_wire_22e9abd18d",
-                "gateTargetId": "gate_wire_22e9abd18d",
-                "installationId": "installation_wire_22e9abd18d",
-                "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-                "selectionVersionId": "version_wire_22e9abd18d_a"
+                "selectionId": "selection_wire_57a3135f59",
+                "gateTargetId": "gate_wire_57a3135f59",
+                "installationId": "installation_wire_57a3135f59",
+                "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+                "selectionVersionId": "version_wire_57a3135f59_a"
               },
-              "occurredAt": "2026-10-19T16:28:08.210192Z",
+              "occurredAt": "2026-10-19T17:10:03.029118Z",
               "schemaVersion": "0.1",
-              "actorPrincipalId": "user_wire_22e9abd18d"
+              "actorPrincipalId": "user_wire_57a3135f59"
             }
           }
         }
@@ -1807,9 +1821,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "grant"
       ],
       "rows": [
@@ -1819,12 +1833,12 @@
             "state": "active",
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
             "revision": 1,
-            "tenantId": "tenant_wire_22e9abd18d",
-            "updatedAt": "2026-10-19T16:28:07.941312Z",
+            "tenantId": "tenant_wire_57a3135f59",
+            "updatedAt": "2026-10-19T17:10:02.699319Z",
             "capabilities": ["release:selection:manage"],
             "resourceScope": {
               "mode": "tenant"
@@ -1836,27 +1850,27 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "credential"
       ],
       "rows": [
         {
           "value": {
             "kind": "oidc_session",
-            "tenantId": "tenant_wire_22e9abd18d",
+            "tenantId": "tenant_wire_57a3135f59",
             "useCount": 3,
-            "bindingId": "binding_wire_22e9abd18d",
-            "createdAt": "2026-10-19T16:28:07.951041Z",
+            "bindingId": "binding_wire_57a3135f59",
+            "createdAt": "2026-10-19T17:10:02.708821Z",
             "revokedAt": null,
-            "lastUsedAt": "2026-10-19T16:28:08.162778Z",
-            "principalId": "user_wire_22e9abd18d",
-            "credentialId": "session_wire_22e9abd18d",
-            "idleExpiresAt": "2026-10-19T16:58:08.162778Z",
+            "lastUsedAt": "2026-10-19T17:10:02.961136Z",
+            "principalId": "user_wire_57a3135f59",
+            "credentialId": "session_wire_57a3135f59",
+            "idleExpiresAt": "2026-10-19T17:40:02.961136Z",
             "schemaVersion": "0.1",
             "revocationReason": null,
-            "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+            "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
             "idleLifetimeSeconds": 1800
           }
         }
@@ -1865,24 +1879,24 @@
     {
       "sql": "SELECT public.proofstack_read_installer_projection($1::jsonb,$2,$3) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "selection_event_view",
-        "event_wire_22e9abd18d"
+        "event_wire_57a3135f59"
       ],
       "rows": [
         {
           "value": {
             "scope": {
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "projectId": "project_checkout",
               "environmentId": "env_staging"
             },
             "offset": 0,
-            "sha256": "825c9ed78e3be6d5932aec4d6fadb2ca7509368c9c9ccd61dee3c9f0f6aad9da",
+            "sha256": "61b219cd17c638c30f8254ddbd09a70169975262b0206604e22ea1ba220c42b4",
             "records": 10,
             "projection": "selection_event_view",
             "totalBytes": 1924,
-            "chunkBase64": "W3siZXZlbnQiOiB7InJlY29yZCI6IHsia2luZCI6ICJ3aXRoZHJhd24iLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicmVhc29uIjogIldpdGhkcmF3IHRoZSBleGFjdCBuYXRpdmUgd2lyZSBmaXh0dXJlLiIsICJldmVudElkIjogImV2ZW50X3dpcmVfMjJlOWFiZDE4ZCIsICJzZWxlY3Rpb24iOiB7InNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZGVmaW5pdGlvblNoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIn0sICJvY2N1cnJlZEF0IjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMjEwMTkyWiIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJhY3RvclByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIn0sICJldmVudF9pZCI6ICJldmVudF93aXJlXzIyZTlhYmQxOGQiLCAidGVuYW50X2lkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdF9pZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgInZlcnNpb25faWQiOiAidmVyc2lvbl93aXJlXzIyZTlhYmQxOGRfYSIsICJlbnZpcm9ubWVudF9pZCI6ICJlbnZfc3RhZ2luZyIsICJvY2N1cnJlZF9hdF9rZXkiOiAiMTc5MjQyNzI4ODIxMDE5MjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJkZWZpbml0aW9uX3NoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgIm9jY3VycmVkX2F0X2xleGljYWwiOiAiMjAyNi0xMC0xOVQxNjoyODowOC4yMTAxOTJaIiwgInN1Y2Nlc3Nvcl92ZXJzaW9uX2lkIjogbnVsbCwgInN1Y2Nlc3Nvcl9kZWZpbml0aW9uX3NoYTI1NiI6IG51bGx9LCAiaW50ZW50cyI6IFt7InBheWxvYWQiOiB7InJlY29yZCI6IHsia2luZCI6ICJ3aXRoZHJhd24iLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicmVhc29uIjogIldpdGhkcmF3IHRoZSBleGFjdCBuYXRpdmUgd2lyZSBmaXh0dXJlLiIsICJldmVudElkIjogImV2ZW50X3dpcmVfMjJlOWFiZDE4ZCIsICJzZWxlY3Rpb24iOiB7InNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZGVmaW5pdGlvblNoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIn0sICJvY2N1cnJlZEF0IjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMjEwMTkyWiIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJhY3RvclByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIn0sICJyZWNvcmRLaW5kIjogInJlbGVhc2VfcG9saWN5X3NlbGVjdGlvbl9saWZlY3ljbGUifSwgImV2ZW50VHlwZSI6ICJyZWxlYXNlLnNlbGVjdGlvbi5saWZlY3ljbGVfcmVjb3JkZWQiLCAidGltZU1hdGNoZXMiOiB0cnVlLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEifV19XQ=="
+            "chunkBase64": "W3siZXZlbnQiOiB7InJlY29yZCI6IHsia2luZCI6ICJ3aXRoZHJhd24iLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzU3YTMxMzVmNTkiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicmVhc29uIjogIldpdGhkcmF3IHRoZSBleGFjdCBuYXRpdmUgd2lyZSBmaXh0dXJlLiIsICJldmVudElkIjogImV2ZW50X3dpcmVfNTdhMzEzNWY1OSIsICJzZWxlY3Rpb24iOiB7InNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzU3YTMxMzVmNTkiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV81N2EzMTM1ZjU5IiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzU3YTMxMzVmNTkiLCAiZGVmaW5pdGlvblNoYTI1NiI6ICIyZjA0NWUyYTI1YTMxMzk3MWYyMDg3MTY2MzY0NTM4ZTllYzJjZmUyNzk1NDk4M2NkODlkM2MxNmI4YWRkODBmIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfNTdhMzEzNWY1OV9hIn0sICJvY2N1cnJlZEF0IjogIjIwMjYtMTAtMTlUMTc6MTA6MDMuMDI5MTE4WiIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJhY3RvclByaW5jaXBhbElkIjogInVzZXJfd2lyZV81N2EzMTM1ZjU5In0sICJldmVudF9pZCI6ICJldmVudF93aXJlXzU3YTMxMzVmNTkiLCAidGVuYW50X2lkIjogInRlbmFudF93aXJlXzU3YTMxMzVmNTkiLCAicHJvamVjdF9pZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgInZlcnNpb25faWQiOiAidmVyc2lvbl93aXJlXzU3YTMxMzVmNTlfYSIsICJlbnZpcm9ubWVudF9pZCI6ICJlbnZfc3RhZ2luZyIsICJvY2N1cnJlZF9hdF9rZXkiOiAiMTc5MjQyOTgwMzAyOTExODAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJkZWZpbml0aW9uX3NoYTI1NiI6ICIyZjA0NWUyYTI1YTMxMzk3MWYyMDg3MTY2MzY0NTM4ZTllYzJjZmUyNzk1NDk4M2NkODlkM2MxNmI4YWRkODBmIiwgIm9jY3VycmVkX2F0X2xleGljYWwiOiAiMjAyNi0xMC0xOVQxNzoxMDowMy4wMjkxMThaIiwgInN1Y2Nlc3Nvcl92ZXJzaW9uX2lkIjogbnVsbCwgInN1Y2Nlc3Nvcl9kZWZpbml0aW9uX3NoYTI1NiI6IG51bGx9LCAiaW50ZW50cyI6IFt7InBheWxvYWQiOiB7InJlY29yZCI6IHsia2luZCI6ICJ3aXRoZHJhd24iLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzU3YTMxMzVmNTkiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicmVhc29uIjogIldpdGhkcmF3IHRoZSBleGFjdCBuYXRpdmUgd2lyZSBmaXh0dXJlLiIsICJldmVudElkIjogImV2ZW50X3dpcmVfNTdhMzEzNWY1OSIsICJzZWxlY3Rpb24iOiB7InNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzU3YTMxMzVmNTkiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV81N2EzMTM1ZjU5IiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzU3YTMxMzVmNTkiLCAiZGVmaW5pdGlvblNoYTI1NiI6ICIyZjA0NWUyYTI1YTMxMzk3MWYyMDg3MTY2MzY0NTM4ZTllYzJjZmUyNzk1NDk4M2NkODlkM2MxNmI4YWRkODBmIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfNTdhMzEzNWY1OV9hIn0sICJvY2N1cnJlZEF0IjogIjIwMjYtMTAtMTlUMTc6MTA6MDMuMDI5MTE4WiIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJhY3RvclByaW5jaXBhbElkIjogInVzZXJfd2lyZV81N2EzMTM1ZjU5In0sICJyZWNvcmRLaW5kIjogInJlbGVhc2VfcG9saWN5X3NlbGVjdGlvbl9saWZlY3ljbGUifSwgImV2ZW50VHlwZSI6ICJyZWxlYXNlLnNlbGVjdGlvbi5saWZlY3ljbGVfcmVjb3JkZWQiLCAidGltZU1hdGNoZXMiOiB0cnVlLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEifV19XQ=="
           }
         }
       ]
@@ -1890,54 +1904,54 @@
     {
       "sql": "SELECT public.proofstack_finish_selection_publication($1::jsonb,$2,$3,$4::jsonb,$5,$6,$7,$8) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
-        "{\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection_lifecycle\",\"eventId\":\"event_wire_22e9abd18d\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"recordSha256\":\"b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c\"},\"operation\":\"manage_selection\",\"actor\":{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"},\"identity\":{\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\",\"bindingId\":\"binding_wire_22e9abd18d\"},\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"credentialSha256\":\"90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde\",\"issuedAt\":\"2026-10-19T16:28:08.210192Z\",\"schemaVersion\":\"0.1\",\"definitionSha256\":\"a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a\"}",
-        "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.210192Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"release_policy_selection_lifecycle\",\"recordSha256\":\"b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
-        "{\"actorPrincipalId\":\"user_wire_22e9abd18d\",\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"withdrawn\",\"occurredAt\":\"2026-10-19T16:28:08.210192Z\",\"reason\":\"Withdraw the exact native wire fixture.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}",
-        "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}",
-        "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:08.162778Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:08.162778Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":3}"
+        "event_wire_57a3135f59",
+        "{\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"subject\":{\"kind\":\"release_policy_selection_lifecycle\",\"eventId\":\"event_wire_57a3135f59\",\"selection\":{\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\",\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"installationId\":\"installation_wire_57a3135f59\",\"gateTargetId\":\"gate_wire_57a3135f59\"},\"recordSha256\":\"d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0\"},\"operation\":\"manage_selection\",\"actor\":{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"},\"identity\":{\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\",\"bindingId\":\"binding_wire_57a3135f59\"},\"grantSha256\":\"1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79\",\"credentialSha256\":\"4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1\",\"issuedAt\":\"2026-10-19T17:10:03.029118Z\",\"schemaVersion\":\"0.1\",\"definitionSha256\":\"48a7fbaec9bad4233bff15034682a14c2f50f7e3088e9ae6532c4b7cbb23c22d\"}",
+        "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_57a3135f59\",\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1\",\"grantSha256\":\"1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79\",\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"issuedAt\":\"2026-10-19T17:10:03.029118Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"subject\":{\"eventId\":\"event_wire_57a3135f59\",\"kind\":\"release_policy_selection_lifecycle\",\"recordSha256\":\"d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0\",\"selection\":{\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}}",
+        "{\"actorPrincipalId\":\"user_wire_57a3135f59\",\"eventId\":\"event_wire_57a3135f59\",\"kind\":\"withdrawn\",\"occurredAt\":\"2026-10-19T17:10:03.029118Z\",\"reason\":\"Withdraw the exact native wire fixture.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"selection\":{\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}}",
+        "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_57a3135f59\",\"updatedAt\":\"2026-10-19T17:10:02.699319Z\"}",
+        "{\"absoluteExpiresAt\":\"2026-10-19T18:10:02.708821Z\",\"bindingId\":\"binding_wire_57a3135f59\",\"createdAt\":\"2026-10-19T17:10:02.708821Z\",\"credentialId\":\"session_wire_57a3135f59\",\"idleExpiresAt\":\"2026-10-19T17:40:02.961136Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T17:10:02.961136Z\",\"principalId\":\"user_wire_57a3135f59\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_57a3135f59\",\"useCount\":3}"
       ],
       "rows": [
         {
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "scope": {
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "projectId": "project_checkout",
               "environmentId": "env_staging"
             },
             "subject": {
               "kind": "release_policy_selection_lifecycle",
-              "eventId": "event_wire_22e9abd18d",
+              "eventId": "event_wire_57a3135f59",
               "selection": {
-                "selectionId": "selection_wire_22e9abd18d",
-                "gateTargetId": "gate_wire_22e9abd18d",
-                "installationId": "installation_wire_22e9abd18d",
-                "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-                "selectionVersionId": "version_wire_22e9abd18d_a"
+                "selectionId": "selection_wire_57a3135f59",
+                "gateTargetId": "gate_wire_57a3135f59",
+                "installationId": "installation_wire_57a3135f59",
+                "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+                "selectionVersionId": "version_wire_57a3135f59_a"
               },
-              "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+              "recordSha256": "d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0"
             },
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "issuedAt": "2026-10-19T16:28:08.210192Z",
+            "issuedAt": "2026-10-19T17:10:03.029118Z",
             "operation": "manage_selection",
-            "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+            "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
             "schemaVersion": "0.1",
-            "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
-            "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+            "credentialSha256": "4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1",
+            "definitionSha256": "48a7fbaec9bad4233bff15034682a14c2f50f7e3088e9ae6532c4b7cbb23c22d"
           }
         }
       ]
@@ -1945,9 +1959,9 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "header"
       ],
       "rows": [
@@ -1955,57 +1969,57 @@
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "issuedAt": "2026-10-19T16:28:08.210192Z",
+            "issuedAt": "2026-10-19T17:10:03.029118Z",
             "completed": true,
             "originEpoch": "0",
             "publication": {
               "actor": {
                 "requestId": "request_native_wire",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
                 "principalType": "user",
-                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticatedAt": "2026-10-19T17:10:02.708Z",
                 "authenticationMethod": "oidc"
               },
               "scope": {
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "projectId": "project_checkout",
                 "environmentId": "env_staging"
               },
               "subject": {
                 "kind": "release_policy_selection_lifecycle",
-                "eventId": "event_wire_22e9abd18d",
+                "eventId": "event_wire_57a3135f59",
                 "selection": {
-                  "selectionId": "selection_wire_22e9abd18d",
-                  "gateTargetId": "gate_wire_22e9abd18d",
-                  "installationId": "installation_wire_22e9abd18d",
-                  "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
-                  "selectionVersionId": "version_wire_22e9abd18d_a"
+                  "selectionId": "selection_wire_57a3135f59",
+                  "gateTargetId": "gate_wire_57a3135f59",
+                  "installationId": "installation_wire_57a3135f59",
+                  "definitionSha256": "2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f",
+                  "selectionVersionId": "version_wire_57a3135f59_a"
                 },
-                "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+                "recordSha256": "d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0"
               },
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
-              "issuedAt": "2026-10-19T16:28:08.210192Z",
+              "issuedAt": "2026-10-19T17:10:03.029118Z",
               "operation": "manage_selection",
-              "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+              "grantSha256": "1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79",
               "schemaVersion": "0.1",
-              "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
-              "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+              "credentialSha256": "4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1",
+              "definitionSha256": "48a7fbaec9bad4233bff15034682a14c2f50f7e3088e9ae6532c4b7cbb23c22d"
             },
             "canonicalIntent": true
           }
@@ -2015,74 +2029,74 @@
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "source_encoding"
       ],
       "rows": [
         {
-          "value": "{\"actorPrincipalId\":\"user_wire_22e9abd18d\",\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"withdrawn\",\"occurredAt\":\"2026-10-19T16:28:08.210192Z\",\"reason\":\"Withdraw the exact native wire fixture.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}"
+          "value": "{\"actorPrincipalId\":\"user_wire_57a3135f59\",\"eventId\":\"event_wire_57a3135f59\",\"kind\":\"withdrawn\",\"occurredAt\":\"2026-10-19T17:10:03.029118Z\",\"reason\":\"Withdraw the exact native wire fixture.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"selection\":{\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "grant_encoding"
       ],
       "rows": [
         {
-          "value": "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}"
+          "value": "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_57a3135f59\",\"updatedAt\":\"2026-10-19T17:10:02.699319Z\"}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "credential_encoding"
       ],
       "rows": [
         {
-          "value": "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:08.162778Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:08.162778Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":3}"
+          "value": "{\"absoluteExpiresAt\":\"2026-10-19T18:10:02.708821Z\",\"bindingId\":\"binding_wire_57a3135f59\",\"createdAt\":\"2026-10-19T17:10:02.708821Z\",\"credentialId\":\"session_wire_57a3135f59\",\"idleExpiresAt\":\"2026-10-19T17:40:02.961136Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T17:10:02.961136Z\",\"principalId\":\"user_wire_57a3135f59\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_57a3135f59\",\"useCount\":3}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
         "release_policy_selection_lifecycle",
-        "event_wire_22e9abd18d",
+        "event_wire_57a3135f59",
         "publication_encoding"
       ],
       "rows": [
         {
-          "value": "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.210192Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"release_policy_selection_lifecycle\",\"recordSha256\":\"b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}"
+          "value": "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_57a3135f59\",\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"4641a9c82a8f81d71d4103e41c9d2a84a46d2ed3892e8c24e9c0486307ba0ab1\",\"grantSha256\":\"1cae8326903e32ad055778bb6e545e81181e18f595d4da230fc4f2cf9c472f79\",\"identity\":{\"bindingId\":\"binding_wire_57a3135f59\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_57a3135f59\"},\"issuedAt\":\"2026-10-19T17:10:03.029118Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"},\"subject\":{\"eventId\":\"event_wire_57a3135f59\",\"kind\":\"release_policy_selection_lifecycle\",\"recordSha256\":\"d1548d18c148b5a3ee65e3024ccd1d72dd5d9b43c74528932d140525df5b6eb0\",\"selection\":{\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"gateTargetId\":\"gate_wire_57a3135f59\",\"installationId\":\"installation_wire_57a3135f59\",\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}}"
         }
       ]
     },
     {
       "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "actor": {
               "requestId": "request_native_wire",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
               "principalType": "user",
-              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticatedAt": "2026-10-19T17:10:02.708Z",
               "authenticationMethod": "oidc"
             },
             "grant": {
@@ -2090,12 +2104,12 @@
               "state": "active",
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
               "revision": 1,
-              "tenantId": "tenant_wire_22e9abd18d",
-              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "tenantId": "tenant_wire_57a3135f59",
+              "updatedAt": "2026-10-19T17:10:02.699319Z",
               "capabilities": ["release:selection:manage"],
               "resourceScope": {
                 "mode": "tenant"
@@ -2103,41 +2117,41 @@
             },
             "guards": [
               {
-                "id": "session_wire_22e9abd18d",
+                "id": "session_wire_57a3135f59",
                 "kind": "oidc_session",
                 "acquired": true
               },
               {
-                "id": "binding_wire_22e9abd18d",
+                "id": "binding_wire_57a3135f59",
                 "kind": "oidc_binding",
                 "acquired": true
               }
             ],
             "identity": {
               "kind": "oidc_binding",
-              "bindingId": "binding_wire_22e9abd18d",
-              "principalId": "user_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "principalId": "user_wire_57a3135f59"
             },
-            "capturedAt": "2026-10-19T16:28:08.277207Z",
+            "capturedAt": "2026-10-19T17:10:03.099371Z",
             "credential": {
               "kind": "oidc_session",
-              "tenantId": "tenant_wire_22e9abd18d",
+              "tenantId": "tenant_wire_57a3135f59",
               "useCount": 4,
-              "bindingId": "binding_wire_22e9abd18d",
-              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "bindingId": "binding_wire_57a3135f59",
+              "createdAt": "2026-10-19T17:10:02.708821Z",
               "revokedAt": null,
-              "lastUsedAt": "2026-10-19T16:28:08.249763Z",
-              "principalId": "user_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d",
-              "idleExpiresAt": "2026-10-19T16:58:08.249763Z",
+              "lastUsedAt": "2026-10-19T17:10:03.068193Z",
+              "principalId": "user_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59",
+              "idleExpiresAt": "2026-10-19T17:40:03.068193Z",
               "schemaVersion": "0.1",
               "revocationReason": null,
-              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
               "idleLifetimeSeconds": 1800
             },
             "bindingObservation": {
-              "bindingId": "binding_wire_22e9abd18d",
-              "credentialId": "session_wire_22e9abd18d"
+              "bindingId": "binding_wire_57a3135f59",
+              "credentialId": "session_wire_57a3135f59"
             }
           }
         }
@@ -2146,24 +2160,24 @@
     {
       "sql": "SELECT public.proofstack_begin_authenticated_selection_lifecycle($1::jsonb,$2::jsonb,$3::jsonb) AS value",
       "values": [
-        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
-        "{\"eventId\":\"event_wire_22e9abd18d\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"reason\":\"Withdraw the exact native wire fixture.\",\"kind\":\"withdrawn\"}",
-        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_57a3135f59\"}",
+        "{\"eventId\":\"event_wire_57a3135f59\",\"selection\":{\"selectionId\":\"selection_wire_57a3135f59\",\"selectionVersionId\":\"version_wire_57a3135f59_a\",\"definitionSha256\":\"2f045e2a25a313971f2087166364538e9ec2cfe27954983cd89d3c16b8add80f\",\"installationId\":\"installation_wire_57a3135f59\",\"gateTargetId\":\"gate_wire_57a3135f59\"},\"reason\":\"Withdraw the exact native wire fixture.\",\"kind\":\"withdrawn\"}",
+        "{\"principalId\":\"user_wire_57a3135f59\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T17:10:02.708Z\",\"credentialId\":\"session_wire_57a3135f59\",\"requestId\":\"request_native_wire\"}"
       ],
       "rows": [
         {
           "value": {
             "created": false,
-            "sourceId": "event_wire_22e9abd18d",
+            "sourceId": "event_wire_57a3135f59",
             "sourceKind": "release_policy_selection_lifecycle",
             "policyObservations": [],
             "identityObservation": {
               "actor": {
                 "requestId": "request_native_wire",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
                 "principalType": "user",
-                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticatedAt": "2026-10-19T17:10:02.708Z",
                 "authenticationMethod": "oidc"
               },
               "grant": {
@@ -2171,12 +2185,12 @@
                 "state": "active",
                 "identity": {
                   "kind": "oidc_binding",
-                  "bindingId": "binding_wire_22e9abd18d",
-                  "principalId": "user_wire_22e9abd18d"
+                  "bindingId": "binding_wire_57a3135f59",
+                  "principalId": "user_wire_57a3135f59"
                 },
                 "revision": 1,
-                "tenantId": "tenant_wire_22e9abd18d",
-                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "tenantId": "tenant_wire_57a3135f59",
+                "updatedAt": "2026-10-19T17:10:02.699319Z",
                 "capabilities": ["release:selection:manage"],
                 "resourceScope": {
                   "mode": "tenant"
@@ -2184,41 +2198,41 @@
               },
               "guards": [
                 {
-                  "id": "session_wire_22e9abd18d",
+                  "id": "session_wire_57a3135f59",
                   "kind": "oidc_session",
                   "acquired": true
                 },
                 {
-                  "id": "binding_wire_22e9abd18d",
+                  "id": "binding_wire_57a3135f59",
                   "kind": "oidc_binding",
                   "acquired": true
                 }
               ],
               "identity": {
                 "kind": "oidc_binding",
-                "bindingId": "binding_wire_22e9abd18d",
-                "principalId": "user_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "principalId": "user_wire_57a3135f59"
               },
-              "capturedAt": "2026-10-19T16:28:08.280413Z",
+              "capturedAt": "2026-10-19T17:10:03.102213Z",
               "credential": {
                 "kind": "oidc_session",
-                "tenantId": "tenant_wire_22e9abd18d",
+                "tenantId": "tenant_wire_57a3135f59",
                 "useCount": 4,
-                "bindingId": "binding_wire_22e9abd18d",
-                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "bindingId": "binding_wire_57a3135f59",
+                "createdAt": "2026-10-19T17:10:02.708821Z",
                 "revokedAt": null,
-                "lastUsedAt": "2026-10-19T16:28:08.249763Z",
-                "principalId": "user_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d",
-                "idleExpiresAt": "2026-10-19T16:58:08.249763Z",
+                "lastUsedAt": "2026-10-19T17:10:03.068193Z",
+                "principalId": "user_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59",
+                "idleExpiresAt": "2026-10-19T17:40:03.068193Z",
                 "schemaVersion": "0.1",
                 "revocationReason": null,
-                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "absoluteExpiresAt": "2026-10-19T18:10:02.708821Z",
                 "idleLifetimeSeconds": 1800
               },
               "bindingObservation": {
-                "bindingId": "binding_wire_22e9abd18d",
-                "credentialId": "session_wire_22e9abd18d"
+                "bindingId": "binding_wire_57a3135f59",
+                "credentialId": "session_wire_57a3135f59"
               }
             }
           }

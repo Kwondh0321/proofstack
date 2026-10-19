@@ -3,3 +3,18 @@
 # This exact finding only: new commits, paths, rules and lines remain scanned.
 # Rationale and verification: docs/security/historical-test-prefix-scan.md
 d7c1f08358d2a1128381c5d73ab8ccadc4abd85e:packages/postgres/src/workload-identity-migration.integration.test.ts:generic-api-key:177
+
+# Exact immutable-commit false positives: SHA-256 of complete public safe session metadata.
+# These are not cookies, secrets, session token verifiers or password hashes.
+# Every value was recomputed from its retained safe preimage; no path/rule-wide exclusions.
+# Rationale and negative control: docs/security/selection-publication-digest-scan.md
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/contracts/vectors/release-selection-publication-v1.json:generic-api-key:45
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/contracts/vectors/release-selection-publication-v1.json:generic-api-key:93
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:1278
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:133
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:1345
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:1939
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:2007
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:263
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:355
+a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:444

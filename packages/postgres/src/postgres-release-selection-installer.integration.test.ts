@@ -334,6 +334,117 @@ describe("actual authenticated native selection publication", () => {
     }
     expect(await counts(f.scope)).toEqual({ sources: 0, origins: 0, intents: 0 });
   });
+  it.each([
+    "credential_read",
+    "origin_write",
+    "ledger_write",
+    "approval_function",
+    "schema_create",
+    "sequence_usage",
+    "public_read",
+  ])("rejects effective %s privilege drift before source publication", async (kind) => {
+    const f = await fixture(),
+      role = `"${roles.releaseAuthority.name}"`;
+    const permissions = {
+      credential_read: [
+        `GRANT SELECT ON public.proofstack_browser_sessions TO ${role}`,
+        `REVOKE SELECT ON public.proofstack_browser_sessions FROM ${role}`,
+      ],
+      origin_write: [
+        `GRANT INSERT ON public.proofstack_release_selection_publications TO ${role}`,
+        `REVOKE INSERT ON public.proofstack_release_selection_publications FROM ${role}`,
+      ],
+      ledger_write: [
+        `GRANT UPDATE ON public.proofstack_schema_migrations TO ${role}`,
+        `REVOKE UPDATE ON public.proofstack_schema_migrations FROM ${role}`,
+      ],
+      approval_function: [
+        `GRANT EXECUTE ON FUNCTION public.proofstack_store_release_approval(jsonb,text) TO ${role}`,
+        `REVOKE EXECUTE ON FUNCTION public.proofstack_store_release_approval(jsonb,text) FROM ${role}`,
+      ],
+      schema_create: [
+        `GRANT CREATE ON SCHEMA public TO ${role}`,
+        `REVOKE CREATE ON SCHEMA public FROM ${role}`,
+      ],
+      sequence_usage: [
+        `GRANT USAGE ON SEQUENCE public.proofstack_outbox_outbox_id_seq TO ${role}`,
+        `REVOKE USAGE ON SEQUENCE public.proofstack_outbox_outbox_id_seq FROM ${role}`,
+      ],
+      public_read: [
+        "GRANT SELECT ON public.proofstack_browser_sessions TO PUBLIC",
+        "REVOKE SELECT ON public.proofstack_browser_sessions FROM PUBLIC",
+      ],
+    } as const;
+    const pair = permissions[kind as keyof typeof permissions];
+    try {
+      await admin.query(pair[0]);
+      await expect(service.publishSelection(f.credentials, f.intent)).rejects.toBeDefined();
+    } finally {
+      await admin.query(pair[1]);
+    }
+    expect(await counts(f.scope)).toEqual({ sources: 0, origins: 0, intents: 0 });
+    // Restoring only the offending grant recovers readiness without rewriting the role/profile.
+    expect((await service.publishSelection(f.credentials, f.intent)).created).toBe(true);
+  });
+  it.each(["events", "condition", "columns", "function_schema"])(
+    "rejects changed trigger %s with unchanged name/enabled/deferred flags",
+    async (kind) => {
+      const f = await fixture();
+      const triggerName =
+        kind === "columns"
+          ? "proofstack_release_selection_publication_guard"
+          : "proofstack_release_selection_publication_complete";
+      const original = (
+        await admin.query(
+          "SELECT pg_get_triggerdef(oid) AS definition FROM pg_trigger WHERE tgrelid='public.proofstack_release_selection_publications'::regclass AND tgname=$1",
+          [triggerName],
+        )
+      ).rows[0]?.definition as string;
+      const schema = `fixture_trigger_${key}`;
+      try {
+        if (kind === "function_schema") {
+          await admin.query(`CREATE SCHEMA "${schema}"`);
+          await admin.query(
+            `CREATE FUNCTION "${schema}".proofstack_verify_selection_publication() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END'`,
+          );
+        }
+        await admin.query(
+          `DROP TRIGGER ${triggerName} ON public.proofstack_release_selection_publications`,
+        );
+        const events =
+          kind === "events"
+            ? "DELETE"
+            : kind === "columns"
+              ? "UPDATE OF completed"
+              : "INSERT OR UPDATE";
+        const condition = kind === "condition" ? "WHEN (false)" : "";
+        const functionName =
+          kind === "function_schema"
+            ? `"${schema}".proofstack_verify_selection_publication`
+            : "public.proofstack_verify_selection_publication";
+        if (kind === "columns")
+          await admin.query(
+            "CREATE TRIGGER proofstack_release_selection_publication_guard BEFORE INSERT OR UPDATE OF completed OR DELETE ON public.proofstack_release_selection_publications FOR EACH ROW EXECUTE FUNCTION public.proofstack_guard_selection_publication()",
+          );
+        else
+          await admin.query(
+            `CREATE CONSTRAINT TRIGGER proofstack_release_selection_publication_complete AFTER ${events} ON public.proofstack_release_selection_publications DEFERRABLE INITIALLY DEFERRED FOR EACH ROW ${condition} EXECUTE FUNCTION ${functionName}()`,
+          );
+        await expect(service.publishSelection(f.credentials, f.intent)).rejects.toBeDefined();
+      } finally {
+        await admin.query(
+          `DROP TRIGGER IF EXISTS ${triggerName} ON public.proofstack_release_selection_publications`,
+        );
+        await admin.query(original);
+        if (kind === "function_schema") {
+          await admin.query(`DROP FUNCTION "${schema}".proofstack_verify_selection_publication()`);
+          await admin.query(`DROP SCHEMA "${schema}"`);
+        }
+      }
+      expect(await counts(f.scope)).toEqual({ sources: 0, origins: 0, intents: 0 });
+      expect((await service.publishSelection(f.credentials, f.intent)).created).toBe(true);
+    },
+  );
   it.each(["disabled_trigger", "changed_function", "changed_body", "disabled_rls"])(
     "rejects %s despite a matching migration ledger",
     async (change) => {

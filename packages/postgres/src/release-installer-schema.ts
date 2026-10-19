@@ -95,9 +95,16 @@ export async function assertReleaseInstallerSchemaOnClient(
       deferred: boolean;
       deferrable: boolean;
       function: string;
+      function_schema: string;
+      type: number;
+      arguments: number;
+      columns: string;
+      unconditional: boolean;
     }>(
-      `SELECT t.tgname AS name,t.tgenabled AS enabled,t.tginitdeferred AS deferred,t.tgdeferrable AS deferrable,p.proname AS function
-       FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid
+      `SELECT t.tgname AS name,t.tgenabled AS enabled,t.tginitdeferred AS deferred,t.tgdeferrable AS deferrable,p.proname AS function,
+         n.nspname AS function_schema,t.tgtype::int AS type,t.tgnargs::int AS arguments,
+         t.tgattr::text AS columns,t.tgqual IS NULL AS unconditional
+       FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_namespace n ON n.oid=p.pronamespace
        WHERE t.tgrelid='public.proofstack_release_selection_publications'::regclass AND NOT t.tgisinternal ORDER BY t.tgname COLLATE "C"`,
     );
     for (const row of triggers.rows) budget.observe(row);
@@ -109,6 +116,11 @@ export async function assertReleaseInstallerSchemaOnClient(
           deferred: true,
           deferrable: true,
           function: "proofstack_verify_selection_publication",
+          function_schema: "public",
+          type: 21,
+          arguments: 0,
+          columns: "",
+          unconditional: true,
         },
         {
           name: "proofstack_release_selection_publication_guard",
@@ -116,6 +128,11 @@ export async function assertReleaseInstallerSchemaOnClient(
           deferred: false,
           deferrable: false,
           function: "proofstack_guard_selection_publication",
+          function_schema: "public",
+          type: 31,
+          arguments: 0,
+          columns: "",
+          unconditional: true,
         },
       ])
     )
