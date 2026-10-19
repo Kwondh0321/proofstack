@@ -121,19 +121,28 @@ jobs:
         with:
           artifact-ids: ${{ needs.quality-build.outputs.artifact-id }}
 
-      - name: Verify and restore exact source outputs
+      - name: Verify exact quality archive digest
         env:
           EXPECTED_BUILD_SHA256: ${{ needs.quality-build.outputs.sha256 }}
         run: |
           [[ "$EXPECTED_BUILD_SHA256" =~ ^[0-9a-f]{64}$ ]]
           printf '%s  quality-check-build.tar.gz\n' "$EXPECTED_BUILD_SHA256" | sha256sum --check --strict
+
+      - name: Restore and verify exact quality source outputs
+        run: |
           tar --extract --gzip --file=quality-check-build.tar.gz
           read -r source_sha < quality-build-source-sha.txt
           test "$source_sha" = "$GITHUB_SHA"
+
+      - name: Require exact quality build Node.js version
+        run: |
           node --version > quality-current-node-version.txt
+          diff --unified quality-build-node-version.txt quality-current-node-version.txt
+
+      - name: Require exact quality build pnpm version
+        run: |
           pnpm --version > quality-current-pnpm-version.txt
-          cmp --silent quality-build-node-version.txt quality-current-node-version.txt
-          cmp --silent quality-build-pnpm-version.txt quality-current-pnpm-version.txt
+          diff --unified quality-build-pnpm-version.txt quality-current-pnpm-version.txt
 
       - name: Run every package unit test
         run: pnpm check:test
