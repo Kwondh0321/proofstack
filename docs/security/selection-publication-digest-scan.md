@@ -20,6 +20,12 @@ actual response capture is retained separately and any new findings receive thei
 commit fingerprints after the same preimage verification; no blanket exemption is introduced.
 The version 0.1 semantic encoding and original contract vectors remain unchanged.
 
+The readiness hardening at `ea06ad342c5d25726f637462bba4732b0ed5d6d3` adds effective-grant and
+complete trigger-structure queries. Its fresh actual PostgreSQL capture produces eight new native
+fixture findings with the same safe-preimage semantics. Those values were independently recomputed
+from the refreshed completion calls and receive only their eight exact new commit fingerprints.
+The two unchanged contract-vector findings remain bound to their original implementation commit.
+
 The root [.gitleaksignore](../../.gitleaksignore) appends only those ten exact immutable
 commit/path/rule/line fingerprints, alongside the separate
 [historical test-prefix disposition](historical-test-prefix-scan.md). It excludes no whole path,

@@ -18,3 +18,14 @@ a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selectio
 a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:263
 a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:355
 a65458d6deccf13f01f161c42907e25de6a123f7:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:444
+
+# Refreshed actual native readiness responses: same public metadata digest semantics.
+# Exact ea06ad3 commit findings only; see the same verified safe-preimage rationale.
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:1292
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:133
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:1359
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:1953
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:2021
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:263
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:355
+ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selection-installer-native-wire-v1.json:generic-api-key:444
