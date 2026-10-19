@@ -215,7 +215,7 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_cancel_policy_evaluation_job(text,text,text,text) TO "proofstack_policy_evaluator"',
     );
   });
-  it.each(["policyEvaluationControl", "policyEvaluator"] as const)(
+  it.each(["policyEvaluationControl", "policyEvaluator", "releaseAuthority"] as const)(
     "rejects an incomplete optional %s pair without connecting",
     async (kind) => {
       const client = new FakeClient(),
@@ -229,6 +229,38 @@ describe("provisionRuntimeRoles", () => {
       expect(connections.count).toBe(0);
     },
   );
+  it("opts into fixed installer functions without direct source, identity or policy-worker grants", async () => {
+    const client = new FakeClient();
+    const result = await provisionRuntimeRoles(
+      poolWith(client),
+      options({
+        releaseAuthority: {
+          name: "proofstack_release_authority",
+          password: "fixture-installer-password",
+        },
+      }),
+    );
+    expect(result.createdRoles).toContain("proofstack_release_authority");
+    const grants = client.queries
+      .map((item) => item.text)
+      .filter(
+        (text) => text.startsWith("GRANT") && text.endsWith('TO "proofstack_release_authority"'),
+      );
+    expect(grants).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_begin_authenticated_selection(jsonb,jsonb,text,jsonb) TO "proofstack_release_authority"',
+    );
+    expect(grants).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_finish_selection_publication(jsonb,text,text,jsonb,text,text,text,text) TO "proofstack_release_authority"',
+    );
+    expect(grants.filter((text) => text.startsWith("GRANT SELECT"))).toEqual([
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_release_authority"',
+    ]);
+    expect(
+      grants.some((text) =>
+        /GRANT (INSERT|UPDATE|DELETE)|store_release|claim_policy|cancel_policy/.test(text),
+      ),
+    ).toBe(false);
+  });
   it("revokes private artifact, policy and OIDC source guards from PUBLIC and every managed role without regranting", async () => {
     const client = new FakeClient();
     const configuration = options();

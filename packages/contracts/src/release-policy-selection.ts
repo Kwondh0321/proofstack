@@ -63,12 +63,11 @@ export const SelectedReleasePolicySchema = z
   })
   .strict();
 
-const DefinitionShape = {
+const IntentShape = {
   selectionId: OpaqueIdSchema,
   selectionVersionId: OpaqueIdSchema,
   installationId: OpaqueIdSchema,
   gateTargetId: OpaqueIdSchema,
-  scope: EvidenceScopeSchema,
   candidateTarget: ReleaseCandidateTargetSchema,
   mode: z.enum(["observation_only", "enforce"]),
   policies: z
@@ -82,7 +81,6 @@ const DefinitionShape = {
     .min(1)
     .max(MAX_RELEASE_POLICY_SELECTION_PUBLISHERS)
     .refine(orderedUnique, "Decision publishers must be unique and ordered"),
-  issuerPrincipalId: OpaqueIdSchema,
   authorityEvidence: ArtifactContentReferenceSchema,
   rationale: AssuranceRationaleSchema,
   effectiveAt: PolicyEvaluationTimeSchema,
@@ -90,14 +88,18 @@ const DefinitionShape = {
   predecessor: ReleasePolicySelectionReferenceSchema.optional(),
 };
 
+const DefinitionShape = {
+  ...IntentShape,
+  scope: EvidenceScopeSchema,
+  issuerPrincipalId: OpaqueIdSchema,
+};
+
+type SelectionIntent = z.infer<z.ZodObject<typeof IntentShape>>;
 type SelectionDefinition = z.infer<z.ZodObject<typeof DefinitionShape>>;
 
-function checkDefinition(value: SelectionDefinition, context: z.RefinementCtx): void {
-  if (context.issues.length > 0) return;
+function checkIntent(value: SelectionIntent, context: z.RefinementCtx): void {
   const issue = (message: string, path: string) =>
     context.addIssue({ code: "custom", message, path: [path] });
-  if (value.scope.environmentId !== value.candidateTarget.environmentId)
-    issue("The candidate target must belong to the selection environment", "candidateTarget");
   if (
     policyEvaluationTimestampOrderKey(value.effectiveAt) >=
     policyEvaluationTimestampOrderKey(value.expiresAt)
@@ -117,6 +119,15 @@ function checkDefinition(value: SelectionDefinition, context: z.RefinementCtx): 
     if (previous.selectionVersionId === value.selectionVersionId)
       issue("A selection version cannot be its own predecessor", "predecessor");
   }
+}
+
+function checkDefinition(value: SelectionDefinition, context: z.RefinementCtx): void {
+  if (context.issues.length > 0) return;
+  const issue = (message: string, path: string) =>
+    context.addIssue({ code: "custom", message, path: [path] });
+  if (value.scope.environmentId !== value.candidateTarget.environmentId)
+    issue("The candidate target must belong to the selection environment", "candidateTarget");
+  checkIntent(value, context);
   // Measure only the definition, not its bounded server receipt. Optional JS undefined fields
   // are absent from JSON; malformed scalar values have already been rejected by owning schemas.
   const definition = Object.fromEntries(
@@ -130,6 +141,21 @@ function checkDefinition(value: SelectionDefinition, context: z.RefinementCtx): 
   )
     issue("Selection definition exceeds its canonical UTF-8 byte ceiling", "policies");
 }
+
+/** Installer intent only. Scope, actor, authentication and native receipts come from the server. */
+export const PublishReleasePolicySelectionRequestSchema = z
+  .object(IntentShape)
+  .strict()
+  .superRefine((value, context) => {
+    if (context.issues.length > 0) return;
+    checkIntent(value, context);
+    if (context.issues.length > 0) return;
+    if (
+      encodeEvaluationCanonicalJson(JSON.parse(JSON.stringify(value))).byteLength >
+      MAX_RELEASE_POLICY_SELECTION_DEFINITION_BYTES
+    )
+      context.addIssue({ code: "custom", message: "Selection intent exceeds its UTF-8 ceiling" });
+  });
 
 /** Shape, inventory and byte admission only; owning readers must prove current complete authority. */
 export const ReleasePolicySelectionDefinitionSchema = z
@@ -192,6 +218,48 @@ export const ReleasePolicySelectionLifecycleEventSchema = z
         message: "Supersession must name a different version of the exact installation target",
       });
   });
+
+/** No caller actor, scope, receipt or historical publication clock. */
+export const PublishReleasePolicySelectionLifecycleRequestSchema = z
+  .discriminatedUnion("kind", [
+    z
+      .object({
+        eventId: OpaqueIdSchema,
+        selection: ReleasePolicySelectionReferenceSchema,
+        reason: AssuranceRationaleSchema,
+        kind: z.literal("withdrawn"),
+      })
+      .strict(),
+    z
+      .object({
+        eventId: OpaqueIdSchema,
+        selection: ReleasePolicySelectionReferenceSchema,
+        reason: AssuranceRationaleSchema,
+        kind: z.literal("superseded"),
+        successor: ReleasePolicySelectionReferenceSchema,
+      })
+      .strict(),
+  ])
+  .superRefine((value, context) => {
+    if (value.kind !== "superseded") return;
+    if (
+      value.successor.selectionId !== value.selection.selectionId ||
+      value.successor.installationId !== value.selection.installationId ||
+      value.successor.gateTargetId !== value.selection.gateTargetId ||
+      value.successor.selectionVersionId === value.selection.selectionVersionId
+    )
+      context.addIssue({
+        code: "custom",
+        message: "Supersession must name a different version of the exact installation target",
+      });
+  });
+
+export type PublishReleasePolicySelectionRequest = z.infer<
+  typeof PublishReleasePolicySelectionRequestSchema
+>;
+export type PublishReleasePolicySelectionLifecycleRequest = z.infer<
+  typeof PublishReleasePolicySelectionLifecycleRequestSchema
+>;
 
 export type ReleasePolicySelectionDefinition = z.infer<
   typeof ReleasePolicySelectionDefinitionSchema

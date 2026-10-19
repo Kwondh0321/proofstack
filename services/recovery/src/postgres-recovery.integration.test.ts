@@ -162,6 +162,8 @@ import {
   PostgresReleaseCandidateRepository,
   PostgresReleasePolicyRepository,
   PostgresReleasePolicySelectionRepository,
+  PostgresReleaseSelectionInstaller,
+  type PostgresReleaseSelectionInstallerResult,
   PostgresReleaseReviewerAuthorityRepository,
   PostgresReleaseApprovalRepository,
   PostgresReleaseServiceCredentialRepository,
@@ -175,6 +177,9 @@ import {
 import { sealPolicyEvaluationSnapshot } from "@proofstack/policy-evaluation";
 import {
   generateServiceToken,
+  generateBrowserSessionCredentials,
+  OidcSessionAuthenticator,
+  ReleaseMutationAuthenticator,
   hashServiceTokenSecret,
   ServiceTokenAuthenticator,
   InvalidServiceTokenError,
@@ -327,6 +332,7 @@ const EXPECTED_TABLES = [
   "proofstack_release_reviewer_roots",
   "proofstack_release_selection_lifecycle",
   "proofstack_release_selection_policies",
+  "proofstack_release_selection_publications",
   "proofstack_release_selection_publishers",
   "proofstack_release_selection_roots",
   "proofstack_release_service_credentials",
@@ -645,11 +651,104 @@ function workflowRuntimeRoleOptions(stage: "restored" | "source") {
     policyAuthor: credentials("policy"),
     policyEvaluationControl: credentials("policy_control"),
     policyEvaluator: credentials("policy_evaluator"),
+    releaseAuthority: credentials("release_authority"),
     publisher: credentials("publisher"),
     replayWorker: credentials("replay"),
   } satisfies RuntimeRoleProvisioningOptions;
   managedRoles.push(...Object.values(roles).map(({ name }) => name));
   return roles;
+}
+
+const installerRecoveryCredentials = generateBrowserSessionCredentials();
+const installerRecoveryIntent = (() => {
+  const {
+    schemaVersion: _version,
+    definitionSha256: _hash,
+    publishedAt: _at,
+    publishedByPrincipalId: _publisher,
+    scope: _scope,
+    issuerPrincipalId: _issuer,
+    ...intent
+  } = releasePolicySelectionRepositoryFixture("recovery_authenticated_installer").original;
+  return {
+    ...intent,
+    mode: "observation_only" as const,
+    policies: [],
+    candidateTarget: { ...intent.candidateTarget, environmentId: scope.environmentId },
+    effectiveAt: "2026-01-01T00:00:00.000001Z",
+    expiresAt: "2099-01-01T00:00:00.000001Z",
+  };
+})();
+let installerRecoveryOriginal: PostgresReleaseSelectionInstallerResult;
+let installerRecoveryWithdrawal: PostgresReleaseSelectionInstallerResult;
+async function exerciseAuthenticatedInstallerRecovery(
+  owner: Pool,
+  administrativeUrl: string,
+  credential: { readonly name: string; readonly password: string },
+  restored: boolean,
+) {
+  const repository = new PostgresOidcIdentityRepository(owner);
+  if (!restored) {
+    await createOidcBinding(owner, {
+      actorPrincipalId: "usr_recovery",
+      bindingId: "oid_recovery_installer",
+      capabilities: ["release:selection:manage"],
+      issuer: "https://installer.recovery.example",
+      principalId: "usr_recovery_installer",
+      resourceScope: { mode: "tenant" },
+      roles: ["member"],
+      subject: "recovery-installer",
+      tenantId: scope.tenantId,
+    });
+    await repository.create({
+      bindingId: "oid_recovery_installer",
+      sessionId: "ses_recovery_installer",
+      ...installerRecoveryCredentials,
+      absoluteLifetimeSeconds: 3600,
+      idleLifetimeSeconds: 1800,
+    });
+  }
+  const pool = createPolicyPostgresPool({
+    connectionString: databaseUrlForRole(administrativeUrl, credential),
+    maxConnections: 1,
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  try {
+    const service = new PostgresReleaseSelectionInstaller(
+      pool,
+      new ReleaseMutationAuthenticator(new OidcSessionAuthenticator(repository)),
+    );
+    const credentials = {
+      scope,
+      sessionToken: installerRecoveryCredentials.sessionToken,
+      csrfToken: installerRecoveryCredentials.csrfToken,
+      requestId: restored ? "request_installer_restored" : "request_installer_source",
+    };
+    const original = await service.publishSelection(credentials, installerRecoveryIntent);
+    if (!("selectionVersionId" in original.record))
+      throw new Error("Expected original installed selection");
+    const withdrawal = await service.publishLifecycle(credentials, {
+      eventId: "event_recovery_authenticated_withdrawal",
+      kind: "withdrawn",
+      selection: releasePolicySelectionReference(original.record),
+      reason: "Withdraw the exact authenticated recovery selection.",
+    });
+    if (restored) {
+      expect(original.created).toBe(false);
+      expect(withdrawal.created).toBe(false);
+      expect(original.record).toEqual(installerRecoveryOriginal.record);
+      expect(original.publication).toEqual(installerRecoveryOriginal.publication);
+      expect(withdrawal.record).toEqual(installerRecoveryWithdrawal.record);
+      expect(withdrawal.publication).toEqual(installerRecoveryWithdrawal.publication);
+    } else {
+      installerRecoveryOriginal = original;
+      installerRecoveryWithdrawal = withdrawal;
+    }
+  } finally {
+    await pool.end();
+  }
 }
 
 function databaseUrlForRole(
@@ -2391,6 +2490,12 @@ async function seedRecoverableWorkflow1Graph(): Promise<void> {
   } finally {
     await runtime.close();
   }
+  await exerciseAuthenticatedInstallerRecovery(
+    sourcePool,
+    databaseUrl,
+    roles.releaseAuthority,
+    false,
+  );
 }
 
 async function seedAuthoritativeState(): Promise<void> {
@@ -4240,6 +4345,12 @@ describe("coordinated recovery rehearsal", () => {
 
     const restoredWorkflowRoles = workflowRuntimeRoleOptions("restored");
     await provisionRuntimeRoles(restoredPool, restoredWorkflowRoles);
+    await exerciseAuthenticatedInstallerRecovery(
+      restoredPool,
+      restoredDatabaseUrl,
+      restoredWorkflowRoles.releaseAuthority,
+      true,
+    );
     const restoredWorkflowRuntime = await createWorkflowRuntime(
       restoredDatabaseUrl,
       restoredWorkflowRoles,

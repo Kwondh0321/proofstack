@@ -14,6 +14,7 @@ export const DEFAULT_RUNTIME_ROLE_NAMES = {
   policyEvaluationControl: "proofstack_policy_evaluation_control",
   policyEvaluator: "proofstack_policy_evaluator",
   publisher: "proofstack_publisher",
+  releaseAuthority: "proofstack_release_authority",
   replayWorker: "proofstack_replay_worker",
 } as const;
 
@@ -42,6 +43,7 @@ export interface RuntimeRoleProvisioningOptions {
   readonly policyEvaluationControl?: RuntimeRoleCredentials;
   readonly policyEvaluator?: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
+  readonly releaseAuthority?: RuntimeRoleCredentials;
   readonly replayWorker: RuntimeRoleCredentials;
 }
 
@@ -65,6 +67,7 @@ interface StatementRow extends QueryResultRow {
 }
 
 const PRIVATE_RELEASE_AUTHORITY_TABLES = [
+  "proofstack_release_selection_publications",
   "proofstack_release_decision_inputs",
   "proofstack_release_decision_input_sources",
   "proofstack_release_decision_input_plans",
@@ -195,6 +198,15 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_release_installer_context(jsonb)",
+  "public.proofstack_recheck_release_installer(jsonb,jsonb)",
+  "public.proofstack_guard_selection_publication()",
+  "public.proofstack_verify_selection_publication()",
+  "public.proofstack_begin_authenticated_selection(jsonb,jsonb,text,jsonb)",
+  "public.proofstack_begin_authenticated_selection_lifecycle(jsonb,jsonb,jsonb)",
+  "public.proofstack_read_selection_publication_part(jsonb,text,text,text)",
+  "public.proofstack_finish_selection_publication(jsonb,text,text,jsonb,text,text,text,text)",
+  "public.proofstack_read_installer_projection(jsonb,text,text)",
   "public.proofstack_reserve_release_decision_request()",
   "public.proofstack_enforce_release_decision_request_reservation()",
   "public.proofstack_try_lock_release_decision_input(jsonb)",
@@ -422,6 +434,18 @@ const POLICY_JOB_READ_GRANTS = [
   "GRANT EXECUTE ON FUNCTION public.proofstack_append_policy_evaluation_job_history(jsonb,text,text,jsonb) TO %ROLE%",
 ] as const;
 const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
+  releaseAuthority: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_installer_context(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_recheck_release_installer(jsonb,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_begin_authenticated_selection(jsonb,jsonb,text,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_begin_authenticated_selection_lifecycle(jsonb,jsonb,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_read_selection_publication_part(jsonb,text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_finish_selection_publication(jsonb,text,text,jsonb,text,text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_read_installer_projection(jsonb,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_release_policy_lifecycle_intent_status(text,text,jsonb,timestamp with time zone) TO %ROLE%",
+  ],
   policyEvaluationControl: [
     ...POLICY_JOB_READ_GRANTS,
     "GRANT EXECUTE ON FUNCTION public.proofstack_create_policy_evaluation_job(jsonb,text,text) TO %ROLE%",
@@ -614,6 +638,9 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
     policyAuthor: validateCredentials("policyAuthor", options.policyAuthor),
     publisher: validateCredentials("publisher", options.publisher),
     replayWorker: validateCredentials("replayWorker", options.replayWorker),
+    ...(options.releaseAuthority === undefined
+      ? {}
+      : { releaseAuthority: validateCredentials("releaseAuthority", options.releaseAuthority) }),
     ...(options.policyEvaluationControl === undefined
       ? {}
       : {
@@ -883,7 +910,11 @@ export async function provisionRuntimeRoles(
         const outcome = await provisionRole(client, kind, validated[kind]);
         (outcome === "created" ? createdRoles : updatedRoles).push(validated[kind].name);
       }
-      for (const kind of ["policyEvaluationControl", "policyEvaluator"] as const) {
+      for (const kind of [
+        "policyEvaluationControl",
+        "policyEvaluator",
+        "releaseAuthority",
+      ] as const) {
         const credentials = validated[kind];
         if (credentials === undefined) continue;
         const outcome = await provisionRole(client, kind, credentials);

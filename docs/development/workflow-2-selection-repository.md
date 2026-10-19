@@ -3,7 +3,8 @@
 [English](workflow-2-selection-repository.md) | [한국어](workflow-2-selection-repository.ko.md)
 
 Status: checkpoint 4 memory/shared selection persistence prerequisite; Workflow 2 remains 3/7
-accepted checkpoints. Native roles/transactions, actual installation authorization and decision
+accepted checkpoints. The separate [authenticated installer](workflow-2-authenticated-selection-publication.md)
+adds native installation authorization; complete current decision authority and decision
 publication remain open. See [ADR-0044](../architecture/0044-own-complete-selection-inventories-in-repositories.md)
 and the [entry audit](workflow-2-decision-entry-audit.md).
 

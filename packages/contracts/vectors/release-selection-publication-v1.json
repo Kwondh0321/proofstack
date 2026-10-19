@@ -1,0 +1,101 @@
+{
+  "format": "proofstack.release-selection-publication.v1",
+  "generator": "Python json UTF-8, sorted ASCII keys, compact separators; integers only",
+  "vectors": [
+    {
+      "name": "release_policy_selection-unicode-native-cut",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_policy_selection",
+            "selection": {
+              "selectionId": "selection_publication",
+              "selectionVersionId": "version_publication_a",
+              "definitionSha256": "492e008a5d85ebfbfa5402b2b6c95ea98964040d9c9fe9ce892650803c406409",
+              "installationId": "installation_publication",
+              "gateTargetId": "gate_publication"
+            },
+            "recordSha256": "6dea7cd03dd8fa4b4e082ea944215179c45e77c6ff2943af4c0bc88e71ba9c61"
+          },
+          "operation": "manage_selection",
+          "actor": {
+            "principalId": "user_installation_owner",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_installer",
+            "requestId": "request_설치_😀"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_installation_owner",
+            "bindingId": "binding_installer"
+          },
+          "grantSha256": "8ab4b184c986e89e12ae6bc011ed82849d077754ce7bd7e4e3e066b19b49ad1d",
+          "credentialSha256": "35af2e500eae4a45794938f0989fed0954074fea9caf2cb21bbe92b2d73e49eb",
+          "issuedAt": "2026-10-15T12:10:00.000001Z"
+        }
+      },
+      "encodedByteLength": 1321,
+      "sha256": "e876597d9642930d5c44403bf68cea6888a5a3bad896faf22cd2085da30bc351"
+    },
+    {
+      "name": "release_policy_selection_lifecycle-unicode-native-cut",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_policy_selection_lifecycle",
+            "eventId": "event_publication_withdrawn",
+            "selection": {
+              "selectionId": "selection_publication",
+              "selectionVersionId": "version_publication_a",
+              "definitionSha256": "492e008a5d85ebfbfa5402b2b6c95ea98964040d9c9fe9ce892650803c406409",
+              "installationId": "installation_publication",
+              "gateTargetId": "gate_publication"
+            },
+            "recordSha256": "a538285fb39930bebda5ad67b66542a010dd2b5f65fc147443cbe69551494e48"
+          },
+          "operation": "manage_selection",
+          "actor": {
+            "principalId": "user_installation_owner",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T12:00:00.000Z",
+            "credentialId": "session_installer",
+            "requestId": "request_설치_😀"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_installation_owner",
+            "bindingId": "binding_installer"
+          },
+          "grantSha256": "8ab4b184c986e89e12ae6bc011ed82849d077754ce7bd7e4e3e066b19b49ad1d",
+          "credentialSha256": "35af2e500eae4a45794938f0989fed0954074fea9caf2cb21bbe92b2d73e49eb",
+          "issuedAt": "2026-10-15T12:10:00.000001Z"
+        }
+      },
+      "encodedByteLength": 1371,
+      "sha256": "68116e7d1998e1a115e37ea4274a2355dbfa2d7bf68750bc1dbd88ccf4c77b60"
+    }
+  ]
+}

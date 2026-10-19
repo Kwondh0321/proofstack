@@ -45,7 +45,7 @@ it("preserves original legacy plans and ledger without inventing pre-outcome res
       await pool.query("SELECT id,checksum FROM public.proofstack_schema_migrations ORDER BY id")
     ).rows;
     await expect(migrateDatabase(pool)).resolves.toMatchObject({
-      newlyAppliedIds: ["0070_release_decision_request_reservations"],
+      newlyAppliedIds: migrations.slice(index).map((migration) => migration.id),
     });
     await assertMigrationsCurrent(pool);
     expect(
@@ -58,7 +58,7 @@ it("preserves original legacy plans and ledger without inventing pre-outcome res
     expect(
       (
         await pool.query("SELECT id,checksum FROM public.proofstack_schema_migrations ORDER BY id")
-      ).rows.slice(0, -1),
+      ).rows.slice(0, ledger.length),
     ).toEqual(ledger);
     expect(
       (

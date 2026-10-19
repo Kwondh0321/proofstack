@@ -88,6 +88,13 @@ export * from "./policy/policy-evaluation-scheduler-time.js";
 export * from "./policy/policy-evaluation-scheduler-seal.js";
 export * from "./policy/policy-evaluation-scheduler-complete.js";
 export {
+  InvalidReleaseSelectionPublicationError,
+  digestReleaseSelectionPublicationRecord,
+  digestReleaseSelectionPublicationDefinition,
+  validateReleaseSelectionPublicationMaterial,
+  prepareReleaseSelectionPublicationMaterial,
+} from "./release/release-selection-publication.js";
+export {
   reservePolicyEvaluationAcquisition,
   settlePolicyEvaluationAcquisition,
   policyEvaluationMetadataUsage,

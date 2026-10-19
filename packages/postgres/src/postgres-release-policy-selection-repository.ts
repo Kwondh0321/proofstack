@@ -21,6 +21,7 @@ import {
   validateReleasePolicySelectionRecord,
 } from "@proofstack/core";
 import type { Pool, PoolClient } from "pg";
+import { readInstallerRowsOnClient } from "./release-installer-read.js";
 import {
   withExactReadCommittedScopeTransaction,
   withExactScopeTransaction,
@@ -242,6 +243,30 @@ export async function readPostgresReleasePolicySelectionOnClient(
   }
 }
 
+/** Fixed narrow-role projection; the original owning normalized decoder remains authoritative. */
+export async function readPostgresReleasePolicySelectionForInstallerOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  versionId: string,
+  budget: ReleaseDecisionVerificationBudget,
+) {
+  if (!(budget instanceof ReleaseDecisionVerificationBudget)) fail();
+  budget.snapshot();
+  try {
+    const parsedScope = EvidenceScopeSchema.parse(scope),
+      id = OpaqueIdSchema.parse(versionId);
+    const rows = await readInstallerRowsOnClient<Data>(
+      client,
+      { scope: parsedScope, budget },
+      "selection_view",
+      id,
+    );
+    return rows[0] ? checkView(rows[0], parsedScope, id) : null;
+  } catch (cause) {
+    return budget.rejectSourceRead(cause);
+  }
+}
+
 const eventSql = `SELECT to_jsonb(e)||jsonb_build_object('occurred_at_key',e.occurred_at_key::text) AS event,
   (SELECT COALESCE(jsonb_agg(jsonb_build_object('eventType',o.event_type,'schemaVersion',o.schema_version,
     'payload',o.payload,'timeMatches',o.created_at=e.occurred_at_lexical::timestamptz)),'[]'::jsonb)
@@ -339,6 +364,46 @@ export async function readPostgresReleaseSelectionLifecycleOnClient(
     records.set(record.selectionVersionId, record);
   }
   return checkedEvent(raw, scope, id, records);
+}
+
+export async function readPostgresReleaseSelectionLifecycleForInstallerOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  eventId: string,
+  budget: ReleaseDecisionVerificationBudget,
+) {
+  if (!(budget instanceof ReleaseDecisionVerificationBudget)) fail();
+  budget.snapshot();
+  try {
+    const parsedScope = EvidenceScopeSchema.parse(scope),
+      id = OpaqueIdSchema.parse(eventId);
+    const rows = await readInstallerRowsOnClient<Data>(
+      client,
+      { scope: parsedScope, budget },
+      "selection_event_view",
+      id,
+    );
+    const raw = rows[0];
+    if (!raw) return null;
+    const event = ReleasePolicySelectionLifecycleEventSchema.parse(object(raw.event).record);
+    const records = new Map<string, ReleasePolicySelection>();
+    for (const ref of [
+      event.selection,
+      ...(event.kind === "superseded" ? [event.successor] : []),
+    ]) {
+      const record = await readPostgresReleasePolicySelectionForInstallerOnClient(
+        client,
+        parsedScope,
+        ref.selectionVersionId,
+        budget,
+      );
+      if (!record) fail();
+      records.set(record.selectionVersionId, record);
+    }
+    return checkedEvent(raw, parsedScope, id, records);
+  } catch (cause) {
+    return budget.rejectSourceRead(cause);
+  }
 }
 
 /** Complete target-owned guarded inventory. Its guard remains CALLER-held; never publish later

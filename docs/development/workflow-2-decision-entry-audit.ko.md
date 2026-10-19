@@ -67,6 +67,10 @@ target은 설치된 gate 식별자이며 임의 URL·명령·배포 자격증명
 적용성, 만료·철회는 hold다. 명시적인 관찰 전용 또는 필수 정책 없음은 근거가 있는 advisory다.
 정책 규칙의 not_applicable을 다섯 번째 결정 상태로 만들지 않는다.
 
+[인증된 설치 서비스](workflow-2-authenticated-selection-publication.ko.md)는 최초 인증 근거를
+보존하는 네이티브 설치·수명주기 경계를 구현한다. 이는 구성 요소의 검증이며 완전한 현재
+결정 권한이나 체크포인트 인수 완료가 아니다.
+
 ## 불변 결정과 보수적인 상태
 
 결정은 정확한 후보, 선택, 모든 정책·평가와 원본 request/job/snapshot/result digest, 현재 DB cut,

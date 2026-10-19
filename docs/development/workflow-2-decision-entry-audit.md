@@ -62,6 +62,9 @@ target coordinates and all selected exact policy versions/digests. The target is
 not a URL, shell command, deployment identity or wildcard supplied by a release requester.
 
 Only a separately authorized installer may publish/activate/supersede/withdraw this selection.
+The [authenticated installer service](workflow-2-authenticated-selection-publication.md) implements
+the first native installation/lifecycle boundary with preserved original provenance. This is a
+component gate, not complete current decision authority or checkpoint acceptance.
 Requests name a target and exact expected selection reference; they cannot provide a favorable
 policy list, select a mutable latest evaluation or downgrade required policy mode. Publication
 derives and validates the complete original selection inventory through owning authoritative

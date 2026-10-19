@@ -11,6 +11,11 @@ export {
 export { assertPostgresPolicyControlRole } from "./policy-control-role.js";
 export { PostgresPolicyIoError } from "./bounded-policy-transaction.js";
 export {
+  PostgresReleaseSelectionInstaller,
+  PostgresReleaseSelectionInstallerError,
+  type PostgresReleaseSelectionInstallerResult,
+} from "./postgres-release-selection-installer.js";
+export {
   type BootstrapApiKeyOptions,
   bootstrapApiKey,
   type CreatedOidcBinding,

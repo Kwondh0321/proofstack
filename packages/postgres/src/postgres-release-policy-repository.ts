@@ -16,6 +16,7 @@ import {
   ReleasePolicyLineageError,
   type ReleasePolicyLogicalRootReader,
   type ReleasePolicyRepository,
+  ReleaseDecisionVerificationBudget,
   ReleasePolicyRepositoryContractError,
   ReleasePolicyResourceConflictError,
   ReleasePolicyVersionConflictError,
@@ -25,6 +26,7 @@ import {
 } from "@proofstack/core";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { withExactScopeTransaction } from "./tenant-transaction.js";
+import { readInstallerRowsOnClient, type InstallerReadContext } from "./release-installer-read.js";
 
 interface StoredReleasePolicyRow extends QueryResultRow {
   readonly counterevidence_count: number;
@@ -204,7 +206,19 @@ async function loadStoredPolicy(
   client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   policyVersionId: string,
+  installer?: InstallerReadContext,
 ): Promise<StoredReleasePolicyRow | null> {
+  if (installer)
+    return (
+      (
+        await readInstallerRowsOnClient<StoredReleasePolicyRow>(
+          client,
+          installer,
+          "policy_record",
+          policyVersionId,
+        )
+      )[0] ?? null
+    );
   const result = await client.query<StoredReleasePolicyRow>(
     `SELECT
        policy.tenant_id,
@@ -434,6 +448,7 @@ function lifecycleOutboxPayload(
 async function requireCanonicalPolicyOutbox(
   client: Pick<PoolClient, "query">,
   policy: ReleasePolicy,
+  installer?: InstallerReadContext,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
     `SELECT public.proofstack_release_policy_intent_status(
@@ -446,6 +461,7 @@ async function requireCanonicalPolicyOutbox(
       policy.publishedAt,
     ],
   );
+  if (installer) for (const row of result.rows) installer.budget.observe(row);
   if (result.rows[0]?.status !== "canonical") {
     throw new ReleasePolicyRepositoryContractError(
       `Stored release policy ${policy.policyVersionId} is missing its canonical outbox intent`,
@@ -456,6 +472,7 @@ async function requireCanonicalPolicyOutbox(
 async function requireCanonicalLifecycleOutbox(
   client: Pick<PoolClient, "query">,
   event: ReleasePolicyLifecycleEvent,
+  installer?: InstallerReadContext,
 ): Promise<void> {
   const result = await client.query<OutboxIntentRow>(
     `SELECT public.proofstack_release_policy_lifecycle_intent_status(
@@ -468,6 +485,7 @@ async function requireCanonicalLifecycleOutbox(
       event.occurredAt,
     ],
   );
+  if (installer) for (const row of result.rows) installer.budget.observe(row);
   if (result.rows[0]?.status !== "canonical") {
     throw new ReleasePolicyRepositoryContractError(
       `Stored release policy lifecycle event ${event.eventId} is missing its canonical outbox intent`,
@@ -491,12 +509,13 @@ async function inspectStoredPolicy(
 async function inspectStoredPolicyBinding(
   client: Pick<PoolClient, "query">,
   row: StoredReleasePolicyRow,
+  installer?: InstallerReadContext,
 ): Promise<{ readonly policy: ReleasePolicy; readonly root: ReleasePolicy }> {
   const policy = parseStoredPolicy(row);
   const rootRow =
     row.root_policy_version_id === policy.policyVersionId
       ? row
-      : await loadStoredPolicy(client, policy.scope, row.root_policy_version_id);
+      : await loadStoredPolicy(client, policy.scope, row.root_policy_version_id, installer);
   if (!rootRow) {
     throw new ReleasePolicyRepositoryContractError(
       "Stored release policy is missing its logical root",
@@ -517,17 +536,18 @@ async function inspectStoredPolicyBinding(
       "Stored release policy differs from its canonical logical root binding",
     );
   }
-  await requireCanonicalPolicyOutbox(client, policy);
-  if (rootRow !== row) await requireCanonicalPolicyOutbox(client, root);
+  await requireCanonicalPolicyOutbox(client, policy, installer);
+  if (rootRow !== row) await requireCanonicalPolicyOutbox(client, root, installer);
   return { policy, root };
 }
 
 async function inspectStoredLifecycleEvent(
   client: Pick<PoolClient, "query">,
   row: StoredReleasePolicyLifecycleRow,
+  installer?: InstallerReadContext,
 ): Promise<ReleasePolicyLifecycleEvent> {
   const event = parseStoredLifecycleEvent(row);
-  await requireCanonicalLifecycleOutbox(client, event);
+  await requireCanonicalLifecycleOutbox(client, event, installer);
   return event;
 }
 
@@ -550,9 +570,19 @@ async function inspectScopedPolicyPresence(
   client: Pick<PoolClient, "query">,
   scope: EvidenceScope,
   policyVersionId: string,
+  installer?: InstallerReadContext,
 ): Promise<boolean> {
-  const result = await client.query<PolicyPresenceRow>(
-    `SELECT EXISTS (
+  const result = installer
+    ? {
+        rows: await readInstallerRowsOnClient<PolicyPresenceRow>(
+          client,
+          installer,
+          "policy_presence",
+          policyVersionId,
+        ),
+      }
+    : await client.query<PolicyPresenceRow>(
+        `SELECT EXISTS (
        SELECT 1 FROM public.proofstack_release_policies
        WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
      ) AS retained_policy_body, EXISTS (
@@ -574,8 +604,8 @@ async function inspectScopedPolicyPresence(
        SELECT 1 FROM public.proofstack_release_policy_rule_sources
        WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND policy_version_id=$4
      ) AS retained_policy_storage`,
-    [scope.tenantId, scope.projectId, scope.environmentId, policyVersionId],
-  );
+        [scope.tenantId, scope.projectId, scope.environmentId, policyVersionId],
+      );
   const row = result.rows[0];
   if (
     result.rows.length !== 1 ||
@@ -595,16 +625,64 @@ async function readStoredPolicyBinding(
   client: Pick<PoolClient, "query">,
   scopeInput: EvidenceScope,
   policyVersionId: string,
+  installer?: InstallerReadContext,
 ): Promise<{ readonly policy: ReleasePolicy; readonly root: ReleasePolicy } | null> {
   const scope = { ...scopeInput };
-  if (!(await inspectScopedPolicyPresence(client, scope, policyVersionId))) return null;
-  const row = await loadStoredPolicy(client, scope, policyVersionId);
+  if (!(await inspectScopedPolicyPresence(client, scope, policyVersionId, installer))) return null;
+  const row = await loadStoredPolicy(client, scope, policyVersionId, installer);
   if (!row) {
     throw new ReleasePolicyRepositoryContractError(
       "Stored release policy graph is incomplete after its positive scoped presence observation",
     );
   }
-  return inspectStoredPolicyBinding(client, row);
+  return inspectStoredPolicyBinding(client, row, installer);
+}
+
+/** Fixed installer ports reuse owning graph/outbox validation on the same guarded connection. */
+export async function readPostgresReleasePolicyForInstallerOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  policyVersionId: string,
+  budget: ReleaseDecisionVerificationBudget,
+): Promise<ReleasePolicy | null> {
+  if (!(budget instanceof ReleaseDecisionVerificationBudget))
+    throw new ReleasePolicyRepositoryContractError("Missing installer source budget");
+  budget.snapshot();
+  try {
+    const binding = await readStoredPolicyBinding(client, scope, policyVersionId, {
+      scope,
+      budget,
+    });
+    return binding ? clone(binding.policy) : null;
+  } catch (cause) {
+    return budget.rejectSourceRead(cause);
+  }
+}
+
+export async function listPostgresReleasePolicyLifecycleEventsForInstallerOnClient(
+  client: Pick<PoolClient, "query">,
+  scope: EvidenceScope,
+  policyVersionId: string,
+  budget: ReleaseDecisionVerificationBudget,
+): Promise<readonly ReleasePolicyLifecycleEvent[]> {
+  if (!(budget instanceof ReleaseDecisionVerificationBudget))
+    throw new ReleasePolicyRepositoryContractError("Missing installer source budget");
+  budget.snapshot();
+  try {
+    const installer = { scope, budget };
+    const rows = await readInstallerRowsOnClient<StoredReleasePolicyLifecycleRow>(
+      client,
+      installer,
+      "policy_events",
+      policyVersionId,
+    );
+    const events: ReleasePolicyLifecycleEvent[] = [];
+    for (const row of rows)
+      events.push(clone(await inspectStoredLifecycleEvent(client, row, installer)));
+    return events;
+  } catch (cause) {
+    return budget.rejectSourceRead(cause);
+  }
 }
 
 /** The trusted caller owns the scoped transaction and guards; this read uses only that client. */

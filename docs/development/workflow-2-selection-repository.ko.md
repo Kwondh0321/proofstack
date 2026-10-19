@@ -3,7 +3,8 @@
 [English](workflow-2-selection-repository.md) | [한국어](workflow-2-selection-repository.ko.md)
 
 상태: 체크포인트 4의 메모리/공통 선택 저장소 선행 구현입니다. Workflow 2는 7개 중 3개 인수 완료입니다.
-네이티브 역할·트랜잭션, 실제 설치 인가와 결정 게시는 남아 있습니다.
+별도의 [인증된 설치 서비스](workflow-2-authenticated-selection-publication.ko.md)가 네이티브 설치
+인가를 추가합니다. 완전한 현재 결정 권한과 결정 게시는 남아 있습니다.
 [ADR-0044](../architecture/0044-own-complete-selection-inventories-in-repositories.md)와
 [진입 감사](workflow-2-decision-entry-audit.ko.md)를 함께 읽습니다.
 

@@ -1,0 +1,2229 @@
+{
+  "format": "proofstack.release-selection-installer-native-wire.v1",
+  "serverVersion": "16.15",
+  "actor": {
+    "principalId": "user_wire_22e9abd18d",
+    "principalType": "user",
+    "authenticationMethod": "oidc",
+    "authenticatedAt": "2026-10-19T16:28:07.951Z",
+    "credentialId": "session_wire_22e9abd18d",
+    "requestId": "request_native_wire"
+  },
+  "cases": [
+    {
+      "name": "selection_new",
+      "operation": "selection",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_wire_22e9abd18d"
+      },
+      "requestId": "request_native_wire",
+      "intent": {
+        "selectionId": "selection_wire_22e9abd18d",
+        "selectionVersionId": "version_wire_22e9abd18d_a",
+        "installationId": "installation_wire_22e9abd18d",
+        "gateTargetId": "gate_wire_22e9abd18d",
+        "candidateTarget": {
+          "environmentId": "env_staging",
+          "jurisdiction": "us",
+          "locale": "en-us",
+          "maximumDataClassification": "confidential",
+          "populationTags": ["business", "checkout"],
+          "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+          "riskTier": "high",
+          "taskKind": "checkout_agent"
+        },
+        "mode": "observation_only",
+        "policies": [],
+        "authorizedPublisherPrincipalIds": [
+          "service_decision_publisher",
+          "user_decision_publisher"
+        ],
+        "authorityEvidence": {
+          "artifactId": "artifact_installation_authority",
+          "classification": "internal",
+          "mediaType": "application/vnd.proofstack.policy-authority+json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 512
+        },
+        "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+        "effectiveAt": "2026-01-01T00:00:00.000001Z",
+        "expiresAt": "2099-01-01T00:00:00.000001Z"
+      },
+      "queries": [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 10, 11, 12, 13, 16, 17, 18, 19
+      ],
+      "result": {
+        "created": true,
+        "record": {
+          "selectionId": "selection_wire_22e9abd18d",
+          "selectionVersionId": "version_wire_22e9abd18d_a",
+          "installationId": "installation_wire_22e9abd18d",
+          "gateTargetId": "gate_wire_22e9abd18d",
+          "candidateTarget": {
+            "environmentId": "env_staging",
+            "jurisdiction": "us",
+            "locale": "en-us",
+            "maximumDataClassification": "confidential",
+            "populationTags": ["business", "checkout"],
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent"
+          },
+          "mode": "observation_only",
+          "policies": [],
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ],
+          "authorityEvidence": {
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          },
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-01-01T00:00:00.000001Z",
+          "expiresAt": "2099-01-01T00:00:00.000001Z",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "issuerPrincipalId": "user_wire_22e9abd18d",
+          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+          "schemaVersion": "0.1",
+          "publishedAt": "2026-10-19T16:28:08.041417Z",
+          "publishedByPrincipalId": "user_wire_22e9abd18d"
+        },
+        "publication": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "subject": {
+            "kind": "release_policy_selection",
+            "selection": {
+              "selectionId": "selection_wire_22e9abd18d",
+              "selectionVersionId": "version_wire_22e9abd18d_a",
+              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+              "installationId": "installation_wire_22e9abd18d",
+              "gateTargetId": "gate_wire_22e9abd18d"
+            },
+            "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+          },
+          "operation": "manage_selection",
+          "actor": {
+            "principalId": "user_wire_22e9abd18d",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-19T16:28:07.951Z",
+            "credentialId": "session_wire_22e9abd18d",
+            "requestId": "request_native_wire"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_wire_22e9abd18d",
+            "bindingId": "binding_wire_22e9abd18d"
+          },
+          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+          "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
+          "issuedAt": "2026-10-19T16:28:08.041417Z",
+          "schemaVersion": "0.1",
+          "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+        },
+        "usage": {
+          "records": 89,
+          "recordBytes": 101031,
+          "approvalRecords": 0
+        }
+      }
+    },
+    {
+      "name": "selection_retry",
+      "operation": "selection",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_wire_22e9abd18d"
+      },
+      "requestId": "request_native_wire",
+      "intent": {
+        "selectionId": "selection_wire_22e9abd18d",
+        "selectionVersionId": "version_wire_22e9abd18d_a",
+        "installationId": "installation_wire_22e9abd18d",
+        "gateTargetId": "gate_wire_22e9abd18d",
+        "candidateTarget": {
+          "environmentId": "env_staging",
+          "jurisdiction": "us",
+          "locale": "en-us",
+          "maximumDataClassification": "confidential",
+          "populationTags": ["business", "checkout"],
+          "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+          "riskTier": "high",
+          "taskKind": "checkout_agent"
+        },
+        "mode": "observation_only",
+        "policies": [],
+        "authorizedPublisherPrincipalIds": [
+          "service_decision_publisher",
+          "user_decision_publisher"
+        ],
+        "authorityEvidence": {
+          "artifactId": "artifact_installation_authority",
+          "classification": "internal",
+          "mediaType": "application/vnd.proofstack.policy-authority+json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sizeBytes": 512
+        },
+        "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+        "effectiveAt": "2026-01-01T00:00:00.000001Z",
+        "expiresAt": "2099-01-01T00:00:00.000001Z"
+      },
+      "queries": [0, 1, 2, 3, 4, 5, 20, 15, 21, 15, 10, 11, 12, 13, 16, 17, 18, 19],
+      "result": {
+        "created": false,
+        "record": {
+          "selectionId": "selection_wire_22e9abd18d",
+          "selectionVersionId": "version_wire_22e9abd18d_a",
+          "installationId": "installation_wire_22e9abd18d",
+          "gateTargetId": "gate_wire_22e9abd18d",
+          "candidateTarget": {
+            "environmentId": "env_staging",
+            "jurisdiction": "us",
+            "locale": "en-us",
+            "maximumDataClassification": "confidential",
+            "populationTags": ["business", "checkout"],
+            "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+            "riskTier": "high",
+            "taskKind": "checkout_agent"
+          },
+          "mode": "observation_only",
+          "policies": [],
+          "authorizedPublisherPrincipalIds": [
+            "service_decision_publisher",
+            "user_decision_publisher"
+          ],
+          "authorityEvidence": {
+            "artifactId": "artifact_installation_authority",
+            "classification": "internal",
+            "mediaType": "application/vnd.proofstack.policy-authority+json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sizeBytes": 512
+          },
+          "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+          "effectiveAt": "2026-01-01T00:00:00.000001Z",
+          "expiresAt": "2099-01-01T00:00:00.000001Z",
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "issuerPrincipalId": "user_wire_22e9abd18d",
+          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+          "schemaVersion": "0.1",
+          "publishedAt": "2026-10-19T16:28:08.041417Z",
+          "publishedByPrincipalId": "user_wire_22e9abd18d"
+        },
+        "publication": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "subject": {
+            "kind": "release_policy_selection",
+            "selection": {
+              "selectionId": "selection_wire_22e9abd18d",
+              "selectionVersionId": "version_wire_22e9abd18d_a",
+              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+              "installationId": "installation_wire_22e9abd18d",
+              "gateTargetId": "gate_wire_22e9abd18d"
+            },
+            "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+          },
+          "operation": "manage_selection",
+          "actor": {
+            "principalId": "user_wire_22e9abd18d",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-19T16:28:07.951Z",
+            "credentialId": "session_wire_22e9abd18d",
+            "requestId": "request_native_wire"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_wire_22e9abd18d",
+            "bindingId": "binding_wire_22e9abd18d"
+          },
+          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+          "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
+          "issuedAt": "2026-10-19T16:28:08.041417Z",
+          "schemaVersion": "0.1",
+          "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+        },
+        "usage": {
+          "records": 54,
+          "recordBytes": 76870,
+          "approvalRecords": 0
+        }
+      }
+    },
+    {
+      "name": "lifecycle_new",
+      "operation": "lifecycle",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_wire_22e9abd18d"
+      },
+      "requestId": "request_native_wire",
+      "intent": {
+        "eventId": "event_wire_22e9abd18d",
+        "kind": "withdrawn",
+        "selection": {
+          "selectionId": "selection_wire_22e9abd18d",
+          "selectionVersionId": "version_wire_22e9abd18d_a",
+          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+          "installationId": "installation_wire_22e9abd18d",
+          "gateTargetId": "gate_wire_22e9abd18d"
+        },
+        "reason": "Withdraw the exact native wire fixture."
+      },
+      "queries": [
+        0, 1, 2, 3, 4, 5, 22, 23, 15, 10, 11, 12, 13, 16, 17, 18, 19, 24, 25, 26, 27, 28, 29, 13,
+        30, 31, 26, 27, 28, 29, 13, 32, 33, 34, 35
+      ],
+      "result": {
+        "created": true,
+        "record": {
+          "eventId": "event_wire_22e9abd18d",
+          "selection": {
+            "selectionId": "selection_wire_22e9abd18d",
+            "selectionVersionId": "version_wire_22e9abd18d_a",
+            "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+            "installationId": "installation_wire_22e9abd18d",
+            "gateTargetId": "gate_wire_22e9abd18d"
+          },
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "reason": "Withdraw the exact native wire fixture.",
+          "actorPrincipalId": "user_wire_22e9abd18d",
+          "occurredAt": "2026-10-19T16:28:08.210192Z",
+          "schemaVersion": "0.1",
+          "kind": "withdrawn"
+        },
+        "publication": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "subject": {
+            "kind": "release_policy_selection_lifecycle",
+            "eventId": "event_wire_22e9abd18d",
+            "selection": {
+              "selectionId": "selection_wire_22e9abd18d",
+              "selectionVersionId": "version_wire_22e9abd18d_a",
+              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+              "installationId": "installation_wire_22e9abd18d",
+              "gateTargetId": "gate_wire_22e9abd18d"
+            },
+            "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+          },
+          "operation": "manage_selection",
+          "actor": {
+            "principalId": "user_wire_22e9abd18d",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-19T16:28:07.951Z",
+            "credentialId": "session_wire_22e9abd18d",
+            "requestId": "request_native_wire"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_wire_22e9abd18d",
+            "bindingId": "binding_wire_22e9abd18d"
+          },
+          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+          "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
+          "issuedAt": "2026-10-19T16:28:08.210192Z",
+          "schemaVersion": "0.1",
+          "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+        },
+        "usage": {
+          "records": 143,
+          "recordBytes": 129126,
+          "approvalRecords": 0
+        }
+      }
+    },
+    {
+      "name": "lifecycle_retry",
+      "operation": "lifecycle",
+      "scope": {
+        "environmentId": "env_staging",
+        "projectId": "project_checkout",
+        "tenantId": "tenant_wire_22e9abd18d"
+      },
+      "requestId": "request_native_wire",
+      "intent": {
+        "eventId": "event_wire_22e9abd18d",
+        "kind": "withdrawn",
+        "selection": {
+          "selectionId": "selection_wire_22e9abd18d",
+          "selectionVersionId": "version_wire_22e9abd18d_a",
+          "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+          "installationId": "installation_wire_22e9abd18d",
+          "gateTargetId": "gate_wire_22e9abd18d"
+        },
+        "reason": "Withdraw the exact native wire fixture."
+      },
+      "queries": [0, 1, 2, 3, 4, 5, 36, 31, 37, 31, 26, 27, 28, 29, 13, 32, 33, 34, 35],
+      "result": {
+        "created": false,
+        "record": {
+          "eventId": "event_wire_22e9abd18d",
+          "selection": {
+            "selectionId": "selection_wire_22e9abd18d",
+            "selectionVersionId": "version_wire_22e9abd18d_a",
+            "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+            "installationId": "installation_wire_22e9abd18d",
+            "gateTargetId": "gate_wire_22e9abd18d"
+          },
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "reason": "Withdraw the exact native wire fixture.",
+          "actorPrincipalId": "user_wire_22e9abd18d",
+          "occurredAt": "2026-10-19T16:28:08.210192Z",
+          "schemaVersion": "0.1",
+          "kind": "withdrawn"
+        },
+        "publication": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_wire_22e9abd18d"
+          },
+          "subject": {
+            "kind": "release_policy_selection_lifecycle",
+            "eventId": "event_wire_22e9abd18d",
+            "selection": {
+              "selectionId": "selection_wire_22e9abd18d",
+              "selectionVersionId": "version_wire_22e9abd18d_a",
+              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+              "installationId": "installation_wire_22e9abd18d",
+              "gateTargetId": "gate_wire_22e9abd18d"
+            },
+            "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+          },
+          "operation": "manage_selection",
+          "actor": {
+            "principalId": "user_wire_22e9abd18d",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-19T16:28:07.951Z",
+            "credentialId": "session_wire_22e9abd18d",
+            "requestId": "request_native_wire"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_wire_22e9abd18d",
+            "bindingId": "binding_wire_22e9abd18d"
+          },
+          "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+          "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
+          "issuedAt": "2026-10-19T16:28:08.210192Z",
+          "schemaVersion": "0.1",
+          "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+        },
+        "usage": {
+          "records": 64,
+          "recordBytes": 77460,
+          "approvalRecords": 0
+        }
+      }
+    }
+  ],
+  "observations": [
+    {
+      "sql": "SELECT public.proofstack_release_installer_context($1::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}"
+      ],
+      "rows": [
+        {
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT to_regclass('public.proofstack_schema_migrations')::text AS ledger",
+      "rows": [
+        {
+          "ledger": "proofstack_schema_migrations"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT id, checksum FROM public.proofstack_schema_migrations ORDER BY id",
+      "rows": [
+        {
+          "id": "0001_evidence_store",
+          "checksum": "443638e6f89e1d5e1c6796883fea259708f1121a815b664a4e8423204c4b1960"
+        },
+        {
+          "id": "0002_outbox_delivery",
+          "checksum": "10526e612c2fddb46d8db02129ece3e932566ccbc427319cee056edb0c500181"
+        },
+        {
+          "id": "0003_leased_consumer_receipts",
+          "checksum": "1144b269076211947c85e57b1bc812a8476ab8a0f40bd18b58da42ed7f0f338a"
+        },
+        {
+          "id": "0004_workload_identity",
+          "checksum": "a94cf7fb70cd0598827c07e224f8e479b639343a0589ef2823cc4162f90a25a8"
+        },
+        {
+          "id": "0005_oidc_browser_identity",
+          "checksum": "6571ab193288a19c8a2d10be249e6d115b0e947dd1eae176da64829c39c7e570"
+        },
+        {
+          "id": "0006_repair_oidc_transaction_format",
+          "checksum": "10beda9ca352ec09cd83ef7e2daea6d958124636d88ab14beb03e91a48aae7b5"
+        },
+        {
+          "id": "0007_saturate_api_key_use_count",
+          "checksum": "7724b70e5f5b2ece5c5be560db1844735c8a71f6db8eba30587174a2281ab42d"
+        },
+        {
+          "id": "0008_artifact_capabilities",
+          "checksum": "9b24d2cb332a68bde7c2f9c835ef8cd29db04beedc92d605e3224a2713a89ed6"
+        },
+        {
+          "id": "0009_artifact_catalog",
+          "checksum": "d22c9aec0ab3e87317f6912f9eeb0671a0fae75b47916f10b9aaaa48e3f57c8c"
+        },
+        {
+          "id": "0010_force_identity_tenant_rls",
+          "checksum": "335217d9798c26690780142e0f811aa10d788d291517778f31986f4953e1b674"
+        },
+        {
+          "id": "0011_dataset_capabilities",
+          "checksum": "abf0370d16a585b2400118c97b3a2c82730d78253019f3df11a6fbd6e7c82588"
+        },
+        {
+          "id": "0012_pin_evidence_event_collation",
+          "checksum": "7f1c098c9f31d007b552bf9d82b583fdfe0a7baafee4d68f9db143d7aa2ce398"
+        },
+        {
+          "id": "0013_regression_catalog",
+          "checksum": "07cb4b0564985b6498b434f118d724b92d48f95de524d15f65b2da0bcbf6b2cf"
+        },
+        {
+          "id": "0014_recorded_interaction_fixtures",
+          "checksum": "c2af352a44947a84063de31d2e0de21793c406c925431d5dc3525defbfc3c117"
+        },
+        {
+          "id": "0015_expand_artifact_tombstone_trigger",
+          "checksum": "bcefd2ccb08946323849dee079769729f4356763bc46863c129531d8a186ad36"
+        },
+        {
+          "id": "0016_durable_replay_definitions",
+          "checksum": "bb22af3739678044a6c7a094e306c8b0873c822c736eb90b9c68d2710206c8ca"
+        },
+        {
+          "id": "0017_durable_replay_job_ledger",
+          "checksum": "6922c7974f7f1011d40768d2e90514b27cf36bb62eafcbbddc4b07f2b6f1f5fb"
+        },
+        {
+          "id": "0018_replay_job_control_authority",
+          "checksum": "daa91fc26afe6ad03ca5161278ff712bf9c372a18f9885af624780403e375a9e"
+        },
+        {
+          "id": "0019_replay_worker_lease_authority",
+          "checksum": "da9456fe90f158a2691effc696c80cdd99f7b650dcaa67f1b0ba0b92e9644b00"
+        },
+        {
+          "id": "0020_audited_replay_attempt_transitions",
+          "checksum": "0052659f43cde21492fdc41a41ef2e4de6ba4ed6b4abd1b9ba9d2b84fe1fe4d8"
+        },
+        {
+          "id": "0021_replay_worker_completion_authority",
+          "checksum": "25542ebf490d28116a372ac5ae171c226fffa160a066dee0db56e8959139db0a"
+        },
+        {
+          "id": "0022_replay_worker_cancellation_acknowledgement",
+          "checksum": "8525765a84ff5f2e4ef9e3c403d8a8617e4bb4d84c5bd8360046bfdcc82a46bc"
+        },
+        {
+          "id": "0023_replay_estimated_budget_measurement",
+          "checksum": "0629a436a49da97d5d2bfa4c0401911b0c333f5575c8092cb753eeeedf9e462c"
+        },
+        {
+          "id": "0024_replay_budget_work_boundary_kinds",
+          "checksum": "e4cdead6de5ca2c9beac47527fc2620f9cdea3530a42a0083cb53992d6d17f75"
+        },
+        {
+          "id": "0025_replay_worker_budget_reservation_authority",
+          "checksum": "59d30f790c660c6a08ad675da2d8cf8ca59fc08f76312fa5d6c3f27563a2bf88"
+        },
+        {
+          "id": "0026_replay_worker_budget_reconciliation_authority",
+          "checksum": "a1c960e51cccd3b2d4814e963ad9ea5a17e76fa19d579777ecb14dd6a0a8ee48"
+        },
+        {
+          "id": "0027_replay_worker_execution_observation_authority",
+          "checksum": "543adc1046ad839c79f21b50a8335739ecf35dcb141a494723d22557c457060a"
+        },
+        {
+          "id": "0028_replay_worker_usage_observation_authority",
+          "checksum": "d98a03c93d4309c52dc42407cb0675291a239ac0a12494fcc87630cc6457296b"
+        },
+        {
+          "id": "0029_normalize_replay_retry_policy",
+          "checksum": "d547e6edc9b2a2eedcca40f7d3a64747a3f2a4da0457330eb1b90ced8e7fab65"
+        },
+        {
+          "id": "0030_reconcile_expired_replay_leases",
+          "checksum": "7b34551b7d2a429bb7367218cd76e9407cc16939b614376a4d0cc481f35a4652"
+        },
+        {
+          "id": "0031_enforce_replay_reclaim_deadlines",
+          "checksum": "e2fddc1b91316b2153ca8837f8755cd97e35db8febb8bb6fd1a457210f7ec82a"
+        },
+        {
+          "id": "0032_record_replay_subprocess_isolation",
+          "checksum": "d00fe14431cce160f074d113f366fb55607339a2feb1101e51b9aa1367696a5d"
+        },
+        {
+          "id": "0033_prioritize_replay_cancellation_over_budget",
+          "checksum": "22a658d7e6cc8f0c909167e276399040ad4a76836af99467000d53a79e159b72"
+        },
+        {
+          "id": "0034_replay_job_snapshot_authority",
+          "checksum": "1d1bb3970acbf92888373c3f2cf7bea0ff44bacddd76676e9c143b5eeb50ea8f"
+        },
+        {
+          "id": "0035_invalidate_restored_replay_leases",
+          "checksum": "d3112e6fb2e208dacb99aff6564d99317583ff916a315dd294f84bdc5d9ba370"
+        },
+        {
+          "id": "0036_evaluation_management_capability",
+          "checksum": "d5356a32a4171962470d4e339a7c6c5abbc25c5adb0388d76d598345e9cb3f6f"
+        },
+        {
+          "id": "0037_evaluation_graph_registry",
+          "checksum": "2a3caced114acbd306c0595ac0313ae092cbf6b20e1e99fbc38351b77968abec"
+        },
+        {
+          "id": "0038_align_evaluation_execution_authority",
+          "checksum": "8f68941e4ee855cf6f31f0e04f0c10cbc3ba939631c3aea3a8eb4a795a097d21"
+        },
+        {
+          "id": "0039_ignore_evaluation_selectors_in_lineage",
+          "checksum": "42a22119e686ada2fde957da148578f36758716d5ec2a24da16320dd19001211"
+        },
+        {
+          "id": "0040_model_assurance_capabilities",
+          "checksum": "4641c2985ad4d7988f443b69dd508ffcd7fce8adebd125132981de2299e75a09"
+        },
+        {
+          "id": "0041_model_assurance_graph",
+          "checksum": "99c1eb85269d2a330ae3ea80a2bd82d9214602140fa9e19abad23c985c8f309b"
+        },
+        {
+          "id": "0042_comparison_capabilities",
+          "checksum": "b35fff354089d162423f76f852ea9187539a0e01087933e48f6619350856831f"
+        },
+        {
+          "id": "0043_comparison_graph",
+          "checksum": "9fd26c1b735230a71d0e2270bb8fef2037022600153a6e2623e1c9110d247400"
+        },
+        {
+          "id": "0044_source_reviewer_qualifications",
+          "checksum": "6ec355a845220533c857a6731c8a084e78557e2816601b16c79c46768ed6a79a"
+        },
+        {
+          "id": "0045_release_candidate_graph",
+          "checksum": "419368c5958746c171e0f103ce830d9baa8005b17c853923c2095baf3eab2c73"
+        },
+        {
+          "id": "0046_policy_author_capabilities",
+          "checksum": "5c1749a315171e7824b48073e69bc6683fab8086adbc51943f0635b9f3e96aca"
+        },
+        {
+          "id": "0047_release_policy_graph",
+          "checksum": "3a1ce17880c8bde858604b10769a058dcecfbeb6ba2de25cbb6ffe4311bad98c"
+        },
+        {
+          "id": "0048_allow_policy_withdrawal",
+          "checksum": "bcfbed2afde44ca9a62d5fa9208861fc21d6bf8bad43fbc781d55a9a8e96a26f"
+        },
+        {
+          "id": "0049_align_policy_lifecycle_reason_bounds",
+          "checksum": "44701b24e7b26ae65aba26836deba84629cfa2aa211610ebc770804617b504a4"
+        },
+        {
+          "id": "0050_policy_evaluation_source_locks",
+          "checksum": "f10e8e576d09bbfdfb159e78073a4c5a8fb4be9e6d23fa3464cfc2dc381bb830"
+        },
+        {
+          "id": "0051_artifact_timestamp_integrity",
+          "checksum": "884a3a4f31106090f5a6944f84c9852b3508c18b412afbd2e4bf7a5e031b442f"
+        },
+        {
+          "id": "0052_policy_evaluation_metadata_barrier",
+          "checksum": "9c09c0cf1646244cc3758b8412137e5b2a8e135831bab5b60a5027d08d6126d8"
+        },
+        {
+          "id": "0053_model_assurance_scalar_integrity",
+          "checksum": "8eadd6b36230e54ac5872de444cf43fd8973f5791f667a50999ad69c6ef3e745"
+        },
+        {
+          "id": "0054_policy_evaluation_capabilities",
+          "checksum": "e1ef906cebafac160642ce12581a6990f5e8cfc3527746b2d720dfdc575c403b"
+        },
+        {
+          "id": "0055_policy_evaluation_job_ledger",
+          "checksum": "dd539f37a4f8101864956b45f2be95ae1a0c7b1b6d7e6dab6e029e07afac62ef"
+        },
+        {
+          "id": "0056_policy_evaluation_exact_history_reads",
+          "checksum": "a3524aa0861da061ff706bcfdfb561a704abf35cea9f0fdb1c6a22b874bca69c"
+        },
+        {
+          "id": "0057_policy_evaluation_io_admission",
+          "checksum": "05268c58d8879b1530f55c8fadb9ff9b81159a87b69224df0abd82e1963be98b"
+        },
+        {
+          "id": "0058_policy_evaluation_snapshot_storage",
+          "checksum": "43a11dee9cdafbf04ae7f29de72414597d4a7cef9eaabde19ae1fd34dcb75042"
+        },
+        {
+          "id": "0059_policy_evaluation_computation_admission",
+          "checksum": "0303758798a554848c3b8c8bd484c1c5914b72e25fded700da25aaac48ee5e2b"
+        },
+        {
+          "id": "0060_policy_evaluation_result_storage",
+          "checksum": "bfee818251f1147ba2851a1a1a615b2f5fe829c33d6e170be09625c3c05c60f4"
+        },
+        {
+          "id": "0061_policy_acquisition_allowances",
+          "checksum": "e2352691d162ff0b5b6e945c36df34124037a82be1c9a3ad81c555bc140f483b"
+        },
+        {
+          "id": "0062_release_authority_capabilities",
+          "checksum": "2c03cb0a1c91bad80342fdcc6701f60e7b6e7e8526003a2853a8c33590660b29"
+        },
+        {
+          "id": "0063_policy_evaluation_request_job_reader",
+          "checksum": "511fdd2feb13890f2eb9fdfbcdb96fdd8a01d9fa2739779bdd8d7c8ebd6a173a"
+        },
+        {
+          "id": "0064_release_oidc_source_locks",
+          "checksum": "bae109c4c0889c2a71155291c204cd18ace598acfdc52b3a7fc0f89b53795f74"
+        },
+        {
+          "id": "0065_release_policy_selection_storage",
+          "checksum": "a799cb2844fd0c427c7289092930486d6a8d7bb7b75c48524491120bd77bb4b1"
+        },
+        {
+          "id": "0066_release_reviewer_authority_storage",
+          "checksum": "5fc08735264b9f813b216d8e73ec731e46716d84763987d1a4a287b70a9612c5"
+        },
+        {
+          "id": "0067_release_approval_storage",
+          "checksum": "903fa3d74d2bec32dd078dfb58ba466a8d89875bf08187ca0549eb191d8d9f32"
+        },
+        {
+          "id": "0068_release_service_credentials",
+          "checksum": "19824bea0e785182b80cacefa2a1e6ef4e2cea0883267f8cc819a856a2bd326b"
+        },
+        {
+          "id": "0069_release_decision_input_storage",
+          "checksum": "91fe6d52d8f12cc813dcf0baa04a90e1473e5527b6ae35850fcbcc90ed6df0ff"
+        },
+        {
+          "id": "0070_release_decision_request_reservations",
+          "checksum": "63e9d3fda16fe3c1f56ad48de9e181727a33f8c69a7757700c6e2207bce04c09"
+        },
+        {
+          "id": "0071_authenticated_release_selection_publication",
+          "checksum": "36999c35b9f24bc89c8ad2ace2c45555b72d353cbb488ac6997aa14c22b8f79c"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT p.proname AS name,p.prosrc AS body,p.prosecdef AS definer,p.proconfig AS config,l.lanname AS language,p.provolatile AS volatility\n       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang\n       WHERE n.nspname='public' AND p.proname=ANY($1::text[]) ORDER BY p.proname COLLATE \"C\"",
+      "values": [
+        [
+          "proofstack_release_installer_context",
+          "proofstack_recheck_release_installer",
+          "proofstack_guard_selection_publication",
+          "proofstack_verify_selection_publication",
+          "proofstack_begin_authenticated_selection",
+          "proofstack_begin_authenticated_selection_lifecycle",
+          "proofstack_read_selection_publication_part",
+          "proofstack_finish_selection_publication",
+          "proofstack_read_installer_projection"
+        ]
+      ],
+      "rows": [
+        {
+          "name": "proofstack_begin_authenticated_selection",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();epoch text;\n  auth jsonb;prior public.proofstack_release_policy_selections;root public.proofstack_release_selection_roots;\n  proof public.proofstack_release_selection_publications;policy public.proofstack_release_policies;\n  item jsonb;body jsonb;result jsonb;cut_key numeric;id text:=definition->>'selectionVersionId';\n  observations jsonb:='[]'::jsonb;\nBEGIN\n  epoch:=public.proofstack_release_installer_context(expected_scope);\n  auth:=public.proofstack_recheck_release_installer(scoped,actor);\n  IF definition->'scope' IS DISTINCT FROM scoped OR definition->>'issuerPrincipalId' IS DISTINCT FROM actor->>'principalId'\n    OR id IS NULL OR id !~ '^[a-z][a-z0-9_]{2,63}$'\n    OR canonical::jsonb IS DISTINCT FROM jsonb_build_object('scope',scoped,'definition',definition,\n      'definitionDomain','proofstack.release-policy-selection.v1',\n      'encodingVersion','proofstack.release-policy-selection-definition-jcs.v1','schemaVersion','0.1') THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Installer definition must bind its actual scope and actor';\n  END IF;\n  SELECT * INTO prior FROM public.proofstack_release_policy_selections WHERE tenant_id=scoped->>'tenantId' AND version_id=id;\n  IF FOUND THEN\n    SELECT * INTO proof FROM public.proofstack_release_selection_publications WHERE tenant_id=scoped->>'tenantId'\n      AND project_id=scoped->>'projectId' AND environment_id=scoped->>'environmentId'\n      AND source_kind='release_policy_selection' AND source_id=id;\n    IF NOT FOUND OR NOT proof.completed THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:legacy_origin_unproven'; END IF;\n    IF prior.project_id<>scoped->>'projectId' OR prior.environment_id<>scoped->>'environmentId'\n      OR prior.record-ARRAY['schemaVersion','definitionSha256','publishedAt','publishedByPrincipalId'] IS DISTINCT FROM definition THEN\n      RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_selection:version_conflict';\n    END IF;\n    RETURN jsonb_build_object('created',false,'sourceKind','release_policy_selection','sourceId',id,\n      'identityObservation',auth,'policyObservations',observations);\n  END IF;\n  SELECT * INTO root FROM public.proofstack_release_selection_roots WHERE tenant_id=scoped->>'tenantId'\n    AND (selection_id=definition->>'selectionId' OR (installation_id=definition->>'installationId' AND gate_target_id=definition->>'gateTargetId'));\n  IF FOUND AND NOT EXISTS(SELECT 1 FROM public.proofstack_release_selection_publications p\n    WHERE p.tenant_id=root.tenant_id AND p.project_id=root.project_id AND p.environment_id=root.environment_id\n      AND p.source_kind='release_policy_selection' AND p.source_id=root.root_version_id AND p.completed) THEN\n    RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:legacy_target_unproven';\n  END IF;\n  IF definition ? 'predecessor' AND NOT EXISTS(SELECT 1 FROM public.proofstack_release_selection_publications p\n    WHERE p.tenant_id=scoped->>'tenantId' AND p.project_id=scoped->>'projectId' AND p.environment_id=scoped->>'environmentId'\n      AND p.source_kind='release_policy_selection' AND p.source_id=definition#>>'{predecessor,selectionVersionId}' AND p.completed) THEN\n    RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:legacy_parent_unproven';\n  END IF;\n  IF jsonb_typeof(definition->'policies') IS DISTINCT FROM 'array' OR jsonb_array_length(definition->'policies')>16 THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Complete finite installed policy inventory is required';\n  END IF;\n  FOR item IN SELECT value FROM jsonb_array_elements(definition->'policies') LOOP\n    SELECT * INTO policy FROM public.proofstack_release_policies WHERE tenant_id=scoped->>'tenantId'\n      AND project_id=scoped->>'projectId' AND environment_id=scoped->>'environmentId'\n      AND policy_version_id=item#>>'{policy,policyVersionId}';\n    IF NOT FOUND OR policy.policy_id IS DISTINCT FROM item#>>'{policy,policyId}'\n      OR policy.definition_sha256 IS DISTINCT FROM item#>>'{policy,definitionSha256}'\n      OR policy.mode IS DISTINCT FROM item->>'mode'\n      OR policy.record#>>'{installationBinding,installationId}' IS DISTINCT FROM definition->>'installationId' THEN\n      RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:policy_binding_invalid';\n    END IF;\n    observations:=observations||jsonb_build_array(jsonb_build_object('policyId',policy.policy_id,\n      'policyVersionId',policy.policy_version_id,'definitionSha256',policy.definition_sha256,'mode',policy.mode));\n  END LOOP;\n  -- Reinspect natural expiry/current credentials immediately at the native mutation cut.\n  auth:=public.proofstack_recheck_release_installer(scoped,actor);\n  cut_key:=public.proofstack_release_authority_time_key(auth->>'capturedAt');\n  IF public.proofstack_release_authority_time_key(definition->>'expiresAt')<=cut_key THEN\n    RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:selection_expired';\n  END IF;\n  FOR item IN SELECT value FROM jsonb_array_elements(definition->'policies') LOOP\n    SELECT * INTO STRICT policy FROM public.proofstack_release_policies WHERE tenant_id=scoped->>'tenantId'\n      AND project_id=scoped->>'projectId' AND environment_id=scoped->>'environmentId'\n      AND policy_version_id=item#>>'{policy,policyVersionId}';\n    IF public.proofstack_release_authority_time_key(policy.effective_at_lexical)>cut_key\n      OR public.proofstack_release_authority_time_key(policy.expires_at_lexical)<=cut_key\n      OR public.proofstack_release_authority_time_key(policy.published_at_lexical)>cut_key\n      OR EXISTS(SELECT 1 FROM public.proofstack_release_policy_lifecycle_events e\n        WHERE e.tenant_id=policy.tenant_id AND e.project_id=policy.project_id AND e.environment_id=policy.environment_id\n          AND e.policy_version_id=policy.policy_version_id AND e.occurred_at<= (auth->>'capturedAt')::timestamptz) THEN\n      RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:policy_not_current';\n    END IF;\n  END LOOP;\n  body:=definition||jsonb_build_object('schemaVersion','0.1',\n    'definitionSha256',encode(sha256(convert_to(canonical,'UTF8')),'hex'),\n    'publishedAt',auth->>'capturedAt','publishedByPrincipalId',actor->>'principalId');\n  result:=public.proofstack_store_release_policy_selection(body,canonical);\n  IF result->'created' IS DISTINCT FROM 'true'::jsonb OR result->'record' IS DISTINCT FROM body THEN\n    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Installer original publication receipt changed';\n  END IF;\n  INSERT INTO public.proofstack_release_selection_publications(tenant_id,project_id,environment_id,\n    source_kind,source_id,source_record,actor,identity_record,grant_record,credential_record,\n    issued_at_lexical,issued_at_key,origin_xid,origin_pid,origin_epoch)\n    VALUES(scoped->>'tenantId',scoped->>'projectId',scoped->>'environmentId','release_policy_selection',id,body,\n      actor,auth->'identity',auth->'grant',auth->'credential',auth->>'capturedAt',cut_key,txid_current(),pg_backend_pid(),epoch::bigint);\n  RETURN jsonb_build_object('created',true,'sourceKind','release_policy_selection','sourceId',id,\n    'identityObservation',auth,'policyObservations',observations);\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_begin_authenticated_selection_lifecycle",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();epoch text;auth jsonb;id text:=intent->>'eventId';\n  prior public.proofstack_release_selection_lifecycle;proof public.proofstack_release_selection_publications;\n  body jsonb;result jsonb;cut_key numeric;\nBEGIN\n  epoch:=public.proofstack_release_installer_context(expected_scope);\n  auth:=public.proofstack_recheck_release_installer(scoped,actor);\n  IF id IS NULL OR id !~ '^[a-z][a-z0-9_]{2,63}$' OR intent->>'kind' IS NULL OR intent->>'kind' NOT IN('withdrawn','superseded') THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Exact installer lifecycle intent is required';\n  END IF;\n  SELECT * INTO prior FROM public.proofstack_release_selection_lifecycle WHERE tenant_id=scoped->>'tenantId' AND event_id=id;\n  IF FOUND THEN\n    SELECT * INTO proof FROM public.proofstack_release_selection_publications WHERE tenant_id=scoped->>'tenantId'\n      AND project_id=scoped->>'projectId' AND environment_id=scoped->>'environmentId'\n      AND source_kind='release_policy_selection_lifecycle' AND source_id=id;\n    IF NOT FOUND OR NOT proof.completed THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:legacy_origin_unproven'; END IF;\n    IF prior.project_id<>scoped->>'projectId' OR prior.environment_id<>scoped->>'environmentId'\n      OR prior.record->>'actorPrincipalId' IS DISTINCT FROM actor->>'principalId'\n      OR prior.record-ARRAY['schemaVersion','scope','actorPrincipalId','occurredAt'] IS DISTINCT FROM intent THEN\n      RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_selection:event_conflict';\n    END IF;\n    RETURN jsonb_build_object('created',false,'sourceKind','release_policy_selection_lifecycle','sourceId',id,\n      'identityObservation',auth,'policyObservations','[]'::jsonb);\n  END IF;\n  IF NOT EXISTS(SELECT 1 FROM public.proofstack_release_selection_publications p WHERE p.tenant_id=scoped->>'tenantId'\n    AND p.project_id=scoped->>'projectId' AND p.environment_id=scoped->>'environmentId'\n    AND p.source_kind='release_policy_selection' AND p.source_id=intent#>>'{selection,selectionVersionId}' AND p.completed)\n    OR (intent->>'kind'='superseded' AND NOT EXISTS(SELECT 1 FROM public.proofstack_release_selection_publications p\n      WHERE p.tenant_id=scoped->>'tenantId' AND p.project_id=scoped->>'projectId' AND p.environment_id=scoped->>'environmentId'\n        AND p.source_kind='release_policy_selection' AND p.source_id=intent#>>'{successor,selectionVersionId}' AND p.completed)) THEN\n    RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:legacy_target_unproven';\n  END IF;\n  auth:=public.proofstack_recheck_release_installer(scoped,actor);\n  cut_key:=public.proofstack_release_authority_time_key(auth->>'capturedAt');\n  body:=intent||jsonb_build_object('scope',scoped,'schemaVersion','0.1','actorPrincipalId',actor->>'principalId','occurredAt',auth->>'capturedAt');\n  result:=public.proofstack_store_release_selection_lifecycle(body);\n  IF result->'created' IS DISTINCT FROM 'true'::jsonb OR result->'record' IS DISTINCT FROM body THEN\n    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Installer original lifecycle receipt changed';\n  END IF;\n  INSERT INTO public.proofstack_release_selection_publications(tenant_id,project_id,environment_id,\n    source_kind,source_id,source_record,actor,identity_record,grant_record,credential_record,\n    issued_at_lexical,issued_at_key,origin_xid,origin_pid,origin_epoch)\n    VALUES(scoped->>'tenantId',scoped->>'projectId',scoped->>'environmentId','release_policy_selection_lifecycle',id,body,\n      actor,auth->'identity',auth->'grant',auth->'credential',auth->>'capturedAt',cut_key,txid_current(),pg_backend_pid(),epoch::bigint);\n  RETURN jsonb_build_object('created',true,'sourceKind','release_policy_selection_lifecycle','sourceId',id,\n    'identityObservation',auth,'policyObservations','[]'::jsonb);\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_finish_selection_publication",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();value public.proofstack_release_selection_publications;\n  digest_value text;\nBEGIN\n  PERFORM public.proofstack_release_installer_context(expected_scope);\n  SELECT * INTO value FROM public.proofstack_release_selection_publications WHERE tenant_id=scoped->>'tenantId'\n    AND project_id=scoped->>'projectId' AND environment_id=scoped->>'environmentId' AND source_kind=kind AND source_id=id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='Pending installer publication not found'; END IF;\n  IF value.completed THEN\n    IF value.publication IS DISTINCT FROM profile OR value.canonical_utf8 IS DISTINCT FROM canonical\n      OR value.source_canonical_utf8 IS DISTINCT FROM source_canonical OR value.grant_canonical_utf8 IS DISTINCT FROM grant_canonical\n      OR value.credential_canonical_utf8 IS DISTINCT FROM credential_canonical THEN\n      RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='release_installer:publication_conflict';\n    END IF;\n    RETURN value.publication;\n  END IF;\n  IF value.origin_xid<>txid_current() OR value.origin_pid<>pg_backend_pid() THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Publication completion requires its original held transaction';\n  END IF;\n  UPDATE public.proofstack_release_selection_publications SET completed=true,publication=profile,canonical_utf8=canonical,\n    source_canonical_utf8=source_canonical,grant_canonical_utf8=grant_canonical,credential_canonical_utf8=credential_canonical\n    WHERE tenant_id=value.tenant_id AND source_kind=value.source_kind AND source_id=value.source_id;\n  digest_value:=encode(sha256(convert_to(canonical,'UTF8')),'hex');\n  INSERT INTO public.proofstack_outbox(tenant_id,aggregate_type,aggregate_id,event_type,payload,schema_version,created_at)\n    VALUES(value.tenant_id,'release_selection_publication','rsp_'||left(digest_value,60),'release.selection.authentication_recorded',\n      jsonb_build_object('recordKind','release_selection_publication','record',profile),'0.1',value.issued_at_lexical::timestamptz);\n  SET CONSTRAINTS ALL IMMEDIATE;\n  RETURN profile;\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_guard_selection_publication",
+          "body": "\nBEGIN\n  IF TG_OP='DELETE' THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Original publication provenance is immutable'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('proofstack.release-selection.v1',NEW.tenant_id)::text,0));\n  IF TG_OP='UPDATE' AND (OLD.completed OR NOT NEW.completed OR OLD.origin_xid<>txid_current() OR OLD.origin_pid<>pg_backend_pid()\n    OR to_jsonb(OLD)-ARRAY['completed','publication','canonical_utf8','source_canonical_utf8','grant_canonical_utf8','credential_canonical_utf8']\n      IS DISTINCT FROM to_jsonb(NEW)-ARRAY['completed','publication','canonical_utf8','source_canonical_utf8','grant_canonical_utf8','credential_canonical_utf8']) THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Publication completion cannot change original native preimages';\n  END IF;\n  RETURN NEW;\nEND; ",
+          "definer": false,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_read_installer_projection",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();material jsonb;bytes bytea;offset_value integer:=0;\n  digest_value text;records_value bigint;total integer;\nBEGIN\n  IF requested_id IS NULL OR requested_id !~ '^[a-z][a-z0-9_]{2,63}$' THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Exact owning projection identity is required';\n  END IF;\n  PERFORM public.proofstack_release_installer_context(expected_scope);\n  CASE requested_kind\n\n    WHEN 'policy_record' THEN\n      SELECT COALESCE(jsonb_agg(to_jsonb(q)),'[]'::jsonb) INTO material FROM (\nSELECT\n       policy.tenant_id,\n       policy.project_id,\n       policy.environment_id,\n       policy.policy_id,\n       policy.policy_version_id,\n       policy.schema_version,\n       policy.definition_sha256,\n       policy.semantic_version,\n       policy.mode,\n       policy.effective_at_lexical,\n       policy.expires_at_lexical,\n       policy.published_at_lexical,\n       policy.published_by_principal_id,\n       policy.source_count,\n       policy.counterevidence_count,\n       policy.rule_count,\n       policy.lineage_count,\n       policy.record,\n       resource.root_policy_version_id,\n       resource.root_definition_sha256,\n       (\n         SELECT root.policy_id\n         FROM public.proofstack_release_policies AS root\n         WHERE root.tenant_id = resource.tenant_id\n           AND root.project_id = resource.project_id\n           AND root.environment_id = resource.environment_id\n           AND root.policy_version_id = resource.root_policy_version_id\n           AND root.definition_sha256 = resource.root_definition_sha256\n       ) AS root_policy_id,\n       (\n         SELECT root.lineage_count\n         FROM public.proofstack_release_policies AS root\n         WHERE root.tenant_id = resource.tenant_id\n           AND root.project_id = resource.project_id\n           AND root.environment_id = resource.environment_id\n           AND root.policy_version_id = resource.root_policy_version_id\n           AND root.definition_sha256 = resource.root_definition_sha256\n       ) AS root_lineage_count,\n       lineage.parent_policy_version_id,\n       lineage.parent_definition_sha256,\n       COALESCE((\n         SELECT jsonb_agg(source.reference ORDER BY source.source_position)\n         FROM public.proofstack_release_policy_sources AS source\n         WHERE source.tenant_id = policy.tenant_id\n           AND source.project_id = policy.project_id\n           AND source.environment_id = policy.environment_id\n           AND source.policy_version_id = policy.policy_version_id\n           AND source.policy_definition_sha256 = policy.definition_sha256\n           AND source.collection = 'sources'\n       ), '[]'::jsonb) AS source_projections,\n       COALESCE((\n         SELECT jsonb_agg(source.reference ORDER BY source.source_position)\n         FROM public.proofstack_release_policy_sources AS source\n         WHERE source.tenant_id = policy.tenant_id\n           AND source.project_id = policy.project_id\n           AND source.environment_id = policy.environment_id\n           AND source.policy_version_id = policy.policy_version_id\n           AND source.policy_definition_sha256 = policy.definition_sha256\n           AND source.collection = 'counterevidence'\n       ), '[]'::jsonb) AS counterevidence_projections,\n       COALESCE((\n         SELECT jsonb_agg(rule.rule ORDER BY rule.rule_position)\n         FROM public.proofstack_release_policy_rules AS rule\n         WHERE rule.tenant_id = policy.tenant_id\n           AND rule.project_id = policy.project_id\n           AND rule.environment_id = policy.environment_id\n           AND rule.policy_version_id = policy.policy_version_id\n           AND rule.policy_definition_sha256 = policy.definition_sha256\n       ), '[]'::jsonb) AS rule_projections,\n       COALESCE((\n         SELECT jsonb_agg(\n           jsonb_build_object(\n             'rulePosition', source.rule_position,\n             'sourcePosition', source.source_position,\n             'reference', source.reference\n           ) ORDER BY source.rule_position, source.source_position\n         )\n         FROM public.proofstack_release_policy_rule_sources AS source\n         WHERE source.tenant_id = policy.tenant_id\n           AND source.project_id = policy.project_id\n           AND source.environment_id = policy.environment_id\n           AND source.policy_version_id = policy.policy_version_id\n           AND source.policy_definition_sha256 = policy.definition_sha256\n       ), '[]'::jsonb) AS rule_source_projections\n     FROM public.proofstack_release_policies AS policy\n     JOIN public.proofstack_release_policy_registry AS registry\n       ON registry.tenant_id = policy.tenant_id\n      AND registry.project_id = policy.project_id\n      AND registry.environment_id = policy.environment_id\n      AND registry.policy_version_id = policy.policy_version_id\n      AND registry.schema_version = policy.schema_version\n      AND registry.definition_sha256 = policy.definition_sha256\n     JOIN public.proofstack_release_policy_resources AS resource\n       ON resource.tenant_id = policy.tenant_id\n      AND resource.project_id = policy.project_id\n      AND resource.environment_id = policy.environment_id\n      AND resource.policy_id = policy.policy_id\n     LEFT JOIN public.proofstack_release_policy_lineage AS lineage\n       ON lineage.tenant_id = policy.tenant_id\n      AND lineage.project_id = policy.project_id\n      AND lineage.environment_id = policy.environment_id\n      AND lineage.child_policy_version_id = policy.policy_version_id\n      AND lineage.child_definition_sha256 = policy.definition_sha256\n     WHERE policy.tenant_id = (scoped->>'tenantId')\n       AND policy.project_id = (scoped->>'projectId')\n       AND policy.environment_id = (scoped->>'environmentId')\n       AND policy.policy_version_id = requested_id\n      ) q;\n    WHEN 'policy_presence' THEN\n      SELECT COALESCE(jsonb_agg(to_jsonb(q)),'[]'::jsonb) INTO material FROM (\nSELECT EXISTS (\n       SELECT 1 FROM public.proofstack_release_policies\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND policy_version_id=requested_id\n     ) AS retained_policy_body, EXISTS (\n       SELECT 1 FROM public.proofstack_release_policy_registry\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND policy_version_id=requested_id\n     ) OR EXISTS (\n       SELECT 1 FROM public.proofstack_release_policy_lineage\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND child_policy_version_id=requested_id\n     ) OR EXISTS (\n       SELECT 1 FROM public.proofstack_release_policy_resources\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND root_policy_version_id=requested_id\n     ) OR EXISTS (\n       SELECT 1 FROM public.proofstack_release_policy_sources\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND policy_version_id=requested_id\n     ) OR EXISTS (\n       SELECT 1 FROM public.proofstack_release_policy_rules\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND policy_version_id=requested_id\n     ) OR EXISTS (\n       SELECT 1 FROM public.proofstack_release_policy_rule_sources\n       WHERE tenant_id=(scoped->>'tenantId') AND project_id=(scoped->>'projectId') AND environment_id=(scoped->>'environmentId') AND policy_version_id=requested_id\n     ) AS retained_policy_storage\n      ) q;\n    WHEN 'policy_lifecycle' THEN\n      SELECT COALESCE(jsonb_agg(to_jsonb(q)),'[]'::jsonb) INTO material FROM (\nSELECT tenant_id, project_id, environment_id, event_id, schema_version, kind,\n       policy_id, policy_version_id, policy_definition_sha256,\n       successor_policy_id, successor_policy_version_id, successor_definition_sha256,\n       actor_principal_id, occurred_at_lexical, reason, record\n     FROM public.proofstack_release_policy_lifecycle_events\n     WHERE tenant_id = (scoped->>'tenantId') AND project_id = (scoped->>'projectId') AND environment_id = (scoped->>'environmentId') AND event_id = requested_id\n      ) q;\n    WHEN 'policy_events' THEN\n      SELECT COALESCE(jsonb_agg(to_jsonb(q)),'[]'::jsonb) INTO material FROM (\nSELECT tenant_id, project_id, environment_id, event_id, schema_version, kind,\n       policy_id, policy_version_id, policy_definition_sha256,\n       successor_policy_id, successor_policy_version_id, successor_definition_sha256,\n       actor_principal_id, occurred_at_lexical, reason, record\n     FROM public.proofstack_release_policy_lifecycle_events\n     WHERE tenant_id = (scoped->>'tenantId') AND project_id = (scoped->>'projectId') AND environment_id = (scoped->>'environmentId')\n       AND policy_version_id = requested_id\n     ORDER BY occurred_at ASC, event_id ASC\n      ) q;\n    WHEN 'selection_view' THEN\n      SELECT COALESCE(jsonb_agg(to_jsonb(q)),'[]'::jsonb) INTO material FROM (\nSELECT to_jsonb(v) || jsonb_build_object('effective_at_key',v.effective_at_key::text,'expires_at_key',v.expires_at_key::text,'published_at_key',v.published_at_key::text) AS version, to_jsonb(r) AS root,\n  to_jsonb(rv) || jsonb_build_object('effective_at_key',rv.effective_at_key::text,'expires_at_key',rv.expires_at_key::text,'published_at_key',rv.published_at_key::text) AS root_version, to_jsonb(pv) || jsonb_build_object('effective_at_key',pv.effective_at_key::text,'expires_at_key',pv.expires_at_key::text,'published_at_key',pv.published_at_key::text) AS predecessor,\n  (SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.ordinal),'[]'::jsonb)\n    FROM public.proofstack_release_selection_policies p WHERE p.tenant_id=v.tenant_id AND p.version_id=v.version_id) AS policies,\n  (SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.ordinal),'[]'::jsonb)\n    FROM public.proofstack_release_selection_publishers p WHERE p.tenant_id=v.tenant_id AND p.version_id=v.version_id) AS publishers,\n  (SELECT COALESCE(jsonb_agg(jsonb_build_object('eventType',o.event_type,'schemaVersion',o.schema_version,\n    'payload',o.payload,'timeMatches',o.created_at=v.published_at_lexical::timestamptz)),'[]'::jsonb)\n    FROM public.proofstack_outbox o WHERE o.tenant_id=v.tenant_id AND o.aggregate_type='release_policy_selection' AND o.aggregate_id=v.version_id) AS intents\n  FROM public.proofstack_release_policy_selections v\n  LEFT JOIN public.proofstack_release_selection_roots r ON r.tenant_id=v.tenant_id AND r.selection_id=v.selection_id\n  LEFT JOIN public.proofstack_release_policy_selections rv ON rv.tenant_id=r.tenant_id AND rv.version_id=r.root_version_id\n  LEFT JOIN public.proofstack_release_policy_selections pv ON pv.tenant_id=v.tenant_id AND pv.version_id=v.parent_version_id\n  WHERE v.tenant_id=(scoped->>'tenantId') AND v.project_id=(scoped->>'projectId') AND v.environment_id=(scoped->>'environmentId') AND v.version_id=requested_id\n      ) q;\n    WHEN 'selection_event_view' THEN\n      SELECT COALESCE(jsonb_agg(to_jsonb(q)),'[]'::jsonb) INTO material FROM (\nSELECT to_jsonb(e)||jsonb_build_object('occurred_at_key',e.occurred_at_key::text) AS event,\n  (SELECT COALESCE(jsonb_agg(jsonb_build_object('eventType',o.event_type,'schemaVersion',o.schema_version,\n    'payload',o.payload,'timeMatches',o.created_at=e.occurred_at_lexical::timestamptz)),'[]'::jsonb)\n    FROM public.proofstack_outbox o WHERE o.tenant_id=e.tenant_id AND o.aggregate_type='release_policy_selection_lifecycle' AND o.aggregate_id=e.event_id) AS intents\n  FROM public.proofstack_release_selection_lifecycle e\n  WHERE e.tenant_id=(scoped->>'tenantId') AND e.project_id=(scoped->>'projectId') AND e.environment_id=(scoped->>'environmentId') AND e.event_id=requested_id\n      ) q;\n    ELSE RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Unsupported owning installer projection';\n  END CASE;\n  bytes:=convert_to(material::text,'UTF8');total:=octet_length(bytes);\n  IF total>16777216 THEN RAISE EXCEPTION USING ERRCODE='54000',MESSAGE='Owning source projection byte admission exhausted'; END IF;\n  -- Conservatively count every retained object, including repeated normalized witnesses.\n  SELECT count(*) INTO records_value FROM jsonb_path_query(material,'strict $.** ? (@.type() == \"object\")');\n  records_value:=GREATEST(records_value,1);\n  IF records_value>10000 THEN RAISE EXCEPTION USING ERRCODE='54000',MESSAGE='Owning source projection record admission exhausted'; END IF;\n  digest_value:=encode(sha256(bytes),'hex');\n  WHILE offset_value<total LOOP\n    RETURN NEXT jsonb_build_object('scope',scoped,'projection',requested_kind,'offset',offset_value,\n      'totalBytes',total,'sha256',digest_value,'records',CASE WHEN offset_value=0 THEN records_value ELSE 0 END,\n      'chunkBase64',replace(encode(substring(bytes FROM offset_value+1 FOR 65536),'base64'),chr(10),''));\n    offset_value:=offset_value+65536;\n  END LOOP;\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_read_selection_publication_part",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();value public.proofstack_release_selection_publications;\nBEGIN\n  IF expected_scope IS DISTINCT FROM scoped OR current_setting('transaction_isolation')<>'read committed'\n    OR kind IS NULL OR kind NOT IN('release_policy_selection','release_policy_selection_lifecycle')\n    OR id IS NULL OR id !~ '^[a-z][a-z0-9_]{2,63}$'\n    OR part IS NULL OR part NOT IN('source','grant','credential','header','source_encoding','grant_encoding','credential_encoding','publication_encoding') THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Exact publication read scope/part is required';\n  END IF;\n  PERFORM public.proofstack_release_installer_context(expected_scope);\n  IF NOT public.proofstack_try_lock_release_selection(scoped) THEN\n    RAISE EXCEPTION USING ERRCODE='55P03',MESSAGE='Publication read guard is contended';\n  END IF;\n  SELECT * INTO value FROM public.proofstack_release_selection_publications WHERE tenant_id=scoped->>'tenantId'\n    AND project_id=scoped->>'projectId' AND environment_id=scoped->>'environmentId' AND source_kind=kind AND source_id=id;\n  IF NOT FOUND THEN RETURN NULL; END IF;\n  CASE part\n    WHEN 'source' THEN RETURN jsonb_build_object('kind',kind,'record',value.source_record);\n    WHEN 'grant' THEN RETURN value.grant_record;\n    WHEN 'credential' THEN RETURN value.credential_record;\n    WHEN 'source_encoding' THEN RETURN to_jsonb(value.source_canonical_utf8);\n    WHEN 'grant_encoding' THEN RETURN to_jsonb(value.grant_canonical_utf8);\n    WHEN 'credential_encoding' THEN RETURN to_jsonb(value.credential_canonical_utf8);\n    WHEN 'publication_encoding' THEN RETURN to_jsonb(value.canonical_utf8);\n    ELSE RETURN jsonb_build_object('completed',value.completed,'actor',value.actor,'identity',value.identity_record,\n      'issuedAt',value.issued_at_lexical,'publication',value.publication,'originEpoch',value.origin_epoch::text,\n      'canonicalIntent',value.completed AND EXISTS(SELECT 1 FROM public.proofstack_outbox o\n        WHERE o.tenant_id=value.tenant_id AND o.aggregate_type='release_selection_publication'\n          AND o.aggregate_id='rsp_'||left(value.publication->>'definitionSha256',60)\n          AND o.event_type='release.selection.authentication_recorded' AND o.schema_version='0.1'\n          AND o.payload=jsonb_build_object('recordKind','release_selection_publication','record',value.publication)\n          AND o.created_at=value.issued_at_lexical::timestamptz));\n  END CASE;\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_recheck_release_installer",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();\n  session_value public.proofstack_browser_sessions;binding_value public.proofstack_oidc_bindings;\n  binding_id_value text;cut timestamptz;at_text text;identity_value jsonb;grant_value jsonb;credential_value jsonb;\n  allowed boolean;\nBEGIN\n  PERFORM public.proofstack_release_installer_context(expected_scope);\n  IF scoped IS DISTINCT FROM expected_scope OR actor->>'principalType' IS DISTINCT FROM 'user'\n    OR actor->>'authenticationMethod' IS DISTINCT FROM 'oidc'\n    OR actor->>'credentialId' IS NULL OR actor->>'principalId' IS NULL\n    OR actor->>'requestId' IS NULL OR length(actor->>'requestId') NOT BETWEEN 1 AND 128 THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Actual installer authentication is required';\n  END IF;\n  IF NOT public.proofstack_try_lock_release_oidc_source('oidc_session',actor->>'credentialId') THEN\n    RAISE EXCEPTION USING ERRCODE='55P03',MESSAGE='Installer session guard is contended';\n  END IF;\n  SELECT binding_id INTO binding_id_value FROM public.proofstack_browser_sessions\n    WHERE tenant_id=scoped->>'tenantId' AND session_id=actor->>'credentialId';\n  IF NOT FOUND OR NOT public.proofstack_try_lock_release_oidc_source('oidc_binding',binding_id_value) THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Installer identity is unavailable';\n  END IF;\n  SELECT * INTO session_value FROM public.proofstack_browser_sessions\n    WHERE tenant_id=scoped->>'tenantId' AND session_id=actor->>'credentialId';\n  SELECT * INTO binding_value FROM public.proofstack_oidc_bindings\n    WHERE tenant_id=scoped->>'tenantId' AND binding_id=binding_id_value;\n  cut:=clock_timestamp();at_text:=to_char(cut AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"');\n  allowed:=binding_value.resource_scope->>'mode'='tenant' OR (\n    binding_value.resource_scope->>'mode'='restricted' AND EXISTS(\n      SELECT 1 FROM jsonb_array_elements(binding_value.resource_scope->'projects') p\n      WHERE p->>'projectId'=scoped->>'projectId' AND\n        (NOT (p ? 'environmentIds') OR p->'environmentIds' ? (scoped->>'environmentId'))));\n  IF session_value.binding_id IS DISTINCT FROM binding_id_value\n    OR binding_value.principal_id IS DISTINCT FROM actor->>'principalId'\n    OR binding_value.disabled_at IS NOT NULL OR allowed IS DISTINCT FROM true\n    OR NOT COALESCE('release:selection:manage'=ANY(binding_value.capabilities),false)\n    OR session_value.revoked_at IS NOT NULL OR session_value.use_count<1\n    OR cut<session_value.created_at OR cut>=session_value.absolute_expires_at OR cut>=session_value.idle_expires_at\n    OR actor->>'authenticatedAt' IS DISTINCT FROM to_char(session_value.created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Current installer authority was rejected';\n  END IF;\n  IF actor IS DISTINCT FROM jsonb_build_object('principalType','user','authenticationMethod','oidc',\n    'principalId',binding_value.principal_id,'credentialId',session_value.session_id,\n    'authenticatedAt',to_char(session_value.created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'),\n    'requestId',actor->>'requestId') THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Installer actor must be its exact native authentication receipt';\n  END IF;\n  identity_value:=jsonb_build_object('kind','oidc_binding','principalId',binding_value.principal_id,'bindingId',binding_id_value);\n  grant_value:=jsonb_build_object('identity',identity_value,'tenantId',scoped->>'tenantId',\n    'state','active','revision',binding_value.authorization_version,\n    'updatedAt',to_char(GREATEST(binding_value.updated_at,binding_value.disabled_at) AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n    'roles',(SELECT jsonb_agg(v ORDER BY v COLLATE \"C\") FROM unnest(binding_value.roles) v),\n    'capabilities',(SELECT jsonb_agg(v ORDER BY v COLLATE \"C\") FROM unnest(binding_value.capabilities) v),\n    'resourceScope',binding_value.resource_scope);\n  credential_value:=jsonb_build_object('schemaVersion','0.1','kind','oidc_session',\n    'tenantId',scoped->>'tenantId','principalId',binding_value.principal_id,'bindingId',binding_id_value,\n    'credentialId',session_value.session_id,\n    'createdAt',to_char(session_value.created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n    'absoluteExpiresAt',to_char(session_value.absolute_expires_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n    'idleExpiresAt',to_char(session_value.idle_expires_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n    'lastUsedAt',to_char(session_value.last_used_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),\n    'idleLifetimeSeconds',session_value.idle_lifetime_seconds,'useCount',session_value.use_count,\n    'revokedAt',NULL,'revocationReason',NULL);\n  RETURN jsonb_build_object('actor',actor,'identity',identity_value,'grant',grant_value,\n    'credential',credential_value,'capturedAt',at_text,\n    'bindingObservation',jsonb_build_object('credentialId',session_value.session_id,'bindingId',binding_id_value),\n    'guards',jsonb_build_array(jsonb_build_object('kind','oidc_session','id',session_value.session_id,'acquired',true),\n      jsonb_build_object('kind','oidc_binding','id',binding_id_value,'acquired',true)));\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_release_installer_context",
+          "body": "\nDECLARE scoped jsonb:=public.proofstack_release_selection_scope();role_value record;\nBEGIN\n  SELECT r.*,shobj_description(r.oid,'pg_authid') AS marker INTO role_value FROM pg_roles r WHERE r.rolname=session_user;\n  IF role_value.marker IS DISTINCT FROM 'proofstack-managed-runtime-role:v1:releaseAuthority'\n    OR NOT role_value.rolcanlogin OR role_value.rolsuper OR role_value.rolcreatedb OR role_value.rolcreaterole\n    OR role_value.rolreplication OR role_value.rolbypassrls OR role_value.rolinherit\n    OR EXISTS(SELECT 1 FROM pg_auth_members m WHERE m.member=role_value.oid OR m.roleid=role_value.oid) THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Dedicated unshared installer runtime role is required';\n  END IF;\n  IF scoped IS DISTINCT FROM expected_scope OR current_setting('transaction_isolation')<>'read committed' THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Exact READ COMMITTED installer scope is required';\n  END IF;\n  IF NOT public.proofstack_try_lock_policy_evaluation_metadata() OR NOT pg_try_advisory_xact_lock(\n    hashtextextended(jsonb_build_array('proofstack.release-selection.v1',scoped->>'tenantId')::text,0)) THEN\n    RAISE EXCEPTION USING ERRCODE='55P03',MESSAGE='Installer guards are contended; whole rollback required';\n  END IF;\n  RETURN public.proofstack_current_replay_recovery_epoch()::text;\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        },
+        {
+          "name": "proofstack_verify_selection_publication",
+          "body": "\nDECLARE value public.proofstack_release_selection_publications;source_value jsonb;scoped jsonb;subject jsonb;\n  expected_definition jsonb;expected_envelope jsonb;expected_profile jsonb;digest_value text;aggregate_value text;\nBEGIN\n  SELECT * INTO STRICT value FROM public.proofstack_release_selection_publications\n    WHERE tenant_id=NEW.tenant_id AND source_kind=NEW.source_kind AND source_id=NEW.source_id;\n  IF NOT value.completed THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Incomplete authenticated selection publication'; END IF;\n  scoped:=jsonb_build_object('tenantId',value.tenant_id,'projectId',value.project_id,'environmentId',value.environment_id);\n  IF value.source_kind='release_policy_selection' THEN\n    SELECT record INTO source_value FROM public.proofstack_release_policy_selections WHERE tenant_id=value.tenant_id\n      AND project_id=value.project_id AND environment_id=value.environment_id AND version_id=value.source_id;\n    subject:=jsonb_build_object('kind',value.source_kind,'selection',jsonb_build_object(\n      'selectionId',source_value->>'selectionId','selectionVersionId',source_value->>'selectionVersionId',\n      'installationId',source_value->>'installationId','gateTargetId',source_value->>'gateTargetId',\n      'definitionSha256',source_value->>'definitionSha256'));\n    IF source_value->>'publishedAt' IS DISTINCT FROM value.issued_at_lexical\n      OR source_value->>'publishedByPrincipalId' IS DISTINCT FROM value.actor->>'principalId' THEN\n      RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Publication source receipt mismatch';\n    END IF;\n  ELSE\n    SELECT record INTO source_value FROM public.proofstack_release_selection_lifecycle WHERE tenant_id=value.tenant_id\n      AND project_id=value.project_id AND environment_id=value.environment_id AND event_id=value.source_id;\n    subject:=jsonb_build_object('kind',value.source_kind,'selection',source_value->'selection','eventId',value.source_id);\n    IF source_value->>'occurredAt' IS DISTINCT FROM value.issued_at_lexical\n      OR source_value->>'actorPrincipalId' IS DISTINCT FROM value.actor->>'principalId' THEN\n      RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Publication lifecycle receipt mismatch';\n    END IF;\n  END IF;\n  IF source_value IS NULL OR source_value IS DISTINCT FROM value.source_record\n    OR value.source_canonical_utf8::jsonb IS DISTINCT FROM value.source_record\n    OR value.grant_canonical_utf8::jsonb IS DISTINCT FROM value.grant_record\n    OR value.credential_canonical_utf8::jsonb IS DISTINCT FROM value.credential_record THEN\n    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Publication original preimage mismatch';\n  END IF;\n  subject:=subject||jsonb_build_object('recordSha256',encode(sha256(convert_to(value.source_canonical_utf8,'UTF8')),'hex'));\n  expected_definition:=jsonb_build_object('scope',scoped,'subject',subject,'operation','manage_selection',\n    'actor',value.actor,'identity',value.identity_record,'issuedAt',value.issued_at_lexical,\n    'grantSha256',encode(sha256(convert_to(value.grant_canonical_utf8,'UTF8')),'hex'),\n    'credentialSha256',encode(sha256(convert_to(value.credential_canonical_utf8,'UTF8')),'hex'));\n  expected_envelope:=jsonb_build_object('scope',scoped,'definition',expected_definition,\n    'definitionDomain','proofstack.release-selection-publication.v1','encodingVersion','proofstack.release-selection-publication-jcs.v1','schemaVersion','0.1');\n  digest_value:=encode(sha256(convert_to(value.canonical_utf8,'UTF8')),'hex');\n  expected_profile:=expected_definition||jsonb_build_object('schemaVersion','0.1','definitionSha256',digest_value);\n  IF value.canonical_utf8::jsonb IS DISTINCT FROM expected_envelope OR value.publication IS DISTINCT FROM expected_profile THEN\n    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Publication canonical provenance mismatch';\n  END IF;\n  aggregate_value:='rsp_'||left(digest_value,60);\n  IF NOT EXISTS(SELECT 1 FROM public.proofstack_outbox o WHERE o.tenant_id=value.tenant_id\n    AND o.aggregate_type='release_selection_publication' AND o.aggregate_id=aggregate_value\n    AND o.event_type='release.selection.authentication_recorded' AND o.schema_version='0.1'\n    AND o.payload=jsonb_build_object('recordKind','release_selection_publication','record',expected_profile)\n    AND o.created_at=value.issued_at_lexical::timestamptz) THEN\n    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Publication canonical intent is missing or conflicting';\n  END IF;\n  RETURN NEW;\nEND; ",
+          "definer": true,
+          "config": ["search_path=pg_catalog"],
+          "language": "plpgsql",
+          "volatility": "v"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT relforcerowsecurity AS forced,relrowsecurity AS enabled FROM pg_class WHERE oid='public.proofstack_release_selection_publications'::regclass",
+      "rows": [
+        {
+          "forced": true,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "sql": "SELECT t.tgname AS name,t.tgenabled AS enabled,t.tginitdeferred AS deferred,t.tgdeferrable AS deferrable,p.proname AS function\n       FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid\n       WHERE t.tgrelid='public.proofstack_release_selection_publications'::regclass AND NOT t.tgisinternal ORDER BY t.tgname COLLATE \"C\"",
+      "rows": [
+        {
+          "name": "proofstack_release_selection_publication_complete",
+          "enabled": "O",
+          "deferred": true,
+          "deferrable": true,
+          "function": "proofstack_verify_selection_publication"
+        },
+        {
+          "name": "proofstack_release_selection_publication_guard",
+          "enabled": "O",
+          "deferred": false,
+          "deferrable": false,
+          "function": "proofstack_guard_selection_publication"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "grant": {
+              "roles": ["member"],
+              "state": "active",
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "revision": 1,
+              "tenantId": "tenant_wire_22e9abd18d",
+              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "capabilities": ["release:selection:manage"],
+              "resourceScope": {
+                "mode": "tenant"
+              }
+            },
+            "guards": [
+              {
+                "id": "session_wire_22e9abd18d",
+                "kind": "oidc_session",
+                "acquired": true
+              },
+              {
+                "id": "binding_wire_22e9abd18d",
+                "kind": "oidc_binding",
+                "acquired": true
+              }
+            ],
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "capturedAt": "2026-10-19T16:28:08.025391Z",
+            "credential": {
+              "kind": "oidc_session",
+              "tenantId": "tenant_wire_22e9abd18d",
+              "useCount": 1,
+              "bindingId": "binding_wire_22e9abd18d",
+              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "revokedAt": null,
+              "lastUsedAt": "2026-10-19T16:28:07.958183Z",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "idleExpiresAt": "2026-10-19T16:58:07.958183Z",
+              "schemaVersion": "0.1",
+              "revocationReason": null,
+              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "idleLifetimeSeconds": 1800
+            },
+            "bindingObservation": {
+              "bindingId": "binding_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "header"
+      ],
+      "rows": [
+        {
+          "value": null
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_begin_authenticated_selection($1::jsonb,$2::jsonb,$3,$4::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"mode\":\"observation_only\",\"policies\":[],\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"issuerPrincipalId\":\"user_wire_22e9abd18d\"}",
+        "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "created": true,
+            "sourceId": "version_wire_22e9abd18d_a",
+            "sourceKind": "release_policy_selection",
+            "policyObservations": [],
+            "identityObservation": {
+              "actor": {
+                "requestId": "request_native_wire",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "principalType": "user",
+                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticationMethod": "oidc"
+              },
+              "grant": {
+                "roles": ["member"],
+                "state": "active",
+                "identity": {
+                  "kind": "oidc_binding",
+                  "bindingId": "binding_wire_22e9abd18d",
+                  "principalId": "user_wire_22e9abd18d"
+                },
+                "revision": 1,
+                "tenantId": "tenant_wire_22e9abd18d",
+                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "capabilities": ["release:selection:manage"],
+                "resourceScope": {
+                  "mode": "tenant"
+                }
+              },
+              "guards": [
+                {
+                  "id": "session_wire_22e9abd18d",
+                  "kind": "oidc_session",
+                  "acquired": true
+                },
+                {
+                  "id": "binding_wire_22e9abd18d",
+                  "kind": "oidc_binding",
+                  "acquired": true
+                }
+              ],
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "capturedAt": "2026-10-19T16:28:08.041417Z",
+              "credential": {
+                "kind": "oidc_session",
+                "tenantId": "tenant_wire_22e9abd18d",
+                "useCount": 1,
+                "bindingId": "binding_wire_22e9abd18d",
+                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "revokedAt": null,
+                "lastUsedAt": "2026-10-19T16:28:07.958183Z",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "idleExpiresAt": "2026-10-19T16:58:07.958183Z",
+                "schemaVersion": "0.1",
+                "revocationReason": null,
+                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "idleLifetimeSeconds": 1800
+              },
+              "bindingObservation": {
+                "bindingId": "binding_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "header"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "issuedAt": "2026-10-19T16:28:08.041417Z",
+            "completed": false,
+            "originEpoch": "0",
+            "publication": null,
+            "canonicalIntent": false
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "source"
+      ],
+      "rows": [
+        {
+          "value": {
+            "kind": "release_policy_selection",
+            "record": {
+              "mode": "observation_only",
+              "scope": {
+                "tenantId": "tenant_wire_22e9abd18d",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "policies": [],
+              "expiresAt": "2099-01-01T00:00:00.000001Z",
+              "rationale": "Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.",
+              "effectiveAt": "2026-01-01T00:00:00.000001Z",
+              "publishedAt": "2026-10-19T16:28:08.041417Z",
+              "selectionId": "selection_wire_22e9abd18d",
+              "gateTargetId": "gate_wire_22e9abd18d",
+              "schemaVersion": "0.1",
+              "installationId": "installation_wire_22e9abd18d",
+              "candidateTarget": {
+                "locale": "en-us",
+                "purpose": "Evaluate one exact checkout-agent candidate before staging release.",
+                "riskTier": "high",
+                "taskKind": "checkout_agent",
+                "jurisdiction": "us",
+                "environmentId": "env_staging",
+                "populationTags": ["business", "checkout"],
+                "maximumDataClassification": "confidential"
+              },
+              "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+              "authorityEvidence": {
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/vnd.proofstack.policy-authority+json",
+                "sizeBytes": 512,
+                "artifactId": "artifact_installation_authority",
+                "classification": "internal"
+              },
+              "issuerPrincipalId": "user_wire_22e9abd18d",
+              "selectionVersionId": "version_wire_22e9abd18d_a",
+              "publishedByPrincipalId": "user_wire_22e9abd18d",
+              "authorizedPublisherPrincipalIds": [
+                "service_decision_publisher",
+                "user_decision_publisher"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "grant"
+      ],
+      "rows": [
+        {
+          "value": {
+            "roles": ["member"],
+            "state": "active",
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "revision": 1,
+            "tenantId": "tenant_wire_22e9abd18d",
+            "updatedAt": "2026-10-19T16:28:07.941312Z",
+            "capabilities": ["release:selection:manage"],
+            "resourceScope": {
+              "mode": "tenant"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "credential"
+      ],
+      "rows": [
+        {
+          "value": {
+            "kind": "oidc_session",
+            "tenantId": "tenant_wire_22e9abd18d",
+            "useCount": 1,
+            "bindingId": "binding_wire_22e9abd18d",
+            "createdAt": "2026-10-19T16:28:07.951041Z",
+            "revokedAt": null,
+            "lastUsedAt": "2026-10-19T16:28:07.958183Z",
+            "principalId": "user_wire_22e9abd18d",
+            "credentialId": "session_wire_22e9abd18d",
+            "idleExpiresAt": "2026-10-19T16:58:07.958183Z",
+            "schemaVersion": "0.1",
+            "revocationReason": null,
+            "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+            "idleLifetimeSeconds": 1800
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_installer_projection($1::jsonb,$2,$3) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "selection_view",
+        "version_wire_22e9abd18d_a"
+      ],
+      "rows": [
+        {
+          "value": {
+            "scope": {
+              "tenantId": "tenant_wire_22e9abd18d",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "offset": 0,
+            "sha256": "d26c61963b9999f7679752f747fddc5bd6c9f46db93c596d68d899bf97855137",
+            "records": 20,
+            "projection": "selection_view",
+            "totalBytes": 10765,
+            "chunkBase64": "W3sicm9vdCI6IHsidGVuYW50X2lkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdF9pZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgInNlbGVjdGlvbl9pZCI6ICJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImdhdGVfdGFyZ2V0X2lkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbl9pZCI6ICJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkIiwgInJvb3RfdmVyc2lvbl9pZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIiwgInJvb3RfZGVmaW5pdGlvbl9zaGEyNTYiOiAiNDc5MGVkYzlmODJjMzVjMjcyMmQzMTg3ZGNmNjliYjMwMmMwZjllZTE0YjEwNDBmY2YwMzU0OWFmYTc3NTIwYSJ9LCAiaW50ZW50cyI6IFt7InBheWxvYWQiOiB7InJlY29yZCI6IHsibW9kZSI6ICJvYnNlcnZhdGlvbl9vbmx5IiwgInNjb3BlIjogeyJ0ZW5hbnRJZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RJZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgImVudmlyb25tZW50SWQiOiAiZW52X3N0YWdpbmcifSwgInBvbGljaWVzIjogW10sICJleHBpcmVzQXQiOiAiMjA5OS0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInJhdGlvbmFsZSI6ICJCaW5kIHRoZSBmdWxsIHN0YWdpbmcgZ2F0ZSBwb2xpY3kgaW52ZW50b3J5OyDsmIjsmbjripQg64+F66a9IOyKueyduOydtCDtlYTsmpTtlanri4jri6QuIiwgImVmZmVjdGl2ZUF0IjogIjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJwdWJsaXNoZWRBdCI6ICIyMDI2LTEwLTE5VDE2OjI4OjA4LjA0MTQxN1oiLCAic2VsZWN0aW9uSWQiOiAic2VsZWN0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJnYXRlVGFyZ2V0SWQiOiAiZ2F0ZV93aXJlXzIyZTlhYmQxOGQiLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEiLCAiaW5zdGFsbGF0aW9uSWQiOiAiaW5zdGFsbGF0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJjYW5kaWRhdGVUYXJnZXQiOiB7ImxvY2FsZSI6ICJlbi11cyIsICJwdXJwb3NlIjogIkV2YWx1YXRlIG9uZSBleGFjdCBjaGVja291dC1hZ2VudCBjYW5kaWRhdGUgYmVmb3JlIHN0YWdpbmcgcmVsZWFzZS4iLCAicmlza1RpZXIiOiAiaGlnaCIsICJ0YXNrS2luZCI6ICJjaGVja291dF9hZ2VudCIsICJqdXJpc2RpY3Rpb24iOiAidXMiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyIsICJwb3B1bGF0aW9uVGFncyI6IFsiYnVzaW5lc3MiLCAiY2hlY2tvdXQiXSwgIm1heGltdW1EYXRhQ2xhc3NpZmljYXRpb24iOiAiY29uZmlkZW50aWFsIn0sICJkZWZpbml0aW9uU2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEiLCAiYXV0aG9yaXR5RXZpZGVuY2UiOiB7InNoYTI1NiI6ICJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwgIm1lZGlhVHlwZSI6ICJhcHBsaWNhdGlvbi92bmQucHJvb2ZzdGFjay5wb2xpY3ktYXV0aG9yaXR5K2pzb24iLCAic2l6ZUJ5dGVzIjogNTEyLCAiYXJ0aWZhY3RJZCI6ICJhcnRpZmFjdF9pbnN0YWxsYXRpb25fYXV0aG9yaXR5IiwgImNsYXNzaWZpY2F0aW9uIjogImludGVybmFsIn0sICJpc3N1ZXJQcmluY2lwYWxJZCI6ICJ1c2VyX3dpcmVfMjJlOWFiZDE4ZCIsICJzZWxlY3Rpb25WZXJzaW9uSWQiOiAidmVyc2lvbl93aXJlXzIyZTlhYmQxOGRfYSIsICJwdWJsaXNoZWRCeVByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIiwgImF1dGhvcml6ZWRQdWJsaXNoZXJQcmluY2lwYWxJZHMiOiBbInNlcnZpY2VfZGVjaXNpb25fcHVibGlzaGVyIiwgInVzZXJfZGVjaXNpb25fcHVibGlzaGVyIl19LCAicmVjb3JkS2luZCI6ICJyZWxlYXNlX3BvbGljeV9zZWxlY3Rpb24ifSwgImV2ZW50VHlwZSI6ICJyZWxlYXNlLnNlbGVjdGlvbi5wdWJsaXNoZWQiLCAidGltZU1hdGNoZXMiOiB0cnVlLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEifV0sICJ2ZXJzaW9uIjogeyJtb2RlIjogIm9ic2VydmF0aW9uX29ubHkiLCAicmVjb3JkIjogeyJtb2RlIjogIm9ic2VydmF0aW9uX29ubHkiLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicG9saWNpZXMiOiBbXSwgImV4cGlyZXNBdCI6ICIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicmF0aW9uYWxlIjogIkJpbmQgdGhlIGZ1bGwgc3RhZ2luZyBnYXRlIHBvbGljeSBpbnZlbnRvcnk7IOyYiOyZuOuKlCDrj4Xrpr0g7Iq57J247J20IO2VhOyalO2VqeuLiOuLpC4iLCAiZWZmZWN0aXZlQXQiOiAiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInB1Ymxpc2hlZEF0IjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMDQxNDE3WiIsICJzZWxlY3Rpb25JZCI6ICJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkIiwgImdhdGVUYXJnZXRJZCI6ICJnYXRlX3dpcmVfMjJlOWFiZDE4ZCIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJpbnN0YWxsYXRpb25JZCI6ICJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkIiwgImNhbmRpZGF0ZVRhcmdldCI6IHsibG9jYWxlIjogImVuLXVzIiwgInB1cnBvc2UiOiAiRXZhbHVhdGUgb25lIGV4YWN0IGNoZWNrb3V0LWFnZW50IGNhbmRpZGF0ZSBiZWZvcmUgc3RhZ2luZyByZWxlYXNlLiIsICJyaXNrVGllciI6ICJoaWdoIiwgInRhc2tLaW5kIjogImNoZWNrb3V0X2FnZW50IiwgImp1cmlzZGljdGlvbiI6ICJ1cyIsICJlbnZpcm9ubWVudElkIjogImVudl9zdGFnaW5nIiwgInBvcHVsYXRpb25UYWdzIjogWyJidXNpbmVzcyIsICJjaGVja291dCJdLCAibWF4aW11bURhdGFDbGFzc2lmaWNhdGlvbiI6ICJjb25maWRlbnRpYWwifSwgImRlZmluaXRpb25TaGEyNTYiOiAiNDc5MGVkYzlmODJjMzVjMjcyMmQzMTg3ZGNmNjliYjMwMmMwZjllZTE0YjEwNDBmY2YwMzU0OWFmYTc3NTIwYSIsICJhdXRob3JpdHlFdmlkZW5jZSI6IHsic2hhMjU2IjogImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCAibWVkaWFUeXBlIjogImFwcGxpY2F0aW9uL3ZuZC5wcm9vZnN0YWNrLnBvbGljeS1hdXRob3JpdHkranNvbiIsICJzaXplQnl0ZXMiOiA1MTIsICJhcnRpZmFjdElkIjogImFydGlmYWN0X2luc3RhbGxhdGlvbl9hdXRob3JpdHkiLCAiY2xhc3NpZmljYXRpb24iOiAiaW50ZXJuYWwifSwgImlzc3VlclByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIiwgInB1Ymxpc2hlZEJ5UHJpbmNpcGFsSWQiOiAidXNlcl93aXJlXzIyZTlhYmQxOGQiLCAiYXV0aG9yaXplZFB1Ymxpc2hlclByaW5jaXBhbElkcyI6IFsic2VydmljZV9kZWNpc2lvbl9wdWJsaXNoZXIiLCAidXNlcl9kZWNpc2lvbl9wdWJsaXNoZXIiXX0sICJ0ZW5hbnRfaWQiOiAidGVuYW50X3dpcmVfMjJlOWFiZDE4ZCIsICJwcm9qZWN0X2lkIjogInByb2plY3RfY2hlY2tvdXQiLCAidmVyc2lvbl9pZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIiwgInBvbGljeV9jb3VudCI6IDAsICJzZWxlY3Rpb25faWQiOiAic2VsZWN0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJjYW5vbmljYWxfdXRmOCI6ICJ7XCJkZWZpbml0aW9uXCI6e1wiYXV0aG9yaXR5RXZpZGVuY2VcIjp7XCJhcnRpZmFjdElkXCI6XCJhcnRpZmFjdF9pbnN0YWxsYXRpb25fYXV0aG9yaXR5XCIsXCJjbGFzc2lmaWNhdGlvblwiOlwiaW50ZXJuYWxcIixcIm1lZGlhVHlwZVwiOlwiYXBwbGljYXRpb24vdm5kLnByb29mc3RhY2sucG9saWN5LWF1dGhvcml0eStqc29uXCIsXCJzaGEyNTZcIjpcImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFcIixcInNpemVCeXRlc1wiOjUxMn0sXCJhdXRob3JpemVkUHVibGlzaGVyUHJpbmNpcGFsSWRzXCI6W1wic2VydmljZV9kZWNpc2lvbl9wdWJsaXNoZXJcIixcInVzZXJfZGVjaXNpb25fcHVibGlzaGVyXCJdLFwiY2FuZGlkYXRlVGFyZ2V0XCI6e1wiZW52aXJvbm1lbnRJZFwiOlwiZW52X3N0YWdpbmdcIixcImp1cmlzZGljdGlvblwiOlwidXNcIixcImxvY2FsZVwiOlwiZW4tdXNcIixcIm1heGltdW1EYXRhQ2xhc3NpZmljYXRpb25cIjpcImNvbmZpZGVudGlhbFwiLFwicG9wdWxhdGlvblRhZ3NcIjpbXCJidXNpbmVzc1wiLFwiY2hlY2tvdXRcIl0sXCJwdXJwb3NlXCI6XCJFdmFsdWF0ZSBvbmUgZXhhY3QgY2hlY2tvdXQtYWdlbnQgY2FuZGlkYXRlIGJlZm9yZSBzdGFnaW5nIHJlbGVhc2UuXCIsXCJyaXNrVGllclwiOlwiaGlnaFwiLFwidGFza0tpbmRcIjpcImNoZWNrb3V0X2FnZW50XCJ9LFwiZWZmZWN0aXZlQXRcIjpcIjIwMjYtMDEtMDFUMDA6MDA6MDAuMDAwMDAxWlwiLFwiZXhwaXJlc0F0XCI6XCIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVpcIixcImdhdGVUYXJnZXRJZFwiOlwiZ2F0ZV93aXJlXzIyZTlhYmQxOGRcIixcImluc3RhbGxhdGlvbklkXCI6XCJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkXCIsXCJpc3N1ZXJQcmluY2lwYWxJZFwiOlwidXNlcl93aXJlXzIyZTlhYmQxOGRcIixcIm1vZGVcIjpcIm9ic2VydmF0aW9uX29ubHlcIixcInBvbGljaWVzXCI6W10sXCJyYXRpb25hbGVcIjpcIkJpbmQgdGhlIGZ1bGwgc3RhZ2luZyBnYXRlIHBvbGljeSBpbnZlbnRvcnk7IOyYiOyZuOuKlCDrj4Xrpr0g7Iq57J247J20IO2VhOyalO2VqeuLiOuLpC5cIixcInNjb3BlXCI6e1wiZW52aXJvbm1lbnRJZFwiOlwiZW52X3N0YWdpbmdcIixcInByb2plY3RJZFwiOlwicHJvamVjdF9jaGVja291dFwiLFwidGVuYW50SWRcIjpcInRlbmFudF93aXJlXzIyZTlhYmQxOGRcIn0sXCJzZWxlY3Rpb25JZFwiOlwic2VsZWN0aW9uX3dpcmVfMjJlOWFiZDE4ZFwiLFwic2VsZWN0aW9uVmVyc2lvbklkXCI6XCJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hXCJ9LFwiZGVmaW5pdGlvbkRvbWFpblwiOlwicHJvb2ZzdGFjay5yZWxlYXNlLXBvbGljeS1zZWxlY3Rpb24udjFcIixcImVuY29kaW5nVmVyc2lvblwiOlwicHJvb2ZzdGFjay5yZWxlYXNlLXBvbGljeS1zZWxlY3Rpb24tZGVmaW5pdGlvbi1qY3MudjFcIixcInNjaGVtYVZlcnNpb25cIjpcIjAuMVwiLFwic2NvcGVcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwicHJvamVjdElkXCI6XCJwcm9qZWN0X2NoZWNrb3V0XCIsXCJ0ZW5hbnRJZFwiOlwidGVuYW50X3dpcmVfMjJlOWFiZDE4ZFwifX0iLCAiZW52aXJvbm1lbnRfaWQiOiAiZW52X3N0YWdpbmciLCAiZXhwaXJlc19hdF9rZXkiOiAiNDA3MDkwODgwMDAwMDAwMTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJnYXRlX3RhcmdldF9pZCI6ICJnYXRlX3dpcmVfMjJlOWFiZDE4ZCIsICJpbnN0YWxsYXRpb25faWQiOiAiaW5zdGFsbGF0aW9uX3dpcmVfMjJlOWFiZDE4ZCIsICJwdWJsaXNoZXJfY291bnQiOiAyLCAiZWZmZWN0aXZlX2F0X2tleSI6ICIxNzY3MjI1NjAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgInB1Ymxpc2hlZF9hdF9rZXkiOiAiMTc5MjQyNzI4ODA0MTQxNzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJkZWZpbml0aW9uX3NoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgInBhcmVudF92ZXJzaW9uX2lkIjogbnVsbCwgImV4cGlyZXNfYXRfbGV4aWNhbCI6ICIyMDk5LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAiZWZmZWN0aXZlX2F0X2xleGljYWwiOiAiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaIiwgInB1Ymxpc2hlZF9hdF9sZXhpY2FsIjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMDQxNDE3WiIsICJwYXJlbnRfZGVmaW5pdGlvbl9zaGEyNTYiOiBudWxsLCAicHVibGlzaGVkX2J5X3ByaW5jaXBhbF9pZCI6ICJ1c2VyX3dpcmVfMjJlOWFiZDE4ZCJ9LCAicG9saWNpZXMiOiBbXSwgInB1Ymxpc2hlcnMiOiBbeyJvcmRpbmFsIjogMCwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicHJpbmNpcGFsX2lkIjogInNlcnZpY2VfZGVjaXNpb25fcHVibGlzaGVyIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEifSwgeyJvcmRpbmFsIjogMSwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicHJpbmNpcGFsX2lkIjogInVzZXJfZGVjaXNpb25fcHVibGlzaGVyIiwgImVudmlyb25tZW50X2lkIjogImVudl9zdGFnaW5nIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEifV0sICJwcmVkZWNlc3NvciI6IG51bGwsICJyb290X3ZlcnNpb24iOiB7Im1vZGUiOiAib2JzZXJ2YXRpb25fb25seSIsICJyZWNvcmQiOiB7Im1vZGUiOiAib2JzZXJ2YXRpb25fb25seSIsICJzY29wZSI6IHsidGVuYW50SWQiOiAidGVuYW50X3dpcmVfMjJlOWFiZDE4ZCIsICJwcm9qZWN0SWQiOiAicHJvamVjdF9jaGVja291dCIsICJlbnZpcm9ubWVudElkIjogImVudl9zdGFnaW5nIn0sICJwb2xpY2llcyI6IFtdLCAiZXhwaXJlc0F0IjogIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJyYXRpb25hbGUiOiAiQmluZCB0aGUgZnVsbCBzdGFnaW5nIGdhdGUgcG9saWN5IGludmVudG9yeTsg7JiI7Jm464qUIOuPheumvSDsirnsnbjsnbQg7ZWE7JqU7ZWp64uI64ukLiIsICJlZmZlY3RpdmVBdCI6ICIyMDI2LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicHVibGlzaGVkQXQiOiAiMjAyNi0xMC0xOVQxNjoyODowOC4wNDE0MTdaIiwgInNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgInNjaGVtYVZlcnNpb24iOiAiMC4xIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiY2FuZGlkYXRlVGFyZ2V0IjogeyJsb2NhbGUiOiAiZW4tdXMiLCAicHVycG9zZSI6ICJFdmFsdWF0ZSBvbmUgZXhhY3QgY2hlY2tvdXQtYWdlbnQgY2FuZGlkYXRlIGJlZm9yZSBzdGFnaW5nIHJlbGVhc2UuIiwgInJpc2tUaWVyIjogImhpZ2giLCAidGFza0tpbmQiOiAiY2hlY2tvdXRfYWdlbnQiLCAianVyaXNkaWN0aW9uIjogInVzIiwgImVudmlyb25tZW50SWQiOiAiZW52X3N0YWdpbmciLCAicG9wdWxhdGlvblRhZ3MiOiBbImJ1c2luZXNzIiwgImNoZWNrb3V0Il0sICJtYXhpbXVtRGF0YUNsYXNzaWZpY2F0aW9uIjogImNvbmZpZGVudGlhbCJ9LCAiZGVmaW5pdGlvblNoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgImF1dGhvcml0eUV2aWRlbmNlIjogeyJzaGEyNTYiOiAiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsICJtZWRpYVR5cGUiOiAiYXBwbGljYXRpb24vdm5kLnByb29mc3RhY2sucG9saWN5LWF1dGhvcml0eStqc29uIiwgInNpemVCeXRlcyI6IDUxMiwgImFydGlmYWN0SWQiOiAiYXJ0aWZhY3RfaW5zdGFsbGF0aW9uX2F1dGhvcml0eSIsICJjbGFzc2lmaWNhdGlvbiI6ICJpbnRlcm5hbCJ9LCAiaXNzdWVyUHJpbmNpcGFsSWQiOiAidXNlcl93aXJlXzIyZTlhYmQxOGQiLCAic2VsZWN0aW9uVmVyc2lvbklkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicHVibGlzaGVkQnlQcmluY2lwYWxJZCI6ICJ1c2VyX3dpcmVfMjJlOWFiZDE4ZCIsICJhdXRob3JpemVkUHVibGlzaGVyUHJpbmNpcGFsSWRzIjogWyJzZXJ2aWNlX2RlY2lzaW9uX3B1Ymxpc2hlciIsICJ1c2VyX2RlY2lzaW9uX3B1Ymxpc2hlciJdfSwgInRlbmFudF9pZCI6ICJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkIiwgInByb2plY3RfaWQiOiAicHJvamVjdF9jaGVja291dCIsICJ2ZXJzaW9uX2lkIjogInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2EiLCAicG9saWN5X2NvdW50IjogMCwgInNlbGVjdGlvbl9pZCI6ICJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkIiwgImNhbm9uaWNhbF91dGY4IjogIntcImRlZmluaXRpb25cIjp7XCJhdXRob3JpdHlFdmlkZW5jZVwiOntcImFydGlmYWN0SWRcIjpcImFydGlmYWN0X2luc3RhbGxhdGlvbl9hdXRob3JpdHlcIixcImNsYXNzaWZpY2F0aW9uXCI6XCJpbnRlcm5hbFwiLFwibWVkaWFUeXBlXCI6XCJhcHBsaWNhdGlvbi92bmQucHJvb2ZzdGFjay5wb2xpY3ktYXV0aG9yaXR5K2pzb25cIixcInNoYTI1NlwiOlwiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYVwiLFwic2l6ZUJ5dGVzXCI6NTEyfSxcImF1dGhvcml6ZWRQdWJsaXNoZXJQcmluY2lwYWxJZHNcIjpbXCJzZXJ2aWNlX2RlY2lzaW9uX3B1Ymxpc2hlclwiLFwidXNlcl9kZWNpc2lvbl9wdWJsaXNoZXJcIl0sXCJjYW5kaWRhdGVUYXJnZXRcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwianVyaXNkaWN0aW9uXCI6XCJ1c1wiLFwibG9jYWxlXCI6XCJlbi11c1wiLFwibWF4aW11bURhdGFDbGFzc2lmaWNhdGlvblwiOlwiY29uZmlkZW50aWFsXCIsXCJwb3B1bGF0aW9uVGFnc1wiOltcImJ1c2luZXNzXCIsXCJjaGVja291dFwiXSxcInB1cnBvc2VcIjpcIkV2YWx1YXRlIG9uZSBleGFjdCBjaGVja291dC1hZ2VudCBjYW5kaWRhdGUgYmVmb3JlIHN0YWdpbmcgcmVsZWFzZS5cIixcInJpc2tUaWVyXCI6XCJoaWdoXCIsXCJ0YXNrS2luZFwiOlwiY2hlY2tvdXRfYWdlbnRcIn0sXCJlZmZlY3RpdmVBdFwiOlwiMjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDFaXCIsXCJleHBpcmVzQXRcIjpcIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWlwiLFwiZ2F0ZVRhcmdldElkXCI6XCJnYXRlX3dpcmVfMjJlOWFiZDE4ZFwiLFwiaW5zdGFsbGF0aW9uSWRcIjpcImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGRcIixcImlzc3VlclByaW5jaXBhbElkXCI6XCJ1c2VyX3dpcmVfMjJlOWFiZDE4ZFwiLFwibW9kZVwiOlwib2JzZXJ2YXRpb25fb25seVwiLFwicG9saWNpZXNcIjpbXSxcInJhdGlvbmFsZVwiOlwiQmluZCB0aGUgZnVsbCBzdGFnaW5nIGdhdGUgcG9saWN5IGludmVudG9yeTsg7JiI7Jm464qUIOuPheumvSDsirnsnbjsnbQg7ZWE7JqU7ZWp64uI64ukLlwiLFwic2NvcGVcIjp7XCJlbnZpcm9ubWVudElkXCI6XCJlbnZfc3RhZ2luZ1wiLFwicHJvamVjdElkXCI6XCJwcm9qZWN0X2NoZWNrb3V0XCIsXCJ0ZW5hbnRJZFwiOlwidGVuYW50X3dpcmVfMjJlOWFiZDE4ZFwifSxcInNlbGVjdGlvbklkXCI6XCJzZWxlY3Rpb25fd2lyZV8yMmU5YWJkMThkXCIsXCJzZWxlY3Rpb25WZXJzaW9uSWRcIjpcInZlcnNpb25fd2lyZV8yMmU5YWJkMThkX2FcIn0sXCJkZWZpbml0aW9uRG9tYWluXCI6XCJwcm9vZnN0YWNrLnJlbGVhc2UtcG9saWN5LXNlbGVjdGlvbi52MVwiLFwiZW5jb2RpbmdWZXJzaW9uXCI6XCJwcm9vZnN0YWNrLnJlbGVhc2UtcG9saWN5LXNlbGVjdGlvbi1kZWZpbml0aW9uLWpjcy52MVwiLFwic2NoZW1hVmVyc2lvblwiOlwiMC4xXCIsXCJzY29wZVwiOntcImVudmlyb25tZW50SWRcIjpcImVudl9zdGFnaW5nXCIsXCJwcm9qZWN0SWRcIjpcInByb2plY3RfY2hlY2tvdXRcIixcInRlbmFudElkXCI6XCJ0ZW5hbnRfd2lyZV8yMmU5YWJkMThkXCJ9fSIsICJlbnZpcm9ubWVudF9pZCI6ICJlbnZfc3RhZ2luZyIsICJleHBpcmVzX2F0X2tleSI6ICI0MDcwOTA4ODAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgImdhdGVfdGFyZ2V0X2lkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbl9pZCI6ICJpbnN0YWxsYXRpb25fd2lyZV8yMmU5YWJkMThkIiwgInB1Ymxpc2hlcl9jb3VudCI6IDIsICJlZmZlY3RpdmVfYXRfa2V5IjogIjE3NjcyMjU2MDAwMDAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCAicHVibGlzaGVkX2F0X2tleSI6ICIxNzkyNDI3Mjg4MDQxNDE3MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgImRlZmluaXRpb25fc2hhMjU2IjogIjQ3OTBlZGM5ZjgyYzM1YzI3MjJkMzE4N2RjZjY5YmIzMDJjMGY5ZWUxNGIxMDQwZmNmMDM1NDlhZmE3NzUyMGEiLCAicGFyZW50X3ZlcnNpb25faWQiOiBudWxsLCAiZXhwaXJlc19hdF9sZXhpY2FsIjogIjIwOTktMDEtMDFUMDA6MDA6MDAuMDAwMDAxWiIsICJlZmZlY3RpdmVfYXRfbGV4aWNhbCI6ICIyMDI2LTAxLTAxVDAwOjAwOjAwLjAwMDAwMVoiLCAicHVibGlzaGVkX2F0X2xleGljYWwiOiAiMjAyNi0xMC0xOVQxNjoyODowOC4wNDE0MTdaIiwgInBhcmVudF9kZWZpbml0aW9uX3NoYTI1NiI6IG51bGwsICJwdWJsaXNoZWRfYnlfcHJpbmNpcGFsX2lkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIn19XQ=="
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_finish_selection_publication($1::jsonb,$2,$3,$4::jsonb,$5,$6,$7,$8) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "{\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"recordSha256\":\"06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e\"},\"operation\":\"manage_selection\",\"actor\":{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"},\"identity\":{\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\",\"bindingId\":\"binding_wire_22e9abd18d\"},\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"credentialSha256\":\"41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2\",\"issuedAt\":\"2026-10-19T16:28:08.041417Z\",\"schemaVersion\":\"0.1\",\"definitionSha256\":\"1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a\"}",
+        "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.041417Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection\",\"recordSha256\":\"06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
+        "{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"publishedAt\":\"2026-10-19T16:28:08.041417Z\",\"publishedByPrincipalId\":\"user_wire_22e9abd18d\",\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}",
+        "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}",
+        "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:07.958183Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:07.958183Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":1}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "scope": {
+              "tenantId": "tenant_wire_22e9abd18d",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "subject": {
+              "kind": "release_policy_selection",
+              "selection": {
+                "selectionId": "selection_wire_22e9abd18d",
+                "gateTargetId": "gate_wire_22e9abd18d",
+                "installationId": "installation_wire_22e9abd18d",
+                "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+                "selectionVersionId": "version_wire_22e9abd18d_a"
+              },
+              "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+            },
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "issuedAt": "2026-10-19T16:28:08.041417Z",
+            "operation": "manage_selection",
+            "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+            "schemaVersion": "0.1",
+            "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
+            "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "header"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "issuedAt": "2026-10-19T16:28:08.041417Z",
+            "completed": true,
+            "originEpoch": "0",
+            "publication": {
+              "actor": {
+                "requestId": "request_native_wire",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "principalType": "user",
+                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticationMethod": "oidc"
+              },
+              "scope": {
+                "tenantId": "tenant_wire_22e9abd18d",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "subject": {
+                "kind": "release_policy_selection",
+                "selection": {
+                  "selectionId": "selection_wire_22e9abd18d",
+                  "gateTargetId": "gate_wire_22e9abd18d",
+                  "installationId": "installation_wire_22e9abd18d",
+                  "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+                  "selectionVersionId": "version_wire_22e9abd18d_a"
+                },
+                "recordSha256": "06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e"
+              },
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "issuedAt": "2026-10-19T16:28:08.041417Z",
+              "operation": "manage_selection",
+              "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+              "schemaVersion": "0.1",
+              "credentialSha256": "41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2",
+              "definitionSha256": "1f16b57e815bda86c07c621bfbab165fe4b968672687f8fd249f2e790e3a800a"
+            },
+            "canonicalIntent": true
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "source_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"publishedAt\":\"2026-10-19T16:28:08.041417Z\",\"publishedByPrincipalId\":\"user_wire_22e9abd18d\",\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "grant_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "credential_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:07.958183Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:07.958183Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":1}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection",
+        "version_wire_22e9abd18d_a",
+        "publication_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"41313af31384fdb7bafca8d69f9b722280684be9aadd93b640560b70f55671c2\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.041417Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection\",\"recordSha256\":\"06e35c7a0899c59be5bbc11e90e8e7e3c955ed95a1893a268d149e3e21ea0d8e\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "grant": {
+              "roles": ["member"],
+              "state": "active",
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "revision": 1,
+              "tenantId": "tenant_wire_22e9abd18d",
+              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "capabilities": ["release:selection:manage"],
+              "resourceScope": {
+                "mode": "tenant"
+              }
+            },
+            "guards": [
+              {
+                "id": "session_wire_22e9abd18d",
+                "kind": "oidc_session",
+                "acquired": true
+              },
+              {
+                "id": "binding_wire_22e9abd18d",
+                "kind": "oidc_binding",
+                "acquired": true
+              }
+            ],
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "capturedAt": "2026-10-19T16:28:08.139919Z",
+            "credential": {
+              "kind": "oidc_session",
+              "tenantId": "tenant_wire_22e9abd18d",
+              "useCount": 2,
+              "bindingId": "binding_wire_22e9abd18d",
+              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "revokedAt": null,
+              "lastUsedAt": "2026-10-19T16:28:08.111402Z",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "idleExpiresAt": "2026-10-19T16:58:08.111402Z",
+              "schemaVersion": "0.1",
+              "revocationReason": null,
+              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "idleLifetimeSeconds": 1800
+            },
+            "bindingObservation": {
+              "bindingId": "binding_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_begin_authenticated_selection($1::jsonb,$2::jsonb,$3,$4::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"mode\":\"observation_only\",\"policies\":[],\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"issuerPrincipalId\":\"user_wire_22e9abd18d\"}",
+        "{\"definition\":{\"authorityEvidence\":{\"artifactId\":\"artifact_installation_authority\",\"classification\":\"internal\",\"mediaType\":\"application/vnd.proofstack.policy-authority+json\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sizeBytes\":512},\"authorizedPublisherPrincipalIds\":[\"service_decision_publisher\",\"user_decision_publisher\"],\"candidateTarget\":{\"environmentId\":\"env_staging\",\"jurisdiction\":\"us\",\"locale\":\"en-us\",\"maximumDataClassification\":\"confidential\",\"populationTags\":[\"business\",\"checkout\"],\"purpose\":\"Evaluate one exact checkout-agent candidate before staging release.\",\"riskTier\":\"high\",\"taskKind\":\"checkout_agent\"},\"effectiveAt\":\"2026-01-01T00:00:00.000001Z\",\"expiresAt\":\"2099-01-01T00:00:00.000001Z\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"issuerPrincipalId\":\"user_wire_22e9abd18d\",\"mode\":\"observation_only\",\"policies\":[],\"rationale\":\"Bind the full staging gate policy inventory; 예외는 독립 승인이 필요합니다.\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"},\"definitionDomain\":\"proofstack.release-policy-selection.v1\",\"encodingVersion\":\"proofstack.release-policy-selection-definition-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "created": false,
+            "sourceId": "version_wire_22e9abd18d_a",
+            "sourceKind": "release_policy_selection",
+            "policyObservations": [],
+            "identityObservation": {
+              "actor": {
+                "requestId": "request_native_wire",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "principalType": "user",
+                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticationMethod": "oidc"
+              },
+              "grant": {
+                "roles": ["member"],
+                "state": "active",
+                "identity": {
+                  "kind": "oidc_binding",
+                  "bindingId": "binding_wire_22e9abd18d",
+                  "principalId": "user_wire_22e9abd18d"
+                },
+                "revision": 1,
+                "tenantId": "tenant_wire_22e9abd18d",
+                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "capabilities": ["release:selection:manage"],
+                "resourceScope": {
+                  "mode": "tenant"
+                }
+              },
+              "guards": [
+                {
+                  "id": "session_wire_22e9abd18d",
+                  "kind": "oidc_session",
+                  "acquired": true
+                },
+                {
+                  "id": "binding_wire_22e9abd18d",
+                  "kind": "oidc_binding",
+                  "acquired": true
+                }
+              ],
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "capturedAt": "2026-10-19T16:28:08.144584Z",
+              "credential": {
+                "kind": "oidc_session",
+                "tenantId": "tenant_wire_22e9abd18d",
+                "useCount": 2,
+                "bindingId": "binding_wire_22e9abd18d",
+                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "revokedAt": null,
+                "lastUsedAt": "2026-10-19T16:28:08.111402Z",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "idleExpiresAt": "2026-10-19T16:58:08.111402Z",
+                "schemaVersion": "0.1",
+                "revocationReason": null,
+                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "idleLifetimeSeconds": 1800
+              },
+              "bindingObservation": {
+                "bindingId": "binding_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "grant": {
+              "roles": ["member"],
+              "state": "active",
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "revision": 1,
+              "tenantId": "tenant_wire_22e9abd18d",
+              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "capabilities": ["release:selection:manage"],
+              "resourceScope": {
+                "mode": "tenant"
+              }
+            },
+            "guards": [
+              {
+                "id": "session_wire_22e9abd18d",
+                "kind": "oidc_session",
+                "acquired": true
+              },
+              {
+                "id": "binding_wire_22e9abd18d",
+                "kind": "oidc_binding",
+                "acquired": true
+              }
+            ],
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "capturedAt": "2026-10-19T16:28:08.191151Z",
+            "credential": {
+              "kind": "oidc_session",
+              "tenantId": "tenant_wire_22e9abd18d",
+              "useCount": 3,
+              "bindingId": "binding_wire_22e9abd18d",
+              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "revokedAt": null,
+              "lastUsedAt": "2026-10-19T16:28:08.162778Z",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "idleExpiresAt": "2026-10-19T16:58:08.162778Z",
+              "schemaVersion": "0.1",
+              "revocationReason": null,
+              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "idleLifetimeSeconds": 1800
+            },
+            "bindingObservation": {
+              "bindingId": "binding_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "header"
+      ],
+      "rows": [
+        {
+          "value": null
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_begin_authenticated_selection_lifecycle($1::jsonb,$2::jsonb,$3::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"eventId\":\"event_wire_22e9abd18d\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"reason\":\"Withdraw the exact native wire fixture.\",\"kind\":\"withdrawn\"}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "created": true,
+            "sourceId": "event_wire_22e9abd18d",
+            "sourceKind": "release_policy_selection_lifecycle",
+            "policyObservations": [],
+            "identityObservation": {
+              "actor": {
+                "requestId": "request_native_wire",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "principalType": "user",
+                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticationMethod": "oidc"
+              },
+              "grant": {
+                "roles": ["member"],
+                "state": "active",
+                "identity": {
+                  "kind": "oidc_binding",
+                  "bindingId": "binding_wire_22e9abd18d",
+                  "principalId": "user_wire_22e9abd18d"
+                },
+                "revision": 1,
+                "tenantId": "tenant_wire_22e9abd18d",
+                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "capabilities": ["release:selection:manage"],
+                "resourceScope": {
+                  "mode": "tenant"
+                }
+              },
+              "guards": [
+                {
+                  "id": "session_wire_22e9abd18d",
+                  "kind": "oidc_session",
+                  "acquired": true
+                },
+                {
+                  "id": "binding_wire_22e9abd18d",
+                  "kind": "oidc_binding",
+                  "acquired": true
+                }
+              ],
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "capturedAt": "2026-10-19T16:28:08.210192Z",
+              "credential": {
+                "kind": "oidc_session",
+                "tenantId": "tenant_wire_22e9abd18d",
+                "useCount": 3,
+                "bindingId": "binding_wire_22e9abd18d",
+                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "revokedAt": null,
+                "lastUsedAt": "2026-10-19T16:28:08.162778Z",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "idleExpiresAt": "2026-10-19T16:58:08.162778Z",
+                "schemaVersion": "0.1",
+                "revocationReason": null,
+                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "idleLifetimeSeconds": 1800
+              },
+              "bindingObservation": {
+                "bindingId": "binding_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "header"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "issuedAt": "2026-10-19T16:28:08.210192Z",
+            "completed": false,
+            "originEpoch": "0",
+            "publication": null,
+            "canonicalIntent": false
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "source"
+      ],
+      "rows": [
+        {
+          "value": {
+            "kind": "release_policy_selection_lifecycle",
+            "record": {
+              "kind": "withdrawn",
+              "scope": {
+                "tenantId": "tenant_wire_22e9abd18d",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "reason": "Withdraw the exact native wire fixture.",
+              "eventId": "event_wire_22e9abd18d",
+              "selection": {
+                "selectionId": "selection_wire_22e9abd18d",
+                "gateTargetId": "gate_wire_22e9abd18d",
+                "installationId": "installation_wire_22e9abd18d",
+                "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+                "selectionVersionId": "version_wire_22e9abd18d_a"
+              },
+              "occurredAt": "2026-10-19T16:28:08.210192Z",
+              "schemaVersion": "0.1",
+              "actorPrincipalId": "user_wire_22e9abd18d"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "grant"
+      ],
+      "rows": [
+        {
+          "value": {
+            "roles": ["member"],
+            "state": "active",
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "revision": 1,
+            "tenantId": "tenant_wire_22e9abd18d",
+            "updatedAt": "2026-10-19T16:28:07.941312Z",
+            "capabilities": ["release:selection:manage"],
+            "resourceScope": {
+              "mode": "tenant"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "credential"
+      ],
+      "rows": [
+        {
+          "value": {
+            "kind": "oidc_session",
+            "tenantId": "tenant_wire_22e9abd18d",
+            "useCount": 3,
+            "bindingId": "binding_wire_22e9abd18d",
+            "createdAt": "2026-10-19T16:28:07.951041Z",
+            "revokedAt": null,
+            "lastUsedAt": "2026-10-19T16:28:08.162778Z",
+            "principalId": "user_wire_22e9abd18d",
+            "credentialId": "session_wire_22e9abd18d",
+            "idleExpiresAt": "2026-10-19T16:58:08.162778Z",
+            "schemaVersion": "0.1",
+            "revocationReason": null,
+            "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+            "idleLifetimeSeconds": 1800
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_installer_projection($1::jsonb,$2,$3) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "selection_event_view",
+        "event_wire_22e9abd18d"
+      ],
+      "rows": [
+        {
+          "value": {
+            "scope": {
+              "tenantId": "tenant_wire_22e9abd18d",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "offset": 0,
+            "sha256": "825c9ed78e3be6d5932aec4d6fadb2ca7509368c9c9ccd61dee3c9f0f6aad9da",
+            "records": 10,
+            "projection": "selection_event_view",
+            "totalBytes": 1924,
+            "chunkBase64": "W3siZXZlbnQiOiB7InJlY29yZCI6IHsia2luZCI6ICJ3aXRoZHJhd24iLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicmVhc29uIjogIldpdGhkcmF3IHRoZSBleGFjdCBuYXRpdmUgd2lyZSBmaXh0dXJlLiIsICJldmVudElkIjogImV2ZW50X3dpcmVfMjJlOWFiZDE4ZCIsICJzZWxlY3Rpb24iOiB7InNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZGVmaW5pdGlvblNoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIn0sICJvY2N1cnJlZEF0IjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMjEwMTkyWiIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJhY3RvclByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIn0sICJldmVudF9pZCI6ICJldmVudF93aXJlXzIyZTlhYmQxOGQiLCAidGVuYW50X2lkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdF9pZCI6ICJwcm9qZWN0X2NoZWNrb3V0IiwgInZlcnNpb25faWQiOiAidmVyc2lvbl93aXJlXzIyZTlhYmQxOGRfYSIsICJlbnZpcm9ubWVudF9pZCI6ICJlbnZfc3RhZ2luZyIsICJvY2N1cnJlZF9hdF9rZXkiOiAiMTc5MjQyNzI4ODIxMDE5MjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsICJkZWZpbml0aW9uX3NoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgIm9jY3VycmVkX2F0X2xleGljYWwiOiAiMjAyNi0xMC0xOVQxNjoyODowOC4yMTAxOTJaIiwgInN1Y2Nlc3Nvcl92ZXJzaW9uX2lkIjogbnVsbCwgInN1Y2Nlc3Nvcl9kZWZpbml0aW9uX3NoYTI1NiI6IG51bGx9LCAiaW50ZW50cyI6IFt7InBheWxvYWQiOiB7InJlY29yZCI6IHsia2luZCI6ICJ3aXRoZHJhd24iLCAic2NvcGUiOiB7InRlbmFudElkIjogInRlbmFudF93aXJlXzIyZTlhYmQxOGQiLCAicHJvamVjdElkIjogInByb2plY3RfY2hlY2tvdXQiLCAiZW52aXJvbm1lbnRJZCI6ICJlbnZfc3RhZ2luZyJ9LCAicmVhc29uIjogIldpdGhkcmF3IHRoZSBleGFjdCBuYXRpdmUgd2lyZSBmaXh0dXJlLiIsICJldmVudElkIjogImV2ZW50X3dpcmVfMjJlOWFiZDE4ZCIsICJzZWxlY3Rpb24iOiB7InNlbGVjdGlvbklkIjogInNlbGVjdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZ2F0ZVRhcmdldElkIjogImdhdGVfd2lyZV8yMmU5YWJkMThkIiwgImluc3RhbGxhdGlvbklkIjogImluc3RhbGxhdGlvbl93aXJlXzIyZTlhYmQxOGQiLCAiZGVmaW5pdGlvblNoYTI1NiI6ICI0NzkwZWRjOWY4MmMzNWMyNzIyZDMxODdkY2Y2OWJiMzAyYzBmOWVlMTRiMTA0MGZjZjAzNTQ5YWZhNzc1MjBhIiwgInNlbGVjdGlvblZlcnNpb25JZCI6ICJ2ZXJzaW9uX3dpcmVfMjJlOWFiZDE4ZF9hIn0sICJvY2N1cnJlZEF0IjogIjIwMjYtMTAtMTlUMTY6Mjg6MDguMjEwMTkyWiIsICJzY2hlbWFWZXJzaW9uIjogIjAuMSIsICJhY3RvclByaW5jaXBhbElkIjogInVzZXJfd2lyZV8yMmU5YWJkMThkIn0sICJyZWNvcmRLaW5kIjogInJlbGVhc2VfcG9saWN5X3NlbGVjdGlvbl9saWZlY3ljbGUifSwgImV2ZW50VHlwZSI6ICJyZWxlYXNlLnNlbGVjdGlvbi5saWZlY3ljbGVfcmVjb3JkZWQiLCAidGltZU1hdGNoZXMiOiB0cnVlLCAic2NoZW1hVmVyc2lvbiI6ICIwLjEifV19XQ=="
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_finish_selection_publication($1::jsonb,$2,$3,$4::jsonb,$5,$6,$7,$8) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "{\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"kind\":\"release_policy_selection_lifecycle\",\"eventId\":\"event_wire_22e9abd18d\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"recordSha256\":\"b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c\"},\"operation\":\"manage_selection\",\"actor\":{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"},\"identity\":{\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\",\"bindingId\":\"binding_wire_22e9abd18d\"},\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"credentialSha256\":\"90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde\",\"issuedAt\":\"2026-10-19T16:28:08.210192Z\",\"schemaVersion\":\"0.1\",\"definitionSha256\":\"a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a\"}",
+        "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.210192Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"release_policy_selection_lifecycle\",\"recordSha256\":\"b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}",
+        "{\"actorPrincipalId\":\"user_wire_22e9abd18d\",\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"withdrawn\",\"occurredAt\":\"2026-10-19T16:28:08.210192Z\",\"reason\":\"Withdraw the exact native wire fixture.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}",
+        "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}",
+        "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:08.162778Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:08.162778Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":3}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "scope": {
+              "tenantId": "tenant_wire_22e9abd18d",
+              "projectId": "project_checkout",
+              "environmentId": "env_staging"
+            },
+            "subject": {
+              "kind": "release_policy_selection_lifecycle",
+              "eventId": "event_wire_22e9abd18d",
+              "selection": {
+                "selectionId": "selection_wire_22e9abd18d",
+                "gateTargetId": "gate_wire_22e9abd18d",
+                "installationId": "installation_wire_22e9abd18d",
+                "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+                "selectionVersionId": "version_wire_22e9abd18d_a"
+              },
+              "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+            },
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "issuedAt": "2026-10-19T16:28:08.210192Z",
+            "operation": "manage_selection",
+            "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+            "schemaVersion": "0.1",
+            "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
+            "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "header"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "issuedAt": "2026-10-19T16:28:08.210192Z",
+            "completed": true,
+            "originEpoch": "0",
+            "publication": {
+              "actor": {
+                "requestId": "request_native_wire",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "principalType": "user",
+                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticationMethod": "oidc"
+              },
+              "scope": {
+                "tenantId": "tenant_wire_22e9abd18d",
+                "projectId": "project_checkout",
+                "environmentId": "env_staging"
+              },
+              "subject": {
+                "kind": "release_policy_selection_lifecycle",
+                "eventId": "event_wire_22e9abd18d",
+                "selection": {
+                  "selectionId": "selection_wire_22e9abd18d",
+                  "gateTargetId": "gate_wire_22e9abd18d",
+                  "installationId": "installation_wire_22e9abd18d",
+                  "definitionSha256": "4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a",
+                  "selectionVersionId": "version_wire_22e9abd18d_a"
+                },
+                "recordSha256": "b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c"
+              },
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "issuedAt": "2026-10-19T16:28:08.210192Z",
+              "operation": "manage_selection",
+              "grantSha256": "225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3",
+              "schemaVersion": "0.1",
+              "credentialSha256": "90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde",
+              "definitionSha256": "a4d5e841f34491ec2661369a9b0e22a73dd781ba01ec82851d44a65e1ebf155a"
+            },
+            "canonicalIntent": true
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "source_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"actorPrincipalId\":\"user_wire_22e9abd18d\",\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"withdrawn\",\"occurredAt\":\"2026-10-19T16:28:08.210192Z\",\"reason\":\"Withdraw the exact native wire fixture.\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "grant_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"capabilities\":[\"release:selection:manage\"],\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"resourceScope\":{\"mode\":\"tenant\"},\"revision\":1,\"roles\":[\"member\"],\"state\":\"active\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"updatedAt\":\"2026-10-19T16:28:07.941312Z\"}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "credential_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"absoluteExpiresAt\":\"2026-10-19T17:28:07.951041Z\",\"bindingId\":\"binding_wire_22e9abd18d\",\"createdAt\":\"2026-10-19T16:28:07.951041Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"idleExpiresAt\":\"2026-10-19T16:58:08.162778Z\",\"idleLifetimeSeconds\":1800,\"kind\":\"oidc_session\",\"lastUsedAt\":\"2026-10-19T16:28:08.162778Z\",\"principalId\":\"user_wire_22e9abd18d\",\"revocationReason\":null,\"revokedAt\":null,\"schemaVersion\":\"0.1\",\"tenantId\":\"tenant_wire_22e9abd18d\",\"useCount\":3}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_read_selection_publication_part($1::jsonb,$2,$3,$4) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "release_policy_selection_lifecycle",
+        "event_wire_22e9abd18d",
+        "publication_encoding"
+      ],
+      "rows": [
+        {
+          "value": "{\"definition\":{\"actor\":{\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"authenticationMethod\":\"oidc\",\"credentialId\":\"session_wire_22e9abd18d\",\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"requestId\":\"request_native_wire\"},\"credentialSha256\":\"90dbb9719d928020290f9cb77cf7072183c12b1cc5e0632e8ca15e4a92b48fde\",\"grantSha256\":\"225e185991d7c7496cbf614a578ea8044e7d5d17533017da4b88d07482c6f2b3\",\"identity\":{\"bindingId\":\"binding_wire_22e9abd18d\",\"kind\":\"oidc_binding\",\"principalId\":\"user_wire_22e9abd18d\"},\"issuedAt\":\"2026-10-19T16:28:08.210192Z\",\"operation\":\"manage_selection\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"},\"subject\":{\"eventId\":\"event_wire_22e9abd18d\",\"kind\":\"release_policy_selection_lifecycle\",\"recordSha256\":\"b53a00443309364f0b642c634a17b11ca39b5369d8b331d17af57fdc0db7f60c\",\"selection\":{\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"gateTargetId\":\"gate_wire_22e9abd18d\",\"installationId\":\"installation_wire_22e9abd18d\",\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\"}}},\"definitionDomain\":\"proofstack.release-selection-publication.v1\",\"encodingVersion\":\"proofstack.release-selection-publication-jcs.v1\",\"schemaVersion\":\"0.1\",\"scope\":{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}}"
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_recheck_release_installer($1::jsonb,$2::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "actor": {
+              "requestId": "request_native_wire",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "principalType": "user",
+              "authenticatedAt": "2026-10-19T16:28:07.951Z",
+              "authenticationMethod": "oidc"
+            },
+            "grant": {
+              "roles": ["member"],
+              "state": "active",
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "revision": 1,
+              "tenantId": "tenant_wire_22e9abd18d",
+              "updatedAt": "2026-10-19T16:28:07.941312Z",
+              "capabilities": ["release:selection:manage"],
+              "resourceScope": {
+                "mode": "tenant"
+              }
+            },
+            "guards": [
+              {
+                "id": "session_wire_22e9abd18d",
+                "kind": "oidc_session",
+                "acquired": true
+              },
+              {
+                "id": "binding_wire_22e9abd18d",
+                "kind": "oidc_binding",
+                "acquired": true
+              }
+            ],
+            "identity": {
+              "kind": "oidc_binding",
+              "bindingId": "binding_wire_22e9abd18d",
+              "principalId": "user_wire_22e9abd18d"
+            },
+            "capturedAt": "2026-10-19T16:28:08.277207Z",
+            "credential": {
+              "kind": "oidc_session",
+              "tenantId": "tenant_wire_22e9abd18d",
+              "useCount": 4,
+              "bindingId": "binding_wire_22e9abd18d",
+              "createdAt": "2026-10-19T16:28:07.951041Z",
+              "revokedAt": null,
+              "lastUsedAt": "2026-10-19T16:28:08.249763Z",
+              "principalId": "user_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d",
+              "idleExpiresAt": "2026-10-19T16:58:08.249763Z",
+              "schemaVersion": "0.1",
+              "revocationReason": null,
+              "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+              "idleLifetimeSeconds": 1800
+            },
+            "bindingObservation": {
+              "bindingId": "binding_wire_22e9abd18d",
+              "credentialId": "session_wire_22e9abd18d"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sql": "SELECT public.proofstack_begin_authenticated_selection_lifecycle($1::jsonb,$2::jsonb,$3::jsonb) AS value",
+      "values": [
+        "{\"environmentId\":\"env_staging\",\"projectId\":\"project_checkout\",\"tenantId\":\"tenant_wire_22e9abd18d\"}",
+        "{\"eventId\":\"event_wire_22e9abd18d\",\"selection\":{\"selectionId\":\"selection_wire_22e9abd18d\",\"selectionVersionId\":\"version_wire_22e9abd18d_a\",\"definitionSha256\":\"4790edc9f82c35c2722d3187dcf69bb302c0f9ee14b1040fcf03549afa77520a\",\"installationId\":\"installation_wire_22e9abd18d\",\"gateTargetId\":\"gate_wire_22e9abd18d\"},\"reason\":\"Withdraw the exact native wire fixture.\",\"kind\":\"withdrawn\"}",
+        "{\"principalId\":\"user_wire_22e9abd18d\",\"principalType\":\"user\",\"authenticationMethod\":\"oidc\",\"authenticatedAt\":\"2026-10-19T16:28:07.951Z\",\"credentialId\":\"session_wire_22e9abd18d\",\"requestId\":\"request_native_wire\"}"
+      ],
+      "rows": [
+        {
+          "value": {
+            "created": false,
+            "sourceId": "event_wire_22e9abd18d",
+            "sourceKind": "release_policy_selection_lifecycle",
+            "policyObservations": [],
+            "identityObservation": {
+              "actor": {
+                "requestId": "request_native_wire",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "principalType": "user",
+                "authenticatedAt": "2026-10-19T16:28:07.951Z",
+                "authenticationMethod": "oidc"
+              },
+              "grant": {
+                "roles": ["member"],
+                "state": "active",
+                "identity": {
+                  "kind": "oidc_binding",
+                  "bindingId": "binding_wire_22e9abd18d",
+                  "principalId": "user_wire_22e9abd18d"
+                },
+                "revision": 1,
+                "tenantId": "tenant_wire_22e9abd18d",
+                "updatedAt": "2026-10-19T16:28:07.941312Z",
+                "capabilities": ["release:selection:manage"],
+                "resourceScope": {
+                  "mode": "tenant"
+                }
+              },
+              "guards": [
+                {
+                  "id": "session_wire_22e9abd18d",
+                  "kind": "oidc_session",
+                  "acquired": true
+                },
+                {
+                  "id": "binding_wire_22e9abd18d",
+                  "kind": "oidc_binding",
+                  "acquired": true
+                }
+              ],
+              "identity": {
+                "kind": "oidc_binding",
+                "bindingId": "binding_wire_22e9abd18d",
+                "principalId": "user_wire_22e9abd18d"
+              },
+              "capturedAt": "2026-10-19T16:28:08.280413Z",
+              "credential": {
+                "kind": "oidc_session",
+                "tenantId": "tenant_wire_22e9abd18d",
+                "useCount": 4,
+                "bindingId": "binding_wire_22e9abd18d",
+                "createdAt": "2026-10-19T16:28:07.951041Z",
+                "revokedAt": null,
+                "lastUsedAt": "2026-10-19T16:28:08.249763Z",
+                "principalId": "user_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d",
+                "idleExpiresAt": "2026-10-19T16:58:08.249763Z",
+                "schemaVersion": "0.1",
+                "revocationReason": null,
+                "absoluteExpiresAt": "2026-10-19T17:28:07.951041Z",
+                "idleLifetimeSeconds": 1800
+              },
+              "bindingObservation": {
+                "bindingId": "binding_wire_22e9abd18d",
+                "credentialId": "session_wire_22e9abd18d"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
