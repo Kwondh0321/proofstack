@@ -352,7 +352,24 @@ describe("native scoped policy job state/history and separate roles", () => {
     expect(rows.rows).toHaveLength(2);
     expect(new Set(rows.rows.map((row) => row.aggregate_id)).size).toBe(2);
   });
-  it("admits one concurrent claim, enforces heartbeat cadence and reclaims an actually expired native lease", async () => {
+  it("rejects a heartbeat before the request's native cadence without changing its lease", async () => {
+    const exact = scope("early_heartbeat");
+    const request = policyJobConformanceRequest(exact);
+    await control.createJob({ request, jobId: "job_native_early_heartbeat" });
+    const claimed = await worker.claimJob({
+      scope: exact,
+      jobId: "job_native_early_heartbeat",
+      workerId: "worker_early_heartbeat",
+      attemptId: "attempt_early_heartbeat",
+      leaseId: "lease_early_heartbeat",
+    });
+    const fence = claimed.job.currentLease!.mutationFence;
+    await expect(worker.heartbeatJob({ scope: exact, fence })).rejects.toMatchObject({
+      reason: "state_conflict",
+    });
+    expect(await control.findJob(exact, "job_native_early_heartbeat")).toEqual(claimed);
+  });
+  it("admits one concurrent claim, renews a ready heartbeat and reclaims an actually expired native lease", async () => {
     const exact = scope("race");
     await control.createJob({ request: shortLeaseRequest(exact), jobId: "job_native_race" });
     const claims = await Promise.allSettled(
@@ -371,7 +388,6 @@ describe("native scoped policy job state/history and separate roles", () => {
     const winner = claims.find((value) => value.status === "fulfilled")!;
     if (winner.status !== "fulfilled") throw new Error("No claim winner");
     const fence = winner.value.job.currentLease!.mutationFence;
-    await expect(worker.heartbeatJob({ scope: exact, fence })).rejects.toThrow();
     await new Promise((resolve) => setTimeout(resolve, 110));
     const heartbeat = await worker.heartbeatJob({ scope: exact, fence });
     expect(heartbeat.job.currentLease!.heartbeatAt).not.toBe(
