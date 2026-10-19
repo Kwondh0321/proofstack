@@ -12,13 +12,18 @@ API; the repository does not yet ship that TLS proxy as a production deployment 
 
 ## Requirements
 
-- Node.js 24 or newer. `.nvmrc` records the CI baseline.
+- Node.js 24 or newer. `.nvmrc` pins the exact CI baseline, currently 24.19.0.
 - pnpm 11.24.0, matching the root `package.json`.
 - Docker with Compose v2 only when using the PostgreSQL profile or S3 compatibility harness.
 - macOS or Linux for the optional POSIX shell-loading examples. Application commands are otherwise
   platform-independent.
 
 ## Install and verify
+
+Use the exact `.nvmrc` version to reproduce CI. Build and test jobs exchange source-bound outputs
+and require identical Node.js and pnpm versions. A floating major version can select different
+cached patch versions on separate runners. Update the runtime pin deliberately and verify the
+complete static, unit and service-backed gates; retain the exact archive and version checks.
 
 ```bash
 pnpm install --frozen-lockfile

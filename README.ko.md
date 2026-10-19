@@ -126,6 +126,8 @@ SDK에서도 사용할 수 있습니다. 지속적인 유지보수 스케줄링�
 
 요구 사항: Node.js 24 이상, pnpm 11.24.0.
 
+CI 런타임을 재현하려면 `.nvmrc`의 정확한 Node.js 버전(현재 24.19.0)을 사용하세요.
+
 ```bash
 git clone https://github.com/Kwondh0321/proofstack.git
 cd proofstack

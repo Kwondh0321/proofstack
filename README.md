@@ -127,6 +127,8 @@ remain outside the implemented claim.
 
 Requirements: Node.js 24+ and pnpm 11.24.0.
 
+For the CI runtime baseline, use the exact Node.js version in `.nvmrc` (currently 24.19.0).
+
 ```bash
 git clone https://github.com/Kwondh0321/proofstack.git
 cd proofstack
