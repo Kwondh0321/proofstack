@@ -37,6 +37,29 @@ async function fixture() {
   return { f, repository, state };
 }
 describe("owning selection memory storage integrity", () => {
+  it("keeps tentative fork publications and terminal history independent from the original", async () => {
+    const f = releasePolicySelectionRepositoryFixture("fork");
+    const repository = new MemoryReleasePolicySelectionRepository();
+    await repository.publishReleasePolicySelection(f.original);
+    const fork = repository.fork();
+    await fork.publishReleasePolicySelection(f.successor);
+    await fork.publishReleasePolicySelectionLifecycleEvent(f.supersession);
+    expect(await repository.readReleasePolicySelectionTarget(f.scope, f.target, meter())).toEqual({
+      root: f.original,
+      records: [f.original],
+      lifecycle: [],
+    });
+    await repository.publishReleasePolicySelectionLifecycleEvent(f.withdrawal);
+    expect(
+      (await fork.readReleasePolicySelectionTarget(f.scope, f.target, meter())).lifecycle,
+    ).toEqual([f.supersession]);
+    expect(await fork.findReleasePolicySelection(f.scope, f.successor.selectionVersionId)).toEqual(
+      f.successor,
+    );
+    expect(
+      await repository.findReleasePolicySelection(f.scope, f.successor.selectionVersionId),
+    ).toBeNull();
+  });
   it.each([
     "target_index",
     "logical_root",

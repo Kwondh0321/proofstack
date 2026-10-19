@@ -149,6 +149,7 @@ export {
 export {
   ReleaseDecisionVerificationBudget,
   ReleaseDecisionVerificationBudgetError,
+  type ReleaseDecisionVerificationUsage,
 } from "./release/release-decision-verification-budget.js";
 export * from "./runtime/endpoint-profile.js";
 export * from "./runtime/protocol-definition.js";

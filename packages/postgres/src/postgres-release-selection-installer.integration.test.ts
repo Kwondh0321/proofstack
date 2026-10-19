@@ -6,6 +6,7 @@ import {
   serializeEvaluationCanonicalJson,
   ReleasePolicyDefinitionSchema,
   type EvidenceScope,
+  type ReleaseSelectionPublicationMaterial,
 } from "@proofstack/contracts";
 import {
   releasePolicySelectionReference,
@@ -25,6 +26,7 @@ import {
   OidcSessionAuthenticator,
   ReleaseMutationAuthenticator,
 } from "@proofstack/identity";
+import { releaseSelectionInstallerConformanceCases } from "@proofstack/identity/testing";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
@@ -75,6 +77,7 @@ const authenticator = new ReleaseMutationAuthenticator(
   new OidcSessionAuthenticator(identityRepository),
 );
 const service = new PostgresReleaseSelectionInstaller(runtime, authenticator);
+const owningSelections = new PostgresReleasePolicySelectionRepository(admin);
 let sequence = 0;
 async function begin(client: PoolClient, scope: EvidenceScope) {
   await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
@@ -220,6 +223,67 @@ afterAll(async () => {
 });
 
 describe("actual authenticated native selection publication", () => {
+  for (const conformance of releaseSelectionInstallerConformanceCases) {
+    it(conformance.name, async () => {
+      let sessions = 0;
+      await conformance.run(async () => {
+        const f = await fixture();
+        return {
+          service,
+          scope: f.scope,
+          credentials: f.credentials,
+          intent: f.intent,
+          principalId: f.principalId,
+          async login(requestId) {
+            sessions++;
+            const secret = generateBrowserSessionCredentials();
+            await identityRepository.create({
+              bindingId: f.bindingId,
+              sessionId: `session_shared_${key}_${sequence}_${sessions}`,
+              ...secret,
+              absoluteLifetimeSeconds: 3600,
+              idleLifetimeSeconds: 1800,
+            });
+            return {
+              scope: f.scope,
+              requestId,
+              sessionToken: secret.sessionToken,
+              csrfToken: secret.csrfToken,
+            };
+          },
+          async changeCapabilities(capabilities) {
+            const client = await admin.connect();
+            try {
+              await begin(client, f.scope);
+              await client.query(
+                "SELECT public.proofstack_update_oidc_binding($1,$2,$3::text[],$4::text[],$5::jsonb,$6)",
+                [
+                  f.scope.tenantId,
+                  f.bindingId,
+                  ["member"],
+                  [...capabilities],
+                  JSON.stringify({ mode: "tenant" }),
+                  "user_fixture_installer",
+                ],
+              );
+              await client.query("COMMIT");
+            } finally {
+              await client.query("ROLLBACK");
+              client.release();
+            }
+          },
+          readOriginal: (id) => owningSelections.findReleasePolicySelection(f.scope, id),
+          async readPublication(kind, id) {
+            const rows = await admin.query<{ value: ReleaseSelectionPublicationMaterial }>(
+              "SELECT jsonb_build_object('publication',publication,'source',jsonb_build_object('kind',source_kind,'record',source_record),'grant',grant_record,'credential',credential_record) AS value FROM public.proofstack_release_selection_publications WHERE tenant_id=$1 AND project_id=$2 AND environment_id=$3 AND source_kind=$4 AND source_id=$5",
+              [f.scope.tenantId, f.scope.projectId, f.scope.environmentId, kind, id],
+            );
+            return rows.rows[0]?.value ?? null;
+          },
+        };
+      });
+    });
+  }
   it("publishes source/original safe provenance/intent atomically and preserves its exact retry receipt", async () => {
     const f = await fixture();
     const first = await service.publishSelection(f.credentials, f.intent);

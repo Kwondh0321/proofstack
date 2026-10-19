@@ -107,6 +107,13 @@ function eventSemantics(event: ReleasePolicySelectionLifecycleEvent) {
 export class MemoryReleasePolicySelectionRepository implements ReleasePolicySelectionRepository {
   private readonly tenants = new Map<string, State>();
 
+  /** Independent tentative reference state; publication still needs an owning atomic commit. */
+  fork(): MemoryReleasePolicySelectionRepository {
+    const next = new MemoryReleasePolicySelectionRepository();
+    for (const [tenant, state] of this.tenants) next.tenants.set(tenant, structuredClone(state));
+    return next;
+  }
+
   async findReleasePolicySelection(scope: EvidenceScope, versionId: string) {
     EvidenceScopeSchema.parse(scope);
     OpaqueIdSchema.parse(versionId);

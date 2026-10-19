@@ -146,6 +146,13 @@ export class MemoryReleasePolicyRepository
 {
   private readonly tenants = new Map<string, TenantState>();
 
+  /** Independent tentative reference state; publication still needs an owning atomic commit. */
+  fork(): MemoryReleasePolicyRepository {
+    const next = new MemoryReleasePolicyRepository();
+    for (const [tenant, state] of this.tenants) next.tenants.set(tenant, structuredClone(state));
+    return next;
+  }
+
   async findReleasePolicy(
     scope: EvidenceScope,
     policyVersionId: string,

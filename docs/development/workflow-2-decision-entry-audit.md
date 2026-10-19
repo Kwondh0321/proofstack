@@ -65,6 +65,8 @@ Only a separately authorized installer may publish/activate/supersede/withdraw t
 The [authenticated installer service](workflow-2-authenticated-selection-publication.md) implements
 the first native installation/lifecycle boundary with preserved original provenance. This is a
 component gate, not complete current decision authority or checkpoint acceptance.
+The [authenticated memory reference and shared service cases](workflow-2-authenticated-selection-reference.md)
+exercise matching reference semantics without composing production memory identity or accepting the checkpoint.
 Requests name a target and exact expected selection reference; they cannot provide a favorable
 policy list, select a mutable latest evaluation or downgrade required policy mode. Publication
 derives and validates the complete original selection inventory through owning authoritative

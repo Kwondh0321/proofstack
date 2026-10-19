@@ -26,6 +26,8 @@ import {
   readReleaseMutationAuthentication,
   ReleaseMutationAuthenticator,
   type ReleaseBrowserMutationCredentials,
+  type ReleaseSelectionInstaller,
+  type ReleaseSelectionInstallerResult,
 } from "@proofstack/identity";
 import type { PoolClient } from "pg";
 import {
@@ -49,16 +51,7 @@ import {
 } from "./postgres-release-policy-selection-repository.js";
 
 type SourceKind = ReleaseSelectionPublicationMaterial["source"]["kind"];
-export interface PostgresReleaseSelectionInstallerResult {
-  readonly created: boolean;
-  readonly record: ReleaseSelectionPublicationMaterial["source"]["record"];
-  readonly publication: ReleaseSelectionPublicationMaterial["publication"];
-  readonly usage: {
-    readonly records: number;
-    readonly recordBytes: number;
-    readonly approvalRecords: number;
-  };
-}
+export type PostgresReleaseSelectionInstallerResult = ReleaseSelectionInstallerResult;
 const limits = {
   maxAcquisitionRecords: 10000,
   maxAcquisitionRecordBytes: 16 * 1024 * 1024,
@@ -218,7 +211,7 @@ async function readMaterial(
  * dedicated role and one bounded guarded connection own source/profile/outbox publication.
  * Returned provenance is historical evidence, never current decision/publication authority.
  */
-export class PostgresReleaseSelectionInstaller {
+export class PostgresReleaseSelectionInstaller implements ReleaseSelectionInstaller {
   constructor(
     private readonly pool: PolicyTransactionPool,
     private readonly authentication: ReleaseMutationAuthenticator,
