@@ -86,6 +86,8 @@ export class HttpEvidenceTransport implements EvidenceTransport {
           "content-type": "application/json",
         },
         method: "POST",
+        credentials: "omit",
+        redirect: "error",
         signal: controller.signal,
       });
 

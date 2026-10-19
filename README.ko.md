@@ -143,6 +143,10 @@ API를 실행한 상태에서 다른 터미널을 열어 실제 SDK 트레이스
 pnpm example:basic-agent
 ```
 
+Evidence transport는 HTTP 리디렉션을 거부하고 브라우저의 자동 자격 증명을 전송하지 않습니다.
+최종 수집 endpoint를 직접 설정하세요. 원격 endpoint는 HTTPS를 사용하고,
+로컬 개발에서는 명시적인 loopback HTTP를 사용할 수 있습니다.
+
 이어서 첫 번째 Workflow 1 수직 흐름을 실행합니다.
 
 ```bash

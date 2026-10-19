@@ -1,3 +1,5 @@
+import { once } from "node:events";
+import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpEvidenceTransport, TransportError } from "./transport.js";
 
@@ -34,6 +36,23 @@ function acknowledgement(
   );
 }
 
+async function listenOnLoopback(server: Server): Promise<string> {
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Missing fixture address");
+  return `http://127.0.0.1:${address.port}`;
+}
+
+async function closeServer(server: Server): Promise<void> {
+  if (!server.listening) return;
+  const closing = new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  server.closeAllConnections();
+  await closing;
+}
+
 describe("HttpEvidenceTransport", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -61,6 +80,7 @@ describe("HttpEvidenceTransport", () => {
       authorization: "Bearer secret-test-key",
       "content-type": "application/json",
     });
+    expect(request).toMatchObject({ credentials: "omit", redirect: "error" });
     expect(JSON.parse(String(request?.body))).toMatchObject({ schemaVersion: "0.1" });
   });
 
@@ -81,6 +101,54 @@ describe("HttpEvidenceTransport", () => {
     await expect(promise).rejects.toMatchObject({ status: 503 });
     await expect(promise).rejects.toSatisfy((error: Error) => error.message.length < 600);
   });
+
+  it.each([301, 302, 303, 307, 308])(
+    "rejects actual HTTP %i without contacting the redirect destination",
+    async (status) => {
+      let sourceRequests = 0;
+      let destinationRequests = 0;
+      let destinationUrl = "";
+      const destination = createServer((request, response) => {
+        destinationRequests++;
+        request.resume();
+        response.writeHead(202, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            acceptedEventIds: [event.eventId],
+            duplicateEventIds: [],
+            requestId: "request_redirect_fixture",
+            schemaVersion: "0.1",
+          }),
+        );
+      });
+      const source = createServer((request, response) => {
+        sourceRequests++;
+        request.resume();
+        response.writeHead(status, { location: destinationUrl });
+        response.end();
+      });
+      const failures: unknown[] = [];
+      try {
+        destinationUrl = await listenOnLoopback(destination);
+        const transport = new HttpEvidenceTransport({
+          endpoint: await listenOnLoopback(source),
+          environmentId: "env_redirect",
+          projectId: "prj_redirect",
+          timeoutMs: 2000,
+        });
+        await expect(transport.send([event])).rejects.toBeInstanceOf(TransportError);
+        expect(sourceRequests).toBe(1);
+        expect(destinationRequests).toBe(0);
+      } catch (cause) {
+        failures.push(cause);
+      } finally {
+        const results = await Promise.allSettled([closeServer(source), closeServer(destination)]);
+        for (const result of results)
+          if (result.status === "rejected") failures.push(result.reason);
+      }
+      if (failures.length > 0) throw new AggregateError(failures, "Owned HTTP fixture failed");
+    },
+  );
 
   it("rejects a malformed successful acknowledgement", async () => {
     const fetch = vi

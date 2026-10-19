@@ -144,6 +144,10 @@ With the API still running, send a real SDK trace from another terminal:
 pnpm example:basic-agent
 ```
 
+The evidence transport rejects HTTP redirects and omits ambient browser credentials. Configure
+the final ingestion endpoint directly; remote endpoints require HTTPS, while explicit
+loopback HTTP remains available for local development.
+
 Then exercise the first Workflow 1 vertical path:
 
 ```bash
