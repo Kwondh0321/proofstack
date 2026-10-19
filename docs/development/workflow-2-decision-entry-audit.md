@@ -234,6 +234,10 @@ The [original input repository](workflow-2-decision-input-repository.md) retains
 candidate/selection/policy witnesses, plans and first receipts through private guarded storage.
 Its local plan ownership does not reserve external jobs or establish current publication authority.
 
+The [native request reservations](workflow-2-decision-request-reservations.md) coordinate new plans
+with every C3 request INSERT, preserving explicit unreserved legacy records. Actual authoritative
+planning, bounded held-client reservation observation and final atomic decision publication remain open.
+
 The [native private service identity](workflow-2-native-service-publisher.md) verifies actual
 service secrets and holds current credential/expiry/revocation observations on the same client.
 It supplies no human approval, installation binding or complete atomic decision authority.

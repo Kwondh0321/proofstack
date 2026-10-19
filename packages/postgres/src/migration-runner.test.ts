@@ -155,6 +155,7 @@ describe("migration inspection", () => {
         "0067_release_approval_storage",
         "0068_release_service_credentials",
         "0069_release_decision_input_storage",
+        "0070_release_decision_request_reservations",
       ],
     });
   });

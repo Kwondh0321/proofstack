@@ -195,6 +195,8 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_reserve_release_decision_request()",
+  "public.proofstack_enforce_release_decision_request_reservation()",
   "public.proofstack_try_lock_release_decision_input(jsonb)",
   "public.proofstack_lock_release_decision_input_write()",
   "public.proofstack_verify_release_decision_input_graph()",

@@ -80,3 +80,4 @@ invalidate an ADR present in this directory.
 - [ADR-0055: Persist complete original approval receipts](0055-persist-complete-original-approval-receipts.md)
 - [ADR-0056: Authenticate native private release publishers](0056-authenticate-native-private-release-publishers.md)
 - [ADR-0057: Preserve complete original decision inputs](0057-preserve-complete-original-decision-inputs.md)
+- [ADR-0058: Reserve decision requests across native writers](0058-reserve-decision-requests-across-native-writers.md)

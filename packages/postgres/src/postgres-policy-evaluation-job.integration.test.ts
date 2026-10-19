@@ -403,9 +403,14 @@ describe("native scoped policy job state/history and separate roles", () => {
       })
     ).snapshot;
     await expect(
-      admin.query(
-        `INSERT INTO public.proofstack_policy_evaluation_requests SELECT tenant_id,project_id,environment_id,request_id||'_bad',definition_sha256,created_at,created_at_lexical,created_by_principal_id,jsonb_set(request,'{evaluationRequestId}',to_jsonb(request_id||'_bad'))-'createdAt' FROM public.proofstack_policy_evaluation_requests WHERE tenant_id=$1`,
-        [exact.tenantId],
+      withBoundedPolicyTransaction(
+        admin,
+        (client) =>
+          client.query(
+            `INSERT INTO public.proofstack_policy_evaluation_requests SELECT tenant_id,project_id,environment_id,request_id||'_bad',definition_sha256,created_at,created_at_lexical,created_by_principal_id,jsonb_set(request,'{evaluationRequestId}',to_jsonb(request_id||'_bad'))-'createdAt' FROM public.proofstack_policy_evaluation_requests WHERE tenant_id=$1`,
+            [exact.tenantId],
+          ),
+        { scope: exact },
       ),
     ).rejects.toMatchObject({ code: "23514" });
     await expect(

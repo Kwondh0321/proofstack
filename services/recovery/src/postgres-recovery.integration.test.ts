@@ -444,6 +444,16 @@ const approvalRecovery = (() => {
   return { original, successor, exception, revocation };
 })();
 const decisionInputRecovery = releaseDecisionInputRepositoryFixture("recovery_native_input", scope);
+let decisionInputReservationReceipts: unknown;
+async function readDecisionInputReservationReceipts(pool: Pool) {
+  return (
+    await pool.query(
+      `SELECT ordinal,request_id,request_sha256,reservation_profile,reserved_at_lexical,reserved_at_key::text
+    FROM public.proofstack_release_decision_input_plans WHERE tenant_id=$1 AND input_id=$2 ORDER BY ordinal`,
+      [scope.tenantId, decisionInputRecovery.request.decisionInputRequestId],
+    )
+  ).rows;
+}
 // Disposable fixture secrets remain in this process; backup state contains only native verifiers.
 const serviceRecoveryTokens = [generateServiceToken(), generateServiceToken()];
 const serviceRecoveryIds = [
@@ -2244,6 +2254,18 @@ async function seedRecoverableReleasePolicyGraph(): Promise<void> {
     created: true,
     graph: decisionInputRecovery,
   });
+  decisionInputReservationReceipts = await readDecisionInputReservationReceipts(sourcePool);
+  expect(decisionInputReservationReceipts).toHaveLength(
+    decisionInputRecovery.request.evaluations.length,
+  );
+  expect(
+    (decisionInputReservationReceipts as Record<string, unknown>[]).every(
+      (r) =>
+        r["reservation_profile"] === 1 &&
+        typeof r["reserved_at_lexical"] === "string" &&
+        typeof r["reserved_at_key"] === "string",
+    ),
+  ).toBe(true);
   for (const [index, token] of serviceRecoveryTokens.entries()) {
     const credentialId = serviceRecoveryIds[index];
     if (!credentialId) throw new Error("Missing service recovery fixture ID");
@@ -3980,6 +4002,9 @@ describe("coordinated recovery rehearsal", () => {
       }),
     ).resolves.toEqual({ created: false, event: approvalRecovery.revocation });
     const inputs = new PostgresReleaseDecisionInputRepository(restoredPool);
+    expect(await readDecisionInputReservationReceipts(restoredPool)).toEqual(
+      decisionInputReservationReceipts,
+    );
     expect(
       await inputs.findReleaseDecisionInput(
         scope,

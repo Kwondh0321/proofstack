@@ -277,6 +277,8 @@ describe("provisionRuntimeRoles", () => {
       "public.proofstack_lock_release_decision_input_write()",
       "public.proofstack_verify_release_decision_input_graph()",
       "public.proofstack_store_release_decision_input(jsonb,text)",
+      "public.proofstack_reserve_release_decision_request()",
+      "public.proofstack_enforce_release_decision_request_reservation()",
       "public.proofstack_read_release_decision_input(jsonb,text)",
     ]) {
       for (const recipient of [
