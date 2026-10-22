@@ -6401,10 +6401,9 @@ describe("retained live endpoint profile graph acquisition", () => {
     });
   });
 
-  it("rejects changed full receipts, disappearing profiles and formerly missing creation on reinspection", async () => {
+  it("reinspects an unchanged complete endpoint profile", async () => {
     const h = await setup();
-    const record = h.endpointProfile;
-    if (!record) throw new Error("Missing independent endpoint fixture");
+    if (!h.endpointProfile) throw new Error("Missing independent endpoint fixture");
     const retained = await capturePolicyRecordGraph(h.input, h.repositories);
     expect(
       await acquirePolicyRecordGraph(
@@ -6414,22 +6413,27 @@ describe("retained live endpoint profile graph acquisition", () => {
         retained,
       ),
     ).toEqual(retained);
-    const missing = { ...h.repositories, endpointProfiles: new StaticEndpointProfileCatalogue([]) };
-    for (const repositories of [
-      missing,
-      {
+  });
+
+  it.each(["missing", "actor", "receipt"] as const)(
+    "rejects a changed endpoint %s on reinspection",
+    async (change) => {
+      const h = await setup();
+      const record = h.endpointProfile;
+      if (!record) throw new Error("Missing independent endpoint fixture");
+      const retained = await capturePolicyRecordGraph(h.input, h.repositories);
+      const repositories = {
         ...h.repositories,
-        endpointProfiles: new StaticEndpointProfileCatalogue([
-          { ...record, registeredByPrincipalId: "operator_changed" },
-        ]),
-      },
-      {
-        ...h.repositories,
-        endpointProfiles: new StaticEndpointProfileCatalogue([
-          { ...record, registeredAt: "2026-10-02T00:00:00.001Z" },
-        ]),
-      },
-    ])
+        endpointProfiles: new StaticEndpointProfileCatalogue(
+          change === "missing"
+            ? []
+            : [
+                change === "actor"
+                  ? { ...record, registeredByPrincipalId: "operator_changed" }
+                  : { ...record, registeredAt: "2026-10-02T00:00:00.001Z" },
+              ],
+        ),
+      };
       await expect(
         acquirePolicyRecordGraph(
           h.input,
@@ -6441,6 +6445,13 @@ describe("retained live endpoint profile graph acquisition", () => {
         code: "policy_captured_observation_recheck_failed",
         reason: "source_revision_changed",
       });
+    },
+  );
+
+  it("rejects formerly missing endpoint creation on reinspection", async () => {
+    const h = await setup();
+    if (!h.endpointProfile) throw new Error("Missing independent endpoint fixture");
+    const missing = { ...h.repositories, endpointProfiles: new StaticEndpointProfileCatalogue([]) };
     const absent = await capturePolicyRecordGraph(h.input, missing);
     await expect(
       acquirePolicyRecordGraph(
@@ -6482,7 +6493,7 @@ describe("retained live endpoint profile graph acquisition", () => {
 describe("retained qualification policy graph acquisition", () => {
   const limits = { maxReferences: 10000, maxReferenceBytes: 4000000 };
 
-  it("reads one exact independent policy for repeated original report declarations and retains authority frontiers", async () => {
+  async function capturedPolicy() {
     const setup = await harness(undefined, { qualificationPolicy: true });
     const record = setup.qualificationPolicy;
     if (!record) throw new Error("Missing independently defined policy");
@@ -6494,6 +6505,11 @@ describe("retained qualification policy graph acquisition", () => {
       ...setup.repositories,
       qualificationPolicies: { findQualificationPolicy: lookup },
     });
+    return { setup, record, graph, lookup };
+  }
+
+  it("reads one exact independent policy for repeated original report declarations and retains authority frontiers", async () => {
+    const { setup, record, graph, lookup } = await capturedPolicy();
     const edges = graph.edges.filter(({ reference }) => reference.kind === "qualification_policy");
     expect(edges).toHaveLength(2);
     expect(lookup).toHaveBeenCalledExactlyOnceWith(
@@ -6528,13 +6544,21 @@ describe("retained qualification policy graph acquisition", () => {
     expect(derived.closure).toEqual(graph.recordClosure);
     expect(graph).not.toHaveProperty("sealed");
     expect(graph).not.toHaveProperty("qualified");
+  });
 
+  async function admission() {
+    const { setup, graph } = await capturedPolicy();
     // Every occurrence and unique read is included in the shared finite admission meter.
     const exactLimits = {
       ...setup.input.limits,
       maxAcquisitionRecords: Math.max(graph.usage.records, graph.usage.references),
       maxAcquisitionRecordBytes: graph.usage.bytes + graph.usage.referenceBytes,
     };
+    return { setup, graph, exactLimits };
+  }
+
+  it("admits exact combined qualification policy records and bytes", async () => {
+    const { setup, graph, exactLimits } = await admission();
     expect(
       (
         await capturePolicyRecordGraph(
@@ -6543,18 +6567,23 @@ describe("retained qualification policy graph acquisition", () => {
         )
       ).usage,
     ).toEqual(graph.usage);
-    for (const patch of [
-      { maxAcquisitionRecords: exactLimits.maxAcquisitionRecords - 1 },
-      { maxAcquisitionRecordBytes: exactLimits.maxAcquisitionRecordBytes - 1 },
-    ]) {
+  });
+
+  it.each(["maxAcquisitionRecords", "maxAcquisitionRecordBytes"] as const)(
+    "rejects combined qualification policy admission one below %s",
+    async (limit) => {
+      const { setup, exactLimits } = await admission();
       await expect(
         capturePolicyRecordGraph(
-          request(setup.candidate, setup.policy, { ...exactLimits, ...patch }),
+          request(setup.candidate, setup.policy, {
+            ...exactLimits,
+            [limit]: exactLimits[limit] - 1,
+          }),
           setup.repositories,
         ),
       ).rejects.toThrow();
-    }
-  });
+    },
+  );
 
   it.each(["missing", "future", "invalid_flag", "invalid_digest"] as const)(
     "retains exact declared qualification-policy targets and explicit %s observations without fabricated bodies",
