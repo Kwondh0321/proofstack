@@ -14,12 +14,17 @@ catalog:
   "@smithy/node-http-handler": 4.11.3
   "@types/node": 24.13.3
   "@types/pg": 8.23.1
-  "@vitest/coverage-v8": 4.1.11
+  "@vitest/coverage-v8": 4.1.12
   "pg": 8.23.0
   "protobufjs": 8.6.6
   "typescript": 6.0.3
-  "vitest": 4.1.11
+  "vitest": 4.1.12
   "zod": 4.4.3
+
+overrides:
+  # Keep this compatible development-only edge off the disclosed vulnerable Vite versions.
+  # Reinspect this exact parent pin when advancing the Vitest catalog.
+  "vitest@4.1.12>vite": 8.2.4
 
 minimumReleaseAge: 1440
 
