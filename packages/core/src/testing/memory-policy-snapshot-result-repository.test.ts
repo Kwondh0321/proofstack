@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { PolicyEvaluationUsageSchema } from "@proofstack/contracts";
 import { MemoryPolicyEvaluationJobRepository } from "./memory-policy-evaluation-job-repository.js";
 import { policySnapshotRepositoryFixture } from "./policy-snapshot-repository-fixture.js";
@@ -300,22 +300,35 @@ describe("memory owning snapshot and result persistence", () => {
     ).rejects.toThrow();
     expect(await f.jobs.findResult(f.scope, f.jobId, f.pageSet)).toBeNull();
   });
-  it("isolates identical job, snapshot and result IDs across three captured tenant scopes", async () => {
+  describe("identical job, snapshot and result IDs across three captured tenant scopes", () => {
     const current = { now: "2026-10-15T00:00:00.000Z" };
     const jobs = new MemoryPolicyEvaluationJobRepository({ now: () => current.now });
-    const fixtures = [];
-    for (let index = 0; index < 3; index++) {
-      const f = await start(index, jobs, current);
-      const result = await complete(f);
-      fixtures.push({ f, result });
-    }
-    expect(new Set(fixtures.map(({ f }) => f.scope.tenantId)).size).toBe(3);
-    expect(new Set(fixtures.map(({ f }) => f.expected.snapshot.definitionSha256)).size).toBe(3);
-    for (const { f, result } of fixtures) {
-      expect(await jobs.findSnapshot(f.expected)).toEqual(f.sealed.snapshot);
-      for (const page of f.pageSet.pages)
-        expect(await jobs.readSnapshotPage(f.expected, page.pageIndex)).toEqual(page);
-      expect(await jobs.findResult(f.scope, f.jobId, f.pageSet)).toEqual(result.evaluation);
-    }
+    const fixtures: {
+      f: Awaited<ReturnType<typeof start>>;
+      result: Awaited<ReturnType<typeof complete>>;
+    }[] = [];
+    // Every read scenario still sees all three completed tenants in one actual owning store.
+    // Setup and each independent readback retain the framework's existing default deadlines.
+    beforeAll(async () => {
+      for (let index = 0; index < 3; index++) {
+        const f = await start(index, jobs, current);
+        const result = await complete(f);
+        fixtures.push({ f, result });
+      }
+    });
+    it("retains all three distinct tenant scopes and original seal digests", () => {
+      expect(new Set(fixtures.map(({ f }) => f.scope.tenantId)).size).toBe(3);
+      expect(new Set(fixtures.map(({ f }) => f.expected.snapshot.definitionSha256)).size).toBe(3);
+    });
+    it.each([0, 1, 2])(
+      "isolates tenant %i's complete original snapshot, pages and result",
+      async (index) => {
+        const { f, result } = fixtures[index]!;
+        expect(await jobs.findSnapshot(f.expected)).toEqual(f.sealed.snapshot);
+        for (const page of f.pageSet.pages)
+          expect(await jobs.readSnapshotPage(f.expected, page.pageIndex)).toEqual(page);
+        expect(await jobs.findResult(f.scope, f.jobId, f.pageSet)).toEqual(result.evaluation);
+      },
+    );
   });
 });
