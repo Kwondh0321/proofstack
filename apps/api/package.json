@@ -25,9 +25,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fastify/cors": "11.3.0",
-    "@fastify/helmet": "13.1.1",
-    "@fastify/rate-limit": "11.2.0",
+    "@fastify/cors": "11.3.1",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/rate-limit": "11.2.1",
     "@proofstack/artifacts": "workspace:*",
     "@proofstack/contracts": "workspace:*",
     "@proofstack/core": "workspace:*",
@@ -38,8 +38,8 @@
     "@proofstack/replay": "workspace:*",
     "@proofstack/s3": "workspace:*",
     "@proofstack/source-authority": "workspace:*",
-    "fastify": "5.12.6",
-    "openid-client": "6.8.7",
+    "fastify": "5.12.7",
+    "openid-client": "6.8.8",
     "zod": "catalog:"
   },
   "devDependencies": {
