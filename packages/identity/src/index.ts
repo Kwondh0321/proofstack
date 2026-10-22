@@ -11,3 +11,4 @@ export * from "./release-reviewer-administrator.js";
 export * from "./service-token.js";
 export * from "./service-token-authenticator.js";
 export * from "./release-approval-revoker.js";
+export * from "./release-normal-approval-recorder.js";

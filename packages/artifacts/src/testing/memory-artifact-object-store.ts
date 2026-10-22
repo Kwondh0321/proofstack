@@ -15,6 +15,13 @@ function receipt(value: Uint8Array): ArtifactObjectReceipt {
 export class MemoryArtifactObjectStore implements ArtifactObjectStore {
   private readonly objects = new Map<string, Uint8Array>();
 
+  /** Copy ciphertext bytes; mutations of a tentative fixture never alter its parent. */
+  fork(): MemoryArtifactObjectStore {
+    const next = new MemoryArtifactObjectStore();
+    for (const [key, value] of this.objects) next.objects.set(key, Uint8Array.from(value));
+    return next;
+  }
+
   async delete(objectKey: string): Promise<{ readonly deleted: boolean }> {
     return { deleted: this.objects.delete(objectKey) };
   }

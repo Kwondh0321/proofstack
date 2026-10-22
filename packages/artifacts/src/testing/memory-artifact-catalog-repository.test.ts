@@ -62,6 +62,56 @@ function ownership(overrides: Record<string, unknown> = {}) {
 }
 
 describe("MemoryArtifactCatalogRepository", () => {
+  it("forks complete reserved, owned and purged records without sharing later transitions", async () => {
+    const parent = new MemoryArtifactCatalogRepository();
+    const input = candidate(),
+      scope = input.metadata.scope,
+      id = input.metadata.contentReference.artifactId;
+    expect(await parent.fork().find(scope, id)).toBeNull();
+    await parent.reserve(input);
+    const reserved = parent.fork();
+    await reserved.activate(
+      scope,
+      id,
+      { sha256: "2".repeat(64), sizeBytes: 21 },
+      "2026-08-28T03:01:00.000Z",
+    );
+    expect((await parent.find(scope, id))?.metadata.state).toBe("reserved");
+    reserved.claimFixtureOwnershipForTesting(ownership());
+    const owned = reserved.fork();
+    const copy = await owned.find(scope, id);
+    Object.assign(copy!.encryption.wrappedDataKey, { keyId: "key_changed" });
+    expect((await reserved.find(scope, id))?.encryption.wrappedDataKey.keyId).toBe("key_mutation");
+    expect((await owned.find(scope, id))?.ownership).toEqual(ownership());
+    await parent.activate(
+      scope,
+      id,
+      { sha256: "2".repeat(64), sizeBytes: 21 },
+      "2026-08-28T03:01:00.000Z",
+    );
+    const tombstone = {
+      actorPrincipalId: "usr_owner",
+      artifactId: id,
+      occurredAt: "2026-08-28T03:03:00.000Z",
+      reason: "Retain independent purge evidence.",
+      tombstoneId: "del_forked",
+      trigger: "manual" as const,
+    };
+    await parent.tombstone(scope, tombstone);
+    const tombstoned = parent.fork();
+    expect((await tombstoned.tombstone(scope, tombstone)).created).toBe(false);
+    const receipt = {
+      artifactId: id,
+      occurredAt: "2026-08-28T03:04:00.000Z",
+      objectWasPresent: true,
+      purgeId: "purge_forked",
+    };
+    await parent.recordPurge(scope, receipt);
+    const purged = parent.fork();
+    expect(await purged.findPurgeReceipt(scope, id)).toEqual(receipt);
+    expect((await tombstoned.find(scope, id))?.metadata.state).toBe("tombstoned");
+    expect((await owned.find(scope, id))?.metadata.state).toBe("available");
+  });
   it("orders maintenance using exact timestamps before artifact IDs", async () => {
     const repository = new MemoryArtifactCatalogRepository();
     const base = candidate();

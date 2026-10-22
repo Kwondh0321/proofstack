@@ -2,6 +2,10 @@
 
 [English](workflow-2-decision-entry-audit.md) | [한국어](workflow-2-decision-entry-audit.ko.md)
 
+[인증된 정상 검토 참조 구현](workflow-2-normal-approval-reference.ko.md)은 실제 OIDC 행위,
+원래 소유 평가, 현재 선택·정책·검토자와 권한이 확인된 암호화 근거 읽기를 하나의 합성
+소유 상태에 연결합니다. 예외·PostgreSQL 가드 구성·체크포인트 종료 감사는 남아 있습니다.
+
 [원래 승인 대상 조회기](workflow-2-owned-approval-subject.ko.md)는 원래 요청에서 C3 작업을
 찾고 전체 봉인 자료를 재계산합니다. 현재 선택·검토자·근거 권한과 실제 인증·가드
 기반 승인 발행은 별도의 미완료 경계입니다.

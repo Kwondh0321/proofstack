@@ -111,6 +111,13 @@ function assertMaintenanceLimit(limit: number): void {
 export class MemoryArtifactCatalogRepository implements ArtifactCatalogRepository {
   private readonly artifacts = new Map<string, StoredArtifact>();
 
+  /** Independent tentative state for a single owning reference's whole-state commit. */
+  fork(): MemoryArtifactCatalogRepository {
+    const next = new MemoryArtifactCatalogRepository();
+    for (const [key, stored] of this.artifacts) next.artifacts.set(key, clone(stored));
+    return next;
+  }
+
   async reserve(candidate: ArtifactCatalogEntry): Promise<ReserveArtifactCatalogResult> {
     if (
       candidate.metadata.state !== "reserved" ||

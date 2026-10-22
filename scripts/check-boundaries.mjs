@@ -64,7 +64,7 @@ const modules = [
     packageName: "@proofstack/sdk",
   },
   {
-    allowed: new Set(["@proofstack/contracts", "@proofstack/core"]),
+    allowed: new Set(["@proofstack/artifacts", "@proofstack/contracts", "@proofstack/core"]),
     directory: "packages/identity/src",
     packageName: "@proofstack/identity",
   },

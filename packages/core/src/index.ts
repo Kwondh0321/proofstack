@@ -137,6 +137,9 @@ export * from "./release/release-candidate-errors.js";
 export * from "./release/release-candidate-record-validation.js";
 export * from "./release/release-candidate-repository.js";
 export * from "./release/release-policy-selection-repository.js";
+export * from "./release/release-selection-census.js";
+export * from "./release/release-reviewer-census.js";
+export * from "./release/captured-release-reviewer-eligibility.js";
 export {
   releasePolicySelectionReference,
   releaseReviewerAuthorityReference,

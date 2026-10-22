@@ -1,7 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   EvidenceScopeSchema,
+  ArtifactMetadataSchema,
+  ArtifactContentReferenceSchema,
+  encodeReleaseApprovalDefinition,
   encodeReleasePolicySelectionDefinition,
   encodeReleaseReviewerAuthorityDefinition,
   OpaqueIdSchema,
@@ -15,6 +18,9 @@ import {
   ReleaseReviewerAuthoritySchema,
   ReleaseReviewerAuthorityLifecycleEventSchema,
   ReleaseApprovalReviewerReceiptSchema,
+  ReleaseApprovalIntentSchema,
+  ReleaseApprovalDefinitionSchema,
+  ReleaseApprovalSchema,
   ReleaseApprovalRevocationIntentSchema,
   ReleaseApprovalRevocationSchema,
   ReleaseDecisionIdentityGrantSchema,
@@ -23,6 +29,7 @@ import {
   ReleasePolicySelectionSchema,
   ReleasePolicySelectionLifecycleEventSchema,
   type EvidenceScope,
+  type ReleaseApprovalIntent,
   type ReleaseApprovalReviewerReceipt,
   type ReleaseApprovalPublicationMaterial,
   type ReleaseDecisionIdentityGrant,
@@ -36,6 +43,14 @@ import {
 } from "@proofstack/contracts";
 import {
   inspectCapturedReleaseIdentityState,
+  inspectCapturedReleaseReviewerEligibility,
+  resolveCapturedReleaseSelectionCensus,
+  resolveCapturedReleaseReviewerCensus,
+  releaseReviewerAuthorityReference,
+  releaseApprovalRetryIntent,
+  readOwnedReleaseApprovalSubject,
+  inspectPolicyEvaluationControlRecord,
+  readPolicyEvaluationLifecycle,
   prepareReleaseSelectionPublicationMaterial,
   prepareReleaseReviewerPublicationMaterial,
   prepareReleaseApprovalPublicationMaterial,
@@ -52,7 +67,21 @@ import {
   MemoryReleasePolicySelectionRepository,
   MemoryReleaseReviewerAuthorityRepository,
   MemoryReleaseApprovalRepository,
+  MemoryPolicyEvaluationJobRepository,
+  MemoryReleaseCandidateRepository,
 } from "@proofstack/core/testing";
+import {
+  ArtifactCipher,
+  LocalArtifactKeyring,
+  ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
+  inspectPolicyEvaluationArtifactCatalog,
+  readPolicyEvaluationArtifact,
+  type PolicyEvaluationArtifactRead,
+} from "@proofstack/artifacts";
+import {
+  MemoryArtifactCatalogRepository,
+  MemoryArtifactObjectStore,
+} from "@proofstack/artifacts/testing";
 import { generateBrowserSessionCredentials } from "../oidc-secrets.js";
 import { OidcSessionAuthenticator, type AuthenticatableBrowserSession } from "../oidc-session.js";
 import {
@@ -72,8 +101,13 @@ import type {
   ReleaseApprovalRevoker,
   ReleaseApprovalRevokerResult,
 } from "../release-approval-revoker.js";
+import type {
+  ReleaseNormalApprovalRecorder,
+  ReleaseNormalApprovalRecorderResult,
+} from "../release-normal-approval-recorder.js";
 
 type Material = ReleaseSelectionPublicationMaterial;
+type ArtifactContentReference = ReturnType<typeof ArtifactContentReferenceSchema.parse>;
 type Kind = Material["source"]["kind"];
 type StoredSession = {
   readonly credential: ReleaseDecisionSessionState;
@@ -85,6 +119,10 @@ interface State {
   readonly selections: MemoryReleasePolicySelectionRepository;
   readonly reviewers: MemoryReleaseReviewerAuthorityRepository;
   readonly approvals: MemoryReleaseApprovalRepository;
+  readonly candidates: MemoryReleaseCandidateRepository;
+  readonly jobs: MemoryPolicyEvaluationJobRepository;
+  readonly catalog: MemoryArtifactCatalogRepository;
+  readonly objects: MemoryArtifactObjectStore;
   readonly grants: Map<string, ReleaseDecisionIdentityGrant>;
   readonly sessions: Map<string, StoredSession>;
   readonly publications: Map<string, Material>;
@@ -92,11 +130,15 @@ interface State {
   readonly approvalPublications: Map<string, ReleaseApprovalPublicationMaterial>;
   readonly intents: Map<string, unknown>;
 }
-const empty = (): State => ({
+const empty = (clock: Clock): State => ({
   policies: new MemoryReleasePolicyRepository(),
   selections: new MemoryReleasePolicySelectionRepository(),
   reviewers: new MemoryReleaseReviewerAuthorityRepository(),
   approvals: new MemoryReleaseApprovalRepository(),
+  candidates: new MemoryReleaseCandidateRepository(),
+  jobs: new MemoryPolicyEvaluationJobRepository({ now: () => clock.now().toISOString() }),
+  catalog: new MemoryArtifactCatalogRepository(),
+  objects: new MemoryArtifactObjectStore(),
   grants: new Map(),
   sessions: new Map(),
   publications: new Map(),
@@ -109,6 +151,10 @@ const fork = (state: State): State => ({
   selections: state.selections.fork(),
   reviewers: state.reviewers.fork(),
   approvals: state.approvals.fork(),
+  candidates: state.candidates.fork(),
+  jobs: state.jobs.fork(),
+  catalog: state.catalog.fork(),
+  objects: state.objects.fork(),
   grants: structuredClone(state.grants),
   sessions: structuredClone(state.sessions),
   publications: structuredClone(state.publications),
@@ -215,12 +261,22 @@ const approvalLimits = { ...limits, maxApprovalRecords: 4096 } as const;
  * Synthetic seed/session methods are fixture-owner operations, never public HTTP capabilities.
  */
 export class MemoryReleaseSelectionInstallerReference
-  implements ReleaseSelectionInstaller, ReleaseReviewerAdministrator, ReleaseApprovalRevoker
+  implements
+    ReleaseSelectionInstaller,
+    ReleaseReviewerAdministrator,
+    ReleaseApprovalRevoker,
+    ReleaseNormalApprovalRecorder
 {
   readonly mode = "synthetic_reference" as const;
   private readonly tenants = new Map<string, State>();
   private readonly sessionIndex = new Map<string, { tenantId: string; sessionId: string }>();
   private readonly authentication: ReleaseMutationAuthenticator;
+  private readonly approvalEncryption = new ArtifactCipher(
+    new LocalArtifactKeyring({
+      activeKeyId: "key_synthetic_approval_basis",
+      keys: { key_synthetic_approval_basis: randomBytes(32) },
+    }),
+  );
 
   constructor(private readonly clock: Clock) {
     this.authentication = new ReleaseMutationAuthenticator(
@@ -239,7 +295,7 @@ export class MemoryReleaseSelectionInstallerReference
     const grant = ReleaseDecisionIdentityGrantSchema.parse(input);
     if (grant.identity.kind !== "oidc_binding") fail();
     const original = this.tenants.get(grant.tenantId),
-      next = fork(original ?? empty()),
+      next = fork(original ?? empty(this.clock)),
       prior = next.grants.get(grant.identity.bindingId);
     if (
       prior &&
@@ -358,21 +414,21 @@ export class MemoryReleaseSelectionInstallerReference
   async seedSyntheticPolicy(record: ReleasePolicy): Promise<void> {
     const scope = EvidenceScopeSchema.parse(record.scope),
       original = this.tenants.get(scope.tenantId),
-      next = fork(original ?? empty());
+      next = fork(original ?? empty(this.clock));
     await next.policies.publishReleasePolicy(record);
     this.commit(scope.tenantId, original, next);
   }
   async seedSyntheticPolicyLifecycle(event: ReleasePolicyLifecycleEvent): Promise<void> {
     const scope = EvidenceScopeSchema.parse(event.scope),
       original = this.tenants.get(scope.tenantId),
-      next = fork(original ?? empty());
+      next = fork(original ?? empty(this.clock));
     await next.policies.publishReleasePolicyLifecycleEvent(event);
     this.commit(scope.tenantId, original, next);
   }
   async seedSyntheticSelection(record: ReleasePolicySelection): Promise<void> {
     const scope = EvidenceScopeSchema.parse(record.scope),
       original = this.tenants.get(scope.tenantId),
-      next = fork(original ?? empty());
+      next = fork(original ?? empty(this.clock));
     const result = await next.selections.publishReleasePolicySelection(record);
     if (result.created)
       next.intents.set(
@@ -695,7 +751,7 @@ export class MemoryReleaseSelectionInstallerReference
   async seedSyntheticReviewerAuthority(record: ReleaseReviewerAuthority): Promise<void> {
     const scope = EvidenceScopeSchema.parse(record.scope),
       original = this.tenants.get(scope.tenantId),
-      next = fork(original ?? empty());
+      next = fork(original ?? empty(this.clock));
     const result = await next.reviewers.publishReleaseReviewerAuthority(record);
     if (result.created)
       next.intents.set(
@@ -973,7 +1029,7 @@ export class MemoryReleaseSelectionInstallerReference
     if (material.source.kind !== "release_approval") fail();
     const scope = material.publication.scope,
       original = this.tenants.get(scope.tenantId),
-      next = fork(original ?? empty()),
+      next = fork(original ?? empty(this.clock)),
       id = approvalSourceId(material.source);
     if (next.approvalPublications.has(key(material.source.kind, id))) fail();
     const result = await next.approvals.publishReleaseApproval(material.source.record);
@@ -982,6 +1038,495 @@ export class MemoryReleaseSelectionInstallerReference
     await this.requireApprovalMaterial(next, scope, material.source.kind, id, budget);
     budget.snapshot();
     this.commit(scope.tenantId, original, next);
+  }
+  /** Import an independent copy of actual completed fixture stores, never caller result reports.
+   * Subsequent changes of either supplied repository cannot alter this owner's private state.
+   */
+  seedSyntheticApprovalSubjectSources(input: {
+    readonly scope: EvidenceScope;
+    readonly candidates: MemoryReleaseCandidateRepository;
+    readonly jobs: MemoryPolicyEvaluationJobRepository;
+  }): void {
+    const scope = EvidenceScopeSchema.parse(input.scope);
+    const original = this.tenants.get(scope.tenantId),
+      next = {
+        ...fork(original ?? empty(this.clock)),
+        candidates: input.candidates.fork(),
+        jobs: input.jobs.fork(),
+      };
+    this.commit(scope.tenantId, original, next);
+  }
+  /** Fixture-owner encrypted storage, not a public upload or expertise certification. */
+  async seedSyntheticApprovalEvidence(input: {
+    readonly scope: EvidenceScope;
+    readonly artifactId: string;
+    readonly content: Uint8Array;
+    readonly expiresAt?: string;
+  }): Promise<ArtifactContentReference> {
+    const scope = EvidenceScopeSchema.parse(input.scope),
+      original = this.tenants.get(scope.tenantId),
+      next = fork(original ?? empty(this.clock)),
+      content = Uint8Array.from(input.content),
+      at = this.now();
+    const metadata = ArtifactMetadataSchema.parse({
+      schemaVersion: "0.1",
+      scope,
+      createdAt: at,
+      state: "reserved",
+      contentReference: {
+        artifactId: input.artifactId,
+        classification: "confidential",
+        mediaType: "application/json",
+        sha256: createHash("sha256").update(content).digest("hex"),
+        sizeBytes: content.byteLength,
+      },
+      redaction: { status: "not_required" },
+      retention: input.expiresAt
+        ? { mode: "expire", expiresAt: input.expiresAt }
+        : { mode: "retain" },
+    });
+    const plan = await this.approvalEncryption.createPlan(metadata),
+      encrypted = await this.approvalEncryption.encrypt(metadata, plan, content),
+      objectKey = `synthetic-approval/${scope.tenantId}/${metadata.contentReference.artifactId}`;
+    const reserved = await next.catalog.reserve({
+      metadata,
+      createdByPrincipalId: "principal_synthetic_fixture_writer",
+      objectKey,
+      encryption: plan,
+    });
+    if (!reserved.created) fail();
+    await next.objects.putIfAbsent(objectKey, encrypted.bytes);
+    await next.catalog.activate(scope, metadata.contentReference.artifactId, encrypted.receipt, at);
+    this.commit(scope.tenantId, original, next);
+    return metadata.contentReference;
+  }
+
+  /** Fixed private composition; requests cannot supply readers, current authority or actor lists. */
+  private async normalApprovalContext(
+    state: State,
+    scope: EvidenceScope,
+    intent: ReleaseApprovalIntent,
+    actor: ReleaseApprovalReviewerReceipt,
+    at: string,
+    budget: ReleaseDecisionVerificationBudget,
+  ) {
+    const identity = this.identity(state, scope, actor, at, budget, "create_approval");
+    const owned = await readOwnedReleaseApprovalSubject({
+      scope,
+      subject: intent.subject,
+      capturedAt: at,
+      readers: state.jobs,
+      budget,
+    });
+    if (owned.rule.predicate.kind !== "approval_required") fail();
+    const requirement = owned.rule.predicate;
+    budget.observe({ kind: "approval_candidate_read", reference: intent.subject.candidate });
+    const candidate = await state.candidates.findReleaseCandidate(
+      scope,
+      intent.subject.candidate.candidateVersionId,
+    );
+    budget.observe(candidate);
+    if (!isDeepStrictEqual(candidate, owned.candidate)) fail();
+
+    const target = await state.selections.readReleasePolicySelectionTarget(
+      scope,
+      {
+        installationId: intent.subject.selection.installationId,
+        gateTargetId: intent.subject.selection.gateTargetId,
+      },
+      budget,
+    );
+    if (!target.root) fail();
+    for (const row of target.records) {
+      const material = await this.requireMaterial(
+        state,
+        scope,
+        "release_policy_selection",
+        row.selectionVersionId,
+        budget,
+      );
+      if (!isDeepStrictEqual(material.source.record, row)) fail();
+    }
+    for (const row of target.lifecycle) {
+      const material = await this.requireMaterial(
+        state,
+        scope,
+        "release_policy_selection_lifecycle",
+        row.eventId,
+        budget,
+      );
+      if (!isDeepStrictEqual(material.source.record, row)) fail();
+    }
+    const resolved = resolveCapturedReleaseSelectionCensus({
+      scope,
+      reference: intent.subject.selection,
+      capturedAt: at,
+      census: { state: "complete", records: target.records, lifecycle: target.lifecycle },
+      budget,
+    });
+    const selection = resolved.original;
+    if (
+      resolved.state !== "current" ||
+      !selection ||
+      !isDeepStrictEqual(selection.candidateTarget, owned.candidate.target)
+    )
+      fail();
+    const selected = selection.policies.find(({ policy }) =>
+      isDeepStrictEqual(policy, intent.subject.policy),
+    );
+    if (
+      !selected ||
+      selected.mode !== owned.policy.mode ||
+      owned.policy.installationBinding.installationId !== selection.installationId
+    )
+      fail();
+
+    budget.observe({ kind: "approval_policy_read", reference: intent.subject.policy });
+    const policy = await state.policies.findReleasePolicy(
+      scope,
+      intent.subject.policy.policyVersionId,
+    );
+    budget.observe(policy);
+    if (!isDeepStrictEqual(policy, owned.policy)) fail();
+    const lifecycle = await readPolicyEvaluationLifecycle(
+      { scope, evaluationTime: at, policy: intent.subject.policy },
+      inspectPolicyEvaluationControlRecord(
+        {
+          scope,
+          evaluationTime: at,
+          source: { kind: "release_policy", reference: intent.subject.policy },
+        },
+        policy,
+      ),
+      {
+        findReleasePolicy: async (sourceScope, id) => {
+          budget.observe({ kind: "approval_policy_successor_read", scope: sourceScope, id });
+          const value = await state.policies.findReleasePolicy(sourceScope, id);
+          budget.observe(value);
+          return value;
+        },
+        listReleasePolicyLifecycleEvents: async (sourceScope, id) => {
+          budget.observe({ kind: "approval_policy_history_read", scope: sourceScope, id });
+          const rows = await state.policies.listReleasePolicyLifecycleEvents(sourceScope, id);
+          for (const row of rows) budget.observe(row);
+          return rows;
+        },
+      },
+      this.clock,
+    );
+    if (
+      lifecycle.state !== "no_terminal_event_at_evaluation" ||
+      lifecycle.history.length !== 0 ||
+      order(owned.policy.effectiveAt) > order(at) ||
+      order(owned.policy.expiresAt) <= order(at)
+    )
+      fail();
+
+    const reviewerTarget = await state.reviewers.readReleaseReviewerAuthorityTarget(
+      scope,
+      {
+        installationId: selection.installationId,
+        gateTargetId: selection.gateTargetId,
+        reviewerPrincipalId: actor.principalId,
+      },
+      budget,
+    );
+    if (!reviewerTarget.root) fail();
+    for (const row of reviewerTarget.records) {
+      const material = await this.requireReviewerMaterial(
+        state,
+        scope,
+        "release_reviewer_authority",
+        row.authorityVersionId,
+        budget,
+      );
+      if (!isDeepStrictEqual(material.source.record, row)) fail();
+    }
+    for (const row of reviewerTarget.lifecycle) {
+      const material = await this.requireReviewerMaterial(
+        state,
+        scope,
+        "release_reviewer_authority_lifecycle",
+        row.eventId,
+        budget,
+      );
+      if (!isDeepStrictEqual(material.source.record, row)) fail();
+    }
+    const census = {
+      state: "complete" as const,
+      records: reviewerTarget.records,
+      lifecycle: reviewerTarget.lifecycle,
+    };
+    const reviewers = resolveCapturedReleaseReviewerCensus({
+      scope,
+      reference: releaseReviewerAuthorityReference(reviewerTarget.root),
+      census,
+      capturedAt: at,
+      budget,
+    });
+    if (
+      reviewers.state === "unavailable" ||
+      reviewers.state === "conflicting" ||
+      reviewers.active.length !== 1
+    )
+      fail();
+    const reviewer = reviewers.active[0]!;
+    const authority = releaseReviewerAuthorityReference(reviewer);
+    const eligibility = inspectCapturedReleaseReviewerEligibility({
+      scope,
+      reference: authority,
+      census,
+      receipt: actor,
+      identity: identity.grant.identity,
+      grant: { state: "observed", reference: identity.grant.identity, record: identity.grant },
+      credential: {
+        state: "observed",
+        reference: {
+          kind: "oidc_session",
+          principalId: actor.principalId,
+          credentialId: actor.credentialId,
+        },
+        record: identity.credential,
+      },
+      context: {
+        purpose: "normal_approval",
+        requirement,
+        candidateAuthorPrincipalId: owned.candidate.createdByPrincipalId,
+        policyAuthorPrincipalId: owned.policy.publishedByPrincipalId,
+        evaluatorPrincipalIds: null,
+      },
+      recordedAt: at,
+      capturedAt: at,
+      budget,
+    });
+    if (eligibility.state !== "eligible" || reviewer.assurance !== "synthetic_reference") fail();
+    for (const expiresAt of [selection.expiresAt, owned.policy.expiresAt, reviewer.expiresAt])
+      if (order(intent.expiresAt) > order(expiresAt)) fail();
+    return { authority, selection, reviewer, identity };
+  }
+
+  async recordNormalApproval(
+    credentials: ReleaseBrowserMutationCredentials,
+    raw: unknown,
+  ): Promise<ReleaseNormalApprovalRecorderResult> {
+    const proof = await this.authentication.authenticateApprovalReviewer(credentials);
+    const authenticated = readReleaseMutationAuthentication(proof, {
+      operation: "record_approval",
+      scope: credentials.scope,
+      requestId: credentials.requestId,
+    });
+    const scope = authenticated.scope,
+      actor = ReleaseApprovalReviewerReceiptSchema.parse(authenticated.receipt),
+      intent = ReleaseApprovalIntentSchema.parse(raw);
+    if (intent.kind !== "normal_approval" || !isDeepStrictEqual(scope, intent.subject.scope))
+      fail();
+    const original = this.tenants.get(scope.tenantId) as State,
+      next = fork(original),
+      budget = new ReleaseDecisionVerificationBudget(approvalLimits);
+    try {
+      this.identity(next, scope, actor, this.now(), budget, "create_approval");
+      const existing = await this.readApprovalMaterial(
+        next,
+        scope,
+        "release_approval",
+        intent.approvalId,
+        budget,
+      );
+      if (existing) {
+        if (
+          !isDeepStrictEqual(releaseApprovalRetryIntent(existing.source.record), {
+            intent,
+            reviewerPrincipalId: actor.principalId,
+          })
+        )
+          fail();
+        const finishedAt = this.now();
+        if (order(finishedAt) < order(existing.source.record.recordedAt)) fail();
+        this.identity(next, scope, actor, finishedAt, budget, "create_approval");
+        const usage = budget.snapshot();
+        this.commit(scope.tenantId, original, next);
+        return {
+          created: false,
+          record: existing.source.record,
+          publication: existing.publication,
+          usage,
+        };
+      }
+      budget.observe(await next.approvals.findReleaseApproval(scope, intent.approvalId));
+      const initialAt = this.now();
+      if (order(intent.expiresAt) <= order(initialAt)) fail();
+      const initial = await this.normalApprovalContext(
+        next,
+        scope,
+        intent,
+        actor,
+        initialAt,
+        budget,
+      );
+      // One conservative aggregate encrypted-byte reservation, including repeated occurrences.
+      // Objects and keys are accessed outside the final synchronous compare-and-replace.
+      let reservedBytes = 0;
+      const observations: PolicyEvaluationArtifactRead[] = [];
+      for (const reference of [
+        initial.selection.authorityEvidence,
+        ...initial.reviewer.reviewBasis,
+      ]) {
+        const maxReadBytes = reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES;
+        reservedBytes += maxReadBytes;
+        if (reservedBytes > 16 * 1024 * 1024) fail();
+        budget.observe({ kind: "approval_basis_reservation", reference, maxReadBytes });
+        const read = await readPolicyEvaluationArtifact(
+          {
+            scope,
+            reference,
+            principal: authenticated.principal,
+            evaluationTime: initialAt,
+            maxReadBytes,
+          },
+          {
+            catalog: {
+              find: async (sourceScope, id) => {
+                budget.observe({ kind: "approval_basis_catalog_read", scope: sourceScope, id });
+                const value = await next.catalog.find(sourceScope, id);
+                // Admission counts the entire private catalog; its value is never returned or logged.
+                budget.observe(value);
+                return value;
+              },
+            },
+            objects: {
+              get: async (objectKey) => {
+                budget.observe({ kind: "approval_basis_object_read" });
+                const bytes = await next.objects.get(objectKey);
+                budget.observe(
+                  bytes
+                    ? {
+                        sizeBytes: bytes.byteLength,
+                        sha256: createHash("sha256").update(bytes).digest("hex"),
+                      }
+                    : { state: "missing" },
+                );
+                return bytes;
+              },
+            },
+            encryption: this.approvalEncryption,
+            clock: this.clock,
+          },
+        );
+        budget.observe(read);
+        if (read.observation.status !== "verified" || !read.catalog) fail();
+        const retention = read.catalog.metadata.retention;
+        if (retention.mode === "expire" && order(intent.expiresAt) > order(retention.expiresAt))
+          fail();
+        observations.push(read);
+      }
+      const issuedAt = this.now();
+      if (
+        order(issuedAt) < order(initialAt) ||
+        observations.some((read) => order(read.completedAt) > order(issuedAt))
+      )
+        fail();
+      const current = await this.normalApprovalContext(
+        next,
+        scope,
+        intent,
+        actor,
+        issuedAt,
+        budget,
+      );
+      if (!isDeepStrictEqual(initial.authority, current.authority)) fail();
+      for (const read of observations) {
+        const rawCatalog = await next.catalog.find(
+          scope,
+          (read.reference as ArtifactContentReference).artifactId,
+        );
+        budget.observe({ kind: "approval_basis_final_catalog_read", reference: read.reference });
+        budget.observe(rawCatalog);
+        const checked = inspectPolicyEvaluationArtifactCatalog(
+          {
+            scope,
+            reference: read.reference,
+            principal: authenticated.principal,
+            evaluationTime: issuedAt,
+            maxReadBytes: read.reference.sizeBytes + ARTIFACT_OBJECT_FORMAT_OVERHEAD_BYTES,
+          },
+          rawCatalog,
+          issuedAt,
+        );
+        budget.observe(checked);
+        if (
+          checked.observation.status !== "content_pending" ||
+          !isDeepStrictEqual(checked.catalog, read.catalog)
+        )
+          fail();
+      }
+      const census = await next.approvals.readReleaseApprovalSubject(
+        scope,
+        intent.kind,
+        intent.subject,
+        budget,
+      );
+      for (const row of census.records)
+        await this.requireApprovalMaterial(next, scope, "release_approval", row.approvalId, budget);
+      for (const row of census.revocations)
+        await this.requireApprovalMaterial(
+          next,
+          scope,
+          "release_approval_revocation",
+          row.eventId,
+          budget,
+        );
+      const definition = ReleaseApprovalDefinitionSchema.parse({
+        ...intent,
+        reviewer: actor,
+        authority: current.authority,
+        recordedAt: issuedAt,
+      });
+      const result = await next.approvals.publishReleaseApproval(
+        ReleaseApprovalSchema.parse({
+          ...definition,
+          schemaVersion: "0.1",
+          definitionSha256: createHash("sha256")
+            .update(encodeReleaseApprovalDefinition({ scope, definition }))
+            .digest("hex"),
+        }),
+      );
+      if (!result.created) fail();
+      const material = prepareReleaseApprovalPublicationMaterial({
+        scope,
+        source: { kind: "release_approval", record: result.approval },
+        actor,
+        identity: current.identity.grant.identity as ApprovalMaterial["publication"]["identity"],
+        grant: current.identity.grant,
+        credential: current.identity.credential,
+        issuedAt,
+        budget,
+      });
+      this.storeApprovalMaterial(next, material, budget);
+      const stored = await this.requireApprovalMaterial(
+        next,
+        scope,
+        "release_approval",
+        intent.approvalId,
+        budget,
+      );
+      const finishedAt = this.now();
+      // No backdating across asynchronous final reads: source windows are checked again at commit.
+      if (order(finishedAt) < order(issuedAt) || order(intent.expiresAt) <= order(finishedAt))
+        fail();
+      // Admission bounded intent.expiresAt by every source window and basis retention. The
+      // unchanged owner/catalog checks and final intent expiry therefore cover all those windows.
+      this.identity(next, scope, actor, finishedAt, budget, "create_approval");
+      const usage = budget.snapshot();
+      this.commit(scope.tenantId, original, next);
+      return {
+        created: true,
+        record: stored.source.record,
+        publication: stored.publication,
+        usage,
+      };
+    } catch (cause) {
+      return budget.rejectSourceRead(cause);
+    }
   }
   private storeApprovalMaterial(
     state: State,

@@ -102,6 +102,11 @@ inventories explicitly and prove serialized headroom before accepting those cont
 
 ## Required approval and exception authority
 
+The [authenticated normal review reference](workflow-2-normal-approval-reference.md) composes actual
+OIDC actions, original owning evaluation, current selection/policy/reviewer and authorized encrypted
+basis reads within one synthetic owner. Known-rule exceptions, native guarded composition and the
+checkpoint exit audit remain open.
+
 The [owning original approval-subject reader](workflow-2-owned-approval-subject.md) derives C3
 job identity from the original request and recomputes complete sealed evidence. Current selection,
 reviewer/basis authority, actual authentication and guarded approval publication remain open.

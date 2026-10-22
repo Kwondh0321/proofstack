@@ -86,3 +86,4 @@ invalidate an ADR present in this directory.
 - [ADR-0061: Retain original reviewer administration provenance](0061-retain-original-reviewer-administration-provenance.md)
 - [ADR-0062: Publish reviewer administration through private native ports](0062-publish-reviewer-administration-through-private-native-ports.md)
 - [ADR-0063: Preserve original approval mutation provenance](0063-preserve-original-approval-mutation-provenance.md)
+- [ADR-0064: Compose normal approvals with owning current sources](0064-compose-normal-approvals-with-owning-current-sources.md)
