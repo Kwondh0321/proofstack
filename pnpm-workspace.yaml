@@ -22,6 +22,9 @@ catalog:
   "zod": 4.4.3
 
 overrides:
+  # GHSA-rxp7-6hxx-x8q5: preserve the rate-limit plugin's compatible 10.x range.
+  # Reinspect this edge when advancing the rate-limit plugin.
+  "@fastify/rate-limit@11.2.0>ip-address": 10.7.4
   # Keep this compatible development-only edge off the disclosed vulnerable Vite versions.
   # Reinspect this exact parent pin when advancing the Vitest catalog.
   "vitest@4.1.12>vite": 8.2.4
