@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   encodeEvaluationCanonicalJson,
   encodeReleaseApprovalDefinition,
+  ReleaseApprovalPublicationMaterialSchema,
   type ReleaseApprovalPublicationMaterial,
 } from "@proofstack/contracts";
 import {
@@ -108,8 +109,19 @@ describe("original approval publication provenance", () => {
     const v = releaseApprovalPublicationFixture();
     if (reason === "inactive") v.grant.state = "inactive";
     if (reason === "capability") v.grant.capabilities = ["approval:authority:manage"];
-    if (reason === "scope") v.grant.resourceScope = { mode: "restricted", projects: [] };
-    if (reason === "expired") v.credential.idleExpiresAt = v.publication.issuedAt;
+    if (reason === "scope")
+      v.grant.resourceScope = { mode: "restricted", projects: [{ projectId: "project_other" }] };
+    if (reason === "expired" && v.source.kind === "release_approval") {
+      // Retain the owning session's exact native expiry and move this synthetic original cut to
+      // that boundary, recomputing the original approval rather than forging session metadata.
+      v.publication.issuedAt = v.credential.idleExpiresAt;
+      v.source.record.recordedAt = v.publication.issuedAt;
+      const { schemaVersion: _v, definitionSha256: _h, ...definition } = v.source.record;
+      v.source.record.definitionSha256 = createHash("sha256")
+        .update(encodeReleaseApprovalDefinition({ scope: v.publication.scope, definition }))
+        .digest("hex");
+      v.publication.subject.approval.definitionSha256 = v.source.record.definitionSha256;
+    }
     if (reason === "revoked") {
       v.credential.revokedAt = v.publication.issuedAt;
       v.credential.revocationReason = "logout";
@@ -119,6 +131,16 @@ describe("original approval publication provenance", () => {
     if (reason === "session") v.credential.credentialId = "other_session";
     if (reason === "future_grant") v.grant.updatedAt = "2026-10-15T10:00:05.000002Z";
     rehash(v);
+    // Negative authority cases must reach semantic identity inspection, not fail malformed data.
+    expect(ReleaseApprovalPublicationMaterialSchema.parse(v)).toEqual(v);
+    if (reason === "scope" || reason === "expired")
+      expect(() =>
+        validateReleaseApprovalPublicationMaterial(v, approvalPublicationFixtureBudget()),
+      ).toThrowError(
+        expect.objectContaining({
+          cause: expect.objectContaining({ reason: "identity_ineligible" }),
+        }),
+      );
     rejected(v);
   });
   it.each(["actor", "time", "approval_reference", "scope", "source_definition"] as const)(
