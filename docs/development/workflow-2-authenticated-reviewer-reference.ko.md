@@ -7,6 +7,9 @@
 [진입 감사](workflow-2-decision-entry-audit.ko.md),
 [검토자 원본 저장소](workflow-2-native-reviewer-repository.ko.md)를 함께 읽으세요.
 
+[PostgreSQL 관리자 구현](workflow-2-native-reviewer-administration.ko.md)은 별도 선택 역할,
+제한된 정규화 읽기, 가드를 유지한 원자적 발행과 복구 경계를 구현합니다.
+
 `ReleaseReviewerAdministrator`는 실제 사용자 자격 증명을 받는 고정 선언·수명주기 작업을 정의합니다.
 워크스페이스 참조 구현은 기존 선택 관리와 같은 비공개 테넌트 상태를 사용합니다. 실제 OIDC 세션·변경
 인증기가 생성된 쿠키와 CSRF, 정확한 범위, `approval:authority:manage`를 본문 해석 전에 확인합니다.

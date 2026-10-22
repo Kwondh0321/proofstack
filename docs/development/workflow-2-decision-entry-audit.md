@@ -102,9 +102,11 @@ inventories explicitly and prove serialized headroom before accepting those cont
 
 ## Required approval and exception authority
 
+The [native authenticated reviewer administrator](workflow-2-native-reviewer-administration.md)
+adds separate held-transaction publication and recovery; checkpoint 4 remains open.
 The [authenticated reviewer reference](workflow-2-authenticated-reviewer-reference.md) preserves
-original administrator provenance and atomic synthetic publication. Native administration, complete
-current reviewer/basis authority and checkpoint acceptance remain open.
+original administrator provenance and atomic synthetic publication. Complete current reviewer/basis
+authority and checkpoint acceptance remain open.
 
 The [predeclared complete input contracts](workflow-2-decision-input-contracts.md) retain the
 original request inventory. Native reservations and current publication authority remain open;

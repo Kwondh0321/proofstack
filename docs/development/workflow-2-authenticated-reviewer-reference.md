@@ -57,9 +57,9 @@ service behavior, first-receipt retries, revocation/supersession, three populate
 and owning read interleavings. Coverage thresholds and original assertions remain unchanged.
 Component acceptance still requires its exact-source uncached and hosted gates.
 
-Next implement the separately opt-in native administrator role and forward-only migration,
-bounded normalized reads, retained reviewer/OIDC/metadata guards, same-transaction original
-publication/outbox and recovery. Then actual approvals/revocations, pre-outcome input planning,
+The [native administrator](workflow-2-native-reviewer-administration.md) implements the separately
+opt-in role, bounded normalized reads, held guarded publication and recovery counterpart.
+Then actual approvals/revocations, pre-outcome input planning,
 complete guarded decisions, authorization-first API/OpenAPI/SDK, real-service contributor and
 the distinct checkpoint 4 exit audit precede checkpoints 5–7 and measured stage 5. This synthetic
 reference supplies no native recovery, production identity, public endpoint or release authority.

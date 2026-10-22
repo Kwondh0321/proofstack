@@ -139,6 +139,37 @@ function managedRole(
 }
 
 describe("provisionRuntimeRoles", () => {
+  it("opts into reviewer administration without acquiring selection, approval or direct source powers", async () => {
+    const client = new FakeClient();
+    await provisionRuntimeRoles(
+      poolWith(client),
+      options({
+        reviewerAuthority: {
+          name: "proofstack_reviewer_authority",
+          password: "fixture-reviewer-administrator-password",
+        },
+      }),
+    );
+    const grants = client.queries
+      .map(({ text }) => text)
+      .filter(
+        (text) => text.startsWith("GRANT") && text.endsWith('TO "proofstack_reviewer_authority"'),
+      );
+    expect(grants.filter((text) => text.startsWith("GRANT EXECUTE"))).toHaveLength(7);
+    expect(grants).toContain(
+      'GRANT EXECUTE ON FUNCTION public.proofstack_finish_reviewer_publication(jsonb,text,text,jsonb,text,text,text,text) TO "proofstack_reviewer_authority"',
+    );
+    expect(grants.filter((text) => text.startsWith("GRANT SELECT"))).toEqual([
+      'GRANT SELECT ON TABLE public.proofstack_schema_migrations TO "proofstack_reviewer_authority"',
+    ]);
+    expect(
+      grants.some((text) =>
+        /INSERT|UPDATE|DELETE|authenticated_selection|store_release|claim_policy|decision_input|approval\(/.test(
+          text,
+        ),
+      ),
+    ).toBe(false);
+  });
   it("grants disjoint fixed policy operations without table writes, helper or recovery authority", async () => {
     const client = new FakeClient();
     const result = await provisionRuntimeRoles(
@@ -215,20 +246,22 @@ describe("provisionRuntimeRoles", () => {
       'GRANT EXECUTE ON FUNCTION public.proofstack_cancel_policy_evaluation_job(text,text,text,text) TO "proofstack_policy_evaluator"',
     );
   });
-  it.each(["policyEvaluationControl", "policyEvaluator", "releaseAuthority"] as const)(
-    "rejects an incomplete optional %s pair without connecting",
-    async (kind) => {
-      const client = new FakeClient(),
-        connections = { count: 0 };
-      await expect(
-        provisionRuntimeRoles(
-          poolWith(client, connections),
-          options({ [kind]: { name: "proofstack_policy_only", password: "fixture-private" } }),
-        ),
-      ).rejects.toThrow();
-      expect(connections.count).toBe(0);
-    },
-  );
+  it.each([
+    "policyEvaluationControl",
+    "policyEvaluator",
+    "releaseAuthority",
+    "reviewerAuthority",
+  ] as const)("rejects an incomplete optional %s pair without connecting", async (kind) => {
+    const client = new FakeClient(),
+      connections = { count: 0 };
+    await expect(
+      provisionRuntimeRoles(
+        poolWith(client, connections),
+        options({ [kind]: { name: "proofstack_policy_only", password: "fixture-private" } }),
+      ),
+    ).rejects.toThrow();
+    expect(connections.count).toBe(0);
+  });
   it("opts into fixed installer functions without direct source, identity or policy-worker grants", async () => {
     const client = new FakeClient();
     const result = await provisionRuntimeRoles(

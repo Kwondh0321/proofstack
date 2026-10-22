@@ -3,7 +3,8 @@
 [English](workflow-2-decision-entry-audit.md) | [한국어](workflow-2-decision-entry-audit.ko.md)
 
 [인증된 검토자 참조 구현](workflow-2-authenticated-reviewer-reference.ko.md)은 원본 관리자 증명과
-합성 원자적 발행을 보존합니다. 네이티브 관리·완전한 현재 근거 권한·체크포인트 승인은 열려 있습니다.
+합성 원자적 발행을 보존합니다. [PostgreSQL 관리자](workflow-2-native-reviewer-administration.ko.md)는
+별도 역할·가드 기반 발행·복구를 구현합니다. 완전한 현재 근거 권한과 체크포인트 승인은 열려 있습니다.
 
 - 상태: 설계 진입 승인. 이 문서 커밋의 전체 검증 통과가 게시 조건이다.
 - 검토: 2026-10-15

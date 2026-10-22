@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import type { EvidenceScope, ReleaseApprovalReviewerReceipt } from "@proofstack/contracts";
+import {
+  serializeEvaluationCanonicalJson,
+  type EvidenceScope,
+  type ReleaseApprovalReviewerReceipt,
+} from "@proofstack/contracts";
 import {
   generateBrowserSessionCredentials,
   OidcSessionAuthenticator,
@@ -75,6 +79,23 @@ if (
   currentReadiness.observation.rows.length !== 0
 )
   throw new Error("Invalid native readiness fixture");
+const currentSchema = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/installer-schema-readiness-native-v1.json", import.meta.url),
+    "utf8",
+  ),
+) as {
+  format: string;
+  serverVersion: string;
+  migrations: Record<string, unknown>[];
+  observations: Observation[];
+};
+if (
+  currentSchema.format !== "proofstack.release-installer-current-schema-native.v1" ||
+  currentSchema.serverVersion !== "16.15" ||
+  currentSchema.observations.length !== 3
+)
+  throw new Error("Invalid current native schema fixture");
 function fixture(name = "selection_new") {
   const captured = wire.cases.find((value) => value.name === name);
   if (!captured) throw new Error("Missing native case");
@@ -84,8 +105,36 @@ function fixture(name = "selection_new") {
       if (!observation) throw new Error("Missing native observation index");
       if (observation.sql.startsWith("SELECT 'table' AS kind"))
         return structuredClone(currentReadiness.observation);
+      if (
+        observation.sql ===
+        "SELECT id, checksum FROM public.proofstack_schema_migrations ORDER BY id"
+      )
+        return { ...structuredClone(observation), rows: structuredClone(currentSchema.migrations) };
+      const current = currentSchema.observations.find(
+        (item) =>
+          item.sql.slice(0, item.sql.indexOf("FROM")) ===
+          observation.sql.slice(0, observation.sql.indexOf("FROM")),
+      );
+      if (current) return structuredClone(current);
       return structuredClone(observation);
     });
+  // Only current catalog bodies change this composed unit transcript's byte admission.
+  // Keep original immutable result receipts and the independently captured transcript intact.
+  const originalRoutine = wire.observations.find((item) => item.sql.includes("FROM pg_proc p"));
+  const currentRoutine = currentSchema.observations.find((item) =>
+    item.sql.includes("FROM pg_catalog.pg_proc p"),
+  );
+  if (!originalRoutine || !currentRoutine) throw new Error("Missing actual catalog observations");
+  const bytes = (rows: Record<string, unknown>[]) =>
+    rows.reduce((sum, row) => sum + Buffer.byteLength(serializeEvaluationCanonicalJson(row)), 0);
+  const expectedResult = {
+    ...example.result,
+    usage: {
+      ...example.result.usage,
+      recordBytes:
+        example.result.usage.recordBytes + bytes(currentRoutine.rows) - bytes(originalRoutine.rows),
+    },
+  };
   const secret = generateBrowserSessionCredentials(),
     actor = wire.actor;
   const lookup = {
@@ -130,6 +179,7 @@ function fixture(name = "selection_new") {
   const service = new PostgresReleaseSelectionInstaller({} as PolicyTransactionPool, auth);
   return {
     example,
+    expectedResult,
     observations,
     lookup,
     credentials,
@@ -155,13 +205,25 @@ describe("installer owning composition against actual native observations", () =
       const damaged = migrations.map((item, n) => (n === index ? { ...item, sql } : item));
       expect(() => prepareReleaseInstallerSchema(damaged)).toThrow();
     }
+    const repair = migrations.find((item) => item.id === "0072_qualify_installer_role_catalogs");
+    if (!repair) throw new Error("Missing forward repair");
+    expect(() =>
+      prepareReleaseInstallerSchema(migrations.filter((item) => item !== repair)),
+    ).toThrow();
+    for (const sql of ["-- Missing current definition", repair.sql + repair.sql]) {
+      expect(() =>
+        prepareReleaseInstallerSchema(
+          migrations.map((item) => (item === repair ? { ...item, sql } : item)),
+        ),
+      ).toThrow();
+    }
   });
   it.each(wire.cases)(
     "retains $name original receipts with current recorded readiness",
     (example) => {
       const f = fixture(example.name);
       return f.run().then((result) => {
-        expect(result).toEqual(example.result);
+        expect(result).toEqual(f.expectedResult);
         expect(f.consumed()).toBe(f.observations.length);
         expect(transaction.calls).toEqual([{ scope: example.scope, requireWire: true }]);
       });
@@ -222,7 +284,7 @@ describe("installer owning composition against actual native observations", () =
     "trigger_schema",
   ])("rejects %s schema damage before original source creation", async (change) => {
     const f = fixture(),
-      routine = f.observations.find((q) => q.sql.includes("FROM pg_proc p"));
+      routine = f.observations.find((q) => q.sql.includes("FROM pg_catalog.pg_proc p"));
     if (!routine?.rows[0]) throw new Error("Native schema fixture missing");
     const row = routine.rows[0];
     if (change === "body") row["body"] += "\n-- changed";
@@ -238,12 +300,12 @@ describe("installer owning composition against actual native observations", () =
       q.rows[0]["forced"] = false;
     }
     if (change === "trigger") {
-      const q = f.observations.find((q) => q.sql.includes("FROM pg_trigger t"));
+      const q = f.observations.find((q) => q.sql.includes("FROM pg_catalog.pg_trigger t"));
       if (!q?.rows[0]) throw new Error("Fixture missing");
       q.rows[0]["enabled"] = "D";
     }
     if (change.startsWith("trigger_")) {
-      const q = f.observations.find((q) => q.sql.includes("FROM pg_trigger t"));
+      const q = f.observations.find((q) => q.sql.includes("FROM pg_catalog.pg_trigger t"));
       if (!q?.rows[0]) throw new Error("Fixture missing");
       if (change === "trigger_events") q.rows[0]["type"] = 9;
       if (change === "trigger_condition") q.rows[0]["unconditional"] = false;

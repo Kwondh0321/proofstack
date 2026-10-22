@@ -15,6 +15,7 @@ export const DEFAULT_RUNTIME_ROLE_NAMES = {
   policyEvaluator: "proofstack_policy_evaluator",
   publisher: "proofstack_publisher",
   releaseAuthority: "proofstack_release_authority",
+  reviewerAuthority: "proofstack_reviewer_authority",
   replayWorker: "proofstack_replay_worker",
 } as const;
 
@@ -44,6 +45,7 @@ export interface RuntimeRoleProvisioningOptions {
   readonly policyEvaluator?: RuntimeRoleCredentials;
   readonly publisher: RuntimeRoleCredentials;
   readonly releaseAuthority?: RuntimeRoleCredentials;
+  readonly reviewerAuthority?: RuntimeRoleCredentials;
   readonly replayWorker: RuntimeRoleCredentials;
 }
 
@@ -68,6 +70,7 @@ interface StatementRow extends QueryResultRow {
 
 const PRIVATE_RELEASE_AUTHORITY_TABLES = [
   "proofstack_release_selection_publications",
+  "proofstack_release_reviewer_publications",
   "proofstack_release_decision_inputs",
   "proofstack_release_decision_input_sources",
   "proofstack_release_decision_input_plans",
@@ -198,6 +201,17 @@ const PLATFORM_TABLES = [
 ] as const;
 
 const PLATFORM_FUNCTIONS = [
+  "public.proofstack_guard_reviewer_publication()",
+  "public.proofstack_verify_reviewer_publication()",
+
+  "public.proofstack_reviewer_administrator_context(jsonb)",
+  "public.proofstack_recheck_reviewer_administrator(jsonb,jsonb)",
+  "public.proofstack_begin_authenticated_reviewer_authority(jsonb,jsonb,text,jsonb)",
+  "public.proofstack_begin_authenticated_reviewer_authority_lifecycle(jsonb,jsonb,jsonb)",
+  "public.proofstack_read_reviewer_publication_part(jsonb,text,text,text)",
+  "public.proofstack_finish_reviewer_publication(jsonb,text,text,jsonb,text,text,text,text)",
+  "public.proofstack_read_reviewer_administrator_projection(jsonb,text,text,text,text)",
+
   "public.proofstack_release_installer_context(jsonb)",
   "public.proofstack_recheck_release_installer(jsonb,jsonb)",
   "public.proofstack_guard_selection_publication()",
@@ -434,6 +448,16 @@ const POLICY_JOB_READ_GRANTS = [
   "GRANT EXECUTE ON FUNCTION public.proofstack_append_policy_evaluation_job_history(jsonb,text,text,jsonb) TO %ROLE%",
 ] as const;
 const GRANTS: Record<RuntimeRoleKind, readonly string[]> = {
+  reviewerAuthority: [
+    "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_reviewer_administrator_context(jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_recheck_reviewer_administrator(jsonb,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_begin_authenticated_reviewer_authority(jsonb,jsonb,text,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_begin_authenticated_reviewer_authority_lifecycle(jsonb,jsonb,jsonb) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_read_reviewer_publication_part(jsonb,text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_finish_reviewer_publication(jsonb,text,text,jsonb,text,text,text,text) TO %ROLE%",
+    "GRANT EXECUTE ON FUNCTION public.proofstack_read_reviewer_administrator_projection(jsonb,text,text,text,text) TO %ROLE%",
+  ],
   releaseAuthority: [
     "GRANT SELECT ON TABLE public.proofstack_schema_migrations TO %ROLE%",
     "GRANT EXECUTE ON FUNCTION public.proofstack_release_installer_context(jsonb) TO %ROLE%",
@@ -638,6 +662,9 @@ function validateOptions(options: RuntimeRoleProvisioningOptions): RuntimeRolePr
     policyAuthor: validateCredentials("policyAuthor", options.policyAuthor),
     publisher: validateCredentials("publisher", options.publisher),
     replayWorker: validateCredentials("replayWorker", options.replayWorker),
+    ...(options.reviewerAuthority === undefined
+      ? {}
+      : { reviewerAuthority: validateCredentials("reviewerAuthority", options.reviewerAuthority) }),
     ...(options.releaseAuthority === undefined
       ? {}
       : { releaseAuthority: validateCredentials("releaseAuthority", options.releaseAuthority) }),
@@ -914,6 +941,7 @@ export async function provisionRuntimeRoles(
         "policyEvaluationControl",
         "policyEvaluator",
         "releaseAuthority",
+        "reviewerAuthority",
       ] as const) {
         const credentials = validated[kind];
         if (credentials === undefined) continue;

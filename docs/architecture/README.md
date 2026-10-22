@@ -84,3 +84,4 @@ invalidate an ADR present in this directory.
 - [ADR-0059: Preserve authenticated selection publications](0059-preserve-authenticated-selection-publications.md)
 - [ADR-0060: Own authenticated memory reference state](0060-own-authenticated-memory-reference-state.md)
 - [ADR-0061: Retain original reviewer administration provenance](0061-retain-original-reviewer-administration-provenance.md)
+- [ADR-0062: Publish reviewer administration through private native ports](0062-publish-reviewer-administration-through-private-native-ports.md)

@@ -30,6 +30,11 @@ import { releaseSelectionInstallerConformanceCases } from "@proofstack/identity/
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrateDatabase } from "./migration-runner.js";
+import { loadBundledMigrations } from "./migrations.js";
+import {
+  assertReleaseInstallerSchemaOnClient,
+  prepareReleaseInstallerSchema,
+} from "./release-installer-schema.js";
 import { PolicyWireClient } from "./policy-wire-admission.js";
 import { PostgresOidcIdentityRepository } from "./postgres-oidc-identity-repository.js";
 import { PostgresReleaseSelectionInstaller } from "./postgres-release-selection-installer.js";
@@ -223,6 +228,103 @@ afterAll(async () => {
 });
 
 describe("actual authenticated native selection publication", () => {
+  it("rejects a wrong role even when caller-owned temporary catalogs impersonate the installer", async () => {
+    const f = await fixture(),
+      wrongUrl = new URL(databaseUrl as string);
+    wrongUrl.username = roles.api.name;
+    wrongUrl.password = roles.api.password;
+    const wrong = new Pool({ connectionString: wrongUrl.toString(), max: 1 });
+    await admin.query(
+      `GRANT EXECUTE ON FUNCTION public.proofstack_release_installer_context(jsonb) TO "${roles.api.name}"`,
+    );
+    const client = await wrong.connect();
+    try {
+      for (const shadow of [false, true]) {
+        await begin(client, f.scope);
+        try {
+          if (shadow) {
+            await client.query(
+              "CREATE TEMP TABLE pg_roles AS SELECT oid,current_user::name AS rolname,rolcanlogin,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolinherit FROM pg_catalog.pg_roles WHERE rolname=$1",
+              [roles.releaseAuthority.name],
+            );
+            await client.query(
+              "CREATE TEMP TABLE pg_auth_members AS SELECT * FROM pg_catalog.pg_auth_members WHERE false",
+            );
+          }
+          await expect(
+            client.query("SELECT public.proofstack_release_installer_context($1::jsonb)", [
+              JSON.stringify(f.scope),
+            ]),
+          ).rejects.toMatchObject({ code: "42501" });
+        } finally {
+          await client.query("ROLLBACK");
+        }
+      }
+    } finally {
+      client.release();
+      await wrong.end();
+      await admin.query(
+        `REVOKE EXECUTE ON FUNCTION public.proofstack_release_installer_context(jsonb) FROM "${roles.api.name}"`,
+      );
+    }
+    expect(await counts(f.scope)).toEqual({ sources: 0, origins: 0, intents: 0 });
+  });
+  it("validates real schema catalogs despite temporary copies that hide installed drift", async () => {
+    const f = await fixture(),
+      client = await runtime.connect();
+    const expected = prepareReleaseInstallerSchema(await loadBundledMigrations());
+    try {
+      await begin(client, f.scope);
+      for (const table of ["pg_proc", "pg_namespace", "pg_language", "pg_class", "pg_trigger"])
+        await client.query(`CREATE TEMP TABLE ${table} AS SELECT * FROM pg_catalog.${table}`);
+      await client
+        .query(
+          "ALTER FUNCTION public.proofstack_read_selection_publication_part(jsonb,text,text,text) SET search_path=public",
+        )
+        .then(
+          () => {
+            throw new Error("Installer unexpectedly altered the installed routine");
+          },
+          (error: { code?: string }) => {
+            expect(error.code).toBe("42501");
+          },
+        );
+      await client.query("ROLLBACK");
+      await begin(client, f.scope);
+      for (const table of ["pg_proc", "pg_namespace", "pg_language", "pg_class", "pg_trigger"])
+        await client.query(`CREATE TEMP TABLE ${table} AS SELECT * FROM pg_catalog.${table}`);
+      await admin.query(
+        "ALTER FUNCTION public.proofstack_read_selection_publication_part(jsonb,text,text,text) SET search_path=public",
+      );
+      // The old unqualified query reads the stale temporary copy and misses this real drift.
+      const stale = await client.query(
+        "SELECT proconfig FROM pg_proc WHERE oid='public.proofstack_read_selection_publication_part(jsonb,text,text,text)'::regprocedure",
+      );
+      const actual = await client.query(
+        "SELECT proconfig FROM pg_catalog.pg_proc WHERE oid='public.proofstack_read_selection_publication_part(jsonb,text,text,text)'::regprocedure",
+      );
+      expect(stale.rows[0]?.proconfig).toEqual(["search_path=pg_catalog"]);
+      expect(actual.rows[0]?.proconfig).toEqual(["search_path=public"]);
+      await expect(
+        assertReleaseInstallerSchemaOnClient(
+          client,
+          expected,
+          new ReleaseDecisionVerificationBudget({
+            maxAcquisitionRecords: 10000,
+            maxAcquisitionRecordBytes: 16 * 1024 * 1024,
+            maxApprovalRecords: 0,
+          }),
+        ),
+      ).rejects.toBeDefined();
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+      await admin.query(
+        "ALTER FUNCTION public.proofstack_read_selection_publication_part(jsonb,text,text,text) SET search_path=pg_catalog",
+      );
+    }
+    expect((await service.publishSelection(f.credentials, f.intent)).created).toBe(true);
+  });
   for (const conformance of releaseSelectionInstallerConformanceCases) {
     it(conformance.name, async () => {
       let sessions = 0;

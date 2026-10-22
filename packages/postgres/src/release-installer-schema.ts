@@ -36,7 +36,7 @@ export function prepareReleaseInstallerSchema(
     (item) => item.id === "0071_authenticated_release_selection_publication",
   );
   if (!migration) throw new ReleaseInstallerSchemaError();
-  return names.map((name) => {
+  const expected = names.map((name) => {
     const expression = new RegExp(
       `CREATE FUNCTION public\\.${name}\\([^]*?\\)\\s*RETURNS ([^]*?) AS \\$\\$([^]*?)\\$\\$;`,
       "g",
@@ -46,6 +46,29 @@ export function prepareReleaseInstallerSchema(
       throw new ReleaseInstallerSchemaError();
     return { name, body: matches[0][2], securityDefiner: /SECURITY DEFINER/.test(matches[0][1]) };
   });
+  // The forward repair preserves the installed function identity. Require its current body,
+  // while still rejecting incomplete or ambiguous original bundled definitions above.
+  const repair = migrations.find((item) => item.id === "0072_qualify_installer_role_catalogs");
+  if (!repair) throw new ReleaseInstallerSchemaError();
+  const replacements = [
+    ...repair.sql.matchAll(
+      /CREATE OR REPLACE FUNCTION public\.proofstack_release_installer_context\([\s\S]*?\)\s*RETURNS ([\s\S]*?) AS \$\$([\s\S]*?)\$\$;/g,
+    ),
+  ];
+  const current = replacements[0];
+  if (replacements.length !== 1 || !current?.[1] || !current[2])
+    throw new ReleaseInstallerSchemaError();
+  const body = current[2],
+    securityDefiner = /SECURITY DEFINER/.test(current[1]);
+  return expected.map((item) =>
+    item.name === "proofstack_release_installer_context"
+      ? {
+          name: item.name,
+          body,
+          securityDefiner,
+        }
+      : item,
+  );
 }
 export async function assertReleaseInstallerSchemaOnClient(
   client: PoolClient,
@@ -63,7 +86,7 @@ export async function assertReleaseInstallerSchemaOnClient(
       volatility: string;
     }>(
       `SELECT p.proname AS name,p.prosrc AS body,p.prosecdef AS definer,p.proconfig AS config,l.lanname AS language,p.provolatile AS volatility
-       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
+       FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace JOIN pg_catalog.pg_language l ON l.oid=p.prolang
        WHERE n.nspname='public' AND p.proname=ANY($1::text[]) ORDER BY p.proname COLLATE "C"`,
       [expected.map((item) => item.name)],
     );
@@ -84,7 +107,7 @@ export async function assertReleaseInstallerSchemaOnClient(
         throw new ReleaseInstallerSchemaError();
     }
     const table = await client.query<{ forced: boolean; enabled: boolean }>(
-      "SELECT relforcerowsecurity AS forced,relrowsecurity AS enabled FROM pg_class WHERE oid='public.proofstack_release_selection_publications'::regclass",
+      "SELECT relforcerowsecurity AS forced,relrowsecurity AS enabled FROM pg_catalog.pg_class WHERE oid='public.proofstack_release_selection_publications'::regclass",
     );
     for (const row of table.rows) budget.observe(row);
     if (!isDeepStrictEqual(table.rows, [{ forced: true, enabled: true }]))
@@ -104,7 +127,7 @@ export async function assertReleaseInstallerSchemaOnClient(
       `SELECT t.tgname AS name,t.tgenabled AS enabled,t.tginitdeferred AS deferred,t.tgdeferrable AS deferrable,p.proname AS function,
          n.nspname AS function_schema,t.tgtype::int AS type,t.tgnargs::int AS arguments,
          t.tgattr::text AS columns,t.tgqual IS NULL AS unconditional
-       FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_namespace n ON n.oid=p.pronamespace
+       FROM pg_catalog.pg_trigger t JOIN pg_catalog.pg_proc p ON p.oid=t.tgfoid JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
        WHERE t.tgrelid='public.proofstack_release_selection_publications'::regclass AND NOT t.tgisinternal ORDER BY t.tgname COLLATE "C"`,
     );
     for (const row of triggers.rows) budget.observe(row);

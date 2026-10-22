@@ -156,7 +156,7 @@ const admin = new Pool({ connectionString: databaseUrl, max: 8 });
 function runtime(
   kind: Exclude<
     keyof RuntimeRoleProvisioningOptions,
-    "policyEvaluationControl" | "policyEvaluator" | "releaseAuthority"
+    "policyEvaluationControl" | "policyEvaluator" | "releaseAuthority" | "reviewerAuthority"
   >,
 ) {
   const url = new URL(databaseUrl as string);

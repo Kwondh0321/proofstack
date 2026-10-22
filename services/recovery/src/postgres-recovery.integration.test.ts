@@ -163,6 +163,8 @@ import {
   PostgresReleasePolicyRepository,
   PostgresReleasePolicySelectionRepository,
   PostgresReleaseSelectionInstaller,
+  PostgresReleaseReviewerAdministrator,
+  type PostgresReleaseReviewerAdministratorResult,
   type PostgresReleaseSelectionInstallerResult,
   PostgresReleaseReviewerAuthorityRepository,
   PostgresReleaseApprovalRepository,
@@ -329,6 +331,7 @@ const EXPECTED_TABLES = [
   "proofstack_release_reviewer_declarations",
   "proofstack_release_reviewer_lifecycle",
   "proofstack_release_reviewer_memberships",
+  "proofstack_release_reviewer_publications",
   "proofstack_release_reviewer_roots",
   "proofstack_release_selection_lifecycle",
   "proofstack_release_selection_policies",
@@ -652,6 +655,7 @@ function workflowRuntimeRoleOptions(stage: "restored" | "source") {
     policyEvaluationControl: credentials("policy_control"),
     policyEvaluator: credentials("policy_evaluator"),
     releaseAuthority: credentials("release_authority"),
+    reviewerAuthority: credentials("reviewer_authority"),
     publisher: credentials("publisher"),
     replayWorker: credentials("replay"),
   } satisfies RuntimeRoleProvisioningOptions;
@@ -745,6 +749,109 @@ async function exerciseAuthenticatedInstallerRecovery(
     } else {
       installerRecoveryOriginal = original;
       installerRecoveryWithdrawal = withdrawal;
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+const reviewerAdministratorRecoveryCredentials = generateBrowserSessionCredentials();
+const reviewerAdministratorRecoveryIntent = (() => {
+  const {
+    schemaVersion: _v,
+    definitionSha256: _hash,
+    publishedAt: _at,
+    publishedByPrincipalId: _publisher,
+    scope: _scope,
+    issuerPrincipalId: _issuer,
+    ...intent
+  } = releaseReviewerAuthorityRepositoryFixture("recovery_authenticated_reviewer").original;
+  return { ...intent, expiresAt: "2099-01-01T00:00:00.000001Z" };
+})();
+let reviewerAdministratorRecoveryReceipts: PostgresReleaseReviewerAdministratorResult[];
+async function exerciseAuthenticatedReviewerRecovery(
+  owner: Pool,
+  administrativeUrl: string,
+  credential: { readonly name: string; readonly password: string },
+  restored: boolean,
+) {
+  const repository = new PostgresOidcIdentityRepository(owner);
+  if (!restored) {
+    await createOidcBinding(owner, {
+      actorPrincipalId: "usr_recovery",
+      bindingId: "oid_recovery_reviewer_admin",
+      capabilities: ["approval:authority:manage"],
+      issuer: "https://reviewer-admin.recovery.example",
+      principalId: "usr_recovery_reviewer_admin",
+      resourceScope: { mode: "tenant" },
+      roles: ["member"],
+      subject: "recovery-reviewer-administrator",
+      tenantId: scope.tenantId,
+    });
+    await repository.create({
+      bindingId: "oid_recovery_reviewer_admin",
+      sessionId: "ses_recovery_reviewer_admin",
+      ...reviewerAdministratorRecoveryCredentials,
+      absoluteLifetimeSeconds: 3600,
+      idleLifetimeSeconds: 1800,
+    });
+  }
+  const pool = createPolicyPostgresPool({
+    connectionString: databaseUrlForRole(administrativeUrl, credential),
+    maxConnections: 1,
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
+  try {
+    const service = new PostgresReleaseReviewerAdministrator(
+      pool,
+      new ReleaseMutationAuthenticator(new OidcSessionAuthenticator(repository)),
+    );
+    const credentials = {
+      scope,
+      sessionToken: reviewerAdministratorRecoveryCredentials.sessionToken,
+      csrfToken: reviewerAdministratorRecoveryCredentials.csrfToken,
+      requestId: restored ? "request_reviewer_admin_restored" : "request_reviewer_admin_source",
+    };
+    const original = await service.publishReviewerAuthority(
+      credentials,
+      reviewerAdministratorRecoveryIntent,
+    );
+    if (!("authorityVersionId" in original.record))
+      throw new Error("Expected original reviewer declaration");
+    const successor = await service.publishReviewerAuthority(credentials, {
+      ...reviewerAdministratorRecoveryIntent,
+      authorityVersionId: "version_recovery_authenticated_reviewer_b",
+      predecessor: releaseReviewerAuthorityReference(original.record),
+    });
+    if (!("authorityVersionId" in successor.record))
+      throw new Error("Expected successor reviewer declaration");
+    const supersession = await service.publishReviewerAuthorityLifecycle(credentials, {
+      eventId: "event_recovery_authenticated_reviewer_superseded",
+      kind: "superseded",
+      authority: releaseReviewerAuthorityReference(original.record),
+      successor: releaseReviewerAuthorityReference(successor.record),
+      reason: "Supersede this exact authenticated reviewer declaration.",
+    });
+    const revocation = await service.publishReviewerAuthorityLifecycle(credentials, {
+      eventId: "event_recovery_authenticated_reviewer_revoked",
+      kind: "revoked",
+      authority: releaseReviewerAuthorityReference(successor.record),
+      reason: "Revoke this exact authenticated reviewer successor.",
+    });
+    const receipts = [original, successor, supersession, revocation];
+    if (restored) {
+      expect(receipts.every((receipt) => receipt.created === false)).toBe(true);
+      expect(receipts.map(({ record, publication }) => ({ record, publication }))).toEqual(
+        reviewerAdministratorRecoveryReceipts.map(({ record, publication }) => ({
+          record,
+          publication,
+        })),
+      );
+    } else {
+      expect(receipts.every((receipt) => receipt.created === true)).toBe(true);
+      reviewerAdministratorRecoveryReceipts = receipts;
     }
   } finally {
     await pool.end();
@@ -2494,6 +2601,12 @@ async function seedRecoverableWorkflow1Graph(): Promise<void> {
     sourcePool,
     databaseUrl,
     roles.releaseAuthority,
+    false,
+  );
+  await exerciseAuthenticatedReviewerRecovery(
+    sourcePool,
+    databaseUrl,
+    roles.reviewerAuthority,
     false,
   );
 }
@@ -4349,6 +4462,12 @@ describe("coordinated recovery rehearsal", () => {
       restoredPool,
       restoredDatabaseUrl,
       restoredWorkflowRoles.releaseAuthority,
+      true,
+    );
+    await exerciseAuthenticatedReviewerRecovery(
+      restoredPool,
+      restoredDatabaseUrl,
+      restoredWorkflowRoles.reviewerAuthority,
       true,
     );
     const restoredWorkflowRuntime = await createWorkflowRuntime(

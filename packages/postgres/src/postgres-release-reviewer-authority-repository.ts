@@ -26,6 +26,8 @@ import {
   withExactScopeTransaction,
 } from "./tenant-transaction.js";
 
+import { readReviewerAdministratorRowsOnClient } from "./reviewer-administrator-read.js";
+
 type Client = Pick<PoolClient, "query">;
 interface Data extends Record<string, unknown> {
   readonly record?: unknown;
@@ -246,19 +248,30 @@ function checkView(raw: Data, scope: EvidenceScope, id: string): ReleaseReviewer
 }
 
 /** Owning immutable projection/intent read on the supplied client, not current issuer authority. */
-export async function readPostgresReleaseReviewerAuthorityOnClient(
+async function readAuthority(
   client: Client,
   scopeInput: EvidenceScope,
   versionInput: string,
   budget?: ReleaseDecisionVerificationBudget,
+  administrator = false,
 ) {
   if (budget !== undefined && !(budget instanceof ReleaseDecisionVerificationBudget)) fail();
   budget?.snapshot();
   try {
     const scope = EvidenceScopeSchema.parse(scopeInput),
       id = OpaqueIdSchema.parse(versionInput);
-    const result = await client.query(viewSql, parameters(scope, id));
-    for (const raw of result.rows) admitView(raw, budget);
+    const result =
+      administrator && budget
+        ? {
+            rows: await readReviewerAdministratorRowsOnClient<Data>(
+              client,
+              { scope, budget },
+              "authority_view",
+              id,
+            ),
+          }
+        : await client.query(viewSql, parameters(scope, id));
+    if (!administrator) for (const raw of result.rows) admitView(raw, budget);
     if (result.rows.length > 1) fail();
     const raw = result.rows[0];
     if (!raw) {
@@ -270,6 +283,25 @@ export async function readPostgresReleaseReviewerAuthorityOnClient(
     if (budget) return budget.rejectSourceRead(cause);
     throw cause;
   }
+}
+
+export function readPostgresReleaseReviewerAuthorityOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  versionId: string,
+  budget?: ReleaseDecisionVerificationBudget,
+) {
+  return readAuthority(client, scope, versionId, budget);
+}
+/** Fixed narrow-role reader; reuse the owning normalized and canonical-intent validator. */
+export function readPostgresReleaseReviewerAuthorityForAdministratorOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  versionId: string,
+  budget: ReleaseDecisionVerificationBudget,
+) {
+  if (!(budget instanceof ReleaseDecisionVerificationBudget)) fail();
+  return readAuthority(client, scope, versionId, budget, true);
 }
 
 const eventSql = `SELECT to_jsonb(e)||jsonb_build_object('occurred_at_key',e.occurred_at_key::text) AS event,
@@ -333,8 +365,19 @@ async function eventView(
   scope: EvidenceScope,
   id: string,
   budget?: ReleaseDecisionVerificationBudget,
+  administrator = false,
 ) {
-  const result = await client.query(eventSql, parameters(scope, id));
+  const result =
+    administrator && budget
+      ? {
+          rows: await readReviewerAdministratorRowsOnClient<Data>(
+            client,
+            { scope, budget },
+            "authority_event_view",
+            id,
+          ),
+        }
+      : await client.query(eventSql, parameters(scope, id));
   for (const raw of result.rows)
     budget?.observe(
       raw,
@@ -348,22 +391,26 @@ async function eventView(
   }
   return result.rows[0];
 }
-export async function readPostgresReleaseReviewerLifecycleOnClient(
+async function readLifecycle(
   client: Client,
   scopeInput: EvidenceScope,
   eventInput: string,
+  budget?: ReleaseDecisionVerificationBudget,
+  administrator = false,
 ) {
   const scope = EvidenceScopeSchema.parse(scopeInput),
     id = OpaqueIdSchema.parse(eventInput);
-  const raw = await eventView(client, scope, id);
+  const raw = await eventView(client, scope, id, budget, administrator);
   if (!raw) return null;
   const event = ReleaseReviewerAuthorityLifecycleEventSchema.parse(object(raw.event).record);
   const records = new Map<string, ReleaseReviewerAuthority>();
   for (const ref of [event.authority, ...(event.kind === "superseded" ? [event.successor] : [])]) {
-    const record = await readPostgresReleaseReviewerAuthorityOnClient(
+    const record = await readAuthority(
       client,
       scope,
       ref.authorityVersionId,
+      budget,
+      administrator,
     );
     if (!record) fail();
     records.set(record.authorityVersionId, record);
@@ -371,29 +418,63 @@ export async function readPostgresReleaseReviewerLifecycleOnClient(
   return checkedEvent(raw, scope, id, records);
 }
 
+export function readPostgresReleaseReviewerLifecycleOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  eventId: string,
+) {
+  return readLifecycle(client, scope, eventId);
+}
+export async function readPostgresReleaseReviewerLifecycleForAdministratorOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  eventId: string,
+  budget: ReleaseDecisionVerificationBudget,
+) {
+  if (!(budget instanceof ReleaseDecisionVerificationBudget)) fail();
+  budget.snapshot();
+  try {
+    return await readLifecycle(client, scope, eventId, budget, true);
+  } catch (cause) {
+    return budget.rejectSourceRead(cause);
+  }
+}
+
 /** Complete target-owned guarded inventory. Its guard remains CALLER-held; never publish later
  * from a detached returned report. The fixed future publisher still validates complete authority.
  */
-export async function readPostgresReleaseReviewerTargetOnClient(
+async function readTarget(
   client: Client,
   scopeInput: EvidenceScope,
   targetInput: ReleaseReviewerAuthorityTarget,
   budget: ReleaseDecisionVerificationBudget,
+  administrator = false,
 ) {
   if (!(budget instanceof ReleaseDecisionVerificationBudget)) fail();
   try {
     const scope = EvidenceScopeSchema.parse(scopeInput),
       target = ReleaseDecisionReviewerRootReferenceSchema.parse(targetInput);
     budget.snapshot();
-    const roots = await client.query<{ value: unknown }>(
-      "SELECT public.proofstack_read_release_reviewer_root($1::jsonb,$2,$3,$4) AS value",
-      [
-        JSON.stringify(scope),
-        target.installationId,
-        target.gateTargetId,
-        target.reviewerPrincipalId,
-      ],
-    );
+    const roots = administrator
+      ? {
+          rows: await readReviewerAdministratorRowsOnClient<{ value: unknown }>(
+            client,
+            { scope, budget },
+            "authority_root",
+            target.installationId,
+            target.gateTargetId,
+            target.reviewerPrincipalId,
+          ),
+        }
+      : await client.query<{ value: unknown }>(
+          "SELECT public.proofstack_read_release_reviewer_root($1::jsonb,$2,$3,$4) AS value",
+          [
+            JSON.stringify(scope),
+            target.installationId,
+            target.gateTargetId,
+            target.reviewerPrincipalId,
+          ],
+        );
     for (const row of roots.rows) budget.observe(row.value);
     if (roots.rows.length !== 1) fail();
     const observation = object(roots.rows[0]?.value);
@@ -401,7 +482,7 @@ export async function readPostgresReleaseReviewerTargetOnClient(
     if (observation.root === null) return { root: null, records: [], lifecycle: [] };
     const rootProjection = object(observation.root),
       rootId = OpaqueIdSchema.parse(rootProjection.root_version_id);
-    const root = await readPostgresReleaseReviewerAuthorityOnClient(client, scope, rootId, budget);
+    const root = await readAuthority(client, scope, rootId, budget, administrator);
     if (
       !root ||
       !same(rootProjection, rootFields(root)) ||
@@ -415,11 +496,21 @@ export async function readPostgresReleaseReviewerTargetOnClient(
       seen = new Set<string>();
     let after = "";
     for (;;) {
-      const page = await client.query<{ version_id: unknown }>(
-        `SELECT version_id FROM public.proofstack_release_reviewer_authorities
+      const page = administrator
+        ? {
+            rows: await readReviewerAdministratorRowsOnClient<{ version_id: unknown }>(
+              client,
+              { scope, budget },
+              "authority_versions",
+              root.authorityId,
+              after,
+            ),
+          }
+        : await client.query<{ version_id: unknown }>(
+            `SELECT version_id FROM public.proofstack_release_reviewer_authorities
         WHERE tenant_id=$1 AND authority_id=$2 AND version_id COLLATE "C">$3 COLLATE "C" ORDER BY version_id COLLATE "C" LIMIT 16`,
-        [scope.tenantId, root.authorityId, after],
-      );
+            [scope.tenantId, root.authorityId, after],
+          );
       if (page.rows.length > PAGE_SIZE) fail();
       if (page.rows.length === 0)
         budget.observe({ scope, authorityId: root.authorityId, after, versions: [] });
@@ -430,9 +521,7 @@ export async function readPostgresReleaseReviewerTargetOnClient(
         seen.add(id);
         after = id;
         const row =
-          id === rootId
-            ? root
-            : await readPostgresReleaseReviewerAuthorityOnClient(client, scope, id, budget);
+          id === rootId ? root : await readAuthority(client, scope, id, budget, administrator);
         if (!row || row.authorityId !== root.authorityId) fail();
         records.push(row);
       }
@@ -444,12 +533,22 @@ export async function readPostgresReleaseReviewerTargetOnClient(
     after = "";
     const terminals = new Set<string>();
     for (;;) {
-      const page = await client.query<{ event_id: unknown }>(
-        `SELECT e.event_id FROM public.proofstack_release_reviewer_lifecycle e
+      const page = administrator
+        ? {
+            rows: await readReviewerAdministratorRowsOnClient<{ event_id: unknown }>(
+              client,
+              { scope, budget },
+              "authority_events",
+              root.authorityId,
+              after,
+            ),
+          }
+        : await client.query<{ event_id: unknown }>(
+            `SELECT e.event_id FROM public.proofstack_release_reviewer_lifecycle e
         JOIN public.proofstack_release_reviewer_authorities v ON v.tenant_id=e.tenant_id AND v.version_id=e.version_id
         WHERE e.tenant_id=$1 AND v.authority_id=$2 AND e.event_id COLLATE "C">$3 COLLATE "C" ORDER BY e.event_id COLLATE "C" LIMIT 16`,
-        [scope.tenantId, root.authorityId, after],
-      );
+            [scope.tenantId, root.authorityId, after],
+          );
       if (page.rows.length > PAGE_SIZE) fail();
       if (page.rows.length === 0)
         budget.observe({ scope, authorityId: root.authorityId, after, events: [] });
@@ -458,7 +557,7 @@ export async function readPostgresReleaseReviewerTargetOnClient(
         const id = OpaqueIdSchema.parse(raw.event_id);
         if (id <= after) fail();
         after = id;
-        const view = await eventView(client, scope, id, budget);
+        const view = await eventView(client, scope, id, budget, administrator);
         if (!view) fail();
         const event = checkedEvent(view, scope, id, byId);
         if (terminals.has(event.authority.authorityVersionId)) fail();
@@ -477,6 +576,24 @@ export async function readPostgresReleaseReviewerTargetOnClient(
     if (cause instanceof ReleaseDecisionVerificationBudgetError) throw cause;
     return budget.rejectSourceRead(cause);
   }
+}
+
+export function readPostgresReleaseReviewerTargetOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  target: ReleaseReviewerAuthorityTarget,
+  budget: ReleaseDecisionVerificationBudget,
+) {
+  return readTarget(client, scope, target, budget);
+}
+/** Complete owning target census through fixed narrow-role pages on this held client. */
+export function readPostgresReleaseReviewerTargetForAdministratorOnClient(
+  client: Client,
+  scope: EvidenceScope,
+  target: ReleaseReviewerAuthorityTarget,
+  budget: ReleaseDecisionVerificationBudget,
+) {
+  return readTarget(client, scope, target, budget, true);
 }
 
 function persistenceError(cause: unknown): never {

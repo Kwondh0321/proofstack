@@ -16,6 +16,11 @@ export {
   type PostgresReleaseSelectionInstallerResult,
 } from "./postgres-release-selection-installer.js";
 export {
+  PostgresReleaseReviewerAdministrator,
+  PostgresReleaseReviewerAdministratorError,
+  type PostgresReleaseReviewerAdministratorResult,
+} from "./postgres-release-reviewer-administrator.js";
+export {
   type BootstrapApiKeyOptions,
   bootstrapApiKey,
   type CreatedOidcBinding,

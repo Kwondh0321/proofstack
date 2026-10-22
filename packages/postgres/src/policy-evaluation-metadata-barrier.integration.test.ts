@@ -238,6 +238,7 @@ describe("complete policy metadata publication barrier", () => {
       ...selectionTables,
       // Its mandatory original-publication guards belong to C4, outside the unchanged C3 cut.
       "proofstack_release_selection_publications",
+      "proofstack_release_reviewer_publications",
       ...reviewerTables,
       "proofstack_release_approvals",
       "proofstack_release_approval_sources",
