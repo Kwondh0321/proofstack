@@ -46,3 +46,8 @@ ff86e15e601cee0da8063542e6dc6eddd683a35c:packages/contracts/vectors/release-revi
 086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:1385
 086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:1981
 086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:2050
+
+# Original approval publication vectors: independently recomputed safe public session metadata.
+# Exact original commit findings only; docs/security/approval-publication-digest-scan.md
+d09b92acd4e90bbaf48f3b08e716307b5a2c6c33:packages/contracts/vectors/release-approval-publication-v1.json:generic-api-key:42
+d09b92acd4e90bbaf48f3b08e716307b5a2c6c33:packages/contracts/vectors/release-approval-publication-v1.json:generic-api-key:87
