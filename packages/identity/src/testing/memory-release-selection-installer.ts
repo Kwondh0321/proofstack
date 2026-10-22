@@ -15,6 +15,8 @@ import {
   ReleaseReviewerAuthoritySchema,
   ReleaseReviewerAuthorityLifecycleEventSchema,
   ReleaseApprovalReviewerReceiptSchema,
+  ReleaseApprovalRevocationIntentSchema,
+  ReleaseApprovalRevocationSchema,
   ReleaseDecisionIdentityGrantSchema,
   ReleaseDecisionSessionStateSchema,
   ReleasePolicySelectionDefinitionSchema,
@@ -22,6 +24,7 @@ import {
   ReleasePolicySelectionLifecycleEventSchema,
   type EvidenceScope,
   type ReleaseApprovalReviewerReceipt,
+  type ReleaseApprovalPublicationMaterial,
   type ReleaseDecisionIdentityGrant,
   type ReleaseDecisionSessionState,
   type ReleasePolicy,
@@ -35,17 +38,20 @@ import {
   inspectCapturedReleaseIdentityState,
   prepareReleaseSelectionPublicationMaterial,
   prepareReleaseReviewerPublicationMaterial,
+  prepareReleaseApprovalPublicationMaterial,
   releasePolicyReference,
   ReleaseDecisionVerificationBudget,
   validateReleasePolicyRecord,
   validateReleaseSelectionPublicationMaterial,
   validateReleaseReviewerPublicationMaterial,
+  validateReleaseApprovalPublicationMaterial,
   type Clock,
 } from "@proofstack/core";
 import {
   MemoryReleasePolicyRepository,
   MemoryReleasePolicySelectionRepository,
   MemoryReleaseReviewerAuthorityRepository,
+  MemoryReleaseApprovalRepository,
 } from "@proofstack/core/testing";
 import { generateBrowserSessionCredentials } from "../oidc-secrets.js";
 import { OidcSessionAuthenticator, type AuthenticatableBrowserSession } from "../oidc-session.js";
@@ -62,6 +68,10 @@ import type {
   ReleaseReviewerAdministrator,
   ReleaseReviewerAdministratorResult,
 } from "../release-reviewer-administrator.js";
+import type {
+  ReleaseApprovalRevoker,
+  ReleaseApprovalRevokerResult,
+} from "../release-approval-revoker.js";
 
 type Material = ReleaseSelectionPublicationMaterial;
 type Kind = Material["source"]["kind"];
@@ -74,30 +84,36 @@ interface State {
   readonly policies: MemoryReleasePolicyRepository;
   readonly selections: MemoryReleasePolicySelectionRepository;
   readonly reviewers: MemoryReleaseReviewerAuthorityRepository;
+  readonly approvals: MemoryReleaseApprovalRepository;
   readonly grants: Map<string, ReleaseDecisionIdentityGrant>;
   readonly sessions: Map<string, StoredSession>;
   readonly publications: Map<string, Material>;
   readonly reviewerPublications: Map<string, ReleaseReviewerPublicationMaterial>;
+  readonly approvalPublications: Map<string, ReleaseApprovalPublicationMaterial>;
   readonly intents: Map<string, unknown>;
 }
 const empty = (): State => ({
   policies: new MemoryReleasePolicyRepository(),
   selections: new MemoryReleasePolicySelectionRepository(),
   reviewers: new MemoryReleaseReviewerAuthorityRepository(),
+  approvals: new MemoryReleaseApprovalRepository(),
   grants: new Map(),
   sessions: new Map(),
   publications: new Map(),
   reviewerPublications: new Map(),
+  approvalPublications: new Map(),
   intents: new Map(),
 });
 const fork = (state: State): State => ({
   policies: state.policies.fork(),
   selections: state.selections.fork(),
   reviewers: state.reviewers.fork(),
+  approvals: state.approvals.fork(),
   grants: structuredClone(state.grants),
   sessions: structuredClone(state.sessions),
   publications: structuredClone(state.publications),
   reviewerPublications: structuredClone(state.reviewerPublications),
+  approvalPublications: structuredClone(state.approvalPublications),
   intents: structuredClone(state.intents),
 });
 const key = (kind: string, id: string) => `${kind}:${id}`;
@@ -170,6 +186,27 @@ const reviewerProfileIntent = (material: ReviewerMaterial) => ({
   payload: { recordKind: "release_reviewer_publication", record: material.publication },
   createdAt: material.publication.issuedAt,
 });
+type ApprovalMaterial = ReleaseApprovalPublicationMaterial;
+type ApprovalKind = ApprovalMaterial["source"]["kind"];
+const approvalSourceId = (source: ApprovalMaterial["source"]) =>
+  source.kind === "release_approval" ? source.record.approvalId : source.record.eventId;
+const approvalSourceIntent = (source: ApprovalMaterial["source"]) => ({
+  eventType:
+    source.kind === "release_approval" ? "release.approval.recorded" : "release.approval.revoked",
+  schemaVersion: "0.1",
+  payload: { recordKind: source.kind, record: source.record },
+  createdAt:
+    source.kind === "release_approval" ? source.record.recordedAt : source.record.occurredAt,
+});
+const approvalProfileKey = (material: ApprovalMaterial) =>
+  key("release_approval_publication", `rap_${material.publication.definitionSha256.slice(0, 60)}`);
+const approvalProfileIntent = (material: ApprovalMaterial) => ({
+  eventType: "release.approval.authentication_recorded",
+  schemaVersion: "0.1",
+  payload: { recordKind: "release_approval_publication", record: material.publication },
+  createdAt: material.publication.issuedAt,
+});
+const approvalLimits = { ...limits, maxApprovalRecords: 4096 } as const;
 
 /** Explicit synthetic workspace reference, not a production OIDC store or durable transaction.
  * Actual cookie/CSRF verification uses the owning authenticators over this same private state.
@@ -178,7 +215,7 @@ const reviewerProfileIntent = (material: ReviewerMaterial) => ({
  * Synthetic seed/session methods are fixture-owner operations, never public HTTP capabilities.
  */
 export class MemoryReleaseSelectionInstallerReference
-  implements ReleaseSelectionInstaller, ReleaseReviewerAdministrator
+  implements ReleaseSelectionInstaller, ReleaseReviewerAdministrator, ReleaseApprovalRevoker
 {
   readonly mode = "synthetic_reference" as const;
   private readonly tenants = new Map<string, State>();
@@ -350,7 +387,10 @@ export class MemoryReleaseSelectionInstallerReference
     actor: ReleaseApprovalReviewerReceipt,
     at: string,
     budget: ReleaseDecisionVerificationBudget,
-    operation: "manage_selection" | "manage_reviewer_authority" = "manage_selection",
+    operation:
+      | "manage_selection"
+      | "manage_reviewer_authority"
+      | "create_approval" = "manage_selection",
   ) {
     const stored = state.sessions.get(actor.credentialId);
     if (!stored) fail();
@@ -919,6 +959,249 @@ export class MemoryReleaseSelectionInstallerReference
     const scope = EvidenceScopeSchema.parse(scopeInput),
       sourceId = OpaqueIdSchema.parse(id),
       material = this.tenants.get(scope.tenantId)?.reviewerPublications.get(key(kind, sourceId));
+    return material && isDeepStrictEqual(material.publication.scope, scope)
+      ? structuredClone(material)
+      : null;
+  }
+
+  /** Fixture-owner import of historical synthetic preimages. It does not authenticate a caller
+   * or establish current reviewer expertise, content acquisition or release authority.
+   */
+  async seedSyntheticApprovalPublication(raw: ApprovalMaterial): Promise<void> {
+    const budget = new ReleaseDecisionVerificationBudget(approvalLimits);
+    const material = validateReleaseApprovalPublicationMaterial(raw, budget);
+    if (material.source.kind !== "release_approval") fail();
+    const scope = material.publication.scope,
+      original = this.tenants.get(scope.tenantId),
+      next = fork(original ?? empty()),
+      id = approvalSourceId(material.source);
+    if (next.approvalPublications.has(key(material.source.kind, id))) fail();
+    const result = await next.approvals.publishReleaseApproval(material.source.record);
+    if (!result.created) fail();
+    this.storeApprovalMaterial(next, material, budget);
+    await this.requireApprovalMaterial(next, scope, material.source.kind, id, budget);
+    budget.snapshot();
+    this.commit(scope.tenantId, original, next);
+  }
+  private storeApprovalMaterial(
+    state: State,
+    material: ApprovalMaterial,
+    budget: ReleaseDecisionVerificationBudget,
+  ): void {
+    const sourceKey = key(material.source.kind, approvalSourceId(material.source));
+    budget.observe(state.approvalPublications.get(sourceKey) ?? { sourceKey, state: "missing" });
+    // Fixed callers checked the source slot on this private fork; canonical intent collisions
+    // below still reject the whole publication before the profile map changes.
+    for (const [intentKey, intent] of [
+      [sourceKey, approvalSourceIntent(material.source)],
+      [approvalProfileKey(material), approvalProfileIntent(material)],
+    ] as const) {
+      budget.observe(state.intents.get(intentKey) ?? { intentKey, state: "missing" });
+      if (state.intents.has(intentKey)) fail();
+      state.intents.set(intentKey, intent);
+    }
+    state.approvalPublications.set(sourceKey, material);
+  }
+  private async readApprovalMaterial<K extends ApprovalKind>(
+    state: State,
+    scope: EvidenceScope,
+    kind: K,
+    id: string,
+    budget: ReleaseDecisionVerificationBudget,
+  ): Promise<
+    (ApprovalMaterial & { source: Extract<ApprovalMaterial["source"], { kind: K }> }) | null
+  > {
+    const raw = state.approvalPublications.get(key(kind, id));
+    budget.observe(raw ?? { scope, kind, id, state: "missing" });
+    if (!raw) return null;
+    const material = validateReleaseApprovalPublicationMaterial(raw, budget);
+    const source =
+      kind === "release_approval"
+        ? await state.approvals.findReleaseApproval(scope, id)
+        : await state.approvals.findReleaseApprovalRevocation(scope, id);
+    budget.observe(source, kind === "release_approval" ? "approval" : "metadata");
+    const intents = [
+      state.intents.get(key(kind, id)),
+      state.intents.get(approvalProfileKey(material)),
+    ];
+    for (const intent of intents) budget.observe(intent ?? null);
+    if (
+      !isDeepStrictEqual(material.publication.scope, scope) ||
+      material.source.kind !== kind ||
+      approvalSourceId(material.source) !== id ||
+      !isDeepStrictEqual(source, material.source.record) ||
+      !isDeepStrictEqual(intents, [
+        approvalSourceIntent(material.source),
+        approvalProfileIntent(material),
+      ])
+    )
+      fail();
+    return material as ApprovalMaterial & {
+      source: Extract<ApprovalMaterial["source"], { kind: K }>;
+    };
+  }
+  private async requireApprovalMaterial<K extends ApprovalKind>(
+    state: State,
+    scope: EvidenceScope,
+    kind: K,
+    id: string,
+    budget: ReleaseDecisionVerificationBudget,
+  ): Promise<ApprovalMaterial & { source: Extract<ApprovalMaterial["source"], { kind: K }> }> {
+    const value = await this.readApprovalMaterial(state, scope, kind, id, budget);
+    if (!value) fail();
+    return value;
+  }
+  async revokeApproval(
+    credentials: ReleaseBrowserMutationCredentials,
+    raw: unknown,
+  ): Promise<ReleaseApprovalRevokerResult> {
+    const proof = await this.authentication.authenticateApprovalReviewer(credentials);
+    const authenticated = readReleaseMutationAuthentication(proof, {
+      operation: "record_approval",
+      scope: credentials.scope,
+      requestId: credentials.requestId,
+    });
+    const scope = authenticated.scope,
+      actor = ReleaseApprovalReviewerReceiptSchema.parse(authenticated.receipt),
+      intent = ReleaseApprovalRevocationIntentSchema.parse(raw),
+      original = this.tenants.get(scope.tenantId) as State;
+    const next = fork(original),
+      budget = new ReleaseDecisionVerificationBudget(approvalLimits);
+    try {
+      this.identity(next, scope, actor, this.now(), budget, "create_approval");
+      const retained = await this.requireApprovalMaterial(
+        next,
+        scope,
+        "release_approval",
+        intent.approval.approvalId,
+        budget,
+      );
+      if (
+        !isDeepStrictEqual(retained.publication.subject.approval, intent.approval) ||
+        retained.source.record.reviewer.principalId !== actor.principalId
+      )
+        fail();
+      // The owning complete subject census validates successor, revocation and reverse indexes.
+      // A missing provenance or intent is never repaired from a trusted legacy source row.
+      const census = await next.approvals.readReleaseApprovalSubject(
+        scope,
+        retained.source.record.kind,
+        retained.source.record.subject,
+        budget,
+      );
+      for (const row of census.records)
+        await this.requireApprovalMaterial(next, scope, "release_approval", row.approvalId, budget);
+      for (const row of census.revocations)
+        await this.requireApprovalMaterial(
+          next,
+          scope,
+          "release_approval_revocation",
+          row.eventId,
+          budget,
+        );
+      const existing = await this.readApprovalMaterial(
+        next,
+        scope,
+        "release_approval_revocation",
+        intent.eventId,
+        budget,
+      );
+      if (existing) {
+        const {
+          schemaVersion: _v,
+          scope: _s,
+          reviewer,
+          occurredAt: _at,
+          ...originalIntent
+        } = existing.source.record;
+        if (
+          reviewer.principalId !== actor.principalId ||
+          !isDeepStrictEqual(originalIntent, intent)
+        )
+          fail();
+        const finishedAt = this.now();
+        if (order(finishedAt) < order(existing.source.record.occurredAt)) fail();
+        this.identity(next, scope, actor, finishedAt, budget, "create_approval");
+        const usage = budget.snapshot();
+        this.commit(scope.tenantId, original, next);
+        return {
+          created: false,
+          record: existing.source.record,
+          publication: existing.publication,
+          usage,
+        };
+      }
+      budget.observe(await next.approvals.findReleaseApprovalRevocation(scope, intent.eventId));
+      const issuedAt = this.now(),
+        identity = this.identity(next, scope, actor, issuedAt, budget, "create_approval");
+      const result = await next.approvals.publishReleaseApprovalRevocation(
+        ReleaseApprovalRevocationSchema.parse({
+          ...intent,
+          schemaVersion: "0.1",
+          scope,
+          reviewer: actor,
+          occurredAt: issuedAt,
+        }),
+      );
+      if (!result.created) fail();
+      const material = prepareReleaseApprovalPublicationMaterial({
+        scope,
+        source: { kind: "release_approval_revocation", record: result.event },
+        actor,
+        identity: identity.grant.identity as ApprovalMaterial["publication"]["identity"],
+        grant: identity.grant,
+        credential: identity.credential,
+        issuedAt,
+        budget,
+      });
+      this.storeApprovalMaterial(next, material, budget);
+      const committed = await this.requireApprovalMaterial(
+        next,
+        scope,
+        "release_approval_revocation",
+        intent.eventId,
+        budget,
+      );
+      const finishedAt = this.now();
+      if (order(finishedAt) < order(issuedAt)) fail();
+      this.identity(next, scope, actor, finishedAt, budget, "create_approval");
+      const usage = budget.snapshot();
+      this.commit(scope.tenantId, original, next);
+      return {
+        created: true,
+        record: committed.source.record,
+        publication: committed.publication,
+        usage,
+      };
+    } catch (cause) {
+      return budget.rejectSourceRead(cause);
+    }
+  }
+  async readSyntheticApproval(scopeInput: EvidenceScope, id: string) {
+    const scope = EvidenceScopeSchema.parse(scopeInput),
+      sourceId = OpaqueIdSchema.parse(id);
+    return (
+      (await this.tenants.get(scope.tenantId)?.approvals.findReleaseApproval(scope, sourceId)) ??
+      null
+    );
+  }
+  async readSyntheticApprovalRevocation(scopeInput: EvidenceScope, id: string) {
+    const scope = EvidenceScopeSchema.parse(scopeInput),
+      sourceId = OpaqueIdSchema.parse(id);
+    return (
+      (await this.tenants
+        .get(scope.tenantId)
+        ?.approvals.findReleaseApprovalRevocation(scope, sourceId)) ?? null
+    );
+  }
+  readSyntheticApprovalPublication(
+    scopeInput: EvidenceScope,
+    kind: ApprovalKind,
+    id: string,
+  ): ApprovalMaterial | null {
+    const scope = EvidenceScopeSchema.parse(scopeInput),
+      sourceId = OpaqueIdSchema.parse(id),
+      material = this.tenants.get(scope.tenantId)?.approvalPublications.get(key(kind, sourceId));
     return material && isDeepStrictEqual(material.publication.scope, scope)
       ? structuredClone(material)
       : null;

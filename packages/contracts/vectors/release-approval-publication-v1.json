@@ -1,0 +1,95 @@
+{
+  "format": "proofstack.release-approval-publication.v1",
+  "provenance": "Independent Python json sorted-key UTF-8 encoding and hashlib SHA-256; synthetic public metadata only.",
+  "vectors": [
+    {
+      "name": "original-normal-approval",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_approval",
+            "approval": {
+              "approvalId": "approval_checkout_normal",
+              "definitionSha256": "91ae92598f4241bd03d0c6b1e878d3814c47767f22f41a85a6bfef1894379386"
+            },
+            "recordSha256": "68f98ff6722d683970dcbf6e17c411fc2f40cc21578935e6376eaf1500271021"
+          },
+          "operation": "record_approval",
+          "actor": {
+            "principalId": "user_release_reviewer",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T10:00:00.000Z",
+            "credentialId": "session_release_reviewer",
+            "requestId": "request_release_approval"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_release_reviewer",
+            "bindingId": "binding_release_reviewer"
+          },
+          "grantSha256": "a3ff5ef7965b8101c1c0dfaeb225861e4152745191e3edfd892dbfd2b33d012f",
+          "credentialSha256": "7dfcd59790498570cfc5c40e7f583882c8e740088eece14fd55dbbb58a01c6fb",
+          "issuedAt": "2026-10-15T10:00:05.000001Z"
+        }
+      },
+      "encodedByteLength": 1203,
+      "sha256": "bbb7ddcea51d8370cf6e1186d09c7496c90bdc80161c6abdde1833a7be05c4ae"
+    },
+    {
+      "name": "original-revocation-native-cut",
+      "input": {
+        "scope": {
+          "environmentId": "env_staging",
+          "projectId": "project_checkout",
+          "tenantId": "tenant_example"
+        },
+        "definition": {
+          "scope": {
+            "environmentId": "env_staging",
+            "projectId": "project_checkout",
+            "tenantId": "tenant_example"
+          },
+          "subject": {
+            "kind": "release_approval_revocation",
+            "approval": {
+              "approvalId": "approval_checkout_normal",
+              "definitionSha256": "91ae92598f4241bd03d0c6b1e878d3814c47767f22f41a85a6bfef1894379386"
+            },
+            "recordSha256": "d260eb9be7dbdb1c5eb1a62dd658342553ae3945b069821220fb3760729dee7a",
+            "eventId": "event_approval_revoked"
+          },
+          "operation": "record_approval",
+          "actor": {
+            "principalId": "user_release_reviewer",
+            "principalType": "user",
+            "authenticationMethod": "oidc",
+            "authenticatedAt": "2026-10-15T10:00:00.000Z",
+            "credentialId": "session_release_reviewer",
+            "requestId": "request_release_approval"
+          },
+          "identity": {
+            "kind": "oidc_binding",
+            "principalId": "user_release_reviewer",
+            "bindingId": "binding_release_reviewer"
+          },
+          "grantSha256": "a3ff5ef7965b8101c1c0dfaeb225861e4152745191e3edfd892dbfd2b33d012f",
+          "credentialSha256": "7dfcd59790498570cfc5c40e7f583882c8e740088eece14fd55dbbb58a01c6fb",
+          "issuedAt": "2026-10-15T10:01:00.000002Z"
+        }
+      },
+      "encodedByteLength": 1249,
+      "sha256": "86b44ff4e45501ab8e374448e43e0c871b5aebb1be749c7ab992b8e1f047d228"
+    }
+  ]
+}

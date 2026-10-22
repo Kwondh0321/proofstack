@@ -122,6 +122,20 @@ export class MemoryPolicyEvaluationJobRepository
   private readonly resultOwners = new Map<string, string>();
   private recoveryEpoch = 0;
   constructor(private readonly clock: { now(): string }) {}
+  /** Preserve every original graph/index/epoch while isolating tentative writes. The owning
+   * reference retains its server clock and must compare its whole authority state at commit.
+   */
+  fork(): MemoryPolicyEvaluationJobRepository {
+    const next = new MemoryPolicyEvaluationJobRepository(this.clock);
+    for (const [key, value] of this.records) next.records.set(key, structuredClone(value));
+    for (const [key, value] of this.requests) next.requests.set(key, value);
+    for (const [key, value] of this.reservations)
+      next.reservations.set(key, structuredClone(value));
+    for (const [key, value] of this.snapshotOwners) next.snapshotOwners.set(key, value);
+    for (const [key, value] of this.resultOwners) next.resultOwners.set(key, value);
+    next.recoveryEpoch = this.recoveryEpoch;
+    return next;
+  }
   private key(scope: EvidenceScope, id: string): string {
     return serializeEvaluationCanonicalJson([
       EvidenceScopeSchema.parse(scope),

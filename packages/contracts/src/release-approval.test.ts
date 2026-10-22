@@ -8,6 +8,7 @@ import {
   ReleaseApprovalIntentSchema,
   ReleaseApprovalReferenceSchema,
   ReleaseApprovalRevocationSchema,
+  ReleaseApprovalRevocationIntentSchema,
   ReleaseApprovalSchema,
   ReleaseApprovalSubjectSchema,
 } from "./release-approval.js";
@@ -47,6 +48,69 @@ function atBytes(bytes: number) {
 }
 
 describe("public approval intent and original authenticated record", () => {
+  it("accepts an exact revocation intent with no caller-owned authentication or receipt", () => {
+    const value = {
+      eventId: "event_revoke_public",
+      approval: { approvalId: "approval_original", definitionSha256: "a".repeat(64) },
+      reason: "Revoke this exact original action.",
+    };
+    expect(ReleaseApprovalRevocationIntentSchema.parse(value)).toEqual(value);
+    expect(
+      ReleaseApprovalRevocationIntentSchema.safeParse({
+        ...value,
+        approval: { ...value.approval, latest: true },
+      }).success,
+    ).toBe(false);
+    expect(
+      ReleaseApprovalRevocationIntentSchema.safeParse({
+        ...value,
+        approval: { ...value.approval, definitionSha256: "a".repeat(63) },
+      }).success,
+    ).toBe(false);
+  });
+  it.each(["reviewer", "scope", "occurredAt", "schemaVersion", "authority", "credentialId"])(
+    "rejects caller-owned revocation %s",
+    (field) => {
+      expect(
+        ReleaseApprovalRevocationIntentSchema.safeParse({
+          eventId: "event_revoke_public",
+          approval: { approvalId: "approval_original", definitionSha256: "a".repeat(64) },
+          reason: "Revoke this exact action.",
+          [field]: "caller",
+        }).success,
+      ).toBe(false);
+    },
+  );
+  it("preserves Unicode scalar reason bounds and original response headroom", () => {
+    const value = {
+      eventId: "event_revoke_public",
+      approval: { approvalId: "approval_original", definitionSha256: "a".repeat(64) },
+      reason: "😀".repeat(4096),
+    };
+    expect(ReleaseApprovalRevocationIntentSchema.parse(value)).toEqual(value);
+    expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(
+      MAX_RELEASE_APPROVAL_INTENT_BYTES,
+    );
+    expect(
+      ReleaseApprovalRevocationIntentSchema.safeParse({ ...value, reason: `${value.reason}x` })
+        .success,
+    ).toBe(false);
+    const original = definition();
+    const record = ReleaseApprovalRevocationSchema.parse({
+      ...value,
+      scope: original.subject.scope,
+      reviewer: original.reviewer,
+      occurredAt: original.recordedAt,
+      schemaVersion: "0.1",
+    });
+    expect(Buffer.byteLength(JSON.stringify(record))).toBeLessThan(
+      MAX_RELEASE_APPROVAL_RESPONSE_BYTES,
+    );
+    for (const reason of ["\ud800", "unsafe\ncontrol", "e\u0301", " padded "])
+      expect(ReleaseApprovalRevocationIntentSchema.safeParse({ ...value, reason }).success).toBe(
+        false,
+      );
+  });
   it.each([0xd800, 0xdfff])(
     "rejects malformed scalar reviewer requestId %i without throwing",
     (codePoint) => {

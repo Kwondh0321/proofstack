@@ -111,6 +111,12 @@ function revocationIntent(event: ReleaseApprovalRevocation) {
  */
 export class MemoryReleaseApprovalRepository implements ReleaseApprovalRepository {
   private readonly tenants = new Map<string, State>();
+  /** Independent tentative state for the owning authenticated reference's whole-state commit. */
+  fork(): MemoryReleaseApprovalRepository {
+    const next = new MemoryReleaseApprovalRepository();
+    for (const [tenant, state] of this.tenants) next.tenants.set(tenant, structuredClone(state));
+    return next;
+  }
   async findReleaseApproval(scope: EvidenceScope, approvalId: string) {
     EvidenceScopeSchema.parse(scope);
     OpaqueIdSchema.parse(approvalId);

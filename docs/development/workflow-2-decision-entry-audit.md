@@ -102,6 +102,10 @@ inventories explicitly and prove serialized headroom before accepting those cont
 
 ## Required approval and exception authority
 
+The [authenticated approval withdrawal reference](workflow-2-authenticated-approval-revocation-reference.md)
+adds current original-reviewer authentication and atomic synthetic revocation/provenance. Actual
+new approval publication, native guarded composition and checkpoint acceptance remain open.
+
 The [native authenticated reviewer administrator](workflow-2-native-reviewer-administration.md)
 adds separate held-transaction publication and recovery; checkpoint 4 remains open.
 The [authenticated reviewer reference](workflow-2-authenticated-reviewer-reference.md) preserves

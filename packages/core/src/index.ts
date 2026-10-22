@@ -102,6 +102,13 @@ export {
   prepareReleaseReviewerPublicationMaterial,
 } from "./release/release-reviewer-publication.js";
 export {
+  digestReleaseApprovalPublicationDefinition,
+  digestReleaseApprovalPublicationRecord,
+  InvalidReleaseApprovalPublicationError,
+  prepareReleaseApprovalPublicationMaterial,
+  validateReleaseApprovalPublicationMaterial,
+} from "./release/release-approval-publication.js";
+export {
   reservePolicyEvaluationAcquisition,
   settlePolicyEvaluationAcquisition,
   policyEvaluationMetadataUsage,

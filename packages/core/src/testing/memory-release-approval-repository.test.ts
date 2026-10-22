@@ -38,6 +38,47 @@ async function fixture() {
   return { f, repository, state };
 }
 describe("owning approval inventory and original receipt integrity", () => {
+  it("isolates tentative successors and revocations while preserving complete original indexes", async () => {
+    const f = releaseApprovalRepositoryFixture("fork_authority"),
+      original = new MemoryReleaseApprovalRepository();
+    await original.publishReleaseApproval(f.original);
+    const next = original.fork();
+    await next.publishReleaseApproval(f.successor);
+    await next.publishReleaseApprovalRevocation(f.revocation);
+    expect(
+      await original.readReleaseApprovalSubject(f.scope, f.original.kind, f.subject, meter()),
+    ).toEqual({ records: [f.original], revocations: [] });
+    const forked = await next.readReleaseApprovalSubject(
+      f.scope,
+      f.original.kind,
+      f.subject,
+      meter(),
+    );
+    expect(forked.records).toHaveLength(2);
+    expect(forked.revocations).toEqual([f.revocation]);
+    const another = next.fork();
+    expect(await another.findReleaseApproval(f.scope, f.successor.approvalId)).toEqual(f.successor);
+    expect(await another.findReleaseApprovalRevocation(f.scope, f.revocation.eventId)).toEqual(
+      f.revocation,
+    );
+    // Owner-only physical corruption in one abandoned branch must not poison its retained sibling.
+    const state = (another as unknown as { tenants: Map<string, Storage> }).tenants.get(
+      f.scope.tenantId,
+    );
+    if (!state) throw new Error("Missing forked state");
+    const stored = state.approvals.get(f.original.approvalId);
+    if (!stored) throw new Error("Missing original approval");
+    stored.reviewer.requestId = "request_damaged_branch";
+    state.subjects.clear();
+    state.successors.clear();
+    state.revoked.clear();
+    await expect(
+      another.readReleaseApprovalSubject(f.scope, f.original.kind, f.subject, meter()),
+    ).rejects.toBeDefined();
+    expect(
+      await next.readReleaseApprovalSubject(f.scope, f.original.kind, f.subject, meter()),
+    ).toEqual(forked);
+  });
   it.each([
     "subject_index_missing",
     "subject_index_extra",

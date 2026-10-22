@@ -48,6 +48,15 @@ export const ReleaseApprovalReferenceSchema = z
   })
   .strict();
 
+/** Server derives scope, actual reviewer and native cut after authenticating this exact action. */
+export const ReleaseApprovalRevocationIntentSchema = z
+  .object({
+    eventId: OpaqueIdSchema,
+    approval: ReleaseApprovalReferenceSchema,
+    reason: AssuranceRationaleSchema,
+  })
+  .strict();
+
 const IntentShape = {
   approvalId: OpaqueIdSchema,
   kind: z.enum(["normal_approval", "rule_exception"]),
@@ -199,3 +208,4 @@ export type ReleaseApproval = z.infer<typeof ReleaseApprovalSchema>;
 export type ReleaseApprovalReference = z.infer<typeof ReleaseApprovalReferenceSchema>;
 export type ReleaseApprovalReviewerReceipt = z.infer<typeof ReleaseApprovalReviewerReceiptSchema>;
 export type ReleaseApprovalRevocation = z.infer<typeof ReleaseApprovalRevocationSchema>;
+export type ReleaseApprovalRevocationIntent = z.infer<typeof ReleaseApprovalRevocationIntentSchema>;

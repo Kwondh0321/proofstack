@@ -44,6 +44,13 @@ export class MemoryReleaseCandidateRepository
 {
   private readonly tenants = new Map<string, TenantState>();
 
+  /** Independent exact records and logical roots; no shared mutation handle escapes its owner. */
+  fork(): MemoryReleaseCandidateRepository {
+    const next = new MemoryReleaseCandidateRepository();
+    for (const [tenant, state] of this.tenants) next.tenants.set(tenant, structuredClone(state));
+    return next;
+  }
+
   async findReleaseCandidate(
     scope: EvidenceScope,
     candidateVersionId: string,

@@ -147,3 +147,7 @@ export {
   releaseDecisionInputRepositoryFixture,
   decisionInputVersion,
 } from "./release-decision-input-repository-fixtures.js";
+export {
+  releaseApprovalPublicationFixture,
+  approvalPublicationFixtureBudget,
+} from "./release-approval-publication-fixtures.js";
