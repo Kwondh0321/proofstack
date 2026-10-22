@@ -35,3 +35,14 @@ ea06ad342c5d25726f637462bba4732b0ed5d6d3:packages/postgres/src/fixtures/selectio
 ff86e15e601cee0da8063542e6dc6eddd683a35c:packages/contracts/vectors/release-reviewer-publication-v1.json:generic-api-key:46
 ff86e15e601cee0da8063542e6dc6eddd683a35c:packages/contracts/vectors/release-reviewer-publication-v1.json:generic-api-key:95
 ff86e15e601cee0da8063542e6dc6eddd683a35c:packages/contracts/vectors/release-reviewer-publication-v1.json:generic-api-key:143
+
+# Native reviewer observations: independently recomputed safe public session-state metadata.
+# Exact original commit findings only; docs/security/reviewer-publication-digest-scan.md
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:126
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:249
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:344
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:436
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:1317
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:1385
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:1981
+086d2365ff679b5803b584d5cb707787263c052c:packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json:generic-api-key:2050

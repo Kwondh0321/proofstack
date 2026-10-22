@@ -27,3 +27,23 @@ only rule, path, line and count, without matched values or browser credentials.
 This scan evidence does not replace exact-source CI, CodeQL, native service/recovery integration
 or checkpoint acceptance. Reviewer administration remains a component of the open checkpoint 4.
 See the [reference guide](../development/workflow-2-authenticated-reviewer-reference.md).
+
+## Native observations at original commit 086d236
+
+The official retained-history scan of `086d2365ff679b5803b584d5cb707787263c052c`
+reported eight `generic-api-key` findings in
+`packages/postgres/src/fixtures/reviewer-administrator-native-wire-v1.json`: lines 126, 249,
+344, 436, 1317, 1385, 1981 and 2050. Every exact committed line is a `credentialSha256`
+field. Independent Python compact sorted-key UTF-8/hashlib computation verifies the two original
+profile hashes against the captured safe public session-state preimages; the transcript also
+retains two later session observations. No credential-shaped private field occurs in the fixture.
+
+The fixture is an actual synthetic PostgreSQL 16.15 query transcript, with four publication/retry
+cases and deduplicated observations. Values, original bytes and history remain unchanged. Only
+these eight original commit/path/rule/line fingerprints are added. The original vector dispositions
+above remain separate; no path, field name, value, rule or future commit is exempted.
+
+The same unchanged native fixture and ignore file are also scanned in a separate disposable Git
+repository with a new commit. All eight findings must remain detectable there. Retained-history
+scan success and this negative control are distinct from native integration, recovery, CodeQL,
+exact-source checks and checkpoint acceptance. No scanner threshold or rule is relaxed.
