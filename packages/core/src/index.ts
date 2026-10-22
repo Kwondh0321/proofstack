@@ -180,3 +180,9 @@ export * from "./testing/memory-evidence-repository.js";
 export { MemoryModelAssuranceRepository } from "./testing/memory-model-assurance-repository.js";
 export { MemoryReleaseCandidateRepository } from "./testing/memory-release-candidate-repository.js";
 export { MemoryReleasePolicyRepository } from "./testing/memory-release-policy-repository.js";
+export {
+  readOwnedReleaseApprovalSubject,
+  InvalidOwnedReleaseApprovalSubjectError,
+  type OwnedReleaseApprovalSubjectReaders,
+  type OwnedReleaseApprovalEvaluationSubject,
+} from "./release/owned-release-approval-subject.js";

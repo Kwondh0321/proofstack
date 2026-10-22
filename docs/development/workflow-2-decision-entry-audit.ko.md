@@ -2,6 +2,10 @@
 
 [English](workflow-2-decision-entry-audit.md) | [한국어](workflow-2-decision-entry-audit.ko.md)
 
+[원래 승인 대상 조회기](workflow-2-owned-approval-subject.ko.md)는 원래 요청에서 C3 작업을
+찾고 전체 봉인 자료를 재계산합니다. 현재 선택·검토자·근거 권한과 실제 인증·가드
+기반 승인 발행은 별도의 미완료 경계입니다.
+
 [인증된 승인 철회 참조 구현](workflow-2-authenticated-approval-revocation-reference.ko.md)은
 현재 원래 검토자 인증과 합성 원자적 철회·원본 증명을 추가합니다. 실제 새 승인 발행,
 현재 권한을 유지하는 PostgreSQL 구성과 체크포인트 종료 감사는 남아 있습니다.

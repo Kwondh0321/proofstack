@@ -102,6 +102,10 @@ inventories explicitly and prove serialized headroom before accepting those cont
 
 ## Required approval and exception authority
 
+The [owning original approval-subject reader](workflow-2-owned-approval-subject.md) derives C3
+job identity from the original request and recomputes complete sealed evidence. Current selection,
+reviewer/basis authority, actual authentication and guarded approval publication remain open.
+
 The [authenticated approval withdrawal reference](workflow-2-authenticated-approval-revocation-reference.md)
 adds current original-reviewer authentication and atomic synthetic revocation/provenance. Actual
 new approval publication, native guarded composition and checkpoint acceptance remain open.
