@@ -10,16 +10,16 @@ allowBuilds:
   esbuild: true
 
 catalog:
-  "@aws-sdk/client-s3": 3.1119.0
-  "@smithy/node-http-handler": 4.11.3
-  "@types/node": 24.13.3
+  "@aws-sdk/client-s3": 3.1155.0
+  "@smithy/node-http-handler": 4.12.1
+  "@types/node": 24.19.2
   "@types/pg": 8.23.1
   "@vitest/coverage-v8": 4.1.12
-  "pg": 8.23.0
-  "protobufjs": 8.6.6
+  "pg": 8.23.1
+  "protobufjs": 8.8.1
   "typescript": 6.0.3
   "vitest": 4.1.12
-  "zod": 4.4.3
+  "zod": 4.6.7
 
 overrides:
   # GHSA-rxp7-6hxx-x8q5: preserve the rate-limit plugin's compatible 10.x range.
