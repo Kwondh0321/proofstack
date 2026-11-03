@@ -19,7 +19,7 @@ catalog:
   "protobufjs": 8.6.6
   "typescript": 6.0.3
   "vitest": 4.1.12
-  "zod": 4.4.3
+  "zod": 4.6.6
 
 overrides:
   # GHSA-rxp7-6hxx-x8q5: preserve the rate-limit plugin's compatible 10.x range.
